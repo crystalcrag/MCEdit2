@@ -1,0 +1,132 @@
+/*
+ * utils.h : classical datatypes and helper functions for opengl
+ */
+
+
+#ifndef UTILS_H
+#define UTILS_H
+
+#include <stdint.h>
+#include "UtilityLibLite.h"
+
+#define RESDIR              "resources/"
+#define INTERFACE           "interface/"
+#define SKYDIR              "skydome/"
+#define SHADERDIR           "shaders/"
+#define EPSILON             0.001
+
+typedef uint16_t *          DATA16;
+typedef uint32_t *          DATA32;
+typedef struct NVGcontext * NVGCTX;
+
+typedef float *             vec;
+typedef float               vec4[4];
+typedef float               mat4[16];
+
+enum /* stored column first like GLSL */
+{
+	A00 = 0,
+	A10 = 1,
+	A20 = 2,
+	A30 = 3,
+	A01 = 4,
+	A11 = 5,
+	A21 = 6,
+	A31 = 7,
+	A02 = 8,
+	A12 = 9,
+	A22 = 10,
+	A32 = 11,
+	A03 = 12,
+	A13 = 13,
+	A23 = 14,
+	A33 = 15
+};
+
+enum
+{
+	VX = 0,
+	VY = 1,
+	VZ = 2,
+	VT = 3
+};
+
+int  createGLSLProgram(const char * vertexShader, const char * fragmentShader, const char * geomShader);
+int  createGLSLProgramCond(const char * vertexShader, const char * fragmentShader, const char * inject);
+int  checkOpenGLError(const char * name);
+void setShaderValue(int prog, const char * field, int args, float * array);
+
+/* Q'n'D JSON parser */
+typedef Bool (*JSONParseCb_t)(const char * file, STRPTR * keys, int line);
+Bool   jsonParse(const char * file, JSONParseCb_t cb);
+STRPTR jsonValue(STRPTR * keys, STRPTR key);
+int    jsonParseString(DATA8);
+
+/* res can point to A or B */
+void matTranspose(mat4 A);
+void matAdd(mat4 res, mat4 A, mat4 B);
+void matMult(mat4 res, mat4 A, mat4 B);
+void matMultByVec(vec4 res, mat4 A, vec4 B);
+void matMultByVec3(vec4 res, mat4 A, vec4 B);
+void matInverseTranspose(mat4 res, mat4 A);
+Bool matInverse(mat4 res, mat4 A);
+
+/* generate a transformation matrix in res */
+void matTranslate(mat4 res, float x, float y, float z);
+void matScale(mat4 res, float x, float y, float z);
+void matRotate(mat4 res, float theta, int axis_0X_1Y_2Z);
+void matIdent(mat4 res);
+
+/* perspective matrix */
+void matPerspective(mat4 res, float fov_deg, float aspect, float znear, float zfar);
+void matOrtho(mat4 res, float left, float right, float bottom, float top, float znear, float zfar);
+void matLookAt(mat4 res, float eyeX,  float eyeY,  float eyeZ, float centerX, float centerY, float centerZ, float upX, float upY, float upZ);
+
+void matPrint(mat4 A);
+
+/* vector operation (res can point to A or B) */
+float vecLength(vec4 A);
+void  vecNormalize(vec4 res, vec4 A);
+float vecDotProduct(vec4 A, vec4 B);
+void  vecCrossProduct(vec4 res, vec4 A, vec4 B);
+void  vecSub(vec4 res, vec4 A, vec4 B);
+void  vecAdd(vec4 res, vec4 A, vec4 B);
+float vecDistSquare(vec4 A, vec4 B);
+
+/* dynamic array */
+#define vectorNth    vector_nth
+void * vectorPush(vector, void * item);
+void * vectorPushTop(vector);
+
+typedef void (*PostProcess_t)(DATA8 * data, int * w, int * h, int bpp);
+
+/* texture load */
+int  textureLoad(const char * dir, const char * name, int clamp, PostProcess_t);
+int  textureCheckboard(int w, int h, int cellsz, DATA8 color1, DATA8 color2);
+int  textureLoadCubeMap(const char * basename, int single);
+int  textureGen(DATA8 data, int w, int h, int bpp);
+void textureDump(int glTex, int w, int h);
+
+/* texture save */
+int textureSaveSTB(char const * filename, int x, int y, int comp, const void *data, int stride_bytes);
+
+/* misc. */
+#ifdef __GNUC__
+#define popcount     __builtin_popcount
+#else
+int  popcount(uint32_t);
+#endif
+int  roundToUpperPrime(int n);
+int  roundToLowerPrime(int n);
+void DOS2Unix(STRPTR path);
+
+/* free the entire table (suppose v is stack allocated) */
+#define vectorFree           vector_free
+#define vectorInit           vector_init
+#define vectorInitFill       vector_init_fill
+#define vectorInitZero       vector_init_zero
+#define vectorFirst          vector_first
+#define vectorLast(v)        vector_nth(&(v), (v).count - 1)
+#define vectorReset          vector_reset
+
+#endif

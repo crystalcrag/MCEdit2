@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+  <title>Internals</title>
+  <style type="text/css">
+  html { font-family: Georgia, serif; margin: 0; padding: 0; font-size: 1.2vw }
+  body { counter-reset: h2; padding-left: 18%; padding-top: 40px; background: url("images/bg.jpg") fixed; background-size: 100% 100%; margin: 0 }
+  div#content { width: 80%; margin: 0 auto; padding: 60px 10px 60px; border: 32px solid #eee; border-width: 46px 43px 45px 32px; border-image: url(images/Book_and_Quill.png) 46 43 45 32 fill stretch round ;
+  box-shadow: 0 0 10px black inset, 0 0 10px black }
+  :nth-page(1) p { margin: 80px 0 }
+  :nth-page(n+2) body { padding-top: 10px }
+  p { text-align: justify; margin-left: 40px; margin-right: 10px }
+  dd { margin-left: 40px; text-align: justify }
+  dt { margin-left: 40px; page-break-after: avoid }
+  h1 { background: black; color: white; padding: 9px 0 9px 40px; margin: 0 60px; text-align: center;
+       box-shadow: #888 5px 5px 5px }
+  h1 span { font-variant: small-caps }
+  h2 { counter-reset: h3; border-bottom: 3px solid; page-break-before: always; margin-top: 80px; margin-left: 40px }
+  h3 { counter-reset: h4; page-break-after: avoid; margin-left: 40px }
+  h4 { page-break-after: avoid }
+  h5 { margin-left: 40px; text-align: center }
+  h5::after { content: ""; width: 50%; display: block; border-bottom: 2px solid black; margin: 2px auto }
+  h2:before { counter-increment: h2; content: counter(h2) ". "; font-size: 2em }
+  h3 span:before { counter-increment: h3; content: counter(h2) "." counter(h3) ". " }
+  h3 { border-bottom: 1px solid #555; }
+  h4:before { counter-increment: h4; content: counter(h2) "." counter(h3) "." counter(h4) ". " }
+  #abstract { font-size: 1.3em; font-style: italic; border-top: 1px solid black; border-bottom: 1px solid black; margin: 120px 40px; text-shadow: 2px 2px rgba(0,0,0,0.1) }
+  #auth { text-align: center; margin-bottom: 200px }
+  dt { border-bottom: 2px groove #ccc; font-weight: bold; padding: 2px 0; margin-left: 40px; margin-top: 10px; page-break-after: avoid }
+  pre { margin: 20px 50px; border: 5px solid rgba(0,0,0,0.3); border-width: 1px 1px 1px 5px; background: rgba(255,255,255,0.3);
+        padding: 10px 20px; font-family: monospace; tab-size: 4 }
+  tt { font-weight: bold }
+  table pre { margin: 0 }
+  #content h2:first-child { page-break-before: auto }
+  .nowrap { white-space: nowrap }
+  table { margin-left: 40px }
+  .sep { text-align: center; margin: -20px 0 -10px }
+  .sep::after { content: "~"; color: #ccc; font-size: 4em }
+  hr { width: 40% }
+
+  .error { font-weight: bold; color: red }
+  dd ol { margin-left: 60px }
+  dd ol > li { margin-bottom: 5px }
+  ul p, ol p, table p { margin-left: 0 }
+  img { vertical-align: middle }
+  blockquote { margin-left: 60px; font-style: italic; border-left: 10px solid #ccc; padding-left: 5px }
+  table.selfref, ul, ol { margin-left: 40px }
+  table.selfref td { padding-bottom: 8px }
+  table.selfref ul, table.selfref ol { margin-left: 20px }
+  ul.selfref { list-style-type: none }
+  .selfref .marker { margin-right: 5px }
+  li { margin-bottom: 15px }
+  dim { color: rgba(0,0,0,0.3) }
+  .key { background-color: #ddd; font-family: monospace; padding: 0px 3px; border-radius: 5px; border: 1px outset #860 }
+  .image.vspace { margin-top: 40px; margin-bottom: 50px }
+  .photo, .image { position: relative; margin: 20px 40px; text-align: center }
+  .image img { margin: 0 auto }
+  cap { font-size: 0.9em }
+  .image > div,
+  .image img { margin-left: 0 10px; display: block; box-shadow: #555 0 0 5px; border: 2px solid black }
+  .marker { border: 2px solid orange; border-radius: 50%; padding: 0 5px; background-color: green; color: white; font-weight: bold;
+            box-shadow: black 0 0 5px; text-decoration: none }
+  .marker.alt { border: 0; background-color: transparent; border-radius: 0; box-shadow: none; margin-right: 1em }
+  .marker.alt::before { border: 2px solid red; background-color: blue; border-radius: 0; transform: rotate(45deg);
+                        position: absolute; width: 1em; height: 1em; content: ""; box-shadow: black 0 0 5px; z-index: 1 }
+  .marker.alt::after { content: attr(num); position: relative; z-index: 2; color: white; left: 0.3em }
+  .marker.fat { padding: 1px 2px }
+  .marker.small { font-size: 0.8em }
+  .markerv { border-left: 1px solid #66f; position: absolute; top: 0; bottom: 0 }
+  .image .marker { position: absolute }
+  .image .marker.alt .lined,
+  .image .marker.alt .lineu,
+  .image .marker.alt .linel,
+  .image .marker.alt .liner { border-color: red }
+  .image .marker.alt .lineu { margin-left: 4px }
+  .image .marker .lined { border-left: 2px solid orange; position: absolute; left: 50%; top: 100%; box-shadow: black 0 0 5px }
+  .image .marker .lineu { border-left: 2px solid orange; position: absolute; left: 50%; bottom: 100%; box-shadow: black 0 0 5px }
+  .image .marker .liner { border-bottom: 2px solid orange; position: absolute; left: 100%; top: 50%; box-shadow: black 0 0 5px }
+  .image .marker .linel { border-bottom: 2px solid orange; position: absolute; right: 100%; top: 50%; box-shadow: black 0 0 5px }
+  .image .rect { border: 2px solid orange; position: absolute; box-shadow: black 0 0 5px }
+  .center { text-align: center }
+  a { color: brown }
+  prod { font-style: italic; color: blue; font-weight: bold }
+  note { background-color: yellow }
+  #toc { position: fixed; top: 0; left: 0; width: 18%; bottom: 0; overflow: auto; color: white; border-right: 2px solid rgba(255,255,255,0.2);
+         background: linear-gradient(to right, rgba(0,0,0,0.3), rgba(0,0,0,0.7)), url(images/dirt.png); background-size: 100% 100%, 64px 64px;
+         padding: 20px; box-sizing: border-box; counter-reset: tocH2 }
+  table td { vertical-align: baseline }
+  #info th { text-align: right; vertical-align: baseline }
+  #toc a:hover span { text-decoration-style: solid; text-decoration: underline; color: #99ee28 }
+  #toc a { display: block; margin: 5px 0; color: white; text-decoration: none }
+  #toc a.sub1 span { text-decoration: underline; text-decoration-style: dotted }
+  #toc a.sub1 { counter-reset: tocH3 }
+  #toc a.sub2 { margin-left: 60px; counter-reset: tocH4 }
+  #toc a.sub3 { margin-left: 60px; color: #ccc }
+  #toc a.sub4 { margin-left: 90px; color: #ccc }
+  #toc a.sub1::before { counter-increment: tocH2; content: counter(tocH2) ". " }
+  #toc a.sub2::before { counter-increment: tocH3; content: counter(tocH2) "." counter(tocH3) ". ";
+                        position: absolute; left: 35px; width: 40px; text-align: right }
+  #toc a.sub3::before { counter-increment: tocH4; content: counter(tocH2) "." counter(tocH3) "." counter(tocH4) ". " }
+
+  .toolbutton      { display: inline-block; margin: 0 10px 5px 40px }
+  .toolbutton.left { float: left }
+  .toolbutton img  { border: 0; display: block; margin-left: auto; margin-right: auto; height: 32px }
+  .toolbutton span { color: #548316; font-family: sans-serif; font-size: 0.9em }
+
+  p.warning { font-family: sans-serif; font-weight: bold; color: red; font-size: 0.9em; margin-left: 60px; margin-right: 20px }
+  div.bigwarn { margin: 40px 80px; padding: 15px; background: repeating-linear-gradient(-45deg, yellow, yellow 20px, red 20px, red 40px); 
+                box-shadow: #555 0 0 5px }
+  div.bigwarn div { width: 100%; background-color: white; padding: 5px; box-sizing: border-box; box-shadow: inset #522 0 0 5px }
+  div.bigwarn .legend { display: block; border-bottom: 2px solid black; text-align: center; padding-bottom: 5px; margin: 0 15px 5px }
+  div.bigwarn div p { margin-left: 10px; margin-right: 10px }
+
+  .listview { border-collapse: collapse; margin-left: 40px }
+  .listview td { border: 2px solid black }
+  .listview caption { padding: 10px; font-weight: bold; border: 2px solid black; border-bottom: 0 }
+  .listview caption.small { border: 0 }
+  .listview caption.small::after { content: ""; width: 50%; display: block; border-bottom: 2px solid black; margin: 2px auto }
+  .listview ul { margin-left: 0 }
+  .listview thead td { background-color: black; color: white; text-align: center }
+  .listview.BC2 tbody td:nth-child(n+2) { text-align: center }
+  .listview.pad td { padding: 3px 8px }
+
+  .danger { background-color: yellow; border: 1px solid #FF8800; border-width: 1px 0; color: red }
+  .warn   { color: #aaa }
+  code    { background-color: white; border: 1px solid #888; padding: 2px 5px }
+  sans    { font-family: sans-serif }
+  usrcls  { background-color: crimson; border-radius: 1em; padding: 0 0.5em; font-size: 0.8em; font-family: sans-serif; color: white }
+  .fig { text-align: center }
+  .fig cap { display: block; font-size: 0.8em }
+
+  .imgcaption { display: inline-block }
+  .imgcaption img { display: block; margin: 0 auto }
+  .imgcaption .caption { display: block; text-align: center; font-size: 0.9em }
+  .imgcaption.margin { margin-left: 40px }
+
+  table { border-collapse: collapse }
+  table thead td { background-color: black; color: white }
+  table td { border: 1px solid black; padding: 3px }
+  .c  { color:#2222AA }
+  .i  { color:#54AAAA }
+  .d  { color:#A600F7 }
+  .o  { color:#FF00FF }
+  .s  { color:#7700FF }
+  .t  { color:#146A31; font-weight:bold }
+  .k  { color:#A62828; font-weight:bold }
+  .e  { color:#FFFFFF; background-color:#FF3333 }
+  .n  { color:black;   background-color:#FFFF00 }
+  .h  { font-weight: bold }
+
+  .shortcut { background-color: white; font-family: monospace; padding: 0px 3px; border-radius: 5px; border: 1px outset #860 }
+  </style>
+</head>
+<body>
+
+<div id="toc">
+<a href="#culling" class="sub1"><span>Frustum culling</span></a>
+<a href="#firstvers" class="sub2"><span>First version</span></a>
+<a href="#impl" class="sub2"><span>Implementation</span></a>
+<a href="#neighbors" class="sub2"><span>Enumerating neighbors</span></a>
+<a href="#edgecase" class="sub2"><span>Edge cases</span></a>
+<a href="#crossplane" class="sub2"><span>Cross-plane segments</span></a>
+<a href="#caveats" class="sub2"><span>Caveats</span></a>
+<a href="#statictbl" class="sub2"><span>More static tables</span></a>
+<a href="#mesh" class="sub1"><span>Mesh generation</span></a>
+<a href="#LOD" class="sub1"><span>Dynamic LOD</span></a>
+<a href="#opengl" class="sub1"><span>Advanced OpenGL</a>
+</div>
+
+<div id="content">
+
+<h1>MCEdit internals</h1>
+
+<div id="abstract"><u>Abstract:</u>
+<p>Some of the algorithms and data structures used in MCEdit 2.0 are not that trivial to understand by looking at the source
+code, even heavily commented, especially since the rendering engine makes heavy use of what appears to be cryptic static tables.
+This document will provide in-depth explanation for some of them.
+
+<p><b>Pre-requisite</b>: knowledge of OpenGL, 3D math and C programming language.
+</div>
+
+<p id="auth">Written by T.Pierron, July 2020</p>
+
+<h2>Frustum culling</h2>
+
+<p>Frustum culling refer to the algorithm that can enumerate all the objects that are visible within the model-view-projection
+matrix. It is usually a compromise between precision of object's bounding box and computational power required to test those
+bounding boxes: we cannot spent too much time on the CPU checking for object's visibility (because in the meantime the
+graphics card could have probably already drawn this object) and on the other hand, including out-of-view objects, will requires 
+useless work for both the CPU and the GPU.
+
+<p>The techniques used in this engine are not particularly revolutionary, but it uses <b>a lot of</b> little tricks that
+makes the source code especially cryptic. If you want to modify/improve that part of the engine, you will need to perfectly
+understand what follows.
+
+<p>A <prod>Minecraft</prod> terrain is composed of a grid of chunks: axis-aligned boxes of 16x16x16 voxels. A grid means they
+share a lot of vertices: if we know that one corner of a chunk fits within the frustum, we can automatically add the 7 others
+chunks that share this vertex.
+
+<p>In other words by testing only one vertex, we can potentially add up to 8 chunks to the list of visible objects.
+Which means  on average, we will have to <b>test one point per chunk</b>. <em>That is extremely cheap</em>.
+
+<p>Testing if a vertex is part of a frustum is actually very easy: we can use the MVP matrix (the exact same one that will be
+used in the vertex shader), by simply multiplying that matrix with the coordinates of our vertex (using 1 as the fourth vector component). That is:
+<pre>V<sub>p</sub> = MVP * V</pre>
+<p>Then to test if a vertex is inside the frustum, we can simply use the properties of homogeneous coordinates:
+<pre>Vp is in frustum if:
+	-V<sub>pw</sub> &lt;= V<sub>px</sub> and V<sub>px</sub> &lt;= V<sub>pw</sub> and
+	-V<sub>pw</sub> &lt;= V<sub>py</sub> and V<sub>py</sub> &lt;= V<sub>pw</sub> and 
+	-V<sub>pw</sub> &lt;= V<sub>pz</sub> and V<sub>pz</sub> &lt;= V<sub>pw</sub>
+</pre>
+
+<p><tt>V<sub>pw</sub></tt> is the fourth component of our projected point. More precisely, each of
+these inequalities check if the coordinate is outside one of the 6 planes that defines the frustum.
+We'll need that information later.
+
+<h3 id="firstvers"><span>First version (pseudo-code)</span></h3>
+
+<p>So, a first version for this algorithm would be (here in pseudo-code):
+
+<pre><span class="c">/* Naive frustum culling */</span>
+Set <span class="o">&lt;visible&gt;</span> as an empty list
+Add chunk where player is to <span class="o">&lt;visible&gt;</span>;
+
+<span class="k">Scan</span> list <span class="o">&lt;visible&gt;</span> from beginning until the end
+   Set <span class="o">&lt;chunk&gt;</span> current item of <span class="o">&lt;visible&gt;</span>;
+   Mark <span class="o">&lt;chunk&gt;</span> as visited;
+   <span class="k">for</span> 8 corners of <span class="o">&lt;chunk&gt;</span>
+   <dim>|</dim>  Set <span class="o">&lt;vertex&gt;</span> as current corner
+   <dim>|</dim>  <span class="k">If</span> <span class="o">&lt;vertex&gt;</span> is in frustum <span class="k">Then</span>
+   <dim>|</dim>  <dim>|</dim>  Add 8 chunks sharing <span class="o">&lt;vertex&gt;</span> to <span class="o">&lt;visible&gt;</span> if chunk is not visited;
+   <dim>|</dim>  <span class="k">End if</span>
+   <span class="k">End for</span>
+<span class="k">End scan</span>
+</pre>
+
+<p>That algorithm seems pretty simple, but lacks a lot of house-keeping required to achieve our goal of one vertex checked per chunk.
+Still, if you look at the source of code, in <tt>Chunks.c:chunkEnumVisible()</tt>, this is more or less the first part
+of the algorithm.
+
+<p>As simple as this version is, it already has quite a few interesting properties:
+<ul>
+  <li>There was no particular constraints on the MVP matrix, and indeed this algorithm will work for <b>any projection</b> (orthogonal,
+  perspective) <b>any FOV</b> and any <b>render distance</b> (near and far plane).
+  <li>The list of chunks will mostly be sorted from front to back. It is not perfect, but good enough to trigger some early depth culling
+  from the GPU.
+</ul>
+
+<h3 id="impl"><span>Implementation (C code)</span></h3>
+
+<p>If you look at the datatype needed for generating the visible list, you can see there are quite a lot of static tables:
+<pre style="font-size: 1vw"><span class="t">struct</span> Frustum_t
+{
+	<span class="t">int8_t</span>  neighbors[<span class="o">8</span>*<span class="o">8</span>*<span class="o">4</span>];      <span class="c">/* 8 corners having 8 neighbors, 3 coords and 1 direction */</span>
+	<span class="t">int8_t</span>  dirx[<span class="o">8</span>];               <span class="c">/* direction from current location for each corner */</span>
+	<span class="t">int8_t</span>  diry[<span class="o">8</span>];
+	<span class="t">int8_t</span>  dirz[<span class="o">8</span>];
+	<span class="t">uint8_t</span> segments[<span class="o">12</span>*<span class="o">2</span>];        <span class="c">/* cross-plane segments */</span>
+	<span class="t">uint8_t</span> notvisit[<span class="o">12</span>*<span class="o">2</span>];        <span class="c">/* these corner must not have been checked */</span>
+	<span class="t">uint8_t</span> extraChunk[<span class="o">12</span>*<span class="o">3</span>];      <span class="c">/* chunks to add if segment is cross-plane: 3 per segments */</span>
+	<span class="t">uint8_t</span> copyFromTo[<span class="o">40</span> + <span class="o">48</span>];   <span class="c">/* copy visited information while scaning extraChunk */</span>
+	mat4    mvp;
+};
+</pre>
+
+<p>The first part of the algorithm makes use of the first 4 tables: <tt>neighbors</tT>, <tt>dirx</tt>, <tt>diry</tt> and <tt>dirz</tt>.
+
+<div class="photo" style="float: right; width: 25%; margin: 0 0 0 20px">
+  <img src="images/cube.svg" width="100%">
+  <cap>Vertex order</cap>
+</div>
+
+<p>The 3 tables <tt>dirx</tt>, <tt>diry</tt> and <tt>dirz</tt> contains the coordinates of the 8 corners of a chunk (or cube if you will):
+simply 3 tables of 8 integers that can have the value 0 or 16. The order by which vertices are stored in these tables are showed in the
+figure on the right.
+
+<p>The order is not completely arbitrary: it is ordered XZY and can be enumerated using a simple counter from 0 to 7:
+first bit times 16 in the X offset, second bit times 8 in Z offset, and third bit times 4 is Y offset, or if you prefer C code:
+<pre style="margin-right: 27%">
+<span class="t">float</span> x = chunk-&gt;x + (i&amp;<span class="o">1</span>) * <span class="o">16</span>;
+<span class="t">float</span> z = chunk-&gt;z + (i&amp;<span class="o">2</span>) * <span class="o">8</span>;
+<span class="t">float</span> y = chunk-&gt;y + (i&amp;<span class="o">4</span>) * <span class="o">4</span>;
+</pre>
+
+<p>But instead of doing tedious bit-twiddling, we simply use 3 lookup tables.
+
+<p>If you look at the outer loop of the first pass, it simply consists of enumerating through these 8 vertices and checking
+if they are in the frustum, by multiplying the <tt>mvp</tt> matrix and the coordinates of the vertex. If the point is in the
+frustum, we will enumerate all the chunks that shares this vertex using the <tt>neighbors</tt> table.
+
+<h3 id="neighbors"><span>Enumerating neighbors</span></h3>
+
+<p>This is where the black magic starts and it will only get worse from this point on. To simplify the explanations, from this
+point onward, we will look at the problem in 2 dimensions (the algorithm will handle 3 dimensions though).
+
+<div class="image" style="float: right; margin: 0 0 20px 20px">
+  <img src="images/neighbors.png">
+  <cap>Connected chunks</cap>
+</div>
+
+<p>When we know a point is within the frustum, there are 8 chunks (4 in 2D) that are necessarily in the frustum as well,
+since they share the same point. We could enumerate those chunks using another block of cryptic bit-twiddling
+logic, but instead we are using a lookup table: since there are 8 corners, each having 8 set of chunk to enumerate, <b>this
+table will have 64 entries</b> (16 in 2D).
+
+<p>For each entries, we want the coordinates of the chunk relative to where we are: each X, Y, Z value can therefore have the
+value -1, 0 or 1. This is encoded in the first 3 bytes, using the XZY order.
+
+<p>For example, if you look at the image on the right, it shows a grid of chunks with the frustum in magenta. The white square
+is the starting area and we figured that point 1 is within the frustum. Therefore the list of relative coordinates for the
+neighbor chunks around this point are (in 2D): (<tt>0,0</tt>)&nbsp;&nbsp;-&nbsp;&nbsp;(<tt>1,0</tt>)&nbsp;&nbsp;-&nbsp;&nbsp;(<tt>0,-1</tt>)&nbsp;&nbsp;-&nbsp;&nbsp;(<tt>1,-1</tt>).
+
+<p>You might wonder what the point of always including coordinate (<tt>0,0</tt>), but it will makes sense with the fourth entry of the <tt>neighbors</tt>
+table: it is used to keep track of visited corners.
+
+<p>When point 1 has been verified to be inside the frustum, we mark this point in chunk (<tt>0,0</tt>) as visited. But we can also mark
+point 0 in chunk (<tt>1,0</tt>) as being visited, as well as point 3 in chunk (<tt>0,-1</tt>) and point 2 in chunk (<tt>1,-1</tt>).
+
+<p>We cannot mark the entire chunk as visited because the other corners might lead to unvisited chunks.
+
+<p>This is more or less, the gist of the first pass of the frustum culling. There are of course edge cases that needs to be taken
+care of, if you do not want to miss important bits of the terrain.
+
+<h3 id="edgecase" style="clear: both"><span>Edge cases</span></h3>
+
+<p>The first version easily <b>covers around 90% to 99%</b> of the chunks we need to enumerate, but it can miss some especially around the
+corners of frustum. For the corners of the far plane it is usually not that much of a big deal, but for the corners of the near plane, this
+is not acceptable. This first version also breaks down when the FOV gets too small. Consider the following frustum:
+
+<div class="image">
+  <img src="images/fov10deg.png">
+  <cap>Frustum with a 10&deg; FOV</cap>
+</div>
+
+<p>Technically, a frustum should be more of a trapezoidal shape, but the parameters used for the near and far plane in
+<prod>MCEdit 2.0</prod> are respectively 0.1 and 1000, which gives almost a triangular shape.
+
+<p>You can see here that none of the vertex from the corners of the every chunks fit within the frustum. Yet, the frustum does indeed
+cross some chunks. How do we enumerate these?
+
+<p>For these, we can use the properties of homogeneous coordinates, when checking if a point is in the frustum: 
+
+<pre>Vp is in frustum if:
+	-V<sub>pw</sub> &lt;= V<sub>px</sub> and V<sub>px</sub> &lt;= V<sub>pw</sub> and
+	-V<sub>pw</sub> &lt;= V<sub>py</sub> and V<sub>py</sub> &lt;= V<sub>pw</sub> and 
+	-V<sub>pw</sub> &lt;= V<sub>pz</sub> and V<sub>pz</sub> &lt;= V<sub>pw</sub>
+</pre>
+
+<p>Each of these inequalities tells us on which side of each plane the point is. For example if <tt>V<sub>pz</sub> &lt; -V<sub>pw</sub></tt>
+is true, that means the point is behind the near plane. Similarly, if <tt>V<sub>pz</sub> &gt; V<sub>pw</sub></tt> is true, the point is beyond the
+far plane, and so on...
+
+<h3 id="crossplane"><span>Cross-plane segments</span></h3>
+
+<p>We can then keep track of which plane the point is outside of, using a bitfield. Since there are 6 planes (4 in 2D), a single byte will be enough.
+That is the purpose of the <tt>outflags</tt> field of the <tt><span class="t">struct</span> Chunk_t</tt> type: keep track of which plane
+this particular corner is outside of. Since there are 8 corners per chunk, it is a table of 8 bytes. The order each plane is assigned to in
+this bitfield does not really matter, what really matters is that they always have the same mask value for all the vertices.
+
+<p>Once we have this information, we can check if a <b>segment</b> of the chunk's bounding box crosses two planes: given 2 points that form
+a segment, this segment crosses two planes if the corresponding <tt>outflags</tt> value of these points have at least <b>2 bits</b> that differ.
+Using the C language, this can be trivially done using the following code:
+
+<pre><span class="t">int</span>    pt1, pt2;      <span class="c">/* we'll see how to enumerate these in a bit */</span>
+<span class="t">int8_t</span> flagsPt1 = chunk-&gt;outflags[pt1];
+<span class="t">int8_t</span> flagsPt2 = chunk-&gt;outflags[pt2];
+
+<span class="k">if</span> (popcount(flagsPt1 ^ flagsPt2) &gt;= <span class="o">2</span>)
+{
+	<span class="c">/* segment crosses more than 2 planes */</span>
+}</pre>
+
+<p><tt>popcount()</tt> is the typical function name for counting the number of 1 bits in an integer, it is a shorthand for <b>pop</b>ulation
+<b>count</b>. Since we are using 6 bit integers, we could have used another lookup table, but most CPU nowadays have a dedicated instruction for this,
+which are even <a href="https://github.com/BartMassey/popcount">faster</a> than a lookup table.
+
+<p>That is not enough however. The next magic trick is to check if those 2 points could be considered to be inside the frustum, if we ignore the bits that differ.
+For example, this is the values that would be stored in <tt>outflags</tt> field of each vertices of the starting square in the 10&deg; FOV example:
+<pre><span class="c">/* bit order is: 1=left plane, 2=right plane, 4=near plane, 8=far plane */</span>
+<span class="d">#define BIN(x,y,z,t)   (x&lt;&lt;3)|(y&lt;&lt;2)|(z&lt;&lt;1)|t</span><span class="d">
+</span>outflags[<span class="o">0</span>] = BIN(<span class="o">0</span>,<span class="o">1</span>,<span class="o">0</span>,<span class="o">1</span>);
+outflags[<span class="o">1</span>] = BIN(<span class="o">0</span>,<span class="o">0</span>,<span class="o">0</span>,<span class="o">1</span>);
+outflags[<span class="o">2</span>] = BIN(<span class="o">0</span>,<span class="o">1</span>,<span class="o">1</span>,<span class="o">0</span>);
+outflags[<span class="o">3</span>] = BIN(<span class="o">0</span>,<span class="o">0</span>,<span class="o">1</span>,<span class="o">0</span>);</pre>
+
+<p>A chunk in 2D is composed of 4 segments (12 in 3D): with our 10&deg; FOV example, the starting square have the segments:
+<tt>[0,1]</tt>&nbsp;&nbsp;-&nbsp;&nbsp;<tt>[1,3]</tt>&nbsp;&nbsp;-&nbsp;&nbsp;<tt>[0,2]</tt>&nbsp;&nbsp;-&nbsp;&nbsp;<tt>[2,3]</tt>.
+<dl>
+  <dt>Let's check the first one: <tt>[0,1]</tt></dt>
+  <dd>
+<pre>popcount(BIN(<span class="o">0</span>,<span class="o">1</span>,<span class="o">0</span>,<span class="o">1</span>)<span class="c">/* outflags[0] */</span> ^ BIN(<span class="o">0</span>,<span class="o">0</span>,<span class="o">0</span>,<span class="o">1</span>)<span class="c">/* outflags[1] */</span>) == <span class="o">1</span></pre>
+
+<p>That means this segment only crosses one plane (and indeed, it is the near plane).
+
+  <dt>Let's check segment 2: <tt>[1,3]</tt></dt>
+  <dd>
+<pre>popcount(BIN(<span class="o">0</span>,<span class="o">0</span>,<span class="o">0</span>,<span class="o">1</span>)<span class="c">/* outflags[1] */</span> ^ BIN(<span class="o">0</span>,<span class="o">0</span>,<span class="o">1</span>,<span class="o">0</span>)<span class="c">/* outflags[3] */</span>) == <span class="o">2</span></pre>
+
+<p>This one does indeed crosses 2 planes: the left and the right. Now, if we suppose that these two coordinates fit inside the frustum (in this case, the <tt>x</tt> coord of point 1 and <tt>x</tt> coord of point 3), does the other coordinates fit inside the frustum? To check this, first let's look at all the planes crossed by these 2 vertices:
+<pre>(allplanes = BIN(<span class="o">0</span>,<span class="o">0</span>,<span class="o">0</span>,<span class="o">1</span>) | BIN(<span class="o">0</span>,<span class="o">0</span>,<span class="o">1</span>,<span class="o">0</span>)) == BIN(<span class="o">0</span>,<span class="o">0</span>,<span class="o">1</span>,<span class="o">1</span>)</pre>
+<p>Then look at the planes that differs:
+<pre>(diff = BIN(<span class="o">0</span>,<span class="o">0</span>,<span class="o">0</span>,<span class="o">1</span>) ^ BIN(<span class="o">0</span>,<span class="o">0</span>,<span class="o">1</span>,<span class="o">0</span>)) == BIN(<span class="o">0</span>,<span class="o">0</span>,<span class="o">1</span>,<span class="o">1</span>)</pre>
+<p>And we want to ignore these in the list of planes crossed, therefore:
+<pre>allpanes ^ diff == <span class="o">0</span></pre>
+<p>Thus, we can consider segment <tt>[1, 3]</tt> to be <b>part of the frustum</b>, and include all the chunks that share this segment (3 in 3D, 1 in 2D) in the visible list.
+
+  <dt>Let's check segment 3: <tt>[0,2]</tt></dt>
+  <dd>
+<p>First, check the number of planes crossed:
+<pre>diff = BIN(<span class="o">0</span>,<span class="o">1</span>,<span class="o">0</span>,<span class="o">1</span>)<span class="c">/* outflags[0] */</span> ^ BIN(<span class="o">0</span>,<span class="o">1</span>,<span class="o">1</span>,<span class="o">0</span>)<span class="c">/* outflags[2] */</span>;
+popcount(diff) == <span class="o">2</span></pre>
+<p>Then let's check if the segment will be considered inside if we ignore the coordinates that crosses the planes:
+<pre>(BIN(<span class="o">0</span>,<span class="o">1</span>,<span class="o">0</span>,<span class="o">1</span>) | BIN(<span class="o">0</span>,<span class="o">1</span>,<span class="o">1</span>,<span class="o">0</span>)) ^ diff == BIN(<span class="o">0</span>,<span class="o">1</span>,<span class="o">0</span>,<span class="o">0</span>)</pre>
+<p>Indeed, even if we ignore the coordinates that crosses the left and right plane, there are still the coordinates that are behind the near plane: therefore this segment is <b>not part of the frustum</b>.
+<p>Segment 4 <tt>[2,3]</tt> will be left as an exercise for the reader.
+</dl>
+
+<p>This is in a nutshell, what the second pass of the frustum culling function is doing. Take note that this
+part does not check for extra vertex through the <tt>MVP</tt> matrix. At this point, all the information we
+need, have already been collected in the first pass.
+
+<h3 id="caveats"><span>Caveats</span></h3>
+
+<p>This algorithm is not perfect though, there are case where a chunk will be included in the frustum, when it
+clearly does not belong. Consider the following example:
+
+<div class="image">
+  <img src="images/falsepositiv.png">
+</div>
+
+<p>The white square next to the starting chunk shouldn't be included in the visible list. What happened here,
+is that the segment <tt>[0,2]</tt> crossed the left and right plane ... but outside the frustum. Because the
+result of those inequalities we stored in the <tt>outflags</tt> table supposed that those planes extend to
+infinity.
+
+<p>In practice, those false positives are quite rare, less than 1&permil;. It would be pointless to add extra
+code to eliminate those. All the vertices from these chunks will be eliminated in the vertex shader, without
+even reaching the fragment shader. As long as there aren't too many of these, performance loss will be negligible.
+
+<h3 id="statictbl"><span>More static tables</span></h3>
+
+<p>But we are not done yet. There are still some house keeping needed to be done.
+
+<p>First to enumerate all the segments to check if they cross multiple planes, there is a dedicated lookup table
+in the <tt>Frustum_t</tt> structure: it is simply named <tt>segments</tt> and contains 12 pairs of index (that
+is 24 bytes), each index is referring to the corner of the chunk. Therefore each index can have a value
+between 0 and 7. We simply iterate linearly over this table.
+
+<p>Then there is the <tt>notvisit</tt> table: it is used to avoid adding the same chunks multiple times. It is simply a bitfield of the
+corners involved in a segment:
+<pre>notvisit[i] = (<span class="o">1</span> &lt;&lt; segments[i*<span class="o">2</span>]) | (<span class="o">1</span> &lt;&lt; segments[i*<span class="o">2</span>+<span class="o">1</span>]);</pre>
+
+<p>That bitfield will then be checked against the <tt>visited</tt> bitfield to ensure that at least one point
+is outside the frustum. If we know that both are inside, we know that this segment will be considered inside
+and thus the surrounding chunks will likely be added twice. This table is used like this:
+
+<pre>if ((notvisit[segment] &amp; chunk->visited) != notvisit[segment])
+{
+	<span class="c">/* not visited: check the segment for potential inclusion */</span>
+}</pre>
+
+<p>The reason why we are not comparing this to 0, is because one point outside the frustum is enough to check if
+the segment can be included in the visible list. Otherwise if we only look for segments that have both points
+outside, we can miss some chunks.
+
+<hr>
+
+<p>Once a segment is included, we need to enumerate all the chunks that share this segment: this is the purpose
+of the <tt>extraChunk</tt> table: each segment will add exactly 3 chunks, since there are 12 segments, this table will
+have 36 entries. The location will be stored in a compressed bitfield: 6 bits for the coordinates (2bits
+per axis: we need to encode the values -1, 0 and 1), plus one special flag (<tt>0x80</tt>). Therefore, we will need
+1 byte per entry.
+
+<p>The flag indicates if the chunk being included shares a face (if set) or a segment (not set) with the initial chunk.
+This flag has to be used in conjunction with the next table (<tt>copyFromTo</tt>).
+
+<p>For example, if the segment <tt>[1,3]</tt> of a chunk pass the test, we will have to add the chunks of relative
+coordinates (XZY): <tt class="nowrap">(1, 0, 0)</tt> - <tt class="nowrap">(1, 0, -1)</tt> and <tt class="nowrap">(0, 0, -1)</tt>.
+Coordinates are encoded as their value plus 1, so that they can fit in 2 bits. Therefore -1 is encoded as 0, 0 encoded
+as 1 and 1 encoded as 2.
+
+<hr>
+
+<p>Then comes another tedious part: if we figured that a segment is inside the frustum, we need to copy the
+<tt>outflags</tt>/<tt>visited</tt> values to the connected chunks, to avoid doing those computation again.
+This is the purpose of <tt>copyFromTo</tt> table. It is actually 2 lookup tables combined in one.
+
+<p>The first part of this table contains 41 bytes: it is indexed by the encoded coordinate (ie: the first 6 bits) minus 1. Even
+though 6bits can encode 64 values, in practice we only need 41: first we do not use the value 3, then one of the
+coordinates has to be zero. Since chunks are axis aligned, sharing a segment means that one of axis has to remain
+the same, therefore use 0 as a relative coordinate. Thus the minimum coordinate is <tt class="nowrap">(0, -1, -1)</tt>,
+which is <tt>1</tt>, and the maximal coordinate will be <tt class="nowrap">(0, 1, 1)</tt>, which will be encoded
+as 41. Thus, the number of entries needed is: <tt class="nowrap">(41 - 1 + 1) == 41</tt>.
+
+<p>In practice, there is even less values to encode: 22. This comes from 27 - 5: 27 is number of chunks in a 3x3 space,
+but we don't care about the 4 corners because one of the relative coordinate has to be 0 and we don't care about
+center chunk <tt class="nowrap">(0, 0, 0)</tt>, because we know it is part of the frustum and it already has the
+<tt>outflags</tt> information: we will actually copy this information to the other chunks.
+
+<p>The values stored for the first 41 bytes are an offset to the last part of the table. This is the part that tell
+us where to copy from and where to copy to.
+
+<p>If the added chunk shares a face with the original chunk, 4 vertices information (<tt>outflags</tt>/<tt>visited</tt>)
+need to be copied and only 2 vertices if it is a segment. That's the purpose of the extra flag added to the
+coordinates in <tt>extraChunk</tt>: it will tell us if there are 4 coordinates to copy (if set) or only 2. Therefore
+the outer loop will look like:
+<pre><span class="t">uint8_t</span>   coord = extraChunk[segment];
+<span class="t">uint8_t</span>   count = coord &amp; <span class="o">0x80</span> ? <span class="o">4</span> : <span class="o">2</span>;
+<span class="t">uint8_t</span> * data  = copyFromTo + copyFromTo[(coord &amp; <span class="o">63</span>) - <span class="o">1</span>];
+<span class="k">while</span> (count > <span class="o">0</span>)
+{
+	<span class="c">/* do stuff */</span>
+	data ++;
+	count --;
+}</pre>
+
+<p>The way information to copy is encoded is pretty simple: first 4bits indicate the corner to copy from the
+original chunk (<tt>visited</tt> and <tt>outflags</tt>), the next 4bits indicate where to copy to:
+
+<pre><span class="t">uint8_t</span> from = *data &amp; <span class="o">15</span>;
+<span class="t">uint8_t</span> to   = *data &gt;&gt; <span class="o">4</span>;
+</pre>
+
+<hr>
+
+<p>And there you have it! Good luck deciphering that information from just the source code.
+
+
+
+<h2>Mesh generation</h2>
+
+<p>Another part that makes <b>heavy</b> use of cryptic static tables.
+
+<p>&nbsp;
+<p>&nbsp;
+<p>&nbsp;
+<p>&nbsp;
+<p>&nbsp;
+<p>&nbsp;
+<p>&nbsp;
+<p>&nbsp;
+<p>&nbsp;
+<p>&nbsp;
+<p>&nbsp;
+<p>&nbsp;
+<p>&nbsp;
+<p>&nbsp;
+</div>
+
+</body>
+</html>
