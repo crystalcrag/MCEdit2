@@ -303,7 +303,7 @@ static int renderGetSize(SIT_Widget w, APTR cd, APTR ud)
 	float * size = cd;
 	render.width  = size[0];
 	render.height = size[1];
-	/* aspect ratio (needed by particleGeom.glsl) */
+	/* aspect ratio (needed by particle.gsh) */
 	shading[1] = render.width / (float) render.height;
 	matPerspective(render.matPerspective, DEF_FOV, shading[1], NEAR_PLANE, 1000);
 	glViewport(0, 0, render.width, render.height);
@@ -440,7 +440,7 @@ Bool renderInitStatic(int width, int height, APTR sitRoot)
 	shading[1] = render.width / (float) render.height;
 	matPerspective(render.matPerspective, DEF_FOV, shading[1], NEAR_PLANE, 1000);
 
-	/* normals vector for cube as ordered in blocksVert.glsl */
+	/* normals vector for cube as ordered in blocks.vsh */
 	static float normals[] = {
 		0,0,1,1,  1,0,0,1,  0,0,-1,1,  -1,0,0,1,  0,1,0,1,  0,-1,0,1
 	};
@@ -632,6 +632,7 @@ static inline void renderParticles(void)
 	glDisable(GL_CULL_FACE);
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LEQUAL);
+	glDepthMask(GL_FALSE);
 
 	glUseProgram(render.shaderParticles);
 	glBindBuffer(GL_UNIFORM_BUFFER, render.uboShader);
@@ -643,6 +644,7 @@ static inline void renderParticles(void)
 	setShaderValue(render.shaderParticles, "camera", 3, render.camera);
 
 	glDrawArrays(GL_POINTS, 0, count);
+	glDepthMask(GL_TRUE);
 }
 
 static void renderDrawItems(int count)

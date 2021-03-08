@@ -332,7 +332,7 @@ static void mapUpdateSkyLightBlock(BlockIter iterator)
 	/* get iterator back to original pos */
 	mapIter(&iter, 0, 0, 1);
 
-	while (track.pos != track.last)
+	while (track.usage > 0)
 	{
 		struct BlockIter_t initial;
 		struct BlockIter_t neighbor = iter;
@@ -457,7 +457,7 @@ static void mapUpdateSkyLightUnblock(BlockIter iterator)
 		}
 	}
 
-	while (track.pos != track.last)
+	while (track.usage > 0)
 	{
 		struct BlockIter_t neighbor = iter;
 		int8_t * XYZ = track.coord + track.pos;
@@ -499,7 +499,7 @@ static void mapUpdateAddLight(BlockIter iterator, int intensity /* max: 15 */)
 	mapUpdateAddTrack(0, 0, 0);
 	mapUpdateTable(iterator, intensity, BLOCKLIGHT_OFFSET);
 
-	while (track.pos != track.last)
+	while (track.usage > 0)
 	{
 		struct BlockIter_t neighbor = *iterator;
 		int8_t * XYZ = track.coord + track.pos;
@@ -536,7 +536,7 @@ static void mapUpdateRemLight(BlockIter iterator)
 	track.unique = 1;
 	mapUpdateAddTrack(0, 0, 0);
 
-	while (track.pos != track.last)
+	while (track.usage > 0)
 	{
 		struct BlockIter_t neighbor = *iterator;
 
@@ -620,7 +620,7 @@ static void mapUpdateObstructLight(BlockIter iterator)
 	light -= blockGetLightOpacity(iter.blockIds[iter.offset], 0);
 	mapUpdateTable(&iter, light < 0 ? 0 : light, BLOCKLIGHT_OFFSET);
 
-	while (track.pos != track.last)
+	while (track.usage > 0)
 	{
 		struct BlockIter_t neighbor = *iterator;
 
@@ -707,10 +707,11 @@ static void mapUpdateBlockLight(Map map, BlockIter iter, int oldId, int newId)
 		if (opac == 0 || mapGetLight(iter) == 0)
 		{
 			struct BlockIter_t neighbor = *iter;
+			neighbor.alloc = False;
 			for (i = 0; i < DIM(xoff); i ++)
 			{
 				mapIter(&neighbor, xoff[i], yoff[i], zoff[i]);
-				if (mapGetLight(&neighbor) > 1)
+				if (neighbor.cd && mapGetLight(&neighbor) > 1)
 				{
 					mapUpdateRestoreLight(map, iter);
 					break;
@@ -756,7 +757,7 @@ void mapUpdatePropagateSignal(BlockIter iterator)
 		}
 	}
 
-	while (track.pos != track.last)
+	while (track.usage > 0)
 	{
 		struct BlockIter_t neighbor = *iterator;
 		int8_t * XYZ = track.coord + track.pos;
@@ -804,7 +805,7 @@ void mapUpdateDeleteSignal(BlockIter iterator)
 	iterator->blockIds[iterator->offset] = 0;
 	mapUpdateTable(iterator, 0, DATA_OFFSET);
 
-	while (track.pos != track.last)
+	while (track.usage > 0)
 	{
 		struct BlockIter_t neighbor = *iterator;
 		int8_t * XYZ = track.coord + track.pos;
@@ -960,7 +961,7 @@ static void mapUpdateMesh(Map map)
 		next = cd->update;
 		//fprintf(stderr, "updating chunk %d, %d, %d\n", cd->chunk->X, cd->Y, cd->chunk->Z);
 		renderInitBuffer(cd);
-		chunkUpdate(map, cd->chunk, cd->Y >> 4, renderFlush);
+		chunkUpdate(cd->chunk, map->air, cd->Y >> 4, renderFlush);
 		renderFinishMesh();
 		if (cd->pendingDel)
 			/* link within chunk has already been removed in chunkUpdate() */
@@ -1030,6 +1031,9 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, Bool blockUpdate)
 		mapUpdatePropagateSignal(&iter);
 	}
 
+	/* change particle trajectory if needed */
+	particleSetBlock(pos, blockId);
+
 	/* list of sub-chunks that we need to update their mesh */
 	mapUpdateListChunk(map);
 
@@ -1064,6 +1068,7 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, Bool blockUpdate)
 		particlesCreate(map, PARTICLES_EXPLODE, 4, oldId, pos);
 }
 
+/* high level function: dispatch to specialized module */
 void mapActivate(Map map, vec4 pos)
 {
 	struct BlockIter_t iter;

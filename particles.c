@@ -16,6 +16,8 @@
 struct ParticlePrivate_t particles;
 extern double curTime;
 
+//#define SLOW
+
 void particlesInit(int vbo)
 {
 	ParticleList list = calloc(sizeof *list, 1);
@@ -60,14 +62,17 @@ static int particlesGetBlockInfo(Map map, vec4 pos, DATA8 plight)
 
 	struct BlockIter_t iter;
 	mapInitIter(map, &iter, pos, False);
-	light = iter.blockIds[(iter.offset >> 1) + BLOCKLIGHT_OFFSET];
-	sky   = iter.blockIds[(iter.offset >> 1) + SKYLIGHT_OFFSET];
-	if (iter.offset & 1) light = (sky & 0xf0) | (light >> 4);
-	else                 light = (sky << 4) | (light & 0x0f);
-
-	*plight = light;
-
-	return iter.blockIds[iter.offset];
+	if (iter.cd)
+	{
+		light = iter.blockIds[(iter.offset >> 1) + BLOCKLIGHT_OFFSET];
+		sky   = iter.blockIds[(iter.offset >> 1) + SKYLIGHT_OFFSET];
+		if (iter.offset & 1) light = (sky & 0xf0) | (light >> 4);
+		else                 light = (sky << 4) | (light & 0x0f);
+		*plight = light;
+		return iter.blockIds[iter.offset];
+	}
+	*plight = 0xf0;
+	return 0;
 }
 
 void particlesCreate(Map map, int effect, int count, int blockId, vec4 pos)
@@ -125,7 +130,11 @@ void particlesCreate(Map map, int effect, int count, int blockId, vec4 pos)
 
 				p->UV = (U * 16 + (int) (x * step * 16)) | ((V * 16 + (int) (y * step * 16)) << 9);
 				p->size = 2 + rand() % 8;
+				#ifndef SLOW
 				p->time = curTime + RandRange(1000, 1500);
+				#else
+				p->time = curTime + RandRange(4000, 8000);
+				#endif
 				p->blockId = 0;
 
 				if (p->dir[VX] < 0) p->size |= 0x80, p->dir[VX] = - p->dir[VX];
@@ -135,7 +144,34 @@ void particlesCreate(Map map, int effect, int count, int blockId, vec4 pos)
 	}
 }
 
-/* time current time in millisecond */
+/* a block has been changed, check if particles need to react */
+void particleSetBlock(vec4 pos, int blockId)
+{
+	if (particles.count == 0)
+		return;
+
+	if (blockId == 0)
+	{
+		/* block deleted */
+		ParticleList list;
+		Particle p;
+		int i;
+		float y = pos[VY]+0.9;
+		for (list = HEAD(particles.buffers); list; NEXT(list))
+		{
+			if (list->usage == 0) continue;
+			for (p = list->buffer, i = list->usage; i > 0; p ++)
+			{
+				if (p->time == 0) continue;
+				if (p->brake[VY] == 0 && y <= p->loc[VY] && p->loc[VY] <= y+0.1)
+					p->brake[VY] = 0.02, p->dir[VY] = -0.2;
+				i --;
+			}
+		}
+	}
+}
+
+/* move particles */
 int particlesAnimate(Map map)
 {
 	ParticleList list;
@@ -153,7 +189,11 @@ int particlesAnimate(Map map)
 	buf = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
 
 	/* this scale factor will make particles move at a constant no matter what fps the screen is refreshed */
+	#ifndef SLOW
 	float speed = (curTime - particles.lastTime) / 25.0f;
+	#else
+	float speed = (curTime - particles.lastTime) / 250.0f;
+	#endif
 
 //	fprintf(stderr, "speed = %f, diff = %d\n", speed, time - particles.lastTime);
 
@@ -205,19 +245,22 @@ int particlesAnimate(Map map)
 			    pos[VZ] != old[VZ])
 			{
 				uint8_t light;
-				Block   b = blockIds + particlesGetBlockInfo(map, pos, &light);
+				Block b = blockIds + particlesGetBlockInfo(map, pos, &light);
 				if (! (b->type == SOLID || b->type == TRANS || b->type == CUST))
 				{
+					p->light = light;
 					if (p->brake[VY] == 0)
 						p->brake[VY] = 0.02;
 					continue;
 				}
+				/* inside a solid block: light will be 0 */
 
 				if (pos[VX] != old[VX]) p->dir[VX] = p->brake[VX] = 0, p->loc[VX] = buf[-5];
 				if (pos[VZ] != old[VZ]) p->dir[VZ] = p->brake[VZ] = 0, p->loc[VZ] = buf[-3];
 				if (pos[VY] >  old[VY]) p->dir[VZ] = 0;
 				if (pos[VY] <  old[VY])
 				{
+					p->loc[VY] = buf[-4] = pos[VY]+0.95;
 					p->dir[VY] = 0;
 					p->brake[VY] = 0;
 				}

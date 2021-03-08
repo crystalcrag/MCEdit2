@@ -789,6 +789,14 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 			/* 0, 0 is grayscale grass texture, use the dedicated "undefined" tex instead */
 			static uint8_t defTex[] = {30, 0, 30, 0, 30, 0, 30, 0, 30, 0, 30, 0};
 			memcpy(&state.nzU, defTex, 12);
+
+			if (blocks.totalStates > 0)
+			{
+				/* reuse last tex definition fromm previous state */
+				BlockState last = blockStates + blocks.totalStates - 1;
+				if ((last->id >> 4) == block.id)
+					memcpy(&state.nzU, &last->nzU, 12);
+			}
 		}
 
 		if (state.id > 15)
@@ -1818,7 +1826,7 @@ Bool blockGetBoundsForFace(VTXBBox box, int face, vec4 V0, vec4 V1, vec4 offset,
 		}
 
 		if (dir[3]) t += 3;
-		/* same as vertex shader blocksVert.glsl */
+		/* same as vertex shader blocks.vsh */
 		pt[0] = (box->pt1[0] - BASEVTX/2) * 0.00026041666666666666;
 		pt[1] = (box->pt1[1] - BASEVTX/2) * 0.00026041666666666666;
 		pt[2] = (box->pt1[2] - BASEVTX/2) * 0.00026041666666666666;
@@ -1931,7 +1939,7 @@ static int blockGenWireModel(DATA16 buffer, int count)
 	return total;
 }
 
-/* generate a model compatible with blocksVert.glsl for quad blocks */
+/* generate a model compatible with blocks.vsh for quad blocks */
 static int blockModelQuad(BlockState b, DATA16 buffer)
 {
 	extern uint8_t quadIndices[]; /* from chunks.c */
@@ -2016,7 +2024,11 @@ int blockAdjustOrient(int blockId, BlockOrient info, vec4 inter)
 		if (side >= 4) side = opposite[info->direction];
 		return blockId + orientFull[side];
 	case ORIENT_SWNE:
-		return blockId + orientSWNE[info->direction];
+		if (b->placement == 0)
+			side = info->direction;
+		else
+			side = opposite[side];
+		return blockId + orientSWNE[side];
 	case ORIENT_SE:
 		if (side >= 4) side = opposite[info->direction];
 		return blockId + orientSE[side];
@@ -2072,6 +2084,31 @@ int blockAdjustOrient(int blockId, BlockOrient info, vec4 inter)
 		}
 	}
 	return blockId;
+}
+
+/* check if block <blockId> is attached to given side (SIDE_*) */
+Bool blockIsAttached(int blockId, int side)
+{
+	/* those tables are the converse of the ones in blockAdjustOrient() */
+	static uint8_t orientTorch[] = {SIDE_TOP, SIDE_EAST, SIDE_WEST, SIDE_SOUTH, SIDE_NORTH, SIDE_TOP};
+	static uint8_t orientLever[] = {SIDE_BOTTOM, SIDE_WEST, SIDE_EAST, SIDE_NORTH, SIDE_SOUTH, SIDE_TOP, SIDE_TOP, SIDE_BOTTOM};
+	static uint8_t orientSign[]  = {0, 0, SIDE_SOUTH, SIDE_NORTH, SIDE_EAST, SIDE_WEST};
+	static uint8_t orientSWNE[]  = {SIDE_SOUTH, SIDE_WEST, SIDE_NORTH, SIDE_EAST};
+
+	Block b = &blockIds[blockId >> 4];
+
+	switch (b->orientHint) {
+	case ORIENT_TORCH:
+		return orientTorch[blockId&7] == side;
+	case ORIENT_LEVER:
+		return orientLever[blockId&7] == side;
+	case ORIENT_SWNE:
+		return orientSWNE[blockId&3] == side;
+	default:
+		if (b->special == BLOCK_SIGN)
+			return orientSign[blockId&7] == side;
+	}
+	return False;
 }
 
 Bool blockIsSolidSide(int blockId, int side)
@@ -2171,7 +2208,7 @@ static int blockModelStairs(DATA16 buffer, int blockId)
 	return (write.cur - write.start) / INT_PER_VERTEX;
 }
 
-/* generate vertex data for any block (compatible with blocksVert.glsl) */
+/* generate vertex data for any block (compatible with blocks.vsh) */
 int blockGenModel(int vbo, int blockId)
 {
 	BlockState b = blockGetById(blockId & 0xfff);
@@ -2358,7 +2395,7 @@ void blockPostProcessTexture(DATA8 * data, int * width, int * height, int bpp)
 	/* copy biome dependent tex to bottom of texture map */
 	for (s = biomeDepend, d = dst + stride * 62 * sz / bpp; s < EOT(biomeDepend); s += 2, d += sz)
 	{
-		/* this will free 1 (ONE) bit for the vertex shader blocksVert.glsl */
+		/* this will free 1 (ONE) bit for the vertex shader blocks.vsh */
 		DATA8 s2 = dst + s[0] * sz + s[1] * stride * sz / bpp;
 		DATA8 d2 = d;
 		/* but given how packed information is, this is worth it */

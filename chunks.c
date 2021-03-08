@@ -911,10 +911,10 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer opaque, BlockState b
 static void chunkGenCube(ChunkData neighbors[], WriteBuffer opaque, BlockState b, int pos);
 
 /*
- * transform chunk data into something useful for the vertex shader (terrainVert.glsl)
+ * transform chunk data into something useful for the vertex shader (blocks.vsh)
  * this is the "meshing" function for our world
  */
-void chunkUpdate(Map map, Chunk c, int layer, ChunkFlushCb_t flush)
+void chunkUpdate(Chunk c, ChunkData empty, int layer, ChunkFlushCb_t flush)
 {
 	static uint16_t bufOpaque[2000]; /* 10 bytes per vertex */
 	static uint16_t bufAlpha[2000];
@@ -929,11 +929,11 @@ void chunkUpdate(Map map, Chunk c, int layer, ChunkFlushCb_t flush)
 	/* 6 surrounding chunks (+center) */
 	neighbors[6] = c->layer[layer];
 	neighbors[5] = layer > 0 ? c->layer[layer-1] : NULL;
-	neighbors[4] = layer+1 < c->maxy ? c->layer[layer+1] : map->air;
+	neighbors[4] = layer+1 < c->maxy ? c->layer[layer+1] : empty;
 	for (i = 0; i < 4; i ++)
 	{
 		neighbors[i] = (c + chunkNeighbor[c->neighbor + (1<<i)])->layer[layer];
-		if (neighbors[i] == NULL) neighbors[i] = map->air;
+		if (neighbors[i] == NULL) neighbors[i] = empty;
 	}
 
 //	if (c->X == -208 && neighbors[6]->Y == 32 && c->Z == -48)
@@ -974,12 +974,11 @@ void chunkUpdate(Map map, Chunk c, int layer, ChunkFlushCb_t flush)
 	/* entire sub-chunk is composed of air: check if we can get rid of it */
 	if (air == 4096)
 	{
-		ChunkData air = map->air;
 		ChunkData cur = neighbors[6];
 
 		/* block light must be all 0 and skylight be all 15 */
-		if (memcmp(cur->blockIds + BLOCKLIGHT_OFFSET, air->blockIds + BLOCKLIGHT_OFFSET, 2048) == 0 &&
-			memcmp(cur->blockIds + SKYLIGHT_OFFSET,   air->blockIds + SKYLIGHT_OFFSET,   2048) == 0 &&
+		if (memcmp(cur->blockIds + BLOCKLIGHT_OFFSET, empty->blockIds + BLOCKLIGHT_OFFSET, 2048) == 0 &&
+			memcmp(cur->blockIds + SKYLIGHT_OFFSET,   empty->blockIds + SKYLIGHT_OFFSET,   2048) == 0 &&
 			(cur->Y >> 4) == c->maxy-1)
 		{
 			/* yes, can be freed */

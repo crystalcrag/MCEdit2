@@ -38,9 +38,13 @@ static void mapGetNeigbors(Map map, vec4 pos, DATA16 neighbors, int max)
 	for (i = 0; i < max; i ++)
 	{
 		mapIter(&iter, xoff[i], yoff[i], zoff[i]);
-		int block = iter.blockIds[iter.offset];
-		int data  = iter.blockIds[DATA_OFFSET + (iter.offset >> 1)];
-		neighbors[i] = (block << 4) | (iter.offset & 1 ? data >> 4 : data & 15);
+		if (iter.cd)
+		{
+			int block = iter.blockIds[iter.offset];
+			int data  = iter.blockIds[DATA_OFFSET + (iter.offset >> 1)];
+			neighbors[i] = (block << 4) | (iter.offset & 1 ? data >> 4 : data & 15);
+		}
+		else neighbors[i] = 0;
 	}
 }
 
@@ -223,6 +227,7 @@ Bool mapUpdateBlock(Map map, vec4 pos, int blockId, int oldBlockId, DATA8 tile)
 		};
 		int i;
 
+		/* check around the 6 sides of the cube that was deleted */
 		for (i = 0; i < 6; i ++)
 		{
 			BlockState state = blockGetById(neighbors[i]);
@@ -249,14 +254,37 @@ Bool mapUpdateBlock(Map map, vec4 pos, int blockId, int oldBlockId, DATA8 tile)
 			}
 			else
 			{
+				static uint8_t oppositeSENW[] = {SIDE_NORTH, SIDE_WEST, SIDE_SOUTH, SIDE_EAST, SIDE_TOP, SIDE_BOTTOM};
+				Block b = &blockIds[neighbors[i] >> 4];
 				DATA8 p = b->name + b->placement;
-				for (i = p[0], p ++; i > 0; i --, p += 2)
+				int   j;
+				if (b->placement == 0) continue;
+				/* check that placement constraints are still satisfied */
+				for (j = p[0], p ++; j > 0; j --, p += 2)
 				{
 					int id = (p[0] << 8) | p[1];
 					switch (id) {
 					case PLACEMENT_GROUND:
+						if (i != SIDE_TOP) continue;
+						/* no ground below that block: remove it */
+						break;
 					case PLACEMENT_WALL:
-					case PLACEMENT_SOLID:
+						if (i >= SIDE_TOP || ! blockIsAttached(neighbors[i], oppositeSENW[i]))
+							continue;
+						break;
+					default:
+						if (! blockIsAttached(neighbors[i], oppositeSENW[i]))
+							continue;
+						break;
+					}
+					/* constraint not satisfied: delete neighbor block */
+					int8_t * normal = normals + i * 4;
+					vec4     loc;
+					loc[VX] = pos[VX] + normal[VX];
+					loc[VY] = pos[VY] + normal[VY];
+					loc[VZ] = pos[VZ] + normal[VZ];
+					mapUpdate(map, loc, 0, NULL, False);
+					break;
 				}
 			}
 		}
@@ -304,6 +332,7 @@ int mapActivateBlock(Map map, vec4 pos, int blockId, BlockIter iter)
 {
 	Block b = &blockIds[blockId >> 4];
 	DATA8 d = &iter->blockIds[DATA_OFFSET + (iter->offset >> 1)];
+	uint8_t data;
 
 	switch (b->special) {
 	case BLOCK_DOOR:
@@ -338,40 +367,30 @@ int mapActivateBlock(Map map, vec4 pos, int blockId, BlockIter iter)
 		*d ^= iter->offset & 1 ? 4 << 4 : 4;
 		break;
 	default:
-		switch (FindInList("unpowered_repeater,powered_repeater,cake,lever,stone_button,wooden_button", b->tech, 0)) {
+		data = iter->offset & 1 ? d[0] >> 4 : d[0] & 15;
+		switch (FindInList("unpowered_repeater,powered_repeater,cake,lever,stone_button,wooden_button,cocoa_beans", b->tech, 0)) {
 		case 0:
 		case 1: /* repeater: bit3~4: delay */
-			if (iter->offset & 1)
-			{
-				if (*d >= 0xc0) *d &= ~0xc0;
-				else *d += 0x40;
-			}
-			else
-			{
-				if ((*d & 12) == 12) *d &= ~12;
-				else *d += 4;
-			}
+			if ((data & 12) == 12) data &= ~12;
+			else data += 4;
 			break;
 		case 2: /* cake: 0~6: bites */
-			if (iter->offset & 1)
-			{
-				if (*d < 0x60) *d += 0x10;
-				else           *d &= 15;
-			}
-			else
-			{
-				if ((*d & 15) < 6) (*d) ++;
-				else               *d &= 0xf0;
-			}
+			if ((data & 15) < 6) data ++;
+			else                 data &= 0xf0;
 			break;
 		case 3: /* lever: bit4: powered */
 		case 4: /* button */
-		case 5:
-			*d ^= (iter->offset & 1 ? 0x80 : 0x08);
+		case 5: /* wooden */
+			data ^= 0x08;
+			break;
+		case 6: /* cocoa beans - cycle through different growth stage */
+			data += 4;
+			if (data >= 12) data &= 3;
 			break;
 		default:
 			return 0;
 		}
+		d[0] = iter->offset & 1 ? (d[0] & 15) | (data << 4) : (d[0] & 0xf0) | data;
 	}
 	return 1;
 }

@@ -31,7 +31,6 @@ Bool skydomeInit(mat4 mvp)
 	Model model = modelSphere(1, 40);
 
 	skydome.shader = createGLSLProgram("skydome.vsh", "skydome.fsh", NULL);
-//	skydome.shader = createGLSLProgram("skydomeVert.glsl", "skydomeFrag.glsl", NULL);
 	if (! skydome.shader)
 		return False;
 

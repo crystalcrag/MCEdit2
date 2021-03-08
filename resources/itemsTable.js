@@ -105,7 +105,7 @@
 	{id: 351, state: 0, name: "Ink Sac",              stack:64, cat: DECO,     tex: [ 3,12], tech: "dye"},
 	{id: 351, state: 1, name: "Rose Red Dye",         stack:64, cat: DECO,     tex: [ 5,12]},
 	{id: 351, state: 2, name: "Cactus Green Dye",     stack:64, cat: DECO,     tex: [12,12]},
-	{id: 351, state: 3, name: "Cocoa Bean",           stack:64, cat: CROPS,    tex: [15,12]},
+	{id: 351, state: 3, name: "Cocoa Bean",           stack:64, cat: CROPS,    tex: [15,12], createBlock: 127},
 	{id: 351, state: 4, name: "Lapis Lazuli",         stack:64, cat: DECO,     tex: [ 9,12]},
 	{id: 351, state: 5, name: "Purple Dye",           stack:64, cat: DECO,     tex: [ 6,12]},
 	{id: 351, state: 6, name: "Cyan Dye",             stack:64, cat: DECO,     tex: [10,12]},

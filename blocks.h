@@ -27,6 +27,7 @@ int     blockGenVertexBBox(BlockState b, VTXBBox box, int flag, int * vbo);
 int     blockInvGetModelSize(int id);
 Bool    blockGetBoundsForFace(VTXBBox, int face, vec4 V0, vec4 V1, vec4 offset, int cnxFlags);
 Bool    blockIsSolidSide(int blockId, int side);
+Bool    blockIsAttached(int blockId, int side);
 int     blockAdjustPlacement(int blockId, BlockOrient info);
 int     blockAdjustOrient(int blockId, BlockOrient info, vec4 inter);
 int     blockGenModel(int vbo, int blockId);

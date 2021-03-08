@@ -19,5 +19,8 @@ void main(void)
 	size       = float(info & 255);
 	blockLight = float((info >> 8)  & 15) / 15.;
 	skyLight   = float((info >> 12) & 15) / 15.;
+	/* make the particles slightly darker */
+	if (skyLight > 0.8) skyLight = 0.8;
+	if (blockLight > 0.8) blockLight = 0.8;
 	gl_Position = projMatrix * mvMatrix * vec4(position, 1);
 }

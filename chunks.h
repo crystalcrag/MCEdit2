@@ -10,11 +10,10 @@
 #include "utils.h"
 #include "NBT2.h"
 
-#define BUILD_HEIGHT               128
+#define BUILD_HEIGHT               256
 #define CHUNK_LIMIT                (BUILD_HEIGHT/16)
 #define CHUNK_BLOCK_POS(x,z,y)     ((x) + ((z) << 4) + ((y) << 8))
 
-typedef struct Map_t *             Map;
 typedef struct Chunk_t *           Chunk;
 typedef struct ChunkData_t         ChunkData_t;
 typedef struct ChunkData_t *       ChunkData;
@@ -25,7 +24,7 @@ typedef void (*ChunkFlushCb_t)(WriteBuffer);
 void      chunkInitStatic(void);
 Bool      chunkLoad(Chunk, const char * path, int x, int z);
 Bool      chunkSave(Chunk, const char * path);
-void      chunkUpdate(Map, Chunk, int layer, ChunkFlushCb_t cb);
+void      chunkUpdate(Chunk update, ChunkData air, int layer, ChunkFlushCb_t cb);
 int       chunkFree(Chunk);
 ChunkData chunkCreateEmpty(Chunk, int layer);
 DATA8     chunkGetTileEntity(Chunk, int * XYZ);

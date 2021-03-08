@@ -14,6 +14,7 @@
 void particlesInit(int vbo);
 void particlesCreate(Map map, int effect, int count, int blockId, vec4 pos);
 int  particlesAnimate(Map map);
+void particleSetBlock(vec4 pos, int blockId);
 
 enum /* possible values for <effect> */
 {

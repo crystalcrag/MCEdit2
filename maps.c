@@ -595,7 +595,7 @@ void mapGenerateMesh(Map map)
 			{
 				/* this is the function that will convert chunk into triangles */
 				renderInitBuffer(cd);
-				chunkUpdate(map, list, i, renderFlush);
+				chunkUpdate(list, map->air, i, renderFlush);
 				renderFinishMesh();
 				if (cd->pendingDel)
 				{
@@ -637,7 +637,7 @@ Chunk mapAllocArea(int area)
 
 	if (chunks)
 	{
-		/* should be property of a map, but who cares ... */
+		/* should be property of a map... */
 		int8_t * ptr  = realloc(frustum.spiral, dist * dist * 2);
 
 		if (ptr)
@@ -1051,6 +1051,7 @@ Bool mapSerializeItems(MapExtraData sel, STRPTR listName, Item items, int itemCo
 			while ((off = NBT_Iter(&iter)) >= 0)
 			{
 				if (FindInList("id,Slot,Count,Damage", iter.name, 0) >= 0)
+					/* these one already are */
 					continue;
 
 				NBT_Add(ret, TAG_Raw_Data, NBT_HdrSize(mem+off), mem + off, TAG_End);
@@ -1307,8 +1308,8 @@ static ChunkData mapAddToVisibleList(Map map, Chunk from, int direction, int lay
 			}
 			return NULL;
 		}
-		if (c->cdIndex > Y)
-			c->cdIndex = Y;
+//		if (c->cdIndex > Y)
+//			c->cdIndex = Y;
 		cd = c->layer[Y];
 	}
 	if (cd && c->outflags[Y] < VISIBLE)
