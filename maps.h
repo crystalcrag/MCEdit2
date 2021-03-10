@@ -99,7 +99,7 @@ void   mapDecodeItems(Item item, int count, NBTHdr nbtItems);
 Bool   mapSerializeItems(MapExtraData sel, STRPTR listName, Item items, int count, NBTFile ret);
 Bool   mapUpdateNBT(MapExtraData sel, NBTFile nbt);
 void   mapViewFrustum(Map, mat4 mvp, vec4 camera);
-int    mapFirstFree(uint32_t usage);
+int    mapFirstFree(uint32_t * usage, int count);
 Chunk  mapGetChunk(Map, vec4 pos);
 
 /*

@@ -22,6 +22,8 @@ static struct Frustum_t frustum;
 /* given a direction encodded as bitfield (S, E, N, W), return offset of where that chunk is */
 int16_t chunkNeighbor[16*9];
 
+
+
 /*
  * frustum culling static tables : this part is explained in a separate document: doc/internals.html
  */
@@ -78,22 +80,32 @@ void mapInitStatic(void)
 	}
 }
 
-int mapFirstFree(uint32_t usage)
+int mapFirstFree(DATA32 usage, int count)
 {
-	int slot = frustum.firstFree[usage & 0xff];
-	if (slot == 8)
+	int base, i;
+	for (i = count, base = 0; i > 0; i ++, usage ++, base += 32)
 	{
-		usage >>= 8;
-		slot += frustum.firstFree[usage & 0xff];
-		if (slot == 16)
+		uint32_t bits = *usage;
+		int slot = frustum.firstFree[bits & 0xff];
+		if (slot == 8)
 		{
-			usage >>= 8;
-			slot += frustum.firstFree[usage & 0xff];
-			if (slot == 24)
-				slot += frustum.firstFree[usage >> 8];
+			bits >>= 8;
+			slot += frustum.firstFree[bits & 0xff];
+			if (slot == 16)
+			{
+				bits >>= 8;
+				slot += frustum.firstFree[bits & 0xff];
+				if (slot == 24)
+				{
+					slot += frustum.firstFree[bits >> 8];
+					if (slot == 32) continue;
+				}
+			}
 		}
+		*usage |= 1 << slot;
+		return base + slot;
 	}
-	return slot;
+	return -1;
 }
 
 static int mapGetConnect(Map map, ChunkData cd, int offset, BlockState b)

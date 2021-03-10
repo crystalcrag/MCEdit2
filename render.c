@@ -391,7 +391,7 @@ Bool renderInitStatic(int width, int height, APTR sitRoot)
 	glBufferData(GL_ARRAY_BUFFER, PARTICLES_VBO_SIZE * 1000, NULL, GL_STATIC_DRAW);
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, PARTICLES_VBO_SIZE, 0);
 	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, PARTICLES_VBO_SIZE, (void *) 12);
+	glVertexAttribIPointer(1, 3, GL_UNSIGNED_INT, PARTICLES_VBO_SIZE, (void *) 12);
 	glEnableVertexAttribArray(1);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 

@@ -360,18 +360,8 @@ int signAddToList(int blockId, DATA8 tile, int prev, uint8_t light)
 	}
 
 	/* check for a free place */
-	DATA32 usage;
-	for (i = 0, usage = signs.usage; i < signs.count; i += 32, usage ++)
-	{
-		int slot = mapFirstFree(*usage);
-		if (slot < 32)
-		{
-			i += slot;
-			break;
-		}
-	}
+	i = mapFirstFree(signs.usage, signs.max >> 5);
 
-	*usage |= 1 << (i&31);
 	signFillVertex(blockId, sign.pt1, NULL);
 	signs.list[i] = sign;
 	signs.count ++;
@@ -440,26 +430,16 @@ static void signAddToBank(SignText sign)
 	SignBank bank;
 	int      i, slot;
 
-	for (i = 0, slot = BANK_MAX, bank = signs.banks; i < signs.maxBank; i ++, bank ++)
+	for (i = 0, slot = -1, bank = signs.banks; i < signs.maxBank; i ++, bank ++)
 	{
 		if (bank->inBank < BANK_MAX)
 		{
-			int j;
-			for (j = 0, slot = 0; j < DIM(bank->usage); j ++)
-			{
-				int nth = mapFirstFree(bank->usage[j]);
-				slot += nth;
-				if (nth < 32)
-				{
-					bank->usage[j] |= 1 << nth;
-					goto break_all;
-				}
-			}
+			slot = mapFirstFree(bank->usage, DIM(bank->usage));
+			if (slot >= 0) break;
 		}
 	}
 
-	break_all:
-	if (slot >= BANK_MAX)
+	if (slot < 0)
 	{
 		signs.maxBank ++;
 		bank = realloc(signs.banks, signs.maxBank * sizeof *signs.banks);

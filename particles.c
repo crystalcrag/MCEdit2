@@ -25,33 +25,44 @@ void particlesInit(int vbo)
 	particles.vbo = vbo;
 
 	ListAddTail(&particles.buffers, &list->node);
+
+	/* used to generate a random pattern for spark particles */
+	int incx = 1, incy = 0, i, j, k, step;
+	for (i = k = 0, j = step = 8; i < 64; i ++)
+	{
+		particles.spiral[i] = k;
+		j --;
+		if (j == 0)
+		{
+			/* change direction */
+			if (incx > 0) incx =  0, incy = 8, step --; else
+			if (incy > 0) incx = -1, incy = 0; else
+			if (incx < 0) incx =  0, incy = -8, step --;
+			else          incx =  1, incy = 0;
+			j = step;
+		}
+		k += incx + incy;
+	}
 }
 
 static Particle particlesAlloc(void)
 {
 	ParticleList list;
-	Particle     p;
 
 	for (list = HEAD(particles.buffers); list; NEXT(list))
 	{
-		if (list->usage < DIM(list->buffer))
+		int nth = mapFirstFree(list->usage, 4);
+		if (nth >= 0)
 		{
 			/* try at end of array */
-			p = list->buffer + list->usage;
-			if (p->time)
-			{
-				/* scan array instead */
-				int i;
-				for (p = list->buffer, i = DIM(list->buffer); i > 0 && p->time; i --, p ++);
-			}
-			list->usage ++;
 			particles.count ++;
-			return p;
+			list->count ++;
+			return list->buffer + nth;
 		}
 	}
 	list = calloc(sizeof *list, 1);
 	ListAddTail(&particles.buffers, &list->node);
-	list->usage = 1;
+	list->usage[0] = 1;
 	particles.count ++;
 	return list->buffer;
 }
@@ -75,7 +86,7 @@ static int particlesGetBlockInfo(Map map, vec4 pos, DATA8 plight)
 	return 0;
 }
 
-void particlesCreate(Map map, int effect, int count, int blockId, vec4 pos)
+void particlesExplode(Map map, int count, int blockId, vec4 pos)
 {
 	Particle p = NULL;
 	BlockState b = blockGetById(blockId);
@@ -128,14 +139,15 @@ void particlesCreate(Map map, int effect, int count, int blockId, vec4 pos)
 				int U = b->nzU;
 				if (V == 62 && U < 17) V = 63; /* biome dependent color */
 
-				p->UV = (U * 16 + (int) (x * step * 16)) | ((V * 16 + (int) (y * step * 16)) << 9);
+				U = (U * 16 + (int) (x * step * 16)) | ((V * 16 + (int) (y * step * 16)) << 9);
 				p->size = 2 + rand() % 8;
+				p->UV = (p->size << 6) | (U << 10);
 				#ifndef SLOW
 				p->time = curTime + RandRange(1000, 1500);
 				#else
 				p->time = curTime + RandRange(4000, 8000);
 				#endif
-				p->blockId = 0;
+				p->type = PARTICLES_EXPLODE;
 
 				if (p->dir[VX] < 0) p->size |= 0x80, p->dir[VX] = - p->dir[VX];
 				if (p->dir[VZ] < 0) p->size |= 0x40, p->dir[VZ] = - p->dir[VZ];
@@ -144,30 +156,20 @@ void particlesCreate(Map map, int effect, int count, int blockId, vec4 pos)
 	}
 }
 
-/* a block has been changed, check if particles need to react */
-void particleSetBlock(vec4 pos, int blockId)
+void particlesSparks(Map map, int blockId, vec4 pos)
 {
-	if (particles.count == 0)
-		return;
+	Particle p = particlesAlloc();
 
-	if (blockId == 0)
+	memset(p, 0, sizeof *p);
+	memcpy(p->loc, pos, sizeof p->loc);
+	p->time = curTime + 100000;
+	p->UV = (31 * 16 + ((3*16+8) << 9)) | (0xf0 << 19) | (PARTICLES_SPARK << 27);
+	p->size = 2 + rand() % 8;
+	int i;
+	for (i = 0, p->seed = 0; i < 64; i ++)
 	{
-		/* block deleted */
-		ParticleList list;
-		Particle p;
-		int i;
-		float y = pos[VY]+0.9;
-		for (list = HEAD(particles.buffers); list; NEXT(list))
-		{
-			if (list->usage == 0) continue;
-			for (p = list->buffer, i = list->usage; i > 0; p ++)
-			{
-				if (p->time == 0) continue;
-				if (p->brake[VY] == 0 && y <= p->loc[VY] && p->loc[VY] <= y+0.1)
-					p->brake[VY] = 0.02, p->dir[VY] = -0.2;
-				i --;
-			}
-		}
+		if (rand() < RAND_MAX/4+i*RAND_MAX/96)
+			p->seed |= 1ULL << particles.spiral[i];
 	}
 }
 
@@ -199,27 +201,42 @@ int particlesAnimate(Map map)
 
 	for (list = HEAD(particles.buffers), count = 0; list; NEXT(list))
 	{
-		if (list->usage == 0) continue;
-		for (p = list->buffer, i = list->usage; i > 0; p ++)
+		if (list->count == 0) continue;
+		uint32_t usage[4] = {
+			list->usage[0] ^ 0xffffffff,
+			list->usage[1] ^ 0xffffffff,
+			list->usage[2] ^ 0xffffffff,
+			list->usage[3] ^ 0xffffffff
+		};
+		for (i = list->count; i > 0; i --)
 		{
-			if (p->time == 0) continue;
+			int nth = mapFirstFree(usage, 4);
+			p = list->buffer + nth;
 			if (p->time < curTime)
 			{
 				/* expired particle */
 				p->time = 0;
+				list->usage[nth>>5] ^= 1 << (nth&31);
 				particles.count --;
-				list->usage --;
-				i --;
+				list->count --;
 				continue;
 			}
-			i --;
-			vec4 old = {floorf(p->loc[VX]), floorf(p->loc[VY]), floorf(p->loc[VZ])};
-			buf[0] = p->loc[VX];
-			buf[1] = p->loc[VY];
-			buf[2] = p->loc[VZ];
-			buf[3] = p->UV;
-			buf[4] = (p->size & 15) | (p->light << 8);
-			buf += 5;
+			DATA32 info = (DATA32) buf + 3;
+			vec4   old = {floorf(p->loc[VX]), floorf(p->loc[VY]), floorf(p->loc[VZ])};
+			buf[0]  = p->loc[VX];
+			buf[1]  = p->loc[VY];
+			buf[2]  = p->loc[VZ];
+			info[0] = p->UV;
+			switch (p->type) {
+			case PARTICLES_EXPLODE:
+				info[1] = p->light;
+				info[2] = 0;
+				break;
+			case PARTICLES_SPARK:
+				info[1] = p->seed >> 32;
+				info[2] = p->seed & 0xffffffff;
+			}
+			buf += 6;
 			count ++;
 
 			float inc;

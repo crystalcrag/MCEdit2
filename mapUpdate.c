@@ -1031,9 +1031,6 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, Bool blockUpdate)
 		mapUpdatePropagateSignal(&iter);
 	}
 
-	/* change particle trajectory if needed */
-	particleSetBlock(pos, blockId);
-
 	/* list of sub-chunks that we need to update their mesh */
 	mapUpdateListChunk(map);
 
@@ -1065,7 +1062,7 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, Bool blockUpdate)
 	}
 
 	if (blockId == 0)
-		particlesCreate(map, PARTICLES_EXPLODE, 4, oldId, pos);
+		particlesExplode(map, 4, oldId, pos);
 }
 
 /* high level function: dispatch to specialized module */

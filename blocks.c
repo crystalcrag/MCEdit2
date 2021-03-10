@@ -1992,6 +1992,23 @@ static int blockModelQuad(BlockState b, DATA16 buffer)
 	return (p - buffer) / INT_PER_VERTEX;
 }
 
+static Bool blockCanBePlacedOnGround(Block b)
+{
+	if (b->placement > 0)
+	{
+		DATA8 p = b->name + b->placement;
+		int   i;
+		for (i = p[0], p ++; i > 0; p += 2, i --)
+		{
+			int id = (p[0] << 8) | p[1];
+			if (id == PLACEMENT_GROUND)
+				return True;
+		}
+		return False;
+	}
+	return True;
+}
+
 /* auto-adjust orient of blocks based on direction/face being pointed */
 int blockAdjustOrient(int blockId, BlockOrient info, vec4 inter)
 {
@@ -2024,8 +2041,8 @@ int blockAdjustOrient(int blockId, BlockOrient info, vec4 inter)
 		if (side >= 4) side = opposite[info->direction];
 		return blockId + orientFull[side];
 	case ORIENT_SWNE:
-		if (b->placement == 0)
-			side = info->direction;
+		if (blockCanBePlacedOnGround(b))
+			side = opposite[info->direction];
 		else
 			side = opposite[side];
 		return blockId + orientSWNE[side];

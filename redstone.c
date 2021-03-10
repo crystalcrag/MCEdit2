@@ -156,7 +156,7 @@ int redstoneConnectTo(struct BlockIter_t iter, RSWire connectTo)
 	return list - connectTo;
 }
 
-/* get signal strength emitted by block pointer by <iterator> */
+/* get signal strength emitted by block pointed by <iter> */
 int redstoneSignalStrength(struct BlockIter_t iter, Bool dirty)
 {
 	switch (iter.blockIds[iter.offset]) {
