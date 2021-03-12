@@ -23,6 +23,9 @@ flat out uvec2 pattern; /* 64bits actually */
 
 vec2 getTexCoord(int base, int offX, int offY)
 {
+	if (ptype == 1)
+		return vec2(offX, offY);
+
 	int baseU = base & 511;
 	int baseV = base >> 9;
 	int minU  = baseU & ~15;

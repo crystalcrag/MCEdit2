@@ -46,6 +46,7 @@ struct Block_t             /* per id information */
 	int8_t   invState;
 	int8_t   category;     /* enum */
 	int8_t   bbox;         /* enum */
+	int8_t   bboxPlayer;   /* enum */
 	uint8_t  states;
 	uint8_t  emitLight;    /* value of light emitted 0 ~ 15 */
 	uint8_t  opacSky;      /* reduction of skyLight */

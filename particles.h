@@ -14,7 +14,7 @@
 void particlesInit(int vbo);
 void particlesExplode(Map map, int count, int blockId, vec4 pos);
 int  particlesAnimate(Map map);
-void particleAddEmitter(vec4 pos, int type);
+int  particlesAddEmitter(vec4 pos, int type, int interval);
 
 enum /* possible values for <effect> */
 {
@@ -32,7 +32,7 @@ typedef struct Particle_t         Particle_t;
 typedef struct ParticleList_t *   ParticleList;
 typedef struct Emitter_t *        Emitter;
 typedef struct Emitter_t          Emitter_t;
-typedef struct EmitterList_t *    EmitterList_t;
+typedef struct EmitterList_t *    EmitterList;
 
 struct Particle_t
 {
@@ -43,7 +43,8 @@ struct Particle_t
 	uint32_t UV;
 	uint8_t  light;
 	uint8_t  size;
-	uint8_t  type;
+	uint8_t  onGround;
+	uint8_t  index;
 	int      time;
 };
 
@@ -51,6 +52,8 @@ struct Emitter_t
 {
 	float    loc[3];
 	uint8_t  type;
+	uint16_t interval;
+	int      time;
 };
 
 struct ParticleList_t
@@ -64,19 +67,21 @@ struct ParticleList_t
 struct EmitterList_t
 {
 	ListNode  node;
-	Emitter_t emitters[64];
+	Emitter_t buffer[64];
 	uint32_t  usage[2];
+	uint8_t   count;
 };
 
 struct ParticlePrivate_t
 {
 	ListHead buffers;   /* ParticleList */
 	ListHead emitters;  /* EmitterList */
-	int      count;
+	int      count, emitter;
 	int      vbo;
 	vec4     initpos;
 	double   lastTime;
 	uint8_t  spiral[64];
+	uint8_t  ranges[8];
 };
 
 

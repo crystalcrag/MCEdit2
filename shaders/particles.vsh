@@ -30,12 +30,11 @@ void main(void)
 	switch (type) {
 	case 0: // explode particles
 		light = info.y & 0xff;
-		gl_Position = projMatrix * mvMatrix * vec4(position, 1);
 		break;
 	case 1: // spark particles
 		light = 0xf0;
 		patternHI = info.y;
 		patternLO = info.z;
-		gl_Position = vec4(0, 0, 0.5, 1);
 	}
+	gl_Position = projMatrix * mvMatrix * vec4(position, 1);
 }

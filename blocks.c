@@ -611,6 +611,11 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 			SIT_Log(SIT_ERROR, "%s: unknown bounding box '%s' on line %d\n", file, value, line);
 			return False;
 		}
+		/* bounding box for player */
+		value = jsonValue(keys, "bboxPlayer");
+		block.bboxPlayer = value ? FindInList("NONE,AUTO,MAX,FULL", value, 0) : block.bbox;
+		if (block.bboxPlayer < 0)
+			block.bboxPlayer = block.bbox;
 		/* default bbox (cannot be overridden) */
 		switch (block.type) {
 		case INVIS:
@@ -764,7 +769,7 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 		{
 			if (FindInList(
 				"id,name,type,inv,invstate,cat,special,tech,bbox,orient,keepModel,"
-				"emitLight,opacSky,opacLight,tile,invmodel,rswire,placement", *keys, 0) < 0)
+				"emitLight,opacSky,opacLight,tile,invmodel,rswire,placement,bboxPlayer", *keys, 0) < 0)
 			{
 				SIT_Log(SIT_ERROR, "%s: unknown property %s on line %d\n", file, *keys, line);
 				return False;

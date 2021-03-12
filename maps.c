@@ -83,7 +83,7 @@ void mapInitStatic(void)
 int mapFirstFree(DATA32 usage, int count)
 {
 	int base, i;
-	for (i = count, base = 0; i > 0; i ++, usage ++, base += 32)
+	for (i = count, base = 0; i > 0; i --, usage ++, base += 32)
 	{
 		uint32_t bits = *usage;
 		int slot = frustum.firstFree[bits & 0xff];

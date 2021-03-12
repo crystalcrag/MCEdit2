@@ -27,8 +27,8 @@ void particlesInit(int vbo)
 	ListAddTail(&particles.buffers, &list->node);
 
 	/* used to generate a random pattern for spark particles */
-	int incx = 1, incy = 0, i, j, k, step;
-	for (i = k = 0, j = step = 8; i < 64; i ++)
+	int incx = 1, incy = 0, i, j, k, step, range;
+	for (i = k = 0, j = step = 8, range = 1; i < 64; i ++)
 	{
 		particles.spiral[i] = k;
 		j --;
@@ -38,11 +38,12 @@ void particlesInit(int vbo)
 			if (incx > 0) incx =  0, incy = 8, step --; else
 			if (incy > 0) incx = -1, incy = 0; else
 			if (incx < 0) incx =  0, incy = -8, step --;
-			else          incx =  1, incy = 0;
+			else          incx =  1, incy = 0, particles.ranges[range++] = i+1;
 			j = step;
 		}
 		k += incx + incy;
 	}
+	particles.ranges[range] = i;
 }
 
 static Particle particlesAlloc(void)
@@ -63,7 +64,32 @@ static Particle particlesAlloc(void)
 	list = calloc(sizeof *list, 1);
 	ListAddTail(&particles.buffers, &list->node);
 	list->usage[0] = 1;
+	list->count = 1;
 	particles.count ++;
+	return list->buffer;
+}
+
+static Emitter emitterAlloc(int * slot)
+{
+	EmitterList list;
+	int ret;
+	for (list = HEAD(particles.emitters), ret = 0; list; NEXT(list), ret += sizeof list->usage * 8)
+	{
+		int nth = mapFirstFree(list->usage, 2);
+		if (nth >= 0)
+		{
+			*slot = ret + nth;
+			particles.emitter ++;
+			list->count ++;
+			return list->buffer + nth;
+		}
+	}
+	list = calloc(sizeof *list, 1);
+	ListAddTail(&particles.emitters, &list->node);
+	list->usage[0] = 1;
+	list->count = 1;
+	particles.emitter ++;
+	*slot = ret;
 	return list->buffer;
 }
 
@@ -134,6 +160,7 @@ void particlesExplode(Map map, int count, int blockId, vec4 pos)
 				p->brake[VZ] = 0.0001;
 				p->brake[VY] = 0.02;
 				p->light = light;
+				p->onGround = 0;
 
 				int V = b->nzV;
 				int U = b->nzU;
@@ -147,7 +174,6 @@ void particlesExplode(Map map, int count, int blockId, vec4 pos)
 				#else
 				p->time = curTime + RandRange(4000, 8000);
 				#endif
-				p->type = PARTICLES_EXPLODE;
 
 				if (p->dir[VX] < 0) p->size |= 0x80, p->dir[VX] = - p->dir[VX];
 				if (p->dir[VZ] < 0) p->size |= 0x40, p->dir[VZ] = - p->dir[VZ];
@@ -162,15 +188,68 @@ void particlesSparks(Map map, int blockId, vec4 pos)
 
 	memset(p, 0, sizeof *p);
 	memcpy(p->loc, pos, sizeof p->loc);
-	p->time = curTime + 100000;
-	p->UV = (31 * 16 + ((3*16+8) << 9)) | (0xf0 << 19) | (PARTICLES_SPARK << 27);
-	p->size = 2 + rand() % 8;
-	int i;
+	float range = RandRange(1000, 2000);
+	int   UV    = (31 * 16 + ((3*16+8) << 9));
+	p->time = curTime + range;
+	p->dir[VY] = 0.02;
+	p->size = 8 + rand() % 6;
+	p->UV = PARTICLES_SPARK | (UV << 10) | (p->size << 6);
+	p->index = 1;
+	p->onGround = 0;
+	uint8_t i, total;
 	for (i = 0, p->seed = 0; i < 64; i ++)
 	{
-		if (rand() < RAND_MAX/4+i*RAND_MAX/96)
-			p->seed |= 1ULL << particles.spiral[i];
+		if (rand() < RAND_MAX/4+i*(RAND_MAX/128))
+			p->seed |= 1ULL << particles.spiral[i], total ++;
 	}
+	p->light = range / total;
+}
+
+static void particlesRemovePx(Particle p)
+{
+	uint64_t pattern = p->seed;
+	uint8_t  index   = p->index;
+
+	if (pattern == 0) return;
+	if (rand() < RAND_MAX/5) return;
+	while (index < 5)
+	{
+		/* start from outside to inside */
+		int min   = particles.ranges[index-1];
+		int range = particles.ranges[index] - min;
+		int start = rand() % range + min;
+		int i;
+
+		for (i = start; (pattern & (1ULL << particles.spiral[i])) == 0 && i >= min; i --);
+		if (i < min)
+		{
+			int max = particles.ranges[index];
+			for (i = start + 1; i < max && (pattern & (1ULL << particles.spiral[i])) == 0; i ++);
+			if (i == max)
+			{
+				index ++;
+				continue;
+			}
+		}
+		p->seed ^= 1ULL << particles.spiral[i];
+		break;
+	}
+	p->index = index;
+}
+
+
+int particlesAddEmitter(vec4 pos, int type, int interval)
+{
+	int     slot;
+	Emitter emit = emitterAlloc(&slot);
+
+	memcpy(emit->loc, pos, sizeof emit->loc);
+	emit->type = type;
+	emit->interval = interval;
+	emit->time = curTime + interval;
+
+	particles.emitter ++;
+	return slot;
 }
 
 /* move particles */
@@ -179,13 +258,38 @@ int particlesAnimate(Map map)
 	ParticleList list;
 	Particle p;
 	float * buf;
-	int i, count;
+	int i, count, curTimeMS = curTime;
+
+	if (particles.emitter > 0)
+	{
+		EmitterList emit;
+		for (emit = HEAD(particles.emitters); emit; NEXT(emit))
+		{
+			uint32_t usage[2] = {
+				emit->usage[0] ^ 0xffffffff,
+				emit->usage[1] ^ 0xffffffff
+			};
+			for (i = emit->count; i > 0; i --)
+			{
+				int nth = mapFirstFree(usage, 2);
+				Emitter e = emit->buffer + nth;
+
+				if (e->time <= curTimeMS)
+				{
+					particlesSparks(map, 0, e->loc);
+					e->time = curTimeMS + RandRange(e->interval>>1, e->interval);
+				}
+			}
+		}
+	}
 
 	if (particles.count == 0)
 	{
 		particles.lastTime = curTime;
 		return 0;
 	}
+
+	fprintf(stderr, "count = %d \r", particles.count);
 
 	glBindBuffer(GL_ARRAY_BUFFER, particles.vbo);
 	buf = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
@@ -201,18 +305,11 @@ int particlesAnimate(Map map)
 
 	for (list = HEAD(particles.buffers), count = 0; list; NEXT(list))
 	{
-		if (list->count == 0) continue;
-		uint32_t usage[4] = {
-			list->usage[0] ^ 0xffffffff,
-			list->usage[1] ^ 0xffffffff,
-			list->usage[2] ^ 0xffffffff,
-			list->usage[3] ^ 0xffffffff
-		};
-		for (i = list->count; i > 0; i --)
+		uint8_t nth;
+		for (i = list->count, nth = 0, p = list->buffer; i > 0; p ++, nth ++)
 		{
-			int nth = mapFirstFree(usage, 4);
-			p = list->buffer + nth;
-			if (p->time < curTime)
+			if (p->time == 0) continue; i --;
+			if (p->time < curTimeMS)
 			{
 				/* expired particle */
 				p->time = 0;
@@ -227,7 +324,7 @@ int particlesAnimate(Map map)
 			buf[1]  = p->loc[VY];
 			buf[2]  = p->loc[VZ];
 			info[0] = p->UV;
-			switch (p->type) {
+			switch (p->UV&63) {
 			case PARTICLES_EXPLODE:
 				info[1] = p->light;
 				info[2] = 0;
@@ -235,6 +332,7 @@ int particlesAnimate(Map map)
 			case PARTICLES_SPARK:
 				info[1] = p->seed >> 32;
 				info[2] = p->seed & 0xffffffff;
+				particlesRemovePx(p);
 			}
 			buf += 6;
 			count ++;
@@ -263,10 +361,10 @@ int particlesAnimate(Map map)
 			{
 				uint8_t light;
 				Block b = blockIds + particlesGetBlockInfo(map, pos, &light);
-				if (! (b->type == SOLID || b->type == TRANS || b->type == CUST))
+				if (! (b->type == SOLID || b->type == TRANS || b->type == CUST) || b->bboxPlayer == BBOX_NONE)
 				{
 					p->light = light;
-					if (p->brake[VY] == 0)
+					if (p->onGround)
 						p->brake[VY] = 0.02;
 					continue;
 				}
@@ -280,6 +378,7 @@ int particlesAnimate(Map map)
 					p->loc[VY] = buf[-4] = pos[VY]+0.95;
 					p->dir[VY] = 0;
 					p->brake[VY] = 0;
+					p->onGround = 1;
 				}
 				else p->brake[VY] = 0.02;
 			}

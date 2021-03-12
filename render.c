@@ -355,6 +355,8 @@ Bool renderInitStatic(int width, int height, APTR sitRoot)
 	blockParseBoundingBox();
 	blockParseInventory(render.vboInventory);
 	particlesInit(render.vboParticles);
+	vec4 pos = {-175.5, 70.5, -42.5};
+	particlesAddEmitter(pos, PARTICLES_SPARK, 1000);
 
 	/* main texture file */
 	render.texBlock = textureLoad(RESDIR, "terrain.png", 1, blockPostProcessTexture);
@@ -1292,8 +1294,8 @@ static MeshBuffer renderAllocMeshBuf(ListHead * head)
 void renderInitBuffer(ChunkData cd)
 {
 	MeshBuffer mesh;
-	/* typical sub-chunk is usually below 64Kb of mesh data, but worst case scenario can reach up to 400Kb */
-	if (meshBanks.lh_Count == 0)
+	/* typical sub-chunk is usually below 64Kb of mesh data */
+	if (meshBanks.lh_Head == NULL)
 	{
 		/* since we are using a 5 bytes per vertex, we will only use at most 65535 bytes */
 		mesh = renderAllocMeshBuf(&alphaBanks);

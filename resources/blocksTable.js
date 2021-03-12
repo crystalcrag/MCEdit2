@@ -508,7 +508,7 @@
 	{id: 49, name: "Obsidian", type: SOLID, inv: CUBE, cat: BUILD},
 		{state: 0, tex: [5, 2, 5, 2, 5, 2, 5, 2, 5, 2, 5, 2]},
 
-	{id: 50, name: "Torch", type: CUST, inv: ITEM2D, bbox: FULL, invState: 0, cat: DECO, emitLight: 14, placement: "wall,ground", orient: TORCH},
+	{id: 50, name: "Torch", type: CUST, inv: ITEM2D, bbox: FULL, bboxPlayer: NONE, invState: 0, cat: DECO, emitLight: 14, placement: "wall,ground", orient: TORCH},
 		{state: 0, name: "+up", tex: [0, 5, 0, 5, 0, 5, 0, 5], model: [
 			31,2,10,2,7,0,7,0,0,0,0,0,0,44125,49255,49257,44127,44125,49255,49257,44127,44125,49255,49257,44127,44125,49255,49257,44127,44125,45151,45153,44127,
 		]},
@@ -575,7 +575,7 @@
 		{state: 4, name: "+west",  tex: [17, 3,17, 3,17, 3,18, 3], model: [SAME_AS, ID(54, 0), 1855]},
 		{state: 5, name: "+east",  tex: [17, 3,18, 3,17, 3,17, 3], model: [SAME_AS, ID(54, 0), 831]},
 
-	{id: 55, name: "Redstone wire", type: CUST, special: RSWIRE, rswire: ALLDIR, placement: "ground"},
+	{id: 55, name: "Redstone wire", type: CUST, special: RSWIRE, bboxPlayer: NONE, rswire: ALLDIR, placement: "ground"},
 		{state: 0, tex: [26,35,26,35,26,35,26,35], model: [
 			272+BHDR_INCFACEID,3,0.1,4,6,0,12,0,0,0,0,0,0,88306,90358,90361,88309,
 			272+BHDR_INCFACEID,4,0.1,2,12,0,7,0,0,0,0,0,0,85747,86773,86777,85751,
@@ -650,7 +650,7 @@
 		{state: 4, name: "+west",  tex: [13, 2,13, 2,13, 2,13, 3,14, 3,14, 3]},
 		{state: 5, name: "+east",  tex: [13, 2,13, 3,13, 2,13, 2,13, 2,14, 3]},
 
-	{id: 63, name: "Sign post", bbox: FULL, type: CUST, special: SIGN, tech: "standing_sign", tile: 1, placement: "ground"},
+	{id: 63, name: "Sign post", bbox: FULL, bboxPlayer: NONE, type: CUST, special: SIGN, tech: "standing_sign", tile: 1, placement: "ground"},
 		{state: 0, name: "+S", tex: [27,42,27,42,27,42,27,42], model: [
 			319,16,9,1,0,9,7.5,0,0,0,0,0,0,16672,22828,22812,16656,80,6236,6234,78,80,6236,6220,64,66,6222,6220,64,80,1106,1090,64,5210,6236,6220,5194,
 			15,1,9,1,7.5,0,7.5,0,0,0,0,0,0,8276,16484,16482,8274,8276,16484,16482,8274,8276,16484,16482,8274,8276,16484,16482,8274,
@@ -726,7 +726,7 @@
 		{state: 6, name: "+top, south",    tex: [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1]},
 		{state: 7, name: "+top, north",    tex: [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1]},
 
-	{id: 68, name: "Wall sign", type: CUST, bbox: MAX, tile: 1, special: SIGN, placement: "wall"},
+	{id: 68, name: "Wall sign", type: CUST, bbox: MAX, bboxPlayer: NONE, tile: 1, special: SIGN, placement: "wall"},
 		{state: 2, name: "+north", tex: [27,42,27,42,27,42,27,42], model: [
 			63,16,8.5,1.5,0,3.75,14.25,0,0,0,0,0,0,80,6236,6220,64,2128,8284,8282,2126,16672,22828,22812,16656,2116,8272,8274,2118,80,1106,1090,64,2132,3158,3142,2116,
 		]},
@@ -734,7 +734,8 @@
 		{state: 4, name: "+west",  model: [SAME_AS, ID(68, 2), 1599]},
 		{state: 5, name: "+east",  model: [SAME_AS, ID(68, 2), 575]},
 
-	{id: 69, name: "Lever", type: CUST, inv: ITEM2D, invState: 0, cat: REDSTONE, bbox: FULL, rswire: ALLDIR, orient: LEVER, placement: "solid", keepModel: 1},
+	{id: 69, name: "Lever", type: CUST, inv: ITEM2D, invState: 0, cat: REDSTONE, bbox: FULL, bboxPlayer: NONE, rswire: ALLDIR, orient: LEVER,
+		placement: "solid", keepModel: 1},
 		{state: 0, name: "-(attached_bottom)", tex: [8, 11], model: [
 			815,6,3,8,5,13,4,0,0,0,0,0,0,49264,50803,50797,49258,49258,50797,50789,49250,49264,50803,50797,49258,49258,50797,50789,49250,50803,54907,54901,50797,
 			574,2,2,10,7,11,0,-30,0,0,0,0,0,57465,57463,52333,52335,52335,53361,53359,52333,52333,52335,57465,57463,52335,57465,57463,52333,52335,57465,57463,52333,
@@ -776,7 +777,8 @@
 			1086,2,2,10,7,11,6,-150,0,0,0,0,0,57465,57463,52333,52335,52335,53361,53359,52333,52333,52335,57465,57463,52335,57465,57463,52333,52335,57465,57463,52333,
 		]},
 
-	{id: 70, name: "Stone pressure plate", type: CUST, bbox: MAX, inv: MODEL, cat: REDSTONE, rswire: ALLDIR, placement: "ground", invmodel: [ /* a bit bigger */
+	{id: 70, name: "Stone pressure plate", type: CUST, bbox: MAX, bboxPlayer: NONE, inv: MODEL, cat: REDSTONE, rswire: ALLDIR,
+		placement: "ground", invmodel: [ /* a bit bigger */
 		191,16,1,16,0,0,0,0,0,0,0,0,0,16,8224,8240,32,16,8224,8240,32,16,8224,8240,32,16,8224,8240,32,16,8224,8240,32,16,8224,8240,32,16
 		]},
 		{state: 0, name: "-", tex: [1, 0], model: [
@@ -802,7 +804,8 @@
 		{state: 6, name: "+east, hinge north", model: [SAME_AS, ID(71, 4), 1087]},
 		{state: 7, name: "+south, hinge east", model: [SAME_AS, ID(71, 4), 1599]},
 
-	{id: 72, name: "Wooden pressure plate", type: CUST, bbox: MAX, inv: MODEL, cat: REDSTONE, rswire: ALLDIR, placement: "ground", invmodel: [ /* a bit bigger */
+	{id: 72, name: "Wooden pressure plate", type: CUST, bbox: MAX, bboxPlayer: NONE, inv: MODEL, cat: REDSTONE, rswire: ALLDIR,
+		placement: "ground", invmodel: [ /* a bit bigger */
 		191,16,1,16,0,0,0,0,0,0,0,0,0,64,8272,8288,80,64,8272,8288,80,64,8272,8288,80,64,8272,8288,80,64,8272,8288,80,64,8272,8288,80,
 		]},
 		{state: 0, name: "-", tex: [4, 0], model: [
@@ -818,7 +821,7 @@
 	{id: 74, name: "Redstone ore (lit)", type: SOLID, tech: "lit_redstone_ore", emitLight: 7},
 		{state: 0, tex: [20, 4,20, 4,20, 4,20, 4,20, 4,20, 4]},
 
-	{id: 75, name: "Redstone torch", type: CUST, bbox: FULL, rswire: ALLDIR, orient: TORCH, placement: "wall,ground", tech: "unlit_redstone_torch"},
+	{id: 75, name: "Redstone torch", type: CUST, bbox: FULL, bboxPlayer: NONE, rswire: ALLDIR, orient: TORCH, placement: "wall,ground", tech: "unlit_redstone_torch"},
 		{state: 0, name: "+OFF,_up", tex: [3, 7, 3, 7, 3, 7, 3, 7], model: [
 			31,2,10,2,7,0,7,0,0,0,0,0,0,60591,65721,65719,60589,60591,65721,65719,60589,60591,65721,65719,60589,60591,65721,65719,60589,60591,61617,61615,60589,
 		]},
@@ -831,7 +834,8 @@
 		{state: 4, name: "-north", model: [SAME_AS, ID(75, 1), 1599]},
 		{state: 5, name: "-up",    model: [SAME_AS, ID(75, 0)]},
 
-	{id: 76, name: "Redstone torch", type: CUST, inv: ITEM2D, cat: REDSTONE, invState: 0, rswire: ALLDIR, bbox: MAX, orient: TORCH, emitLight: 7, placement: "wall,ground"},
+	{id: 76, name: "Redstone torch", type: CUST, bbox: FULL, bboxPlayer: NONE, inv: ITEM2D, cat: REDSTONE, invState: 0, rswire: ALLDIR,
+		orient: TORCH, emitLight: 7, placement: "wall,ground"},
 		{state: 0, name: "+ON,_up", tex: [3, 6, 3, 6, 3, 6, 3, 6], model: [
 			287,2,10,2,7,0,7,0,0,0,0,0,0,52383,57513,57511,52381,52383,57513,57511,52381,52383,57513,57511,52381,52383,57513,57511,52381,52383,53409,53407,52381,
 			261,4,4,2,6,7,7,0,0,0,0,0,0,51871,53923,53919,51867,51871,53923,53919,51867,
@@ -848,7 +852,8 @@
 		{state: 4, name: "-north", model: [SAME_AS, ID(76, 1), 1599]},
 		{state: 5, name: "-up",    model: [SAME_AS, ID(76, 0)]},
 
-	{id: 77, name: "Stone button", type: CUST, inv: MODEL, cat: REDSTONE, bbox: MAX, orient: LEVER, placement: "solid", rswire: ALLDIR, invmodel: [ /* a bit bigger */
+	{id: 77, name: "Stone button", type: CUST, inv: MODEL, cat: REDSTONE, bbox: MAX, bboxPlayer: NONE, orient: LEVER, placement: "solid", rswire: ALLDIR,
+		invmodel: [ /* a bit bigger */
 		695,3,6,8,4,5,4,0,0,0,0,0,0,16,8224,8240,32,16,8224,8240,32,16,8224,8240,32,16,8224,8240,32,16,8224,8240,32,16,8224,8240,32,
 		]},
 		{state: 0, name: "+bottom", tex: [31, 7,31, 7, 31, 7, 31, 7], model: [
@@ -976,7 +981,7 @@
 	{id: 89, name: "Glowstone", type: SOLID, inv: CUBE, cat: DECO, emitLight: 15},
 		{state: 0, tex: [9, 6, 9, 6, 9, 6, 9, 6, 9, 6, 9, 6]},
 
-	{id: 90, name: "Nether portal", type: CUST, bbox: MAX, tech: "portal"},
+	{id: 90, name: "Nether portal", type: CUST, bbox: MAX, bboxPlayer: NONE, tech: "portal"},
 		{state: 2, name: "+N/S", tex: [6,15, 6,15, 6,15, 6,15, 6,15], model: [
 			5,16,16,4,0,0,6,0,0,0,0,0,0,123216,131424,131440,123232,123216,131424,131440,123232,
 		]},
@@ -1619,7 +1624,7 @@
 		{state: 4, name: "+west",  model: [SAME_AS, ID(130, 0), 1855]},
 		{state: 5, name: "+east",  model: [SAME_AS, ID(130, 0), 831]},
 
-	{id: 131, name: "Tripwire hook", type: CUST, inv: ITEM2D, cat: REDSTONE, invState: 0, orient: SWNE, bbox: FULL, placement: "wall"},
+	{id: 131, name: "Tripwire hook", type: CUST, inv: ITEM2D, cat: REDSTONE, invState: 0, orient: SWNE, bbox: FULL, bboxPlayer: NONE, placement: "wall"},
 		{state: 0, name: "+unattached,_south", tex: [12, 10], model: [
 			318,4,8,2,6,1,14,0,0,0,0,0,0,3659,7763,7765,3661,3661,7765,7769,3665,3665,7769,7771,3667,2635,3661,3665,2639,2635,3661,3665,2639,
 			319,1.8,4.8,1.8,7.1,5,11.5,-45,0,0,0,0,0,5198,5203,4177,4172,5716,5721,4695,4690,7254,7259,6233,6228,3663,3668,2642,2637,4687,5713,
@@ -1651,7 +1656,7 @@
 		{state:14, name: "-north", model: [SAME_AS, ID(131, 12), 1342]},
 		{state:15, name: "-east",  model: [SAME_AS, ID(131, 12), 1854]},
 
-	{id: 132, name: "Tripwire", type: CUST, orient: SE, bbox: MAX}, /* TODO */
+	{id: 132, name: "Tripwire", type: CUST, orient: SE, bbox: MAX, bboxPlayer: NONE}, /* TODO */
 
 	{id: 133, name: "Emerald block", type: SOLID, inv: CUBE, cat: BUILD},
 		{state: 0, tex: [9, 1, 9, 1, 9, 1, 9, 1, 9, 1, 9, 1]},
@@ -1751,7 +1756,7 @@
 		{state: 6, name: "+age 6", tex: [10, 12], quad: [CROSS]},
 		{state: 7, name: "+age 7", tex: [12, 12], quad: [CROSS]},
 
-	{id: 143, name: "Wooden button", type: CUST, bbox: MAX, inv: MODEL, cat: REDSTONE, orient: LEVER, placement: "solid", rswire: ALLDIR, invmodel: [
+	{id: 143, name: "Wooden button", type: CUST, bbox: MAX, bboxPlayer: NONE, inv: MODEL, cat: REDSTONE, orient: LEVER, placement: "solid", rswire: ALLDIR, invmodel: [
 		695,3,6,8,4,5,4,0,0,0,0,0,0,64,8272,8288,80,64,8272,8288,80,64,8272,8288,80,64,8272,8288,80,64,8272,8288,80,64,8272,8288,80,
 		]},
 		{state: 0, name: "+bottom", tex: [31, 8,31, 8,31, 8,31, 8], model: [
@@ -1832,7 +1837,8 @@
 		{state: 4, name: "+west",  tex: [17, 6,17, 6,17, 6,18, 6], model: [SAME_AS, ID(146, 0), 1855]},
 		{state: 5, name: "+east",  tex: [17, 6,18, 6,17, 6,17, 6], model: [SAME_AS, ID(146, 0), 831]},
 
-	{id: 147, name: "Gold pressure plate", type: CUST, bbox: MAX, inv: MODEL, invState: 0, placement: "ground", cat: REDSTONE, rswire: ALLDIR, tech: "light_weighted_pressure_plate"},
+	{id: 147, name: "Gold pressure plate", type: CUST, bbox: MAX, bboxPlayer: NONE, inv: MODEL, invState: 0, placement: "ground",
+		cat: REDSTONE, rswire: ALLDIR, tech: "light_weighted_pressure_plate"},
 		{state: 0, tex: [7, 1, 7, 1, 7, 1, 7, 1], model: [
 			159,14,1,14,1,0,1,0,0,0,0,0,0,8320,16528,16544,8336,8320,16528,16544,8336,8320,16528,16544,8336,8320,16528,16544,8336,8320,16528,16544,8336,8320,16528,16544,8336,
 		]},
@@ -1854,7 +1860,8 @@
 		{state:14, name: "-14", model: [SAME_AS, ID(147, 1)]},
 		{state:15, name: "-15", model: [SAME_AS, ID(147, 1)]},
 
-	{id: 148, name: "Iron pressure plate", type: CUST, bbox: MAX, inv: MODEL, invState: 0, placement: "ground", cat: REDSTONE, rswire: ALLDIR, tech: "heavy_weighted_pressure_plate"},
+	{id: 148, name: "Iron pressure plate", type: CUST, bbox: MAX, bboxPlayer: NONE, inv: MODEL, invState: 0, placement: "ground",
+		cat: REDSTONE, rswire: ALLDIR, tech: "heavy_weighted_pressure_plate"},
 		{state: 0, tex: [6, 1, 6, 1, 6, 1, 6, 1], model: [
 			159,14,1,14,1,0,1,0,0,0,0,0,0,8304,16512,16528,8320,8304,16512,16528,8320,8304,16512,16528,8320,8304,16512,16528,8320,
 			106848,115056,115072,106864,8320,16528,16544,8336,
