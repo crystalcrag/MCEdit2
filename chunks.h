@@ -85,10 +85,11 @@ extern int16_t chunkNeighbor[];    /* where neighbors of a chunk based on Chunk-
 
 enum /* flags for Chunk_t.flags */
 {
-	CFLAG_GOTDATA   = 0x01,        /* data has been retrieved */
-	CFLAG_HASMESH   = 0x02,        /* mesh generated and pushed to GPU */
-	CFLAG_NEEDSAVE  = 0x04,        /* modifications need to be saved on disk */
-	CFLAG_MARKMODIF = 0x10,        /* mark for modif at the NBT level */
+	CFLAG_GOTDATA    = 0x01,       /* data has been retrieved */
+	CFLAG_HASMESH    = 0x02,       /* mesh generated and pushed to GPU */
+	CFLAG_NEEDSAVE   = 0x04,       /* modifications need to be saved on disk */
+	CFLAG_MARKMODIF  = 0x10,       /* mark for modif at the NBT level */
+	CFLAG_HASEMITTER = 0x20,       /* particle emitters already registered */
 };
 
 enum /* NBT update tag */

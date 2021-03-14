@@ -14,6 +14,7 @@
 #include "maps.h"
 #include "blocks.h"
 #include "render.h"
+#include "particles.h"
 #include "NBT2.h"
 #include "sign.h"
 
@@ -939,17 +940,32 @@ void chunkUpdate(Chunk c, ChunkData empty, int layer, ChunkFlushCb_t flush)
 //	if (c->X == -208 && neighbors[6]->Y == 32 && c->Z == -48)
 //		breakPoint = 1;
 
+	static int added = 0;
+
 	for (pos = air = 0; pos < 16*16*16; pos ++)
 	{
 		BlockState state;
 		uint8_t    data;
+		uint8_t    block;
 		DATA8      blocks = neighbors[6]->blockIds;
 
 		data  = blocks[DATA_OFFSET + (pos >> 1)];
-		state = blockGetByIdData(blocks[pos], pos & 1 ? data >> 4 : data & 0xf);
+		block = blocks[pos];
+		state = blockGetByIdData(block, pos & 1 ? data >> 4 : data & 0xf);
 
 //		if (breakPoint && pos == 3904)
 //			puts("here"), breakPoint = 2;
+
+		if (blockIds[block].particle)
+		{
+			if (added < 2)
+			{
+				vec4 loc = {c->X + (pos & 15), neighbors[6]->Y + (pos >> 8), c->Z + ((pos >> 4) & 15)};
+				particlesAddEmitter(loc, state->id, PARTICLE_SMOKE, 750);
+				//fprintf(stderr, "added at %g, %g, %g\n", loc[0], loc[1], loc[2]);
+				added = 1;
+			}
+		}
 
 		switch (TYPE(state)) {
 		case QUAD:

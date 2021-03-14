@@ -33,6 +33,7 @@ int     blockAdjustOrient(int blockId, BlockOrient info, vec4 inter);
 int     blockGenModel(int vbo, int blockId);
 DATA8   blockGetDurability(float dura);
 DATA8   blockCreateTileEntity(int blockId, vec4 pos, APTR arg);
+void    blockGetEmitterLocation(int blockId, float offset[5]);
 
 void    halfBlockGenMesh(WriteBuffer, DATA8 model, int size /* 2 or 8 */, DATA8 xyz, DATA8 tex, DATA16 blockIds);
 DATA8   halfBlockGetModel(BlockState, int size /* 1, 2 or 8 */, DATA16 blockIds);
@@ -47,12 +48,13 @@ struct Block_t             /* per id information */
 	int8_t   category;     /* enum */
 	int8_t   bbox;         /* enum */
 	int8_t   bboxPlayer;   /* enum */
+	int8_t   particle;     /* enum */
 	uint8_t  states;
 	uint8_t  emitLight;    /* value of light emitted 0 ~ 15 */
 	uint8_t  opacSky;      /* reduction of skyLight */
 	uint8_t  opacLight;    /* reduction of blockLight */
 	uint8_t  orientHint;   /* auto-orient based on camera angle */
-	uint8_t  tileEntity;   /* type of tile entity (TILE_* */
+	uint8_t  tileEntity;   /* type of tile entity (TILE_*) */
 	uint8_t  special;
 	uint8_t  rswire;       /* redstone wire can attach to this block */
 	uint8_t  copyModel;    /* copy invmodel from this block id */
@@ -60,6 +62,7 @@ struct Block_t             /* per id information */
 	STRPTR   name;         /* description as displayed to user */
 	STRPTR   tech;         /* technical name as stored in NBT */
 	DATA16   model;        /* custom inventory model */
+	DATA8    emitters;     /* particle emitter locations */
 };
 
 struct BlockState_t        /* information per block state (32bytes) */
@@ -109,7 +112,7 @@ struct WriteBuffer_t
 	void (*flush)(WriteBuffer);
 };
 
-enum                       /* values for Block.special */
+enum                       /* values for Block_t.special */
 {
 	BLOCK_NORMAL,
 	BLOCK_CHEST,           /* !ender: check for double chest */
@@ -133,6 +136,14 @@ enum                       /* values for Block.special */
 	BLOCK_BED,
 	BLOCK_CNXTEX    = 64,  /* relocate texture to connected texture row */
 	BLOCK_NOCONNECT = 128, /* SOLID blocks for which connected models should not connect or CUST that have no connected models */
+};
+
+enum                       /* possible values for block_t.particle */
+{
+	PARTICLE_NONE,
+	PARTICLE_BITS,         /* bits of texture from blocks, exploding */
+	PARTICLE_SMOKE,        /* cycle through texture located at 31, 9, moving up in the air */
+	PARTICLE_NETHER        /* nether particle coming toward the block (ender chest) */
 };
 
 enum                       /* values for BlockState.pxU if BlockState.type == QUAD */

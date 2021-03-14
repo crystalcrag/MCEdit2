@@ -786,7 +786,7 @@ void mapUpdatePropagateSignal(BlockIter iterator)
 	}
 }
 
-/* a redstone block has been deleted: update signal */
+/* a redstone element has been deleted: update signal */
 void mapUpdateDeleteSignal(BlockIter iterator)
 {
 	struct RSWire_t connectTo[8];

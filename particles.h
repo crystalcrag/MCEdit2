@@ -13,16 +13,12 @@
 
 void particlesInit(int vbo);
 void particlesExplode(Map map, int count, int blockId, vec4 pos);
-int  particlesAnimate(Map map);
-int  particlesAddEmitter(vec4 pos, int type, int interval);
+int  particlesAnimate(Map map, vec4 camera);
+void particlesAddEmitter(vec4 pos, int blockId, int type, int interval);
+void particlesDelEmitter(vec4 pos);
+void particlesDelFromChunk(int X, int Z);
 
-enum /* possible values for <effect> */
-{
-	PARTICLES_EXPLODE,
-	PARTICLES_SPARK,
-};
-
-#define PARTICLES_VBO_SIZE        (6*4)
+#define PARTICLES_VBO_SIZE        (5*4)
 
 /*
  * private stuff below
@@ -38,21 +34,25 @@ struct Particle_t
 {
 	float    dir[3];
 	float    loc[3];
-	float    brake[3];  /* PARTICLES_EXPLODE */
-	uint64_t seed;
+	float    brake[3];
 	uint32_t UV;
 	uint8_t  light;
 	uint8_t  size;
 	uint8_t  onGround;
-	uint8_t  index;
+	uint16_t ttl;
+	uint16_t color;
 	int      time;
 };
 
 struct Emitter_t
 {
+	ListNode node;
 	float    loc[3];
 	uint8_t  type;
+	uint8_t  index;
+	uint8_t  inactive;
 	uint16_t interval;
+	uint16_t blockId;
 	int      time;
 };
 
@@ -74,9 +74,11 @@ struct EmitterList_t
 
 struct ParticlePrivate_t
 {
-	ListHead buffers;   /* ParticleList */
-	ListHead emitters;  /* EmitterList */
-	int      count, emitter;
+	ListHead buffers;        /* ParticleList */
+	ListHead emitters;       /* EmitterList */
+	ListHead sortedEmitter;  /* Emitter */
+	ListHead sortedInactive; /* Emitter */
+	int      count;
 	int      vbo;
 	vec4     initpos;
 	double   lastTime;

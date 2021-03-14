@@ -508,7 +508,8 @@
 	{id: 49, name: "Obsidian", type: SOLID, inv: CUBE, cat: BUILD},
 		{state: 0, tex: [5, 2, 5, 2, 5, 2, 5, 2, 5, 2, 5, 2]},
 
-	{id: 50, name: "Torch", type: CUST, inv: ITEM2D, bbox: FULL, bboxPlayer: NONE, invState: 0, cat: DECO, emitLight: 14, placement: "wall,ground", orient: TORCH},
+	{id: 50, name: "Torch", type: CUST, inv: ITEM2D, bbox: FULL, bboxPlayer: NONE, invState: 0, cat: DECO, emitLight: 14,
+		placement: "wall,ground", orient: TORCH, particle: SMOKE},
 		{state: 0, name: "+up", tex: [0, 5, 0, 5, 0, 5, 0, 5], model: [
 			31,2,10,2,7,0,7,0,0,0,0,0,0,44125,49255,49257,44127,44125,49255,49257,44127,44125,49255,49257,44127,44125,49255,49257,44127,44125,45151,45153,44127,
 		]},
@@ -575,7 +576,7 @@
 		{state: 4, name: "+west",  tex: [17, 3,17, 3,17, 3,18, 3], model: [SAME_AS, ID(54, 0), 1855]},
 		{state: 5, name: "+east",  tex: [17, 3,18, 3,17, 3,17, 3], model: [SAME_AS, ID(54, 0), 831]},
 
-	{id: 55, name: "Redstone wire", type: CUST, special: RSWIRE, bboxPlayer: NONE, rswire: ALLDIR, placement: "ground"},
+	{id: 55, name: "Redstone wire", type: CUST, special: RSWIRE, bboxPlayer: NONE, rswire: ALLDIR, particle: SMOKE, placement: "ground"},
 		{state: 0, tex: [26,35,26,35,26,35,26,35], model: [
 			272+BHDR_INCFACEID,3,0.1,4,6,0,12,0,0,0,0,0,0,88306,90358,90361,88309,
 			272+BHDR_INCFACEID,4,0.1,2,12,0,7,0,0,0,0,0,0,85747,86773,86777,85751,
@@ -642,13 +643,13 @@
 		{state: 4, name: "+west",  tex: [13, 2,13, 2,13, 2,12, 2,14, 3,14, 3]},
 		{state: 5, name: "-east",  tex: [13, 2,12, 2,13, 2,13, 2,13, 2,14, 3]},
 
-	{id: 62, name: "Lit furnace", type: SOLID, tile: 1},
-		{state: 0, name: "-",      tex: [13, 3,13, 2,13, 2,13, 2,14, 3,14, 3]},
+	{id: 62, name: "Lit furnace", type: SOLID, tile: 1, particle: SMOKE},
+		{state: 0, name: "-",      tex: [13, 3,13, 2,13, 2,13, 2,14, 3,14, 3], emit: [S]},
 		{state: 1, name: "-",      tex: [12, 2,13, 2,13, 2,13, 2,14, 3,14, 3]},
-		{state: 2, name: "+north", tex: [13, 2,13, 2,13, 3,13, 2,14, 3,14, 3]},
-		{state: 3, name: "+south", tex: [13, 3,13, 2,13, 2,13, 2,14, 3,14, 3]},
-		{state: 4, name: "+west",  tex: [13, 2,13, 2,13, 2,13, 3,14, 3,14, 3]},
-		{state: 5, name: "+east",  tex: [13, 2,13, 3,13, 2,13, 2,13, 2,14, 3]},
+		{state: 2, name: "+north", tex: [13, 2,13, 2,13, 3,13, 2,14, 3,14, 3], emit: [N]},
+		{state: 3, name: "+south", tex: [13, 3,13, 2,13, 2,13, 2,14, 3,14, 3], emit: [S]},
+		{state: 4, name: "+west",  tex: [13, 2,13, 2,13, 2,13, 3,14, 3,14, 3], emit: [W]},
+		{state: 5, name: "+east",  tex: [13, 2,13, 3,13, 2,13, 2,13, 2,14, 3], emit: [E]},
 
 	{id: 63, name: "Sign post", bbox: FULL, bboxPlayer: NONE, type: CUST, special: SIGN, tech: "standing_sign", tile: 1, placement: "ground"},
 		{state: 0, name: "+S", tex: [27,42,27,42,27,42,27,42], model: [
@@ -835,7 +836,7 @@
 		{state: 5, name: "-up",    model: [SAME_AS, ID(75, 0)]},
 
 	{id: 76, name: "Redstone torch", type: CUST, bbox: FULL, bboxPlayer: NONE, inv: ITEM2D, cat: REDSTONE, invState: 0, rswire: ALLDIR,
-		orient: TORCH, emitLight: 7, placement: "wall,ground"},
+		orient: TORCH, emitLight: 7, placement: "wall,ground", particle: SMOKE},
 		{state: 0, name: "+ON,_up", tex: [3, 6, 3, 6, 3, 6, 3, 6], model: [
 			287,2,10,2,7,0,7,0,0,0,0,0,0,52383,57513,57511,52381,52383,57513,57511,52381,52383,57513,57511,52381,52383,57513,57511,52381,52383,53409,53407,52381,
 			261,4,4,2,6,7,7,0,0,0,0,0,0,51871,53923,53919,51867,51871,53923,53919,51867,
@@ -1057,8 +1058,8 @@
 		{state:14, name: "-south", model: [SAME_AS, ID(93,12), 1311]},
 		{state:15, name: "-west",  model: [SAME_AS, ID(93,12), 1823]},
 
-	{id: 94, name: "Repeater", type: CUST, inv: NONE, bbox: MAX, tech: "powered_repeater", placement: "ground", emitLight: 7, orient: SWNE},
-		{state: 0, name: "-(ON, delay 1,_north)", tex: [12,11,12,11,12,11,12,11,12,11], model: [
+	{id: 94, name: "Repeater", type: CUST, inv: NONE, bbox: MAX, tech: "powered_repeater", particle: SMOKE, placement: "ground", emitLight: 7, orient: SWNE},
+		{state: 0, name: "-(ON, delay 1,_north)", tex: [12,11,12,11,12,11,12,11,12,11], emit: [2, 5], model: [
 			287,16,2,16,0,0,0,0,0,0,0,0,0,72894,73920,73936,72910,66754,65728,65712,66738,66754,65728,65712,66738,66754,65728,65712,66738,73936,82144,82128,73920,
 			261,4,6,2,6,2,2,0,0,0,0,0,0,51867,54945,54949,51871,51867,54945,54949,51871,
 			266,2,6,4,7,2,1,0,0,0,0,0,0,51867,54945,54949,51871,51867,54945,54949,51871,
@@ -1067,9 +1068,9 @@
 			266,2,6,4,7,2,5,0,0,0,0,0,0,51867,54945,54949,51871,51867,54945,54949,51871,
 			16,2,7,2,7,0,6,0,0,0,0,0,0,52381,53407,53409,52383,
 		]},
-		{state: 1, name: "-east",  model: [SAME_AS, ID(94, 0), 799]},
-		{state: 2, name: "-south", model: [SAME_AS, ID(94, 0), 1311]},
-		{state: 3, name: "-west",  model: [SAME_AS, ID(94, 0), 1823]},
+		{state: 1, name: "-east",  emit: [2, 5], model: [SAME_AS, ID(94, 0), 799]},
+		{state: 2, name: "-south", emit: [2, 5], model: [SAME_AS, ID(94, 0), 1311]},
+		{state: 3, name: "-west",  emit: [2, 5], model: [SAME_AS, ID(94, 0), 1823]},
 		{state: 4, name: "Repeater (ON, delay 2,_north)", model: [
 			287,16,2,16,0,0,0,0,0,0,0,0,0,72894,73920,73936,72910,66754,65728,65712,66738,66754,65728,65712,66738,66754,65728,65712,66738,73936,82144,82128,73920,
 			261,4,6,2,6,2,2,0,0,0,0,0,0,51867,54945,54949,51871,51867,54945,54949,51871,
@@ -1079,9 +1080,9 @@
 			266,2,6,4,7,2,7,0,0,0,0,0,0,51867,54945,54949,51871,51867,54945,54949,51871,
 			16,2,7,2,7,0,8,0,0,0,0,0,0,52381,53407,53409,52383,
 		]},
-		{state: 5, name: "-east",  model: [SAME_AS, ID(94, 4), 799]},
-		{state: 6, name: "-south", model: [SAME_AS, ID(94, 4), 1311]},
-		{state: 7, name: "-west",  model: [SAME_AS, ID(94, 4), 1823]},
+		{state: 5, name: "-east",  emit: [2, 5], model: [SAME_AS, ID(94, 4), 799]},
+		{state: 6, name: "-south", emit: [2, 5], model: [SAME_AS, ID(94, 4), 1311]},
+		{state: 7, name: "-west",  emit: [2, 5], model: [SAME_AS, ID(94, 4), 1823]},
 		{state: 8, name: "Repeater (ON, delay 3,_north)", model: [
 			287,16,2,16,0,0,0,0,0,0,0,0,0,72894,73920,73936,72910,66754,65728,65712,66738,66754,65728,65712,66738,66754,65728,65712,66738,73936,82144,82128,73920,
 			261,4,6,2,6,2,2,0,0,0,0,0,0,51867,54945,54949,51871,51867,54945,54949,51871,
@@ -1091,9 +1092,9 @@
 			266,2,6,4,7,2,9,0,0,0,0,0,0,51867,54945,54949,51871,51867,54945,54949,51871,
 			16,2,7,2,7,0,10,0,0,0,0,0,0,52381,53407,53409,52383,
 		]},
-		{state: 9, name: "-east",  model: [SAME_AS, ID(94, 8), 799]},
-		{state:10, name: "-south", model: [SAME_AS, ID(94, 8), 1311]},
-		{state:11, name: "-west",  model: [SAME_AS, ID(94, 8), 1823]},
+		{state: 9, name: "-east",  emit: [2, 5], model: [SAME_AS, ID(94, 8), 799]},
+		{state:10, name: "-south", emit: [2, 5], model: [SAME_AS, ID(94, 8), 1311]},
+		{state:11, name: "-west",  emit: [2, 5], model: [SAME_AS, ID(94, 8), 1823]},
 		{state:12, name: "Repeater (ON, delay 4,_north)", model: [
 			287,16,2,16,0,0,0,0,0,0,0,0,0,72894,73920,73936,72910,66754,65728,65712,66738,66754,65728,65712,66738,66754,65728,65712,66738,73936,82144,82128,73920,
 			261,4,6,2,6,2,2,0,0,0,0,0,0,51867,54945,54949,51871,51867,54945,54949,51871,
@@ -1103,9 +1104,9 @@
 			266,2,6,4,7,2,11,0,0,0,0,0,0,51867,54945,54949,51871,51867,54945,54949,51871,
 			16,2,7,2,7,0,12,0,0,0,0,0,0,52381,53407,53409,52383,
 		]},
-		{state:13, name: "-east",  model: [SAME_AS, ID(94,12), 799]},
-		{state:14, name: "-south", model: [SAME_AS, ID(94,12), 1311]},
-		{state:15, name: "-west",  model: [SAME_AS, ID(94,12), 1823]},
+		{state:13, name: "-east",  emit: [2, 5], model: [SAME_AS, ID(94,12), 799]},
+		{state:14, name: "-south", emit: [2, 5], model: [SAME_AS, ID(94,12), 1311]},
+		{state:15, name: "-west",  emit: [2, 5], model: [SAME_AS, ID(94,12), 1823]},
 
 	{id: 95, name: "Stained glass", type: TRANS, inv: CUBE, cat: BUILD, special: GLASS|CNXTEX},
 		{state: 0, name: "+white",      tex: [ 0,19, 0,19, 0,19, 0,19, 0,19, 0,19]},

@@ -355,8 +355,6 @@ Bool renderInitStatic(int width, int height, APTR sitRoot)
 	blockParseBoundingBox();
 	blockParseInventory(render.vboInventory);
 	particlesInit(render.vboParticles);
-	vec4 pos = {-175.5, 70.5, -42.5};
-	particlesAddEmitter(pos, PARTICLES_SPARK, 1000);
 
 	/* main texture file */
 	render.texBlock = textureLoad(RESDIR, "terrain.png", 1, blockPostProcessTexture);
@@ -393,7 +391,7 @@ Bool renderInitStatic(int width, int height, APTR sitRoot)
 	glBufferData(GL_ARRAY_BUFFER, PARTICLES_VBO_SIZE * 1000, NULL, GL_STATIC_DRAW);
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, PARTICLES_VBO_SIZE, 0);
 	glEnableVertexAttribArray(0);
-	glVertexAttribIPointer(1, 3, GL_UNSIGNED_INT, PARTICLES_VBO_SIZE, (void *) 12);
+	glVertexAttribIPointer(1, 2, GL_UNSIGNED_INT, PARTICLES_VBO_SIZE, (void *) 12);
 	glEnableVertexAttribArray(1);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 
@@ -627,7 +625,7 @@ void renderShowBlockInfo(Bool show, int what)
 
 static inline void renderParticles(void)
 {
-	int count = particlesAnimate(render.level);
+	int count = particlesAnimate(render.level, render.camera);
 	if (count == 0) return;
 
 //	fprintf(stderr, "particles = %d\n", count);

@@ -10,22 +10,18 @@ layout (triangle_strip, max_vertices = 4) out;
 #include "uniformBlock.glsl"
 
 flat in float size[];
-flat in uint  patternHI[];
-flat in uint  patternLO[];
 flat in int   texbase[];
 flat in int   type[];
 flat in int   light[];
+flat in int   color[];
 
      out vec2  texCoord;
 flat out vec2  skyBlockLight;
 flat out int   ptype;
-flat out uvec2 pattern; /* 64bits actually */
+flat out vec2  texColor;
 
 vec2 getTexCoord(int base, int offX, int offY)
 {
-	if (ptype == 1)
-		return vec2(offX, offY);
-
 	int baseU = base & 511;
 	int baseV = base >> 9;
 	int minU  = baseU & ~15;
@@ -46,12 +42,11 @@ void main(void)
 	/* that way we will get a billboard effect at the same time */
 	ptype = type[0];
 	skyBlockLight = vec2(float(light[0] >> 4) / 15., float(light[0] & 15) / 15.);
-	if (type[0] == 1)
+	if (type[0] == 2) /* smoke */
 	{
-		pattern.x = patternHI[0];
-		pattern.y = patternLO[0];
+		texColor = vec2(float((color[0] & 15) + 31*16) * (1/512.), float(color[0] >> 4) * (1/1024.));
 		tmin = 0;
-		tmax = 1;
+		tmax = -8;
 	}
 	texCoord = getTexCoord(texbase[0], tmin, tmin);
 	gl_Position = vec4(pos.x - szX, pos.y - szY, pos.z, pos.w);

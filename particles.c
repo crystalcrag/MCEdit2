@@ -11,6 +11,7 @@
 #include <math.h>
 #include "blocks.h"
 #include "particles.h"
+#include "redstone.h"
 #include "glad.h"
 
 struct ParticlePrivate_t particles;
@@ -28,7 +29,7 @@ void particlesInit(int vbo)
 
 	/* used to generate a random pattern for spark particles */
 	int incx = 1, incy = 0, i, j, k, step, range;
-	for (i = k = 0, j = step = 8, range = 1; i < 64; i ++)
+	for (i = k = 0, j = step = 7, range = 1; i < 49; i ++)
 	{
 		particles.spiral[i] = k;
 		j --;
@@ -69,17 +70,14 @@ static Particle particlesAlloc(void)
 	return list->buffer;
 }
 
-static Emitter emitterAlloc(int * slot)
+static Emitter emitterAlloc(void)
 {
 	EmitterList list;
-	int ret;
-	for (list = HEAD(particles.emitters), ret = 0; list; NEXT(list), ret += sizeof list->usage * 8)
+	for (list = HEAD(particles.emitters); list; NEXT(list))
 	{
 		int nth = mapFirstFree(list->usage, 2);
 		if (nth >= 0)
 		{
-			*slot = ret + nth;
-			particles.emitter ++;
 			list->count ++;
 			return list->buffer + nth;
 		}
@@ -88,8 +86,9 @@ static Emitter emitterAlloc(int * slot)
 	ListAddTail(&particles.emitters, &list->node);
 	list->usage[0] = 1;
 	list->count = 1;
-	particles.emitter ++;
-	*slot = ret;
+	Emitter emit, eof;
+	int i;
+	for (emit = list->buffer, eof = emit + 64, i = 0; emit < eof; emit->index = i++, emit ++);
 	return list->buffer;
 }
 
@@ -168,12 +167,13 @@ void particlesExplode(Map map, int count, int blockId, vec4 pos)
 
 				U = (U * 16 + (int) (x * step * 16)) | ((V * 16 + (int) (y * step * 16)) << 9);
 				p->size = 2 + rand() % 8;
-				p->UV = (p->size << 6) | (U << 10);
+				p->UV = PARTICLE_BITS | (p->size << 6) | (U << 10);
 				#ifndef SLOW
-				p->time = curTime + RandRange(1000, 1500);
+				p->ttl = RandRange(1000, 1500);
 				#else
-				p->time = curTime + RandRange(4000, 8000);
+				p->ttl = RandRange(4000, 8000);
 				#endif
+				p->time = curTime + p->ttl;
 
 				if (p->dir[VX] < 0) p->size |= 0x80, p->dir[VX] = - p->dir[VX];
 				if (p->dir[VZ] < 0) p->size |= 0x40, p->dir[VZ] = - p->dir[VZ];
@@ -182,105 +182,106 @@ void particlesExplode(Map map, int count, int blockId, vec4 pos)
 	}
 }
 
-void particlesSparks(Map map, int blockId, vec4 pos)
+void particlesSmoke(Map map, int blockId, vec4 pos)
 {
 	Particle p = particlesAlloc();
+	int range = RandRange(500, 1000);
+	int UV    = (31 * 16 + ((9*16) << 9));
+	vec4 offset;
+
+	blockGetEmitterLocation(blockId, offset);
 
 	memset(p, 0, sizeof *p);
-	memcpy(p->loc, pos, sizeof p->loc);
-	float range = RandRange(1000, 2000);
-	int   UV    = (31 * 16 + ((3*16+8) << 9));
+	p->loc[0] = pos[0] + offset[0];
+	p->loc[1] = pos[1] + offset[1];
+	p->loc[2] = pos[2] + offset[2];
 	p->time = curTime + range;
+	p->ttl  = range;
 	p->dir[VY] = 0.02;
 	p->size = 8 + rand() % 6;
-	p->UV = PARTICLES_SPARK | (UV << 10) | (p->size << 6);
-	p->index = 1;
+	p->UV = PARTICLE_SMOKE | (UV << 10) | (p->size << 6);
 	p->onGround = 0;
-	uint8_t i, total;
-	for (i = 0, p->seed = 0; i < 64; i ++)
-	{
-		if (rand() < RAND_MAX/4+i*(RAND_MAX/128))
-			p->seed |= 1ULL << particles.spiral[i], total ++;
-	}
-	p->light = range / total;
+	p->light = 0;
+
+	Block b = blockIds + (blockId >> 4);
+
+	if ((blockId >> 4) == RSWIRE)
+		p->color = (blockId & 15) + (56 << 4),
+		p->dir[VY] = 0.005;
+	else if (b->category == REDSTONE)
+		p->color = 15 + (56 << 4);
+	else
+		p->color = (rand() & 15) | (60 << 4);
 }
 
-static void particlesRemovePx(Particle p)
+void particlesAddEmitter(vec4 pos, int blockId, int type, int interval)
 {
-	uint64_t pattern = p->seed;
-	uint8_t  index   = p->index;
+	Emitter emit = emitterAlloc();
 
-	if (pattern == 0) return;
-	if (rand() < RAND_MAX/5) return;
-	while (index < 5)
-	{
-		/* start from outside to inside */
-		int min   = particles.ranges[index-1];
-		int range = particles.ranges[index] - min;
-		int start = rand() % range + min;
-		int i;
-
-		for (i = start; (pattern & (1ULL << particles.spiral[i])) == 0 && i >= min; i --);
-		if (i < min)
-		{
-			int max = particles.ranges[index];
-			for (i = start + 1; i < max && (pattern & (1ULL << particles.spiral[i])) == 0; i ++);
-			if (i == max)
-			{
-				index ++;
-				continue;
-			}
-		}
-		p->seed ^= 1ULL << particles.spiral[i];
-		break;
-	}
-	p->index = index;
-}
-
-
-int particlesAddEmitter(vec4 pos, int type, int interval)
-{
-	int     slot;
-	Emitter emit = emitterAlloc(&slot);
+	if (interval < 16)
+		interval = 16;
 
 	memcpy(emit->loc, pos, sizeof emit->loc);
 	emit->type = type;
 	emit->interval = interval;
 	emit->time = curTime + interval;
+	emit->blockId = blockId;
 
-	particles.emitter ++;
-	return slot;
+	/* keep them in a sorted linked list in increasing spawn time */
+	Emitter list, prev;
+	for (list = HEAD(particles.sortedEmitter), prev = NULL; list && list->time < emit->time; prev = list, NEXT(list));
+	ListInsert(&particles.sortedEmitter, &emit->node, &prev->node);
+}
+
+void particlesDelEmitter(vec4 pos)
+{
+	Emitter emit;
+	/* pos is float, but location only uses integer */
+	for (emit = HEAD(particles.sortedEmitter); emit && memcmp(pos, emit->loc, 12); NEXT(emit));
+	if (emit)
+	{
+		EmitterList list = (EmitterList) ((DATA8) (emit - emit->index) - sizeof emit->node);
+		uint8_t id = emit->index;
+		list->count --;
+		list->usage[id>>5] ^= 1 << (id & 31);
+		ListRemove(&particles.sortedEmitter, &list->node);
+	}
+}
+
+/* chunk is about to be unloaded */
+void particlesDelFromChunk(int X, int Z)
+{
+	// TODO
 }
 
 /* move particles */
-int particlesAnimate(Map map)
+int particlesAnimate(Map map, vec4 camera)
 {
 	ParticleList list;
-	Particle p;
-	float * buf;
-	int i, count, curTimeMS = curTime;
+	Emitter      emit;
+	Particle     p;
+	float *      buf;
+	int          i, count, curTimeMS = curTime;
 
-	if (particles.emitter > 0)
+	emit = HEAD(particles.sortedEmitter);
+	if (emit && emit->time <= curTimeMS)
 	{
-		EmitterList emit;
-		for (emit = HEAD(particles.emitters); emit; NEXT(emit))
-		{
-			uint32_t usage[2] = {
-				emit->usage[0] ^ 0xffffffff,
-				emit->usage[1] ^ 0xffffffff
-			};
-			for (i = emit->count; i > 0; i --)
+		do {
+			if (vecDistSquare(emit->loc, camera) < 10*10)
 			{
-				int nth = mapFirstFree(usage, 2);
-				Emitter e = emit->buffer + nth;
-
-				if (e->time <= curTimeMS)
-				{
-					particlesSparks(map, 0, e->loc);
-					e->time = curTimeMS + RandRange(e->interval>>1, e->interval);
-				}
+				particlesSmoke(map, emit->blockId, emit->loc);
+				emit->time = curTimeMS + RandRange(emit->interval>>1, emit->interval);
 			}
+			else emit->time = curTimeMS + (emit->interval << 1);
+
+			/* keep list sorted */
+			Emitter list, next, prev;
+			for (prev = (Emitter) emit->node.ln_Prev, list = next = (Emitter) emit->node.ln_Next; list && list->time < emit->time; prev = list, NEXT(list));
+			ListRemove(&particles.sortedEmitter, &emit->node);
+			ListInsert(&particles.sortedEmitter, &emit->node, &prev->node);
+			emit = next;
 		}
+		while (emit && emit->time <= curTimeMS);
 	}
 
 	if (particles.count == 0)
@@ -288,8 +289,6 @@ int particlesAnimate(Map map)
 		particles.lastTime = curTime;
 		return 0;
 	}
-
-	fprintf(stderr, "count = %d \r", particles.count);
 
 	glBindBuffer(GL_ARRAY_BUFFER, particles.vbo);
 	buf = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
@@ -325,16 +324,15 @@ int particlesAnimate(Map map)
 			buf[2]  = p->loc[VZ];
 			info[0] = p->UV;
 			switch (p->UV&63) {
-			case PARTICLES_EXPLODE:
+			case PARTICLE_BITS:
 				info[1] = p->light;
-				info[2] = 0;
 				break;
-			case PARTICLES_SPARK:
-				info[1] = p->seed >> 32;
-				info[2] = p->seed & 0xffffffff;
-				particlesRemovePx(p);
+			case PARTICLE_SMOKE:
+				info[1] = p->color;
+				p->UV &= 0x7ffff;
+				p->UV |= ((int) ((curTime - (p->time - p->ttl)) / p->ttl * 7) * 8 + 9 * 16) << 19;
 			}
-			buf += 6;
+			buf += PARTICLES_VBO_SIZE/4;
 			count ++;
 
 			float inc;

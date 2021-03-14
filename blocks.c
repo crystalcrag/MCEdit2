@@ -544,6 +544,40 @@ static DATA16 blockCopyModel(DATA16 model, DATA8 tex)
 	return ret;
 }
 
+/* extract emitter location from custom model vertex */
+static void blockExtractEmitterLoction(DATA16 model, DATA8 loc, int box)
+{
+	uint16_t min[3];
+	uint16_t max[3];
+	int      count, face, i;
+
+	memset(min, 0xff, sizeof min);
+	memset(max, 0x00, sizeof max);
+
+	for (count = model[-1], face = 0; count > 0; count --, model += INT_PER_VERTEX)
+	{
+		if (face == box)
+		{
+			for (i = 0; i < 3; i ++)
+			{
+				uint16_t v = model[i];
+				if (min[i] > v) min[i] = v;
+				if (max[i] < v) max[i] = v;
+			}
+		}
+		else if (face < box)
+		{
+			if (model[4] & NEW_BBOX)
+				face ++;
+		}
+		else break;
+	}
+	/* convert from range [0-65280] to [0-16] */
+	loc[0] = min[0] * 16 / BASEVTX; loc[3] = max[0] * 16 / BASEVTX;
+	loc[2] = min[2] * 16 / BASEVTX; loc[5] = max[2] * 16 / BASEVTX;
+	loc[1] = loc[4] = max[1] * 16 / BASEVTX;
+}
+
 /*
  * table has been parsed, look at what we collected: either a block description or block state
  * allocate all we need:
@@ -555,12 +589,22 @@ static DATA16 blockCopyModel(DATA16 model, DATA8 tex)
 Bool blockCreate(const char * file, STRPTR * keys, int line)
 {
 	static struct Block_t block;
+	static uint8_t emitters[256]; /* particle emitter location per state */
+	static uint8_t emitUsage;
 
 	STRPTR value = jsonValue(keys, "id");
 	if (value)
 	{
+		/* previous block emitter list: save it now into previous block def */
+		if (emitUsage > 0)
+		{
+			DATA8 mem = blockIds[block.id].emitters = stringAddPool("", emitUsage);
+			memcpy(mem, emitters, emitUsage + 16);
+		}
 		memset(&block, 0, sizeof block);
 		memset(blocks.modelRef, 0, 2 * sizeof blocks.modelRef);
+		memset(emitters, 0, 16);
+		emitUsage = 0;
 		block.id = atoi(value);
 		blocks.curVtxCount = 0;
 
@@ -763,12 +807,16 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 		value = jsonValue(keys, "rswire");
 		block.rswire = FindInList("ALLDIR,FRONTBACK,BACK", value, 0) + 1;
 
+		/* types of particles emitted continuously */
+		value = jsonValue(keys, "particle");
+		block.particle = FindInList("BITS,SMOKE,NETHER", value, 0) + 1;
+
 		/* check for misspelled property name */
 		#ifdef STRICT_PARSING
 		while (*keys)
 		{
 			if (FindInList(
-				"id,name,type,inv,invstate,cat,special,tech,bbox,orient,keepModel,"
+				"id,name,type,inv,invstate,cat,special,tech,bbox,orient,keepModel,particle,"
 				"emitLight,opacSky,opacLight,tile,invmodel,rswire,placement,bboxPlayer", *keys, 0) < 0)
 			{
 				SIT_Log(SIT_ERROR, "%s: unknown property %s on line %d\n", file, *keys, line);
@@ -1006,13 +1054,73 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 			}
 		}
 
+		/*
+		 * particle emitter location: there are saved in Block_t instead of BlockState_t
+		 * because there are not that many blocks that has this property (30 or so out of
+		 * 1500 in 1.12).
+		 */
+		value = jsonValue(keys, "emit");
+		if (value)
+		{
+			if (*value == '[')
+			{
+				for (value ++; IsDef(value); )
+				{
+					static uint8_t faceLoc[] = { /* S, E, N, W, T, B */
+						0,0,16, 16,16,16,
+						16,0,0, 16,16,16,
+						0,0,0,  16,16,0,
+						0,0,0,  0,16,16,
+						0,16,0, 16,16,16,
+						0,0,0,  16,0,16,
+						0,0,0,  0,0,0
+					};
+					int8_t chr = *value;
+					if ('0' <= chr && chr <= '9')
+					{
+						blockExtractEmitterLoction(state.custModel, faceLoc + 36, strtoul(value, &value, 10));
+						chr = 36;
+					}
+					else
+					{
+						value ++;
+						switch (chr) {
+						case 's': case 'S': chr = 0; break;
+						case 'e': case 'E': chr = 6; break;
+						case 'w': case 'W': chr = 12; break;
+						case 'n': case 'N': chr = 18; break;
+						case 't': case 'T': chr = 24; break;
+						case 'b': case 'B': chr = 30; break;
+						default: chr = 255;
+						}
+					}
+					if (chr < 255 && emitUsage < 256-6-16)
+					{
+						DATA8 p = emitters + state.id;
+						if (p[0] == 0)
+							p[0] = emitUsage+16;
+						else
+							emitters[emitUsage + 15] |= 0x80;
+						memcpy(emitters + emitUsage + 16, faceLoc + chr, 6);
+						emitUsage += 6;
+					}
+				}
+			}
+			else
+			{
+				SIT_Log(SIT_ERROR, "%s: emit must be an array for block state %d:%d, on line %d\n",
+					file, block.id, state.id, line);
+				return False;
+			}
+		}
+
 		blockAddState(&state, block.id);
 
 		/* check for mis-spelling */
 		#ifdef STRICT_PARSING
 		while (*keys)
 		{
-			if (FindInList("state,name,tex,quad,inv,model,rotate", *keys, 0) < 0)
+			if (FindInList("state,name,tex,quad,inv,model,rotate,emit", *keys, 0) < 0)
 			{
 				SIT_Log(SIT_ERROR, "%s: unknown property %s on line %d\n", file, *keys, line);
 				return False;
@@ -2333,6 +2441,9 @@ DATA8 blockCreateTileEntity(int blockId, vec4 pos, APTR arg)
 	return ret.mem;
 }
 
+/*
+ * terrain.png post processing
+ */
 static void texset(DATA8 dest, DATA8 px, int size)
 {
 	uint32_t s;
@@ -2495,6 +2606,21 @@ void blockPostProcessTexture(DATA8 * data, int * width, int * height, int bpp)
 	blocks.duraMax    = sz >> 2;
 	memcpy(blocks.duraColors, dst + 31 * sz + 3 * sz * *width, sz);
 }
+
+/*
+ * particles emitter location: max height from model
+ */
+void blockGetEmitterLocation(int blockId, float loc[3])
+{
+	BlockState state = blockGetById(blockId);
+
+	VTXBBox bbox = blocks.bbox + state->bboxId;
+
+	loc[0] = (RandRange(bbox->pt1[0], bbox->pt2[0]) - BASEVTX/2) * (1./BASEVTX);
+	loc[2] = (RandRange(bbox->pt1[2], bbox->pt2[2]) - BASEVTX/2) * (1./BASEVTX);
+	loc[1] = (bbox->pt2[1] - BASEVTX/2) * (1./BASEVTX);
+}
+
 
 /* check if the 4 surounding blocks (S, E, N, W) are of the same as <type> */
 int blockGetConnect4(DATA8 neighbors, int type)

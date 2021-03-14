@@ -29,8 +29,8 @@ void main(void)
 		discard;
 	if (rswire == 1)
 	{
-		/* use color from terrain to shade wire: coord are located at tile 31x3.75 to 32x3.75 */
-		color *= texture(blockTex, vec2(0.96875 + shadeOCS * 0.03125, 0.05859375));
+		/* use color from terrain to shade wire: coord are located at tile 31x3.5 to 32x3.5 */
+		color *= texture(blockTex, vec2(0.96875 + shadeOCS * 0.03125, 0.0556640625));
 		return;
 	}
 	else if (biomeCol == 1 && color.x == color.y && color.y == color.z)
