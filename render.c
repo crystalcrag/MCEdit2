@@ -388,7 +388,7 @@ Bool renderInitStatic(int width, int height, APTR sitRoot)
 	/* vao for particles */
 	glBindVertexArray(render.vaoParticles);
 	glBindBuffer(GL_ARRAY_BUFFER, render.vboParticles);
-	glBufferData(GL_ARRAY_BUFFER, PARTICLES_VBO_SIZE * 1000, NULL, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, PARTICLES_VBO_SIZE * PARTICLES_MAX, NULL, GL_STATIC_DRAW);
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, PARTICLES_VBO_SIZE, 0);
 	glEnableVertexAttribArray(0);
 	glVertexAttribIPointer(1, 2, GL_UNSIGNED_INT, PARTICLES_VBO_SIZE, (void *) 12);

@@ -14,11 +14,10 @@
 void particlesInit(int vbo);
 void particlesExplode(Map map, int count, int blockId, vec4 pos);
 int  particlesAnimate(Map map, vec4 camera);
-void particlesAddEmitter(vec4 pos, int blockId, int type, int interval);
-void particlesDelEmitter(vec4 pos);
-void particlesDelFromChunk(int X, int Z);
+void particleChunkUpdate(Map map, ChunkData cd);
 
 #define PARTICLES_VBO_SIZE        (5*4)
+#define PARTICLES_MAX             1024
 
 /*
  * private stuff below
@@ -27,8 +26,6 @@ typedef struct Particle_t *       Particle;
 typedef struct Particle_t         Particle_t;
 typedef struct ParticleList_t *   ParticleList;
 typedef struct Emitter_t *        Emitter;
-typedef struct Emitter_t          Emitter_t;
-typedef struct EmitterList_t *    EmitterList;
 
 struct Particle_t
 {
@@ -46,13 +43,12 @@ struct Particle_t
 
 struct Emitter_t
 {
-	ListNode node;
 	float    loc[3];
 	uint8_t  type;
-	uint8_t  index;
 	uint8_t  inactive;
 	uint16_t interval;
 	uint16_t blockId;
+	int16_t  next;
 	int      time;
 };
 
@@ -64,27 +60,27 @@ struct ParticleList_t
 	uint8_t    count;
 };
 
-struct EmitterList_t
-{
-	ListNode  node;
-	Emitter_t buffer[64];
-	uint32_t  usage[2];
-	uint8_t   count;
-};
-
 struct ParticlePrivate_t
 {
-	ListHead buffers;        /* ParticleList */
-	ListHead emitters;       /* EmitterList */
-	ListHead sortedEmitter;  /* Emitter */
-	ListHead sortedInactive; /* Emitter */
+	ListHead buffers;          /* ParticleList */
 	int      count;
 	int      vbo;
 	vec4     initpos;
 	double   lastTime;
-	uint8_t  spiral[64];
-	uint8_t  ranges[8];
 };
 
+struct EmitterPrivate_t
+{
+	Emitter  buffer;           /* active emitters */
+	DATA32   usage;            /* usage bitfield (ceil(count/32) items) */
+	int      count;            /* items in <buffer> */
+	DATA16   active;           /* index in <buffer>, sorted by time to spawn next particle */
+	int      activeMax;        /* max capacity of <active> */
+	int      cacheLoc[3];
+	int16_t  startIds[27];     /* emitters for one ChunkData */
+	uint8_t  offsets[27];      /* +/- 1 for x, Z, Y for locating chunk 0-26 */
+	uint8_t  activeDone;       /* 0 if chunks are missing their mesh */
+	uint8_t  dirtyList;        /* <active> needs to be rebuilt */
+};
 
 #endif

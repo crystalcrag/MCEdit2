@@ -14,7 +14,6 @@
 #include "maps.h"
 #include "blocks.h"
 #include "render.h"
-#include "particles.h"
 #include "NBT2.h"
 #include "sign.h"
 
@@ -27,7 +26,7 @@ static void chunkFillData(Chunk chunk, int y, int offset)
 	DATA8 base = NBT_Payload(&chunk->nbt, NBT_FindNode(&chunk->nbt, offset, "Blocks"));
 
 	cd->blockIds = base;
-	cd->addId    = NBT_Payload(&chunk->nbt, NBT_FindNode(&chunk->nbt, offset, "Add"));
+//	cd->addId    = NBT_Payload(&chunk->nbt, NBT_FindNode(&chunk->nbt, offset, "Add"));
 	cd->chunk    = chunk;
 	cd->Y        = y * 16;
 
@@ -906,6 +905,20 @@ static uint8_t chunkBlockOcclusion(DATA16 blockIds, uint32_t lineDef)
 }
 #endif
 
+static void chunkAddEmitters(ChunkData cd, int pos, int type)
+{
+	int max = (cd->emitCount + 127) & ~127;
+	if (cd->emitCount == max)
+	{
+		max += 128;
+		DATA16 buf = realloc(cd->emitters, max * 2);
+		if (buf == NULL) return;
+		cd->emitters = buf;
+	}
+	cd->emitters[cd->emitCount] = pos | (type << 12);
+	cd->emitCount ++;
+}
+
 extern int breakPoint;
 static void chunkGenQuad(ChunkData neighbors[], WriteBuffer buffer, BlockState b, int pos);
 static void chunkGenCust(ChunkData neighbors[], WriteBuffer opaque, BlockState b, int pos);
@@ -940,8 +953,6 @@ void chunkUpdate(Chunk c, ChunkData empty, int layer, ChunkFlushCb_t flush)
 //	if (c->X == -208 && neighbors[6]->Y == 32 && c->Z == -48)
 //		breakPoint = 1;
 
-	static int added = 0;
-
 	for (pos = air = 0; pos < 16*16*16; pos ++)
 	{
 		BlockState state;
@@ -957,15 +968,8 @@ void chunkUpdate(Chunk c, ChunkData empty, int layer, ChunkFlushCb_t flush)
 //			puts("here"), breakPoint = 2;
 
 		if (blockIds[block].particle)
-		{
-			if (added < 2)
-			{
-				vec4 loc = {c->X + (pos & 15), neighbors[6]->Y + (pos >> 8), c->Z + ((pos >> 4) & 15)};
-				particlesAddEmitter(loc, state->id, PARTICLE_SMOKE, 750);
-				//fprintf(stderr, "added at %g, %g, %g\n", loc[0], loc[1], loc[2]);
-				added = 1;
-			}
-		}
+			if (block != 55 || data > 0) // XXX needs to be declared in blockTable.js :-/
+				chunkAddEmitters(neighbors[6], pos, blockIds[block].particle - 1);
 
 		switch (TYPE(state)) {
 		case QUAD:
@@ -1533,6 +1537,7 @@ int chunkFree(Chunk c)
 		if (cd)
 		{
 			if (cd->glBank) renderFreeArray(cd), ret ++;
+			if (cd->emitters) free(cd->emitters);
 			free(cd);
 		}
 	}

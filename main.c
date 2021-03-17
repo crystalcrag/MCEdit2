@@ -381,7 +381,6 @@ void mceditWorld(void)
 				}
 				break;
 			case SDL_MOUSEMOTION:
-				SIT_ProcessMouseMove(event.motion.x, event.motion.y);
 				switch (ignore) {
 				case 1: ignore = 0; // no break;
 				case 2: break;
@@ -392,7 +391,11 @@ void mceditWorld(void)
 						renderSetViewMat(mcedit.player.pos, mcedit.player.lookat, &mcedit.player.angleh);
 						capture = 2;
 					}
-					else renderPointToBlock(event.motion.x, event.motion.y);
+					else
+					{
+						renderPointToBlock(event.motion.x, event.motion.y);
+						SIT_ProcessMouseMove(event.motion.x, event.motion.y);
+					}
 				}
 				break;
 			case SDL_MOUSEBUTTONDOWN:

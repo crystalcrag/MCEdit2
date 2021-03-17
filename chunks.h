@@ -37,18 +37,18 @@ void      chunkMarkForUpdate(Chunk);
 
 struct ChunkData_t                 /* one sub-chunk of 16x16x16 blocks */
 {
-	ChunkData visible;             /* XXX DEBUG */
+	ChunkData visible;             /* frustum culling list */
 	ChunkData update;              /* need updating */
 	Chunk     chunk;               /* bidirectional link */
 	uint16_t  Y;                   /* vertical pos in blocks */
 
-	/* frustum culling */
 	uint8_t   pendingDel;
 	uint8_t   slot;                /* used by ChunkFake */
+	uint16_t  emitCount;           /* items in <emitters> */
 
-	/* NBT tables */
 	DATA8     blockIds;            /* 16*16*16 = XZY ordered, note: point directly to NBT struct (4096 bytes) */
-	DATA8     addId;               /* 4bits (2048 bytes) */
+//	DATA8     addId;               /* 4bits (2048 bytes) */
+	DATA16    emitters;            /* pos (10bits) + type (6bits) for particles emitters */
 
 	/* VERTEX_ARRAY_BUFFER location */
 	void *    glBank;              /* GPUBank (filled by renderStoreArray()) */
@@ -89,7 +89,6 @@ enum /* flags for Chunk_t.flags */
 	CFLAG_HASMESH    = 0x02,       /* mesh generated and pushed to GPU */
 	CFLAG_NEEDSAVE   = 0x04,       /* modifications need to be saved on disk */
 	CFLAG_MARKMODIF  = 0x10,       /* mark for modif at the NBT level */
-	CFLAG_HASEMITTER = 0x20,       /* particle emitters already registered */
 };
 
 enum /* NBT update tag */

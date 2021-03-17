@@ -15,6 +15,7 @@
 #include "glad.h"
 
 struct ParticlePrivate_t particles;
+struct EmitterPrivate_t  emitters;
 extern double curTime;
 
 //#define SLOW
@@ -27,29 +28,27 @@ void particlesInit(int vbo)
 
 	ListAddTail(&particles.buffers, &list->node);
 
-	/* used to generate a random pattern for spark particles */
-	int incx = 1, incy = 0, i, j, k, step, range;
-	for (i = k = 0, j = step = 7, range = 1; i < 49; i ++)
+	int x, z, y, i;
+	for (x = z = y = -1, i = 0; i < 27; i ++)
 	{
-		particles.spiral[i] = k;
-		j --;
-		if (j == 0)
+		emitters.offsets[i] = (x+1) | ((z+1)<<2) | ((y+1) << 4);
+		x ++;
+		if (x == 2)
 		{
-			/* change direction */
-			if (incx > 0) incx =  0, incy = 8, step --; else
-			if (incy > 0) incx = -1, incy = 0; else
-			if (incx < 0) incx =  0, incy = -8, step --;
-			else          incx =  1, incy = 0, particles.ranges[range++] = i+1;
-			j = step;
+			x = -1; z ++;
+			if (z == 2)
+				z = -1, y ++;
 		}
-		k += incx + incy;
 	}
-	particles.ranges[range] = i;
+	memset(emitters.startIds, 0xff, sizeof emitters.startIds);
 }
 
 static Particle particlesAlloc(void)
 {
 	ParticleList list;
+
+	if (particles.count == PARTICLES_MAX)
+		return NULL;
 
 	for (list = HEAD(particles.buffers); list; NEXT(list))
 	{
@@ -72,24 +71,26 @@ static Particle particlesAlloc(void)
 
 static Emitter emitterAlloc(void)
 {
-	EmitterList list;
-	for (list = HEAD(particles.emitters); list; NEXT(list))
+	int count = emitters.count;
+	int max   = (count+31) & ~31;
+	if (count == max)
 	{
-		int nth = mapFirstFree(list->usage, 2);
-		if (nth >= 0)
+		count = max + 32;
+		Emitter emit = realloc(emitters.buffer, count * sizeof *emit + (count >> 5) * 4);
+		if (emit)
 		{
-			list->count ++;
-			return list->buffer + nth;
+			emitters.buffer = emit;
+			/* move usage flags at end of buffer */
+			max >>= 5;
+			memmove(emitters.usage = (DATA32) (emit + count), emit + max, max * 4);
+			emitters.usage[max] = 0;
+			max ++;
 		}
+		else return NULL;
 	}
-	list = calloc(sizeof *list, 1);
-	ListAddTail(&particles.emitters, &list->node);
-	list->usage[0] = 1;
-	list->count = 1;
-	Emitter emit, eof;
-	int i;
-	for (emit = list->buffer, eof = emit + 64, i = 0; emit < eof; emit->index = i++, emit ++);
-	return list->buffer;
+	else max >>= 5;
+	emitters.count ++;
+	return emitters.buffer + mapFirstFree(emitters.usage, max);
 }
 
 static int particlesGetBlockInfo(Map map, vec4 pos, DATA8 plight)
@@ -147,6 +148,7 @@ void particlesExplode(Map map, int count, int blockId, vec4 pos)
 				 * but can be linearly scaled to match any other fps
 				 */
 				p = particlesAlloc();
+				if (p == NULL) return;
 				p->dir[VX] = cosf(yaw) * cp * 0.1;
 				p->dir[VZ] = sinf(yaw) * cp * 0.1;
 				p->dir[VY] = sinf(pitch) * 0.1;
@@ -185,6 +187,7 @@ void particlesExplode(Map map, int count, int blockId, vec4 pos)
 void particlesSmoke(Map map, int blockId, vec4 pos)
 {
 	Particle p = particlesAlloc();
+	if (p == NULL) return;
 	int range = RandRange(500, 1000);
 	int UV    = (31 * 16 + ((9*16) << 9));
 	vec4 offset;
@@ -214,7 +217,7 @@ void particlesSmoke(Map map, int blockId, vec4 pos)
 		p->color = (rand() & 15) | (60 << 4);
 }
 
-void particlesAddEmitter(vec4 pos, int blockId, int type, int interval)
+static Emitter particlesAddEmitter(vec4 pos, int blockId, int type, int interval)
 {
 	Emitter emit = emitterAlloc();
 
@@ -226,62 +229,220 @@ void particlesAddEmitter(vec4 pos, int blockId, int type, int interval)
 	emit->interval = interval;
 	emit->time = curTime + interval;
 	emit->blockId = blockId;
+	emit->next = -1;
 
-	/* keep them in a sorted linked list in increasing spawn time */
-	Emitter list, prev;
-	for (list = HEAD(particles.sortedEmitter), prev = NULL; list && list->time < emit->time; prev = list, NEXT(list));
-	ListInsert(&particles.sortedEmitter, &emit->node, &prev->node);
-}
+	fprintf(stderr, "adding emitter at %g,%g,%g for %d:%d\n", pos[0], pos[1], pos[2], blockId>>4, blockId & 15);
 
-void particlesDelEmitter(vec4 pos)
-{
-	Emitter emit;
-	/* pos is float, but location only uses integer */
-	for (emit = HEAD(particles.sortedEmitter); emit && memcmp(pos, emit->loc, 12); NEXT(emit));
-	if (emit)
-	{
-		EmitterList list = (EmitterList) ((DATA8) (emit - emit->index) - sizeof emit->node);
-		uint8_t id = emit->index;
-		list->count --;
-		list->usage[id>>5] ^= 1 << (id & 31);
-		ListRemove(&particles.sortedEmitter, &list->node);
-	}
+	return emit;
 }
 
 /* chunk is about to be unloaded */
-void particlesDelFromChunk(int X, int Z)
+static void particlesDelChain(int16_t last)
 {
-	// TODO
+	if (last >= 0)
+	{
+		int16_t next;
+		for (next = last; next >= 0; next = emitters.buffer[next].next)
+			emitters.usage[next >> 5] ^= 1 << (next & 31), emitters.count --;
+	}
+}
+
+#define XPOS(flags)     ((flags&3)-1)
+#define ZPOS(flags)     (((flags>>2)&3)-1)
+#define YPOS(flags)     ((flags>>4)-1)
+
+static int particleGetBlockId(ChunkData cd, int offset)
+{
+	uint8_t data = cd->blockIds[DATA_OFFSET + (offset >> 1)];
+	return (cd->blockIds[offset] << 4) | (offset & 1 ? data >> 4 : data & 15);
+}
+
+static void particleMakeActive(Map map)
+{
+	static uint8_t neighbors[] = { /* 27 neighbor ChunkData */
+		12, 4, 6, 8, 0, 2, 9, 1, 3,
+		12, 4, 6, 8, 0, 2, 9, 1, 3,
+		12, 4, 6, 8, 0, 2, 9, 1, 3,
+	};
+	int16_t oldIds[27];
+	int   i, j;
+	int   pos[] = {CPOS(map->cx), CPOS(map->cy), CPOS(map->cz)};
+	Chunk chunk = map->center;
+
+	if (emitters.activeDone && memcmp(pos, emitters.cacheLoc, sizeof pos) == 0)
+		return;
+
+	memcpy(oldIds, emitters.startIds, sizeof oldIds);
+	memset(emitters.startIds, 0xff, sizeof emitters.startIds);
+
+	/* check which emitters to delete */
+	for (i = 0; i < 27; i ++)
+	{
+		if (oldIds[i] < 0) continue;
+		int dx = emitters.cacheLoc[0] + XPOS(emitters.offsets[i]) - pos[0];
+		int dy = emitters.cacheLoc[1] + YPOS(emitters.offsets[i]) - pos[1];
+		int dz = emitters.cacheLoc[2] + ZPOS(emitters.offsets[i]) - pos[2];
+		if (abs(dx) <= 1 && abs(dy) <= 1 && abs(dz) <= 1)
+		{
+			/* keep that chain */
+			emitters.startIds[dx+dz*3+dy*9+13] = oldIds[i];
+		}
+		else particlesDelChain(oldIds[i]);
+	}
+
+	memcpy(emitters.cacheLoc, pos, sizeof pos);
+
+	for (i = 0; i < 27; i ++)
+	{
+		if (emitters.startIds[i] >= 0) continue; /* kept from previous center */
+
+		DATA16 emit;
+		Chunk  c = chunk + chunkNeighbor[chunk->neighbor + neighbors[i]];
+		int    y = pos[1] + YPOS(emitters.offsets[i]);
+
+		if ((c->cflags & CFLAG_HASMESH) == 0)
+		{
+			/* chunk not loaded: no need to continue, we'll have to do another pass */
+			emitters.activeDone = 0;
+			return;
+		}
+
+		if (y < 0 || y >= c->maxy) continue;
+
+		ChunkData cd = c->layer[y];
+		int16_t * cur = emitters.startIds + i;
+		for (emit = cd->emitters, j = cd->emitCount; j > 0; j --, emit ++)
+		{
+			int  pos = *emit & 0xfff;
+			vec4 loc = {c->X + (pos & 15), cd->Y + (pos >> 8), c->Z + ((pos >> 4) & 15)};
+			Emitter e = particlesAddEmitter(loc, particleGetBlockId(cd, pos), (*emit >> 12) + 1, 750);
+			*cur = e - emitters.buffer;
+			cur = &e->next;
+		}
+	}
+	emitters.activeDone = 1;
+	emitters.dirtyList = 1;
+}
+
+/* emitters list changed, update particle emitters object */
+void particleChunkUpdate(Map map, ChunkData cd)
+{
+	Chunk   chunk = cd->chunk;
+	Emitter oldEmit, prev;
+	int16_t * newIds;
+	int     i;
+	int     pos[] = {CPOS(map->cx) - CPOS(chunk->X), CPOS(map->cy) - CPOS(cd->Y), CPOS(map->cz) - CPOS(chunk->Z)};
+
+	if (abs(pos[0]) <= 1 && abs(pos[1]) <= 1 && abs(pos[2]) <= 1)
+	{
+		/* current emitters must not be reset (because timer will be reset) */
+		for (i = cd->emitCount, prev = NULL, oldEmit = emitters.buffer + emitters.startIds[pos[0]+pos[2]*3+pos[2]*9+13],
+		     newIds = cd->emitters; i > 0; i --, newIds ++)
+		{
+			int oldOffset =
+				((int) oldEmit->loc[0] - chunk->X) +
+				((int) oldEmit->loc[2] - chunk->Z) * 16 +
+				((int) oldEmit->loc[1] - cd->Y)    * 256;
+			int newOffset = *newIds & 0xfff;
+
+			if (newOffset < oldOffset)
+			{
+				/* new emitter */
+				vec4 loc = {chunk->X + (newOffset & 15), cd->Y + (newOffset >> 8), chunk->Z + ((newOffset >> 4) & 15)};
+				Emitter e = particlesAddEmitter(loc, particleGetBlockId(cd, newOffset), (*newIds >> 12) + 1, 750);
+				e->next = oldEmit - emitters.buffer;
+				oldEmit = e;
+				emitters.count ++;
+			}
+			else if (newOffset > oldOffset)
+			{
+				/* deleted emitter */
+				int id = oldEmit - emitters.buffer;
+				emitters.usage[id>>5] ^= 1 << (id & 31);
+				newIds --;
+				i ++;
+				emitters.count --;
+				continue;
+			}
+			if (prev)
+				prev->next = oldEmit - emitters.buffer;
+			prev = oldEmit;
+		}
+		if (prev)
+		{
+			particlesDelChain(prev->next);
+			prev->next = -1;
+		}
+	}
+
+	/* don't do it now, it is highly likely that more chunk updates are coming */
+	emitters.dirtyList = 1;
+}
+
+static int emitterSort(const void * item1, const void * item2)
+{
+	Emitter emit1 = emitters.buffer + * (DATA16) item1;
+	Emitter emit2 = emitters.buffer + * (DATA16) item2;
+	return emit1->time - emit2->time;
+}
+
+/* will make it easier to update the list later */
+static void particleSortEmitters(void)
+{
+	if (emitters.count > emitters.activeMax)
+	{
+		emitters.activeMax = (emitters.count+31) & ~31;
+		DATA16 buffer = realloc(emitters.active, emitters.activeMax * 2);
+		if (buffer == NULL) return;
+		emitters.active = buffer;
+	}
+	int i, j;
+	for (i = j = 0; i < 27; i ++)
+	{
+		int start = emitters.startIds[i];
+		while (start >= 0)
+		{
+			Emitter list = emitters.buffer + start;
+			emitters.active[j++] = start;
+			start = list->next;
+		}
+	}
+	qsort(emitters.active, j, 2, emitterSort);
+	emitters.dirtyList = 0;
 }
 
 /* move particles */
 int particlesAnimate(Map map, vec4 camera)
 {
 	ParticleList list;
-	Emitter      emit;
 	Particle     p;
 	float *      buf;
 	int          i, count, curTimeMS = curTime;
 
-	emit = HEAD(particles.sortedEmitter);
-	if (emit && emit->time <= curTimeMS)
-	{
-		do {
-			if (vecDistSquare(emit->loc, camera) < 10*10)
-			{
-				particlesSmoke(map, emit->blockId, emit->loc);
-				emit->time = curTimeMS + RandRange(emit->interval>>1, emit->interval);
-			}
-			else emit->time = curTimeMS + (emit->interval << 1);
+	particleMakeActive(map);
+	if (emitters.dirtyList)
+		particleSortEmitters();
 
-			/* keep list sorted */
-			Emitter list, next, prev;
-			for (prev = (Emitter) emit->node.ln_Prev, list = next = (Emitter) emit->node.ln_Next; list && list->time < emit->time; prev = list, NEXT(list));
-			ListRemove(&particles.sortedEmitter, &emit->node);
-			ListInsert(&particles.sortedEmitter, &emit->node, &prev->node);
-			emit = next;
+	if (emitters.count)
+	for (count = emitters.count; ; )
+	{
+		uint16_t cur  = emitters.active[0];
+		Emitter  emit = emitters.buffer + cur;
+
+		if (emit->time <= curTimeMS)
+		{
+			particlesSmoke(map, emit->blockId, emit->loc);
+			emit->time = curTimeMS + RandRange(emit->interval>>1, emit->interval);
+
+			/* keep the list sorted */
+			for (i = 1; i < count && emitters.buffer[emitters.active[i]].time < emit->time; i ++);
+			if (i > 1)
+			{
+				memmove(emitters.active, emitters.active + 1, (i - 1) * 2);
+				emitters.active[i-1] = cur;
+			}
 		}
-		while (emit && emit->time <= curTimeMS);
+		else break;
 	}
 
 	if (particles.count == 0)
