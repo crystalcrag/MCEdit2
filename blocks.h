@@ -57,6 +57,7 @@ struct Block_t             /* per id information */
 	uint8_t  tileEntity;   /* type of tile entity (TILE_*) */
 	uint8_t  special;
 	uint8_t  rswire;       /* redstone wire can attach to this block */
+	uint8_t  rsupdate;     /* update state if redstone signal change around block */
 	uint8_t  copyModel;    /* copy invmodel from this block id */
 	uint8_t  placement;    /* allowed blocks this one can be placed on (index in blocks.placements) */
 	STRPTR   name;         /* description as displayed to user */

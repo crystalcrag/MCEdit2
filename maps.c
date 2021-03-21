@@ -254,6 +254,14 @@ int mapGetBlockId(Map map, vec4 pos, MapExtraData extra)
 	return 0;
 }
 
+/* simpler version of previous function */
+int getBlockId(BlockIter iter)
+{
+	uint8_t data = iter->blockIds[DATA_OFFSET + (iter->offset >> 1)];
+	return (iter->blockIds[iter->offset] << 4) | (iter->offset & 1 ? data >> 4 : data & 15);
+}
+
+
 /*
  * from https://www.geomalgorithms.com/a05-_intersect-1.html
  * intersectRayPlane(): find the 3D intersection of a segment and a plane

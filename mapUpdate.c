@@ -223,7 +223,7 @@ static inline uint8_t mapGetData(BlockIter iter)
 	else         return (*data & 0x0f);
 }
 
-#define STEP     126
+#define STEP     126   /* need to be multiple of 3 */
 
 #define mapUpdateInitTrack(track)    \
 	memset(&track.pos, 0, sizeof track - offsetof(struct MapUpdate_t, pos));
@@ -236,7 +236,7 @@ static void mapUpdateAddTrack(int x, int y, int z)
 	if (track.usage == track.max)
 	{
 		/* not enough space left */
-		track.max += STEP; /* need to be multiple of 3 */
+		track.max += STEP;
 		buffer = realloc(track.coord, track.max);
 		if (! buffer) return;
 		track.coord = buffer;
@@ -246,10 +246,10 @@ static void mapUpdateAddTrack(int x, int y, int z)
 			if (nb > STEP) nb = STEP;
 			memcpy(track.coord + track.usage, track.coord, nb);
 			if (nb < track.last) memmove(track.coord, track.coord + nb, track.last - nb);
-			track.last -= STEP;
-			if (track.last < 0)
-				track.last += track.max;
 		}
+		track.last -= STEP;
+		if (track.last < 0)
+			track.last += track.max;
 	}
 	if (track.unique)
 	{
@@ -634,11 +634,11 @@ static void mapUpdateObstructLight(BlockIter iterator)
 		{
 			mapIter(&neighbor, xoff[i], yoff[i], zoff[i]);
 
-			int blockId = neighbor.blockIds[neighbor.offset];
+			int block = neighbor.blockIds[neighbor.offset];
 			light = mapGetLight(&neighbor);
-			dim   = blockIds[blockId >> 4].emitLight;
+			dim   = blockIds[block].emitLight;
 			if (dim > 0 && dim <= light) continue;
-			dim   = blockGetLightOpacity(blockId, 1);
+			dim   = blockGetLightOpacity(block, 1);
 			if (dim < MAXLIGHT)
 			{
 				struct BlockIter_t iter = neighbor;

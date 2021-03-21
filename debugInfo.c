@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include "blocks.h"
 #include "render.h"
+#include "redstone.h"
 #include "nanovg.h"
 #include "SIT.h"
 
@@ -24,26 +25,35 @@ void debugBlockVertex(Map map, SelBlock * select)
 {
 	if (select->sel & 1)
 	{
-		struct MapExtraData_t data;
-		BlockState block = blockGetById(mapGetBlockId(map, select->current, &data));
+		struct BlockIter_t iter;
+
+		mapInitIter(map, &iter, select->current, False);
+
+		BlockState block = blockGetById(getBlockId(&iter));
 		int        xyz[3], i;
 
-		xyz[0] = data.offset & 15;
-		xyz[2] = (data.offset >> 4) & 15;
-		xyz[1] = data.offset >> 8;
+		xyz[0] = iter.offset & 15;
+		xyz[2] = (iter.offset >> 4) & 15;
+		xyz[1] = iter.offset >> 8;
 
 		fprintf(stderr, "*** debug block info ***\n");
 		fprintf(stderr, "found block %d-%d: %s from %c\n", block->id >> 4, block->id & 15, block->name, "SENWTB"[select->extra.side]);
 		fprintf(stderr, "located at %d,%d,%d, offset = %d, sub-chunk: %d,%d,%d, chunk: %d,%d,%d\n",
 			(int) select->current[0], (int) select->current[1], (int) select->current[2],
-			data.offset, xyz[0], xyz[1], xyz[2], data.chunk->X, data.cd->Y, data.chunk->Z
+			iter.offset, xyz[0], xyz[1], xyz[2], iter.ref->X, iter.cd->Y, iter.ref->Z
 		);
 		fprintf(stderr, "intersection at %g,%g,%g, mouse at %d,%d\n", render.selection.extra.inter[0],
 			render.selection.extra.inter[1], render.selection.extra.inter[2], render.mouseX, render.mouseY);
+		i = redstoneIsPowered(iter);
+		if (i)
+		{
+			static STRPTR strength[] = {"VERYWEAK", "WEAK", "STRONG"};
+			fprintf(stderr, "powered by signal: %s\n", strength[i-1]);
+		}
 
 		#ifdef DEBUG
-		xyz[1] += data.cd->Y;
-		NBTHdr hdr = (NBTHdr) chunkGetTileEntity(data.chunk, xyz);
+		xyz[1] += iter.cd->Y;
+		NBTHdr hdr = (NBTHdr) chunkGetTileEntity(iter.ref, xyz);
 		if (hdr)
 		{
 			struct NBTIter_t iter;
@@ -54,13 +64,13 @@ void debugBlockVertex(Map map, SelBlock * select)
 			while ((i = NBT_Dump(&nbt, nbt.alloc, 3, stderr)) >= 0)
 				nbt.alloc += i;
 		}
-		xyz[1] -= data.cd->Y;
+		xyz[1] -= iter.cd->Y;
 		#endif
 
 		/* get the sub buffer where the vertex data is located */
 		DATA16  buffer, p;
-		GPUBank bank = data.cd->glBank;
-		GPUMem  mem  = bank->usedList + data.cd->glSlot;
+		GPUBank bank = iter.cd->glBank;
+		GPUMem  mem  = bank->usedList + iter.cd->glSlot;
 
 		for (i = -1; bank; PREV(bank), i ++);
 		fprintf(stderr, "bank: %d, offset: %d, size: %d\n", i, mem->offset, mem->size);
@@ -68,7 +78,7 @@ void debugBlockVertex(Map map, SelBlock * select)
 		if (block->type == SOLID || block->type == TRANS)
 		{
 			buffer = malloc(mem->size);
-			bank = data.cd->glBank;
+			bank = iter.cd->glBank;
 			glBindBuffer(GL_ARRAY_BUFFER, bank->vboTerrain);
 			glGetBufferSubData(GL_ARRAY_BUFFER, mem->offset, mem->size, buffer);
 			glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -625,6 +635,8 @@ void debugScrollView(int dx, int dy)
 
 void debugBlock(int x, int y)
 {
+	void renderBlockInfo(SelBlock * sel);
+
 	debug.mX = x;
 	debug.mY = y;
 
@@ -635,6 +647,7 @@ void debugBlock(int x, int y)
 
 	debug.sel.blockId = 0;
 	mapGetBlockId(render.level, debug.sel.current, &debug.sel.extra);
+	renderBlockInfo(&debug.sel);
 }
 
 void debugToggleInfo(int what)

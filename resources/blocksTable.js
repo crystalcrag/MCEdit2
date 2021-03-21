@@ -128,7 +128,7 @@
 	{id: 22, name: "Lapis lazuli block", type: SOLID, inv: CUBE, cat: BUILD},
 		{state: 0, name: "-", tex: [0, 9, 0, 9, 0, 9, 0, 9, 0, 9, 0, 9]},
 
-	{id: 23, name: "Dispenser", type: SOLID, inv: CUBE, invState: 3, cat: REDSTONE, orient: FULL, tile: 1},
+	{id: 23, name: "Dispenser", type: SOLID, inv: CUBE, invState: 3, cat: REDSTONE, orient: FULL, rsupdate: 1, tile: 1},
 		{state: 0, name: "+down",  tex: [13, 2,13, 2,13, 2,13, 2,14, 3,18, 5]},
 		{state: 1, name: "+up",    tex: [13, 2,13, 2,13, 2,13, 2,18, 5,14, 3]},
 		{state: 2, name: "+north", tex: [13, 2,13, 2,14, 2,13, 2,14, 3,14, 3]},
@@ -141,7 +141,7 @@
 		{state: 1, name: "+chiseled", tex: [5,14, 5,14, 5,14, 5,14, 0,11, 0,13]},
 		{state: 2, name: "+smooth",   tex: [6,14, 6,14, 6,14, 6,14, 0,11, 0,13]},
 
-	{id: 25, name: "Note Block", type: SOLID, inv: CUBE, cat: DECO},
+	{id: 25, name: "Note Block", type: SOLID, inv: CUBE, rsupdate: 1, cat: DECO},
 		{state: 0, name: "-", tex: [10, 4,10, 4,10, 4,10, 4,10, 4,10, 4]},
 
 	{id: 26, name: "Bed", type: CUST, bbox: MAX, orient: BED, tile: 1, inv: MODEL, cat: DECO, invmodel: [
@@ -293,7 +293,7 @@
 		{state:14, name: "-red",    model: [SAME_AS, ID(26, 2)]},
 		{state:15, name: "-black",  model: [SAME_AS, ID(26, 3)]},
 
-	{id: 27, name: "Powered rail", type: QUAD, inv: ITEM2D, invState: 0, cat: RAILS, special: RAILS, orient: SE, tech: "golden_rail", placement: "ground"},
+	{id: 27, name: "Powered rail", type: QUAD, inv: ITEM2D, invState: 0, cat: RAILS, special: RAILS, orient: SE, rsupdate: 1, tech: "golden_rail", placement: "ground"},
 		{state: 0, name: "+OFF,N/S",          tex: [3, 10], quad: [BOTTOM]},
 		{state: 1, name: "+OFF,E/W",          tex: [3, 10], quad: [BOTTOM], rotate: 1},
 		{state: 2, name: "+OFF,A/E",          tex: [3, 10], quad: [ASCE]},
@@ -321,7 +321,7 @@
 		{state:12, name: "+ON,A/N",           tex: [20,  3], quad: [ASCN]},
 		{state:13, name: "+ON,A/S",           tex: [20,  3], quad: [ASCS]},
 
-	{id: 29, name: "Sticky piston", type: CUST, bbox: FULL, inv: CUBE, invState: 1, cat: REDSTONE, special: NOCONNECT, orient: FULL},
+	{id: 29, name: "Sticky piston", type: CUST, bbox: FULL, inv: CUBE, invState: 1, cat: REDSTONE, rsupdate: 1, special: NOCONNECT, orient: FULL},
 		{state: 0, name: "+down",  tex: [12, 6,12, 6,12, 6,12, 6,13, 6,10, 6, 170]},
 		{state: 1, name: "+up",    tex: [12, 6,12, 6,12, 6,12, 6,10, 6,13, 6]},
 		{state: 2, name: "+north", tex: [14, 3,12, 6,10, 6,12, 6,12, 6,12, 6,  196]},
@@ -358,7 +358,7 @@
 	{id: 32, name: "Dead bush", type: QUAD, inv: ITEM2D, cat: DECO, placement: "sand,grass,dirt"},
 		{state: 0, tex: [7, 3], quad: [CROSS]},
 
-	{id: 33, name: "Piston", type: CUST, bbox: FULL, inv: CUBE, invState: 1, cat: REDSTONE, special: NOCONNECT, orient: FULL},
+	{id: 33, name: "Piston", type: CUST, bbox: FULL, inv: CUBE, invState: 1, cat: REDSTONE, rsupdate: 1, special: NOCONNECT, orient: FULL},
 		{state: 0, name: "+down",           tex: [12, 6,12, 6,12, 6,12, 6,13, 6,11, 6,  170]},
 		{state: 1, name: "+up",             tex: [12, 6,12, 6,12, 6,12, 6,11, 6,13, 6]},
 		{state: 2, name: "+north",          tex: [14, 3,12, 6,11, 6,12, 6,12, 6,12, 6,  196]},
@@ -705,7 +705,7 @@
 		{state: 4, name: "+east",  tex: [3, 5], quad: [EAST]},
 		{state: 5, name: "-west",  tex: [3, 5], quad: [WEST]},
 
-	{id: 66, name: "Rails", type: QUAD, inv: ITEM2D, invState: 0, cat: RAILS, special: RAILS, orient: SE, tech: "rail", placement: "ground"},
+	{id: 66, name: "Rails", type: QUAD, inv: ITEM2D, invState: 0, cat: RAILS, rsupdate: 1, special: RAILS, orient: SE, tech: "rail", placement: "ground"},
 		{state: 0, name: "+N/S",             tex: [0, 8], quad: [BOTTOM]},
 		{state: 1, name: "+E/W",             tex: [0, 8], quad: [BOTTOM], rotate: 1},
 		{state: 2, name: "+ascending east",  tex: [0, 8], quad: [ASCE]},
@@ -789,7 +789,7 @@
 			31,14,0.5,14,1,0,1,0,0,0,0,0,0,7712,8225,8239,7726,544,7726,7727,545,17,530,544,31,529,7711,7712,530,530,7712,7726,544,
 		]},
 
-	{id: 71, name: "Iron door", type: CUST, bbox: MAX, special: DOOR, orient: DOOR, placement: "ground"},
+	{id: 71, name: "Iron door", type: CUST, bbox: MAX, special: DOOR, orient: DOOR, rsupdate: 1, placement: "ground"},
 		{state: 0, name: "+facing_west, hinge north", tex: [2, 6, 2, 6, 2, 6, 2, 6], model: [
 			63,3,32,16,0,0,0,0,0,0,0,0,0,41072,57488,57491,41075,41088,57504,57488,41072,41075,57491,57488,41072,41072,57488,57504,41088,41088,49296,
 				49293,41085,49296,57504,57501,49293,
@@ -855,7 +855,7 @@
 
 	{id: 77, name: "Stone button", type: CUST, inv: MODEL, cat: REDSTONE, bbox: MAX, bboxPlayer: NONE, orient: LEVER, placement: "solid", rswire: ALLDIR,
 		invmodel: [ /* a bit bigger */
-		695,3,6,8,4,5,4,0,0,0,0,0,0,16,8224,8240,32,16,8224,8240,32,16,8224,8240,32,16,8224,8240,32,16,8224,8240,32,16,8224,8240,32,
+			695,3,6,8,4,5,4,0,0,0,0,0,0,16,8224,8240,32,16,8224,8240,32,16,8224,8240,32,16,8224,8240,32,16,8224,8240,32,16,8224,8240,32,
 		]},
 		{state: 0, name: "+bottom", tex: [31, 7,31, 7, 31, 7, 31, 7], model: [
 			47,6,2,4,5,14,6,0,0,0,0,0,0,27,1053,1047,21,5160,5162,3110,3108,7209,8235,8229,7203,5146,5148,3096,3094,3105,5157,5151,3099,
@@ -1058,7 +1058,8 @@
 		{state:14, name: "-south", model: [SAME_AS, ID(93,12), 1311]},
 		{state:15, name: "-west",  model: [SAME_AS, ID(93,12), 1823]},
 
-	{id: 94, name: "Repeater", type: CUST, inv: NONE, bbox: MAX, tech: "powered_repeater", particle: SMOKE, placement: "ground", emitLight: 7, orient: SWNE},
+	{id: 94, name: "Repeater", type: CUST, inv: NONE, bbox: MAX, rswire: FRONTBACK, tech: "powered_repeater", particle: SMOKE, placement: "ground",
+		emitLight: 7, orient: SWNE},
 		{state: 0, name: "-(ON, delay 1,_north)", tex: [12,11,12,11,12,11,12,11,12,11], emit: [2, 5], model: [
 			287,16,2,16,0,0,0,0,0,0,0,0,0,72894,73920,73936,72910,66754,65728,65712,66738,66754,65728,65712,66738,66754,65728,65712,66738,73936,82144,82128,73920,
 			261,4,6,2,6,2,2,0,0,0,0,0,0,51867,54945,54949,51871,51867,54945,54949,51871,
@@ -1126,7 +1127,7 @@
 		{state:14, name: "+red",        tex: [14,19,14,19,14,19,14,19,14,19,14,19]},
 		{state:15, name: "+black",      tex: [15,19,15,19,15,19,15,19,15,19,15,19]},
 
-	{id: 96, name: "Trapdoor", type: CUST, inv: MODEL, invState: 0, cat: REDSTONE, bbox: MAX, special: TRAPDOOR},
+	{id: 96, name: "Trapdoor", type: CUST, inv: MODEL, invState: 0, cat: REDSTONE, rsupdate: 1, bbox: MAX, special: TRAPDOOR},
 		{state: 0, name: "-(bottom,_south)", tex: [4, 5, 4, 5, 4, 5, 4, 5, 4, 5], model: [
 			63,16,3,16,0,0,0,0,0,0,0,0,0,49328,47789,47773,49312,49328,47789,47773,49312,49328,47789,47773,49312,49328,47789,47773,49312,41104,49312,49328,41120,
 				41104,49312,49328,41120,
@@ -1279,7 +1280,7 @@
 		{state:14, name: "+ENW",  tex: [15, 8], quad: [EAST, NORTH, WEST]},
 		{state:15, name: "+ENSW", tex: [15, 8], quad: [EAST, NORTH, SOUTH, WEST]},
 
-	{id: 107, name: "Fence gate", type: CUST, bbox: MAX, inv: MODEL, cat: REDSTONE, orient: SE, special: FENCE|NOCONNECT, invmodel: [
+	{id: 107, name: "Fence gate", type: CUST, bbox: MAX, inv: MODEL, cat: REDSTONE, rsupdate: 1, orient: SE, special: FENCE|NOCONNECT, invmodel: [
 		447,2,11,2,0,3,7,0,0,0,0,0,0,64,8272,8288,80,64,8272,8288,80,64,8272,8288,80,64,8272,8288,80,64,8272,8288,80,64,8272,8288,80,
 		447,2,11,2,14,3,7,0,0,0,0,0,0,
 		437,12,3,2,2,10,7,0,0,0,0,0,0,
@@ -1543,10 +1544,10 @@
 			159,6,1,6,5,15,5,0,0,0,0,0,0,
 		]},
 
-	{id: 123, name: "Redstone lamp", type: SOLID, inv: CUBE, cat: BUILD},
+	{id: 123, name: "Redstone lamp", type: SOLID, inv: CUBE, cat: BUILD, rsupdate: 1},
 		{state: 0, name: "+OFF", tex: [3,13, 3,13, 3,13, 3,13, 3,13, 3,13]},
 
-	{id: 124, name: "Redstone lamp", type: SOLID, emitLight: 15, tech: "lit_redstone_lamp"},
+	{id: 124, name: "Redstone lamp", type: SOLID, emitLight: 15, tech: "lit_redstone_lamp", rsupdate: 1},
 		{state: 0, name: "+ON", tex: [4,13, 4,13, 4,13, 4,13, 4,13, 4,13]},
 
 	{id: 125, name: "Double slab", type: SOLID, tech: "double_wooden_slab"},
@@ -1966,7 +1967,7 @@
 	{id: 153, name: "Quartz ore", type: SOLID, inv: CUBE, cat: BUILD},
 		{state: 0, tex: [15,11,15,11,15,11,15,11,15,11,15,11]},
 
-	{id: 154, name: "Hopper", type: CUST, bbox: MAX, orient: FULL, tile: 1},
+	{id: 154, name: "Hopper", type: CUST, bbox: MAX, orient: FULL, tile: 1, rsupdate: 1},
 		{state: 0, name: "-facing_down", tex: [10, 8,10, 8,10, 8,10, 8], model: [
 			431,4,4,4,6,0,6,0,0,0,0,0,0,123312,131520,131536,123328,123312,131520,131536,123328,123312,131520,131536,123328,123312,
 				131520,131536,123328,254944,263152,263168,254960,123328,131536,131552,123344,
@@ -2018,7 +2019,7 @@
 		{state:12, name: "-north",                   tex: [11, 13], quad: [ASCN]},
 		{state:13, name: "-south",                   tex: [11, 13], quad: [ASCS]},
 
-	{id: 158, name: "Dropper", type: SOLID, inv: CUBE, invState: 1, cat: REDSTONE, orient: FULL},
+	{id: 158, name: "Dropper", type: SOLID, inv: CUBE, invState: 1, cat: REDSTONE, rsupdate: 1, orient: FULL},
 		{state: 0, name: "+down",  tex: [14, 3,14, 3,14, 3,14, 3,14, 3,18, 4]},
 		{state: 1, name: "+up",    tex: [14, 3,14, 3,14, 3,14, 3,18, 4,14, 3]},
 		{state: 2, name: "+north", tex: [13, 2,13, 2,10, 2,13, 2,14, 3,14, 3]},
@@ -2140,7 +2141,7 @@
 	{id: 166, name: "Barrier", type: TRANS, inv: CUBE, cat: BUILD},
 		{state: 0, tex: [10, 1,10, 1,10, 1,10, 1,10, 1,10, 1]},
 
-	{id: 167, name: "Iron trapdoor", type: CUST, inv: MODEL, invState: 0, cat: REDSTONE, bbox: MAX, special: TRAPDOOR},
+	{id: 167, name: "Iron trapdoor", type: CUST, inv: MODEL, invState: 0, cat: REDSTONE, rsupdate: 1, bbox: MAX, special: TRAPDOOR},
 		{state: 0, name: "-bottom,_south", tex: [3,16, 3,16, 3,16, 3,16], model: [
 			63,16,3,16,0,0,0,0,0,0,0,0,0,139600,138061,138045,139584,139600,138061,138045,139584,139600,138061,138045,139584,139600,138061,138045,139584,
 				131376,139584,139600,131392,131376,139584,139600,131392,
@@ -2317,7 +2318,7 @@
 		{state: 0, name: "+bottom+", tex: [2,20, 2,20, 2,20, 2,20, 4,20, 0,20]},
 		{state: 8, name: "+top",     tex: [2,20, 2,20, 2,20, 2,20, 4,20, 0,20]},
 
-	{id: 183, name: "Spruce fence gate", type: CUST, bbox: MAX, inv: MODEL, cat: REDSTONE, orient: SE, special: FENCE|NOCONNECT, invmodel: [
+	{id: 183, name: "Spruce fence gate", type: CUST, bbox: MAX, inv: MODEL, cat: REDSTONE, rsupdate: 1, orient: SE, special: FENCE|NOCONNECT, invmodel: [
 		447,2,11,2,0,3,7,0,0,0,0,0,0,98592,106800,106816,98608,98592,106800,106816,98608,98592,106800,106816,98608,98592,106800,106816,
 			98608,98592,106800,106816,98608,98592,106800,106816,98608,
 		447,2,11,2,14,3,7,0,0,0,0,0,0,
@@ -2360,7 +2361,7 @@
 		{state:14, name: "-opened, north",  model: [SAME_AS, ID(183, 6)]},
 		{state:15, name: "-opened, east",   model: [SAME_AS, ID(183, 7)]},
 
-	{id: 184, name: "Birch fence gate", type: CUST, bbox: MAX, inv: MODEL, cat: REDSTONE, orient: SE, special: FENCE|NOCONNECT, invmodel: [
+	{id: 184, name: "Birch fence gate", type: CUST, bbox: MAX, inv: MODEL, cat: REDSTONE, rsupdate: 1, orient: SE, special: FENCE|NOCONNECT, invmodel: [
 		447,2,11,2,0,3,7,0,0,0,0,0,0,106800,115008,115024,106816,106800,115008,115024,106816,106800,115008,115024,106816,106800,115008,115024,
 			106816,106800,115008,115024,106816,106800,115008,115024,106816,
 		447,2,11,2,14,3,7,0,0,0,0,0,0,
@@ -2403,7 +2404,7 @@
 		{state:14, name: "-opened, north",  model: [SAME_AS, ID(184, 6)]},
 		{state:15, name: "-opened, east",   model: [SAME_AS, ID(184, 7)]},
 
-	{id: 185, name: "Jungle fence gate", type: CUST, bbox: MAX, inv: MODEL, cat: REDSTONE, orient: SE, special: FENCE|NOCONNECT, invmodel: [
+	{id: 185, name: "Jungle fence gate", type: CUST, bbox: MAX, inv: MODEL, cat: REDSTONE, rsupdate: 1, orient: SE, special: FENCE|NOCONNECT, invmodel: [
 		447,2,11,2,0,3,7,0,0,0,0,0,0,98608,106816,106832,98624,98608,106816,106832,98624,98608,106816,106832,98624,98608,106816,106832,98624,
 			98608,106816,106832,98624,98608,106816,106832,98624,
 		447,2,11,2,14,3,7,0,0,0,0,0,0,
@@ -2446,7 +2447,7 @@
 		{state:14, name: "-opened, north",  model: [SAME_AS, ID(185, 6)]},
 		{state:15, name: "-opened, east",   model: [SAME_AS, ID(185, 7)]},
 
-	{id: 186, name: "Dark oak fence gate", type: CUST, bbox: MAX, inv: MODEL, cat: REDSTONE, orient: SE, special: FENCE|NOCONNECT, invmodel: [
+	{id: 186, name: "Dark oak fence gate", type: CUST, bbox: MAX, inv: MODEL, cat: REDSTONE, rsupdate: 1, orient: SE, special: FENCE|NOCONNECT, invmodel: [
 		447,2,11,2,0,3,7,0,0,0,0,0,0,123136,131344,131360,123152,123136,131344,131360,123152,123136,131344,131360,123152,123136,131344,131360,
 			123152,123136,131344,131360,123152,123136,131344,131360,123152,
 		447,2,11,2,14,3,7,0,0,0,0,0,0,
@@ -2489,7 +2490,7 @@
 		{state:14, name: "-opened, north",  model: [SAME_AS, ID(186, 6)]},
 		{state:15, name: "-opened, east",   model: [SAME_AS, ID(186, 7)]},
 
-	{id: 187, name: "Acacia fence gate", type: CUST, bbox: MAX, inv: MODEL, cat: REDSTONE, orient: SE, special: FENCE|NOCONNECT, invmodel: [
+	{id: 187, name: "Acacia fence gate", type: CUST, bbox: MAX, inv: MODEL, cat: REDSTONE, rsupdate: 1, orient: SE, special: FENCE|NOCONNECT, invmodel: [
 		447,2,11,2,0,3,7,0,0,0,0,0,0,123120,131328,131344,123136,123120,131328,131344,123136,123120,131328,131344,123136,123120,131328,
 			131344,123136,123120,131328,131344,123136,123120,131328,131344,123136,
 		447,2,11,2,14,3,7,0,0,0,0,0,0,
@@ -2632,7 +2633,7 @@
 			181,6,3,2,0,6,7,0,0,0,0,0,0,
 		]},
 
-	{id: 193, name: "Spruce door", type: CUST, bbox: MAX, special: DOOR, orient: DOOR, placement: "ground"},
+	{id: 193, name: "Spruce door", type: CUST, bbox: MAX, special: DOOR, orient: DOOR, rsupdate: 1, placement: "ground"},
 		{state: 0, name: "+facing_west, hinge north", tex: [5, 21, 5, 21, 5, 21, 5, 21], model: [
 			63,3,32,16,0,0,0,0,0,0,0,0,0,164240,180656,180659,164243,164256,180672,180656,164240,164243,180659,180656,164240,164240,180656,180672,
 				164256,164256,172464,172461,164253,172464,180672,180669,172461,
@@ -2648,7 +2649,7 @@
 		{state: 6, name: "+east, hinge north", model: [SAME_AS, ID(193, 4), 1087]},
 		{state: 7, name: "+south, hinge east", model: [SAME_AS, ID(193, 4), 1599]},
 
-	{id: 194, name: "Birch door", type: CUST, bbox: MAX, special: DOOR, orient: DOOR, placement: "ground"},
+	{id: 194, name: "Birch door", type: CUST, bbox: MAX, special: DOOR, orient: DOOR, rsupdate: 1, placement: "ground"},
 		{state: 0, name: "+facing_west, hinge north", tex: [6, 21, 6, 21, 6, 21, 6, 21], model: [
 			63,3,32,16,0,0,0,0,0,0,0,0,0,164240,180656,180659,164243,164256,180672,180656,164240,164243,180659,180656,164240,164240,180656,180672,
 				164256,164256,172464,172461,164253,172464,180672,180669,172461,
@@ -2664,7 +2665,7 @@
 		{state: 6, name: "+east, hinge north", model: [SAME_AS, ID(194, 4), 1087]},
 		{state: 7, name: "+south, hinge east", model: [SAME_AS, ID(194, 4), 1599]},
 
-	{id: 195, name: "Jungle door", type: CUST, bbox: MAX, special: DOOR, orient: DOOR, placement: "ground"},
+	{id: 195, name: "Jungle door", type: CUST, bbox: MAX, special: DOOR, orient: DOOR, rsupdate: 1, placement: "ground"},
 		{state: 0, name: "+facing_west, hinge north", tex: [7, 21, 7, 21, 7, 21, 7, 21], model: [
 			63,3,32,16,0,0,0,0,0,0,0,0,0,164272,180688,180691,164275,164272,180688,180704,164288,164275,180691,180688,164272,164288,180704,180688,
 				164272,164285,172493,172496,164288,172493,180701,180704,172496,
@@ -2680,7 +2681,7 @@
 		{state: 6, name: "+east, hinge north", model: [SAME_AS, ID(195, 4), 1087]},
 		{state: 7, name: "+south, hinge east", model: [SAME_AS, ID(195, 4), 1599]},
 
-	{id: 196, name: "Acacia door", type: CUST, bbox: MAX, special: DOOR, orient: DOOR, placement: "ground"},
+	{id: 196, name: "Acacia door", type: CUST, bbox: MAX, special: DOOR, orient: DOOR, rsupdate: 1, placement: "ground"},
 		{state: 0, name: "+facing_west, hinge north", tex: [8, 21, 8, 21, 8, 21, 8, 21], model: [
 			63,3,32,16,0,0,0,0,0,0,0,0,0,164288,180704,180707,164291,164288,180704,180720,164304,164291,180707,180704,164288,164288,180704,180720,
 				164304,164301,172509,172512,164304,172509,180717,180720,172512,
@@ -2696,7 +2697,7 @@
 		{state: 6, name: "+east, hinge north", model: [SAME_AS, ID(196, 4), 1087]},
 		{state: 7, name: "+south, hinge east", model: [SAME_AS, ID(196, 4), 1599]},
 
-	{id: 197, name: "Dark oak door", type: CUST, bbox: MAX, special: DOOR, orient: DOOR, placement: "ground"},
+	{id: 197, name: "Dark oak door", type: CUST, bbox: MAX, special: DOOR, orient: DOOR, rsupdate: 1, placement: "ground"},
 		{state: 0, name: "+facing_west, hinge north", tex: [9, 21, 9, 21, 9, 21, 9, 21], model: [
 			63,3,32,16,0,0,0,0,0,0,0,0,0,164304,180720,180723,164307,164304,180720,180736,164320,164307,180723,180720,164304,164320,180736,180720,
 				164304,164317,172525,172528,164320,172525,180733,180736,172528,
@@ -2837,7 +2838,7 @@
 	{id: 217, name: "Structure void", type: INVIS}, /* what's for ? */
 
 	/* minecraft 1.11 */
-	{id: 218, name: "Observer", type: SOLID, inv: CUBE, cat: REDSTONE, rswire: BACK, invState: 3, orient: FULL},
+	{id: 218, name: "Observer", type: SOLID, inv: CUBE, cat: REDSTONE, rswire: BACK, rsupdate: 2, invState: 3, orient: FULL},
 		{state: 0, name: "+down",  tex: [1,21, 2,21, 1,21, 2,21, 0,21, 4,21,  68]},
 		{state: 1, name: "+up",    tex: [1,21, 2,21, 1,21, 2,21, 4,21, 0,21,  102]},
 		{state: 2, name: "+north", tex: [0,21, 2,21, 4,21, 2,21, 1,21, 1,21,  512]},

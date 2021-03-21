@@ -807,6 +807,10 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 		value = jsonValue(keys, "rswire");
 		block.rswire = FindInList("ALLDIR,FRONTBACK,BACK", value, 0) + 1;
 
+		/* blocks react to redstone update */
+		value = jsonValue(keys, "rsupdate");
+		block.rsupdate = value ? atoi(value) : 0;
+
 		/* types of particles emitted continuously */
 		value = jsonValue(keys, "particle");
 		block.particle = FindInList("BITS,SMOKE,NETHER", value, 0) + 1;
@@ -816,10 +820,10 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 		while (*keys)
 		{
 			if (FindInList(
-				"id,name,type,inv,invstate,cat,special,tech,bbox,orient,keepModel,particle,"
+				"id,name,type,inv,invstate,cat,special,tech,bbox,orient,keepModel,particle,rsupdate,"
 				"emitLight,opacSky,opacLight,tile,invmodel,rswire,placement,bboxPlayer", *keys, 0) < 0)
 			{
-				SIT_Log(SIT_ERROR, "%s: unknown property %s on line %d\n", file, *keys, line);
+				SIT_Log(SIT_ERROR, "%s: unknown property \"%s\" on line %d\n", file, *keys, line);
 				return False;
 			}
 			keys += 2;
@@ -1122,7 +1126,7 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 		{
 			if (FindInList("state,name,tex,quad,inv,model,rotate,emit", *keys, 0) < 0)
 			{
-				SIT_Log(SIT_ERROR, "%s: unknown property %s on line %d\n", file, *keys, line);
+				SIT_Log(SIT_ERROR, "%s: unknown property \"%s\" on line %d\n", file, *keys, line);
 				return False;
 			}
 			keys += 2;
@@ -1495,7 +1499,6 @@ static void blockGenBBox(DATA16 buffer, int len, int type)
 				{
 					/* start of a new box */
 					first->cont ++;
-					//if (data[3] & 8192) ref = box;
 					box ++;
 					blockBBoxInit(box);
 				}
@@ -1626,7 +1629,7 @@ static int blockGenCommonBBox(float * bbox)
 
 
 /* remove some faces/lines from bbox models: too difficult to do this in a vertex/geometry shader */
-int blockBBoxFuse(BlockState b, VTXBBox list, int cnxFlags, DATA16 buffer)
+static int blockBBoxFuse(BlockState b, VTXBBox list, int cnxFlags, DATA16 buffer)
 {
 	VTXBBox bbox;
 	DATA16  p;
@@ -1684,8 +1687,7 @@ int blockGenVertexBBox(BlockState b, VTXBBox box, int flag, int * vbo)
 	DATA16 vertex = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
 	DATA16 index  = glMapBuffer(GL_ELEMENT_ARRAY_BUFFER, GL_WRITE_ONLY);
 
-	/* generate vertex data for selection shader */
-	enum { PT1X, PT1Y, PT1Z, PT2X, PT2Y, PT2Z, FLG };
+	enum { PT1X, PT1Y, PT1Z, PT2X, PT2Y, PT2Z };
 	static uint8_t vtx[] = {
 		PT1X, PT1Y, PT2Z,
 		PT2X, PT1Y, PT2Z,
@@ -1712,6 +1714,7 @@ int blockGenVertexBBox(BlockState b, VTXBBox box, int flag, int * vbo)
 		for (i = 0, v = vertex; count > 0; count --, p += INT_PER_VERTEX, i ++)
 		{
 			DATA16 check;
+			/* check for unique vertices */
 			for (check = vertex, j = 0; check != v && memcmp(check, p, 6); check += 3, j ++);
 			if (check == v) memcpy(v, p, 6), v += 3;
 			vtxindex[i] = j;
@@ -1721,10 +1724,11 @@ int blockGenVertexBBox(BlockState b, VTXBBox box, int flag, int * vbo)
 		for (p = b->custModel, count = p[-1], idx = 0, lines = index + count; count > 0; count -= 6, vtxindex += 6, p += INT_PER_VERTEX * 6)
 		{
 			/* analyze one face at a time */
-			static uint8_t indices[] = {0, 1, 2, 5, 6, 7, 10, 11, 12};
+			static uint8_t indices[] = {0, 1, 2, 5, 6, 7, 10, 11, 12}; /* only need 3 points */
 			int16_t offsets[3];
 			float   pts[9];
 
+			/* convert 3 pts to float */
 			for (j = 0; j < DIM(pts); j ++)
 				pts[j] = (p[indices[j]] - BASEVTX/2) * (1. / BASEVTX);
 
@@ -1739,7 +1743,7 @@ int blockGenVertexBBox(BlockState b, VTXBBox box, int flag, int * vbo)
 			offsets[1] = pts[1] * (0.01 * BASEVTX);
 			offsets[2] = pts[2] * (0.01 * BASEVTX);
 
-			/* shift vertex */
+			/* shift vertex by normal */
 			for (j = 0; j < 4; j ++, lines += 2)
 			{
 				int k = vtxindex[j];

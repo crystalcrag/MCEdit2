@@ -4,6 +4,7 @@
  * written by T.Pierron, feb 2021.
  */
 
+#define REDSTONE_IMPL
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -12,17 +13,14 @@
 #include "blocks.h"
 #include "redstone.h"
 
-/* order is S, E, N, W */
-static int8_t xoff[] = {0,  1, -1, -1};
-static int8_t zoff[] = {1, -1, -1,  1};
-static int8_t dx[] = {0,  1,  0, -1};
-static int8_t dz[] = {1,  0, -1,  0};
+/* order is S, E, N, W, T, B */
+static int8_t xoff[] = {0,  1, -1, -1, 1,  0};
+static int8_t zoff[] = {1, -1, -1,  1, 0,  0};
+static int8_t yoff[] = {0,  0,  0,  0, 1, -2};
+static int8_t dx[] = {0,  1,  0, -1, 0, 0};
+static int8_t dz[] = {1,  0, -1,  0, 0, 0};
 
-static int getBlockId(BlockIter iter)
-{
-	uint8_t data = iter->blockIds[DATA_OFFSET + (iter->offset >> 1)];
-	return (iter->blockIds[iter->offset] << 4) | (iter->offset & 1 ? data >> 4 : data & 15);
-}
+static struct RedstonePrivate_t redstone;
 
 /* check if a signal (torch or wire) can go through a repeater from <side> */
 static int redstoneConnectToRepeater(int side, int blockId)
@@ -76,7 +74,7 @@ int redstoneConnectTo(struct BlockIter_t iter, RSWire connectTo)
 
 	switch (iter.blockIds[iter.offset]) {
 	case RSTORCH_ON: /* which block a rs torch will update */
-		for (i = 0; i < DIM(xoff); i ++)
+		for (i = 0; i < 4; i ++)
 		{
 			struct RSWire_t cnx = {.dx = dx[i], .dz = dz[i]};
 			mapIter(&iter, xoff[i], 0, zoff[i]);
@@ -116,7 +114,7 @@ int redstoneConnectTo(struct BlockIter_t iter, RSWire connectTo)
 
 		id = getBlockId(&iter);
 		/* first: check on the side S, E, N, W */
-		for (i = 0; i < DIM(xoff); i ++)
+		for (i = 0; i < 4; i ++)
 		{
 			struct RSWire_t cnx = {.dx = dx[i], .dz = dz[i]};
 			mapIter(&iter, xoff[i], 0, zoff[i]);
@@ -127,7 +125,7 @@ int redstoneConnectTo(struct BlockIter_t iter, RSWire connectTo)
 		}
 		/* next: check on bottom */
 		mapIter(&iter, 1, -1, 0);
-		for (i = 0; i < DIM(xoff); i ++)
+		for (i = 0; i < 4; i ++)
 		{
 			struct RSWire_t cnx = {.dx = dx[i], -1, .dz = dz[i]};
 			mapIter(&iter, xoff[i], 0, zoff[i]);
@@ -141,7 +139,7 @@ int redstoneConnectTo(struct BlockIter_t iter, RSWire connectTo)
 		mapIter(&iter, 1, 2, 0);
 		if (! redstoneIsBlocking(getBlockId(&iter)))
 		{
-			for (i = 0; i < DIM(xoff); i ++)
+			for (i = 0; i < 4; i ++)
 			{
 				struct RSWire_t cnx = {.dx = dx[i], 1, .dz = dz[i]};
 				mapIter(&iter, xoff[i], 0, zoff[i]);
@@ -190,3 +188,68 @@ int redstoneSignalStrength(struct BlockIter_t iter, Bool dirty)
 	}
 }
 
+/* is the block powered by any redstone signal: 0 = none, 1 = weak, 2 = strong */
+int redstoneIsPowered(struct BlockIter_t iter)
+{
+	int id = iter.blockIds[iter.offset];
+	Block b = blockIds + id;
+	if (b->type == SOLID && b->special != BLOCK_HALF)
+	{
+		uint8_t i, j, data;
+		for (i = 0; i < 6; i ++)
+		{
+			mapIter(&iter, xoff[i], yoff[i], zoff[i]);
+			id = getBlockId(&iter);
+			data = id & 15; id >>= 4;
+			b = blockIds + id;
+			if (b->orientHint == ORIENT_LEVER)
+			{
+				static uint8_t sideAttached[] = {5, 1, 3, 0, 2, 4, 4, 5};
+				/* buttons or lever */
+				if (data >= 8 && sideAttached[data] == i)
+					return POW_STRONG;
+			}
+			else if (id == RSWIRE)
+			{
+				/* argh, need to check connectivity */
+				if (data == 0 || i == SIDE_BOTTOM) continue;
+				if (i == SIDE_TOP) return POW_WEAK;
+				struct RSWire_t connect[8];
+				int count = redstoneConnectTo(iter, connect);
+				uint8_t flags = 0;
+				for (j = 0; j < count; j ++)
+				{
+					RSWire cnx = connect + j;
+					if (cnx->dx < 0) flags |= 1 << SIDE_WEST; else
+					if (cnx->dx > 0) flags |= 1 << SIDE_EAST;
+					if (cnx->dz < 0) flags |= 1 << SIDE_NORTH; else
+					if (cnx->dz > 0) flags |= 1 << SIDE_SOUTH;
+				}
+				switch (popcount(flags)) {
+				case 0: return POW_WEAK;
+				case 1: if (i & 1 ? flags & 10 : flags & 5) return POW_WEAK; continue;
+				default: continue;
+				}
+			}
+			else if (id == RSREPEATER_ON)
+			{
+				static uint8_t facing[] = {0, 3, 1, 2};
+				if (facing[data] == i) return POW_STRONG;
+			}
+			else if (id == RSTORCH_ON)
+			{
+				if (i == 4) return POW_VERYWEAK;
+				return POW_STRONG;
+			}
+		}
+		return POW_NONE;
+	}
+	else return id == RSTORCH_ON ? POW_STRONG : POW_NONE;
+}
+
+/*
+ * propagate signal after some delay
+ */
+void redstoneDoTick(void)
+{
+}

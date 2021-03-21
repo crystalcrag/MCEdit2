@@ -188,7 +188,7 @@ void particlesSmoke(Map map, int blockId, vec4 pos)
 {
 	Particle p = particlesAlloc();
 	if (p == NULL) return;
-	int range = RandRange(500, 1000);
+	int range = RandRange(500, 1500);
 	int UV    = (31 * 16 + ((9*16) << 9));
 	vec4 offset;
 
@@ -411,6 +411,18 @@ static void particleSortEmitters(void)
 	emitters.dirtyList = 0;
 }
 
+static void particleChangeDir(Particle p)
+{
+	float angle = RandRange(0, 2 * M_PI);
+	p->dir[VY] = 0;
+	p->dir[VX] = cosf(angle) * 0.01;
+	p->dir[VZ] = sinf(angle) * 0.01;
+	p->brake[VZ] = -0.001;
+	p->brake[VX] = -0.001;
+	if (p->dir[VX] < 0) p->size |= 0x80, p->dir[VX] = - p->dir[VX];
+	if (p->dir[VZ] < 0) p->size |= 0x40, p->dir[VZ] = - p->dir[VZ];
+}
+
 /* move particles */
 int particlesAnimate(Map map, vec4 camera)
 {
@@ -465,7 +477,7 @@ int particlesAnimate(Map map, vec4 camera)
 
 	for (list = HEAD(particles.buffers), count = 0; list; NEXT(list))
 	{
-		uint8_t nth;
+		uint8_t nth, type;
 		for (i = list->count, nth = 0, p = list->buffer; i > 0; p ++, nth ++)
 		{
 			if (p->time == 0) continue; i --;
@@ -484,7 +496,8 @@ int particlesAnimate(Map map, vec4 camera)
 			buf[1]  = p->loc[VY];
 			buf[2]  = p->loc[VZ];
 			info[0] = p->UV;
-			switch (p->UV&63) {
+			type = p->UV&63;
+			switch (type) {
 			case PARTICLE_BITS:
 				info[1] = p->light;
 				break;
@@ -507,8 +520,12 @@ int particlesAnimate(Map map, vec4 camera)
 
 			if (p->brake[VY] == 0)
 			{
-				p->brake[VX] += 0.0005 * speed;
-				p->brake[VZ] += 0.0005 * speed;
+				if (p->onGround)
+				{
+					/* increase friction if sliding on ground */
+					p->brake[VX] += 0.0005 * speed;
+					p->brake[VZ] += 0.0005 * speed;
+				}
 			}
 			else p->brake[VY] += 0.0015 * speed;
 
@@ -523,23 +540,39 @@ int particlesAnimate(Map map, vec4 camera)
 				if (! (b->type == SOLID || b->type == TRANS || b->type == CUST) || b->bboxPlayer == BBOX_NONE)
 				{
 					p->light = light;
-					if (p->onGround)
-						p->brake[VY] = 0.02;
+					if (! p->onGround)
+					{
+						/* check if block above has changed */
+						pos[VY] += p->onGround ? -1 : 1;
+						Block b = blockIds + particlesGetBlockInfo(map, pos, &light);
+						if (! (b->type == SOLID || b->type == TRANS || b->type == CUST) || b->bboxPlayer == BBOX_NONE)
+							p->brake[VX] = p->brake[VZ] = 0.001, p->dir[VY] = 0.02;
+					}
+					else p->brake[VY] = 0.02;
 					continue;
 				}
 				/* inside a solid block: light will be 0 */
 
 				if (pos[VX] != old[VX]) p->dir[VX] = p->brake[VX] = 0, p->loc[VX] = buf[-5];
 				if (pos[VZ] != old[VZ]) p->dir[VZ] = p->brake[VZ] = 0, p->loc[VZ] = buf[-3];
-				if (pos[VY] >  old[VY]) p->dir[VZ] = 0;
-				if (pos[VY] <  old[VY])
+				if (pos[VY] >  old[VY])
 				{
+					/* hit a ceiling */
+					p->dir[VY] = 0;
+					p->loc[VY] = buf[-4];
+					if (type != PARTICLE_SMOKE)
+						p->brake[VY] = 0.02;
+					else
+						particleChangeDir(p);
+				}
+				else if (pos[VY] > old[VY])
+				{
+					/* hit the ground */
 					p->loc[VY] = buf[-4] = pos[VY]+0.95;
 					p->dir[VY] = 0;
 					p->brake[VY] = 0;
 					p->onGround = 1;
 				}
-				else p->brake[VY] = 0.02;
 			}
 			if (count == 1000) goto break_all;
 		}
