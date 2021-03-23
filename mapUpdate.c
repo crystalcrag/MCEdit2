@@ -16,6 +16,7 @@
 #include "sign.h"
 #include "particles.h"
 #include "redstone.h"
+#include "blockupdate.h"
 #include "NBT2.h"
 
 static struct MapUpdate_t track;
@@ -704,7 +705,8 @@ static void mapUpdateBlockLight(Map map, BlockIter iter, int oldId, int newId)
 	else
 	{
 		uint8_t opac = blockIds[newId>>4].opacLight, i;
-		if (opac == 0 || mapGetLight(iter) == 0)
+		uint8_t light = mapGetLight(iter);
+		if (opac == 0 || light == 0)
 		{
 			struct BlockIter_t neighbor = *iter;
 			neighbor.alloc = False;
@@ -718,7 +720,10 @@ static void mapUpdateBlockLight(Map map, BlockIter iter, int oldId, int newId)
 				}
 			}
 		}
-		else mapUpdateObstructLight(iter);
+		else if (newLight != light)
+		{
+			mapUpdateObstructLight(iter);
+		}
 	}
 }
 
@@ -792,6 +797,7 @@ void mapUpdateDeleteSignal(BlockIter iterator)
 	struct RSWire_t connectTo[8];
 	int i, count, signal, block;
 
+	/* block must not be deleted at this point */
 	mapUpdateInitTrack(track);
 	track.unique = True;
 	count = redstoneConnectTo(*iterator, connectTo);
@@ -873,6 +879,52 @@ void mapUpdateDeleteSignal(BlockIter iterator)
 			mapUpdateAddTrack(cnx->dx + XYZ[0], cnx->dy + XYZ[1], cnx->dz + XYZ[2]);
 		}
 	}
+}
+
+/* check if a block is powered nearby, change current block to active state then */
+static int mapUpdateIfPowered(BlockIter iterator, int blockId)
+{
+	static uint8_t repeaterOrient[] = {0,3,1,2};
+	Block b = &blockIds[blockId >> 4];
+	int   i;
+
+	switch (b->id) {
+	case RSDISPENSER:
+	case RSNOTEBLOCK:
+	case RSPOWRAILS:
+	case RSSTICKYPISTON:
+	case RSPISTON:
+	case RSLAMP:
+	case RSDROPPER:
+		/* check if one of the 6 surrounding block is powered */
+		for (i = 0; i < 6; i ++)
+		{
+			if (redstoneIsPowered(*iterator, i))
+			{
+				if (b->id == RSLAMP)
+					return (RSLAMP+1) << 4;
+				break;
+			}
+		}
+		break;
+	case RSREPEATER_OFF:
+		/* data orient to iter orient ({x,y,z}off[]) */
+		if (redstoneIsPowered(*iterator, repeaterOrient[blockId & 3]))
+		{
+			updateAdd(iterator, ACT_REPEATER_ON, (blockId & 15) >> 2);
+			return (blockId & 15) | (RSREPEATER_ON << 4);
+		}
+		break;
+	default:
+		switch (b->special) {
+		case BLOCK_DOOR:
+		case BLOCK_TRAPDOOR:
+		case BLOCK_FENCE: /* gate */
+			// TODO
+			break;
+		}
+	}
+	return blockId;
 }
 
 /*
@@ -963,6 +1015,7 @@ static void mapUpdateMesh(Map map)
 		renderInitBuffer(cd);
 		chunkUpdate(cd->chunk, map->air, cd->Y >> 4, renderFlush);
 		renderFinishMesh();
+		particlesChunkUpdate(map, cd);
 		if (cd->pendingDel)
 			/* link within chunk has already been removed in chunkUpdate() */
 			free(cd);
@@ -988,9 +1041,14 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, Bool blockUpdate)
 	int     XYZ[] = {iter.x, iter.yabs, iter.z};
 
 	/* this needs to be done before tables are updated */
-	if (blockId != oldId && redstoneNeedUpdate(oldId))
+	if (blockId != oldId && redstonePropagate(oldId))
 	{
 		mapUpdateDeleteSignal(&iter);
+	}
+
+	if (blockIds[blockId >> 4].rsupdate)
+	{
+		blockId = mapUpdateIfPowered(&iter, blockId);
 	}
 
 	/* update blockId/metaData tables */
@@ -1015,7 +1073,7 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, Bool blockUpdate)
 	/* update blockLight */
 	mapUpdateBlockLight(map, &iter, oldId, blockId);
 
-	if (iter.cd->slot == 0)
+	if (iter.cd->slot == 0 && blockId != oldId)
 	{
 		/* not in update list: add it now */
 		iter.cd->slot = 1;
@@ -1026,7 +1084,7 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, Bool blockUpdate)
 	}
 
 	/* redstone signal if any */
-	if (redstoneNeedUpdate(blockId))
+	if (redstonePropagate(blockId))
 	{
 		mapUpdatePropagateSignal(&iter);
 	}
@@ -1055,6 +1113,7 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, Bool blockUpdate)
 	/* trigger a block update, it might call mapUpdate recursively */
 	if (blockUpdate)
 	{
+		/* update nearby block if needed */
 		mapUpdateBlock(map, pos, blockId, oldId, tile);
 		/* update mesh */
 		mapUpdateMesh(map);

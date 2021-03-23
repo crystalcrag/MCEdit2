@@ -13,6 +13,7 @@
 #include "render.h"
 #include "blocks.h"
 #include "NBT2.h"
+#include "particles.h"
 
 
 //#define SLOW_CHUNK_LOAD   /* load 1 chunk (entire column) per second */
@@ -617,6 +618,7 @@ void mapGenerateMesh(Map map)
 				renderInitBuffer(cd);
 				chunkUpdate(list, map->air, i, renderFlush);
 				renderFinishMesh();
+				particlesChunkUpdate(map, cd);
 				if (cd->pendingDel)
 				{
 					/* link within chunk has already been removed in chunkUpdate() */

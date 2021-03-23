@@ -4,6 +4,7 @@
  * Written by T.Pierron, jan 2021.
  */
 
+#define BLOCK_UPDATE_IMPL
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
@@ -12,8 +13,12 @@
 #include "maps.h"
 #include "NBT2.h"
 #include "blocks.h"
+#include "blockUpdate.h"
+#include "redstone.h"
 
 extern int8_t normals[]; /* from render.c */
+extern double curTime;
+static struct UpdatePrivate_t updates;
 
 static void mapSetData(Map map, vec4 pos, int data)
 {
@@ -84,7 +89,7 @@ static int mapGetRailNeighbors(Map map, DATA16 neighbors, vec4 pos)
 	return flags;
 }
 
-int mapGetRailData(int curData, int flags)
+static int mapGetRailData(int curData, int flags)
 {
 	switch (flags & 15) {
 	case 1:
@@ -393,4 +398,96 @@ int mapActivateBlock(Map map, vec4 pos, int blockId, BlockIter iter)
 		d[0] = iter->offset & 1 ? (d[0] & 15) | (data << 4) : (d[0] & 0xf0) | data;
 	}
 	return 1;
+}
+
+/*
+ * delayed block update (tile tick)
+ */
+static TileTick updateAlloc(void)
+{
+	if (updates.count == updates.max)
+	{
+		DATA32 usage = updates.usage;
+		DATA16 sorted = updates.sorted;
+		updates.max += 128;
+		TileTick list = realloc(updates.list, updates.max * (sizeof *list + 2) + (updates.max >> 5) * 4);
+		if (list == NULL) return NULL;
+		updates.list = list;
+		updates.sorted = (DATA16) (list + updates.max);
+		updates.usage = (DATA32) (list + updates.max);
+		if (updates.count > 0)
+		{
+			memmove(updates.sorted, sorted, updates.count * 2);
+			int count = updates.count >> 5;
+			memmove(updates.usage, usage, count * 4);
+			memset(updates.usage + count, 0, 16);
+		}
+	}
+	updates.count ++;
+	return updates.list + mapFirstFree(updates.usage, updates.max >> 5);
+}
+
+void updateAdd(BlockIter iter, int action, int nbTick)
+{
+	TileTick update = updateAlloc();
+	int      tick   = (int) curTime + nbTick + (1000 / TICK_PER_SECOND);
+	update->cd     = iter->cd;
+	update->offset = iter->offset;
+	update->action = action;
+	update->tick   = tick;
+	update->data   = iter->blockIds[DATA_OFFSET + (iter->offset >> 1)];
+	if (iter->offset & 1) update->data >>= 4;
+	else                  update->data &= 15;
+
+	/* keep them sorted for easier scanning later */
+	int i, max;
+	for (i = 0, max = updates.count-1; i < max; i ++)
+	{
+		TileTick list = updates.list + updates.sorted[i];
+		if (tick <= list->tick) break;
+	}
+
+	if (i < updates.count)
+		memmove(updates.list + i + 1, updates.list + i, (updates.count - i - 1) * sizeof *update);
+
+	updates.sorted[i] = update - updates.list;
+}
+
+void updateTick(Map map)
+{
+	int i, time = curTime;
+	for (i = 0; i < updates.count; i ++)
+	{
+		int       id   = updates.sorted[i];
+		TileTick  list = updates.list + id;
+		int       off  = list->offset;
+		ChunkData cd   = list->cd;
+		vec4      pos;
+		if (list->tick > time) break;
+		pos[0] = cd->chunk->X + (off & 15); off >>= 4;
+		pos[2] = cd->chunk->Z + (off & 15);
+		pos[1] = cd->Y + (off >> 4);
+		/* will probably generate more tile ticks */
+		switch (list->action) {
+		case ACT_REPEATER_ON:
+			mapUpdate(map, pos, RSREPEATER_ON | list->data, NULL, True);
+			break;
+		case ACT_REPEATER_OFF:
+			mapUpdate(map, pos, RSREPEATER_OFF | list->data, NULL, True);
+			break;
+		case ACT_TORCH_ON:
+			mapUpdate(map, pos, RSTORCH_ON | list->data, NULL, True);
+			break;
+		case ACT_TORCH_OFF:
+			mapUpdate(map, pos, RSTORCH_OFF | list->data, NULL, True);
+		}
+		/* deallocate */
+		updates.usage[id >> 5] ^= 1 << (id & 31);
+		updates.count --;
+	}
+	if (i > 0)
+	{
+		/* remove processed updates in sorted array */
+		memmove(updates.list, updates.list + i, updates.count * sizeof *updates.list);
+	}
 }

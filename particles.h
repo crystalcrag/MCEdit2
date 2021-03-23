@@ -14,7 +14,7 @@
 void particlesInit(int vbo);
 void particlesExplode(Map map, int count, int blockId, vec4 pos);
 int  particlesAnimate(Map map, vec4 camera);
-void particleChunkUpdate(Map map, ChunkData cd);
+void particlesChunkUpdate(Map map, ChunkData cd);
 
 #define PARTICLES_VBO_SIZE        (5*4)
 #define PARTICLES_MAX             1024
@@ -79,7 +79,6 @@ struct EmitterPrivate_t
 	int      cacheLoc[3];
 	int16_t  startIds[27];     /* emitters for one ChunkData */
 	uint8_t  offsets[27];      /* +/- 1 for x, Z, Y for locating chunk 0-26 */
-	uint8_t  activeDone;       /* 0 if chunks are missing their mesh */
 	uint8_t  dirtyList;        /* <active> needs to be rebuilt */
 };
 

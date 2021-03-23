@@ -11,11 +11,9 @@ typedef struct RSWire_t *     RSWire;
 
 int  redstoneConnectTo(struct BlockIter_t iter, RSWire connectTo);
 int  redstoneSignalStrength(struct BlockIter_t iter, Bool dirty);
-Bool redstoneNeedUpdate(int blockId);
-int  redstoneIsPowered(struct BlockIter_t iter);
-void redstoneDoTick(void);
-
-#define RS_TICK_PER_SECOND    20
+Bool redstonePropagate(int blockId);
+int  redstoneIsPowered(struct BlockIter_t iter, int side);
+int  redstoneIsPoweredFromAnySide(struct BlockIter_t iter);
 
 #if 0 // what's for?
 enum /* possible values for redstoneConnectTo() state parameter */
@@ -40,11 +38,20 @@ struct RSWire_t /* track where a wire can connect to */
 
 enum /* common redstone devices */
 {
+	RSDISPENSER    = 23,
+	RSNOTEBLOCK    = 25,
+	RSPOWRAILS     = 27,
+	RSSTICKYPISTON = 29,
+	RSPISTON       = 33,
 	RSWIRE         = 55,
 	RSTORCH_OFF    = 75,
 	RSTORCH_ON     = 76,
 	RSREPEATER_OFF = 93,
-	RSREPEATER_ON  = 04
+	RSREPEATER_ON  = 94,
+	RSLAMP         = 123,
+	RSHOPPER       = 154,
+	RSDROPPER      = 158,
+	RSOBSERVER     = 218
 };
 
 enum /* return value from redstoneIsPowered() */
@@ -55,19 +62,4 @@ enum /* return value from redstoneIsPowered() */
 	POW_STRONG,       /* repeater/torch powered (can transmit signal through block) */
 };
 
-#ifdef REDSTONE_IMPL
-struct RSUpdate_t
-{
-	ChunkData chunk;
-	uint16_t  offset;
-	int       tick;
-};
-
-struct RedstonePrivate_t
-{
-	vector_t updates;
-	int      curTick;
-};
-
-#endif
 #endif

@@ -269,7 +269,7 @@ static void particleMakeActive(Map map)
 	int   pos[] = {CPOS(map->cx), CPOS(map->cy), CPOS(map->cz)};
 	Chunk chunk = map->center;
 
-	if (emitters.activeDone && memcmp(pos, emitters.cacheLoc, sizeof pos) == 0)
+	if (memcmp(pos, emitters.cacheLoc, sizeof pos) == 0)
 		return;
 
 	memcpy(oldIds, emitters.startIds, sizeof oldIds);
@@ -302,9 +302,8 @@ static void particleMakeActive(Map map)
 
 		if ((c->cflags & CFLAG_HASMESH) == 0)
 		{
-			/* chunk not loaded: no need to continue, we'll have to do another pass */
-			emitters.activeDone = 0;
-			return;
+			/* chunk not loaded: we will get notified later through particleChunkUpdate() */
+			continue;
 		}
 
 		if (y < 0 || y >= c->maxy) continue;
@@ -320,21 +319,20 @@ static void particleMakeActive(Map map)
 			cur = &e->next;
 		}
 	}
-	emitters.activeDone = 1;
 	emitters.dirtyList = 1;
 }
 
 /* emitters list changed, update particle emitters object */
-void particleChunkUpdate(Map map, ChunkData cd)
+void particlesChunkUpdate(Map map, ChunkData cd)
 {
 	Chunk   chunk = cd->chunk;
 	Emitter oldEmit, prev;
-	int16_t * newIds;
-	int     i;
 	int     pos[] = {CPOS(map->cx) - CPOS(chunk->X), CPOS(map->cy) - CPOS(cd->Y), CPOS(map->cz) - CPOS(chunk->Z)};
+	int     i;
 
 	if (abs(pos[0]) <= 1 && abs(pos[1]) <= 1 && abs(pos[2]) <= 1)
 	{
+		int16_t * newIds;
 		/* current emitters must not be reset (because timer will be reset) */
 		for (i = cd->emitCount, prev = NULL, oldEmit = emitters.buffer + emitters.startIds[pos[0]+pos[2]*3+pos[2]*9+13],
 		     newIds = cd->emitters; i > 0; i --, newIds ++)
@@ -363,6 +361,10 @@ void particleChunkUpdate(Map map, ChunkData cd)
 				i ++;
 				emitters.count --;
 				continue;
+			}
+			else /* update blockId */
+			{
+				oldEmit->blockId = particleGetBlockId(cd, newOffset);
 			}
 			if (prev)
 				prev->next = oldEmit - emitters.buffer;
@@ -474,6 +476,8 @@ int particlesAnimate(Map map, vec4 camera)
 	#endif
 
 //	fprintf(stderr, "speed = %f, diff = %d\n", speed, time - particles.lastTime);
+	list = HEAD(particles.buffers);
+	fprintf(stderr, "particles: %d / %d  \r", list->count, particles.count);
 
 	for (list = HEAD(particles.buffers), count = 0; list; NEXT(list))
 	{
@@ -565,7 +569,7 @@ int particlesAnimate(Map map, vec4 camera)
 					else
 						particleChangeDir(p);
 				}
-				else if (pos[VY] > old[VY])
+				else if (pos[VY] < old[VY])
 				{
 					/* hit the ground */
 					p->loc[VY] = buf[-4] = pos[VY]+0.95;
