@@ -44,7 +44,6 @@ struct ChunkData_t                 /* one sub-chunk of 16x16x16 blocks */
 
 	uint8_t   pendingDel;
 	uint8_t   slot;                /* used by ChunkFake */
-	uint16_t  emitCount;           /* items in <emitters> */
 
 	DATA8     blockIds;            /* 16*16*16 = XZY ordered, note: point directly to NBT struct (4096 bytes) */
 //	DATA8     addId;               /* 4bits (2048 bytes) */

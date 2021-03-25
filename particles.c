@@ -310,7 +310,8 @@ static void particleMakeActive(Map map)
 
 		ChunkData cd = c->layer[y];
 		int16_t * cur = emitters.startIds + i;
-		for (emit = cd->emitters, j = cd->emitCount; j > 0; j --, emit ++)
+		if (cd->emitters)
+		for (emit = cd->emitters + 2, j = emit[-2]; j > 0; j --, emit ++)
 		{
 			int  pos = *emit & 0xfff;
 			vec4 loc = {c->X + (pos & 15), cd->Y + (pos >> 8), c->Z + ((pos >> 4) & 15)};
@@ -325,19 +326,23 @@ static void particleMakeActive(Map map)
 /* emitters list changed, update particle emitters object */
 void particlesChunkUpdate(Map map, ChunkData cd)
 {
-	Chunk   chunk = cd->chunk;
-	Emitter oldEmit, prev;
-	int     pos[] = {CPOS(map->cx) - CPOS(chunk->X), CPOS(map->cy) - CPOS(cd->Y), CPOS(map->cz) - CPOS(chunk->Z)};
-	int     i;
+	Chunk chunk = cd->chunk;
+	int   pos[] = {emitters.cacheLoc[0] - (chunk->X >> 4), emitters.cacheLoc[1] - (cd->Y >> 4), emitters.cacheLoc[2] - (chunk->Z >> 4)};
+	int   i;
 
 	if (abs(pos[0]) <= 1 && abs(pos[1]) <= 1 && abs(pos[2]) <= 1)
 	{
-		int16_t * newIds;
+		int16_t * newIds = cd->emitters;
+		int16_t   index = pos[0]+pos[2]*3+pos[1]*9+13;
+		int16_t * start = &emitters.startIds[index];
+		Emitter   oldEmit;
+
+		oldEmit = *start < 0 ? NULL : emitters.buffer + *start;
 		/* current emitters must not be reset (because timer will be reset) */
-		for (i = cd->emitCount, prev = NULL, oldEmit = emitters.buffer + emitters.startIds[pos[0]+pos[2]*3+pos[2]*9+13],
-		     newIds = cd->emitters; i > 0; i --, newIds ++)
+		if (newIds)
+		for (i = newIds[0], newIds += 2; i > 0; i --, newIds ++)
 		{
-			int oldOffset =
+			int oldOffset = oldEmit == NULL ? 4096 :
 				((int) oldEmit->loc[0] - chunk->X) +
 				((int) oldEmit->loc[2] - chunk->Z) * 16 +
 				((int) oldEmit->loc[1] - cd->Y)    * 256;
@@ -348,37 +353,38 @@ void particlesChunkUpdate(Map map, ChunkData cd)
 				/* new emitter */
 				vec4 loc = {chunk->X + (newOffset & 15), cd->Y + (newOffset >> 8), chunk->Z + ((newOffset >> 4) & 15)};
 				Emitter e = particlesAddEmitter(loc, particleGetBlockId(cd, newOffset), (*newIds >> 12) + 1, 750);
-				e->next = oldEmit - emitters.buffer;
-				oldEmit = e;
-				emitters.count ++;
+				e->next = oldEmit == NULL ? -1 : oldEmit - emitters.buffer;
+				*start = e - emitters.buffer;
+				start = &e->next;
+				/* don't do it now, it is highly likely that more chunk updates are coming */
+				emitters.dirtyList = 1;
+				continue;
 			}
 			else if (newOffset > oldOffset)
 			{
 				/* deleted emitter */
 				int id = oldEmit - emitters.buffer;
 				emitters.usage[id>>5] ^= 1 << (id & 31);
+				*start = oldEmit->next;
 				newIds --;
 				i ++;
 				emitters.count --;
-				continue;
+				emitters.dirtyList = 1;
 			}
 			else /* update blockId */
 			{
 				oldEmit->blockId = particleGetBlockId(cd, newOffset);
+				start = &oldEmit->next;
 			}
-			if (prev)
-				prev->next = oldEmit - emitters.buffer;
-			prev = oldEmit;
+			oldEmit = *start >= 0 ? emitters.buffer + *start : NULL;
 		}
-		if (prev)
+		if (*start >= 0)
 		{
-			particlesDelChain(prev->next);
-			prev->next = -1;
+			particlesDelChain(*start);
+			emitters.dirtyList = 1;
+			*start = -1;
 		}
 	}
-
-	/* don't do it now, it is highly likely that more chunk updates are coming */
-	emitters.dirtyList = 1;
 }
 
 static int emitterSort(const void * item1, const void * item2)
@@ -446,7 +452,9 @@ int particlesAnimate(Map map, vec4 camera)
 		if (emit->time <= curTimeMS)
 		{
 			particlesSmoke(map, emit->blockId, emit->loc);
-			emit->time = curTimeMS + RandRange(emit->interval>>1, emit->interval);
+			int next = emit->interval;
+			if (next == 0) next = 500;
+			emit->time = curTimeMS + RandRange(next>>1, next);
 
 			/* keep the list sorted */
 			for (i = 1; i < count && emitters.buffer[emitters.active[i]].time < emit->time; i ++);
@@ -476,8 +484,6 @@ int particlesAnimate(Map map, vec4 camera)
 	#endif
 
 //	fprintf(stderr, "speed = %f, diff = %d\n", speed, time - particles.lastTime);
-	list = HEAD(particles.buffers);
-	fprintf(stderr, "particles: %d / %d  \r", list->count, particles.count);
 
 	for (list = HEAD(particles.buffers), count = 0; list; NEXT(list))
 	{

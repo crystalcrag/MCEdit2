@@ -907,16 +907,20 @@ static uint8_t chunkBlockOcclusion(DATA16 blockIds, uint32_t lineDef)
 
 static void chunkAddEmitters(ChunkData cd, int pos, int type)
 {
-	int max = (cd->emitCount + 127) & ~127;
-	if (cd->emitCount == max)
+	DATA16 list = cd->emitters;
+	if (list == NULL || list[0] == list[1])
 	{
-		max += 128;
-		DATA16 buf = realloc(cd->emitters, max * 2);
-		if (buf == NULL) return;
-		cd->emitters = buf;
+		if (list == NULL)
+		{
+			list = malloc(32);
+			list[0] = 0;
+			list[1] = 14;
+		}
+		else list = realloc(list, list[1] + 18), list[1] += 16;
+		cd->emitters = list;
 	}
-	cd->emitters[cd->emitCount] = pos | (type << 12);
-	cd->emitCount ++;
+	list[list[0]+2] = pos | (type << 12);
+	list[0] ++;
 }
 
 extern int breakPoint;
@@ -949,6 +953,8 @@ void chunkUpdate(Chunk c, ChunkData empty, int layer, ChunkFlushCb_t flush)
 		neighbors[i] = (c + chunkNeighbor[c->neighbor + (1<<i)])->layer[layer];
 		if (neighbors[i] == NULL) neighbors[i] = empty;
 	}
+	if (neighbors[6]->emitters)
+		neighbors[6]->emitters[0] = 0;
 
 //	if (c->X == -208 && neighbors[6]->Y == 32 && c->Z == -48)
 //		breakPoint = 1;

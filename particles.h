@@ -78,7 +78,7 @@ struct EmitterPrivate_t
 	int      activeMax;        /* max capacity of <active> */
 	int      cacheLoc[3];
 	int16_t  startIds[27];     /* emitters for one ChunkData */
-	uint8_t  offsets[27];      /* +/- 1 for x, Z, Y for locating chunk 0-26 */
+	uint8_t  offsets[27];      /* +/- 1 for X, Z, Y for locating chunk 0-26 */
 	uint8_t  dirtyList;        /* <active> needs to be rebuilt */
 };
 
