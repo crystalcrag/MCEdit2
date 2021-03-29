@@ -209,12 +209,17 @@ void particlesSmoke(Map map, int blockId, vec4 pos)
 	Block b = blockIds + (blockId >> 4);
 
 	if ((blockId >> 4) == RSWIRE)
-		p->color = (blockId & 15) + (56 << 4),
+	{
+		int8_t color = (blockId & 15) - (rand() & 3);
+		if (color < 0) color = 0;
+		p->color = color + (56 << 4),
 		p->dir[VY] = 0.005;
+	}
 	else if (b->category == REDSTONE)
-		p->color = 15 + (56 << 4);
-	else
-		p->color = (rand() & 15) | (60 << 4);
+	{
+		p->color = 15 - (rand() & 3) + (56 << 4);
+	}
+	else p->color = (rand() & 15) | (60 << 4);
 }
 
 static Emitter particlesAddEmitter(vec4 pos, int blockId, int type, int interval)
@@ -227,7 +232,7 @@ static Emitter particlesAddEmitter(vec4 pos, int blockId, int type, int interval
 	memcpy(emit->loc, pos, sizeof emit->loc);
 	emit->type = type;
 	emit->interval = interval;
-	emit->time = curTime + interval;
+	emit->time = curTime + 100;
 	emit->blockId = blockId;
 	emit->next = -1;
 
@@ -257,12 +262,33 @@ static int particleGetBlockId(ChunkData cd, int offset)
 	return (cd->blockIds[offset] << 4) | (offset & 1 ? data >> 4 : data & 15);
 }
 
+#if 0
+static void debugEmitters(void)
+{
+	int z, y, i;
+	fprintf(stderr, "emitter grid:\n");
+	for (y = -1, i = 0; y < 2; y ++)
+	{
+		fprintf(stderr, "%2d:", y);
+		for (z = -1; z < 2; z ++, i += 3)
+		{
+			int16_t * p = emitters.startIds + i;
+			if (z >= 0) fprintf(stderr, "   ");
+			fprintf(stderr, p[0] < 0 ? "   " : "%2d ", p[0]);
+			fprintf(stderr, p[1] < 0 ? "|    " : "| %2d ", p[1]);
+			fprintf(stderr, p[2] < 0 ? "|    \n" : "| %2d \n", p[2]);
+		}
+		fprintf(stderr, "   ---+----+---\n");
+	}
+}
+#endif
+
 static void particleMakeActive(Map map)
 {
 	static uint8_t neighbors[] = { /* 27 neighbor ChunkData */
-		12, 4, 6, 8, 0, 2, 9, 1, 3,
-		12, 4, 6, 8, 0, 2, 9, 1, 3,
-		12, 4, 6, 8, 0, 2, 9, 1, 3,
+		3, 1, 9, 2, 0, 8, 6, 4, 12,
+		3, 1, 9, 2, 0, 8, 6, 4, 12,
+		3, 1, 9, 2, 0, 8, 6, 4, 12,
 	};
 	int16_t oldIds[27];
 	int   i, j;
@@ -279,9 +305,10 @@ static void particleMakeActive(Map map)
 	for (i = 0; i < 27; i ++)
 	{
 		if (oldIds[i] < 0) continue;
-		int dx = emitters.cacheLoc[0] + XPOS(emitters.offsets[i]) - pos[0];
-		int dy = emitters.cacheLoc[1] + YPOS(emitters.offsets[i]) - pos[1];
-		int dz = emitters.cacheLoc[2] + ZPOS(emitters.offsets[i]) - pos[2];
+		/* damn, coords are not intuitive at all :-/ */
+		int dx = pos[0] - emitters.cacheLoc[0] + XPOS(emitters.offsets[i]);
+		int dy = pos[1] - emitters.cacheLoc[1] + YPOS(emitters.offsets[i]);
+		int dz = pos[2] - emitters.cacheLoc[2] + ZPOS(emitters.offsets[i]);
 		if (abs(dx) <= 1 && abs(dy) <= 1 && abs(dz) <= 1)
 		{
 			/* keep that chain */
@@ -320,6 +347,7 @@ static void particleMakeActive(Map map)
 			cur = &e->next;
 		}
 	}
+	//debugEmitters();
 	emitters.dirtyList = 1;
 }
 
@@ -417,6 +445,7 @@ static void particleSortEmitters(void)
 	}
 	qsort(emitters.active, j, 2, emitterSort);
 	emitters.dirtyList = 0;
+	//debugEmitters();
 }
 
 static void particleChangeDir(Particle p)

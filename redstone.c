@@ -16,14 +16,15 @@
 static int8_t xoff[] = {0,  1, -1, -1, 1,  0};
 static int8_t zoff[] = {1, -1, -1,  1, 0,  0};
 static int8_t yoff[] = {0,  0,  0,  0, 1, -2};
-static int8_t dx[] = {0,  1,  0, -1, 0, 0};
-static int8_t dz[] = {1,  0, -1,  0, 0, 0};
+static int8_t dx[] = {0,  1,  0, -1, 0,  0};
+static int8_t dz[] = {1,  0, -1,  0, 0,  0};
 
 /* check if a signal (torch or wire) can go through a repeater from <side> */
 static int redstoneConnectToRepeater(int side, int blockId)
 {
 	/* id encodes the way repeater is facing, check if it compatible with <side> */
-	return 1;
+	static uint8_t sides[] = {2, 1, 0, 3};
+	return sides[blockId & 3] == side;
 }
 
 /* do we need to update signal because of these block */
@@ -54,26 +55,31 @@ static int redstoneConnectToBlock(RSWire cnx, int side, int blockId)
 		cnx->signal = cnx->data;
 		return True;
 	case RSTORCH_ON:
-	case RSREPEATER_ON:
 		cnx->signal = MAXSIGNAL+1;
+		return True;
+	case RSREPEATER_ON:
+		cnx->signal = redstoneConnectToRepeater(side, blockId) ? 0 : MAXSIGNAL+1;
 	case RSREPEATER_OFF:
-		return redstoneConnectToRepeater(side, blockId);
+		return redstoneConnectToRepeater(side, cnx->data);
 	}
 	return False;
 }
 
-/* get list of connected block that might receive an update from <iter> pos */
+/* get list of blocks that might receive an update from <iter> pos */
 int redstoneConnectTo(struct BlockIter_t iter, RSWire connectTo)
 {
 	uint16_t blockSide[4];
+	uint8_t  flags;
 	RSWire   list = connectTo;
+	Block    b;
 	int      i, id;
 
+	/* this is where the magic of redstone propagation happens */
 	switch (iter.blockIds[iter.offset]) {
 	case RSTORCH_ON: /* which block a rs torch will update */
 		for (i = 0; i < 4; i ++)
 		{
-			struct RSWire_t cnx = {.dx = dx[i], .dz = dz[i]};
+			struct RSWire_t cnx = {.dx = dx[i], .dz = dz[i], .pow = POW_STRONG, .signal = MAXSIGNAL};
 			mapIter(&iter, xoff[i], 0, zoff[i]);
 			id = getBlockId(&iter);
 			cnx.blockId = id >> 4;
@@ -85,7 +91,7 @@ int redstoneConnectTo(struct BlockIter_t iter, RSWire connectTo)
 				break;
 			case RSREPEATER_OFF:
 				cnx.signal = MAXSIGNAL+1;
-				if (redstoneConnectToRepeater(i, id))
+				if (redstoneConnectToRepeater(i, cnx.data))
 					*list++ = cnx;
 			}
 		}
@@ -95,7 +101,7 @@ int redstoneConnectTo(struct BlockIter_t iter, RSWire connectTo)
 		if (blockIsSolidSide(i, SIDE_TOP))
 		{
 			mapIter(&iter, 0, 1, 0);
-			struct RSWire_t cnx = {0, 2, 0, i>>8, i & 15};
+			struct RSWire_t cnx = {0, 2, 0, .blockId = i>>4, .data = i & 15, .pow = POW_STRONG};
 			switch (cnx.blockId) {
 			case RSWIRE:
 				cnx.signal = cnx.data;
@@ -106,6 +112,19 @@ int redstoneConnectTo(struct BlockIter_t iter, RSWire connectTo)
 				*list++ = cnx;
 			}
 		}
+		/* check on bottom */
+		mapIter(&iter, 0, -2, 0);
+		i = getBlockId(&iter);
+		list->dx = 0;
+		list->dy = 1;
+		list->dz = 0;
+		list->signal = MAXSIGNAL;
+		list->pow = POW_WEAK;
+		list->blockId = i >> 4;
+		list->data = i & 15;
+		if (list->blockId != RSWIRE)
+			list->pow = POW_VERYWEAK;
+		list ++;
 		break;
 	case RSWIRE: /* which block a rs wire will update if its signal change */
 
@@ -117,20 +136,35 @@ int redstoneConnectTo(struct BlockIter_t iter, RSWire connectTo)
 			mapIter(&iter, xoff[i], 0, zoff[i]);
 			blockSide[i] = id = getBlockId(&iter);
 			cnx.blockId = id >> 4;
+			flags |= 1 << i;
 			if (redstoneConnectToBlock(&cnx, i, id))
 				*list++ = cnx;
 		}
 		/* next: check on bottom */
 		mapIter(&iter, 1, -1, 0);
-		for (i = 0; i < 4; i ++)
+		b = &blockIds[iter.blockIds[iter.offset]];
+		if (b->special != BLOCK_HALF && b->special != BLOCK_STAIRS)
 		{
-			struct RSWire_t cnx = {.dx = dx[i], -1, .dz = dz[i]};
-			mapIter(&iter, xoff[i], 0, zoff[i]);
-			id = getBlockId(&iter);
-			cnx.blockId = id >> 4;
-			if (redstoneIsBlocking(blockSide[i]) == 0 &&
-			    redstoneConnectToBlock(&cnx, i, id))
+			/* block where rswrire is sitting will need a block update */
+			if (b->type == SOLID)
+			{
+				struct RSWire_t cnx = {.dy = -1, .signal = RSUPDATE, .blockId = b->id, .pow = POW_WEAK};
 				*list++ = cnx;
+			}
+			/* rswire sitting on a stair or half slab can't power wire down, only up */
+			for (i = 0; i < 4; i ++)
+			{
+				struct RSWire_t cnx = {.dx = dx[i], .dy = -1, .dz = dz[i]};
+				mapIter(&iter, xoff[i], 0, zoff[i]);
+				id = getBlockId(&iter);
+				cnx.blockId = id >> 4;
+				flags |= 1 << i;
+				if (redstoneIsBlocking(blockSide[i]) == 0 && cnx.blockId == RSWIRE)
+				{
+					cnx.signal = cnx.data;
+					*list++ = cnx;
+				}
+			}
 		}
 		/* finally check on top */
 		mapIter(&iter, 1, 2, 0);
@@ -142,9 +176,27 @@ int redstoneConnectTo(struct BlockIter_t iter, RSWire connectTo)
 				mapIter(&iter, xoff[i], 0, zoff[i]);
 				id = getBlockId(&iter);
 				cnx.blockId = id >> 4;
-				if (redstoneIsBlocking(blockSide[i]) == 0 &&
-					redstoneConnectToBlock(&cnx, i, id))
+				flags |= 1 << i;
+				if (redstoneIsBlocking(blockSide[i]) == 0 && cnx.blockId == RSWIRE)
+				{
+					cnx.signal = cnx.data;
 					*list++ = cnx;
+				}
+			}
+		}
+		/* queue block update */
+		switch (popcount(flags)) {
+		case 1:
+			flags |= flags < 3 ? 12 : 3;
+			// no break;
+		case 0:
+			for (i = 0; i < 4; i ++, flags >>= 1)
+			{
+				if (flags & 1) continue;
+				b = &blockIds[blockSide[i]];
+				struct RSWire_t cnx = {.dx = dx[i], .dz = dz[i], .signal = RSUPDATE, .blockId = b->id, .pow = POW_WEAK};
+				if (b->type != SOLID) cnx.pow = POW_VERYWEAK;
+				*list++ = cnx;
 			}
 		}
 	}
@@ -158,7 +210,7 @@ int redstoneSignalStrength(struct BlockIter_t iter, Bool dirty)
 	case RSWIRE:
 		if (dirty)
 		{
-			struct RSWire_t connect[8];
+			struct RSWire_t connect[MAXUPDATE];
 			int count = redstoneConnectTo(iter, connect);
 			int i, max = 0;
 			for (i = 0; i < count; i ++)
@@ -188,7 +240,7 @@ int redstoneSignalStrength(struct BlockIter_t iter, Bool dirty)
 static int redstoneIsWirePowering(BlockIter iter, int side)
 {
 	if (side == SIDE_TOP) return POW_WEAK;
-	struct RSWire_t connect[8];
+	struct RSWire_t connect[MAXUPDATE];
 
 	uint8_t count = redstoneConnectTo(*iter, connect);
 	uint8_t flags = 0;
@@ -208,7 +260,7 @@ static int redstoneIsWirePowering(BlockIter iter, int side)
 	return POW_NONE;
 }
 
-/* is the block powered by any redstone signal: 0 = none, 1 = weak, 2 = strong */
+/* is the block pointer by <iter> powered by any redstone signal from <side>: 0 = none, 1 = weak, 2 = strong */
 int redstoneIsPowered(struct BlockIter_t iter, int side)
 {
 	mapIter(&iter, xoff[side], yoff[side], zoff[side]);
@@ -258,6 +310,7 @@ int redstoneIsPowered(struct BlockIter_t iter, int side)
 	else return id == RSTORCH_ON ? POW_STRONG : POW_NONE;
 }
 
+/* debug */
 int redstoneIsPoweredFromAnySide(struct BlockIter_t iter)
 {
 	int i;

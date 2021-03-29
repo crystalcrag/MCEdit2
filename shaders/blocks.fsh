@@ -1,10 +1,8 @@
 /*
  * fragment shader for drawing opaque and transparent blocks.
- * OIT list building for translucent fragments is also done here.
  */
 #version 430 core
 
-/* stb_include extension */
 out vec4 color;
 
 in  vec2 tc;

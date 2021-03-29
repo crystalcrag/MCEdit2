@@ -200,29 +200,31 @@ void mapUpdateTable(BlockIter iter, int val, int table)
 	cd->slot |= (slots[iter->z] << 1) | (slots[iter->x] << 2) | (slots[iter->y] << 5);
 }
 
-static  uint8_t mapGetSky(BlockIter iter)
+static uint8_t mapGetSky(BlockIter iter)
 {
 	int   off = iter->offset;
 	DATA8 sky = iter->blockIds + SKYLIGHT_OFFSET + (off >> 1);
-	if (off & 1) return (*sky & 0xf0) >> 4;
-	else         return (*sky & 0x0f);
+	if (off & 1) return *sky >> 4;
+	else         return *sky & 15;
 }
 
-static inline uint8_t mapGetLight(BlockIter iter)
+static uint8_t mapGetLight(BlockIter iter)
 {
 	int   off   = iter->offset;
 	DATA8 light = iter->blockIds + BLOCKLIGHT_OFFSET + (off >> 1);
-	if (off & 1) return (*light & 0xf0) >> 4;
-	else         return (*light & 0x0f);
+	if (off & 1) return *light >> 4;
+	else         return *light & 15;
 }
 
+#if 0
 static inline uint8_t mapGetData(BlockIter iter)
 {
 	int   off  = iter->offset;
 	DATA8 data = iter->blockIds + DATA_OFFSET + (off >> 1);
-	if (off & 1) return (*data & 0xf0) >> 4;
-	else         return (*data & 0x0f);
+	if (off & 1) return *data >> 4;
+	else         return *data & 15;
 }
+#endif
 
 #define STEP     126   /* need to be multiple of 3 */
 
@@ -230,7 +232,7 @@ static inline uint8_t mapGetData(BlockIter iter)
 	memset(&track.pos, 0, sizeof track - offsetof(struct MapUpdate_t, pos));
 
 /* coordinates that will need further investigation for skylight/blocklight */
-static void mapUpdateAddTrack(int x, int y, int z)
+static void trackAdd(int x, int y, int z)
 {
 	int8_t * buffer;
 	/* this is an expanding ring buffer */
@@ -275,6 +277,29 @@ static void mapUpdateAddTrack(int x, int y, int z)
 		track.maxUsage = track.usage;
 }
 
+/* will prevent use of recursion */
+static void trackAddUpdate(BlockIter iter, int blockId)
+{
+	int max = (track.updateCount+127) & ~127;
+	if (max == track.updateCount)
+	{
+		max += 128;
+		BlockUpdate list = realloc(track.updates, sizeof *list * max + 4 * (max >> 5));
+		if (list == NULL) return;
+		/* move usage table */
+		memmove(track.updateUsage = (DATA32) (list + max), list + track.updateCount, (track.updateCount >> 5) * 4);
+		memset(track.updateUsage + (track.updateCount >> 5), 0, 16);
+		track.updates = list;
+	}
+
+	BlockUpdate update = track.updates + mapFirstFree(track.updateUsage, max);
+
+	track.updateCount ++;
+	update->cd = iter->cd;
+	update->offset = iter->offset;
+	update->blockId = blockId;
+}
+
 /*
  * SkyLight/HeightMap update: these functions use an iterative approach, to update only
  * what's mostly necessary. See SkyLight in the utility folder for a simplified version of
@@ -303,7 +328,7 @@ static void mapUpdateSkyLightBlock(BlockIter iterator)
 		/* block is set at a higher position */
 		for (j = iter.yabs - (sky == 0), max = iter.ref->heightMap[i]; j >= max; j --)
 		{
-			mapUpdateAddTrack(MAXSKY | (4<<5), j - iter.yabs, 0);
+			trackAdd(MAXSKY | (4<<5), j - iter.yabs, 0);
 		}
 		iter.ref->heightMap[i] = iter.yabs + 1;
 	}
@@ -311,11 +336,11 @@ static void mapUpdateSkyLightBlock(BlockIter iterator)
 	{
 		mapIter(&iter, 0, -1, 0);
 		if (blockGetSkyOpacity(iter.blockIds[iter.offset], 0) < MAXSKY)
-			mapUpdateAddTrack(MAXSKY | (4<<5), -1, 0);
+			trackAdd(MAXSKY | (4<<5), -1, 0);
 
 		mapIter(&iter, 0, 2, 0);
 		if (blockGetSkyOpacity(iter.blockIds[iter.offset], 0) < MAXSKY)
-			mapUpdateAddTrack(MAXSKY | (5<<5), 1, 0);
+			trackAdd(MAXSKY | (5<<5), 1, 0);
 
 		mapIter(&iter, 0, -1, 0);
 	}
@@ -326,7 +351,7 @@ static void mapUpdateSkyLightBlock(BlockIter iterator)
 		if (iter.ref->heightMap[CHUNK_BLOCK_POS(iter.x, iter.z, 0)] > iter.yabs &&
 			blockGetSkyOpacity(iter.blockIds[iter.offset], 0) < MAXSKY)
 		{
-			mapUpdateAddTrack(MAXSKY + relx[i] + opp[i], 0, relz[i]);
+			trackAdd(MAXSKY + relx[i] + opp[i], 0, relz[i]);
 		}
 	}
 	iter.alloc = 1;
@@ -376,7 +401,7 @@ static void mapUpdateSkyLightBlock(BlockIter iterator)
 				if (level < min)
 				{
 					mapUpdateTable(&neighbor, min, SKYLIGHT_OFFSET);
-					mapUpdateAddTrack((XYZ[0]&31) + relx[i] + opp[i], XYZ[1] + rely[i], XYZ[2] + relz[i]);
+					trackAdd((XYZ[0]&31) + relx[i] + opp[i], XYZ[1] + rely[i], XYZ[2] + relz[i]);
 				}
 			}
 			if (sky == old)
@@ -400,7 +425,7 @@ static void mapUpdateSkyLightBlock(BlockIter iterator)
 			if (level > 0 && (level == old || (XYZ[1] == 0 && i >= 4 && level == sky)))
 			{
 				/* incorrect light level here */
-				mapUpdateAddTrack((XYZ[0]&31) + relx[i] + opp[i], XYZ[1] + rely[i], XYZ[2] + relz[i]);
+				trackAdd((XYZ[0]&31) + relx[i] + opp[i], XYZ[1] + rely[i], XYZ[2] + relz[i]);
 			}
 		}
 		skip:
@@ -429,7 +454,7 @@ static void mapUpdateSkyLightUnblock(BlockIter iterator)
 		while (iter.yabs >= 0 && blockGetSkyOpacity(iter.blockIds[iter.offset], 0) == 0)
 		{
 			mapUpdateTable(&iter, MAXSKY, SKYLIGHT_OFFSET);
-			mapUpdateAddTrack(0, iter.yabs - startY, 0);
+			trackAdd(0, iter.yabs - startY, 0);
 			mapIter(&iter, 0, -1, 0);
 		}
 		iter.ref->heightMap[i] = iter.yabs+1;
@@ -454,7 +479,7 @@ static void mapUpdateSkyLightUnblock(BlockIter iterator)
 		if (max > 0)
 		{
 			mapUpdateTable(&iter, max-blockGetSkyOpacity(iter.blockIds[iter.offset], 1), SKYLIGHT_OFFSET);
-			mapUpdateAddTrack(0, 0, 0);
+			trackAdd(0, 0, 0);
 		}
 	}
 
@@ -477,7 +502,7 @@ static void mapUpdateSkyLightUnblock(BlockIter iterator)
 			if (mapGetSky(&neighbor) < col)
 			{
 				mapUpdateTable(&neighbor, col, SKYLIGHT_OFFSET);
-				mapUpdateAddTrack(XYZ[0] + relx[i], XYZ[1] + rely[i], XYZ[2] + relz[i]);
+				trackAdd(XYZ[0] + relx[i], XYZ[1] + rely[i], XYZ[2] + relz[i]);
 			}
 		}
 
@@ -497,7 +522,7 @@ static void mapUpdateAddLight(BlockIter iterator, int intensity /* max: 15 */)
 	track.unique = 0;
 	if (mapGetLight(iterator) >= intensity)
 		return;
-	mapUpdateAddTrack(0, 0, 0);
+	trackAdd(0, 0, 0);
 	mapUpdateTable(iterator, intensity, BLOCKLIGHT_OFFSET);
 
 	while (track.usage > 0)
@@ -518,7 +543,7 @@ static void mapUpdateAddLight(BlockIter iterator, int intensity /* max: 15 */)
 			{
 				if (level > 1)
 				{
-					mapUpdateAddTrack(XYZ[0] + relx[i], XYZ[1] + rely[i], XYZ[2] + relz[i]);
+					trackAdd(XYZ[0] + relx[i], XYZ[1] + rely[i], XYZ[2] + relz[i]);
 					XYZ = track.coord + track.pos;
 				}
 
@@ -535,7 +560,7 @@ static void mapUpdateRemLight(BlockIter iterator)
 {
 	mapUpdateInitTrack(track);
 	track.unique = 1;
-	mapUpdateAddTrack(0, 0, 0);
+	trackAdd(0, 0, 0);
 
 	while (track.usage > 0)
 	{
@@ -601,7 +626,7 @@ static void mapUpdateRemLight(BlockIter iterator)
 				if (light >= level) continue;
 			}
 
-			mapUpdateAddTrack(XYZ[0] + relx[i], XYZ[1] + rely[i], XYZ[2] + relz[i]);
+			trackAdd(XYZ[0] + relx[i], XYZ[1] + rely[i], XYZ[2] + relz[i]);
 		}
 		track.pos += 3;
 		track.usage -= 3;
@@ -615,7 +640,7 @@ static void mapUpdateObstructLight(BlockIter iterator)
 	int8_t light;
 
 	mapUpdateInitTrack(track);
-	mapUpdateAddTrack(0, 0, 0);
+	trackAdd(0, 0, 0);
 	light = mapGetLight(&iter);
 	if (light <= 1) return;
 	light -= blockGetLightOpacity(iter.blockIds[iter.offset], 0);
@@ -659,7 +684,7 @@ static void mapUpdateObstructLight(BlockIter iterator)
 					if (max >= dim)
 					{
 						mapUpdateTable(&neighbor, max - dim, BLOCKLIGHT_OFFSET);
-						mapUpdateAddTrack(XYZ[0] + relx[i], XYZ[1] + rely[i], XYZ[2] + relz[i]);
+						trackAdd(XYZ[0] + relx[i], XYZ[1] + rely[i], XYZ[2] + relz[i]);
 					}
 					else mapUpdateTable(&neighbor, 0, BLOCKLIGHT_OFFSET);
 				}
@@ -736,9 +761,9 @@ static void mapUpdateBlockLight(Map map, BlockIter iter, int oldId, int newId)
  * redstone propagation is very similar to blockLight, but with a lot more rules
  * to check which block to connect to.
  */
-void mapUpdatePropagateSignal(BlockIter iterator)
+static void mapUpdatePropagateSignal(Map map, BlockIter iterator)
 {
-	struct RSWire_t connectTo[8];
+	struct RSWire_t connectTo[MAXUPDATE];
 	int count, i, signal;
 
 	mapUpdateInitTrack(track);
@@ -750,7 +775,11 @@ void mapUpdatePropagateSignal(BlockIter iterator)
 	for (i = 0; i < count; i ++)
 	{
 		RSWire cnx = connectTo + i;
-		if (cnx->signal < signal - 1)
+		if (cnx->signal == RSUPDATE)
+		{
+			fprintf(stderr, "updating block\n");
+		}
+		else if (cnx->signal < signal - 1)
 		{
 			if (cnx->blockId == RSWIRE)
 			{
@@ -758,7 +787,7 @@ void mapUpdatePropagateSignal(BlockIter iterator)
 				mapIter(&iter, cnx->dx, cnx->dy, cnx->dz);
 				mapUpdateTable(&iter, signal-1, DATA_OFFSET);
 			}
-			mapUpdateAddTrack(cnx->dx, cnx->dy, cnx->dz);
+			trackAdd(cnx->dx, cnx->dy, cnx->dz);
 		}
 	}
 
@@ -774,15 +803,26 @@ void mapUpdatePropagateSignal(BlockIter iterator)
 		for (i = 0; i < count; i ++)
 		{
 			RSWire cnx = connectTo + i;
-			if (cnx->signal < signal - 1)
+			if (cnx->signal == RSUPDATE)
 			{
-				if (cnx->blockId == RSWIRE)
+				fprintf(stderr, "updating block\n");
+			}
+			else if (cnx->signal < signal - 1)
+			{
+				if (cnx->blockId == RSREPEATER_OFF)
+				{
+					/* cannot do that now, will interfere with current tracking */
+					struct BlockIter_t iter = neighbor;
+					mapIter(&iter, cnx->dx, cnx->dy, cnx->dz);
+					trackAddUpdate(&iter, ID(RSREPEATER_ON, cnx->data));
+				}
+				else if (cnx->blockId == RSWIRE)
 				{
 					struct BlockIter_t iter = neighbor;
 					mapIter(&iter, cnx->dx, cnx->dy, cnx->dz);
 					mapUpdateTable(&iter, signal-1, DATA_OFFSET);
 				}
-				mapUpdateAddTrack(XYZ[0] + cnx->dx, XYZ[1] + cnx->dy, XYZ[2] + cnx->dz);
+				trackAdd(XYZ[0] + cnx->dx, XYZ[1] + cnx->dy, XYZ[2] + cnx->dz);
 			}
 		}
 		track.pos += 3;
@@ -794,7 +834,7 @@ void mapUpdatePropagateSignal(BlockIter iterator)
 /* a redstone element has been deleted: update signal */
 void mapUpdateDeleteSignal(BlockIter iterator)
 {
-	struct RSWire_t connectTo[8];
+	struct RSWire_t connectTo[MAXUPDATE];
 	int i, count, signal, block;
 
 	/* block must not be deleted at this point */
@@ -805,7 +845,10 @@ void mapUpdateDeleteSignal(BlockIter iterator)
 	for (i = 0; i < count; i ++)
 	{
 		RSWire cnx = connectTo + i;
-		mapUpdateAddTrack(cnx->dx, cnx->dy, cnx->dz);
+		if (cnx->signal == RSUPDATE)
+			fprintf(stderr, "updating block\n");
+		else
+			trackAdd(cnx->dx, cnx->dy, cnx->dz);
 	}
 	/* now we can delete the block */
 	iterator->blockIds[iterator->offset] = 0;
@@ -834,6 +877,11 @@ void mapUpdateDeleteSignal(BlockIter iterator)
 			mapIter(&iter, cnx->dx, cnx->dy, cnx->dz);
 			signal = cnx->signal;
 
+			if (signal == RSUPDATE)
+			{
+				fprintf(stderr, "updating block\n");
+				continue;
+			}
 			if (level < signal && max < signal)
 				max = signal;
 			if (level <= signal && equal <= signal)
@@ -847,7 +895,10 @@ void mapUpdateDeleteSignal(BlockIter iterator)
 			int sig = max - 1;
 			if (sig < 0) sig = 0;
 			if (block == RSWIRE)
+			{
+				//fprintf(stderr, "setting wire %d, %d, %d to %d\n", neighbor.ref->X + neighbor.x, neighbor.yabs, neighbor.ref->Z + neighbor.z, sig);
 				mapUpdateTable(&neighbor, sig, DATA_OFFSET);
+			}
 			/* signal needs to increase around here */
 			dir = 1;
 		}
@@ -860,7 +911,10 @@ void mapUpdateDeleteSignal(BlockIter iterator)
 				if (equal < 0) equal = 0;
 			}
 			if (block == RSWIRE)
+			{
+				//fprintf(stderr, "setting wire %d, %d, %d to %d\n", neighbor.ref->X + neighbor.x, neighbor.yabs, neighbor.ref->Z + neighbor.z, equal);
 				mapUpdateTable(&neighbor, equal, DATA_OFFSET);
+			}
 			dir = equal > 0 ? 1 : -1;
 		}
 
@@ -876,7 +930,7 @@ void mapUpdateDeleteSignal(BlockIter iterator)
 			} else {
 				if (cnx->signal >= level) continue;
 			}
-			mapUpdateAddTrack(cnx->dx + XYZ[0], cnx->dy + XYZ[1], cnx->dz + XYZ[2]);
+			trackAdd(cnx->dx + XYZ[0], cnx->dy + XYZ[1], cnx->dz + XYZ[2]);
 		}
 	}
 }
@@ -1086,7 +1140,7 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, Bool blockUpdate)
 	/* redstone signal if any */
 	if (redstonePropagate(blockId))
 	{
-		mapUpdatePropagateSignal(&iter);
+		mapUpdatePropagateSignal(map, &iter);
 	}
 
 	/* list of sub-chunks that we need to update their mesh */
@@ -1115,6 +1169,29 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, Bool blockUpdate)
 	{
 		/* update nearby block if needed */
 		mapUpdateBlock(map, pos, blockId, oldId, tile);
+
+		/* updates triggered by previous block updates */
+		if (track.updateCount > 0)
+		{
+			BlockUpdate update;
+			int         i, j;
+			for (i = track.updateCount, update = track.updates, j = 0; i > 0; j ++, update ++)
+			{
+				if (track.updateUsage[j>>5] & (1 << (j & 31)))
+				{
+					Chunk c = update->cd->chunk;
+					vec4  pos;
+					int   offset = update->offset;
+					pos[0] = c->X + (offset & 15); offset >>= 4;
+					pos[2] = c->Z + (offset & 15);
+					pos[1] = update->cd->Y + (offset >> 4);
+					track.updateUsage[j>>5] ^= 1 << (j & 31);
+					track.updateCount --;
+					mapUpdate(map, pos, update->blockId, NULL, False);
+					i --;
+				}
+			}
+		}
 		/* update mesh */
 		mapUpdateMesh(map);
 		renderPointToBlock(-1, -1);

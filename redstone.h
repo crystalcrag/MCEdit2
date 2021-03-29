@@ -14,6 +14,7 @@ int  redstoneSignalStrength(struct BlockIter_t iter, Bool dirty);
 Bool redstonePropagate(int blockId);
 int  redstoneIsPowered(struct BlockIter_t iter, int side);
 int  redstoneIsPoweredFromAnySide(struct BlockIter_t iter);
+void redstonePowerChange(struct BlockIter_t iter, RSWire connectTo, int count);
 
 #if 0 // what's for?
 enum /* possible values for redstoneConnectTo() state parameter */
@@ -26,15 +27,18 @@ enum /* possible values for redstoneConnectTo() state parameter */
 
 struct RSWire_t /* track where a wire can connect to */
 {
-	int8_t  dx;
-	int8_t  dy;
-	int8_t  dz;
-	uint8_t blockId;
-	uint8_t data;
-	uint8_t signal;
+	int8_t   dx;
+	int8_t   dy;
+	int8_t   dz;
+	uint8_t  data;
+	uint8_t  signal;
+	uint8_t  pow;
+	uint16_t blockId;
 };
 
 #define MAXSIGNAL     15
+#define MAXUPDATE     12
+#define RSUPDATE      255
 
 enum /* common redstone devices */
 {

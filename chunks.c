@@ -966,9 +966,9 @@ void chunkUpdate(Chunk c, ChunkData empty, int layer, ChunkFlushCb_t flush)
 		uint8_t    block;
 		DATA8      blocks = neighbors[6]->blockIds;
 
-		data  = blocks[DATA_OFFSET + (pos >> 1)];
+		data  = blocks[DATA_OFFSET + (pos >> 1)]; if (pos & 1) data >>= 4; else data &= 15;
 		block = blocks[pos];
-		state = blockGetByIdData(block, pos & 1 ? data >> 4 : data & 0xf);
+		state = blockGetByIdData(block, data);
 
 //		if (breakPoint && pos == 3904)
 //			puts("here"), breakPoint = 2;
