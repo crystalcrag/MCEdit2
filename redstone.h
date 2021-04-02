@@ -15,6 +15,7 @@ Bool redstonePropagate(int blockId);
 int  redstoneIsPowered(struct BlockIter_t iter, int side);
 int  redstoneIsPoweredFromAnySide(struct BlockIter_t iter);
 void redstonePowerChange(struct BlockIter_t iter, RSWire connectTo, int count);
+int  redstonePowerAdjust(int blockId, int side, int power);
 
 #if 0 // what's for?
 enum /* possible values for redstoneConnectTo() state parameter */

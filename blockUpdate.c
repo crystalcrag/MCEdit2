@@ -455,8 +455,8 @@ void updateAdd(BlockIter iter, int action, int nbTick)
 
 void updateTick(Map map)
 {
-	int i, time = curTime;
-	for (i = 0; i < updates.count; i ++)
+	int i, time = curTime, count;
+	for (i = 0, count = updates.count; i < count; i ++)
 	{
 		int       id   = updates.sorted[i];
 		TileTick  list = updates.list + id;

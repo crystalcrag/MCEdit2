@@ -19,6 +19,7 @@
 #include "render.h"
 #include "skydome.h"
 #include "blocks.h"
+#include "blockUpdate.h"
 #include "interface.h"
 #include "nanovg.h"
 #include "SIT.h"
@@ -481,6 +482,7 @@ void mceditWorld(void)
 		else
 			curTime = FrameGetTime() - ignoreTS;
 		renderWorld();
+		updateTick(mcedit.level);
 		SIT_RenderNodes(curTime);
 		SDL_GL_SwapBuffers();
 		FrameWaitNext();

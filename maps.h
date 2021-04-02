@@ -107,7 +107,7 @@ int    getBlockId(BlockIter iter);
  * block iterator over map
  */
 void mapInitIter(Map, BlockIter, vec4 pos, Bool autoAlloc);
-void mapInitIterOffset(Map, BlockIter, ChunkData, int offset);
+void mapInitIterOffset(BlockIter, ChunkData, int offset);
 void mapIter(BlockIter iter, int dx, int dy, int dz);
 
 /* private stuff below that point */

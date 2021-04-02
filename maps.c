@@ -109,7 +109,7 @@ int mapFirstFree(DATA32 usage, int count)
 	return -1;
 }
 
-static int mapGetConnect(Map map, ChunkData cd, int offset, BlockState b)
+static int mapGetConnect(ChunkData cd, int offset, BlockState b)
 {
 	static int8_t XZoff[] = {
 		0, 1, 1, -1, -1, -1, -1, 1
@@ -119,7 +119,7 @@ static int mapGetConnect(Map map, ChunkData cd, int offset, BlockState b)
 	DATA8   n;
 	int     i;
 
-	mapInitIterOffset(map, &iter, cd, offset);
+	mapInitIterOffset(&iter, cd, offset);
 
 	for (i = 0, n = neighbors; i < DIM(XZoff); i += 2, n += 2)
 	{
@@ -136,7 +136,7 @@ static int mapGetConnect(Map map, ChunkData cd, int offset, BlockState b)
 }
 
 /* get redstone wire connected flags */
-static int mapGetConnectWire(Map map, ChunkData cd, int offset, BlockState b)
+static int mapGetConnectWire(ChunkData cd, int offset, BlockState b)
 {
 	static int8_t XYZoff[] = {
 		0,-1,1,  1,0,-1,  -1,0,-1,  -1,0,1,  1,0,0,
@@ -148,7 +148,7 @@ static int mapGetConnectWire(Map map, ChunkData cd, int offset, BlockState b)
 	DATA8   n;
 	int     i;
 
-	mapInitIterOffset(map, &iter, cd, offset);
+	mapInitIterOffset(&iter, cd, offset);
 
 	for (i = 0, n = neighbors; i < DIM(XYZoff); i += 3, n += 2)
 	{
@@ -241,13 +241,13 @@ int mapGetBlockId(Map map, vec4 pos, MapExtraData extra)
 				}
 				break;
 			case BLOCK_RSWIRE:
-				extra->cnxFlags = mapGetConnectWire(map, cd, offset, b);
+				extra->cnxFlags = mapGetConnectWire(cd, offset, b);
 				break;
 			case BLOCK_CHEST:
 			case BLOCK_FENCE:
 			case BLOCK_FENCE2:
 			case BLOCK_GLASS:
-				extra->cnxFlags = mapGetConnect(map, cd, offset, b);
+				extra->cnxFlags = mapGetConnect(cd, offset, b);
 			}
 		}
 		return blockId;

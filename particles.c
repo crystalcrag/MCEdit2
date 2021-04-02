@@ -236,7 +236,7 @@ static Emitter particlesAddEmitter(vec4 pos, int blockId, int type, int interval
 	emit->blockId = blockId;
 	emit->next = -1;
 
-	fprintf(stderr, "adding emitter at %g,%g,%g for %d:%d\n", pos[0], pos[1], pos[2], blockId>>4, blockId & 15);
+//	fprintf(stderr, "adding emitter at %g,%g,%g for %d:%d\n", pos[0], pos[1], pos[2], blockId>>4, blockId & 15);
 
 	return emit;
 }

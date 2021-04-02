@@ -444,9 +444,9 @@ static DATA16 blockParseModel(float * values, int count)
 				 * X, Y, Z can vary between -0.5 and 16.5; each mapped to [0 - 3840 * 17];
 				 * coord[] is centered around 0,0,0 (a cube of unit 1 has vertices of +/- 0.5)
 				 */
-				val = roundf((coord[0] + 0.5) * 3840) + 1920; p[0] = MIN(val, 65535);
-				val = roundf((coord[1] + 0.5) * 3840) + 1920; p[1] = MIN(val, 65535);
-				val = roundf((coord[2] + 0.5) * 3840) + 1920; p[2] = MIN(val, 65535);
+				val = roundf((coord[0] + 0.5) * BASEVTX) + (BASEVTX/2); p[0] = MIN(val, 65535);
+				val = roundf((coord[1] + 0.5) * BASEVTX) + (BASEVTX/2); p[1] = MIN(val, 65535);
+				val = roundf((coord[2] + 0.5) * BASEVTX) + (BASEVTX/2); p[2] = MIN(val, 65535);
 				/* needed for blockSetUVAndNormals() */
 				coord[0] += 0.5;
 				coord[1] += 0.5;
@@ -560,7 +560,7 @@ static void blockExtractEmitterLoction(DATA16 model, DATA8 loc, int box)
 		{
 			for (i = 0; i < 3; i ++)
 			{
-				uint16_t v = model[i];
+				uint16_t v = model[i] - BASEVTX/2;
 				if (min[i] > v) min[i] = v;
 				if (max[i] < v) max[i] = v;
 			}
@@ -1060,7 +1060,7 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 
 		/*
 		 * particle emitter location: there are saved in Block_t instead of BlockState_t
-		 * because there are not that many blocks that has this property (30 or so out of
+		 * because there are not that many blocks that have this property (30 or so out of
 		 * 1500 in 1.12).
 		 */
 		value = jsonValue(keys, "emit");
@@ -1104,7 +1104,7 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 						if (p[0] == 0)
 							p[0] = emitUsage+16;
 						else
-							emitters[emitUsage + 15] |= 0x80;
+							emitters[emitUsage + 15] |= 0x80; /* more emitter location follows */
 						memcpy(emitters + emitUsage + 16, faceLoc + chr, 6);
 						emitUsage += 6;
 					}
@@ -1944,13 +1944,13 @@ Bool blockGetBoundsForFace(VTXBBox box, int face, vec4 V0, vec4 V1, vec4 offset,
 
 		if (dir[3]) t += 3;
 		/* same as vertex shader blocks.vsh */
-		pt[0] = (box->pt1[0] - BASEVTX/2) * 0.00026041666666666666;
-		pt[1] = (box->pt1[1] - BASEVTX/2) * 0.00026041666666666666;
-		pt[2] = (box->pt1[2] - BASEVTX/2) * 0.00026041666666666666;
+		pt[0] = (box->pt1[0] - BASEVTX/2) * (1./BASEVTX);
+		pt[1] = (box->pt1[1] - BASEVTX/2) * (1./BASEVTX);
+		pt[2] = (box->pt1[2] - BASEVTX/2) * (1./BASEVTX);
 
-		pt[3] = (box->pt2[0] - BASEVTX/2) * 0.00026041666666666666;
-		pt[4] = (box->pt2[1] - BASEVTX/2) * 0.00026041666666666666;
-		pt[5] = (box->pt2[2] - BASEVTX/2) * 0.00026041666666666666;
+		pt[3] = (box->pt2[0] - BASEVTX/2) * (1./BASEVTX);
+		pt[4] = (box->pt2[1] - BASEVTX/2) * (1./BASEVTX);
+		pt[5] = (box->pt2[2] - BASEVTX/2) * (1./BASEVTX);
 
 		V0[x] = offset[x] + pt[x];
 		V0[y] = offset[y] + pt[y];
@@ -2616,6 +2616,22 @@ void blockPostProcessTexture(DATA8 * data, int * width, int * height, int bpp)
  */
 void blockGetEmitterLocation(int blockId, float loc[3])
 {
+	Block b = &blockIds[blockId >> 4];
+	if (b->emitters)
+	{
+		/* custom emitters location */
+		DATA8 bbox = b->emitters + (blockId & 15);
+		if (bbox[0] > 0)
+		{
+			bbox += bbox[0];
+			loc[0] = RandRange(bbox[0], bbox[3]) * 0.0625;
+			loc[1] = RandRange(bbox[1], bbox[4]) * 0.0625;
+			loc[2] = RandRange(bbox[2], bbox[5] & 31) * 0.0625;
+			return;
+		}
+	}
+
+	/* use first bounding box */
 	BlockState state = blockGetById(blockId);
 
 	VTXBBox bbox = blocks.bbox + state->bboxId;

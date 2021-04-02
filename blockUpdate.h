@@ -1,5 +1,5 @@
 /*
- * bloackUpdat.h : public functions to deal with delayed block update
+ * blockUpdate.h : public functions to deal with delayed block update
  *
  * Written by T.Pierron, march 2021.
  */

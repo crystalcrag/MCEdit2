@@ -19,15 +19,17 @@
 #include "blockupdate.h"
 #include "NBT2.h"
 
+/* order is S, E, N, W, T, B */
+int8_t xoff[] = {0,  1, -1, -1, 1,  0};
+int8_t zoff[] = {1, -1, -1,  1, 0,  0};
+int8_t yoff[] = {0,  0,  0,  0, 1, -2};
+int8_t relx[] = {0,  1,  0, -1, 0,  0};
+int8_t rely[] = {0,  0,  0,  0, 1, -1};
+int8_t relz[] = {1,  0, -1,  0, 0,  0};
+int8_t opp[]  = {2<<5, 3<<5, 0, 1<<5, 5<<5, 4<<5};
+uint8_t slots[] = {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1};
+
 static struct MapUpdate_t track;
-static int8_t xoff[] = {1, -2, 1,  0, 0,  0};
-static int8_t yoff[] = {0,  0, 0,  0, 1, -2};
-static int8_t zoff[] = {0,  0, 1, -2, 1,  0};
-static int8_t relx[] = {1, -1, 0,  0, 0,  0};
-static int8_t rely[] = {0,  0, 0,  0, 1, -1};
-static int8_t relz[] = {0,  0, 1, -1, 0,  0};
-static int8_t opp[]  = {1<<5, 0, 3<<5, 2<<5, 5<<5, 4<<5};
-static uint8_t slots[] = {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1};
 
 /* return how many units of skylight a block will reduce incoming light */
 static inline int blockGetSkyOpacity(int blockId, int min)
@@ -103,7 +105,7 @@ void mapInitIter(Map map, BlockIter iter, vec4 pos, Bool autoAlloc)
 	}
 }
 
-void mapInitIterOffset(Map map, BlockIter iter, ChunkData cd, int offset)
+void mapInitIterOffset(BlockIter iter, ChunkData cd, int offset)
 {
 	iter->offset   = offset;
 	iter->ref      = cd->chunk;
@@ -756,12 +758,43 @@ static void mapUpdateBlockLight(Map map, BlockIter iter, int oldId, int newId)
  * redstone propagation
  */
 
+void printCoord(STRPTR hdr, BlockIter iter)
+{
+	int y = iter->offset;
+	int x = y & 15; y >>= 4;
+	int z = y & 15;
+	fprintf(stderr, "%s: %d, %d, %d\n", hdr, iter->ref->X + x, iter->yabs, iter->ref->Z + z);
+}
+
+/* queue block that needs updating in the vicinity of <iterator> */
+static void mapUpdateAddRSUpdate(BlockIter iterator, RSWire cnx)
+{
+	struct BlockIter_t iter = *iterator;
+	int i;
+	mapIter(&iter, cnx->dx, cnx->dy, cnx->dz);
+//	printCoord("checking update at", &iter);
+	if (cnx->pow == POW_VERYWEAK)
+	{
+		/* only check the where the update is */
+		Block b = &blockIds[iter.blockIds[iter.offset]];
+		if (b->rsupdate)
+			trackAddUpdate(&iter, 0xffff);
+	}
+	else for (i = 0; i < 6; i ++)
+	{
+		/* we cannot perform the update yet, we need the signal to be updated all the way :-/ */
+		mapIter(&iter, xoff[i], yoff[i], zoff[i]);
+		Block b = &blockIds[iter.blockIds[iter.offset]];
+		if (b->rsupdate)
+			trackAddUpdate(&iter, 0xffff);
+	}
+}
 
 /*
  * redstone propagation is very similar to blockLight, but with a lot more rules
  * to check which block to connect to.
  */
-static void mapUpdatePropagateSignal(Map map, BlockIter iterator)
+static void mapUpdatePropagateSignal(BlockIter iterator)
 {
 	struct RSWire_t connectTo[MAXUPDATE];
 	int count, i, signal;
@@ -777,7 +810,7 @@ static void mapUpdatePropagateSignal(Map map, BlockIter iterator)
 		RSWire cnx = connectTo + i;
 		if (cnx->signal == RSUPDATE)
 		{
-			fprintf(stderr, "updating block\n");
+			mapUpdateAddRSUpdate(iterator, cnx);
 		}
 		else if (cnx->signal < signal - 1)
 		{
@@ -805,18 +838,11 @@ static void mapUpdatePropagateSignal(Map map, BlockIter iterator)
 			RSWire cnx = connectTo + i;
 			if (cnx->signal == RSUPDATE)
 			{
-				fprintf(stderr, "updating block\n");
+				mapUpdateAddRSUpdate(&neighbor, cnx);
 			}
 			else if (cnx->signal < signal - 1)
 			{
-				if (cnx->blockId == RSREPEATER_OFF)
-				{
-					/* cannot do that now, will interfere with current tracking */
-					struct BlockIter_t iter = neighbor;
-					mapIter(&iter, cnx->dx, cnx->dy, cnx->dz);
-					trackAddUpdate(&iter, ID(RSREPEATER_ON, cnx->data));
-				}
-				else if (cnx->blockId == RSWIRE)
+				if (cnx->blockId == RSWIRE)
 				{
 					struct BlockIter_t iter = neighbor;
 					mapIter(&iter, cnx->dx, cnx->dy, cnx->dz);
@@ -846,7 +872,7 @@ void mapUpdateDeleteSignal(BlockIter iterator)
 	{
 		RSWire cnx = connectTo + i;
 		if (cnx->signal == RSUPDATE)
-			fprintf(stderr, "updating block\n");
+			mapUpdateAddRSUpdate(iterator, cnx);
 		else
 			trackAdd(cnx->dx, cnx->dy, cnx->dz);
 	}
@@ -879,7 +905,7 @@ void mapUpdateDeleteSignal(BlockIter iterator)
 
 			if (signal == RSUPDATE)
 			{
-				fprintf(stderr, "updating block\n");
+				mapUpdateAddRSUpdate(&iter, cnx);
 				continue;
 			}
 			if (level < signal && max < signal)
@@ -935,10 +961,55 @@ void mapUpdateDeleteSignal(BlockIter iterator)
 	}
 }
 
-/* check if a block is powered nearby, change current block to active state then */
-static int mapUpdateIfPowered(BlockIter iterator, int blockId)
+/* redstone power level has been updated in a block, check nearby what update it will trigger */
+static void mapUpdateRedstone(Map map, BlockIter iter, int power, int side)
 {
-	static uint8_t repeaterOrient[] = {0,3,1,2};
+	int i;
+	Block b = &blockIds[iter->blockIds[iter->offset]];
+	if (b->type == SOLID)
+	{
+		if (power < POW_STRONG)
+		{
+			/* need to make sure that the block is not powered from elsewhere */
+			int pow = redstoneIsPowered(*iter, 0);
+			if (pow > power) power = pow;
+		}
+		for (i = 0; i < 6; i ++)
+		{
+			if (i == side) continue;
+			mapIter(iter, xoff[i], yoff[i], zoff[i]);
+			int blockId = getBlockId(iter);
+			int newId   = redstonePowerAdjust(blockId, i, power);
+
+			if (blockId != newId)
+			{
+				int tick = newId >> 16;
+				if (tick > 0)
+				{
+					/* need to be updated later */
+					updateAdd(iter, tick >> 4, tick & 15);
+				}
+				else if ((newId >> 4) == RSWIRE)
+				{
+					if ((newId & 15) < (blockId  & 15))
+						mapUpdateDeleteSignal(iter);
+					else
+						mapUpdatePropagateSignal(iter);
+				}
+				else /* immediate update */
+				{
+					vec4 pos = {iter->ref->X + iter->x, iter->yabs, iter->ref->Z + iter->z};
+					mapUpdate(map, pos, newId, NULL, False);
+				}
+			}
+		}
+	}
+}
+
+/* check if a block is powered nearby, change current block to active state then */
+static int mapUpdateIfPowered(Map map, BlockIter iterator, int oldId, int blockId)
+{
+	static uint8_t repeaterFrom[] = {0,3,1,2}; /* data orient to iter orient ({x,y,z}off[]) */
 	Block b = &blockIds[blockId >> 4];
 	int   i;
 
@@ -950,23 +1021,35 @@ static int mapUpdateIfPowered(BlockIter iterator, int blockId)
 	case RSPISTON:
 	case RSLAMP:
 	case RSDROPPER:
-		/* check if one of the 6 surrounding block is powered */
-		for (i = 0; i < 6; i ++)
-		{
-			if (redstoneIsPowered(*iterator, i))
-			{
-				if (b->id == RSLAMP)
-					return (RSLAMP+1) << 4;
-				break;
-			}
-		}
+		// TODO
 		break;
 	case RSREPEATER_OFF:
-		/* data orient to iter orient ({x,y,z}off[]) */
-		if (redstoneIsPowered(*iterator, repeaterOrient[blockId & 3]))
+		if (redstoneIsPowered(*iterator, repeaterFrom[blockId & 3]))
 		{
+			/* need to be updated later */
 			updateAdd(iterator, ACT_REPEATER_ON, (blockId & 15) >> 2);
-			return (blockId & 15) | (RSREPEATER_ON << 4);
+			return blockId;
+		}
+		else if ((oldId >> 4) == RSREPEATER_ON)
+		{
+			struct BlockIter_t iter = *iterator;
+			uint8_t dir = repeaterFrom[blockId & 3] ^ 3;
+			mapIter(&iter, relx[dir], 0, relz[dir]);
+			mapUpdateRedstone(map, &iter, POW_NONE, dir);
+		}
+		break;
+	case RSREPEATER_ON:
+		if (! redstoneIsPowered(*iterator, repeaterFrom[blockId & 3]))
+		{
+			updateAdd(iterator, ACT_REPEATER_OFF, (blockId & 15) >> 2);
+			return blockId;
+		}
+		else if ((oldId >> 4) == RSREPEATER_OFF)
+		{
+			struct BlockIter_t iter = *iterator;
+			uint8_t dir = repeaterFrom[blockId & 3] ^ 3;
+			mapIter(&iter, relx[dir], 0, relz[dir]);
+			mapUpdateRedstone(map, &iter, POW_STRONG, dir);
 		}
 		break;
 	default:
@@ -1081,6 +1164,41 @@ static void mapUpdateMesh(Map map)
 	fprintf(stderr, "%d chunk updated, max: %d, usage: %d\n", track.pos, track.max, track.maxUsage);
 }
 
+/* async update: NBT tables need to be updates before we can apply these */
+static void mapUpdateFlush(Map map)
+{
+	BlockUpdate update;
+	int         i, j;
+	for (i = track.updateCount, update = track.updates, j = 0; i > 0; j ++, update ++)
+	{
+		if (track.updateUsage[j>>5] & (1 << (j & 31)))
+		{
+			int   offset = update->offset;
+			Chunk c = update->cd->chunk;
+			Block b = &blockIds[update->cd->blockIds[offset]];
+			vec4  pos;
+			track.updateUsage[j>>5] ^= 1 << (j & 31);
+			pos[0] = c->X + (offset & 15); offset >>= 4;
+			pos[2] = c->Z + (offset & 15);
+			pos[1] = update->cd->Y + (offset >> 4);
+			if (update->blockId == 0xffff)
+			{
+				struct BlockIter_t iter;
+				mapInitIterOffset(&iter, update->cd, update->offset);
+				offset = getBlockId(&iter);
+				mapUpdateIfPowered(map, &iter, offset, offset);
+				fprintf(stderr, "updating block %s at %g,%g,%g\n", b->name, pos[0], pos[1], pos[2]);
+			}
+			else
+			{
+				track.updateCount --;
+				mapUpdate(map, pos, update->blockId, NULL, False);
+			}
+			i --;
+		}
+	}
+}
+
 void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, Bool blockUpdate)
 {
 	struct BlockIter_t iter;
@@ -1102,7 +1220,7 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, Bool blockUpdate)
 
 	if (blockIds[blockId >> 4].rsupdate)
 	{
-		blockId = mapUpdateIfPowered(&iter, blockId);
+		blockId = mapUpdateIfPowered(map, &iter, oldId, blockId);
 	}
 
 	/* update blockId/metaData tables */
@@ -1140,7 +1258,7 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, Bool blockUpdate)
 	/* redstone signal if any */
 	if (redstonePropagate(blockId))
 	{
-		mapUpdatePropagateSignal(map, &iter);
+		mapUpdatePropagateSignal(&iter);
 	}
 
 	/* list of sub-chunks that we need to update their mesh */
@@ -1173,24 +1291,7 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, Bool blockUpdate)
 		/* updates triggered by previous block updates */
 		if (track.updateCount > 0)
 		{
-			BlockUpdate update;
-			int         i, j;
-			for (i = track.updateCount, update = track.updates, j = 0; i > 0; j ++, update ++)
-			{
-				if (track.updateUsage[j>>5] & (1 << (j & 31)))
-				{
-					Chunk c = update->cd->chunk;
-					vec4  pos;
-					int   offset = update->offset;
-					pos[0] = c->X + (offset & 15); offset >>= 4;
-					pos[2] = c->Z + (offset & 15);
-					pos[1] = update->cd->Y + (offset >> 4);
-					track.updateUsage[j>>5] ^= 1 << (j & 31);
-					track.updateCount --;
-					mapUpdate(map, pos, update->blockId, NULL, False);
-					i --;
-				}
-			}
+			mapUpdateFlush(map);
 		}
 		/* update mesh */
 		mapUpdateMesh(map);
