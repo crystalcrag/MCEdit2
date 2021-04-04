@@ -102,6 +102,7 @@ void   mapViewFrustum(Map, mat4 mvp, vec4 camera);
 int    mapFirstFree(uint32_t * usage, int count);
 Chunk  mapGetChunk(Map, vec4 pos);
 int    getBlockId(BlockIter iter);
+void   printCoord(STRPTR hdr, BlockIter);
 
 /*
  * block iterator over map

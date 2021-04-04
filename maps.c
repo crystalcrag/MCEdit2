@@ -109,6 +109,18 @@ int mapFirstFree(DATA32 usage, int count)
 	return -1;
 }
 
+/* debug */
+void printCoord(STRPTR hdr, BlockIter iter)
+{
+	int y = iter->offset;
+	int x = y & 15; y >>= 4;
+	int z = y & 15;
+	if (iter->ref == NULL)
+		fprintf(stderr, "%s NO CHUNK: %d, %d, %d\n", hdr, x, y, z);
+	else
+		fprintf(stderr, "%s: %d, %d, %d\n", hdr, iter->ref->X + x, iter->yabs, iter->ref->Z + z);
+}
+
 static int mapGetConnect(ChunkData cd, int offset, BlockState b)
 {
 	static int8_t XZoff[] = {

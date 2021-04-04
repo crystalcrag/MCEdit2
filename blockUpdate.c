@@ -407,48 +407,44 @@ static TileTick updateAlloc(void)
 {
 	if (updates.count == updates.max)
 	{
-		DATA32 usage = updates.usage;
-		DATA16 sorted = updates.sorted;
+		int usage  = (DATA8) updates.usage  - (DATA8) updates.list;
+		int sorted = (DATA8) updates.sorted - (DATA8) updates.list;
 		updates.max += 128;
 		TileTick list = realloc(updates.list, updates.max * (sizeof *list + 2) + (updates.max >> 5) * 4);
 		if (list == NULL) return NULL;
 		updates.list = list;
 		updates.sorted = (DATA16) (list + updates.max);
-		updates.usage = (DATA32) (list + updates.max);
+		updates.usage = (DATA32) (updates.sorted + updates.max);
 		if (updates.count > 0)
 		{
-			memmove(updates.sorted, sorted, updates.count * 2);
-			int count = updates.count >> 5;
-			memmove(updates.usage, usage, count * 4);
-			memset(updates.usage + count, 0, 16);
+			memmove(updates.sorted, (DATA8) list + usage,  updates.count * 2);
+			memmove(updates.usage,  (DATA8) list + sorted, (updates.count >> 5) * 4);
 		}
+		memset(updates.usage + (updates.count >> 5), 0, 16);
 	}
 	updates.count ++;
 	return updates.list + mapFirstFree(updates.usage, updates.max >> 5);
 }
 
-void updateAdd(BlockIter iter, int action, int nbTick)
+void updateAdd(BlockIter iter, int blockId, int nbTick)
 {
 	TileTick update = updateAlloc();
-	int      tick   = (int) curTime + nbTick + (1000 / TICK_PER_SECOND);
-	update->cd     = iter->cd;
-	update->offset = iter->offset;
-	update->action = action;
-	update->tick   = tick;
-	update->data   = iter->blockIds[DATA_OFFSET + (iter->offset >> 1)];
-	if (iter->offset & 1) update->data >>= 4;
-	else                  update->data &= 15;
+	int      tick   = (int) curTime + nbTick  * 10 * (1000 / TICK_PER_SECOND);
+	update->cd      = iter->cd;
+	update->offset  = iter->offset;
+	update->blockId = blockId;
+	update->tick    = tick;
 
 	/* keep them sorted for easier scanning later */
 	int i, max;
-	for (i = 0, max = updates.count-1; i < max; i ++)
+	for (i = updates.start, max = updates.count-1; i < max; i ++)
 	{
 		TileTick list = updates.list + updates.sorted[i];
-		if (tick <= list->tick) break;
+		if (tick < list->tick) break;
 	}
 
-	if (i < updates.count)
-		memmove(updates.list + i + 1, updates.list + i, (updates.count - i - 1) * sizeof *update);
+	if (i < updates.count-1)
+		memmove(updates.sorted + i + 1, updates.sorted + i, (updates.count - i - 1) * sizeof *updates.sorted);
 
 	updates.sorted[i] = update - updates.list;
 }
@@ -456,7 +452,8 @@ void updateAdd(BlockIter iter, int action, int nbTick)
 void updateTick(Map map)
 {
 	int i, time = curTime, count;
-	for (i = 0, count = updates.count; i < count; i ++)
+	/* more tile ticks can be added while scanning this list */
+	for (i = 0, count = updates.count; i < count; )
 	{
 		int       id   = updates.sorted[i];
 		TileTick  list = updates.list + id;
@@ -467,27 +464,19 @@ void updateTick(Map map)
 		pos[0] = cd->chunk->X + (off & 15); off >>= 4;
 		pos[2] = cd->chunk->Z + (off & 15);
 		pos[1] = cd->Y + (off >> 4);
-		/* will probably generate more tile ticks */
-		switch (list->action) {
-		case ACT_REPEATER_ON:
-			mapUpdate(map, pos, RSREPEATER_ON | list->data, NULL, True);
-			break;
-		case ACT_REPEATER_OFF:
-			mapUpdate(map, pos, RSREPEATER_OFF | list->data, NULL, True);
-			break;
-		case ACT_TORCH_ON:
-			mapUpdate(map, pos, RSTORCH_ON | list->data, NULL, True);
-			break;
-		case ACT_TORCH_OFF:
-			mapUpdate(map, pos, RSTORCH_OFF | list->data, NULL, True);
-		}
-		/* deallocate */
+
 		updates.usage[id >> 5] ^= 1 << (id & 31);
-		updates.count --;
+		updates.start ++;
+
+		i ++;
+		/* after this point <list> can be overwritten, do not use past this point */
+		mapUpdate(map, pos, list->blockId, NULL, i == count || updates.list[updates.sorted[i]].tick > time);
 	}
 	if (i > 0)
 	{
 		/* remove processed updates in sorted array */
-		memmove(updates.list, updates.list + i, updates.count * sizeof *updates.list);
+		memmove(updates.sorted, updates.sorted + i, updates.count * sizeof *updates.sorted);
+		updates.count -= i;
+		updates.start = 0;
 	}
 }

@@ -44,7 +44,7 @@ void debugBlockVertex(Map map, SelBlock * select)
 		);
 		fprintf(stderr, "intersection at %g,%g,%g, mouse at %d,%d\n", render.selection.extra.inter[0],
 			render.selection.extra.inter[1], render.selection.extra.inter[2], render.mouseX, render.mouseY);
-		i = redstoneIsPoweredFromAnySide(iter);
+		i = redstoneIsPowered(iter, 0);
 		if (i)
 		{
 			static STRPTR strength[] = {"VERYWEAK", "WEAK", "STRONG"};

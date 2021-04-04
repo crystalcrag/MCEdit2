@@ -20,8 +20,8 @@ static int8_t relx[], rely[], relz[];
 static int redstoneConnectToRepeater(int side, int blockId)
 {
 	/* id encodes the way repeater is facing, check if it compatible with <side> */
-	static uint8_t sides[] = {2, 1, 0, 3};
-	return sides[blockId & 3] == side;
+	static uint8_t sides[] = {5, 10, 5, 10};
+	return sides[blockId & 3] & (1 << side);
 }
 
 /* do we need to update signal because of these block */
@@ -247,14 +247,29 @@ int redstonePowerAdjust(int blockId, int side, int power)
 	switch (b->id) {
 	case RSWIRE:
 		if ((power > POW_WEAK) != ((blockId & 15) == 15))
-			blockId |= 15;
+		{
+			if (power > POW_WEAK)
+				blockId |= 15;
+			else
+				blockId &= ~15;
+		}
 		break;
 	case RSTORCH_OFF:
 	case RSTORCH_ON:
-	case RSREPEATER_OFF:
-	case RSREPEATER_ON:
-		// TODO
 		break;
+	case RSREPEATER_OFF:
+		if (power >= POW_WEAK)
+		{
+			uint8_t data = blockId & 15;
+			return ID(RSREPEATER_ON, data) | ((data >> 2) << 16);
+		}
+		break;
+	case RSREPEATER_ON:
+		if (power < POW_WEAK)
+		{
+			uint8_t data = blockId & 15;
+			return ID(RSREPEATER_OFF, data) | ((data >> 2) << 16);
+		}
 	}
 	return blockId;
 }
@@ -283,15 +298,37 @@ static int redstoneIsWirePowering(BlockIter iter, int side)
 }
 
 /* is the block pointer by <iter> powered by any redstone signal from <side>: returns enum POW_* */
-int redstoneIsPowered(struct BlockIter_t iter, int exclude)
+int redstoneIsPowered(struct BlockIter_t iter, int side)
 {
+	static uint8_t facingRepeater[] = {0, 3, 2, 1};
+
+	Block b;
 	int i, pow = POW_NONE;
+	if (side != RSSAMEBLOCK)
+		mapIter(&iter, relx[side], rely[side], relz[side]);
+
+	/* check if the block itself if powered first */
+	i = getBlockId(&iter);
+	b = &blockIds[i >> 4];
+
+	switch (b->id) {
+	case RSBLOCK:
+	case RSTORCH_ON:
+		return POW_WEAK;
+	case RSWIRE:
+		return (i & 15) > 0;
+	case RSREPEATER_ON:
+		if (side == RSSAMEBLOCK || facingRepeater[i & 3] == side) return POW_STRONG;
+	}
+
+	if (b->type != SOLID)
+		return POW_NONE;
+
 	for (i = 0; i < 6; i ++)
 	{
-		if (i == exclude) continue;
 		mapIter(&iter, xoff[i], yoff[i], zoff[i]);
 		int id = iter.blockIds[iter.offset];
-		Block b = blockIds + id;
+		b = blockIds + id;
 		if (b->type == SOLID && b->special != BLOCK_HALF)
 		{
 			uint8_t data;
@@ -302,27 +339,25 @@ int redstoneIsPowered(struct BlockIter_t iter, int exclude)
 			{
 				static uint8_t sideAttached[] = {5, 1, 3, 0, 2, 4, 4, 5};
 				/* buttons or lever */
-				if (data >= 8 && sideAttached[data] == side)
+				if (data >= 8 && sideAttached[data] == i)
 					return POW_STRONG;
 			}
 			else if (id == RSWIRE)
 			{
 				/* argh, need to check connectivity */
-				if (data == 0 || side == SIDE_BOTTOM) return POW_NONE;
-				id = redstoneIsWirePowering(&iter, side);
-				if (id) return id;
+				if (data == 0 || i == SIDE_BOTTOM) return POW_NONE;
+				id = redstoneIsWirePowering(&iter, i);
+				if (id > pow) pow = id;
 			}
 			else if (id == RSREPEATER_ON)
 			{
-				static uint8_t facing[] = {0, 3, 1, 2};
-				if (facing[data] == side) return POW_STRONG;
+				if (facingRepeater[data] == i) return POW_STRONG;
 			}
 			else if (id == RSTORCH_ON)
 			{
-				if (side == SIDE_TOP) return POW_VERYWEAK;
-				return POW_STRONG;
+				if (i == SIDE_TOP && pow == 0) pow = POW_VERYWEAK;
+				else return POW_STRONG;
 			}
-			return POW_NONE;
 		}
 		else if (id == RSWIRE)
 		{
@@ -330,19 +365,15 @@ int redstoneIsPowered(struct BlockIter_t iter, int exclude)
 			if (iter.offset & 1) data >>= 4;
 			else                 data &= 15;
 			if (data > 0)
-				return redstoneIsWirePowering(&iter, side);
-			return POW_NONE;
+			{
+				data = redstoneIsWirePowering(&iter, i);
+				if (data > pow) pow = data;
+			}
 		}
-		else return id == RSTORCH_ON ? POW_STRONG : POW_NONE;
+		else if (id == RSTORCH_ON)
+		{
+			return POW_STRONG;
+		}
 	}
-}
-
-/* debug */
-int redstoneIsPoweredFromAnySide(struct BlockIter_t iter)
-{
-		mapIter(&iter, xoff[i], yoff[i], zoff[i]);
-		int power = redstoneIsPowered(iter, i);
-		if (power) return power;
-	}
-	return POW_NONE;
+	return pow;
 }

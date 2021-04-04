@@ -13,18 +13,11 @@ int  redstoneConnectTo(struct BlockIter_t iter, RSWire connectTo);
 int  redstoneSignalStrength(struct BlockIter_t iter, Bool dirty);
 Bool redstonePropagate(int blockId);
 int  redstoneIsPowered(struct BlockIter_t iter, int side);
-int  redstoneIsPoweredFromAnySide(struct BlockIter_t iter);
 void redstonePowerChange(struct BlockIter_t iter, RSWire connectTo, int count);
 int  redstonePowerAdjust(int blockId, int side, int power);
 
-#if 0 // what's for?
-enum /* possible values for redstoneConnectTo() state parameter */
-{
-	RS_DELETED,    /* block is about to be removed */
-	RS_ADDED,      /* block has been added */
-	RS_PROPAGATE,  /* propagate changes */
-};
-#endif
+
+#define redstoneRepeaterDelay(blockId)       (((blockId&15) >> 2)+1)
 
 struct RSWire_t /* track where a wire can connect to */
 {
@@ -37,6 +30,7 @@ struct RSWire_t /* track where a wire can connect to */
 	uint16_t blockId;
 };
 
+#define RSSAMEBLOCK   255 /* possible value for <side> param of redstoneIsPowered() */
 #define MAXSIGNAL     15
 #define MAXUPDATE     12
 #define RSUPDATE      255
@@ -54,6 +48,7 @@ enum /* common redstone devices */
 	RSREPEATER_OFF = 93,
 	RSREPEATER_ON  = 94,
 	RSLAMP         = 123,
+	RSBLOCK        = 152,
 	RSHOPPER       = 154,
 	RSDROPPER      = 158,
 	RSOBSERVER     = 218
