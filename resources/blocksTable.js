@@ -582,6 +582,7 @@
 		{state: 4, name: "+west",  tex: [17, 3,17, 3,17, 3,18, 3], model: [SAME_AS, ID(54, 0), 1855]},
 		{state: 5, name: "+east",  tex: [17, 3,18, 3,17, 3,17, 3], model: [SAME_AS, ID(54, 0), 831]},
 
+	/* note: rsupdate must be 0 for this block, it will have special processing hardcoded */
 	{id: 55, name: "Redstone wire", type: CUST, special: RSWIRE, bboxPlayer: NONE, rswire: ALLDIR, particle: SMOKE, placement: "ground"},
 		{state: 0, tex: [26,35,26,35,26,35,26,35], model: [
 			272+BHDR_INCFACEID,3,0.1,4,6,0,12,0,0,0,0,0,0,88306,90358,90361,88309,
@@ -828,7 +829,8 @@
 	{id: 74, name: "Redstone ore (lit)", type: SOLID, tech: "lit_redstone_ore", emitLight: 7},
 		{state: 0, tex: [20, 4,20, 4,20, 4,20, 4,20, 4,20, 4]},
 
-	{id: 75, name: "Redstone torch", type: CUST, bbox: FULL, bboxPlayer: NONE, rswire: ALLDIR, orient: TORCH, placement: "wall,ground", tech: "unlit_redstone_torch"},
+	{id: 75, name: "Redstone torch", type: CUST, bbox: FULL, bboxPlayer: NONE, rswire: ALLDIR, rsupdate: 1, orient: TORCH,
+		placement: "wall,ground", tech: "unlit_redstone_torch"},
 		{state: 0, name: "+OFF,_up", tex: [3, 7, 3, 7, 3, 7, 3, 7], model: [
 			31,2,10,2,7,0,7,0,0,0,0,0,0,60591,65721,65719,60589,60591,65721,65719,60589,60591,65721,65719,60589,60591,65721,65719,60589,60591,61617,61615,60589,
 		]},
@@ -841,7 +843,7 @@
 		{state: 4, name: "-north", model: [SAME_AS, ID(75, 1), 1599]},
 		{state: 5, name: "-up",    model: [SAME_AS, ID(75, 0)]},
 
-	{id: 76, name: "Redstone torch", type: CUST, bbox: FULL, bboxPlayer: NONE, inv: ITEM2D, cat: REDSTONE, invState: 0, rswire: ALLDIR,
+	{id: 76, name: "Redstone torch", type: CUST, bbox: FULL, bboxPlayer: NONE, inv: ITEM2D, cat: REDSTONE, invState: 0, rswire: ALLDIR, rsupdate: 1,
 		orient: TORCH, emitLight: 7, placement: "wall,ground", particle: SMOKE},
 		{state: 0, name: "+ON,_up", tex: [3, 6, 3, 6, 3, 6, 3, 6], model: [
 			287,2,10,2,7,0,7,0,0,0,0,0,0,52383,57513,57511,52381,52383,57513,57511,52381,52383,57513,57511,52381,52383,57513,57511,52381,52383,53409,53407,52381,

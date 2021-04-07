@@ -446,6 +446,9 @@ void updateAdd(BlockIter iter, int blockId, int nbTick)
 	if (i < updates.count-1)
 		memmove(updates.sorted + i + 1, updates.sorted + i, (updates.count - i - 1) * sizeof *updates.sorted);
 
+	fprintf(stderr, "updating %d:%d at ", blockId >> 4, blockId & 15);
+	printCoord(NULL, iter);
+
 	updates.sorted[i] = update - updates.list;
 }
 

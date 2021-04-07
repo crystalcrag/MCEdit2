@@ -12,7 +12,7 @@ typedef struct RSWire_t *     RSWire;
 int  redstoneConnectTo(struct BlockIter_t iter, RSWire connectTo);
 int  redstoneSignalStrength(struct BlockIter_t iter, Bool dirty);
 Bool redstonePropagate(int blockId);
-int  redstoneIsPowered(struct BlockIter_t iter, int side);
+int  redstoneIsPowered(struct BlockIter_t iter, int side, int minPower);
 void redstonePowerChange(struct BlockIter_t iter, RSWire connectTo, int count);
 int  redstonePowerAdjust(int blockId, int side, int power);
 
@@ -32,7 +32,7 @@ struct RSWire_t /* track where a wire can connect to */
 
 #define RSSAMEBLOCK   255 /* possible value for <side> param of redstoneIsPowered() */
 #define MAXSIGNAL     15
-#define MAXUPDATE     12
+#define RSMAXUPDATE   12
 #define RSUPDATE      255
 
 enum /* common redstone devices */
@@ -61,5 +61,8 @@ enum /* return value from redstoneIsPowered() */
 	POW_WEAK,         /* redstone wire powered */
 	POW_STRONG,       /* repeater/torch powered (can transmit signal through block) */
 };
+
+/* part of return value from redstonePowerAdjust() */
+#define TICK_DELAY(tick)      ((tick) << 16)
 
 #endif

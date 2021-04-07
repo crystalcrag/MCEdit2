@@ -277,7 +277,7 @@ DATA8 chunkDeleteTileEntity(Chunk c, int * XYZ)
 		if (ent->next == EOF_MARKER) return False;
 		ent = base + ent->next;
 	}
-	/* remove link */
+	/* remove link XXX if removing head of chain, next TE will be lost */
 	if (ent->prev != EOF_MARKER)
 	{
 		EntityEntry prev = base + ent->prev;

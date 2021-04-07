@@ -147,6 +147,11 @@
 <body>
 
 <div id="toc">
+<a href="#conventions" class="sub1"><span>Conventions</span></a>
+<a href="#coord" class="sub2"><span>Coordinate system</span></h3>
+<a href="#faceorder" class="sub2"><span>Face enumeration order</span></h3>
+<a href="#datatypes" class="sub2"><span>Datatypes</span></h3>
+
 <a href="#culling" class="sub1"><span>Frustum culling</span></a>
 <a href="#firstvers" class="sub2"><span>First version</span></a>
 <a href="#impl" class="sub2"><span>Implementation</span></a>
@@ -181,6 +186,74 @@ This document will provide in-depth explanation for some of them.
 </div>
 
 <p id="auth">Written by T.Pierron, July 2020</p>
+
+<h2>Conventions</h2>
+
+<p>Before reading this document further, there are a few facts to keep in mind, because they are used
+quite extensively throughout the engine. To avoid repeating them over and over again, here is what needs
+to be known:
+
+<h3 id="coord"><span>Coordinate system</span></h3>
+
+<div class="photo" style="float:left">
+  <img src="images/axis.svg">
+</div>
+
+<p>The coordinate system uses a left hand axis. X is mapped to east-west (increasing X goes to east,
+decreasing goes to west). Z is mapped to north-south (increasing Z goes to south, decreasing goes to
+north). Y is elevation.
+
+<p>Meshes of various objects use a counter-clockwise (CCW) orientation to check if they are front-facing.
+
+<p>Coordinates are relative to player (ie: if you want an object close to camera, coordinates must
+be close to player position, not 0,0,0).
+
+
+<h3 id="faceorder"><span>Face enumeration order</span></h3>
+
+<p>Whenever there is a need to enumerate nearby objects within the voxel space, the same order will
+be used almost everytime. For example, to enumerate the 6 nearby blocks a given block is directly
+connected to, to enumerate the 6 chunks a given chunk is connected to, to generate the mesh of the
+6 faces a given cube is composed of, ... these will always be done in the same order:
+<ol>
+  <li><b>South</b>
+  <li><b>East</b>
+  <li><b>North</b>
+  <li><b>West</b>
+  <li><b>Top</b>
+  <li><b>Bottom</b>
+</ol>
+
+<p>Keep that order in mind, it is used extensively in one form or another throughout the entire code
+base. It can be used as indices in a for-loop from 0 to 5, be used as a bit field to remember which
+sides have been visited (therefore have values from 0 to 63), or simply as a enumeration value
+(<tt>SIDE_*</tt>).
+
+<p>You'll often see the abbreviation <tt>S,E,N,W,T,B</tt> (or sometimes just <tt>S,E,N,W</tt>) throughout
+the code base, this is a reminder of this order.
+
+<p>Technically, there are no obligations to respect that order all over the place, but it makes it easy
+to reuse look-up tables all over the place, without having to worry about compatibility.
+
+<h3 id="datatypes"><span>Datatypes</span></h3>
+
+<p>Datatypes in the engine follows a small but kind of helpful convention: if a structure has to be
+declared as a value, <b>it is not</b> typedef'ed, and the name <b>always have</b> a trailing <tt>_t</tt>
+(the t stands for <tt>type</tt> of course).
+
+<p>If there are no trailing <tt>_t</tt> and no <tt class="t">struct</tt>, therefore it is a pointer. Consider the
+following example:
+<pre><span class="t">struct</span> BlockIter_t iter;
+BlockIter iterator;</pre>
+
+<p>From this convention, you know the second declaration is a pointer to a <tt><span class="t">struct</span> BlockIter_t</tt>.
+
+<p>Sometimes a typedef is introduced for <tt class="t">struct</tt> to remove the need to type this keyword,
+because the type itself is used quite extensively. For example:
+<pre><span class="t">typedef struct</span> NBTIter_t     NBTIter_t;
+<span class="t">typedef struct</span> NBTFile_t     NBTFile_t;</pre>
+<p>But, the type will keep the <tt>_t</tt> suffix to indicate it is a value type, not a pointer.
+
 
 <h2>Frustum culling</h2>
 

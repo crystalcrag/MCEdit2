@@ -19,16 +19,20 @@
 #include "blockupdate.h"
 #include "NBT2.h"
 
-/* order is S, E, N, W, T, B */
-int8_t xoff[] = {0,  1, -1, -1, 1,  0};
-int8_t zoff[] = {1, -1, -1,  1, 0,  0};
-int8_t yoff[] = {0,  0,  0,  0, 1, -2};
+/* order is S, E, N, W, T, B ({xyz}off last slot is to get back to starting pos) */
+int8_t xoff[] = {0,  1, -1, -1, 1,  0, 0};
+int8_t zoff[] = {1, -1, -1,  1, 0,  0, 0};
+int8_t yoff[] = {0,  0,  0,  0, 1, -2, 1};
 int8_t relx[] = {0,  1,  0, -1, 0,  0};
 int8_t rely[] = {0,  0,  0,  0, 1, -1};
 int8_t relz[] = {1,  0, -1,  0, 0,  0};
-int8_t opp[]  = {2<<5, 3<<5, 0, 1<<5, 5<<5, 4<<5};
+int8_t opp[]  = {2,  3,  0,  1, 5,  4};
 uint8_t slots[] = {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1};
 
+static uint8_t repeaterFrom[] = {0,3,2,1};         /* data orient to iter orient ({x,y,z}off[]) */
+static uint8_t torchAttach[]  = {5,3,1,2,0,5,0,0}; /* state 6 & 7 and invalid, but include them for safety */
+
+/* track iteratively blocks that needs change for blocklight/skylight */
 static struct MapUpdate_t track;
 
 /* return how many units of skylight a block will reduce incoming light */
@@ -105,6 +109,7 @@ void mapInitIter(Map map, BlockIter iter, vec4 pos, Bool autoAlloc)
 	}
 }
 
+/* iterate from a ChunkData and offset */
 void mapInitIterOffset(BlockIter iter, ChunkData cd, int offset)
 {
 	iter->offset   = offset;
@@ -279,7 +284,7 @@ static void trackAdd(int x, int y, int z)
 		track.maxUsage = track.usage;
 }
 
-/* will prevent use of recursion */
+/* will prevent use of recursion (mapUpdate) */
 static void trackAddUpdate(BlockIter iter, int blockId)
 {
 	int max = (track.updateCount+127) & ~127;
@@ -294,6 +299,7 @@ static void trackAddUpdate(BlockIter iter, int blockId)
 		track.updates = list;
 	}
 
+	/* redstone need a 2 pass system */
 	BlockUpdate update = track.updates + mapFirstFree(track.updateUsage, max);
 
 	track.updateCount ++;
@@ -353,12 +359,12 @@ static void mapUpdateSkyLightBlock(BlockIter iterator)
 		if (iter.ref->heightMap[CHUNK_BLOCK_POS(iter.x, iter.z, 0)] > iter.yabs &&
 			blockGetSkyOpacity(iter.blockIds[iter.offset], 0) < MAXSKY)
 		{
-			trackAdd(MAXSKY + relx[i] + opp[i], 0, relz[i]);
+			trackAdd(MAXSKY + relx[i] + (opp[i] << 5), 0, relz[i]);
 		}
 	}
 	iter.alloc = 1;
 	/* get iterator back to original pos */
-	mapIter(&iter, 0, 0, 1);
+	mapIter(&iter, 1, 0, 0);
 
 	while (track.usage > 0)
 	{
@@ -372,7 +378,7 @@ static void mapUpdateSkyLightBlock(BlockIter iterator)
 		sky = mapGetSky(&neighbor);
 
 		/* is it a local maximum? */
-		for (i = max = 0; i < DIM(xoff); i ++)
+		for (i = max = 0; i < 6; i ++)
 		{
 			mapIter(&neighbor, xoff[i], yoff[i], zoff[i]);
 
@@ -394,7 +400,7 @@ static void mapUpdateSkyLightBlock(BlockIter iterator)
 
 			if (old > 0)
 			/* check if surrounding need increase in sky level */
-			for (i = 0; i < DIM(xoff); i ++)
+			for (i = 0; i < 6; i ++)
 			{
 				mapIter(&neighbor, xoff[i], yoff[i], zoff[i]);
 				int8_t min = old - blockGetSkyOpacity(neighbor.blockIds[neighbor.offset], 1);
@@ -403,7 +409,7 @@ static void mapUpdateSkyLightBlock(BlockIter iterator)
 				if (level < min)
 				{
 					mapUpdateTable(&neighbor, min, SKYLIGHT_OFFSET);
-					trackAdd((XYZ[0]&31) + relx[i] + opp[i], XYZ[1] + rely[i], XYZ[2] + relz[i]);
+					trackAdd((XYZ[0]&31) + relx[i] + (opp[i] << 5), XYZ[1] + rely[i], XYZ[2] + relz[i]);
 				}
 			}
 			if (sky == old)
@@ -416,7 +422,7 @@ static void mapUpdateSkyLightBlock(BlockIter iterator)
 			mapUpdateTable(&initial, level <= 0 ? 0 : level, SKYLIGHT_OFFSET);
 		}
 		/* check if neighbors depend on light level of cell we just changed */
-		for (i = 0, neighbor = initial; i < DIM(xoff); i ++)
+		for (i = 0, neighbor = initial; i < 6; i ++)
 		{
 			mapIter(&neighbor, xoff[i], yoff[i], zoff[i]);
 			if (i == dir) continue;
@@ -427,7 +433,7 @@ static void mapUpdateSkyLightBlock(BlockIter iterator)
 			if (level > 0 && (level == old || (XYZ[1] == 0 && i >= 4 && level == sky)))
 			{
 				/* incorrect light level here */
-				trackAdd((XYZ[0]&31) + relx[i] + opp[i], XYZ[1] + rely[i], XYZ[2] + relz[i]);
+				trackAdd((XYZ[0]&31) + relx[i] + (opp[i] << 5), XYZ[1] + rely[i], XYZ[2] + relz[i]);
 			}
 		}
 		skip:
@@ -466,7 +472,7 @@ static void mapUpdateSkyLightUnblock(BlockIter iterator)
 	{
 		uint8_t max;
 		/* look around for the highest skylight value */
-		for (i = max = 0; i < DIM(xoff); i ++)
+		for (i = max = 0; i < 6; i ++)
 		{
 			mapIter(&iter, xoff[i], yoff[i], zoff[i]);
 
@@ -494,7 +500,7 @@ static void mapUpdateSkyLightUnblock(BlockIter iterator)
 		mapIter(&neighbor, XYZ[0], XYZ[1], XYZ[2]);
 		sky = mapGetSky(&neighbor);
 
-		for (i = 0; i < DIM(xoff); i ++)
+		for (i = 0; i < 6; i ++)
 		{
 			mapIter(&neighbor, xoff[i], yoff[i], zoff[i]);
 			if (! neighbor.blockIds) continue;
@@ -536,7 +542,7 @@ static void mapUpdateAddLight(BlockIter iterator, int intensity /* max: 15 */)
 		mapIter(&neighbor, XYZ[0], XYZ[1], XYZ[2]);
 		level = mapGetLight(&neighbor);
 
-		for (i = 0; i < DIM(xoff); i ++)
+		for (i = 0; i < 6; i ++)
 		{
 			mapIter(&neighbor, xoff[i], yoff[i], zoff[i]);
 
@@ -574,7 +580,7 @@ static void mapUpdateRemLight(BlockIter iterator)
 		mapIter(&neighbor, XYZ[0], XYZ[1], XYZ[2]);
 		level = mapGetLight(&neighbor);
 
-		for (i = max = equal = 0; i < DIM(xoff); i ++)
+		for (i = max = equal = 0; i < 6; i ++)
 		{
 			mapIter(&neighbor, xoff[i], yoff[i], zoff[i]);
 			if (neighbor.cd == NULL) continue;
@@ -613,7 +619,7 @@ static void mapUpdateRemLight(BlockIter iterator)
 
 		/* check if neighbors need adjustment */
 		if (dir != 0)
-		for (i = 0; i < DIM(xoff); i ++)
+		for (i = 0; i < 6; i ++)
 		{
 			mapIter(&neighbor, xoff[i], yoff[i], zoff[i]);
 			if (neighbor.cd == NULL) continue;
@@ -658,7 +664,7 @@ static void mapUpdateObstructLight(BlockIter iterator)
 		mapIter(&neighbor, XYZ[0], XYZ[1], XYZ[2]);
 
 		/* check surrounding blocks if light levels are correct */
-		for (i = 0; i < DIM(xoff); i ++)
+		for (i = 0; i < 6; i ++)
 		{
 			mapIter(&neighbor, xoff[i], yoff[i], zoff[i]);
 
@@ -671,7 +677,7 @@ static void mapUpdateObstructLight(BlockIter iterator)
 			{
 				struct BlockIter_t iter = neighbor;
 				/* check if there is a block light == light + dim surrounding this pos */
-				for (k = max = 0; k < DIM(xoff); k ++)
+				for (k = max = 0; k < 6; k ++)
 				{
 					mapIter(&iter, xoff[k], yoff[k], zoff[k]);
 					if (blockGetLightOpacity(iter.blockIds[iter.offset], 0) == MAXLIGHT) continue;
@@ -680,7 +686,7 @@ static void mapUpdateObstructLight(BlockIter iterator)
 					if (max < light2) max = light2;
 				}
 				/* nope, must readjust light levels around here */
-				if (k == DIM(xoff))
+				if (k == 6)
 				{
 					/* incorrect light level */
 					if (max >= dim)
@@ -702,7 +708,7 @@ static void mapUpdateRestoreLight(Map map, BlockIter iterator)
 {
 	struct BlockIter_t neighbor = *iterator;
 	int i, max;
-	for (i = max = 0; i < DIM(xoff); i ++)
+	for (i = max = 0; i < 6; i ++)
 	{
 		mapIter(&neighbor, xoff[i], yoff[i], zoff[i]);
 
@@ -737,7 +743,7 @@ static void mapUpdateBlockLight(Map map, BlockIter iter, int oldId, int newId)
 		{
 			struct BlockIter_t neighbor = *iter;
 			neighbor.alloc = False;
-			for (i = 0; i < DIM(xoff); i ++)
+			for (i = 0; i < 6; i ++)
 			{
 				mapIter(&neighbor, xoff[i], yoff[i], zoff[i]);
 				if (neighbor.cd && mapGetLight(&neighbor) > 1)
@@ -788,7 +794,7 @@ static void mapUpdateAddRSUpdate(BlockIter iterator, RSWire cnx)
  */
 static void mapUpdatePropagateSignal(BlockIter iterator)
 {
-	struct RSWire_t connectTo[MAXUPDATE];
+	struct RSWire_t connectTo[RSMAXUPDATE];
 	int count, i, signal;
 
 	mapUpdateInitTrack(track);
@@ -797,6 +803,7 @@ static void mapUpdatePropagateSignal(BlockIter iterator)
 	count = redstoneConnectTo(*iterator, connectTo);
 	if (signal <= MAXSIGNAL)
 		mapUpdateTable(iterator, signal, DATA_OFFSET);
+
 	for (i = 0; i < count; i ++)
 	{
 		RSWire cnx = connectTo + i;
@@ -852,25 +859,30 @@ static void mapUpdatePropagateSignal(BlockIter iterator)
 /* a redstone element has been deleted: update signal */
 void mapUpdateDeleteSignal(BlockIter iterator, int blockId)
 {
-	struct RSWire_t connectTo[MAXUPDATE];
+	struct RSWire_t connectTo[RSMAXUPDATE];
 	int i, count, signal, block;
 
 	/* block must not be deleted at this point */
 	mapUpdateInitTrack(track);
 	track.unique = True;
-	count = redstoneConnectTo(*iterator, connectTo);
 
-	for (i = 0; i < count; i ++)
+	if (blockId >= 0)
 	{
-		RSWire cnx = connectTo + i;
-		if (cnx->signal == RSUPDATE)
-			mapUpdateAddRSUpdate(iterator, cnx);
-		else
-			trackAdd(cnx->dx, cnx->dy, cnx->dz);
+		count = redstoneConnectTo(*iterator, connectTo);
+
+		for (i = 0; i < count; i ++)
+		{
+			RSWire cnx = connectTo + i;
+			if (cnx->signal == RSUPDATE)
+				mapUpdateAddRSUpdate(iterator, cnx);
+			else
+				trackAdd(cnx->dx, cnx->dy, cnx->dz);
+		}
+		/* now we can delete the block */
+		iterator->blockIds[iterator->offset] = blockId >> 4;
+		mapUpdateTable(iterator, blockId & 15, DATA_OFFSET);
 	}
-	/* now we can delete the block */
-	iterator->blockIds[iterator->offset] = blockId >> 4;
-	mapUpdateTable(iterator, blockId & 15, DATA_OFFSET);
+	else trackAdd(0, 0, 0);
 
 	while (track.usage > 0)
 	{
@@ -891,21 +903,31 @@ void mapUpdateDeleteSignal(BlockIter iterator, int blockId)
 
 		for (i = max = equal = 0; i < count; i ++)
 		{
-			struct BlockIter_t iter = neighbor;
 			RSWire cnx = connectTo + i;
 
 			signal = cnx->signal;
 
 			if (signal == RSUPDATE)
 			{
-				mapUpdateAddRSUpdate(&iter, cnx);
+				mapUpdateAddRSUpdate(&neighbor, cnx);
 				continue;
 			}
-			mapIter(&iter, cnx->dx, cnx->dy, cnx->dz);
 			if (level < signal && max < signal)
 				max = signal;
 			if (level <= signal && equal <= signal)
 				equal = signal;
+		}
+		if (level == MAXSIGNAL)
+		{
+			/* can be powered by a nearby block */
+			for (i = 0; i < 6; i ++)
+			{
+				if (redstoneIsPowered(neighbor, i, POW_STRONG))
+				{
+					max = MAXSIGNAL+1;
+					break;
+				}
+			}
 		}
 
 		dir = 0;
@@ -914,6 +936,7 @@ void mapUpdateDeleteSignal(BlockIter iterator, int blockId)
 			/* not a local maximum */
 			int sig = max - 1;
 			if (sig < 0) sig = 0;
+			level = sig;
 			if (block == RSWIRE)
 			{
 				//fprintf(stderr, "setting wire %d, %d, %d to %d\n", neighbor.ref->X + neighbor.x, neighbor.yabs, neighbor.ref->Z + neighbor.z, sig);
@@ -937,6 +960,8 @@ void mapUpdateDeleteSignal(BlockIter iterator, int blockId)
 			}
 			dir = equal > 0 ? 1 : -1;
 		}
+//		if (dir > 0)
+//			puts("here");
 
 		/* check if neighbors need adjustment */
 		if (dir != 0)
@@ -956,21 +981,28 @@ void mapUpdateDeleteSignal(BlockIter iterator, int blockId)
 }
 
 /* redstone power level has been updated in a block, check nearby what updates it will trigger */
-static void mapUpdateRedstone(Map map, BlockIter iter, int power, int side)
+static void mapUpdateChangeRedstone(Map map, BlockIter iterator, int power, int side, RSWire dir)
 {
-	Block b = &blockIds[iter->blockIds[iter->offset]];
+	struct BlockIter_t iter = *iterator;
+
+	if (dir)
+		mapIter(&iter, dir->dx, dir->dy, dir->dz);
+	else if (side != RSSAMEBLOCK)
+		mapIter(&iter, relx[side], 0, relz[side]);
+
+	Block b = &blockIds[iter.blockIds[iter.offset]];
 	int   i, count, flags;
 
 	if (b->type == SOLID)
 	{
-		/* check all block surrounding this one */
+		/* check all blocks surrounding this one */
 		if (power < POW_STRONG)
 		{
 			/* need to make sure that the block is not powered from elsewhere */
-			int pow = redstoneIsPowered(*iter, 0);
+			int pow = redstoneIsPowered(iter, RSSAMEBLOCK, POW_STRONG);
 			if (pow > power) power = pow;
 		}
-		flags = 127 ^ (1 << (side+1));
+		flags = 127 ^ (1 << (opp[side]+1));
 		count = 6;
 	}
 	else
@@ -981,10 +1013,10 @@ static void mapUpdateRedstone(Map map, BlockIter iter, int power, int side)
 	for (i = -1; i < count; flags >>= 1, i ++)
 	{
 		if (i >= 0)
-			mapIter(iter, xoff[i], yoff[i], zoff[i]);
+			mapIter(&iter, xoff[i], yoff[i], zoff[i]);
 		if ((flags & 1) == 0) continue;
 
-		int blockId = getBlockId(iter);
+		int blockId = getBlockId(&iter);
 		int newId   = redstonePowerAdjust(blockId, i < 0 ? side : i, power);
 
 		if (blockId != (newId & 0xffff))
@@ -993,28 +1025,70 @@ static void mapUpdateRedstone(Map map, BlockIter iter, int power, int side)
 			if (tick > 0)
 			{
 				/* need to be updated later */
-				updateAdd(iter, newId & 0xffff, tick & 15);
+				updateAdd(&iter, newId & 0xffff, tick & 15);
 			}
 			else if ((newId >> 4) == RSWIRE)
 			{
 				if ((newId & 15) < (blockId  & 15))
-					mapUpdateDeleteSignal(iter, newId);
+					mapUpdateDeleteSignal(&iter, newId);
 				else
-					mapUpdatePropagateSignal(iter);
+					mapUpdatePropagateSignal(&iter);
 			}
 			else /* immediate update */
 			{
-				vec4 pos = {iter->ref->X + iter->x, iter->yabs, iter->ref->Z + iter->z};
+				vec4 pos = {iter.ref->X + iter.x, iter.yabs, iter.ref->Z + iter.z};
 				mapUpdate(map, pos, newId, NULL, False);
 			}
 		}
 	}
 }
 
-/* check if a block is powered nearby, change current block to active state then */
-static int mapUpdateIfPowered(Map map, BlockIter iterator, int oldId, int blockId)
+/* blockId is about to be deleted or replaced, check if we need to update redstone signal before */
+static void mapUpdateDeleteRedstone(Map map, BlockIter iterator, int blockId)
 {
-	static uint8_t repeaterFrom[] = {0,3,2,1}; /* data orient to iter orient ({x,y,z}off[]) */
+	switch (blockId >> 4) {
+	case RSWIRE:
+		if ((blockId & 15) == 0) return;
+		// no break;
+	case RSTORCH_ON:
+	case RSBLOCK:
+		mapUpdateDeleteSignal(iterator, 0);
+		break;
+	case RSREPEATER_ON:
+		iterator->blockIds[iterator->offset] = 0;
+		mapUpdateChangeRedstone(map, iterator, POW_NONE, repeaterFrom[blockId & 3] ^ 2, NULL);
+		break;
+	default:
+		/* this code will execute whenever a solid block is deleted :-/ */
+		if (blockIds[blockId >> 4].type == SOLID)
+		{
+			/* check for a wire nearby (any other block will be deleted through block update) */
+			struct BlockIter_t iter = *iterator;
+			uint8_t i;
+			/* first, quickly check if it can trigger updates */
+			for (i = 0; i < 6; i ++)
+			{
+				mapIter(&iter, xoff[i], yoff[i], zoff[i]);
+				if (iter.blockIds[iter.offset] == RSWIRE) break;
+			}
+			/* extremely likely there are no wire nearby (ie: i == 6) */
+			if (i < 6 && redstoneIsPowered(*iterator, RSSAMEBLOCK, POW_STRONG))
+			{
+				iterator->blockIds[iterator->offset] = 0;
+				/* this block was powered */
+				for ( ; i < 6; i ++, mapIter(&iter, xoff[i], yoff[i], zoff[i]))
+				{
+					if (i != 4 && iter.blockIds[iter.offset] == RSWIRE) /* block on top, will be deleted with block update */
+						mapUpdateDeleteSignal(&iter, -1);
+				}
+			}
+		}
+	}
+}
+
+/* check if a block is powered nearby, change current block to active state then */
+static int mapUpdateIfPowered(Map map, BlockIter iterator, int oldId, int blockId, Bool init)
+{
 	Block b = &blockIds[blockId >> 4];
 
 	switch (b->id) {
@@ -1027,8 +1101,49 @@ static int mapUpdateIfPowered(Map map, BlockIter iterator, int oldId, int blockI
 	case RSDROPPER:
 		// TODO
 		break;
+	case RSTORCH_OFF:
+		if (! redstoneIsPowered(*iterator, torchAttach[blockId & 7], POW_WEAK))
+		{
+			if (! init)
+			{
+				updateAdd(iterator, ID(RSTORCH_ON, blockId & 15), 1);
+				return blockId;
+			}
+			/* will prevent unnecessary block update */
+			return ID(RSTORCH_ON, blockId & 15);
+		}
+		else if ((oldId >> 4) == RSTORCH_ON)
+		{
+			/* torch went off: adjust power levels to blocks connected */
+			struct RSWire_t connect[RSMAXUPDATE];
+			int i, count = redstoneConnectTo(*iterator, connect);
+			iterator->blockIds[iterator->offset] = blockId >> 4;
+			for (i = 0; i < count; i ++)
+				mapUpdateChangeRedstone(map, iterator, POW_NONE, 0, connect + i);
+		}
+		break;
+	case RSTORCH_ON:
+		if (redstoneIsPowered(*iterator, torchAttach[blockId & 7], POW_WEAK))
+		{
+			if (! init)
+			{
+				updateAdd(iterator, ID(RSTORCH_OFF, blockId & 15), 1);
+				return blockId;
+			}
+			return ID(RSTORCH_OFF, blockId & 15);
+		}
+		else if ((oldId >> 4) == RSTORCH_OFF)
+		{
+			/* torch went on */
+			struct RSWire_t connect[RSMAXUPDATE];
+			int i, count = redstoneConnectTo(*iterator, connect);
+			iterator->blockIds[iterator->offset] = blockId >> 4;
+			for (i = 0; i < count; i ++)
+				mapUpdateChangeRedstone(map, iterator, POW_STRONG, 0, connect + i);
+		}
+		break;
 	case RSREPEATER_OFF:
-		if (redstoneIsPowered(*iterator, repeaterFrom[blockId & 3]))
+		if (redstoneIsPowered(*iterator, repeaterFrom[blockId & 3], POW_WEAK))
 		{
 			/* need to be updated later */
 			updateAdd(iterator, ID(RSREPEATER_ON, blockId & 15), redstoneRepeaterDelay(blockId));
@@ -1036,30 +1151,27 @@ static int mapUpdateIfPowered(Map map, BlockIter iterator, int oldId, int blockI
 		}
 		else if ((oldId >> 4) == RSREPEATER_ON)
 		{
-			struct BlockIter_t iter = *iterator;
-			uint8_t dir = repeaterFrom[blockId & 3] ^ 2;
 			/* not yet updated */
-			iter.blockIds[iter.offset] = blockId >> 4;
-			mapIter(&iter, relx[dir], 0, relz[dir]);
-			mapUpdateRedstone(map, &iter, POW_NONE, dir);
+			iterator->blockIds[iterator->offset] = blockId >> 4;
+			/* repeater went off */
+			mapUpdateChangeRedstone(map, iterator, POW_NONE, repeaterFrom[blockId & 3] ^ 2, NULL);
 		}
 		break;
 	case RSREPEATER_ON:
-		if (! redstoneIsPowered(*iterator, repeaterFrom[blockId & 3]))
+		if (! redstoneIsPowered(*iterator, repeaterFrom[blockId & 3], POW_WEAK))
 		{
 			updateAdd(iterator, ID(RSREPEATER_OFF, blockId & 15), redstoneRepeaterDelay(blockId));
 			return blockId;
 		}
 		else if ((oldId >> 4) == RSREPEATER_OFF)
 		{
-			struct BlockIter_t iter = *iterator;
-			uint8_t dir = repeaterFrom[blockId & 3] ^ 2;
-			/* not yet updated */
-			iter.blockIds[iter.offset] = blockId >> 4;
-			mapIter(&iter, relx[dir], 0, relz[dir]);
-			mapUpdateRedstone(map, &iter, POW_STRONG, dir);
+			iterator->blockIds[iterator->offset] = blockId >> 4;
+			/* repeater went on */
+			mapUpdateChangeRedstone(map, iterator, POW_STRONG, repeaterFrom[blockId & 3] ^ 2, NULL);
 		}
 		break;
+	case RSWIRE:
+		return ID(RSWIRE, redstoneSignalStrength(*iterator, True));
 	default:
 		switch (b->special) {
 		case BLOCK_DOOR:
@@ -1196,7 +1308,7 @@ static void mapUpdateFlush(Map map)
 				struct BlockIter_t iter;
 				mapInitIterOffset(&iter, update->cd, update->offset);
 				offset = getBlockId(&iter);
-				mapUpdateIfPowered(map, &iter, offset, offset);
+				mapUpdateIfPowered(map, &iter, offset, offset, False);
 				fprintf(stderr, "updating block %s at %g,%g,%g\n", b->name, pos[0], pos[1], pos[2]);
 			}
 			else
@@ -1216,27 +1328,30 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, Bool blockUpdate)
 	track.modif = NULL;
 	track.list  = &track.modif;
 
-	int     oldId = iter.blockIds[iter.offset] << 4;
-	int     coord = DATA_OFFSET + (iter.offset >> 1);
-	uint8_t meta  = iter.blockIds[coord];
-	int     XYZ[] = {iter.x, iter.yabs, iter.z};
+	int oldId = iter.blockIds[iter.offset] << 4;
+	int coord = DATA_OFFSET + (iter.offset >> 1);
+	int XYZ[] = {iter.x, iter.yabs, iter.z};
+	uint8_t data = iter.blockIds[coord];
+
+	if (iter.offset & 1) oldId |= data >> 4;
+	else                 oldId |= data & 15;
 
 	/* this needs to be done before tables are updated */
-	if (blockId != oldId && redstonePropagate(oldId))
-	{
-		mapUpdateDeleteSignal(&iter, blockId);
-	}
+	if (blockId != oldId)
+		mapUpdateDeleteRedstone(map, &iter, oldId);
 
-	if (blockIds[blockId >> 4].rsupdate)
+	if (blockIds[blockId >> 4].rsupdate || (blockId >> 4) == RSWIRE)
 	{
-		blockId = mapUpdateIfPowered(map, &iter, oldId, blockId);
+		/* change block based on power level: will prevent unnecessary updates */
+		blockId = mapUpdateIfPowered(map, &iter, oldId, blockId, True);
 	}
 
 	/* update blockId/metaData tables */
+	data = iter.blockIds[coord]; /* can be change by previous functions */
 	iter.blockIds[iter.offset] = blockId >> 4;
-	if (iter.offset & 1) oldId |= meta >> 4, meta &= 0x0f, meta |= (blockId & 0xf) << 4;
-	else                 oldId |= meta & 15, meta &= 0xf0, meta |= (blockId & 0xf);
-	iter.blockIds[coord] = meta;
+	if (iter.offset & 1) data &= 0x0f, data |= (blockId & 0xf) << 4;
+	else                 data &= 0xf0, data |= (blockId & 0xf);
+	iter.blockIds[coord] = data;
 
 	/* update skyLight */
 	{
@@ -1265,7 +1380,7 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, Bool blockUpdate)
 	}
 
 	/* redstone signal if any */
-	if (redstonePropagate(blockId))
+	if (redstonePropagate(blockId) && (blockId>>4) != RSREPEATER_ON)
 	{
 		mapUpdatePropagateSignal(&iter);
 	}

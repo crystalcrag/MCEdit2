@@ -2226,7 +2226,7 @@ int blockAdjustOrient(int blockId, BlockOrient info, vec4 inter)
 Bool blockIsAttached(int blockId, int side)
 {
 	/* those tables are the converse of the ones in blockAdjustOrient() */
-	static uint8_t orientTorch[] = {SIDE_TOP, SIDE_EAST, SIDE_WEST, SIDE_SOUTH, SIDE_NORTH, SIDE_TOP};
+	static uint8_t orientTorch[] = {SIDE_TOP, SIDE_WEST, SIDE_EAST, SIDE_NORTH, SIDE_SOUTH, SIDE_TOP, SIDE_TOP, SIDE_TOP};
 	static uint8_t orientLever[] = {SIDE_BOTTOM, SIDE_WEST, SIDE_EAST, SIDE_NORTH, SIDE_SOUTH, SIDE_TOP, SIDE_TOP, SIDE_BOTTOM};
 	static uint8_t orientSign[]  = {0, 0, SIDE_SOUTH, SIDE_NORTH, SIDE_EAST, SIDE_WEST};
 	static uint8_t orientSWNE[]  = {SIDE_SOUTH, SIDE_WEST, SIDE_NORTH, SIDE_EAST};
