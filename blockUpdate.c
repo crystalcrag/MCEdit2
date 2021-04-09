@@ -172,6 +172,7 @@ static void mapUpdateRails(Map map, vec4 pos, int blockId, DATA16 nbors)
 static int8_t bedOffsetX[] = {0, -1,  0, 1};
 static int8_t bedOffsetZ[] = {1,  0, -1, 0};
 
+/* a block has been placed/deleted, check if we need to update nearby blocks */
 Bool mapUpdateBlock(Map map, vec4 pos, int blockId, int oldBlockId, DATA8 tile)
 {
 	uint16_t neighbors[6];
@@ -333,11 +334,10 @@ Bool mapUpdateBlock(Map map, vec4 pos, int blockId, int oldBlockId, DATA8 tile)
 	return ret;
 }
 
-int mapActivateBlock(Map map, vec4 pos, int blockId, BlockIter iter)
+/* return the activated state of <blockId>, but does not modify any tables */
+int mapActivateBlock(BlockIter iter, vec4 pos, int blockId)
 {
 	Block b = &blockIds[blockId >> 4];
-	DATA8 d = &iter->blockIds[DATA_OFFSET + (iter->offset >> 1)];
-	uint8_t data;
 
 	switch (b->special) {
 	case BLOCK_DOOR:
@@ -356,7 +356,8 @@ int mapActivateBlock(Map map, vec4 pos, int blockId, BlockIter iter)
 		if (blockId & 8)
 		{
 			mapIter(iter, 0, -1, 0);
-			d = &iter->blockIds[DATA_OFFSET + (iter->offset >> 1)];
+			pos[VY] --;
+			blockId = getBlockId(iter);
 		}
 
 		// no break;
@@ -367,37 +368,47 @@ int mapActivateBlock(Map map, vec4 pos, int blockId, BlockIter iter)
 		 * bit4: bottom
 		 */
 		// no break;
-	case BLOCK_FENCE|BLOCK_NOCONNECT:
-		/* fence gate */
-		*d ^= iter->offset & 1 ? 4 << 4 : 4;
-		break;
+	case BLOCK_FENCE|BLOCK_NOCONNECT: /* fence gate */
+		return blockId ^ 4;
 	default:
-		data = iter->offset & 1 ? d[0] >> 4 : d[0] & 15;
 		switch (FindInList("unpowered_repeater,powered_repeater,cake,lever,stone_button,wooden_button,cocoa_beans", b->tech, 0)) {
 		case 0:
 		case 1: /* repeater: bit3~4: delay */
-			if ((data & 12) == 12) data &= ~12;
-			else data += 4;
+			if ((blockId & 12) == 12) blockId &= ~12;
+			else blockId += 4;
 			break;
 		case 2: /* cake: 0~6: bites */
-			if ((data & 15) < 6) data ++;
-			else                 data &= 0xf0;
+			if ((blockId & 15) < 6) blockId ++;
+			else                    blockId &= 0xfff0;
 			break;
 		case 3: /* lever: bit4: powered */
+			return blockId ^ 8;
 		case 4: /* button */
+			if ((blockId & 8) == 0)
+			{
+				updateAdd(iter, blockId, TICK_PER_SECOND);
+				return blockId | 8;
+			}
+			else return 0;
+			break;
 		case 5: /* wooden */
-			data ^= 0x08;
+			if ((blockId & 8) == 0)
+			{
+				updateAdd(iter, blockId, TICK_PER_SECOND * 1.5);
+				return blockId | 8;
+			}
+			else return 0;
 			break;
 		case 6: /* cocoa beans - cycle through different growth stage */
-			data += 4;
-			if (data >= 12) data &= 3;
+			if ((blockId & 15) < 8) blockId += 4;
+			else                    blockId &= 0xfff0;
 			break;
 		default:
 			return 0;
 		}
-		d[0] = iter->offset & 1 ? (d[0] & 15) | (data << 4) : (d[0] & 0xf0) | data;
+		return blockId;
 	}
-	return 1;
+	return 0;
 }
 
 /*
@@ -429,7 +440,7 @@ static TileTick updateAlloc(void)
 void updateAdd(BlockIter iter, int blockId, int nbTick)
 {
 	TileTick update = updateAlloc();
-	int      tick   = (int) curTime + nbTick  * 10 * (1000 / TICK_PER_SECOND);
+	int      tick   = (int) curTime + nbTick * (1000 / TICK_PER_SECOND);
 	update->cd      = iter->cd;
 	update->offset  = iter->offset;
 	update->blockId = blockId;
@@ -446,8 +457,7 @@ void updateAdd(BlockIter iter, int blockId, int nbTick)
 	if (i < updates.count-1)
 		memmove(updates.sorted + i + 1, updates.sorted + i, (updates.count - i - 1) * sizeof *updates.sorted);
 
-	fprintf(stderr, "updating %d:%d at ", blockId >> 4, blockId & 15);
-	printCoord(NULL, iter);
+//	fprintf(stderr, "updating %d:%d at ", blockId >> 4, blockId & 15); printCoord(NULL, iter);
 
 	updates.sorted[i] = update - updates.list;
 }

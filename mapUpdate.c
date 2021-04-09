@@ -771,14 +771,13 @@ static void mapUpdateAddRSUpdate(BlockIter iterator, RSWire cnx)
 	int i;
 	mapIter(&iter, cnx->dx, cnx->dy, cnx->dz);
 //	printCoord("checking update at", &iter);
-	if (cnx->pow == POW_VERYWEAK)
-	{
-		/* only check the where the update is */
-		Block b = &blockIds[iter.blockIds[iter.offset]];
-		if (b->rsupdate)
-			trackAddUpdate(&iter, 0xffff);
-	}
-	else for (i = 0; i < 6; i ++)
+	Block b = &blockIds[iter.blockIds[iter.offset]];
+	if (b->rsupdate)
+		trackAddUpdate(&iter, 0xffff);
+
+	/* only check the where the update is, if power is very weak */
+	if (cnx->pow != POW_VERYWEAK)
+	for (i = 0; i < 6; i ++)
 	{
 		/* we cannot perform the update yet, we need the signal to be updated all the way :-/ */
 		mapIter(&iter, xoff[i], yoff[i], zoff[i]);
@@ -1097,9 +1096,16 @@ static int mapUpdateIfPowered(Map map, BlockIter iterator, int oldId, int blockI
 	case RSPOWRAILS:
 	case RSSTICKYPISTON:
 	case RSPISTON:
-	case RSLAMP:
 	case RSDROPPER:
 		// TODO
+		break;
+	case RSLAMP:
+		if (redstoneIsPowered(*iterator, RSSAMEBLOCK, POW_WEAK))
+			return ID(RSLAMP+1, 0);
+		break;
+	case  RSLAMP+1:
+		if (! redstoneIsPowered(*iterator, RSSAMEBLOCK, POW_WEAK))
+			return ID(RSLAMP, 0);
 		break;
 	case RSTORCH_OFF:
 		if (! redstoneIsPowered(*iterator, torchAttach[blockId & 7], POW_WEAK))
@@ -1306,9 +1312,12 @@ static void mapUpdateFlush(Map map)
 			if (update->blockId == 0xffff)
 			{
 				struct BlockIter_t iter;
+				int newId;
 				mapInitIterOffset(&iter, update->cd, update->offset);
 				offset = getBlockId(&iter);
-				mapUpdateIfPowered(map, &iter, offset, offset, False);
+				newId  = mapUpdateIfPowered(map, &iter, offset, offset, False);
+				if (offset != newId)
+					mapUpdate(map, pos, newId, NULL, False);
 				fprintf(stderr, "updating block %s at %g,%g,%g\n", b->name, pos[0], pos[1], pos[2]);
 			}
 			else
@@ -1329,29 +1338,27 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, Bool blockUpdate)
 	track.list  = &track.modif;
 
 	int oldId = iter.blockIds[iter.offset] << 4;
-	int coord = DATA_OFFSET + (iter.offset >> 1);
 	int XYZ[] = {iter.x, iter.yabs, iter.z};
-	uint8_t data = iter.blockIds[coord];
+	DATA8 data = iter.blockIds + DATA_OFFSET + (iter.offset >> 1);
+	Block b = &blockIds[blockId >> 4];
 
-	if (iter.offset & 1) oldId |= data >> 4;
-	else                 oldId |= data & 15;
+	if (iter.offset & 1) oldId |= *data >> 4;
+	else                 oldId |= *data & 15;
 
 	/* this needs to be done before tables are updated */
-	if (blockId != oldId)
+	if (b->type != blockIds[oldId>>4].type)
 		mapUpdateDeleteRedstone(map, &iter, oldId);
 
-	if (blockIds[blockId >> 4].rsupdate || (blockId >> 4) == RSWIRE)
+	if (b->rsupdate || (blockId >> 4) == RSWIRE)
 	{
 		/* change block based on power level: will prevent unnecessary updates */
 		blockId = mapUpdateIfPowered(map, &iter, oldId, blockId, True);
 	}
 
 	/* update blockId/metaData tables */
-	data = iter.blockIds[coord]; /* can be change by previous functions */
 	iter.blockIds[iter.offset] = blockId >> 4;
-	if (iter.offset & 1) data &= 0x0f, data |= (blockId & 0xf) << 4;
-	else                 data &= 0xf0, data |= (blockId & 0xf);
-	iter.blockIds[coord] = data;
+	if (iter.offset & 1) *data = (*data & 0x0f) | ((blockId & 0xf) << 4);
+	else                 *data = (*data & 0xf0) | (blockId & 0xf);
 
 	/* update skyLight */
 	{
@@ -1380,9 +1387,15 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, Bool blockUpdate)
 	}
 
 	/* redstone signal if any */
-	if (redstonePropagate(blockId) && (blockId>>4) != RSREPEATER_ON)
+	if (b->rsupdate == 2 && (blockId>>4) != RSREPEATER_ON)
 	{
-		mapUpdatePropagateSignal(&iter);
+		if (blockIds[blockId>>4].orientHint == ORIENT_LEVER)
+		{
+			/* buttons & lever */
+			static uint8_t attached[] = {SIDE_TOP, SIDE_WEST, SIDE_EAST, SIDE_NORTH, SIDE_SOUTH, SIDE_BOTTOM, SIDE_BOTTOM, SIDE_TOP};
+			mapUpdateChangeRedstone(map, &iter, blockId & 8 ? POW_STRONG : POW_NONE, attached[blockId&7], NULL);
+		}
+		else mapUpdatePropagateSignal(&iter);
 	}
 
 	/* list of sub-chunks that we need to update their mesh */
@@ -1442,12 +1455,8 @@ void mapActivate(Map map, vec4 pos)
 	if (iter.offset & 1) block |= data >> 4;
 	else                 block |= data & 15;
 
-	if (mapActivateBlock(map, pos, block, &iter))
-	{
-		*track.list = iter.cd;
-		track.list = &iter.cd->update;
-		mapUpdateListChunk(map);
-		mapUpdateMesh(map);
-		renderPointToBlock(-1, -1);
-	}
+	block = mapActivateBlock(&iter, pos, block);
+
+	if (block > 0)
+		mapUpdate(map, pos, block, NULL, True);
 }

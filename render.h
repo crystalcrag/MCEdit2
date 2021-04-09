@@ -56,7 +56,8 @@ enum /* possible flags for paramter <what> of debugToggleInfo() (side view) */
 {
 	DEBUG_BLOCK = 1,
 	DEBUG_LIGHT = 2,
-	DEBUG_CHUNK = 3
+	DEBUG_CHUNK = 3,
+	DEBUG_SELECTION = 4,
 };
 
 /* chunk transfer to GPU */

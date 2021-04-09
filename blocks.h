@@ -55,7 +55,7 @@ struct Block_t             /* per id information */
 	uint8_t  opacLight;    /* reduction of blockLight */
 	uint8_t  orientHint;   /* auto-orient based on camera angle */
 	uint8_t  tileEntity;   /* type of tile entity (TILE_*) */
-	uint8_t  special;
+	uint8_t  special;      /* enum BLOCK_* */
 	uint8_t  rswire;       /* redstone wire can attach to this block */
 	uint8_t  rsupdate;     /* update state if redstone signal change around block */
 	uint8_t  copyModel;    /* copy invmodel from this block id */

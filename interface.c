@@ -492,7 +492,7 @@ static int mcuiChangeTab(SIT_Widget w, APTR cd, APTR ud)
 {
 	MCInventory inv = ud;
 	inv->top = 0;
-	inv->itemsNb = itemGetInventoryByCat(inv->items, category[(int)cd]);
+	inv->itemsNb = itemGetInventoryByCat(inv->items, category[mcui.curTab = (int)cd]);
 	mcuiResetScrollbar(inv);
 	return 1;
 }

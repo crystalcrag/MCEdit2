@@ -526,7 +526,7 @@ columns are not all of equal height, far from it. Here's a XY slice view of a ty
   <img src="images/sliceview.png">
 </div>
 
-<p>The yellow lines shows the sub-chunk boundaries, cyan chunks with no writings in it indicate an
+<p>The yellow lines shows the sub-chunk boundaries, cyan chunks with no writings in it, indicate an
 empty chunk: nothing is allocated for these, attempting to get a <tt>ChunkData</tt> for these will
 return <tt class="o">NULL</tt>. Player is currently in one of those empty area, looking left, therefore
 the algorithm will have no starting point, and as is, will generate an empty list of visible chunks.
@@ -562,6 +562,10 @@ fake chunk.
 table describes all of the blocks recognized by this engine and their different states, along with
 their custom models if any.
 
+<p>This table does not cover 100% of use cases though. Some special processing is hardcoded within the
+engine (like redstone behavior, block with tile entities). Still, this table covers about 95% of all
+Minecraft 1.12 blocks.
+
 <p>This table uses the javascript object notation format. It is similar to the JSON format, with a few
 changes: property names don't have to be enclosed in double quotes and property values can contain expressions.
 
@@ -584,22 +588,116 @@ constants assigned to property must be spelled using only <b>uppercase letters</
 <p>A block description must contain the property <tt>id</tt> and assigned to an integer. Here are the
 possible properties:
 <ul>
-  <li><tt>id</tt>: 
-  <li><tt>name</tt>: 
-  <li><tt>tech</tt>: 
-  <li><tt>inv</tt>: 
-  <li><tt>invstate</tt>: 
-  <li><tt>cat</tt>: 
-  <li><tt>special</tt>: 
-  <li><tt>bbox</tt>: 
-  <li><tt>orient</tt>: 
-  <li><tt>keepModel</tt>: 
-  <li><tt>emitLight</tt>: 
-  <li><tt>opacSky</tt>: 
-  <li><tt>opacLight</tt>: 
-  <li><tt>tile</tt>: 
+  <li><tt>id</tt>: the block ID as it is stored in the NBT table <tt>Sections/Blocks</tt> of a chunk.
+  <li><tt>type</tt>: how the block will be rendered in the world. This field will constraint what is
+  expected for state description. <b>This is a very important field</b>, you can choose one value among:
+  <ul>
+    <li><tt>INVIS</tt>: invisible. No mesh vill be generated for these (typical use case: AIR).
+    <li><tt>SOLID</tt>: a full 1x1x1 voxel cube. This engine is optimized to display these. They are
+	cheap to process, cheap to render and cheap to define: just specify the texture of the 6 sides of
+	the cube and that pretty much all there is to it.
+	<p>Note: stairs and slab are considered SOLID blocks.
+
+    <li><tt>TRANS</tt>: Similar to SOLID, they must be defined as a full unit cube. The difference is
+	in the way hidden surface removal works: for SOLID blocks, all sides shared by any other solid block
+	will be removed. For TRANS block, this check will only be done with the same block id (typical use
+	case: glass or water).
+    <li><tt>QUAD</tt>: for blocks that are a mix of flat quads that does not necessarily forms a cube.
+	Typical use case: crops, grass or flowers.
+    <li><tt>CUST</tt>: completely arbitrary shape, a custom model will be expected for each state
+	description. Keep in mind that the model cannot exceed a 2x2x2 cube in size. If you need more,
+	you will have to use an dedicated entity otherwise.
+  </ul>
+  <li><tt>name</tt>: a human readable name that will be displayed in various places of the engine.
+  <li><tt>tech</tt>: the technical name stored in inventories. If the name is the same as the <tt>name</tt>
+  field (but converted to lowercase and space replaced with underscore), you can omit that field.
+  <li><tt>inv</tt>: how this block is going to represented in inventory menus. It is an enumeration
+  value that can be assigned to one of the following values:
+  <ul>
+    <li><tt>CUBE</tt>: each individual states will have its own inventory item in the form of a cube. The
+	textures used for the cubes will be described in the state description. In the screenshot below, cube
+	inventory items have a green background.
+    <li><tt>ITEM2D</tt>: each states will be represented as flat 2d texture (taken from state description).
+	In the screenshot below, they havev a gray background.
+    <li><tt>MODEL</tt>: wil use a custom model for their inventory. The model will be viewed at an angle
+	using a orthographic projection (not a perspective one). You can provide a custom model to be used
+	only in inventories, or you can reuse the ones defined in the state description. In the screenshot
+	below, those items have a red background.
+  </ul>
+  <div class="image">
+    <img src="images/inventory.png">
+  </div>
+  <li><tt>invstate</tt>: sometimes, you don't want to have one inventory item per state, but only one
+  (typcial use case: blocks that have an orientation). If this field is present, it must contain the
+  state id (between 0 and 15) to use when displaying this item in inventories.
+  <li><tt>cat</tt>: the creative menu is split into tabs. This field let you choose which one it will
+  be in. If not specified, the item will appear in the "all" category (the tab with the compass). You
+  can choose one value among;
+  <ul>
+    <li><tt>BUILD</tt>
+	<li><tt>DECO</tt>
+	<li><tt>REDSTONE</tt>
+	<li><tt>CROPS</tt>
+	<li><tt>RAILS</tt>
+  </ul>
+  <li><tt>special</tt>: special behavior to activate in the engine. Possible choices:
+  <ul>
+    <li><tt>CHEST</tt>: chest that can form a 2-wide entity. Therefore, that does not include ender chest.
+    <li><tt>DOOR</tt>: behave like a door: 2 tall block with the same data values.
+    <li><tt>NOSIDE</tt>: will generate a front and back face (typical use is for QUAD block type).
+    <li><tt>HALF</tt>: half block: data values will encode placement.
+    <li><tt>STAIRS</tt>: data value will encode orientation.
+    <li><tt>GLASS</tt>: behave like a glass pane: automatically connect to nearby block with this
+	special attribute set (like glass pane and iron bars).
+    <li><tt>FENCE</tt>: wooden fences that connect with similar block.
+    <li><tt>FENCE2</tt>: nether fence (does not connect with FENCE).
+    <li><tt>WALL</tt>: cobblestone wall and variants: it connects with more block than FENCE or GLASS.
+    <li><tt>RSWIRE</tt>: used for redstone wire only: wire model depends on nearby blocks.
+    <li><tt>LEAVES</tt>: hidden surface must not be removed.
+    <li><tt>LIQUID</tt>: water and lava.
+    <li><tt>TALLFLOWER</tt>: need a special flag for these, because they are made of 2 blocks.
+    <li><tt>RAILS</tt>: this flag is used when placing rails to know which neighbor to update.
+    <li><tt>TRAPDOOR</tt>: block update from redstone/user.
+    <li><tt>SIGN</tt>: they need special processing (allocate off-screen texture).
+    <li><tt>BED</tt>: their models depend on tile entity.
+  </ul>
+  <p>Additionnaly, you can OR these values, with the following flags (ie: separated by |):
+  <ul>
+	<li><tt>CNXTEX</tt>: generate connected texture for all state description. Texture will be auto-generated
+	from state description.
+	<li><tt>NOCONNECT</tt>: don't generate connected info. Typical use case: fence gates. They connect
+	with fences, and therefore have the FENCE flag, but don't have optional parts like fences.
+  </ul>
+  <li><tt>bbox</tt>: how the block can be targetted with the mouse. Enumeration value, with the following
+  choices:
+  <ul>
+    <li><tt>NONE</tt>: this block cannot be targetted by user.
+    <li><tt>AUTO</tt>: this mode will be automatically set for block type <tt>SOLID</tt>, <tt>TRANS</tt>
+	and <tt>QUAD</tt>. Therefore, you can omit the <tt>bbox</tt> field for these types.
+    <li><tt>MAX</tt>: this type is intended for <tt>CUST</tt> block type: <tt>MAX</tt> will compute
+	the maximum axis-aligned box that covers the entire model.
+    <li><tt>FULL</tt>: another mode for <tt>CUST</tt> block type: each individual part of a custom model
+	will be used to check if the block is targetted. This type of collision test is very precise, but
+	of course a bit more expensive to check.
+  </ul>
+  <li><tt>orient</tt>: if block placement is orientation dependent, you can 
+
+  <li><tt>keepModel</tt>: hack.
+
+  <li><tt>emitLight</tt>: if this block will emit block light, you can indicate a value between 1 and 15
+  (0 being the default).
+
+  <li><tt>opacSky</tt>: how much intensity of sky light it will absorb. Default is 15 for <tt>SOLID</tt>
+  and 0 for <tt>CUST</tt>. Usual values is 1 for leaves and 3 for water.
+
+  <li><tt>opacLight</tt>: same with block light.
+
+  <li><tt>tile</tt>: XXX deprecated.
+
   <li><tt>invmodel</tt>: 
+
   <li><tt>rswire</tt>: 
+
   <li><tt>placement</tt>: 
 </ul>
 

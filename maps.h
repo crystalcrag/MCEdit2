@@ -90,7 +90,7 @@ Bool   mapSetRenderDist(Map, int maxDist);
 void   mapUpdate(Map, vec4 pos, int blockId, DATA8 tile, Bool blockUpdate);
 Bool   mapUpdateBlock(Map, vec4 pos, int blockId, int oldBlockId, DATA8 tile);
 void   mapActivate(Map, vec4 pos);
-int    mapActivateBlock(Map, vec4 pos, int blockId, BlockIter);
+int    mapActivateBlock(BlockIter, vec4 pos, int blockId);
 Bool   mapSaveAll(Map);
 Bool   mapSaveLevelDat(Map);
 int    mapConnectChest(Map, MapExtraData sel, MapExtraData ret);

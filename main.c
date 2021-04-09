@@ -288,6 +288,10 @@ void mceditWorld(void)
 				case SDLK_LALT:
 					renderShowBlockInfo(True, DEBUG_BLOCK);
 					break;
+				case SDLK_LSHIFT:
+					mcedit.forceSel = 1;
+					renderShowBlockInfo(True, DEBUG_SELECTION);
+					break;
 				#if 0
 				case SDLK_SPACE:
 					if (paused)
@@ -358,6 +362,10 @@ void mceditWorld(void)
 				case SDLK_LALT:
 					renderShowBlockInfo(False, DEBUG_BLOCK);
 					break;
+				case SDLK_LSHIFT:
+					mcedit.forceSel = 0;
+					renderShowBlockInfo(False, DEBUG_SELECTION);
+					goto forwardKeyPress;
 				case SDLK_F5: sunMove &= ~1; break;
 				case SDLK_F6: sunMove &= ~2; break;
 				case 't': /* throw item */
@@ -502,7 +510,7 @@ void mceditDoAction(int action)
 	switch (action) {
 	case ACTION_PLACEBLOCK:
 		item = &mcedit.player.inventory.items[mcedit.player.inventory.selected];
-		id   = item->id;
+		id   = mcedit.forceSel ? 0 : item->id;
 		/* use of an item: check if it creates a block instead */
 		if (id >= ID(256, 0))
 		{

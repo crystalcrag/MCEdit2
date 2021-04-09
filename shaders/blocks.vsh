@@ -64,7 +64,6 @@ void main(void)
 	case 2: shade -= 0.3; shadeOCS = 0.05; break;
 	case 3: shade -= 0.5; shadeOCS = 0.1; 
 	}
-	/* not too dark though */
 	skyLight   = float((info.y >> 12) & 15) / 15;
 	blockLight = float((info.y >> 8)  & 15) / 15;
 	if (normal == 7)

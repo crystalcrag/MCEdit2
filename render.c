@@ -88,7 +88,7 @@ static void renderSelection(void)
 	glDepthFunc(GL_LEQUAL);
 
 	render.selection.sel &= ~SEL_NOCURRENT;
-	if (item->id > 0)
+	if (item->id > 0 && (render.debugInfo & DEBUG_SELECTION) == 0)
 	{
 		/* preview block */
 		int8_t * offset;
@@ -286,7 +286,7 @@ MapExtraData renderGetSelectedBlock(vec4 pos, int * blockModel)
 		if (pos)
 		{
 			Item item = &render.inventory->items[render.inventory->selected];
-			memcpy(pos, item->id > 0 ? render.selection.blockPos : render.selection.current, sizeof (vec4));
+			memcpy(pos, item->id > 0 && (render.debugInfo & DEBUG_SELECTION) == 0 ? render.selection.blockPos : render.selection.current, sizeof (vec4));
 		}
 		if (blockModel)
 		{
@@ -603,6 +603,8 @@ void renderShowBlockInfo(Bool show, int what)
 {
 	if (show)
 	{
+		render.debugInfo |= what;
+		if (what != DEBUG_BLOCK) return;
 		if (! render.blockInfo)
 		{
 			render.blockInfo = SIT_CreateWidget("blockinfo", SIT_TOOLTIP, render.sitRoot,
@@ -613,7 +615,6 @@ void renderShowBlockInfo(Bool show, int what)
 			);
 			SIT_AddCallback(render.blockInfo, SITE_OnFinalize, clearRef, NULL);
 		}
-		render.debugInfo |= what;
 		SIT_SetValues(render.blockInfo, SIT_Visible, True, SIT_DisplayTime, SITV_ResetTime, NULL);
 	}
 	else

@@ -197,7 +197,7 @@ static void blockAddState(struct BlockState_t * model, int id)
 	#define POOLMASK        (POOLSTATES-1)
 	if ((blocks.totalStates & POOLMASK) == 0)
 	{
-		/* keep this table contiguous */
+		/* keep the entire table contiguous */
 		BlockState reloc = realloc(blockStates, (blocks.totalStates + POOLSTATES) * sizeof *blockStates);
 		if (reloc == NULL) return;
 		blockStates = reloc;
@@ -745,7 +745,7 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 		if (value == NULL)
 		{
 			if (block.type == SOLID)
-				block.opacLight = 15;
+				block.opacLight = MAXLIGHT;
 		}
 		else block.opacLight = atoi(value);
 
@@ -809,7 +809,15 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 
 		/* blocks react to redstone update */
 		value = jsonValue(keys, "rsupdate");
-		block.rsupdate = value ? atoi(value) : 0;
+		if (value)
+		{
+			block.rsupdate = FindInList("RECEIVE,GENERATE", value, 0) + 1;
+			if (block.rsupdate == 0)
+			{
+				SIT_Log(SIT_ERROR, "%s: unknown rsupdate value '%s' specified on line %d", file, value, line);
+				return False;
+			}
+		}
 
 		/* types of particles emitted continuously */
 		value = jsonValue(keys, "particle");
@@ -902,10 +910,12 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 			}
 		}
 
+		/* rotate individually texture on 6 faces */
 		value = jsonValue(keys, "rotate");
 		if (value)
 			state.rotate = atoi(value);
 
+		/* grab inventory model */
 		if (block.invState > 0)
 		{
 			if (block.invState-1 == state.id)
@@ -931,6 +941,7 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 				state.inventory = inv == 0 ? 0 : block.category | (inv << 4);
 		}
 
+		/* list of quads to generate for a QUAD block */
 		value = jsonValue(keys, "quad");
 		if (value)
 		{
@@ -1148,6 +1159,7 @@ void blockParseConnectedTexture(void)
 	int   row = 32;
 	for (b = blockIds; b < EOT(blockIds); b ++)
 	{
+		/* while we are scanning blocks, also pre-parse block placement constaints */
 		if (b->placement > 0)
 		{
 			STRPTR fmt = strchr(b->name, 0) + 1;
@@ -1201,6 +1213,7 @@ void blockParseConnectedTexture(void)
 		/* extra flags are not needed at the block level anymore */
 		b->special &= 31;
 
+		/* gather connected txture info (texture will be generated in blockPostProcessTexture) */
 		while ((state->id >> 4) == b->id)
 		{
 			state->rotate |= CNXTEX;
@@ -1248,7 +1261,7 @@ void blockParseConnectedTexture(void)
 
 /*
  * generate models for blocks/item that will be displayed in inventory: they are
- * somewhat similar to normal blocks/blockModels, but all models will be rendered
+ * somewhat similar to normal block models, but all models will be rendered
  * using an othogonal projection.
  */
 static int blockInvModelCube(DATA16 ret, BlockState b, DATA8 texCoord)
