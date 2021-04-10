@@ -459,10 +459,12 @@ DATA8 NBT_Copy(DATA8 mem)
 	if (mem == NULL) return NULL;
 
 	/* count bytes first */
-	for (size = 0; mem[size]; size += ((NBTHdr)mem)->size);
+	for (size = 0; mem[size]; size += ((NBTHdr)(mem+size))->size);
 
-	dup = malloc(size);
+	dup = malloc(size+1);
+	if (! dup) return NULL;
 	memcpy(dup, mem, size);
+	dup[size] = TAG_End;
 	return dup;
 }
 

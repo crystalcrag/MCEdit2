@@ -30,7 +30,6 @@ ChunkData chunkCreateEmpty(Chunk, int layer);
 DATA8     chunkGetTileEntity(Chunk, int * XYZ);
 DATA8     chunkDeleteTileEntity(Chunk, int * XYZ);
 Bool      chunkAddTileEntity(Chunk, int * XYZ, DATA8 mem);
-Bool      chunkCopyTileEntity(Chunk, DATA8 nbtToCopy, vec4 pos);
 Bool      chunkUpdateNBT(Chunk, int blockOffset, NBTFile nbt);
 void      chunkUpdateTilePosition(Chunk, int * XYZ, DATA8 tile);
 void      chunkMarkForUpdate(Chunk);

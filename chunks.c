@@ -357,48 +357,6 @@ void chunkMarkForUpdate(Chunk c)
 	c->cflags |= CFLAG_MARKMODIF;
 }
 
-/* copy entire tile entity, but change its position */
-Bool chunkCopyTileEntity(Chunk chunk, DATA8 nbt, vec4 pos)
-{
-	NBTIter_t iter;
-	DATA8     dup;
-	int       off, X, Y, Z;
-
-	/* tag compound: need to get its size and update X, Y, Z tag */
-	NBT_IterCompound(&iter, nbt);
-	X = Y = Z = -1;
-	while ((off = NBT_Iter(&iter)) >= 0)
-	{
-		if (iter.name[1] == 0)
-		switch (iter.name[0]) {
-		case 'X': case 'x': X = off; break;
-		case 'Y': case 'y': Y = off; break;
-		case 'Z': case 'z': Z = off;
-		}
-	}
-
-	dup = malloc(iter.offset);
-	if (dup)
-	{
-		NBTFile_t file  = {.mem = dup};
-		int       XYZ[] = {pos[0] - chunk->X, pos[1], pos[2] - chunk->Z};
-
-		memcpy(dup, nbt, iter.offset);
-		NBT_SetFloat(&file, X, pos,   1);
-		NBT_SetFloat(&file, Y, pos+1, 1);
-		NBT_SetFloat(&file, Z, pos+2, 1);
-
-		if (chunkAddTileEntity(chunk, XYZ, dup))
-		{
-			if ((chunk->cflags & CFLAG_MARKMODIF) == 0)
-				chunkMarkForUpdate(chunk);
-			return True;
-		}
-		free(dup);
-	}
-	return False;
-}
-
 /* insert <nbt> fragment at the location of tile entity pointed by <blockOffset> (ie: coord of tile entity within chunk) */
 Bool chunkUpdateNBT(Chunk c, int blockOffset, NBTFile nbt)
 {

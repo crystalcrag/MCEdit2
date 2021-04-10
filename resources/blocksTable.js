@@ -563,7 +563,7 @@
 		{state: 6, name: "+top, south",    tex: [4, 0, 4, 0, 4, 0, 4, 0, 4, 0, 4, 0]},
 		{state: 7, name: "+top, north",    tex: [4, 0, 4, 0, 4, 0, 4, 0, 4, 0, 4, 0]},
 
-	{id: 54, name: "Chest", type: CUST, special: CHEST, inv: MODEL, bbox: FULL, invState: 3, cat: DECO, orient: SENW},
+	{id: 54, name: "Chest", type: CUST, special: CHEST, inv: MODEL, bbox: FULL, invState: 3, cat: DECO, tile: 1, orient: SENW},
 		{state: 0, tex: [17, 3,17, 3,18, 3,17, 3], model: [
 			319+BHDR_INCFACEID,14,14,14,1,0,1,0,0,0,0,0,0,24896,33104,33120,24912,24896,33104,33120,24912,24912,33120,33136,24928,24896,
 				33104,33120,24912,24880,33088,33104,24896,24880,33088,33104,24896,
@@ -582,8 +582,7 @@
 		{state: 4, name: "+west",  tex: [17, 3,17, 3,17, 3,18, 3], model: [SAME_AS, ID(54, 0), 1855]},
 		{state: 5, name: "+east",  tex: [17, 3,18, 3,17, 3,17, 3], model: [SAME_AS, ID(54, 0), 831]},
 
-	/* note: rsupdate must be 0 for this block, it will have special processing hardcoded */
-	{id: 55, name: "Redstone wire", type: CUST, special: RSWIRE, bboxPlayer: NONE, rswire: ALLDIR, particle: SMOKE, placement: "ground"},
+	{id: 55, name: "Redstone wire", type: CUST, special: RSWIRE, bboxPlayer: NONE, rswire: ALLDIR, particle: SMOKE, rsupdate: GENERATE, placement: "ground"},
 		{state: 0, tex: [26,35,26,35,26,35,26,35], model: [
 			272+BHDR_INCFACEID,3,0.1,4,6,0,12,0,0,0,0,0,0,88306,90358,90361,88309,
 			272+BHDR_INCFACEID,4,0.1,2,12,0,7,0,0,0,0,0,0,85747,86773,86777,85751,
@@ -1830,7 +1829,7 @@
 		{state:11, name: "-E/W", model: [SAME_AS, ID(145, 9)]},
 
 	/* minecraft 1.5 */
-	{id: 146, name: "Trapped chest", type: CUST, bbox: FULL, special: CHEST, inv: MODEL, invState: 3, cat: DECO, orient: SENW},
+	{id: 146, name: "Trapped chest", type: CUST, bbox: FULL, special: CHEST, inv: MODEL, invState: 3, tile: 1, cat: DECO, orient: SENW},
 		{state: 0, tex: [17, 6,17, 6,18, 6,17, 6], model: [
 			319+BHDR_INCFACEID,14,14,14,1,0,1,0,0,0,0,0,0,49520,57728,57744,49536,49520,57728,57744,49536,49536,57744,57760,49552,49520,57728,
 				57744,49536,49504,57712,57728,49520,49504,57712,57728,49520,
@@ -1970,7 +1969,7 @@
 		{state:14, name: "-14", model: [SAME_AS, ID(151, 0)]},
 		{state:15, name: "-15", model: [SAME_AS, ID(151, 0)]},
 
-	{id: 152, name: "Redstone block", type: SOLID, inv: CUBE, cat: REDSTONE, rswire: ALLDIR},
+	{id: 152, name: "Redstone block", type: SOLID, inv: CUBE, cat: REDSTONE, rswire: ALLDIR, rsupdate: GENERATE},
 		{state: 0, tex: [14,11,14,11,14,11,14,11,14,11,14,11]},
 
 	{id: 153, name: "Quartz ore", type: SOLID, inv: CUBE, cat: BUILD},

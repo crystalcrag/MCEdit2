@@ -14,7 +14,7 @@
 
 /* from mapUpdate.c */
 extern int8_t xoff[], yoff[], zoff[];
-static int8_t relx[], rely[], relz[];
+static int8_t relx[], rely[], relz[], opp[];
 
 /* check if a signal (torch or wire) can go through a repeater from <side> */
 static int redstoneConnectToRepeater(int side, int blockId)
@@ -94,6 +94,10 @@ int redstoneConnectTo(struct BlockIter_t iter, RSWire connectTo)
 				cnx.signal = MAXSIGNAL+1;
 				if (redstoneConnectToRepeater(i, cnx.data))
 					*list++ = cnx;
+				break;
+			default:
+				if (blockIds[cnx.blockId].rsupdate == 1)
+					cnx.signal = RSUPDATE, *list ++ = cnx;
 			}
 		}
 		/* check on top */
@@ -127,18 +131,22 @@ int redstoneConnectTo(struct BlockIter_t iter, RSWire connectTo)
 			list->pow = POW_VERYWEAK;
 		list ++;
 		break;
-	case RSWIRE: /* which block a rs wire will update if its signal change */
 
+	case RSWIRE: /* which block a rs wire will update if its signal change */
 		id = getBlockId(&iter);
 		/* first: check on the side S, E, N, W */
-		for (i = 0; i < 4; i ++)
+		for (i = 0, flags = 0; i < 4; i ++)
 		{
 			struct RSWire_t cnx = {.dx = relx[i], .dz = relz[i]};
 			mapIter(&iter, xoff[i], 0, zoff[i]);
 			blockSide[i] = id = getBlockId(&iter);
 			cnx.blockId = id >> 4;
+			cnx.data = id & 15;
 			if (redstoneConnectToBlock(&cnx, i, id))
-				*list++ = cnx, flags |= 1 << i;
+			{
+				*list++ = cnx;
+				flags |= 1 << i;
+			}
 		}
 		/* next: check on bottom */
 		mapIter(&iter, 1, -1, 0);
@@ -158,9 +166,9 @@ int redstoneConnectTo(struct BlockIter_t iter, RSWire connectTo)
 				mapIter(&iter, xoff[i], 0, zoff[i]);
 				id = getBlockId(&iter);
 				cnx.blockId = id >> 4;
-				if (redstoneIsBlocking(blockSide[i]) == 0 && cnx.blockId == RSWIRE)
+				cnx.data = cnx.signal = id & 15;
+				if (cnx.blockId == RSWIRE && redstoneIsBlocking(blockSide[i]) == 0)
 				{
-					cnx.signal = cnx.data;
 					*list++ = cnx;
 					flags |= 1 << i;
 				}
@@ -176,9 +184,9 @@ int redstoneConnectTo(struct BlockIter_t iter, RSWire connectTo)
 				mapIter(&iter, xoff[i], 0, zoff[i]);
 				id = getBlockId(&iter);
 				cnx.blockId = id >> 4;
-				if (redstoneIsBlocking(blockSide[i]) == 0 && cnx.blockId == RSWIRE)
+				cnx.data = cnx.signal = id & 15;
+				if (cnx.blockId == RSWIRE && redstoneIsBlocking(blockSide[i]) == 0)
 				{
-					cnx.signal = cnx.data;
 					*list++ = cnx;
 					flags |= 1 << i;
 				}
@@ -198,6 +206,29 @@ int redstoneConnectTo(struct BlockIter_t iter, RSWire connectTo)
 				if (b->type != SOLID)
 					cnx.pow = POW_VERYWEAK;
 				*list++ = cnx;
+			}
+		}
+		break;
+
+	case RSBLOCK:
+		for (i = 0; i < 6; i ++)
+		{
+			struct RSWire_t cnx = {.dx = relx[i], .dy = rely[i], .dz = relz[i], .pow = POW_WEAK, .signal = MAXSIGNAL};
+			mapIter(&iter, xoff[i], yoff[i], zoff[i]);
+			id = getBlockId(&iter);
+			cnx.blockId = id >> 4;
+			cnx.data = id & 15;
+			switch (cnx.blockId) {
+			case RSWIRE:
+				*list++ = cnx;
+				break;
+			case RSREPEATER_OFF:
+				if (redstoneConnectToRepeater(i, cnx.data))
+					*list++ = cnx;
+				break;
+			default:
+				if (blockIds[cnx.blockId].rsupdate == 1)
+					cnx.signal = RSUPDATE, *list ++ = cnx;
 			}
 		}
 	}
@@ -244,6 +275,7 @@ int redstoneSignalStrength(struct BlockIter_t iter, Bool dirty)
 		}
 		else return getBlockId(&iter) & 15;
 		break;
+	case RSBLOCK:
 	case RSTORCH_ON:
 	case RSREPEATER_ON: return MAXSIGNAL+1;
 	default: return 0;
@@ -253,6 +285,7 @@ int redstoneSignalStrength(struct BlockIter_t iter, Bool dirty)
 /* check if block need adjustment according to power level and direction */
 int redstonePowerAdjust(int blockId, int side, int power)
 {
+	static uint8_t repeaterFrom[] = {0,3,2,1};
 	Block b = &blockIds[blockId >> 4];
 
 	switch (b->id) {
@@ -266,28 +299,28 @@ int redstonePowerAdjust(int blockId, int side, int power)
 		}
 		break;
 	case RSTORCH_ON:
-		if (power >= POW_WEAK)
+		if (power >= POW_WEAK && blockIsAttached(blockId, opp[side]))
 		{
 			uint8_t data = blockId & 15;
 			return ID(RSTORCH_OFF, data) | TICK_DELAY(1);
 		}
 		break;
 	case RSTORCH_OFF:
-		if (power < POW_WEAK)
+		if (power < POW_WEAK && blockIsAttached(blockId, opp[side]))
 		{
 			uint8_t data = blockId & 15;
 			return ID(RSTORCH_ON, data) | TICK_DELAY(1);
 		}
 		break;
 	case RSREPEATER_OFF:
-		if (power >= POW_WEAK)
+		if (power >= POW_WEAK && repeaterFrom[blockId&3] == side)
 		{
 			uint8_t data = blockId & 15;
 			return ID(RSREPEATER_ON, data) | TICK_DELAY(redstoneRepeaterDelay(data));
 		}
 		break;
 	case RSREPEATER_ON:
-		if (power < POW_WEAK)
+		if (power < POW_WEAK && repeaterFrom[blockId&3] == side)
 		{
 			uint8_t data = blockId & 15;
 			return ID(RSREPEATER_OFF, data) | TICK_DELAY(redstoneRepeaterDelay(data));
@@ -362,11 +395,15 @@ int redstoneIsPowered(struct BlockIter_t iter, int side, int minPower)
 				return POW_STRONG;
 		}
 		else switch (id) {
+		case RSBLOCK:
+			if (pow < POW_WEAK)
+				pow = POW_WEAK;
+			break;
 		case RSWIRE:
 			if (minPower <= POW_WEAK)
 			{
 				/* argh, need to check connectivity */
-				if (data == 0 || i == SIDE_BOTTOM) return POW_NONE;
+				if (data == 0 || i == SIDE_BOTTOM) continue;
 				id = redstoneIsWirePowering(&iter, i);
 				if (id > pow) pow = id;
 			}
@@ -374,10 +411,9 @@ int redstoneIsPowered(struct BlockIter_t iter, int side, int minPower)
 		case RSREPEATER_ON:
 			if (facingRepeater[data] == i) return POW_STRONG;
 			break;
-
 		case RSTORCH_ON:
 			if (i == SIDE_TOP && pow == 0) pow = POW_VERYWEAK;
-			else return POW_STRONG;
+			else if (i == SIDE_BOTTOM) return POW_STRONG;
 		}
 	}
 	return pow;

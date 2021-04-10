@@ -280,9 +280,6 @@ void mceditWorld(void)
 		while (SDL_PollEvent(&event))
 		{
 			switch (event.type) {
-			//case SDL_ACTIVEEVENT:
-			//	fprintf(stderr, "focus = %s\n", SDL_GetAppState() & SDL_APPINPUTFOCUS ? "yes" : "no");
-			//	break;
 			case SDL_KEYDOWN:
 				switch (event.key.keysym.sym) {
 				case SDLK_LALT:
@@ -531,17 +528,13 @@ void mceditDoAction(int action)
 			else        tile = NBT_Copy(tile);
 			/* bed need extra data :-/ */
 			block &= 0xfff;
+
 			/*
-			 * udpdate the map and all the tables associated
+			 * udpdate the map and all the tables associated, will also trigger cascading updates
+			 * if needed
 			 */
 			mapUpdate(mcedit.level, pos, block, tile, True);
 			renderAddModif();
-
-			if (item->extra && blockIds[block>>4].tileEntity)
-			{
-				/* copy tile entity */
-				chunkCopyTileEntity(sel->chunk, item->extra, pos);
-			}
 		}
 		break;
 	case ACTION_ACTIVATE:
@@ -562,6 +555,11 @@ void mceditUIOverlay(void)
 	int       itemConnect;
 	vec4      pos;
 
+	if (mcedit.forceSel)
+	{
+		mcedit.forceSel = 0;
+		renderShowBlockInfo(False, DEBUG_SELECTION);
+	}
 	mcuiTakeSnapshot(mcedit.app, mcedit.width, mcedit.height);
 	memcpy(oldPlayerInv, mcedit.player.inventory.items, sizeof oldPlayerInv);
 	MapExtraData sel = renderGetSelectedBlock(pos, NULL);
@@ -704,7 +702,7 @@ void mceditUIOverlay(void)
 	NBTFile_t playerInv = {0};
 
 	if (itemCount > 0 && memcmp(item, item + itemCount, itemCount * sizeof *item))
-		/* changes were made */
+		/* changes were made to container */
 		mapSerializeItems(sel, "Items", item, itemCount, &chest);
 
 	if (mcedit.player.mode == MODE_CREATIVE && memcmp(oldPlayerInv, mcedit.player.inventory.items, sizeof oldPlayerInv))
@@ -719,8 +717,10 @@ void mceditUIOverlay(void)
 
 	if (playerInv.mem)
 	{
-		NBT_Insert(&mcedit.level->levelDat, "Player.Inventory", TAG_List_Compound, &playerInv);
+		int offset = NBT_Insert(&mcedit.level->levelDat, "Player.Inventory", TAG_List_Compound, &playerInv);
 		NBT_Free(&playerInv);
+		if (offset >= 0)
+			mapDecodeItems(mcedit.player.inventory.items, MAXCOLINV, NBT_Hdr(&mcedit.level->levelDat, offset));
 	}
 
 	exit:

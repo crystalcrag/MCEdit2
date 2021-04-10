@@ -772,7 +772,7 @@ static void mapUpdateAddRSUpdate(BlockIter iterator, RSWire cnx)
 	mapIter(&iter, cnx->dx, cnx->dy, cnx->dz);
 //	printCoord("checking update at", &iter);
 	Block b = &blockIds[iter.blockIds[iter.offset]];
-	if (b->rsupdate)
+	if (b->rsupdate && b->id != RSWIRE)
 		trackAddUpdate(&iter, 0xffff);
 
 	/* only check the where the update is, if power is very weak */
@@ -782,7 +782,7 @@ static void mapUpdateAddRSUpdate(BlockIter iterator, RSWire cnx)
 		/* we cannot perform the update yet, we need the signal to be updated all the way :-/ */
 		mapIter(&iter, xoff[i], yoff[i], zoff[i]);
 		Block b = &blockIds[iter.blockIds[iter.offset]];
-		if (b->rsupdate)
+		if (b->rsupdate && b->id != RSWIRE)
 			trackAddUpdate(&iter, 0xffff);
 	}
 }
@@ -800,7 +800,7 @@ static void mapUpdatePropagateSignal(BlockIter iterator)
 	track.unique = False;
 	signal = redstoneSignalStrength(*iterator, True);
 	count = redstoneConnectTo(*iterator, connectTo);
-	if (signal <= MAXSIGNAL)
+	if (iterator->blockIds[iterator->offset] == RSWIRE)
 		mapUpdateTable(iterator, signal, DATA_OFFSET);
 
 	for (i = 0; i < count; i ++)
@@ -1004,6 +1004,11 @@ static void mapUpdateChangeRedstone(Map map, BlockIter iterator, int power, int 
 		flags = 127 ^ (1 << (opp[side]+1));
 		count = 6;
 	}
+	else if (b->orientHint == ORIENT_LEVER)
+	{
+		flags = 63 << 1;
+		count = 6;
+	}
 	else
 	{
 		flags = 1;
@@ -1177,6 +1182,8 @@ static int mapUpdateIfPowered(Map map, BlockIter iterator, int oldId, int blockI
 		}
 		break;
 	case RSWIRE:
+		if (init)
+			iterator->blockIds[iterator->offset] = blockId >> 4;
 		return ID(RSWIRE, redstoneSignalStrength(*iterator, True));
 	default:
 		switch (b->special) {
@@ -1349,7 +1356,7 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, Bool blockUpdate)
 	if (b->type != blockIds[oldId>>4].type)
 		mapUpdateDeleteRedstone(map, &iter, oldId);
 
-	if (b->rsupdate || (blockId >> 4) == RSWIRE)
+	if (b->rsupdate)
 	{
 		/* change block based on power level: will prevent unnecessary updates */
 		blockId = mapUpdateIfPowered(map, &iter, oldId, blockId, True);
@@ -1393,6 +1400,7 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, Bool blockUpdate)
 		{
 			/* buttons & lever */
 			static uint8_t attached[] = {SIDE_TOP, SIDE_WEST, SIDE_EAST, SIDE_NORTH, SIDE_SOUTH, SIDE_BOTTOM, SIDE_BOTTOM, SIDE_TOP};
+			mapUpdateChangeRedstone(map, &iter, blockId & 8 ? POW_WEAK   : POW_NONE, RSSAMEBLOCK, NULL);
 			mapUpdateChangeRedstone(map, &iter, blockId & 8 ? POW_STRONG : POW_NONE, attached[blockId&7], NULL);
 		}
 		else mapUpdatePropagateSignal(&iter);
@@ -1406,6 +1414,7 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, Bool blockUpdate)
 	if (oldTile)
 	{
 		if (blockIds[oldId >> 4].special == BLOCK_SIGN)
+			/* remove off-screen bitmap */
 			signDel(oldTile);
 
 		if ((iter.ref->cflags & CFLAG_MARKMODIF) == 0)
@@ -1417,6 +1426,8 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, Bool blockUpdate)
 		/* update position */
 		chunkUpdateTilePosition(iter.ref, XYZ, tile);
 		chunkAddTileEntity(iter.ref, XYZ, tile);
+		if ((iter.ref->cflags & CFLAG_MARKMODIF) == 0)
+			chunkMarkForUpdate(iter.ref);
 	}
 
 	/* trigger a block update, it might call mapUpdate recursively */
