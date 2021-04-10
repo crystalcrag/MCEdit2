@@ -11,4 +11,10 @@ Why 1.12 ? Because later versions have some significant changes behind the scene
 
 As of now, only Windows is supported, even though there are no major road blocks as long as those dependencies are available on your platform (which probably excludes Mac OS X, due to its poor OpenGL support). SITGL only supports Windows for now and is a fairly large dependency. This code base should be much more portable.
 
-
+# Supported features
+* **voxel editing**: remove/add block one by one or affect whole region at once.
+* **sub-block precision**: can generate voxel of less than one full block (ie: vertical/horizontal slab), works like the chisel tool of TerraFirmaCraft.
+* **Dynamic lighting**: SkyLight and BlockLight tables updates according to block properties (absortion and emission).
+* **Redstone**: most of redstone devices are supported (torch, repeater, comparator, wire, piston and slime block).
+* **Dynamic skydome**: night/day cycle kind of works.
+* **edit inventories**: chest, furnace, player, ender chest, even sign can be edited. Care has be given to make all interfaces as close as possible to Minecraft.
