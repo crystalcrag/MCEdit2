@@ -10,15 +10,25 @@
 #include <stddef.h>
 #include <string.h>
 #include <math.h>
-#include "maps.h"
 #include "NBT2.h"
+#include "mapUpdate.h"
 #include "blocks.h"
 #include "blockUpdate.h"
 #include "redstone.h"
 
 extern int8_t normals[]; /* from render.c */
 extern double curTime;
+extern int8_t xoff[], yoff[], zoff[]; /* from mapUpdate.c */
 static struct UpdatePrivate_t updates;
+
+static int8_t railsNeigbors[] = { /* find the potential 2 neighbors of a rail based on data table */
+	0, 0, 1, SIDE_SOUTH,   0, 0,-1, SIDE_NORTH,      /* N/S */
+	1, 0, 0, SIDE_EAST,   -1, 0, 0, SIDE_WEST,       /* E/W */
+	1, 1, 0, SIDE_EAST,   -1, 0, 0, SIDE_WEST,       /* ASCE */
+	1, 0, 0, SIDE_EAST,   -1, 1, 0, SIDE_WEST,       /* ASCW */
+	0, 1,-1, SIDE_NORTH,   0, 0, 1, SIDE_SOUTH,      /* ASCN */
+	0, 1, 1, SIDE_SOUTH,   0, 0,-1, SIDE_NORTH,      /* ASCS */
+};
 
 static void mapSetData(Map map, vec4 pos, int data)
 {
@@ -33,9 +43,6 @@ static void mapSetData(Map map, vec4 pos, int data)
 
 static void mapGetNeigbors(Map map, vec4 pos, DATA16 neighbors, int max)
 {
-	static int8_t xoff[] = {0,  1, -1, -1, 1,  0};
-	static int8_t yoff[] = {0,  0,  0,  0, 1, -2};
-	static int8_t zoff[] = {1, -1, -1,  1, 0,  0};
 
 	struct BlockIter_t iter;
 	int i;
@@ -334,6 +341,115 @@ Bool mapUpdateBlock(Map map, vec4 pos, int blockId, int oldBlockId, DATA8 tile)
 	return ret;
 }
 
+static void mapUpdateRailsChain(Map map, BlockIter iter, int id, int offset, int powered)
+{
+	uint8_t power = powered;
+	uint8_t max;
+	for (max = 0; max < RSMAXDISTRAIL; max ++)
+	{
+		int8_t * next = railsNeigbors + (id & 7) * 8 + offset;
+		mapUpdateTable(iter, power ? (id&15) | 8 : id & ~0xffff8, DATA_OFFSET);
+		mapIter(iter, next[0], next[1], next[2]);
+		id = getBlockId(iter);
+		if ((id >> 4) != RSPOWERRAILS)
+		{
+			/* check one block below: might be an ascending rail */
+			static uint8_t sideTop[] = {0xff, 0xff, SIDE_WEST, SIDE_EAST, SIDE_SOUTH, SIDE_NORTH, 0xff, 0xff};
+			mapIter(iter, 0, -1, 0);
+			id = getBlockId(iter);
+			if ((id >> 4) != RSPOWERRAILS)
+				break;
+			if (sideTop[id&7] != next[3])
+				/* not connected to previous rail */
+				break;
+		}
+		if ((id&8) == power)
+			break;
+		if (power == 0)
+		{
+			/* stop if there is a power source nearby */
+			uint8_t i;
+			for (i = 0; i < 6; i ++)
+			{
+				if (redstoneIsPowered(*iter, i, POW_NORMAL))
+				{
+					/* need to propagate the power from there now */
+					max = -1; power = 8; powered = 1;
+					break;
+				}
+			}
+		}
+	}
+	if (power == 0 && (id >> 4) == RSPOWERRAILS && (id&15) >= 8)
+	{
+		/* we ended up at a rail being powered when unpowering the chain: we might have unpowered too many rails */
+		for (max = 0; max < RSMAXDISTRAIL; max ++)
+		{
+			/* continue following the chain until we find the power source */
+			int8_t * next = railsNeigbors + (id & 7) * 8 + offset;
+			mapIter(iter, next[0], next[1], next[2]);
+			id = getBlockId(iter);
+			if ((id >> 4) == RSPOWERRAILS && (id&15) >= 8)
+			{
+				uint8_t i;
+				for (i = 0; i < 6 && ! redstoneIsPowered(*iter, i, POW_NORMAL); i ++);
+				if (i < 6) { mapUpdateRailsChain(map, iter, id, 4-offset, 4); break; }
+			}
+			else break;
+		}
+	}
+}
+
+/* power near a power rails has changed, update everything connected */
+void mapUpdatePowerRails(Map map, BlockIter iterator)
+{
+	struct BlockIter_t iter = *iterator;
+
+	int id = getBlockId(&iter), i;
+	for (i = 0; i < 6 && ! redstoneIsPowered(iter, i, POW_NORMAL); i ++);
+
+	if ((id & 15) < 8)
+	{
+		if (i == 6) return;
+		/* rails not powered, but has a power source nearby: update neighbor */
+		iter = *iterator; mapUpdateRailsChain(map, &iter, id, 0, 8);
+		iter = *iterator; mapUpdateRailsChain(map, &iter, id, 4, 8);
+	}
+	else if (i == 6)
+	{
+		/* rails powered with no power source nearby */
+		iter = *iterator; mapUpdateRailsChain(map, &iter, id, 0, 0);
+		iter = *iterator; mapUpdateRailsChain(map, &iter, id, 4, 0);
+	}
+}
+
+/* power near fence gate/trapdoor/dropper/dispenser has changed */
+int mapUpdateGate(BlockIter iterator, int id, Bool init)
+{
+	/* trapdoor and fence gate have sligtly different data value */
+	uint8_t flag, powered, i;
+	for (i = 0; i < 6 && ! redstoneIsPowered(*iterator, i, POW_NORMAL); i ++);
+	switch (blockIds[id>>4].special) {
+	case BLOCK_TRAPDOOR:  flag = 4;  powered = id & 4; break;
+	case BLOCK_FENCEGATE: flag = 12; powered = id & 8; break;
+	default:              flag = 8;  powered = id & 8; break;
+	}
+	if (powered == 0)
+	{
+		if (i == 6) return id;
+		/* gate closed, but has a power source nearby */
+		if (init) return id | flag;
+		else mapUpdateTable(iterator, (id | flag) & 15, DATA_OFFSET);
+	}
+	else if (i == 6)
+	{
+		/* gate powered/opened, without power source */
+		if (init) return id & ~flag; /* cut power and close gate */
+		else mapUpdateTable(iterator, (id & ~flag) & 15, DATA_OFFSET);
+	}
+	return id;
+}
+
 /* return the activated state of <blockId>, but does not modify any tables */
 int mapActivateBlock(BlockIter iter, vec4 pos, int blockId)
 {
@@ -368,7 +484,7 @@ int mapActivateBlock(BlockIter iter, vec4 pos, int blockId)
 		 * bit4: bottom
 		 */
 		// no break;
-	case BLOCK_FENCE|BLOCK_NOCONNECT: /* fence gate */
+	case BLOCK_FENCEGATE:
 		return blockId ^ 4;
 	default:
 		switch (FindInList("unpowered_repeater,powered_repeater,cake,lever,stone_button,wooden_button,cocoa_beans", b->tech, 0)) {

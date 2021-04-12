@@ -12,10 +12,16 @@ Why 1.12 ? Because later versions have some significant changes behind the scene
 As of now, only Windows is supported, even though there are no major road blocks as long as those dependencies are available on your platform (which probably excludes Mac OS X, due to its poor OpenGL support). SITGL only supports Windows for now and is a fairly large dependency. This code base should be much more portable.
 
 # Supported features
-* **Voxel editing**: remove/add block one by one or affect whole region at once.
+* **Voxel editing**: remove/add block one by one or affect whole region at once. Most of the 252 block types of Minecraft 1.12 are implemented.
 * **Sub-block precision**: can generate voxel of less than one full block (ie: vertical/horizontal slab), works like the chisel tool of TerraFirmaCraft.
-* **Dynamic lighting**: SkyLight and BlockLight tables updates according to block properties (absortion and emission).
+* **Dynamic lighting**: SkyLight and BlockLight tables update according to block properties (absortion and emission).
 * **Redstone**: most of redstone devices are supported (torch, repeater, comparator, wire, piston, rails and slime block).
 * **Minecart mechanics**: although compatibility with Minecraft is, at best, close enough.
 * **Dynamic skydome**: night/day cycle kind of works, but only manually (use F5/F6 key to cycle).
 * **edit inventories**: chest, furnace, dropper, player, ender chest, even sign can be edited. Care has be given to make all interfaces as close as possible to Minecraft.
+
+# Missing features
+* **entity/mobs**: they don't have any AI, they are just stationnary.
+* **random tick update**: not implemented on purpose, consider the world being frozen in time (unless triggered by an user action). That means no leave decay, no mob spawing, no crops growing, no trees poping...
+* **missing blocks**: banner, chorus plant (support is very basic), trip wire mechanic (there are rendered though), noteblock, command blocks.
+* **terrain generation**: mimicking exactly what Minecraft does is way too much work, even though the engine easily supports custom terrain generators (check doc/internals.html).

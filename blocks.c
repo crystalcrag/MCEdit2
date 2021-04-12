@@ -85,6 +85,15 @@ static float bboxModels[] = {
 	  61+BHDR_INCFACEID, 4.5,1,7.0,  0,  0, 4.5,
 };
 
+/* convert some common block data into SIDE_* enum */
+struct BlockSides_t blockSides = {
+	.repeater = {SIDE_SOUTH,  SIDE_WEST, SIDE_NORTH, SIDE_EAST},
+	.torch    = {SIDE_TOP,    SIDE_WEST, SIDE_EAST,  SIDE_NORTH, SIDE_SOUTH, SIDE_TOP,  SIDE_NONE, SIDE_NONE},
+	.lever    = {SIDE_BOTTOM, SIDE_WEST, SIDE_EAST,  SIDE_NORTH, SIDE_SOUTH, SIDE_TOP,  SIDE_TOP,  SIDE_BOTTOM},
+	.sign     = {SIDE_NONE,   SIDE_NONE, SIDE_SOUTH, SIDE_NORTH, SIDE_EAST,  SIDE_WEST, SIDE_NONE, SIDE_NONE},
+	.SWNE     = {SIDE_SOUTH,  SIDE_WEST, SIDE_NORTH, SIDE_EAST},
+};
+
 /* keep static strings into some chained memory blocks */
 STRPTR stringAddPool(STRPTR string, int extra)
 {
@@ -693,7 +702,7 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 				int flag = FindInList(
 					"NORMAL,CHEST,DOOR,NOSIDE,HALF,STAIRS,GLASS,FENCE,FENCE2,"
 					"WALL,RSWIRE,LEAVES,LIQUID,DOOR_TOP,TALLFLOWER,RAILS,TRAPDOOR,"
-					"SIGN,NOCONNECT,CNXTEX", value, 0
+					"SIGN,PLATE,NOCONNECT,CNXTEX", value, 0
 				);
 				if (flag < 0)
 				{
@@ -811,7 +820,7 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 		value = jsonValue(keys, "rsupdate");
 		if (value)
 		{
-			block.rsupdate = FindInList("RECEIVE,GENERATE", value, 0) + 1;
+			block.rsupdate = FindInList("RECEIVE,GENERATE,INOUT", value, 0) + 1;
 			if (block.rsupdate == 0)
 			{
 				SIT_Log(SIT_ERROR, "%s: unknown rsupdate value '%s' specified on line %d", file, value, line);
@@ -2144,7 +2153,7 @@ static Bool blockCanBePlacedOnGround(Block b)
 /* auto-adjust orient of blocks based on direction/face being pointed */
 int blockAdjustOrient(int blockId, BlockOrient info, vec4 inter)
 {
-	/* in this engine 0 = south, 1 = east, 2 = north, 3 = west, 4 = up, 5 = down */
+	/* these tables will convert SIDE_* enum (info->side) into block data */
 	static uint8_t orientFull[]   = {3, 5, 2, 4, 1, 0};
 	static uint8_t orientTorch[]  = {3, 1, 4, 2};
 	static uint8_t orientLOG[]    = {8, 4, 8, 4, 0, 0};
@@ -2176,6 +2185,8 @@ int blockAdjustOrient(int blockId, BlockOrient info, vec4 inter)
 		if (blockCanBePlacedOnGround(b))
 			side = opposite[info->direction];
 		else
+			side = opposite[side];
+		if (b->special == BLOCK_FENCEGATE)
 			side = opposite[side];
 		return blockId + orientSWNE[side];
 	case ORIENT_SE:
@@ -2238,24 +2249,19 @@ int blockAdjustOrient(int blockId, BlockOrient info, vec4 inter)
 /* check if block <blockId> is attached to given side (SIDE_*) */
 Bool blockIsAttached(int blockId, int side)
 {
-	/* those tables are the converse of the ones in blockAdjustOrient() */
-	static uint8_t orientTorch[] = {SIDE_TOP, SIDE_WEST, SIDE_EAST, SIDE_NORTH, SIDE_SOUTH, SIDE_TOP, SIDE_TOP, SIDE_TOP};
-	static uint8_t orientLever[] = {SIDE_BOTTOM, SIDE_WEST, SIDE_EAST, SIDE_NORTH, SIDE_SOUTH, SIDE_TOP, SIDE_TOP, SIDE_BOTTOM};
-	static uint8_t orientSign[]  = {0, 0, SIDE_SOUTH, SIDE_NORTH, SIDE_EAST, SIDE_WEST};
-	static uint8_t orientSWNE[]  = {SIDE_SOUTH, SIDE_WEST, SIDE_NORTH, SIDE_EAST};
-
+	/* those tables will convert block data in SIDE_* enum */
 	Block b = &blockIds[blockId >> 4];
 
 	switch (b->orientHint) {
 	case ORIENT_TORCH:
-		return orientTorch[blockId&7] == side;
+		return blockSides.torch[blockId&7] == side;
 	case ORIENT_LEVER:
-		return orientLever[blockId&7] == side;
+		return blockSides.lever[blockId&7] == side;
 	case ORIENT_SWNE:
-		return orientSWNE[blockId&3] == side;
+		return blockSides.SWNE[blockId&3] == side;
 	default:
 		if (b->special == BLOCK_SIGN)
-			return orientSign[blockId&7] == side;
+			return blockSides.sign[blockId&7] == side;
 	}
 	return False;
 }

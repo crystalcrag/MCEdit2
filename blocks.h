@@ -95,6 +95,15 @@ struct BlockOrient_t       /* blockAdjustOffset() extra parameters */
 	float    yaw;
 };
 
+struct BlockSides_t        /* convert block data into SIDE_* enum */
+{
+	uint8_t torch[8];      /* side within the block it is attached */
+	uint8_t lever[8];      /* buttons and lever: where it is attached (within its block) */
+	uint8_t sign[8];       /* wall sign only */
+	uint8_t repeater[4];   /* side where power is coming from (to get where it is output to, XOR the value with 2) */
+	uint8_t SWNE[4];       /* generic orient */
+};
+
 struct VTXBBox_t           /* used to store custom bounding box */
 {
 	uint16_t pt1[3];       /* lowest coord of box */
@@ -133,11 +142,14 @@ enum                       /* values for Block_t.special */
 	BLOCK_RAILS,           /* check for connected rails */
 	BLOCK_TRAPDOOR,
 	BLOCK_SIGN,            /* need extra special processing for rendering */
+	BLOCK_PLATE,           /* pressure plate */
 	BLOCK_LASTSPEC,
 	BLOCK_BED,
 	BLOCK_CNXTEX    = 64,  /* relocate texture to connected texture row */
 	BLOCK_NOCONNECT = 128, /* SOLID blocks for which connected models should not connect or CUST that have no connected models */
 };
+
+#define BLOCK_FENCEGATE    (BLOCK_FENCE|BLOCK_NOCONNECT)
 
 enum                       /* possible values for block_t.particle */
 {
@@ -215,6 +227,7 @@ enum                       /* possible values for <side> parameter of blockIsSol
 #define blockGetById(id)          (blockStates + blockStateIndex[id])
 #define ID(id, data)              ((id)*16+(data))
 #define TYPE(block)               (block->type)
+#define SIDE_NONE                 0
 
 #define MAXSKY        15   /* maximum values for SkyLight table */
 #define MAXLIGHT      15   /* maximum value for light emitter */

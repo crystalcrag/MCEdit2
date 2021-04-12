@@ -300,32 +300,32 @@
 		{state:15, name: "-black",  model: [SAME_AS, ID(26, 3)]},
 
 	{id: 27, name: "Powered rail", type: QUAD, inv: ITEM2D, invState: 0, cat: RAILS, special: RAILS, orient: SE, rsupdate: RECEIVE, tech: "golden_rail", placement: "ground"},
-		{state: 0, name: "+OFF,N/S",          tex: [3, 10], quad: [BOTTOM]},
-		{state: 1, name: "+OFF,E/W",          tex: [3, 10], quad: [BOTTOM], rotate: 1},
-		{state: 2, name: "+OFF,A/E",          tex: [3, 10], quad: [ASCE]},
-		{state: 3, name: "+OFF,A/W",          tex: [3, 10], quad: [ASCW]},
-		{state: 4, name: "+OFF,A/N",          tex: [3, 10], quad: [ASCN]},
-		{state: 5, name: "+OFF,A/S",          tex: [3, 10], quad: [ASCS]},
-		{state: 8, name: "+ON,N/S",           tex: [3, 11], quad: [BOTTOM]},
-		{state: 9, name: "+ON,E/W",           tex: [3, 11], quad: [BOTTOM], rotate: 1},
-		{state:10, name: "+ON,A/E",           tex: [3, 11], quad: [ASCE]},
-		{state:11, name: "+ON,A/W",           tex: [3, 11], quad: [ASCW]},
-		{state:12, name: "+ON,A/N",           tex: [3, 11], quad: [ASCN]},
-		{state:13, name: "+ON,A/S",           tex: [3, 11], quad: [ASCS]},
+		{state: 0, name: "+OFF,N/S", tex: [3, 10], quad: [BOTTOM]},
+		{state: 1, name: "+OFF,E/W", tex: [3, 10], quad: [BOTTOM], rotate: 1},
+		{state: 2, name: "+OFF,A/E", tex: [3, 10], quad: [ASCE]},
+		{state: 3, name: "+OFF,A/W", tex: [3, 10], quad: [ASCW]},
+		{state: 4, name: "+OFF,A/N", tex: [3, 10], quad: [ASCN]},
+		{state: 5, name: "+OFF,A/S", tex: [3, 10], quad: [ASCS]},
+		{state: 8, name: "+ON,N/S",  tex: [3, 11], quad: [BOTTOM]},
+		{state: 9, name: "+ON,E/W",  tex: [3, 11], quad: [BOTTOM], rotate: 1},
+		{state:10, name: "+ON,A/E",  tex: [3, 11], quad: [ASCE]},
+		{state:11, name: "+ON,A/W",  tex: [3, 11], quad: [ASCW]},
+		{state:12, name: "+ON,A/N",  tex: [3, 11], quad: [ASCN]},
+		{state:13, name: "+ON,A/S",  tex: [3, 11], quad: [ASCS]},
 
 	{id: 28, name: "Detector rail", type: QUAD, inv: ITEM2D, cat: RAILS, special: RAILS, rswire: ALLDIR, invState: 0, orient: SE, placement: "ground"},
-		{state: 0, name: "+OFF,N/S",          tex: [ 3, 12], quad: [BOTTOM]},
-		{state: 1, name: "+OFF,E/W",          tex: [ 3, 12], quad: [BOTTOM], rotate: 1},
-		{state: 2, name: "+OFF,A/E",          tex: [ 3, 12], quad: [ASCE]},
-		{state: 3, name: "+OFF,A/W",          tex: [ 3, 12], quad: [ASCW]},
-		{state: 4, name: "+OFF,A/N",          tex: [ 3, 12], quad: [ASCN]},
-		{state: 5, name: "+OFF,A/S",          tex: [ 3, 12], quad: [ASCS]},
-		{state: 8, name: "+ON,N/S",           tex: [20,  3], quad: [BOTTOM]},
-		{state: 9, name: "+ON,E/W",           tex: [20,  3], quad: [BOTTOM], rotate: 1},
-		{state:10, name: "+ON,A/E",           tex: [20,  3], quad: [ASCE]},
-		{state:11, name: "+ON,A/W",           tex: [20,  3], quad: [ASCW]},
-		{state:12, name: "+ON,A/N",           tex: [20,  3], quad: [ASCN]},
-		{state:13, name: "+ON,A/S",           tex: [20,  3], quad: [ASCS]},
+		{state: 0, name: "+OFF,N/S", tex: [ 3, 12], quad: [BOTTOM]},
+		{state: 1, name: "+OFF,E/W", tex: [ 3, 12], quad: [BOTTOM], rotate: 1},
+		{state: 2, name: "+OFF,A/E", tex: [ 3, 12], quad: [ASCE]},
+		{state: 3, name: "+OFF,A/W", tex: [ 3, 12], quad: [ASCW]},
+		{state: 4, name: "+OFF,A/N", tex: [ 3, 12], quad: [ASCN]},
+		{state: 5, name: "+OFF,A/S", tex: [ 3, 12], quad: [ASCS]},
+		{state: 8, name: "+ON,N/S",  tex: [20,  3], quad: [BOTTOM]},
+		{state: 9, name: "+ON,E/W",  tex: [20,  3], quad: [BOTTOM], rotate: 1},
+		{state:10, name: "+ON,A/E",  tex: [20,  3], quad: [ASCE]},
+		{state:11, name: "+ON,A/W",  tex: [20,  3], quad: [ASCW]},
+		{state:12, name: "+ON,A/N",  tex: [20,  3], quad: [ASCN]},
+		{state:13, name: "+ON,A/S",  tex: [20,  3], quad: [ASCS]},
 
 	{id: 29, name: "Sticky piston", type: CUST, bbox: FULL, inv: CUBE, invState: 1, cat: REDSTONE, rsupdate: RECEIVE, special: NOCONNECT, orient: FULL},
 		{state: 0, name: "+down",  tex: [12, 6,12, 6,12, 6,12, 6,13, 6,10, 6, 170]},
@@ -501,7 +501,7 @@
 	{id: 45, name: "Clay bricks", type: SOLID, inv: CUBE, cat: BUILD, tech: "brick_block"},
 		{state: 0, tex: [7, 0, 7, 0, 7, 0, 7, 0, 7, 0, 7, 0]},
 
-	{id: 46, name: "TNT", type: SOLID, inv: CUBE, invState: 0, cat: REDSTONE},
+	{id: 46, name: "TNT", type: SOLID, inv: CUBE, invState: 0, cat: REDSTONE, rsupdate: RECEIVE},
 		{state: 0, name: "-",       tex: [8, 0, 8, 0, 8, 0, 8, 0, 9, 0,10, 0]},
 		{state: 1, name: "+primed", tex: [8, 0, 8, 0, 8, 0, 8, 0, 9, 0,10, 0]},
 
@@ -785,8 +785,8 @@
 		]},
 
 	{id: 70, name: "Stone pressure plate", type: CUST, bbox: MAX, bboxPlayer: NONE, inv: MODEL, cat: REDSTONE, rswire: ALLDIR,
-		placement: "ground", rsupdate: GENERATE, invmodel: [ /* a bit bigger */
-		191,16,1,16,0,0,0,0,0,0,0,0,0,16,8224,8240,32,16,8224,8240,32,16,8224,8240,32,16,8224,8240,32,16,8224,8240,32,16,8224,8240,32,16
+		placement: "ground", rsupdate: GENERATE, special: PLATE, invmodel: [ /* a bit bigger */
+			191,16,1,16,0,0,0,0,0,0,0,0,0,16,8224,8240,32,16,8224,8240,32,16,8224,8240,32,16,8224,8240,32,16,8224,8240,32,16,8224,8240,32,16
 		]},
 		{state: 0, name: "-", tex: [1, 0], model: [
 			31,14,1,14,1,0,1,0,0,0,0,0,0,7712,8225,8239,7726,544,7726,7727,545,17,530,544,31,529,7711,7712,530,530,7712,7726,544,
@@ -812,7 +812,7 @@
 		{state: 7, name: "+south, hinge east", model: [SAME_AS, ID(71, 4), 1599]},
 
 	{id: 72, name: "Wooden pressure plate", type: CUST, bbox: MAX, bboxPlayer: NONE, inv: MODEL, cat: REDSTONE, rswire: ALLDIR,
-		placement: "ground", rsupdate: GENERATE, invmodel: [ /* a bit bigger */
+		placement: "ground", rsupdate: GENERATE, special: PLATE, invmodel: [ /* a bit bigger */
 		191,16,1,16,0,0,0,0,0,0,0,0,0,64,8272,8288,80,64,8272,8288,80,64,8272,8288,80,64,8272,8288,80,64,8272,8288,80,64,8272,8288,80,
 		]},
 		{state: 0, name: "-", tex: [4, 0], model: [
@@ -1031,7 +1031,7 @@
 				57616,57648,65856,65872,57664,
 		]},
 
-	{id: 93, name: "Repeater", type: CUST, inv: NONE, bbox: MAX, rswire: FRONTBACK, tech: "unpowered_repeater", rsupdate: GENERATE, placement: "ground", orient: SWNE},
+	{id: 93, name: "Repeater", type: CUST, inv: NONE, bbox: MAX, rswire: FRONTBACK, tech: "unpowered_repeater", rsupdate: INOUT, placement: "ground", orient: SWNE},
 		{state: 0, name: "-(OFF, delay 1,_north)", tex: [3, 8, 3, 8, 3, 8, 3, 8, 3, 8], model: [
 			287,16,2,16,0,0,0,0,0,0,0,0,0,72894,73920,73936,72910,66754,65728,65712,66738,66754,65728,65712,66738,66754,65728,65712,66738,65712,73920,73936,65728,
 			287,2,5,2,7,2,2,0,0,0,0,0,0,60589,63154,63156,60591,60589,63154,63156,60591,60589,63154,63156,60591,60589,63154,63156,60591,60589,61615,61617,60591,
@@ -1066,7 +1066,7 @@
 		{state:15, name: "-west",  model: [SAME_AS, ID(93,12), 1823]},
 
 	{id: 94, name: "Repeater", type: CUST, inv: NONE, bbox: MAX, cat: REDSTONE, rswire: FRONTBACK, tech: "powered_repeater", particle: SMOKE, placement: "ground",
-		emitLight: 7, orient: SWNE, rsupdate: GENERATE},
+		emitLight: 7, orient: SWNE, rsupdate: INOUT},
 		{state: 0, name: "-(ON, delay 1,_north)", tex: [12,11,12,11,12,11,12,11,12,11], emit: [2, 5], model: [
 			287,16,2,16,0,0,0,0,0,0,0,0,0,72894,73920,73936,72910,66754,65728,65712,66738,66754,65728,65712,66738,66754,65728,65712,66738,73920,82128,82144,73936,
 			261,4,6,2,6,2,2,0,0,0,0,0,0,51867,54945,54949,51871,51867,54945,54949,51871,
@@ -1287,7 +1287,7 @@
 		{state:14, name: "+ENW",  tex: [15, 8], quad: [EAST, NORTH, WEST]},
 		{state:15, name: "+ENSW", tex: [15, 8], quad: [EAST, NORTH, SOUTH, WEST]},
 
-	{id: 107, name: "Fence gate", type: CUST, bbox: MAX, inv: MODEL, cat: REDSTONE, rsupdate: RECEIVE, orient: SE, special: FENCE|NOCONNECT, invmodel: [
+	{id: 107, name: "Fence gate", type: CUST, bbox: MAX, inv: MODEL, cat: REDSTONE, rsupdate: RECEIVE, orient: SWNE, special: FENCE|NOCONNECT, invmodel: [
 		447,2,11,2,0,3,7,0,0,0,0,0,0,64,8272,8288,80,64,8272,8288,80,64,8272,8288,80,64,8272,8288,80,64,8272,8288,80,64,8272,8288,80,
 		447,2,11,2,14,3,7,0,0,0,0,0,0,
 		437,12,3,2,2,10,7,0,0,0,0,0,0,
@@ -1848,7 +1848,7 @@
 		{state: 5, name: "+east",  tex: [17, 6,18, 6,17, 6,17, 6], model: [SAME_AS, ID(146, 0), 831]},
 
 	{id: 147, name: "Gold pressure plate", type: CUST, bbox: MAX, bboxPlayer: NONE, inv: MODEL, invState: 0, placement: "ground",
-		cat: REDSTONE, rswire: ALLDIR, rsupdate: GENERATE, tech: "light_weighted_pressure_plate"},
+		cat: REDSTONE, rswire: ALLDIR, rsupdate: GENERATE, special: PLATE, tech: "light_weighted_pressure_plate"},
 		{state: 0, tex: [7, 1, 7, 1, 7, 1, 7, 1], model: [
 			159,14,1,14,1,0,1,0,0,0,0,0,0,8320,16528,16544,8336,8320,16528,16544,8336,8320,16528,16544,8336,8320,16528,16544,8336,8320,16528,16544,8336,8320,16528,16544,8336,
 		]},
@@ -1871,7 +1871,7 @@
 		{state:15, name: "-15", model: [SAME_AS, ID(147, 1)]},
 
 	{id: 148, name: "Iron pressure plate", type: CUST, bbox: MAX, bboxPlayer: NONE, inv: MODEL, invState: 0, placement: "ground",
-		cat: REDSTONE, rswire: ALLDIR, rsupdate: GENERATE, tech: "heavy_weighted_pressure_plate"},
+		cat: REDSTONE, rswire: ALLDIR, rsupdate: GENERATE, special: PLATE, tech: "heavy_weighted_pressure_plate"},
 		{state: 0, tex: [6, 1, 6, 1, 6, 1, 6, 1], model: [
 			159,14,1,14,1,0,1,0,0,0,0,0,0,8304,16512,16528,8320,8304,16512,16528,8320,8304,16512,16528,8320,8304,16512,16528,8320,
 			106848,115056,115072,106864,8320,16528,16544,8336,
@@ -1895,7 +1895,7 @@
 		{state:14, name: "-14", model: [SAME_AS, ID(148, 1)]},
 		{state:15, name: "-15", model: [SAME_AS, ID(148, 1)]},
 
-	{id: 149, name: "Comparator", type: CUST, bbox: MAX, orient: SENW, placement: "ground", rswire: ALLDIR, tech: "unpowered_comparator", tile: 1},
+	{id: 149, name: "Comparator", type: CUST, bbox: MAX, orient: SENW, placement: "ground", rswire: ALLDIR, tech: "unpowered_comparator", rsupdate: INOUT, tile: 1},
 		{state: 0, name: "-(OFF,_north)", tex: [11,11,11,11,11,11,11,11], model: [
 			287,16,2,16,0,0,0,0,0,0,0,0,0,97646,98672,98688,97662,97646,98672,98688,97662,97646,98672,98688,97662,97646,98672,98688,97662,90464,98672,98688,90480,
 			287,2,2,2,7,2,2,0,0,0,0,0,0,60589,61615,61617,60591,60589,61615,61617,60591,60589,61615,61617,60591,60589,61615,61617,60591,60589,61615,61617,60591,
@@ -2326,7 +2326,7 @@
 		{state: 0, name: "+bottom+", tex: [2,20, 2,20, 2,20, 2,20, 4,20, 0,20]},
 		{state: 8, name: "+top",     tex: [2,20, 2,20, 2,20, 2,20, 4,20, 0,20]},
 
-	{id: 183, name: "Spruce fence gate", type: CUST, bbox: MAX, inv: MODEL, cat: REDSTONE, rsupdate: RECEIVE, orient: SE, special: FENCE|NOCONNECT, invmodel: [
+	{id: 183, name: "Spruce fence gate", type: CUST, bbox: MAX, inv: MODEL, cat: REDSTONE, rsupdate: RECEIVE, orient: SWNE, special: FENCE|NOCONNECT, invmodel: [
 		447,2,11,2,0,3,7,0,0,0,0,0,0,98592,106800,106816,98608,98592,106800,106816,98608,98592,106800,106816,98608,98592,106800,106816,
 			98608,98592,106800,106816,98608,98592,106800,106816,98608,
 		447,2,11,2,14,3,7,0,0,0,0,0,0,
@@ -2369,7 +2369,7 @@
 		{state:14, name: "-opened, north",  model: [SAME_AS, ID(183, 6)]},
 		{state:15, name: "-opened, east",   model: [SAME_AS, ID(183, 7)]},
 
-	{id: 184, name: "Birch fence gate", type: CUST, bbox: MAX, inv: MODEL, cat: REDSTONE, rsupdate: RECEIVE, orient: SE, special: FENCE|NOCONNECT, invmodel: [
+	{id: 184, name: "Birch fence gate", type: CUST, bbox: MAX, inv: MODEL, cat: REDSTONE, rsupdate: RECEIVE, orient: SWNE, special: FENCE|NOCONNECT, invmodel: [
 		447,2,11,2,0,3,7,0,0,0,0,0,0,106800,115008,115024,106816,106800,115008,115024,106816,106800,115008,115024,106816,106800,115008,115024,
 			106816,106800,115008,115024,106816,106800,115008,115024,106816,
 		447,2,11,2,14,3,7,0,0,0,0,0,0,
@@ -2412,7 +2412,7 @@
 		{state:14, name: "-opened, north",  model: [SAME_AS, ID(184, 6)]},
 		{state:15, name: "-opened, east",   model: [SAME_AS, ID(184, 7)]},
 
-	{id: 185, name: "Jungle fence gate", type: CUST, bbox: MAX, inv: MODEL, cat: REDSTONE, rsupdate: RECEIVE, orient: SE, special: FENCE|NOCONNECT, invmodel: [
+	{id: 185, name: "Jungle fence gate", type: CUST, bbox: MAX, inv: MODEL, cat: REDSTONE, rsupdate: RECEIVE, orient: SWNE, special: FENCE|NOCONNECT, invmodel: [
 		447,2,11,2,0,3,7,0,0,0,0,0,0,98608,106816,106832,98624,98608,106816,106832,98624,98608,106816,106832,98624,98608,106816,106832,98624,
 			98608,106816,106832,98624,98608,106816,106832,98624,
 		447,2,11,2,14,3,7,0,0,0,0,0,0,
@@ -2455,7 +2455,7 @@
 		{state:14, name: "-opened, north",  model: [SAME_AS, ID(185, 6)]},
 		{state:15, name: "-opened, east",   model: [SAME_AS, ID(185, 7)]},
 
-	{id: 186, name: "Dark oak fence gate", type: CUST, bbox: MAX, inv: MODEL, cat: REDSTONE, rsupdate: RECEIVE, orient: SE, special: FENCE|NOCONNECT, invmodel: [
+	{id: 186, name: "Dark oak fence gate", type: CUST, bbox: MAX, inv: MODEL, cat: REDSTONE, rsupdate: RECEIVE, orient: SWNE, special: FENCE|NOCONNECT, invmodel: [
 		447,2,11,2,0,3,7,0,0,0,0,0,0,123136,131344,131360,123152,123136,131344,131360,123152,123136,131344,131360,123152,123136,131344,131360,
 			123152,123136,131344,131360,123152,123136,131344,131360,123152,
 		447,2,11,2,14,3,7,0,0,0,0,0,0,
@@ -2498,7 +2498,7 @@
 		{state:14, name: "-opened, north",  model: [SAME_AS, ID(186, 6)]},
 		{state:15, name: "-opened, east",   model: [SAME_AS, ID(186, 7)]},
 
-	{id: 187, name: "Acacia fence gate", type: CUST, bbox: MAX, inv: MODEL, cat: REDSTONE, rsupdate: RECEIVE, orient: SE, special: FENCE|NOCONNECT, invmodel: [
+	{id: 187, name: "Acacia fence gate", type: CUST, bbox: MAX, inv: MODEL, cat: REDSTONE, rsupdate: RECEIVE, orient: SWNE, special: FENCE|NOCONNECT, invmodel: [
 		447,2,11,2,0,3,7,0,0,0,0,0,0,123120,131328,131344,123136,123120,131328,131344,123136,123120,131328,131344,123136,123120,131328,
 			131344,123136,123120,131328,131344,123136,123120,131328,131344,123136,
 		447,2,11,2,14,3,7,0,0,0,0,0,0,

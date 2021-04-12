@@ -47,7 +47,7 @@ void debugBlockVertex(Map map, SelBlock * select)
 		i = redstoneIsPowered(iter, RSSAMEBLOCK, POW_NONE);
 		if (i)
 		{
-			static STRPTR strength[] = {"VERYWEAK", "WEAK", "STRONG"};
+			static STRPTR strength[] = {"WEAK", "NORMAL", "STRONG"};
 			fprintf(stderr, "powered by signal: %s\n", strength[i-1]);
 		}
 

@@ -33,35 +33,42 @@ struct RSWire_t /* track where a wire can connect to */
 #define RSSAMEBLOCK   255 /* possible value for <side> param of redstoneIsPowered() */
 #define MAXSIGNAL     15
 #define RSMAXUPDATE   12
+#define RSMAXDISTRAIL 5   /* maximum distance a power source will power golden rails */
 #define RSUPDATE      255
 
 enum /* common redstone devices */
 {
 	RSDISPENSER    = 23,
 	RSNOTEBLOCK    = 25,
-	RSPOWRAILS     = 27,
+	RSPOWERRAILS   = 27,
 	RSSTICKYPISTON = 29,
 	RSPISTON       = 33,
 	RSWIRE         = 55,
 	RSLEVER        = 69,
 	RSTORCH_OFF    = 75,
 	RSTORCH_ON     = 76,
-	RSBUTTON       = 77,
 	RSREPEATER_OFF = 93,
 	RSREPEATER_ON  = 94,
 	RSLAMP         = 123,
-	RSBUTTONWOOD   = 143,
 	RSBLOCK        = 152,
 	RSHOPPER       = 154,
 	RSDROPPER      = 158,
 	RSOBSERVER     = 218
 };
 
+enum /* possible values Block_t.rsupdate */
+{
+	RSUPDATE_NONE = 0,     /* this block doesn't care about redstone signal update */
+	RSUPDATE_RECV = 1,     /* this block will react to rs update */
+	RSUPDATE_SEND = 2,     /* this device can change rs power level */
+	RSUPDATE_BOTH = 3,     /* receive and send */
+};
+
 enum /* return value from redstoneIsPowered() */
 {
 	POW_NONE,
-	POW_VERYWEAK,     /* torch below block (can't transmit to repeater or wire) */
-	POW_WEAK,         /* redstone wire powered */
+	POW_WEAK,         /* torch below block (can't transmit to repeater or wire) */
+	POW_NORMAL,       /* redstone wire powered */
 	POW_STRONG,       /* repeater/torch powered (can transmit signal through block) */
 };
 

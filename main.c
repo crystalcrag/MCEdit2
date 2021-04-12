@@ -20,6 +20,7 @@
 #include "skydome.h"
 #include "blocks.h"
 #include "blockUpdate.h"
+#include "mapUpdate.h"
 #include "interface.h"
 #include "nanovg.h"
 #include "SIT.h"

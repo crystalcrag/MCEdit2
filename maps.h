@@ -87,10 +87,6 @@ int    mapGetBlockId(Map, vec4 pos, MapExtraData canBeNULL);
 Bool   mapPointToBlock(Map, vec4 camera, float * yawPitch, vec4 dir, vec4 ret, MapExtraData canBeNULL);
 Bool   mapMoveCenter(Map, vec4 old, vec4 pos);
 Bool   mapSetRenderDist(Map, int maxDist);
-void   mapUpdate(Map, vec4 pos, int blockId, DATA8 tile, Bool blockUpdate);
-Bool   mapUpdateBlock(Map, vec4 pos, int blockId, int oldBlockId, DATA8 tile);
-void   mapActivate(Map, vec4 pos);
-int    mapActivateBlock(BlockIter, vec4 pos, int blockId);
 Bool   mapSaveAll(Map);
 Bool   mapSaveLevelDat(Map);
 int    mapConnectChest(Map, MapExtraData sel, MapExtraData ret);
@@ -112,42 +108,12 @@ void mapInitIterOffset(BlockIter, ChunkData, int offset);
 void mapIter(BlockIter iter, int dx, int dy, int dz);
 
 /* private stuff below that point */
-typedef struct BlockUpdate_t *     BlockUpdate;
-
-struct BlockUpdate_t
-{
-	ChunkData cd;
-	uint16_t  offset;
-	uint16_t  blockId;
-};
-
-struct MapUpdate_t
-{
-	ChunkData   modif;
-	ChunkData * list;
-	BlockUpdate updates;
-	DATA32      updateUsage;
-	int         updateCount;
-	int8_t *    coord;
-	int16_t     max;
-	int16_t     pos, last, usage, maxUsage;
-	uint8_t     unique;
-};
-
 struct ChunkFake_t
 {
 	ChunkFake next;
 	uint32_t  usage;
 	uint8_t   total;
 	uint8_t   buffer[0]; /* more bytes will follow */
-};
-
-enum /* return code from mapActivateBlock() */
-{
-	MAB_NONE,
-	MAB_CURRENT,
-	MAB_TOP,
-	MAB_BOTTOM
 };
 
 #endif
