@@ -180,12 +180,9 @@ static int8_t bedOffsetX[] = {0, -1,  0, 1};
 static int8_t bedOffsetZ[] = {1,  0, -1, 0};
 
 /* a block has been placed/deleted, check if we need to update nearby blocks */
-Bool mapUpdateBlock(Map map, vec4 pos, int blockId, int oldBlockId, DATA8 tile)
+void mapUpdateBlock(Map map, vec4 pos, int blockId, int oldBlockId, DATA8 tile)
 {
 	uint16_t neighbors[6];
-	int      ret = False;
-
-	mapGetNeigbors(map, pos, neighbors, 6);
 
 	if (blockId > 0)
 	{
@@ -193,19 +190,25 @@ Bool mapUpdateBlock(Map map, vec4 pos, int blockId, int oldBlockId, DATA8 tile)
 		switch (blockIds[blockId >> 4].special) {
 		case BLOCK_TALLFLOWER:
 			/* weird state values from minecraft :-/ */
-			if ((blockId & 15) == 10) return False;
+			if ((blockId & 15) == 10) return;
 			mapSetData(map, pos, (blockId & 15) - 10);              pos[VY] ++;
 			mapUpdate(map, pos, (blockId & ~15) | 10, NULL, False); pos[VY] --;
 			break;
 		case BLOCK_DOOR:
-			/* top part was just created */
-			if (blockId & 8) return False;
-			/* need to update bottom data part */
-			mapSetData(map, pos, blockId & 3); pos[VY] ++;
-			/* and create top part */
-			mapUpdate(map, pos, ((blockId & 15) < 4 ? 8 : 9) | (blockId & ~15), NULL, False);
-			pos[VY] --;
-			ret = True;
+			if ((oldBlockId >> 4) != (blockId >> 4))
+			{
+				/* new door being placed */
+				neighbors[0] = (blockId & 8) >> 1;
+				/* need to update bottom data part */
+				mapSetData(map, pos, (blockId & 3) | neighbors[0]); pos[VY] ++;
+				/* and create top part */
+				mapUpdate(map, pos, ((blockId & 15) < 4 ? 8 : 9) | (neighbors[0] >> 1) | (blockId & ~15), NULL, False);
+				pos[VY] --;
+			}
+			else /* existing door: only update bottom part */
+			{
+				mapSetData(map, pos, blockId & 15);
+			}
 			break;
 		case BLOCK_BED:
 			if ((blockId & 15) < 8)
@@ -215,10 +218,10 @@ Bool mapUpdateBlock(Map map, vec4 pos, int blockId, int oldBlockId, DATA8 tile)
 				pos[VZ] += bedOffsetZ[blockId & 3];
 				/* mapUpdate() will update coord of tile entity */
 				mapUpdate(map, pos, blockId + 8, NBT_Copy(tile), False);
-				ret = True;
 			}
 			break;
 		case BLOCK_RAILS:
+			mapGetNeigbors(map, pos, neighbors, 6);
 			mapUpdateRails(map, pos, blockId, neighbors);
 			break;
 		}
@@ -240,6 +243,8 @@ Bool mapUpdateBlock(Map map, vec4 pos, int blockId, int oldBlockId, DATA8 tile)
 		};
 		int i;
 
+		mapGetNeigbors(map, pos, neighbors, 6);
+
 		/* check around the 6 sides of the cube that was deleted */
 		for (i = 0; i < 6; i ++)
 		{
@@ -259,7 +264,6 @@ Bool mapUpdateBlock(Map map, vec4 pos, int blockId, int oldBlockId, DATA8 tile)
 						loc[VY] = pos[VY] + normal[VY];
 						loc[VZ] = pos[VZ] + normal[VZ];
 						mapUpdate(map, loc, 0, NULL, False);
-						ret = True;
 						break;
 					}
 					check >>= 3;
@@ -338,7 +342,6 @@ Bool mapUpdateBlock(Map map, vec4 pos, int blockId, int oldBlockId, DATA8 tile)
 			break;
 		}
 	}
-	return ret;
 }
 
 static void mapUpdateRailsChain(Map map, BlockIter iter, int id, int offset, int powered)
@@ -449,6 +452,43 @@ int mapUpdateGate(BlockIter iterator, int id, Bool init)
 	}
 	return id;
 }
+
+/* power near door has changed */
+int mapUpdateDoor(BlockIter iterator, int blockId, Bool init)
+{
+	struct BlockIter_t iter = *iterator;
+	if (blockId & 8)
+		/* top part of door: open state is in bottom part */
+		mapIter(&iter, 0, -1, 0);
+
+	/* 10 blocks to check :-/ */
+	uint8_t i, powered = 2;
+	for (i = 0; i < 6 && (i == SIDE_TOP || ! redstoneIsPowered(iter, i, POW_NORMAL)); i ++);
+	if (i == 6)
+	{
+		for (i = 0, mapIter(&iter, 0, 2, 0); i < 5 && ! redstoneIsPowered(iter, i, POW_NORMAL); i ++);
+		if (i == 5) powered = 0;
+	}
+	if (! init)
+	{
+		iter = *iterator;
+		if ((blockId & 8) == 0)
+			mapIter(&iter, 0, 1, 0);
+		int top = getBlockId(&iter);
+		if ((top & 2) != powered)
+		{
+			mapUpdateTable(&iter, (top&13) | powered, DATA_OFFSET);
+			mapIter(&iter, 0, -1, 0);
+			/* if powered, force the door in opened state */
+			powered <<= 1;
+			if ((blockId & 4) != powered)
+				mapUpdateTable(&iter, (blockId&11) | powered, DATA_OFFSET);
+		}
+		return blockId;
+	}
+	else return blockId | (powered << 2);
+}
+
 
 /* return the activated state of <blockId>, but does not modify any tables */
 int mapActivateBlock(BlockIter iter, vec4 pos, int blockId)

@@ -18,7 +18,7 @@
   h1 span { font-variant: small-caps }
   h2 { counter-reset: h3; border-bottom: 3px solid; page-break-before: always; margin-top: 80px; margin-left: 40px }
   h3 { counter-reset: h4; page-break-after: avoid; margin-left: 40px }
-  h4 { page-break-after: avoid }
+  h4 { page-break-after: avoid; margin-left: 40px }
   h5 { margin-left: 40px; text-align: center }
   h5::after { content: ""; width: 50%; display: block; border-bottom: 2px solid black; margin: 2px auto }
   h2:before { counter-increment: h2; content: counter(h2) ". "; font-size: 2em }
@@ -147,30 +147,34 @@
 <body>
 
 <div id="toc">
-<a href="#conventions" class="sub1"><span>Conventions</span></a>
-<a href="#coord" class="sub2"><span>Coordinate system</span></h3>
-<a href="#faceorder" class="sub2"><span>Face enumeration order</span></h3>
-<a href="#datatypes" class="sub2"><span>Datatypes</span></h3>
+<a class="sub1" href="#conventions"><span>Conventions</span></a>
+<a class="sub2" href="#coord"><span>Coordinate system</span></h3>
+<a class="sub2" href="#faceorder"><span>Face enumeration order</span></h3>
+<a class="sub2" href="#datatypes"><span>Datatypes</span></h3>
 
-<a href="#culling" class="sub1"><span>Frustum culling</span></a>
-<a href="#firstvers" class="sub2"><span>First version</span></a>
-<a href="#impl" class="sub2"><span>Implementation</span></a>
-<a href="#neighbors" class="sub2"><span>Enumerating neighbors</span></a>
-<a href="#edgecase" class="sub2"><span>Edge cases</span></a>
-<a href="#crossplane" class="sub2"><span>Cross-plane faces</span></a>
-<a href="#caveats" class="sub2"><span>Caveats</span></a>
-<a href="#fakechunks" class="sub2"><span>Fake chunks</span></a>
-<a href="#outside" class="sub2"><span>Outside bounds</span></a>
+<a class="sub1" href="#culling"><span>Frustum culling</span></a>
+<a class="sub2" href="#firstvers"><span>First version</span></a>
+<a class="sub2" href="#impl"><span>Implementation</span></a>
+<a class="sub2" href="#neighbors"><span>Enumerating neighbors</span></a>
+<a class="sub2" href="#edgecase"><span>Edge cases</span></a>
+<a class="sub2" href="#crossplane"><span>Cross-plane faces</span></a>
+<a class="sub2" href="#caveats"><span>Caveats</span></a>
+<a class="sub2" href="#fakechunks"><span>Fake chunks</span></a>
+<a class="sub2" href="#outside"><span>Outside bounds</span></a>
+<a class="sub2" href="#cavecull"><span>Cave culling</span></a>
 
-<a href="#blocks" class="sub1"><span>Block API</span></a>
+<a class="sub1" href="#blocks"><span>Block API</span></a>
+<a class="sub2" href="#blockdesc"><span>Block description</span></a>
+<a class="sub2" href="#statedesc"><span>State description</span></a>
+<a class="sub2" href="#blockmodel"><span>Block models</span></a>
 
-<a href="#mesh" class="sub1"><span>Mesh generation</span></a>
+<a class="sub1" href="#mesh"><span>Mesh generation</span></a>
 
-<a href="#LOD" class="sub1"><span>Dynamic LOD</span></a>
+<a class="sub1" href="#LOD"><span>Dynamic LOD</span></a>
 
-<a href="#opengl" class="sub1"><span>Advanced OpenGL</a>
+<a class="sub1" href="#opengl"><span>Advanced OpenGL</a>
 
-<a href="#nbt2" class="sub1"><span>NBT API</a>
+<a class="sub1" href="#nbt2"><span>NBT API</a>
 </div>
 
 <div id="content">
@@ -556,6 +560,16 @@ fake chunk.
 
 <p>/* ... */
 
+<h3 id="cavecull"><span>Cave culling</span></h3>
+
+<p>There is one last step that is done at the same time: cave culling, or removing chunks that are completely
+hidden by nearer chunk. A good primer on how this algorithm can be read from the original
+<a href="https://tomcc.github.io/2014/08/31/visibility-1.html">author</a> that developped it for Minecraft MCPE.
+The version implemented in this engine is <b>way simpler</b> than that. At the cost of (slightly) more
+chunks being drawn.
+
+<p>/* ... */
+
 <h2 id="blocks">Block API</h2>
 
 <p>This section will describe how the block description table works (<tt>blocksTable.js</tt>). This
@@ -616,13 +630,13 @@ possible properties:
   <ul>
     <li><tt>CUBE</tt>: each individual states will have its own inventory item in the form of a cube. The
 	textures used for the cubes will be described in the state description. In the screenshot below, cube
-	inventory items have a green background.
+	inventory items have been highlighted with a green background.
     <li><tt>ITEM2D</tt>: each states will be represented as flat 2d texture (taken from state description).
-	In the screenshot below, they havev a gray background.
+	In the screenshot below, they have a gray background.
     <li><tt>MODEL</tt>: wil use a custom model for their inventory. The model will be viewed at an angle
 	using a orthographic projection (not a perspective one). You can provide a custom model to be used
 	only in inventories, or you can reuse the ones defined in the state description. In the screenshot
-	below, those items have a red background.
+	below, those items have been highlighted with a red background.
   </ul>
   <div class="image">
     <img src="images/inventory.png">
@@ -631,8 +645,8 @@ possible properties:
   (typcial use case: blocks that have an orientation). If this field is present, it must contain the
   state id (between 0 and 15) to use when displaying this item in inventories.
   <li><tt>cat</tt>: the creative menu is split into tabs. This field let you choose which one it will
-  be in. If not specified, the item will appear in the "all" category (the tab with the compass). You
-  can choose one value among;
+  be in. If not specified, the item will appear in the "all" category (the tab with the compass, in the
+  screenshot above). You can choose one value among;
   <ul>
     <li><tt>BUILD</tt>
 	<li><tt>DECO</tt>
@@ -680,25 +694,79 @@ possible properties:
 	will be used to check if the block is targetted. This type of collision test is very precise, but
 	of course a bit more expensive to check.
   </ul>
-  <li><tt>orient</tt>: if block placement is orientation dependent, you can 
 
-  <li><tt>keepModel</tt>: hack.
+  <li><tt>bboxPlayer</tt>: bounding box used for player/entity collision detection. The only supported
+  value for this field is <tt>NONE</tt>. Otherwise, it will use the same value than the one specified in
+  the <tt>bbox</tt> entry.
+
+  <li><tt>orient</tt>: if block placement is orientation dependent, you can specify with this field
+  how individual state description can be automatically chosen based on player orientation and/or block
+  targetted:
+  <ul>
+    <li><tt>LOG</tt>: 3 possible orientation: E/W, N/S, or up right.
+    <li><tt>FULL</tt>: 6 possible orientation: south, east, north, west, top, bottom.
+    <li><tt>BED</tt>: 4 possible orientation, composed of 2 blocks.
+    <li><tt>SLAB</tt>: 2 orientation: lower half, upper half.
+    <li><tt>TORCH</tt>: 5 orientation: sticked to wall or up right.
+    <li><tt>STAIRS</tt>: 8 orientation.
+    <li><tt>SENW</tt>: 4 orientation (typical: chest, furnace).
+    <li><tt>SWNE</tt>: 4 orientation but different state description (typical: repeaters, comparators).
+    <li><tt>DOOR</tt>: 8 orientation.
+    <li><tt>SE</tt>: 2 orientation: E/W or N/S, typical use case: rails.
+    <li><tt>LEVER</tt>: 8 possible orientation: used by lever and buttons.
+  </ul>
 
   <li><tt>emitLight</tt>: if this block will emit block light, you can indicate a value between 1 and 15
   (0 being the default).
 
   <li><tt>opacSky</tt>: how much intensity of sky light it will absorb. Default is 15 for <tt>SOLID</tt>
-  and 0 for <tt>CUST</tt>. Usual values is 1 for leaves and 3 for water.
+  and 0 for everything else. Usual values are 1 for leaves and 3 for water.
 
-  <li><tt>opacLight</tt>: same with block light.
+  <li><tt>opacLight</tt>: same with block light. Note: block light decreases by 1 for every step away
+  from a light source. Therefore if you want a more "absorbing" block, the minimum value should be 2.
 
-  <li><tt>tile</tt>: XXX deprecated.
+  <li><tt>tile</tt>: will add a default tile entity when placed in the world. Needed by Minecraft, not
+  necessary for this engine.
 
-  <li><tt>invmodel</tt>: 
+  <li><tt>invmodel</tt>: state id (between 0 and 15) where to copy model to be rendered in inventories.
+  This particular block will have only one item in the creative menu (instead of one per state).
 
-  <li><tt>rswire</tt>: 
+  <li><tt>rswire</tt>: indicates how redstone wire connects to this block. Possible values are:
+  <ul>
+    <li><tt>ALLDIR</tt>: all possible direction (S, E, N, W).
+    <li><tt>FRONTBACK</tt>: can connect to the front and back of the block (repeaters).
+    <li><tt>BACKONLY</tt>: only from back (observer).
+  </ul>
 
-  <li><tt>placement</tt>: 
+  <li><tt>rsupdate</tt>: indicates if this block cares about redstone update. Enumeration that can
+  have one of the following values:
+  <ul>
+    <li><tt>RECEIVE</tt>: block state will change when redstone signal change nearby.
+    <li><tt>GENERATE</tt>: will generate the redstone signal.
+    <li><tt>INOUT</tt>: will do both: update states with redstone signal and output a signal (ie: repeaters, comparators).
+  </ul>  
+
+  <li><tt>placement</tt>: constraint the block has to satisfy to be placed in the world. If those
+  constraint were to be invalidated due to nearby update, the block will be automaticall deleted.
+  The field should be a string, described a list of contraints spearated by commas. Each constraint
+  can use the following keyword:
+  <ul>
+    <li><tt>ground</tt>: any type of solid flat ground.
+    <li><tt>wall</tt>: any type of solid flat wall.
+	<li><tt>solid</tt>: any solid face from a block.
+	<li><em>techName</em>: that particular block.
+  </ul>
+  <p>Note: the block is considered correctly placed if one of the constraint is satisfied. "Solid"
+  means a block that has been declared with the type <tt>SOLID</tt>. That excludes <tt>CUST</tt> and
+  <tt>TRANS</tt>.
+
+  <li><tt>particle</tt>: type of particles this block will emit constantly.
+
+  <li><tt>invmodel</tt>: custom model to use when this block is displayed in inventories. Should only
+  be necessary for block type <tt>CUST</tt>, even though nothing prevent you from using with any other
+  type. The format of this field is a bit complicated and be explained in the <a href="#blockmodel">next section</a>.
+
+  <li><tt>keepModel</tt>: hack.
 </ul>
 
 <h3 id="statedesc"><span>State description</span></h3>
@@ -706,34 +774,122 @@ possible properties:
 <p>An object declaraction is recognized as a state declaration it is contains a <tt>state</tt> property
 with an integer assigned to it. Beside this property, you can also use these ones:
 <ul>
-  <li><tt>state</tt>: 
-  <li><tt>name</tt>: 
-  <li><tt>tex</tt>: 
-  <li><tt>quad</tt>: 
-  <li><tt>inv</tt>: 
-  <li><tt>model</tt>: 
+  <li><tt>state</tt>: an integer between 0 and 15 that will be stoed in <tt>Sections/Data</tt> table in a chunk.
+  This table has only 4bits of information per block. More information can be stored using TileEntity.
+  <li><tt>name</tt>: this field should describe a bit more in detail what the state is doing: for example,
+  if the block is orientation dependent, you should include which way the state is pointing, or if the
+  block has an opened/closed state, this is where it should be described...
+
+  <p>Since this field will almost certainly have <b>a lot of redundant information</b>, there are a few
+  facility to prevent you from repeating the same text over and over again: the less redundancy, the
+  easier it will be to fix mistakes.
+
+  <p>First, a state name can include an underscore (<tt>_</tt>) in the text. This character will
+  act as a reference point for later names. The character itself will be replaced by a regular space.
+
+  <p>Once you have a reference point, you can ask to include everything that was before using the <tt>+</tt>
+  or <tt>-</tt> character, and then continue your text.
+
+  <p>The text being appended will always be added with a parenthesis before (and a closing one if none
+  are specified in the text), unless there was already an opening one in the text that was copied.
+
+  <p>Here are a few examples:
+  <table class="listview">
+  <thead><tr><td class="nowrap">Block name<td>State name<td>Expanded into<td>Description
+  <tbody>
+    <tr><td rowspan="4"><tt>Log</tt><td><tt>+oak</tt><td><tt>Log (oak)</tt><td>Without any previous underscore, the whole text of block will be added.
+    <tr><td><tt>+spruce</tt><td><tt>Log (spruce)</tt><td>Still no underscore specified, the reference point will remain the same on next line.
+    <tr><td><tt class="nowrap">Bark (_oak)</tt><td><tt>Bark (oak)</tt><td>If the text does not include <tt>+</tt> or <tt>-</tt>, then it replaces everything. A new reference point is also set.
+	<tr><td><tt>-spruce</tt><td><tt class="nowrap">Bark (spruce)</tt><td>The new reference point now point to a state description, instead of the block.
+  </table>
+
+  <li><tt>tex</tt>: texture coordinates to use to draw the faces of that block. Coordinates are actually
+  tile coordinates: integers between 0 and 31 that will point to a texture tile in the file <a href="../resources/terrain.png">terrain.png</a>.
+  That way the coordinates will work no matter what resolution the file is, the default tile set is 16x16px,
+  but you can use whatever size you want (tiles needs to be square though). Although allowed, it is
+  stongly discouraged to use a size that is not a power of 2, due to mipmapping (texture will "bleed"
+  at the edge of tiles).
+
+  <p>This field is expecting an array of integers. The number of coordinates will depend on the type of the block:
+  <ul>
+    <li><tt>SOLID</tt>, <tt>TRANS</tt>: 12 integers that form 6 pairs of U, V tile coordinates, one
+	pair for each faces, specified in the order <tt>S,E,N,W,T,B</tt>. The coordinate must be specified
+	relative to the top left corner of the tile you want to use for that face.
+	<li><tt>QUAD</tt>: 2 integers: the tile texture to use for all quads (integer between 0 and 31).
+	<li><tt>CUST</tt>: 8 integers: technically not required to render the block, since block model will
+	provide their own texture coordinates, but this field will still be used for particles when this
+	block is destroyed by the user. You don't have to specify the texture for the top and bottom face
+	though, although it doesn't hurt to include them.
+  </ul>
+
+  <p>Filling those values manually is possible, albeit tedious and error prone. In the default <tt>blockTable.js</tt>
+  field, all the values where filled with the help of <tt>TileFinder</tt>.
+  
+  <p>This field can include a 13th integer, that will be used to specify the <tt>rotate</tt>
+  field (because <tt>TileFinder</tt> can read and write those 13 values at once).
+
+  <li><tt>quad</tt>: an array of symbols indicating which quad to render for this block. Each symbol
+  can be one of the following enumeration value:
+  <ul>
+    <li><tt>CROSS</tt>: used for crops, flower, grass, ...
+    <li><tt>NORTH</tt>: attached to north of block (ladder, vines).
+    <li><tt>SOUTH</tt>: attached to south face.
+    <li><tt>EAST</tt>: east face.
+    <li><tt>WEST</tt>: west face.
+    <li><tt>BOTTOM</tt>: bottom of block (lily pad).
+    <li><tt>ASCE</tt>: ascending from west to east (rails).
+    <li><tt>ASCW</tt>: ascending from east to west.
+    <li><tt>ASCN</tt>: ascending from south to north.
+    <li><tt>ASCS</tt>: ascending from north to south.
+  </ul>
+
+  <li><tt>inv</tt>: this field can be used to override what has been specified at the block level.
+  Remember, that the type of inventory item specified in the block will be applied to all state description.
+  The typical use case is to prevent some states from appearing in the inventory (ie: <tt>NONE</tt>).
+
+  <li><tt>model</tt>: an array of floatting point numbers. This field is absolutely not intended to
+  edited manually. The format wil be described <a href="#blockmodel">below</a>, but even with this
+  description, you'll have a hard time filling this field manually.
+  <p>Instead, an external tool is almost required: <tt>TileFinder</tt>. You'll notice that all models
+  are declared on their own lines (there no JSON tokens mix in those lines, besides what's required
+  to make an array of numbers). The reason for this, is that those lines can be selected in a standard
+  text editor, then copied and pasted inside <tt>TileFinder</tt> to see what the model looks like.
+  You can also copy the model from <tt>TileFinder</tt> to the text file again, if you modifed it later.
+
   <li><tt>rotate</tt>: 
+
+  <li><tt>emit</tt>: 
 </ul>
 
-<h2>Mesh generation</h2>
+<h3 id="blockmodel"><span>Block models</span></h3>
+
+<p>/* ... */
+
+<h2 id="mesh">Mesh generation</h2>
 
 <p>Another part that makes <b>heavy</b> use of cryptic static tables.
 
-<p>&nbsp;
-<p>&nbsp;
-<p>&nbsp;
-<p>&nbsp;
-<p>&nbsp;
-<p>&nbsp;
-<p>&nbsp;
-<p>&nbsp;
-<p>&nbsp;
-<p>&nbsp;
-<p>&nbsp;
-<p>&nbsp;
-<p>&nbsp;
-<p>&nbsp;
-</div>
+<p>/* ... */
+
+
+
+<h2 id="opengl">Advanced OpenGL</h2>
+
+<p>This section will explain some aspects of rendering pipeline. This being OpenGL and based on shaders,
+the way geometry is usually not that obvious (at least if you are not that familiar with OpenGL).
+
+<h3 id="translucency"><span>Handling translucent blocks</span></h3>
+
+<p>That part was probably one of the biggest crap shoot to implement. 2 attempts (depth peeling and
+fragment sorting) were tried, but ultimately were entirely discarded because of serious shortcomings
+in the way they inherently works. Therefore the first 2 sections are a remimder to not waste your time
+with these techniques.
+
+<h4 id="oit"><span>Fragment sorting on GPU (Order Independent Transparency)</span></h4>
+
+<h4 id="depthpeel"><span>Depth peeling</span></h4>
+
+<h4 id="cpusort"><span>Triangles sorting on CPU</span></h4>
 
 <!--
  *
@@ -747,16 +903,23 @@ with an integer assigned to it. Beside this property, you can also use these one
  *   - Cons: far from trivial to implement
  *   - Cons: memory meeded is still quite high: 2 complete framebuffers (color buffer and depth), at 1920x1080,
  *           that 30Mb of RAM.
- *   - Cons: you needs multiple pass to render the full scene.
+ *   - Cons: you need multiple pass to render the full scene, getting the exact count if tricky and add a
+ *           decent amount of complexity.
  *
- * - Sorted linked list of fragments (what is done here): instead of writing translucent fragment in the
+ * - Sorted linked list of fragments: instead of writing translucent fragment in the
  *			framebuffer, you write them in a (rather big) linked list, and once of the geomtry has
  *			been processed, you write it back to the framebuffer.
  *   + Pros: handle all kind of complexity, in 2 passes (the second one being very simple).
  *   + Pros: not that complex to implement.
  *   - Cons: high memory requirement: for 1920x1080, you need 64Mb at the very least.
  *   - Cons: you might need more passes for very complex scene (lots of overlapping translucent fragment).
+ *   - Cons: memory bandwidth needed to read/store all the fragments can be prohibitive.
 -->
+
+<h2 id="nbt2">NBT API</h2>
+
+<p>
+</div>
 
 </body>
 </html>

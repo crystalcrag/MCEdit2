@@ -10,9 +10,10 @@
 #include "maps.h"
 
 void mapUpdate(Map, vec4 pos, int blockId, DATA8 tile, Bool blockUpdate);
-Bool mapUpdateBlock(Map, vec4 pos, int blockId, int oldBlockId, DATA8 tile);
+void mapUpdateBlock(Map, vec4 pos, int blockId, int oldBlockId, DATA8 tile);
 void mapUpdatePowerRails(Map map, BlockIter iter);
 int  mapUpdateGate(BlockIter iterator, int id, Bool init);
+int  mapUpdateDoor(BlockIter iterator, int blockId, Bool init);
 void mapUpdateTable(BlockIter iter, int val, int table);
 void mapActivate(Map, vec4 pos);
 int  mapActivateBlock(BlockIter, vec4 pos, int blockId);

@@ -1092,7 +1092,6 @@ PFNGLMAPBUFFERPROC glad_glMapBuffer;
 PFNGLUNMAPBUFFERPROC glad_glUnmapBuffer;
 PFNGLCOPYTEXIMAGE2DPROC glad_glCopyTexImage2D;
 PFNGLREADBUFFERPROC glad_glReadBuffer;
-PFNGLCLEARTEXIMAGEPROC glad_glClearTexImage;
 PFNGLBINDIMAGETEXTUREPROC glad_glBindImageTexture;
 PFNGLDRAWARRAYSINSTANCEDPROC glad_glDrawArraysInstanced;
 
@@ -1215,8 +1214,6 @@ int gladLoadGL(void)
 		 && (glad_glDrawArraysInstanced      = load(name = "glDrawArraysInstanced"))
 		 && (glad_glMultiDrawArraysIndirect  = load(name = "glMultiDrawArraysIndirect")))
 		{
-			/* optional */
-			glad_glClearTexImage = load("glClearTexImage"); /* 4.4 */
 			return 1;
 		}
 		fprintf(stderr, "fail to load function '%s'\n", name);

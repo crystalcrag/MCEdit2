@@ -18,10 +18,11 @@ As of now, only Windows is supported, even though there are no major road blocks
 * **Redstone**: most of redstone devices are supported (torch, repeater, comparator, wire, piston, rails and slime block).
 * **Minecart mechanics**: although compatibility with Minecraft is, at best, close enough.
 * **Dynamic skydome**: night/day cycle kind of works, but only manually (use F5/F6 key to cycle).
-* **edit inventories**: chest, furnace, dropper, player, ender chest, even sign can be edited. Care has be given to make all interfaces as close as possible to Minecraft.
+* **Edit inventories**: chest, furnace, dropper, player, ender chest, even sign can be edited. Care has be given to make all interfaces as close as possible to Minecraft.
 
 # Missing features
-* **entity/mobs**: they don't have any AI, they are just stationnary.
-* **random tick update**: not implemented on purpose, consider the world being frozen in time (unless triggered by an user action). That means no leave decay, no mob spawing, no crops growing, no trees poping...
-* **missing blocks**: banner, chorus plant (support is very basic), trip wire mechanic (there are rendered though), noteblock, command blocks.
-* **terrain generation**: mimicking exactly what Minecraft does is way too much work, even though the engine easily supports custom terrain generators (check doc/internals.html).
+* **Entity/mobs**: they don't have any AI, they are just stationnary.
+* **Random tick update**: not implemented on purpose, consider the world being frozen in time (unless triggered by an user action). That means no leave decay, no mob spawing, no crops growing, no trees poping...
+* **Blocks not implemented**: banner.
+* **Blocks with poor support**: chorus plant, trip wire, noteblock, command blocks: they are rendered but have no mechanic.
+* **Terrain generation**: mimicking exactly what Minecraft does is way too much work, even though the engine easily supports custom terrain generators (check doc/internals.html).

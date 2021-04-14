@@ -268,7 +268,7 @@ void renderPointToBlock(int mx, int my)
 	dir[VY] = dir[VY] / dir[VT] - render.camera[VY];
 	dir[VZ] = dir[VZ] / dir[VT] - render.camera[VZ];
 
-	/* XXX why is the yaw/pitch ray picking off compared to a MVP matrux ??? */
+	/* XXX why is the yaw/pitch ray picking off compared to a MVP matrix ??? */
 	//if (mapPointToBlock(render.level, render.camera, &render.yaw, NULL, render.selection.current, &render.selection.extra))
 	if (mapPointToBlock(render.level, render.camera, NULL, dir, render.selection.current, &render.selection.extra))
 		render.selection.sel |= SEL_CURRENT;

@@ -688,7 +688,7 @@
 		{state:15, name: "+S-SE", model: [SAME_AS, ID(63, 3), 1855]},
 
 	/* oak door */
-	{id: 64, name: "Wooden door", type: CUST, bbox: MAX, special: DOOR, orient: DOOR, placement: "ground"},
+	{id: 64, name: "Wooden door", type: CUST, bbox: MAX, special: DOOR, orient: DOOR, rsupdate: RECEIVE, placement: "ground"},
 		{state: 0, name: "+facing_west, hinge north", tex: [1, 6, 1, 6, 1, 6, 1, 6], model: [
 			63,3,32,16,0,0,0,0,0,0,0,0,0,41056,57472,57475,41059,41072,57488,57472,41056,41059,57475,57472,41056,41056,57472,57488,41072,49277,41069,41072,
 				49280,49280,57488,57485,49277,
@@ -828,7 +828,7 @@
 	{id: 74, name: "Redstone ore (lit)", type: SOLID, tech: "lit_redstone_ore", emitLight: 7},
 		{state: 0, tex: [20, 4,20, 4,20, 4,20, 4,20, 4,20, 4]},
 
-	{id: 75, name: "Redstone torch", type: CUST, bbox: FULL, bboxPlayer: NONE, rswire: ALLDIR, rsupdate: GENERATE, orient: TORCH,
+	{id: 75, name: "Redstone torch", type: CUST, bbox: FULL, bboxPlayer: NONE, rswire: ALLDIR, rsupdate: INOUT, orient: TORCH,
 		placement: "wall,ground", tech: "unlit_redstone_torch"},
 		{state: 0, name: "+OFF,_up", tex: [3, 7, 3, 7, 3, 7, 3, 7], model: [
 			31,2,10,2,7,0,7,0,0,0,0,0,0,60591,65721,65719,60589,60591,65721,65719,60589,60591,65721,65719,60589,60591,65721,65719,60589,60591,61617,61615,60589,
@@ -842,7 +842,7 @@
 		{state: 4, name: "-north", model: [SAME_AS, ID(75, 1), 1599]},
 		{state: 5, name: "-up",    model: [SAME_AS, ID(75, 0)]},
 
-	{id: 76, name: "Redstone torch", type: CUST, bbox: FULL, bboxPlayer: NONE, inv: ITEM2D, cat: REDSTONE, invState: 0, rswire: ALLDIR, rsupdate: GENERATE,
+	{id: 76, name: "Redstone torch", type: CUST, bbox: FULL, bboxPlayer: NONE, inv: ITEM2D, cat: REDSTONE, invState: 0, rswire: ALLDIR, rsupdate: INOUT,
 		orient: TORCH, emitLight: 7, placement: "wall,ground", particle: SMOKE},
 		{state: 0, name: "+ON,_up", tex: [3, 6, 3, 6, 3, 6, 3, 6], model: [
 			287,2,10,2,7,0,7,0,0,0,0,0,0,52383,57513,57511,52381,52383,57513,57511,52381,52383,57513,57511,52381,52383,57513,57511,52381,52383,53409,53407,52381,

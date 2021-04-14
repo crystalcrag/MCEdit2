@@ -117,6 +117,7 @@ STRPTR stringAddPool(STRPTR string, int extra)
 	pool->usage += len;
 
 	return string;
+	#undef POOLMAX
 }
 
 /* get name of block as it is stored in NBT */
@@ -232,13 +233,15 @@ static DATA16 blockAllocVertex(int count)
 
 	if (list == NULL)
 	{
-		int max = (offsetof(struct BlockVertex_t, buffer) + bytes + POOLMAX-1) & ~(POOLMAX-1);
-		list = malloc(max);
+		#define POOLMAX           16384
+		int max = (bytes + POOLMAX-1) & ~(POOLMAX-1);
+		list = malloc(offsetof(struct BlockVertex_t, buffer) + max);
 		list->next  = blockVertex;
-		list->usage = offsetof(struct BlockVertex_t, buffer);
+		list->usage = 0;
 		list->max   = max;
 		blockVertex = list;
 		blocks.totalVtx += max;
+		#undef POOLMAX
 	}
 	DATA16 mem = (DATA16) (list->buffer + list->usage);
 	mem[0] = count;
@@ -313,14 +316,13 @@ static void blockSetUVAndNormals(DATA16 vert, int inv, int setUV, float * vertex
  */
 static DATA16 blockParseModel(float * values, int count)
 {
-	DATA16   p;
-	float *  vert;
-	float *  first;
-	int      i, j, k, rotCas;
-	int      faces, faceId, cont;
-	uint8_t  rot90step, cubeMap;
-	mat4     rotCascade;
-	DATA16   start;
+	float * vert;
+	float * first;
+	int     i, j, k, rotCas;
+	int     faces, faceId, cont;
+	uint8_t rot90step, cubeMap;
+	mat4    rotCascade;
+	DATA16  start, p;
 
 	vert = first = values;
 	rot90step = (int) vert[0] >> BHDR_ROT90SHIFT;
@@ -492,7 +494,7 @@ static DATA16 blockParseModel(float * values, int count)
 				memcpy(p,   p - 20, BYTES_PER_VERTEX);
 				memcpy(p+5, p - 10, BYTES_PER_VERTEX);
 			}
-			p += 10;
+			p += INT_PER_VERTEX*2;
 		}
 		/* marks the beginning of a new primitive (only needed by bounding box) */
 		if (start > out) start[4] |= NEW_BBOX;
@@ -1043,6 +1045,8 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 			}
 			else
 			{
+				if (block.id == 118 && state.id == 2)
+					puts("here");
 				state.custModel = blockParseModel(table, count);
 
 				if (state.custModel == NULL)
@@ -1420,7 +1424,8 @@ void blockParseInventory(int vbo)
 	vertex = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
 
 	fprintf(stderr, "custom model vertex = %d bytes\n", blocks.totalVtx);
-//	fprintf(stderr, "inventory = %d vertex, total = %d\n", total, blocks.totalInv);
+	// total wasted = 4014 / 409600
+	// fprintf(stderr, "inventory = %d vertex, total = %d\n", total, blocks.totalInv);
 
 	/* generate mesh: will use the same shader than block models */
 	for (state = blockStates, i = blocks.totalStates, vtx = 0, j = 0; i > 0; i --, state ++)
