@@ -1045,8 +1045,6 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 			}
 			else
 			{
-				if (block.id == 118 && state.id == 2)
-					puts("here");
 				state.custModel = blockParseModel(table, count);
 
 				if (state.custModel == NULL)

@@ -457,23 +457,24 @@ int mapUpdateGate(BlockIter iterator, int id, Bool init)
 int mapUpdateDoor(BlockIter iterator, int blockId, Bool init)
 {
 	struct BlockIter_t iter = *iterator;
-	if (blockId & 8)
+	int bottom = blockId;
+	if (bottom & 8)
 		/* top part of door: open state is in bottom part */
-		mapIter(&iter, 0, -1, 0);
+		mapIter(&iter, 0, -1, 0), bottom = getBlockId(&iter);
 
 	/* 10 blocks to check :-/ */
 	uint8_t i, powered = 2;
 	for (i = 0; i < 6 && (i == SIDE_TOP || ! redstoneIsPowered(iter, i, POW_NORMAL)); i ++);
 	if (i == 6)
 	{
-		for (i = 0, mapIter(&iter, 0, 2, 0); i < 5 && ! redstoneIsPowered(iter, i, POW_NORMAL); i ++);
+		for (i = 0, mapIter(&iter, 0, 1, 0); i < 5 && ! redstoneIsPowered(iter, i, POW_NORMAL); i ++);
 		if (i == 5) powered = 0;
+		mapIter(&iter, 0, -1, 0);
 	}
 	if (! init)
 	{
-		iter = *iterator;
-		if ((blockId & 8) == 0)
-			mapIter(&iter, 0, 1, 0);
+		/* powered state is in top part */
+		mapIter(&iter, 0, 1, 0);
 		int top = getBlockId(&iter);
 		if ((top & 2) != powered)
 		{
@@ -481,11 +482,12 @@ int mapUpdateDoor(BlockIter iterator, int blockId, Bool init)
 			mapIter(&iter, 0, -1, 0);
 			/* if powered, force the door in opened state */
 			powered <<= 1;
-			if ((blockId & 4) != powered)
-				mapUpdateTable(&iter, (blockId&11) | powered, DATA_OFFSET);
+			if ((bottom & 4) != powered)
+				mapUpdateTable(&iter, (bottom&11) | powered, DATA_OFFSET);
 		}
 		return blockId;
 	}
+	/* this is not a real block state, it will be processed by mapUpdateBlock() */
 	else return blockId | (powered << 2);
 }
 
@@ -568,54 +570,162 @@ int mapActivateBlock(BlockIter iter, vec4 pos, int blockId)
 }
 
 /*
- * delayed block update (tile tick)
+ * delayed block update (tile tick).
+ * kept in a hash table along with a sorted list (by tick) to scan all items.
  */
-static TileTick updateAlloc(void)
+
+static TileTick updateInsert(ChunkData cd, int offset, int tick);
+
+#define TOHASH(cd, offset)      (((uint64_t) (int)cd) | ((uint64_t)offset << 32))
+#define EOL                     0xffff
+
+Bool updateAlloc(int max)
 {
-	if (updates.count == updates.max)
+	max = roundToUpperPrime(max);
+
+	updates.list   = calloc(max, sizeof (struct TileTick_t) + sizeof *updates.sorted);
+	updates.max    = max;
+	updates.count  = 0;
+	updates.sorted = (DATA16) (updates.list + max);
+
+	return updates.list != NULL;
+}
+
+static void updateExpand(void)
+{
+	TileTick old = updates.list;
+	int      max = updates.max;
+
+	/* redo from scratch */
+	if (updateAlloc(max+1))
 	{
-		int usage  = (DATA8) updates.usage  - (DATA8) updates.list;
-		int sorted = (DATA8) updates.sorted - (DATA8) updates.list;
-		updates.max += 128;
-		TileTick list = realloc(updates.list, updates.max * (sizeof *list + 2) + (updates.max >> 5) * 4);
-		if (list == NULL) return NULL;
-		updates.list = list;
-		updates.sorted = (DATA16) (list + updates.max);
-		updates.usage = (DATA32) (updates.sorted + updates.max);
-		if (updates.count > 0)
+		/* shouldn't happen very often: performance is not really a concern */
+		TileTick entry, eof;
+		for (entry = old, eof = entry + max; entry < eof; entry ++)
 		{
-			memmove(updates.sorted, (DATA8) list + usage,  updates.count * 2);
-			memmove(updates.usage,  (DATA8) list + sorted, (updates.count >> 5) * 4);
+			if (entry->tick > 0)
+				updateInsert(entry->cd, entry->offset, entry->tick);
 		}
-		memset(updates.usage + (updates.count >> 5), 0, 16);
+		free(old);
 	}
+}
+
+static TileTick updateInsert(ChunkData cd, int offset, int tick)
+{
+	if ((updates.count * 36 >> 5) >= updates.max)
+	{
+		/* 90% full: expand */
+		updateExpand();
+	}
+
+	TileTick entry, last;
+	int      index = TOHASH(cd, offset) % updates.max;
+
+	for (entry = updates.list + index, last = entry->tick == 0 || entry->prev == EOL ? NULL : updates.list + entry->prev; entry->tick;
+	     last = entry, entry = updates.list + entry->next)
+	{
+		/* check if already inserted */
+		if (entry->cd == cd && entry->offset == offset)
+			return entry;
+		if (entry->next == EOL)
+		{
+			TileTick eof = updates.list + updates.max;
+			last = entry;
+			do {
+				entry ++;
+				if (entry == eof) entry = updates.list;
+			} while (entry->tick);
+			break;
+		}
+	}
+
+	if (last) last->next = entry - updates.list;
+	entry->prev   = last ? last - updates.list : EOL;
+	entry->next   = EOL;
+	entry->cd     = cd;
+	entry->offset = offset;
+	entry->tick   = tick;
+
+	/* sort insert into sorted[] array */
+	int start, end;
+	for (start = 0, end = updates.count; start < end; )
+	{
+		/* dichotomic search */
+		index = (start + end) >> 1;
+		TileTick middle = updates.list + updates.sorted[index];
+		if (middle->tick == tick) { start = index; break; }
+		if (middle->tick <  tick) start = index + 1;
+		else end = index;
+	}
+
+	if (start < updates.count)
+	{
+		DATA16 move = updates.sorted + start;
+		memmove(move + 1, move, (updates.count - start) * sizeof *move);
+	}
+	updates.sorted[start] = entry - updates.list;
 	updates.count ++;
-	return updates.list + mapFirstFree(updates.usage, updates.max >> 5);
+
+	return entry;
+}
+
+void updateRemove(ChunkData cd, int offset, int clearSorted)
+{
+	TileTick entry = updates.list + TOHASH(cd, offset) % updates.max;
+	TileTick last;
+
+	if (entry->tick == 0) return;
+	for (last = entry->prev == EOL ? NULL : updates.list + entry->prev; entry->cd != cd || entry->offset != offset;
+	     last = entry, entry = updates.list + entry->next)
+		if (entry->next == EOL) return;
+
+	/* entry is in the table */
+	if (last)
+	{
+		last->next = entry->next;
+		if (entry->next != EOL)
+		{
+			TileTick next = updates.list + entry->next;
+			next->prev = last - updates.list;
+		}
+		entry->tick = 0;
+	}
+	else if (entry->next != EOL)
+	{
+		/* first link of list and more chain link follows */
+		int      index = entry->next, i;
+		TileTick next = updates.list + index;
+		DATA16   p;
+		memcpy(entry, next, sizeof *entry);
+		entry->prev = EOL;
+		next->tick = 0;
+		for (i = updates.max, p = updates.sorted; i > 0; i --, p ++)
+			if (*p == index) { *p = entry - updates.list; break; }
+	}
+	/* clear slot */
+	else entry->tick = 0;
+
+	updates.count --;
+	if (clearSorted)
+	{
+		DATA16 p;
+		int    i, index;
+		for (i = updates.max, p = updates.sorted, index = entry - updates.list; i > 0; i --, p ++)
+		{
+			if (*p != index) continue;
+			if (i > 1) memmove(p, p + 1, i * 2 - 2);
+			break;
+		}
+	}
 }
 
 void updateAdd(BlockIter iter, int blockId, int nbTick)
 {
-	TileTick update = updateAlloc();
-	int      tick   = (int) curTime + nbTick * (1000 / TICK_PER_SECOND);
-	update->cd      = iter->cd;
-	update->offset  = iter->offset;
+	TileTick update = updateInsert(iter->cd, iter->offset, curTime + nbTick * (1000 / TICK_PER_SECOND));
 	update->blockId = blockId;
-	update->tick    = tick;
 
-	/* keep them sorted for easier scanning later */
-	int i, max;
-	for (i = updates.start, max = updates.count-1; i < max; i ++)
-	{
-		TileTick list = updates.list + updates.sorted[i];
-		if (tick < list->tick) break;
-	}
-
-	if (i < updates.count-1)
-		memmove(updates.sorted + i + 1, updates.sorted + i, (updates.count - i - 1) * sizeof *updates.sorted);
-
-//	fprintf(stderr, "updating %d:%d at ", blockId >> 4, blockId & 15); printCoord(NULL, iter);
-
-	updates.sorted[i] = update - updates.list;
+	fprintf(stderr, "adding block update in %d tick at %d, %d, %d to %d:%d [%d]\n", nbTick,
+		iter->ref->X + (iter->offset & 15), iter->yabs, iter->ref->Z + ((iter->offset >> 4) & 15), blockId >> 4, blockId & 15, updates.count);
 }
 
 void updateTick(Map map)
@@ -634,18 +744,16 @@ void updateTick(Map map)
 		pos[2] = cd->chunk->Z + (off & 15);
 		pos[1] = cd->Y + (off >> 4);
 
-		updates.usage[id >> 5] ^= 1 << (id & 31);
 		updates.start ++;
 
 		i ++;
-		/* after this point <list> can be overwritten, do not use past this point */
 		mapUpdate(map, pos, list->blockId, NULL, i == count || updates.list[updates.sorted[i]].tick > time);
+		updateRemove(cd, list->offset, 0);
 	}
 	if (i > 0)
 	{
 		/* remove processed updates in sorted array */
 		memmove(updates.sorted, updates.sorted + i, updates.count * sizeof *updates.sorted);
-		updates.count -= i;
 		updates.start = 0;
 	}
 }

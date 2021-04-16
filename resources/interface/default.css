@@ -1,0 +1,111 @@
+html { color: white; font-size: 1.5vw }
+
+dialog { border-radius: 15px; box-shadow: 0 0 20px black; border-bottom: 2px solid rgba(#000,0.3); background: url(wool.png);
+         background-size: 32px 32px; padding: 1.2em 6px 5px 6px }
+dialog title { text-shadow: 0 2px rgba(#000,0.5); text-align: center }
+dialog client { background: url(plank.png); background-size: 64px 64px; padding: 10px; border-radius: 0 0 12px 12px; color: #ccc;
+                border-top: 2px solid rgba(#000,0.3); box-shadow: 0 0 5px black inset }
+dialog close { font-weight: bold; color: #d44; text-shadow: 2px 2px 2px black, -1px -1px 2px white }
+dialog close:hover { color: red }
+dialog close:hover:active { color: red; text-shadow: 2px 2px 2px #ccc, -1px -1px 2px black }
+
+#header { background: linear-gradient(to right, rgba(#000,0.5), transparent 50%, rgba(#000,0.5)), url("dirt.png"); padding: 30px;
+          background-size: 100% 100%, 64px 64px; border-bottom: 5px solid rgba(0,0,0,0.5) }
+
+#footer { background: linear-gradient(to right, rgba(#000,0.5), transparent 50%, rgba(#000,0.5)),
+		  url("dirt.png"); padding: 20px; background-size: 100% 100%, 64px 64px; border-top: 5px solid rgba(#fff,0.1) }
+
+#worlds { background: linear-gradient(to right, rgba(#000,0.3), rgba(#000,0.5) 20%, rgba(#000,0.3) 80%, rgba(#000,0.5)), url("dirt.png");
+		  box-shadow: black 0 0 20px inset; background-size: 100% 100%, 64px 64px; padding: 20px 6%; color: #ccc }
+
+button { padding: 8px 20px 4px; border-radius: 4px; background: linear-gradient(to bottom, #87cb85, #6da46b); font-weight: bold;
+		 text-shadow: 0 2px rgba(#000,0.5); border: 2px solid #547e53; color: white;
+		 border-color: #94df92 #547e53 #547e53 #94df92; outline: 3px solid black; text-transform: uppercase }
+button.left   { border-radius: 6px 0 0 6px }
+button.center { border-radius: 0 }
+button.right  { border-radius: 0 6px 6px 0 }
+
+button:active { background: linear-gradient(to bottom, #416240, #2a3f29); border-width: 0; padding: 10px 22px 6px; box-shadow: 0 0 4px black inset; color: #ccc }
+
+button.left:active, button.center:active, button.right:active { text-shadow: 0 0 10px #b4ecff, 0 0 10px #b4ecff; color: #e0f7ff }
+
+button:disabled { background: linear-gradient(to bottom, rgba(#555,0.5), rgba(#444,0.5)); border: 0; color: #aaa;
+				  box-shadow: 0 0 4px black inset }
+
+#edit { font-size: 1.5em; padding: 10px 20px 6px }
+#edit:active { box-shadow: 0 0 8px black inset; padding: 12px 22px 8px }
+#edit:disabled { padding: 12px 22px 8px }
+
+#signedit { padding: 0; border: none; border-radius: 0; -caret-color: black; box-shadow: none; text-align: center; padding-top: 15px; color: black }
+
+editbox { padding: 6px; border: 2px solid #87cb85; background-color: black; -caret-color: red }
+
+editbox spin.up { background: url(mask:arrowup.png) 50% 50% no-repeat, linear-gradient(to bottom, #87cb85, #6da46b); background-size: 70% 35%, 100% 100% }
+editbox spin.down { background: url(mask:arrowdown.png) 50% 50% no-repeat, linear-gradient(to bottom, #87cb85, #6da46b); background-size: 70% 35%, 100% 100% }
+editbox spin.up:active { background: url(mask:arrowup.png) 50% 50% no-repeat, linear-gradient(to bottom, #416240, #2a3f29); color: #ccc }
+editbox spin.down:active { background: url(mask:arrowdown.png) 50% 50% no-repeat, linear-gradient(to bottom, #416240, #2a3f29); color: #ccc }
+
+checkbox, radio { border-radius: 0.3em }
+checkbox box { padding: 0.4em; border: 2px solid #87cb85; background-color: black; border-radius: 0.15em; vertical-align: middle }
+checkbox:checked box { background: #6da46b url(mask:checkmark.png) no-repeat 50% 50%; background-size: 80% 80%; color: white }
+radio:kbdfocus, checkbox:kbdfocus { outline: 2px solid blue 0.2em }
+
+radio box { border-radius: 1em; border: 2px solid #87cb85; padding: 0.4em; background-color: black; vertical-align: middle }
+radio:checked box { background: black url(mask:circle.png) no-repeat 50% 50%; background-size: 80% 80%; color: #c4f4c3 }
+
+#worlds:kbdfocus { outline: 2px solid rgba(#00f, 0.5); }
+button:kbdfocus { outline: 2px solid blue }
+button:kbdfocus:active { outline-color: black }
+
+thumb { background-color: #ccc; border: 0.1em outset #ccc }
+editbox vscroll { background-color: #5d8c5c; border: 2px solid black }
+editbox thumb { background-color: #87cb85; border: 0 }
+
+slider thumb { border-radius: 5px }
+slider { border: 2px solid #87cb85 }
+gauge { background-color: #5c8b5b; box-shadow: 1px 1px 2px black inset }
+slider:kbdfocus { outline: 2px solid blue }
+
+combobox { border: 2px solid #87cb85; background-color: black; padding: 6px }
+combobox arrow { background: #87cb85 url(mask:arrowdown.png) 50% 50% no-repeat; background-size: 70% 50% }
+popup { border: 2px solid #87cb85; border-width: 2px 2px; background-color: black; padding: 6px }
+
+frame { border: 2px solid #87cb85; border-radius: 0.5em }
+
+tooltip { background-color: rgba(#000,0.9); color: white; text-shadow: 2px 2px #3f3f3f; padding: 0.7em; padding-bottom: 0.6em;
+          outline: 0.15em solid #6e34c6 -0.3em; font-size: 0.9em; white-space: pre; border-radius: 0.3em; line-height: 1.2 }
+tooltip dim { color: #666; text-shadow: none }
+tooltip ench { color: #aaa }
+tooltip b { color: cyan }
+
+tab { padding: 5px; color: #444; background-color: #c6c6c6; border: 0.2em outset #c6c6c6; border-radius: 0.3em; border-top-left-radius: 0 }
+tab pane { border-radius: 0.3em 0.3em 0 0; text-shadow: none; background-color: #8b8b8b;
+           border: 0.2em outset #8b8b8b; border-bottom: 0; font-size: 0.9em; padding: 3px 7px }
+tab pane:active { background-color: #c6c6c6; border-color: #c6c6c6; border-width: 0.2em; padding: 5px 7px }
+tab pane img { width: 20px }
+tab editbox { background-color: #8b8b8b; border: 0.1em inset #ccc; padding: 2px 4px; -caret-color: #ddd; color: white; text-shadow: 2px 2px #3f3f3f }
+tab vscroll { border: 0.1em inset #ccc; background-color: #8b8b8b }
+tab .exch { border: 0.1em inset #ccc; background: url(mask:arrowdown.png) no-repeat 50% 70%, url(mask:arrowup.png) no-repeat 50% 30%;
+            background-size: 70% 20%, 70% 20%; color: #888; border-radius: 0; outline: none; padding: 0; box-shadow: 0 0 3px #222 inset }
+tab .exch:active { border: 0.1em inset #ccc; background-color: transparent, #8b8b8b; padding: 0; color: white; box-shadow: 0 0 3px #222 inset }
+tab #del.exch { background: rgba(red, 0.1); text-align: center; vertical-align: middle; padding-top: 0.2em; text-shadow: none }
+tab #del.exch:active { background: red }
+
+.inv { background-color: #8b8b8b }
+.inv td { border: 0.1em inset #ccc }
+#container { padding: 5px; color: #444; background-color: #c6c6c6; border: 0.2em outset #c6c6c6; border-radius: 0.3em }
+
+#worlds { border-spacing: auto 20px }
+#worlds > td { border: 3px solid #888; padding: 2px }
+#worlds #wname { color: white }
+#worlds td { color: #aaa; text-shadow: 2px 2px rgba(#000,0.5) }
+#worlds td:checked { color: #eee; background: linear-gradient(to bottom, #87cb85, #6da46b); border: 2px solid #94df92 }
+#worlds td:checked td { color: #eee }
+#worlds thead { text-decoration: underline }
+
+#toolbar { background: rgba(black,0.7); padding: 10px; box-shadow: 0 0 10px black; font-size: 0.9em }
+
+::link { color: #55f }
+
+
+#block { outline: 2px solid #5c8b5b -4px; border-radius: 0.5em; background-color: black; color: white; white-space: pre-wrap; padding: 8px; tab-size: 8 }

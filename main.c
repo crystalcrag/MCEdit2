@@ -219,8 +219,8 @@ int main(int nb, char * argv[])
 	SIT_SetValues(mcedit.app,
 		SIT_DefSBSize,   SITV_Em(0.5),
 		SIT_RefreshMode, SITV_RefreshAsNeeded,
-		SIT_AddFont,     "sans-serif",      RESDIR "fonts/Roboto-Regular.ttf",
-		SIT_AddFont,     "sans-serif-bold", RESDIR "fonts/Roboto-Bold.ttf",
+		SIT_AddFont,     "sans-serif",      "system",
+		SIT_AddFont,     "sans-serif-bold", "system/Bold",
 		SIT_AccelTable,  accels,
 		SIT_ExitCode,    &mcedit.exit,
 		NULL
@@ -244,6 +244,7 @@ int main(int nb, char * argv[])
 		return 1;
 	}
 
+	updateAlloc(32);
 	playerInit(&mcedit.player, &mcedit.level->levelDat);
 	FrameSetFPS(40);
 

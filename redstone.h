@@ -10,7 +10,7 @@
 typedef struct RSWire_t *     RSWire;
 
 int  redstoneConnectTo(struct BlockIter_t iter, RSWire connectTo);
-int  redstoneSignalStrength(struct BlockIter_t iter, Bool dirty);
+int  redstoneSignalStrength(BlockIter iter, Bool dirty);
 Bool redstonePropagate(int blockId);
 int  redstoneIsPowered(struct BlockIter_t iter, int side, int minPower);
 void redstonePowerChange(struct BlockIter_t iter, RSWire connectTo, int count);

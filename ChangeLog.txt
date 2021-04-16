@@ -1,0 +1,765 @@
+=========== Week 15 ===========
+Thu Apr 15:
+	* tile tick: switched to a sorted hash table.
+
+Wed Apr 14:
+	* various bug fixed related to redstone.
+
+Tue Apr 13:
+	* door react to redstone signal update.
+	* buffer overflow in blockVertexAlloc() fixed.
+
+Mon Apr 12:
+	* RSNOR latch works. Door almost done.
+
+=========== Week 14 ===========
+Sun Apr 11:
+	* added powered rails, fence gate and trapdoor update.
+
+Sat Apr 10:
+	* redstone cleanup and slight refactoring.
+
+Fri Apr 9:
+	* added redstone block.
+	* bug with tile entity copy from inventory fixed.
+
+Thu Apr 8:
+	* added redstone lamp.
+	* nasty bug with tile entity in inventory, need more investigation :-/
+
+Wed Apr 7:
+	* adding other redstone components (buttons, lever).
+
+Tue Apr 6:
+	* redstone update mostly working (for real though).
+
+Mon Apr 5:
+	* redstone update continued.
+
+=========== Week 13 ===========
+Sun Apr 4:
+	* redstone update continued.
+
+Sat Apr 3:
+	* redstone update somewhat working.
+
+Fri Apr 2:
+	* redstone block update continued.
+
+Thu Apr 1:
+	* redstone block update continued.
+
+Wed Mar 31:
+	* redstone block update continued.
+
+Tue Mar 30:
+	* SITGL listbox (NoHeaders).
+	* redstone block update continued.
+
+Mon Mar 29:
+	* SITGL listbox continued (kbd pgup/down, search).
+	* redstone block update continued.
+
+=========== Week 12 ===========
+Sun Mar 28:
+	* redstone block update continued.
+
+Fri Mar 26:
+	* redstone block update continued.
+
+Thu Mar 25:
+	* SITGL listbox continued.
+
+Wed Mar 24:
+	* more bug fixed for particle emitter list updates.
+
+Tue Mar 23:
+	* particle emitter list updates bug fix.
+
+Mon Mar 22:
+	* redstone async block update continued.
+	* SITGL listbox bug fixes.
+
+=========== Week 11 ===========
+Sun Mar 21:
+	* redstone async block update continued.
+	* SITGL listbox delete row.
+
+Sat Mar 20:
+	* redstone async block update started.
+	* SITGL selectedIndex property.
+
+Thu Mar 18:
+	* SITGL: listbox almost working.
+	* smoke particle better handling of terrain geometry.
+	* bug fixed in position tracking for light update.
+
+Tue Mar 16:
+	* particle emitters uses partial list: 3x3 sub-chunk surrounding player.
+
+Mon Mar 15:
+	* particle emitter uses global list: not good, too many.
+
+=========== Week 10 ===========
+Sun Mar 14:
+	* moar particle emitters refactoring.
+
+Sat Mar 13:
+	* particle emitter logic mostly done.
+
+Fri Mar 12:
+	* spark/smoke particles redone using texture: better and simpler.
+
+Thu Mar 11:
+	* spark particles using randomly generated pattern done, results are meh.
+
+Wed Mar 10:
+	* spark particles continued.
+
+Tue Mar 9:
+	* particle system reworked to add new particle types.
+
+Mon Mar 8:
+	* started new smoke particles.
+
+=========== Week 9 ===========
+Sun Mar 7:
+	* bug fixes when placing blocks.
+	* bug due to bad frustum culling seems to be fixed.
+
+Sat Mar 6:
+	* added frustum debug outlines.
+	* signDel().
+	* rework coodinates system relative to player pos.
+
+Fri Mar 5:
+	* particles system improved.
+
+Wed Mar 3:
+	* particle system improved: TTL for particles and light/sky taken into account.
+
+Tue Mar 2:
+	* another bug in skyBlockOffset[] :-/
+
+Mon Mar 1:
+	* redstone delete signal somewhat working.
+	* SITGL combobox working without too much glitches.
+
+=========== Week 8 ===========
+Sun Feb 28:
+	* redstone signal uses texture for intensity.
+
+Sat Feb 27:
+	* redstone update can propagate signal.
+
+Fri Feb 26:
+	* SITGL doc and debug.
+
+Thu Feb 25:
+	* SITGL doc and debug.
+
+Wed Feb 24:
+	* redstone update continued.
+
+Tue Feb 23:
+	* redstone update continued.
+
+Mon Feb 22:
+	* redstone update continued.
+
+=========== Week 7 ===========
+Sun Feb 21:
+	* started redstone update.
+
+Sat Feb 20:
+	* OIT: meh, performance not that good and doesn't work on nvidia; check for another method later.
+
+Fri Feb 19:
+	* OIT work mostly (on intel at least).
+
+=========== Week 6 ===========
+Fri Feb 12:
+	* SITGL bug fix: border-image.
+
+Tue Feb 9:
+	* skydome not too bad looking, might keep it like that for now.
+
+Mon Feb 8:
+	* minor tweaks to skydome shader.
+
+=========== Week 5 ===========
+Sun Feb 7:
+	* fixed a few nasty bugs in fragment shader of skydome.
+	* OpenGL ninth edition received.
+
+Sat Feb 6:
+	* minor tweaks in way resources are organized, major debugging followed.
+
+Fri Feb 5:
+	* adapted example from Simon Rodriguez (https://github.com/kosua20/opengl-skydome).
+
+Thu Feb 4:
+	* other skydome implementation checked: PBR seems too complex, use texture instead.
+
+Wed Feb 3:
+	* skydome research continued: scratchapixel model needs too many tweaks to be usable.
+
+Tue Feb 2:
+	* adapted scratchapixel skydome rendering.
+
+Mon Feb 1:
+	* check for better sky dome rendering.
+
+=========== Week 4 ===========
+Sun Jan 31:
+	* started implementing proper handling of blocks translucency (depth peeling).
+
+Sat Jan 30:
+	* sign editing mostly working done for now.
+
+Fri Jan 29:
+	* sign editing continued.
+
+Wed Jan 27:
+	* sign: r/w tile entity almost done.
+
+Tue Jan 26:
+	* sign continued.
+
+Mon Jan 25:
+	* even moar interface fine tuning for sign editing.
+
+=========== Week 3 ===========
+Sun Jan 24:
+	* more sign editing boilerplate: interface mostly working now.
+
+Sat Jan 23:
+	* SITGL: added max-lines constrained text edit (needed for sign and book).
+
+Fri Jan 22:
+	* adjusted block placement (sign, post, button).
+
+Wed Jan 20:
+	* first sign rendered, yay! nvgScale() and text seems unusable :-/
+	* note: frustum culling still cull too many chunks if pitch is high.
+
+Tue Jan 19:
+	* signs still need more testing.
+
+Mon Jan 18:
+	* sign boilerplate mostly complete, using 8bpp texture for now.
+
+=========== Week 2 ===========
+Sun Jan 17:
+	* sign problem: FBO rendering with nanovg doesn't seem to work :-/
+
+Sat Jan 16:
+	* moar sign boilerplate.
+
+Fri Jan 15:
+	* sign rendering won't use color for now: use RGBA to store 4 signs in same place.
+
+Thu Jan 14:
+	* sign rendering continued.
+
+Wed Jan 13:
+	* started boilerplate for rendering signs.
+
+Tue Jan 12:
+	* frustum culling seems working and debug slice view adapted to new direction.
+
+Mon Jan 11:
+	* frustum culling slightly better: buffer overflow cut visible list short.
+	* more robust fake chunk allocation (need perf analysis).
+	* render.direction had inverted east/west.
+
+=========== Week 1 ===========
+Sun Jan 10:
+	* bug not fixed: frustum culling cut short the visible list, missing chunk in rendering, bug is random :-/
+
+Sat Jan 9:
+	* implemented new type of bbox: mix between FULL (for hitbox) and vertex data (for render).
+
+Fri Jan 8:
+	* started block activation update.
+
+Thu Jan 7:
+	* chunk update list debugged: based on exact area being modified, instead of min/max coord.
+
+Mon Jan 4:
+	* chunk update list reworked, old min/max coordinate system generated too many updates.
+
+
+#
+# END OF 2020
+#
+
+=========== Week 53 ===========
+Sun Jan 3:
+	* better rails orientation based on neighbors.
+
+Sat Jan 2:
+	* bug fixed with selection and impossible block placement.
+	* rails auto adjust based on neighbors.
+
+Fri Jan 1:
+	* double blocks can be placed: doors, tall flowers, bed.
+	* SITGL debug: box-shadow, wrong padding in listbox, relative unit in border and padding.
+
+Thu Dec 31:
+	* started block update function.
+
+Tue Dec 29:
+	* item refactoring mostly done.
+
+Mon Dec 28:
+	* started item refactoring: uses external JSON table, instead of static array.
+
+=========== Week 52 ===========
+Sun Dec 27:
+	* addded placement constraint check before placing a block.
+	* render tall flowers correctly.
+
+Fri Dec 25:
+	* bug fixed: connected texture for glass, items placement debug, incomplete chunk saving, bad relight when placing glass pane.
+
+Wed Dec 23:
+	* stupid bug fixed in plane/segment intersection check.
+
+Tue Dec 22:
+	* more inventory items done.
+
+Mon Dec 21:
+	* inventory colored bed mmodels done.
+
+=========== Week 51 ===========
+Sun Dec 20:
+	* bug fixed in NBT_List_String parsing.
+	* colored bed rendering.
+	* slice view is now clamped to map currently loaded.
+
+Sat Dec 19:
+	* better timing between frames.
+	* nasty bug in skyBlockOffset[] table (wrong number) :-/
+
+Fri Dec 18:
+	* particles physics improved and better use of texture.
+
+Thu Dec 17:
+	* block breaking particles mostly done, need better physics and time management.
+
+Wed Dec 16:
+	* particles animated and have basic collision detection.
+
+Tue Dec 15:
+	* particle system uses geometry shader now, billboarding is working.
+
+Mon Dec 14:
+	* particle system continued.
+
+=========== Week 50 ===========
+Sun Dec 13:
+	* block rewrite seems complete, started particles system.
+
+Sat Dec 12:
+	* block API rewrite 99% complete.
+
+Thu Dec 10:
+	* inventory models continued.
+
+Wed Dec 9:
+	* bbox somewhat working, started inventory models rework.
+
+Tue Dec 8:
+	* bbox model reworked continued.
+
+Mon Dec 7:
+	* bbox model reworked continued.
+
+=========== Week 49 ===========
+Sun Dec 6:
+	* bbox model reworked in progress.
+
+Sat Dec 5:
+	* opaque, quad and cust working, still need bbox, and inventory.
+
+Fri Dec 4:
+	* opaque blocks somewhat working, yay!
+
+Thu Dec 3:
+	* rewrite engine to use new API, still lots of stuff remaining.
+
+Wed Dec 2:
+	* more refactoring to block generation API (cnx tex redone too).
+
+Tue Dec 1:
+	* block API continued: inventory models.
+
+Mon Nov 30:
+	* block vertex data generation continued.
+
+=========== Week 48 ===========
+Sun Nov 29:
+	* block table parsing done, debugged and starting to integrate block vertex data generation.
+
+Fri Nov 27:
+	* block table parsing continued.
+
+Thu Nov 26:
+	* refactoring block model tables done, started parsing.
+
+Wed Nov 25:
+	* refactoring block models: 206/252
+
+Tue Nov 24:
+	* refactoring block models: 145/252
+
+Mon Nov 23:
+	* refactoring block models: 100/252
+
+=========== Week 47 ===========
+Sun Nov 22:
+	* refactoring block models: merging blockTable.h, blockPerId.h, blockModels.h and inventoryModels.h. 67/252 :-/
+	* vertex shader working for half block.
+
+Sat Nov 21:
+	* vertex shader mostly working for opaque, quad and debug; half block need more work.
+
+Fri Nov 20:
+	* debug vertex shaders :-/
+
+Thu Nov 19:
+	* unification of shaders continued.
+
+Wed Nov 18:
+	* unification of shaders continued (opaque and quad mostly done).
+
+Tue Nov 17:
+	* started unification of blocksVert.glsl and custVert.glsl.
+
+Mon Nov 16:
+	* bug with chunk not being generated: forget fclose() call in chunkLoad().
+
+=========== Week 46 ===========
+Sun Nov 15:
+	* variable render distance done.
+
+Sat Nov 14:
+	* frustum culling integrated.
+	* added slight jittering for quad cross.
+	* started arbitrary map render distance.
+
+Fri Nov 13:
+	* frustum culling seems working.
+
+Thu Nov 12:
+	* frustum culling redone (again): moved outflags from ChunkData to Chunk: halve the memory needed.
+
+Wed Nov 11:
+	* frustum culling almost working, added fake chunk logic, need to remove initial step.
+
+Tue Nov 10:
+	* priority chunk removed, too complex and not necessary: can be done in frustum culling directly :-/
+
+Mon Nov 9:
+	* priority chunk ordering for generating mesh.
+
+=========== Week 45 ===========
+Sun Nov 8:
+	* frustum culling: second pass somewhat done, need to add fake chunk logic.
+	* attempt to test frustum culling in separate program: meh.
+
+Fri Nov 6:
+	* SITGL: text-overflow seems working.
+	* frustum culling: first pass redone, second pass started.
+
+Thu Nov 5:
+	* SITGL: implementation of overflow: ellipsis mostly working.
+	* frustum culling continued: first pass done.
+
+Wed Nov 4:
+	* SITGL: first implementation of overflow: ellipsis.
+	* frustum culling continued: used matrix approch: ok.
+
+Tue Nov 3:
+	* frustum culling continued: tried geometric approach: failed.
+	* SITGL doc continued, bug fixed with fixed size when resized.
+
+Mon Nov 2:
+	* editing NBT mostly working for now.
+	* started integrating frustum culling, at last.
+
+=========== Week 44 ===========
+Sun Nov 1:
+	* debug NBT modif, seems almost working, yay.
+
+Sat Oct 31:
+	* debug NBT modif, enchantments decoder.
+
+Fri Oct 30:
+	* API for editing NBT continued: 90% complete: saving player inventory working.
+
+Thu Oct 29:
+	* API for editing NBT continued: 50% complete.
+	* SITGL: bug with scrollbar down arrow (negative offset), listbox fixes.
+
+Wed Oct 28:
+	* SITGL: bug with SIT_NextCtrl, text edit selection, color table simplified
+	* API for editing NBT continued: hash table for TileEntities instead of table.
+
+Tue Oct 27:
+	* SITGL: added left and top css properties for tweaking element positionning.
+	* started API for editing internal NBT structure, need more work.
+
+Mon Oct 26:
+	* SITGL bug fixed: text-shadow rendering, timer crash, mem leak in SIT_Tooltip property.
+	* added double chest editing and other chest containers (ender, trapped, shulker).
+
+=========== Week 43 ===========
+Sun Oct 25:
+	* SITGL tweaks: HTML entities parsed in text, -bg-mod-color, dialog elements repositionned.
+	* more robust drag item accross multiple inventories.
+
+Sat Oct 24:
+	* reading inventory from NBT and chest editor interface.
+
+Fri Oct 23:
+	* more inventory logic done: mouse gestures and swap buttons.
+
+Thu Oct 22:
+	* cleanup in the way inventory items are rendered: can be rendered at different scale and less magic in cpu code.
+
+Wed Oct 21:
+	* possibility to add/remove sub-chunks from NBT and saving them to disk.
+	* started reading/writing inventory from NBT: boilerplate to get item from id string.
+
+Tue Oct 20:
+	* NBT editing redone from scratch: can't relocate NBTFile buffer because of iterators :-/ has to use callbacks instead.
+	* slice view: added zoom and settings saved in config, bug fixed with last line being cleared.
+
+Mon Oct 19:
+	* NBT editing: NBT_CreateNode() done.
+
+=========== Week 42 ===========
+Sun Oct 18:
+	* NBT editing continue: delete done, create started.
+
+Sat Oct 17:
+	* SITGL minor bug fix, toolbar for side view.
+	* started NBT2 modification (insertion/deletion of nodes).
+
+Fri Oct 16:
+	* BlockLight udpate seems working.
+	* SITGL refinement: toggle button, non-modal dialog.
+
+Thu Oct 15:
+	* inventory editor finally done.
+	* BlockLight update integration continued.
+
+Wed Oct 14:
+	* more work on inventory interface.
+
+Tue Oct 13:
+	* drag'n drop in inventory mostly working.
+
+Mon Oct 12:
+	* SITGL doc and tooltip improved.
+	* inventory interface refined with compositing.
+
+=========== Week 41 ===========
+Sun Oct 11:
+	* SITGL composited areas and better handling of tooltips.
+
+Sat Oct 10:
+	* inventory interface mostly working.
+
+Fri Oct 9:
+	* added items id table definition.
+
+Thu Oct 8:
+	* moar SITGL boilerplate for easier handling of user interface.
+
+Wed Oct 7:
+	* better handling of SITGL inline styles.
+
+Tue Oct 6:
+	* started integration of user interface.
+
+Mon Oct 5:
+	* SIT_TAB mostly working, integrating inventory interface.
+
+=========== Week 40 ===========
+Sun Oct 4:
+	* SIT_Geometry debug and SIT_TAB continued :-/
+
+Sat Oct 3:
+	* SIT_TAB implementation in SITGL 90% complete.
+
+Fri Oct 2:
+	* integrate blockLight update.
+	* added meta data per blockid (instead of per block state).
+
+Thu Oct 1:
+	* blockLight update rework to accomodate block opacity.
+
+Wed Sep 30:
+	* new skylight mostly integrated.
+
+Tue Sep 29:
+	* skylight rework again: need to take block opacity into account :-/
+	* added early version of region skylight update.
+
+Mon Sep 28:
+	* early version of translucent blocks done.
+
+=========== Week 39 ===========
+Sun Sep 27:
+	* added early support for alpha texture meshing.
+	* fix texture bug with glass pane without neighbors.
+
+Sat Sep 26:
+	* debug and tested mapUpdateSkyLightBlock().
+	* side view render more blocks (some CUST using side tex).
+
+Fri Sep 25:
+	* debug and tested chunk saving.
+	* added lang module back to SITGL (still need testing).
+
+Thu Sep 24:
+	* added chunk saving within region files.
+
+Wed Sep 23:
+	* skylight unification failed: keep using SkyLight-v1.c; will need a complete relight function later.
+
+Tue Sep 22:
+	* more skyLight rework.
+
+Mon Sep 21:
+	* more skyLight rework.
+
+=========== Week 38 ===========
+Sun Sep 20:
+	* skyLight rework: unify skyLightBlock + skyLightUnblock, and work on a region instead of a block.
+
+Sat Sep 19:
+	* added saving position and rotation in level.dat.
+
+Fri Sep 18:
+	* more custom block preview (reduced size of inventory model table).
+
+Thu Sep 17:
+	* automatic block placement for stairs and custom blocks.
+
+Wed Sep 16:
+	* automatic block placement for log, solid and slab, quad block also rendered.
+
+Tue Sep 15:
+	* preview item rendered with wireframe outline.
+
+Mon Sep 14:
+	* inventory bar continued: all items rendered to scale.
+
+=========== Week 37 ===========
+Sun Sep 13:
+	* inventory bar mostly working.
+
+Sat Sep 12:
+	* more integration of SkyLight.c parts.
+
+Fri Sep 11:
+	* ring buffer for skylight/blocklight debugged.
+
+Wed Sep 9:
+	* better block update around chunk border and skylight/blocklight update.
+
+Tue Sep 8:
+	* block update around chunk border.
+	* NBT optimization for accessing ChunkData tables.
+
+Mon Sep 7:
+	* sideway view working.
+
+=========== Week 36 ===========
+Sun Sep 6:
+	* sideway view mostly working.
+	* needed modif of nanovg: create image from opengl texture.
+
+Sat Sep 5:
+	* added sideway view to debug skylight and blocklight values.
+
+Fri Sep 4:
+	* skylight update integration.
+	* SITGL doc.
+
+Thu Sep 3:
+	* SITGL geometry debug.
+
+Wed Sep 2:
+	* pane bounding box mostly done, vertex shader primitive discard was a failure.
+
+Tue Sep 1:
+	* added custom bounding box, with optional parts (connected models).
+
+Mon Aug 31:
+	* logic for pointing to custom bounding working (still need to fine tune some blocks).
+	* bug in TableZip: last float not encoded properly.
+
+=========== Week 35 ===========
+Sun Aug 30:
+	* rendering of custom bounding box mostly ok (still need connected models).
+
+Sat Aug 29:
+	* more boiler-plate logic for handling custom bounding box of blocks.
+
+Fri Aug 28:
+	* started better handling of bounding box for all types of blocks.
+
+Thu Aug 27:
+	* blockLight/skyLight better rendered for SOLID blocks.
+	* minor fixes for SITGL: auto-tooltip placement, root events.
+	* started integration of skyLight update.
+
+Wed Aug 26:
+	* skylight update seems complete (2D only though).
+	* debug SITGL text edit multi-line.
+	* started doc for SITGL.
+	* started particles system.
+
+Tue Aug 25:
+	* skylight update almost complete, edge case when setblock > heightMap[x].
+
+Mon Aug 24:
+	* more progress on skylight update (delete block seems to work, set block still need more work).
+
+=========== Week 34 ===========
+Sat Aug 22:
+	* rework of NBT integrated and tested.
+	* started work of skylight update.
+
+Fri Aug 21:
+	* rework of NBT module mostly done and integrated (need modification).
+
+Thu Aug 20:
+	* tested inventory rendering of all blocks and all types.
+	* started rework on NBT module.
+
+Wed Aug 19:
+	* fused BlockDesc table into main Block_t, added 4 bytes per record.
+	* added models for all blocks, tested CUBE, HALF, ITEM, ITEMBANK.
+
+Tue Aug 18:
+	* added logic to parse custom models for inventory.
+	* added item textures to main block texture.
+	* make a command line exe to compress customData[] table: saving 42Kb (not integrated yet) of static data.
+
+Mon Aug 17:
+	* added custom models for inventory: BlockDesc table fill up to block 174.
+
+=========== Week 33 ===========
+Sun Aug 16
+	* first version for inventory items: custom BlockDesc table, basic pipeline working for cube models.
+
+Aug 9 ~ 15
+	* rework chunk loading grid.
+	* fixed buffer overflow in chunkUpdate() causing crash in PrepChunk().
+	* world now load chunks based on player position.

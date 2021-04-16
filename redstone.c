@@ -37,7 +37,7 @@ static int redstoneIsBlocking(int blockId)
 }
 
 /* used to build of connected redstone devices to update */
-static Bool redstoneIsConnected(RSWire cnx, int side)
+static Bool redstoneIsConnected(RSWire cnx, int fromId, int side)
 {
 	uint8_t data = cnx->data;
 	Block b;
@@ -51,7 +51,7 @@ static Bool redstoneIsConnected(RSWire cnx, int side)
 		return True;
 	case RSTORCH_ON:
 	case RSTORCH_OFF:
-//		if (blockSides.torch[data&7] == side)
+		if (fromId == RSWIRE)
 		{
 			cnx->signal = cnx->blockId == RSTORCH_ON ? MAXSIGNAL+1 : 0;
 			return True;
@@ -59,7 +59,7 @@ static Bool redstoneIsConnected(RSWire cnx, int side)
 		break;
 	case RSREPEATER_ON:
 	case RSREPEATER_OFF:
-		if (blockSides.repeater[data&3] == opp[side])
+		if (blockSides.repeater[data&3] == side)
 		{
 			cnx->signal = cnx->blockId == RSREPEATER_ON ? MAXSIGNAL+1 : 0;
 			cnx->pow = POW_WEAK; /* only look for this block */
@@ -68,6 +68,7 @@ static Bool redstoneIsConnected(RSWire cnx, int side)
 		break;
 	default:
 		b = &blockIds[cnx->blockId];
+		if (fromId != RSWIRE) break;
 		if (b->orientHint == ORIENT_LEVER)
 		{
 			cnx->signal = data >= 8 ? MAXSIGNAL+1 : 0;
@@ -101,7 +102,7 @@ int redstoneConnectTo(struct BlockIter_t iter, RSWire connectTo)
 			id = getBlockId(&iter);
 			cnx.blockId = id >> 4;
 			cnx.data = id & 15;
-			if (redstoneIsConnected(&cnx, i))
+			if (redstoneIsConnected(&cnx, RSTORCH_OFF, i))
 				*list ++ = cnx;
 		}
 		/* check on top */
@@ -123,7 +124,7 @@ int redstoneConnectTo(struct BlockIter_t iter, RSWire connectTo)
 					id = getBlockId(&iter);
 					cnx.blockId = id >> 4;
 					cnx.data = id & 15;
-					if (redstoneIsConnected(&cnx, i))
+					if (redstoneIsConnected(&cnx, RSTORCH_OFF, i))
 						*list ++ = cnx;
 				}
 				mapIter(&iter, xoff[i], 0, zoff[i]); /* bakc to start */
@@ -134,7 +135,7 @@ int redstoneConnectTo(struct BlockIter_t iter, RSWire connectTo)
 			i = getBlockId(&iter);
 			cnx.blockId = i >> 4;
 			cnx.data = i & 15;
-			if (redstoneIsConnected(&cnx, SIDE_TOP))
+			if (redstoneIsConnected(&cnx, RSTORCH_OFF, SIDE_TOP))
 				*list ++ = cnx;
 		}
 		/* check on bottom */
@@ -162,7 +163,7 @@ int redstoneConnectTo(struct BlockIter_t iter, RSWire connectTo)
 			blockSide[i] = id = getBlockId(&iter);
 			cnx.blockId = id >> 4;
 			cnx.data = id & 15;
-			if (redstoneIsConnected(&cnx, i))
+			if (redstoneIsConnected(&cnx, RSWIRE, i))
 			{
 				*list++ = cnx;
 				flags |= 1 << i;
@@ -239,7 +240,7 @@ int redstoneConnectTo(struct BlockIter_t iter, RSWire connectTo)
 			id = getBlockId(&iter);
 			cnx.blockId = id >> 4;
 			cnx.data = id & 15;
-			if (redstoneIsConnected(&cnx, i))
+			if (redstoneIsConnected(&cnx, RSBLOCK, i))
 				*list ++ = cnx;
 		}
 		break;
@@ -260,7 +261,7 @@ int redstoneConnectTo(struct BlockIter_t iter, RSWire connectTo)
 				id = getBlockId(&iter);
 				cnx.blockId = id >> 4;
 				cnx.data = id & 15;
-				if (redstoneIsConnected(&cnx, i))
+				if (redstoneIsConnected(&cnx, id, i))
 					*list ++ = cnx;
 			}
 		}
@@ -273,15 +274,15 @@ int redstoneConnectTo(struct BlockIter_t iter, RSWire connectTo)
 }
 
 /* get signal strength emitted by block pointed by <iter> */
-int redstoneSignalStrength(struct BlockIter_t iter, Bool dirty)
+int redstoneSignalStrength(BlockIter iter, Bool dirty)
 {
-	switch (iter.blockIds[iter.offset]) {
+	switch (iter->blockIds[iter->offset]) {
 	case RSWIRE:
 		if (dirty)
 		{
 			struct RSWire_t connect[RSMAXUPDATE];
-			int count = redstoneConnectTo(iter, connect);
-			int i, max = 0, min = getBlockId(&iter) & 15;
+			int count = redstoneConnectTo(*iter, connect);
+			int i, max = 0, min = getBlockId(iter) & 15;
 			Block b;
 			for (i = 0; i < count; i ++)
 			{
@@ -318,15 +319,13 @@ int redstoneSignalStrength(struct BlockIter_t iter, Bool dirty)
 				/* check for nearby power source */
 				for (i = 0; i < 6; i ++)
 				{
-					mapIter(&iter, xoff[i], yoff[i], zoff[i]);
-					Block b = &blockIds[iter.blockIds[iter.offset]];
-					if (b->type == SOLID && redstoneIsPowered(iter, RSSAMEBLOCK, POW_STRONG))
+					if (redstoneIsPowered(*iter, i, POW_STRONG))
 						return MAXSIGNAL;
 				}
 			}
 			return max;
 		}
-		else return getBlockId(&iter) & 15;
+		else return getBlockId(iter) & 15;
 		break;
 	case RSBLOCK:
 	case RSTORCH_ON:

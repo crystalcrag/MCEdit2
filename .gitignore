@@ -2,12 +2,6 @@
 *.o
 *.obj
 
-# Libraries
-*.lib
-*.a
-*.la
-*.lo
-
 # Shared objects (inc. Windows DLLs)
 *.dll
 *.so
@@ -22,15 +16,14 @@
 # C::B
 *.depend
 *.layout
-ChangeLog.txt
 archive.bat
 copysitgl.bat
 dump.png
 
-Interface/
-obj/
-objs/
-World1_12/
-TestMesh/
-old/
-TileFinder/
+/Interface/
+/obj/
+/objs/
+/World1_12/
+/TestMesh/
+/old/
+/TileFinder/
