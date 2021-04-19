@@ -62,6 +62,9 @@
 		<Unit filename="debugInfo.c">
 			<Option compilerVar="CC" />
 		</Unit>
+		<Unit filename="entities.c">
+			<Option compilerVar="CC" />
+		</Unit>
 		<Unit filename="halfBlocks.c">
 			<Option compilerVar="CC" />
 		</Unit>

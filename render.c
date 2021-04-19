@@ -19,6 +19,7 @@
 #include "particles.h"
 #include "sign.h"
 #include "skydome.h"
+#include "entities.h"
 #include "nanovg.h"
 #include "SIT.h"
 
@@ -355,6 +356,8 @@ Bool renderInitStatic(int width, int height, APTR sitRoot)
 	blockParseBoundingBox();
 	blockParseInventory(render.vboInventory);
 	particlesInit(render.vboParticles);
+	if (! entityInitStatic())
+		return False;
 
 	/* main texture file */
 	render.texBlock = textureLoad(RESDIR, "terrain.png", 1, blockPostProcessTexture);
@@ -1050,7 +1053,7 @@ void renderWorld(void)
 
 	glViewport(0, 0, render.width, render.height);
 	glClearColor(0.5, 0.5, 0.8, 1);
-	glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
+	glClear(GL_DEPTH_BUFFER_BIT);
 
 	/* sky dome */
 	glBindBuffer(GL_UNIFORM_BUFFER, render.uboShader);
@@ -1063,6 +1066,7 @@ void renderWorld(void)
 
 	/* render terrain block */
 	glCullFace(GL_BACK);
+	glEnable(GL_CULL_FACE);
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glEnable(GL_DEPTH_TEST);
@@ -1095,8 +1099,12 @@ void renderWorld(void)
 		}
 	}
 
+	/* second: entities */
+	entityRender();
+
+	/* third pass: translucent terrain */
+	glUseProgram(render.shaderBlocks);
 	glDepthMask(GL_FALSE);
-	/* second pass: translucent terrain */
 	for (bank = HEAD(gpuBanks); bank; NEXT(bank))
 	{
 		if (bank->cmdAlpha > 0)

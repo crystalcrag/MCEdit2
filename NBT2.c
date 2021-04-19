@@ -642,7 +642,6 @@ int NBT_Iter(NBTIter iter)
 		iter->offset += hdr->size;
 		break;
 	default:
-		if (iter->state == 0) return -1;
 		for (offset = ret, mem = iter->buffer; mem[offset]; offset += ((NBTHdr)(mem + offset))->size);
 		iter->offset = offset + 4;
 		iter->state --;

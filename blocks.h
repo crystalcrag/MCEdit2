@@ -60,6 +60,7 @@ struct Block_t             /* per id information */
 	uint8_t  rsupdate;     /* update state if redstone signal change around block */
 	uint8_t  copyModel;    /* copy invmodel from this block id */
 	uint8_t  placement;    /* allowed blocks this one can be placed on (index in blocks.placements) */
+	uint8_t  gravity;      /* block affected by gravity */
 	STRPTR   name;         /* description as displayed to user */
 	STRPTR   tech;         /* technical name as stored in NBT */
 	DATA16   model;        /* custom inventory model */
@@ -100,6 +101,7 @@ struct BlockSides_t        /* convert block data into SIDE_* enum */
 	uint8_t torch[8];      /* side within the block it is attached */
 	uint8_t lever[8];      /* buttons and lever: where it is attached (within its block) */
 	uint8_t sign[8];       /* wall sign only */
+	uint8_t piston[8];     /* where extended part is */
 	uint8_t repeater[4];   /* side where power is coming from (to get where it is output to, XOR the value with 2) */
 	uint8_t SWNE[4];       /* generic orient */
 };

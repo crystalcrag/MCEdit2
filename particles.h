@@ -74,10 +74,11 @@ struct EmitterPrivate_t
 	Emitter  buffer;           /* active emitters */
 	DATA32   usage;            /* usage bitfield (ceil(count/32) items) */
 	int      count;            /* items in <buffer> */
+	int      max;              /* max capacity of <buffer> */
 	DATA16   active;           /* index in <buffer>, sorted by time to spawn next particle */
 	int      activeMax;        /* max capacity of <active> */
 	int      cacheLoc[3];
-	int16_t  startIds[27];     /* emitters for one ChunkData */
+	int16_t  startIds[27];     /* emitters for one ChunkData ordered XZY */
 	uint8_t  offsets[27];      /* +/- 1 for X, Z, Y for locating chunk 0-26 */
 	uint8_t  dirtyList;        /* <active> needs to be rebuilt */
 };

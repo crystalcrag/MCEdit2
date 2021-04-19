@@ -91,6 +91,7 @@ struct BlockSides_t blockSides = {
 	.torch    = {SIDE_TOP,    SIDE_WEST, SIDE_EAST,  SIDE_NORTH, SIDE_SOUTH, SIDE_TOP,  SIDE_NONE, SIDE_NONE},
 	.lever    = {SIDE_BOTTOM, SIDE_WEST, SIDE_EAST,  SIDE_NORTH, SIDE_SOUTH, SIDE_TOP,  SIDE_TOP,  SIDE_BOTTOM},
 	.sign     = {SIDE_NONE,   SIDE_NONE, SIDE_SOUTH, SIDE_NORTH, SIDE_EAST,  SIDE_WEST, SIDE_NONE, SIDE_NONE},
+	.piston   = {SIDE_BOTTOM, SIDE_TOP,  SIDE_NORTH, SIDE_SOUTH, SIDE_WEST,  SIDE_EAST, SIDE_NONE, SIDE_NONE},
 	.SWNE     = {SIDE_SOUTH,  SIDE_WEST, SIDE_NORTH, SIDE_EAST},
 };
 
@@ -773,6 +774,12 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 			block.placement = 1;
 		}
 
+		value = jsonValue(keys, "gravity");
+		if (value && atoi(value) > 0)
+		{
+			block.gravity = 1;
+		}
+
 		/* check for tile entity for this block XXX somewhat useless */
 		value = jsonValue(keys, "tile");
 		if (value && atoi(value) > 0)
@@ -840,7 +847,7 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 		{
 			if (FindInList(
 				"id,name,type,inv,invstate,cat,special,tech,bbox,orient,keepModel,particle,rsupdate,"
-				"emitLight,opacSky,opacLight,tile,invmodel,rswire,placement,bboxPlayer", *keys, 0) < 0)
+				"emitLight,opacSky,opacLight,tile,invmodel,rswire,placement,bboxPlayer,gravity", *keys, 0) < 0)
 			{
 				SIT_Log(SIT_ERROR, "%s: unknown property \"%s\" on line %d\n", file, *keys, line);
 				return False;
@@ -1275,7 +1282,7 @@ void blockParseConnectedTexture(void)
  * somewhat similar to normal block models, but all models will be rendered
  * using an othogonal projection.
  */
-static int blockInvModelCube(DATA16 ret, BlockState b, DATA8 texCoord)
+int blockInvModelCube(DATA16 ret, BlockState b, DATA8 texCoord)
 {
 	DATA8 uv = &b->nzU;
 	int   rotate, i, j;
@@ -1294,6 +1301,7 @@ static int blockInvModelCube(DATA16 ret, BlockState b, DATA8 texCoord)
 			ret[1] = VERTEX(vtx[1]);
 			ret[2] = VERTEX(vtx[2]);
 			/* tex coord and normals */
+			int texU = (tex[0] + U) * 16;
 			int texV = (tex[1] + V) * 16;
 			if (b->special == BLOCK_HALF)
 			{
@@ -1307,14 +1315,15 @@ static int blockInvModelCube(DATA16 ret, BlockState b, DATA8 texCoord)
 					if (i < 4) texV += 8;
 				}
 			}
+			if (texU == 512)  texU = 511;
 			if (texV == 1024) texV = 1023;
-			SET_UVCOORD(ret, (tex[0] + U) * 16, texV);
+			SET_UVCOORD(ret, texU, texV);
 			ret[4] |= (i << 3) | (0xf0 << 8);
 		}
 		/* convert to triangles */
 		memcpy(ret,   ret - 20, BYTES_PER_VERTEX);
 		memcpy(ret+5, ret - 10, BYTES_PER_VERTEX);
-		ret += 10;
+		ret += INT_PER_VERTEX*2;
 	}
 	return 36;
 }

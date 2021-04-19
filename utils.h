@@ -23,6 +23,18 @@ typedef float *             vec;
 typedef float               vec4[4];
 typedef float               mat4[16];
 
+typedef struct              /* structure needed by glMultiDrawArraysIndirect() */
+{
+	int count;              /* number of vertex (not bytes) to process in this draw call */
+	int instanceCount;      /* nb of items to draw */
+	int first;              /* first vertex to process */
+	int baseInstance;       /* starting index in buffer, setup by glVertexAttribDivisor */
+
+}	MDAICmd_t;
+
+typedef MDAICmd_t *    MDAICmd;
+
+
 enum /* stored column first like GLSL */
 {
 	A00 = 0,

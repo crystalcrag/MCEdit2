@@ -72,19 +72,19 @@ static Particle particlesAlloc(void)
 static Emitter emitterAlloc(void)
 {
 	int count = emitters.count;
-	int max   = (count+31) & ~31;
+	int max   = emitters.max;
 	if (count == max)
 	{
-		count = max + 32;
-		Emitter emit = realloc(emitters.buffer, count * sizeof *emit + (count >> 5) * 4);
+		emitters.max = max += 32;
+		Emitter emit = realloc(emitters.buffer, max * sizeof *emit + (max >> 5) * 4);
 		if (emit)
 		{
 			emitters.buffer = emit;
 			/* move usage flags at end of buffer */
-			max >>= 5;
-			memmove(emitters.usage = (DATA32) (emit + count), emit + max, max * 4);
-			emitters.usage[max] = 0;
-			max ++;
+			count >>= 5;
+			memmove(emitters.usage = (DATA32) (emit + max), emit + (count<<5), count * 4);
+			emitters.usage[count] = 0;
+			max = count + 1;
 		}
 		else return NULL;
 	}
@@ -307,7 +307,7 @@ static void particleMakeActive(Map map)
 		if (oldIds[i] < 0) continue;
 		/* damn, coords are not intuitive at all :-/ */
 		int dx = pos[0] - emitters.cacheLoc[0] + XPOS(emitters.offsets[i]);
-		int dy = pos[1] - emitters.cacheLoc[1] + YPOS(emitters.offsets[i]);
+		int dy = emitters.cacheLoc[1] - pos[1] + YPOS(emitters.offsets[i]);
 		int dz = pos[2] - emitters.cacheLoc[2] + ZPOS(emitters.offsets[i]);
 		if (abs(dx) <= 1 && abs(dy) <= 1 && abs(dz) <= 1)
 		{
@@ -347,7 +347,7 @@ static void particleMakeActive(Map map)
 			cur = &e->next;
 		}
 	}
-	//debugEmitters();
+//	debugEmitters();
 	emitters.dirtyList = 1;
 }
 

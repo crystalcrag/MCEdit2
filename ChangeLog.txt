@@ -1,4 +1,12 @@
 =========== Week 15 ===========
+Sat Apr 17:
+	* started boilerplate for rendering entities.
+	* bug fixed in particle emitter list when moving to another sub-chunk.
+	* SITGL scrollbar and slider done.
+
+Fri Apr 16:
+	* SITGL listbox done finally.
+
 Thu Apr 15:
 	* tile tick: switched to a sorted hash table.
 

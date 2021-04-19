@@ -16,9 +16,11 @@
 #include "blockUpdate.h"
 #include "redstone.h"
 
-extern int8_t normals[]; /* from render.c */
-extern double curTime;
-extern int8_t xoff[], yoff[], zoff[]; /* from mapUpdate.c */
+extern int8_t normals[];               /* from render.c */
+extern double curTime;                 /* from main.c */
+extern int8_t relx[], rely[], relz[];  /* from mapUpdate.c */
+extern int8_t xoff[], yoff[], zoff[];
+extern struct BlockSides_t blockSides; /* from blocks.c */
 static struct UpdatePrivate_t updates;
 
 static int8_t railsNeigbors[] = { /* find the potential 2 neighbors of a rail based on data table */
@@ -43,7 +45,6 @@ static void mapSetData(Map map, vec4 pos, int data)
 
 static void mapGetNeigbors(Map map, vec4 pos, DATA16 neighbors, int max)
 {
-
 	struct BlockIter_t iter;
 	int i;
 	mapInitIter(map, &iter, pos, False);
@@ -241,11 +242,20 @@ void mapUpdateBlock(Map map, vec4 pos, int blockId, int oldBlockId, DATA8 tile)
 			/* QUAD_ASCN */    SIDE_BOTTOM | (SIDE_SOUTH << 3),
 			/* QUAD_ASCS */    SIDE_BOTTOM | (SIDE_NORTH << 3)
 		};
-		int i;
+		int i = oldBlockId >> 4;
+
+		if ((i == RSPISTON || i == RSSTICKYPISTON) && oldBlockId >= 8)
+		{
+			/* extended piston: delete extension */
+			i = blockSides.piston[oldBlockId & 7];
+			vec4 loc = {pos[VX] + relx[i], pos[VY] + rely[i], pos[VZ] + relz[i]};
+			mapUpdate(map, loc, 0, NULL, False);
+			return;
+		}
 
 		mapGetNeigbors(map, pos, neighbors, 6);
 
-		/* check around the 6 sides of the cube that was deleted */
+		/* check around the 6 sides of the cube what was deleted */
 		for (i = 0; i < 6; i ++)
 		{
 			BlockState state = blockGetById(neighbors[i]);
@@ -724,8 +734,8 @@ void updateAdd(BlockIter iter, int blockId, int nbTick)
 	TileTick update = updateInsert(iter->cd, iter->offset, curTime + nbTick * (1000 / TICK_PER_SECOND));
 	update->blockId = blockId;
 
-	fprintf(stderr, "adding block update in %d tick at %d, %d, %d to %d:%d [%d]\n", nbTick,
-		iter->ref->X + (iter->offset & 15), iter->yabs, iter->ref->Z + ((iter->offset >> 4) & 15), blockId >> 4, blockId & 15, updates.count);
+//	fprintf(stderr, "adding block update in %d tick at %d, %d, %d to %d:%d [%d]\n", nbTick,
+//		iter->ref->X + (iter->offset & 15), iter->yabs, iter->ref->Z + ((iter->offset >> 4) & 15), blockId >> 4, blockId & 15, updates.count);
 }
 
 void updateTick(Map map)

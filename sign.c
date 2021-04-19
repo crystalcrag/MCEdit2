@@ -169,6 +169,7 @@ static void signParseEntity(SignText sign)
 	struct NBTIter_t iter;
 	int i;
 
+	if (! nbt.mem) return;
 	NBT_IterCompound(&iter, nbt.mem);
 	while ((i = NBT_Iter(&iter)) >= 0)
 	{
@@ -561,6 +562,7 @@ void signRender(void)
 	glDisable(GL_STENCIL_TEST);
 	glFrontFace(GL_CCW);
 	glActiveTexture(GL_TEXTURE0);
+	/* sign text have same coordinates than the model: offset depth values to prevent z-fighting */
 	glPolygonOffset(-1.0, 1.0);
 
 	glUseProgram(signs.shader);

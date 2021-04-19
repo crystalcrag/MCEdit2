@@ -65,11 +65,11 @@
 	{id: 11, name: "Lava", type: TRANS, special: LIQUID, bbox: NONE, emitLight: 15}, /* TODO */
 		{state: 0, name: "+still", tex: [13,14,13,14,13,14,13,14,13,14,13,14]},
 
-	{id: 12, name: "Sand", type: SOLID, inv: CUBE, cat: BUILD},
+	{id: 12, name: "Sand", type: SOLID, inv: CUBE, cat: BUILD, gravity: 1},
 		{state: 0, name: "-",        tex: [ 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1]},
 		{state: 1, name: "Red sand", tex: [11, 1,11, 1,11, 1,11, 1,11, 1,11, 1]},
 
-	{id: 13, name: "Gravel", type: SOLID, inv: CUBE, cat: BUILD},
+	{id: 13, name: "Gravel", type: SOLID, inv: CUBE, cat: BUILD, gravity: 1},
 		{state: 0, tex: [3, 1, 3, 1, 3, 1, 3, 1, 3, 1, 3, 1]},
 
 	{id: 14, name: "Gold ore", type: SOLID, inv: CUBE, cat: BUILD},
@@ -1539,7 +1539,7 @@
 	{id: 121, name: "End stone", type: SOLID, inv: CUBE, cat: BUILD},
 		{state: 0, tex: [15,10,15,10,15,10,15,10,15,10,15,10]},
 
-	{id: 122, name: "Dragon egg", type: CUST, bbox: MAX, inv: MODEL, cat: DECO, placement: "ground"},
+	{id: 122, name: "Dragon egg", type: CUST, bbox: MAX, inv: MODEL, cat: DECO, placement: "ground", gravity: 1},
 		{state: 0, tex: [7,11, 7,11, 7,11, 7,11], model: [
 			431,12,1,12,2,0,2,0,0,0,0,0,0,82192,90400,90416,82208,82192,90400,90416,82208,82192,90400,90416,82208,82192,90400,90416,82208,
 				82192,90400,90416,82208,82192,90400,90416,82208,
@@ -1796,7 +1796,7 @@
 
 	{id: 144, name: "Mob head", type: CUST, bbox: MAX, tech: "skull"},   /* TODO */
 
-	{id: 145, name: "Anvil", type: CUST, bbox: MAX, inv: MODEL, invState: 0, cat: DECO, orient: SE},
+	{id: 145, name: "Anvil", type: CUST, bbox: MAX, inv: MODEL, invState: 0, cat: DECO, orient: SE, gravity: 1},
 		{state: 1, name: "+E/W", tex: [7,13, 7,13, 7,13, 7,13, 7,13], model: [
 			447,12,3,12,2,0,2,0,0,0,0,0,0,106816,115024,115040,106832,106816,115024,115040,106832,106816,115024,115040,106832,106816,115024,115040,
 				106832,106816,115024,115040,106832,106816,115024,115040,106832,
@@ -3079,7 +3079,7 @@
 		{state: 2, name: "+north", tex: [0,24, 0,24, 0,24, 0,24, 0,24, 0,24,  2737]},
 		{state: 3, name: "+east",  tex: [0,24, 0,24, 0,24, 0,24, 0,24, 0,24,  1900]},
 
-	{id: 251, name: "Concrete", type: SOLID, inv: CUBE, cat: BUILD},
+	{id: 251, name: "Concrete", type: SOLID, inv: CUBE, cat: BUILD, gravity: 1},
 		{state: 0, name: "+white",      tex: [3,23, 3,23, 3,23, 3,23, 3,23, 3,23]},
 		{state: 1, name: "+orange",     tex: [ 5,23, 5,23, 5,23, 5,23, 5,23, 5,23]},
 		{state: 2, name: "+magenta",    tex: [13,23,13,23,13,23,13,23,13,23,13,23]},
