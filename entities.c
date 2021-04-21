@@ -19,6 +19,7 @@ struct EntitiesPrivate_t entities;
 
 extern int blockInvModelCube(DATA16 ret, BlockState b, DATA8 texCoord);
 
+/* init opengl buffer and models */
 Bool entityInitStatic(void)
 {
 	glGenVertexArrays(1, &entities.vao);
@@ -83,7 +84,7 @@ static Entity entityAlloc(void)
 	int max   = entities.max;
 	if (count == max)
 	{
-		entities.max = max += 32;
+		entities.max = max += ENTITY_BATCH;
 		Entity list = realloc(entities.list, max * sizeof *list + (max >> 5) * 4);
 		if (list)
 		{
@@ -91,7 +92,7 @@ static Entity entityAlloc(void)
 			/* move usage flags at end of buffer */
 			count >>= 5;
 			memmove(entities.usage = (DATA32) (list + max), list + (count<<5), count * 4);
-			entities.usage[count] = 0;
+			memset(entities.usage + count, 0, 4 * (ENTITY_BATCH >> 5));
 			max = count + 1;
 		}
 		else return NULL;
@@ -101,6 +102,7 @@ static Entity entityAlloc(void)
 	return entities.list + mapFirstFree(entities.usage, max);
 }
 
+/* extract information from NBT records */
 void entityParse(Chunk c, NBTFile nbt, int offset)
 {
 	/* <offset> points to a TAG_List_Compound of entities */
@@ -139,8 +141,108 @@ void entityParse(Chunk c, NBTFile nbt, int offset)
 			entity->modelId = ENTITY_UNKNOWN;
 			entity->tile = nbt->mem + offset;
 			entity->next = ENTITY_END;
+			entity->select = 0;
 			entities.dirty = 1;
 		}
+	}
+}
+
+static int entitySetSelection(Entity entity)
+{
+	int sel = entity ? entity - entities.list + 1 : 0;
+	if (entities.selected != sel)
+	{
+		if (entities.vboLoc)
+		{
+			float val = 255;
+			glBindBuffer(GL_ARRAY_BUFFER, entities.vboLoc);
+			if (entities.selected > 0)
+				glBufferSubData(GL_ARRAY_BUFFER, entities.selected * 16 - 4, 4, &val),
+				entities.list[entities.selected-1].select = 0;
+			val = 511;
+			if (sel > 0)
+				glBufferSubData(GL_ARRAY_BUFFER, sel * 16 - 4, 4, &val);
+		}
+		if (entity) entity->select = 1;
+		entities.selected = sel;
+	}
+	return sel;
+}
+
+static void entityGetBBoxForFace(Entity entity, int side, float points[6], vec4 norm)
+{
+	extern uint8_t vertex[];
+	extern uint8_t cubeIndices[];
+	extern int8_t  normals[];
+	DATA8 pt = vertex + cubeIndices[side * 4 + 1];
+	points[VX] = pt[0] - 0.5 + entity->pos[VX];
+	points[VY] = pt[1] - 0.5 + entity->pos[VY];
+	points[VZ] = pt[2] - 0.5 + entity->pos[VZ];
+
+	pt = vertex + cubeIndices[side * 4 + 3];
+	points[VX+3] = pt[0] - 0.5 + entity->pos[VX];
+	points[VY+3] = pt[1] - 0.5 + entity->pos[VY];
+	points[VZ+3] = pt[2] - 0.5 + entity->pos[VZ];
+
+	if (points[0] > points[3]) norm[0] = points[0], points[0] = points[3], points[3] = norm[0];
+	if (points[2] > points[5]) norm[0] = points[2], points[2] = points[5], points[5] = norm[0];
+
+	int8_t * normal = normals + side * 4;
+	norm[VX] = normal[VX];
+	norm[VY] = normal[VY];
+	norm[VZ] = normal[VZ];
+	norm[VT] = 1;
+}
+
+int intersectRayPlane(vec4 P0, vec4 u, vec4 V0, vec norm, vec4 I);
+
+/* check if vector <dir> intersects an entity bounding box (from position <camera>) */
+int entityRaycast(Chunk c, vec4 dir, vec4 camera, vec4 cur)
+{
+	float maxDist = cur ? vecDistSquare(camera, cur) * 1.5 : 1e6;
+	int   flags = (dir[VX] < 0 ? 2 : 8) | (dir[VY] < 0 ? 16 : 32) | (dir[VZ] < 0 ? 1 : 4);
+
+	if (c->entityList == ENTITY_END || ! entities.list)
+	{
+		if (entities.selected > 0)
+			entitySetSelection(NULL);
+		return 0;
+	}
+	Entity list = list = entities.list + c->entityList;
+	for (;;)
+	{
+		if (vecDistSquare(camera, list->pos) < maxDist)
+		{
+			float points[6];
+			vec4  norm, inter;
+			int   i;
+			/* assume rectangular bounding box (not necessarily axis aligned though) */
+			for (i = 0; i < 6; i ++)
+			{
+				/* XXX need to rely on cross-product instead */
+				if ((flags & (1 << i)) == 0) continue;
+
+				entityGetBBoxForFace(list, i, points, norm);
+				if (intersectRayPlane(camera, dir, points, norm, inter))
+				{
+					/* check if points is contained within the face */
+					if (points[VX] <= inter[VX] && inter[VX] <= points[VX+3] &&
+					    points[VY] <= inter[VY] && inter[VY] <= points[VY+3] &&
+					    points[VZ] <= inter[VZ] && inter[VZ] <= points[VZ+3])
+					{
+						/* intersect */
+						return entitySetSelection(list);
+					}
+				}
+			}
+		}
+		if (list->next == ENTITY_END)
+		{
+			if (entities.selected > 0)
+				entitySetSelection(NULL);
+			return 0;
+		}
+		list = entities.list + list->next;
 	}
 }
 
@@ -169,6 +271,7 @@ void entityRender(void)
 			glBufferData(GL_ARRAY_BUFFER, entities.max * 16, NULL, GL_STATIC_DRAW);
 			glBufferData(GL_DRAW_INDIRECT_BUFFER, entities.max * 16, NULL, GL_STATIC_DRAW);
 			entities.mdaiCount = entities.max;
+			fprintf(stderr, "realloc VBO %d\n", entities.max);
 		}
 
 		float * loc = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
@@ -179,7 +282,7 @@ void entityRender(void)
 		{
 			if (ent->tile == NULL) continue;
 			memcpy(loc, ent->pos, 12);
-			loc[3] = 255; /* skylight/blocklight */
+			loc[3] = ent->select ? 511 : 255; /* skylight/blocklight */
 			int model = ent->modelId;
 			cmd->baseInstance = i;
 			cmd->count = entities.vertices[model];
@@ -193,6 +296,8 @@ void entityRender(void)
 	}
 	if (entities.count > 0)
 	{
+		glEnable(GL_CULL_FACE);
+		glCullFace(GL_BACK);
 		glUseProgram(entities.shader);
 		glBindVertexArray(entities.vao);
 		glBindBuffer(GL_DRAW_INDIRECT_BUFFER, entities.vboMDAI);

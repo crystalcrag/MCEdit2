@@ -1471,6 +1471,8 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 		if (BUF_LESS_THAN(buffer, 6*BYTES_PER_VERTEX))
 			buffer->flush(buffer);
 
+		uint8_t liquid = b->special == BLOCK_LIQUID;
+
 		/* 4 vertices per face */
 		for (k = 0, p = buffer->cur; k < 4; k ++, j += 2, p += IPV)
 		{
@@ -1495,6 +1497,14 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 				if (skyvtx > 0 && (skyval > skyvtx || skyval == 0)) skyval = skyvtx;
 			}
 			p[4] |= (i << 1) | (skyval << 8) | (popcount(occlusion & occlusionIfNeighbor[i+k]) << 6);
+
+			if (liquid && coord[1] == 1)
+			{
+				static uint8_t lessAmbient[] = {0, 1<<6, 1<<6, 1<<6};
+				p[1] -= BASEVTX/8;
+				/* reduce ambient occlusion a bit */
+				p[4] = (p[4] & ~0xc0) | lessAmbient[(p[4] >> 6) & 3];
+			}
 		}
 		/* convert into triangles */
 		if ((p[-16] & 0xc0) || (p[-6] & 0xc0))

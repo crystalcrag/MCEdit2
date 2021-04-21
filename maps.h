@@ -63,6 +63,7 @@ struct MapExtraData_t              /* extra info returned from mapPointToBlock()
 	Chunk     chunk;
 	int       blockId;             /* (blockid << 4) | metadata */
 	uint16_t  offset;              /* offset in ChunkData.blocksIds[] */
+	uint16_t  entity;              /* entity selected instead of block if > 0 */
 	uint8_t   side;                /* 0:S, 1:E, 2:N, 3:W, 4:T, 5:B */
 	uint8_t   cnxFlags;            /* connected flags */
 	uint8_t   topHalf;             /* slab/stairs placement */
@@ -84,7 +85,7 @@ void   mapInitStatic(void);
 Map    mapInitFromPath(STRPTR path, int renderDist);
 void   mapGenerateMesh(Map);
 int    mapGetBlockId(Map, vec4 pos, MapExtraData canBeNULL);
-Bool   mapPointToBlock(Map, vec4 camera, float * yawPitch, vec4 dir, vec4 ret, MapExtraData canBeNULL);
+Bool   mapPointToBlock(Map, vec4 camera, float * yawPitch, vec4 dir, vec4 ret, MapExtraData exxtra);
 Bool   mapMoveCenter(Map, vec4 old, vec4 pos);
 Bool   mapSetRenderDist(Map, int maxDist);
 Bool   mapSaveAll(Map);

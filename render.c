@@ -1099,11 +1099,8 @@ void renderWorld(void)
 		}
 	}
 
-	/* second: entities */
-	entityRender();
-
 	/* third pass: translucent terrain */
-	glUseProgram(render.shaderBlocks);
+//	glUseProgram(render.shaderBlocks);
 	glDepthMask(GL_FALSE);
 	for (bank = HEAD(gpuBanks); bank; NEXT(bank))
 	{
@@ -1167,6 +1164,9 @@ void renderWorld(void)
 	/* selection overlay */
 	if (render.selection.sel)
 		renderSelection();
+
+	/* second: entities */
+	entityRender();
 
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 

@@ -15,6 +15,7 @@ void entityParse(Chunk, NBTFile nbt, int offset);
 void entityUnload(Chunk);
 void entityAnimate(void);
 void entityRender(void);
+int  entityRaycast(Chunk c, vec4 dir, vec4 camera, vec4 cur);
 
 #define ENTITY_END    0xffff
 
@@ -46,6 +47,7 @@ struct Entity_t
 {
 	uint16_t next;
 	uint16_t modelId;
+	uint8_t  select;
 	float    pos[3];
 	float    motion[3];
 	DATA8    tile;
@@ -62,6 +64,7 @@ struct EntitiesPrivate_t
 	int      vboMDAI;
 	int      shader;
 	int      mdaiCount;
+	int      selected;
 	uint8_t  dirty;
 	uint16_t models[50];
 	uint16_t vertices[50];

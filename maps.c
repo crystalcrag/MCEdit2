@@ -14,6 +14,7 @@
 #include "blocks.h"
 #include "NBT2.h"
 #include "particles.h"
+#include "entities.h"
 
 
 //#define SLOW_CHUNK_LOAD   /* load 1 chunk (entire column) per second */
@@ -286,7 +287,7 @@ int getBlockId(BlockIter iter)
  *            1 = intersection in the unique point I
  *            2 = the segment lies in the plane
  */
-static int intersectRayPlane(vec4 P0, vec4 u, vec4 V0, vec norm, vec4 I)
+int intersectRayPlane(vec4 P0, vec4 u, vec4 V0, vec norm, vec4 I)
 {
 	vec4 w = {P0[0]-V0[0], P0[1]-V0[1], P0[2]-V0[2], 1};
 
@@ -294,15 +295,11 @@ static int intersectRayPlane(vec4 P0, vec4 u, vec4 V0, vec norm, vec4 I)
 	float N = -vecDotProduct(norm, w);
 
 	if (fabs(D) < EPSILON) /* segment is parallel to plane */
-	{
-		if (N == 0) /* segment lies in plane */
-			return 2;
-		else
-			return 0; /* no intersection */
-	}
+		return 0;
+
 	/* they are not parallel: compute intersect param */
 	float sI = N / D;
-	// XXX we will check later if intersection is within plane */
+	/* XXX we will check later if intersection is within plane */
 	// if (sI < 0) return 0;
 
 	I[0] = P0[0] + sI * u[0];
@@ -366,7 +363,8 @@ Bool mapPointToBlock(Map map, vec4 camera, float * yawPitch, vec4 dir, vec4 ret,
 	memcpy(pos, camera, sizeof pos);
 
 	block = mapGetBlockId(map, plane, data);
-	cnx   = data ? data->cnxFlags : 0;
+	cnx   = data->cnxFlags;
+	data->entity = 0;
 
 //	fprintf(stderr, "flags = %x\n", flags);
 
@@ -397,8 +395,9 @@ Bool mapPointToBlock(Map map, vec4 camera, float * yawPitch, vec4 dir, vec4 ret,
 					if (norm[2] == 0 && ! (V0[2] <= inter[2] && inter[2] <= V1[2])) continue;
 					if (check)
 					{
-						if (data) data->side = i;
-						return 1;
+						data->side = i;
+						data->entity = entityRaycast(map->center, dir, camera, inter);
+						return data->entity == 0;
 					}
 
 					memcpy(pos, inter, sizeof pos);
@@ -409,17 +408,14 @@ Bool mapPointToBlock(Map map, vec4 camera, float * yawPitch, vec4 dir, vec4 ret,
 					plane[1] += offset[1];
 					plane[2] += offset[2];
 					block = mapGetBlockId(map, plane, data);
-					cnx   = data ? data->cnxFlags : 0;
+					cnx   = data->cnxFlags;
 					if (block > 0 && mapBlockIsFaceVisible(map, plane, block, next + opposite[i] * 4))
 					{
 						BlockState b = blockGetById(block);
 						memcpy(ret, plane, 3*sizeof *ret);
-						if (data)
-						{
-							memcpy(data->inter, inter, sizeof data->inter);
-							data->side = opposite[i];
-							data->topHalf = data->side < 4 && inter[1] - (int) inter[1] >= 0.5;
-						}
+						memcpy(data->inter, inter, sizeof data->inter);
+						data->side = opposite[i];
+						data->topHalf = data->side < 4 && inter[1] - (int) inter[1] >= 0.5;
 						ret[3] = 1;
 						if (b->bboxId > 1)
 						{
@@ -427,7 +423,8 @@ Bool mapPointToBlock(Map map, vec4 camera, float * yawPitch, vec4 dir, vec4 ret,
 							check = 1;
 							goto break_all;
 						}
-						return 1;
+						data->entity = entityRaycast(map->center, dir, camera, inter);
+						return data->entity == 0;
 					}
 					goto break_all;
 				}
@@ -445,7 +442,8 @@ Bool mapPointToBlock(Map map, vec4 camera, float * yawPitch, vec4 dir, vec4 ret,
 		if (i == 6)
 			break;
 	}
-	return False;
+	data->entity = entityRaycast(map->center, dir, camera, NULL);
+	return data->entity == 0;
 }
 
 /* DEBUG */
@@ -567,8 +565,10 @@ Bool mapMoveCenter(Map map, vec4 old, vec4 pos)
 		}
 		mapRedoGenList(map);
 		map->center = map->chunks + (map->mapX + map->mapZ * area);
+		#ifdef DEBUG
 		fprintf(stderr, "new map center: %d, %d (%d,%d)\n", map->mapX, map->mapZ, (int) pos[VX], (int) pos[VZ]);
 		mapShowChunks(map);
+		#endif
 		return True;
 	}
 	return False;
