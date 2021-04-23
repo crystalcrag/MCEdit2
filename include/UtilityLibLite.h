@@ -30,15 +30,11 @@ typedef char                     TEXT;
 typedef char *                   STRPTR;
 typedef void *                   APTR;
 typedef uint8_t *                DATA8;
-typedef long                     LONG;
 typedef unsigned long            ULONG;
 typedef unsigned long long       ULLONG;
 typedef struct ListHead_t        ListHead;
 typedef struct ListNode_t        ListNode;
-typedef struct Entry_t *         Entry;
-typedef struct HashTable_t *     HashTable;
-typedef struct HashTableItr_t *  HashTableItr;
-typedef struct HashTableItr_t    HashIterator;
+typedef struct ScanDirData_t     ScanDirData;
 typedef struct Lang_t *          Lang;
 typedef struct vector_t *        vector;
 typedef struct vector_t          vector_t;
@@ -55,13 +51,24 @@ struct ListHead_t
 {
 	ListNode * lh_Head;
 	ListNode * lh_Tail;
-	int        lh_Count;
 };
 
 struct ListNode_t
 {
 	ListNode * ln_Next;
 	ListNode * ln_Prev;
+};
+
+struct ScanDirData_t
+{
+	APTR     path;
+	int      isDir;
+	uint64_t size;
+	TEXT     date[24];
+	STRPTR   type;
+	STRPTR   name;
+	APTR     handle;
+	int      error;
 };
 
 /* List.c */
@@ -82,10 +89,13 @@ DLLIMP ListNode * ListRemTail(ListHead *);
 #define	HEAD(list)          ((APTR)(list).lh_Head)
 #define	TAIL(list)          ((APTR)(list).lh_Tail)
 
-/* DOS.c prototypes */
-typedef int DirScanFunc(STRPTR dir, STRPTR file, APTR data);
+/* needed if node field is not at the begining of struct */
+#define START_OF(node, ptrType, field)   ((ptrType) ((DATA8)(node) - (ULONG) &((ptrType)0L)->field))
 
-DLLIMP int    ScanDir(STRPTR dir, DirScanFunc, APTR data);
+/* DOS.c prototypes */
+DLLIMP int    ScanDirInit(ScanDirData * ret, STRPTR path);
+DLLIMP int    ScanDirNext(ScanDirData *);
+DLLIMP void   ScanDirCancel(ScanDirData *);
 DLLIMP Bool   AddPart(STRPTR dir, STRPTR file, int max);
 DLLIMP Bool   ParentDir(STRPTR path);
 DLLIMP Bool   IsDir(STRPTR path);
@@ -135,6 +145,7 @@ DLLIMP int    UTF16ToUTF8(STRPTR out, int max, STRPTR in, int len);
 DLLIMP int    FrameSetFPS(int fps);
 DLLIMP double FrameGetTime(void);
 DLLIMP void   FrameWaitNext(void);
+DLLIMP void   FramePauseUnpause(Bool pause);
 
 /* Some useful macros */
 #define	IsDef(val)         ((val) && (val)[0])

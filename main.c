@@ -268,11 +268,11 @@ int main(int nb, char * argv[])
  */
 void mceditWorld(void)
 {
-	SDL_Event   event;
-	double      ignoreTS = 0, paused = 0;
-	uint8_t     ignore = 0;
-	uint8_t     capture = 0;
-	uint8_t     sunMove = 0;
+	SDL_Event event;
+	uint8_t   paused = 0;
+	uint8_t   ignore = 0;
+	uint8_t   capture = 0;
+	uint8_t   sunMove = 0;
 
 	renderSetInventory(&mcedit.player.inventory);
 	renderSetViewMat(mcedit.player.pos, mcedit.player.lookat, &mcedit.player.angleh);
@@ -291,16 +291,10 @@ void mceditWorld(void)
 					mcedit.forceSel = 1;
 					renderShowBlockInfo(True, DEBUG_SELECTION);
 					break;
-				#if 0
-				case SDLK_SPACE:
-					if (paused)
-					{
-						ignoreTS += FrameGetTime() - paused;
-						paused = 0;
-					}
-					else paused = FrameGetTime();
+				case SDLK_BACKSPACE:
+					paused = ! paused;
+					FramePauseUnpause(paused);
 					break;
-				#endif
 				case SDLK_TAB:
 					mcedit.state = GAMELOOP_SIDEVIEW;
 					mcedit.exit = 2;
@@ -484,10 +478,7 @@ void mceditWorld(void)
 		{
 			skydomeMoveSun(sunMove);
 		}
-		if (paused)
-			curTime = paused - ignoreTS;
-		else
-			curTime = FrameGetTime() - ignoreTS;
+		curTime = FrameGetTime();
 		renderWorld();
 		updateTick(mcedit.level);
 		SIT_RenderNodes(curTime);

@@ -549,7 +549,10 @@ void renderToggleDebug(int what)
 /* print info from VBO */
 void renderDebugBlock(void)
 {
-	debugBlockVertex(render.level, &render.selection);
+	if (render.selection.extra.entity > 0)
+		entityDebug(render.selection.extra.entity);
+	else
+		debugBlockVertex(render.level, &render.selection);
 }
 
 /* screen size changed */
@@ -947,13 +950,16 @@ void renderBlockInfo(SelBlock * sel)
 
 	if (memcmp(pos, sel->current, sizeof pos))
 	{
-		int        id    = sel->extra.blockId;
-		BlockState block = blockGetById(id);
-		int        XYZ[] = {sel->current[0], sel->current[1], sel->current[2]};
-		TEXT       msg[256];
+		TEXT msg[256];
+		if (sel->extra.entity == 0)
+		{
+			int id    = sel->extra.blockId;
+			int XYZ[] = {sel->current[0], sel->current[1], sel->current[2]};
 
-		sprintf(msg, "X: %d <dim>(%d)</dim>\nY: %d <dim>(%d)</dim>\nZ: %d <dim>(%d)</dim>\n%s <dim>(%d:%d)</dim>",
-			XYZ[0], XYZ[0] & 15, XYZ[1], XYZ[1] & 15, XYZ[2], XYZ[2] & 15, block->name, id>>4, id&15);
+			sprintf(msg, "X: %d <dim>(%d)</dim>\nY: %d <dim>(%d)</dim>\nZ: %d <dim>(%d)</dim>\n%s <dim>(%d:%d)</dim>",
+				XYZ[0], XYZ[0] & 15, XYZ[1], XYZ[1] & 15, XYZ[2], XYZ[2] & 15, blockGetById(id)->name, id>>4, id&15);
+		}
+		else entityInfo(sel->extra.entity, msg, sizeof msg);
 
 		SIT_SetValues(render.blockInfo, SIT_Title, msg, SIT_DisplayTime, SITV_ResetTime, NULL);
 	}
@@ -1251,10 +1257,11 @@ void renderWorld(void)
 	/* inventory items needs to be rendered after nanovg commands */
 	renderInventoryItems(scale);
 
-	if ((render.selection.sel & SEL_CURRENT) && (render.debugInfo & DEBUG_BLOCK))
+	if (render.debugInfo & DEBUG_BLOCK)
 	{
-		/* tooltip about block being pointed at */
-		renderBlockInfo(&render.selection);
+		if (render.selection.extra.entity > 0 || (render.selection.sel & SEL_CURRENT))
+			/* tooltip about block being pointed at */
+			renderBlockInfo(&render.selection);
 	}
 }
 

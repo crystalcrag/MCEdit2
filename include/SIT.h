@@ -88,7 +88,7 @@ DLLIMP void       SIT_Exit(int code);
 DLLIMP void       SIT_Free(APTR pointer);
 DLLIMP void       SIT_Log(int level, STRPTR fmt, ...) PRINTFWARN(2,3);
 DLLIMP SIT_RENDER SIT_RenderNodes(float time_in_ms);
-DLLIMP void       SIT_RenderNode(SIT_Widget);
+DLLIMP void       SIT_RenderNode(SIT_Widget root);
 DLLIMP Bool       SIT_CreateWidgets(SIT_Widget parent, STRPTR fmt, ...);
 DLLIMP void       SIT_RemoveWidget(SIT_Widget);
 DLLIMP Bool       SIT_AddCallback(SIT_Widget, int type, SIT_CallProc, APTR data);
@@ -111,16 +111,17 @@ DLLIMP int        SIT_ListInsertItem(SIT_Widget, int row, APTR rowTag, ...);
 DLLIMP void       SIT_ListDeleteRow(SIT_Widget, int row);
 DLLIMP SIT_Widget SIT_ListInsertControlIntoCell(SIT_Widget, int row, int cell);
 DLLIMP void       SIT_ListFinishInsertControl(SIT_Widget);
+DLLIMP void       SIT_ListReorgColumns(SIT_Widget);
 DLLIMP int        SIT_TextGetWithSoftline(SIT_Widget, STRPTR buffer, int max);
 DLLIMP void       SIT_MoveNearby(SIT_Widget, int XYWH[4], int defAlign);
 DLLIMP void       SIT_ForceRefresh(void);
 DLLIMP int        SIT_NeedRefresh(void);
 DLLIMP int        SIT_InitDrag(SIT_CallProc);
 
-DLLIMP void       SIT_ListSetCell(SIT_Widget w, int row, int col, STRPTR text, APTR rowTag);
+DLLIMP Bool       SIT_ListSetCell(SIT_Widget w, int row, int col, APTR rowTag, int align, STRPTR text);
 DLLIMP Bool       SIT_ListSetColumn(SIT_Widget, int col, int width, int align, STRPTR label);
 
-DLLIMP STRPTR     SIT_GetFromClipboard(STRPTR type, int * size);
+DLLIMP STRPTR     SIT_GetFromClipboard(int * size);
 DLLIMP Bool       SIT_CopyToClipboard(STRPTR text, int size);
 
 /* pump events to the library */
@@ -134,7 +135,7 @@ DLLIMP void       SIT_ProcessResize(int width, int height);
 #define	DontChange               (-1)
 #define	DontChangePtr            ((APTR)-1)
 #define	AutoArrange              (-2)  // 'width' only
-#define	DeleteAllRow             (-2)
+#define	DeleteAllRows            (-2)  // SIT_ListDeleteRow
 
 /* special value for SIT_ListInsertItem() */
 #define SITV_TDSubChild          ((STRPTR)-1)
@@ -152,8 +153,7 @@ enum /* possible parameters for 'level' of SIT_Log() */
 	SIT_CRITICAL,
 	SIT_ERROR,
 	SIT_WARN,
-	SIT_INFO,
-	SIT_DEBUG
+	SIT_INFO
 };
 
 enum /* possible parameters for 'what' of SIT_Nuke() */
@@ -239,6 +239,7 @@ enum
 
 	/* Dialog tags */
 	SIT_DialogStyles     = 65,   /* C__: Bitfield */
+	// SIT_Private1      = 66,
 
 	/* Label tags */
 	SIT_Overflow         = 67,   /* C___: Enum */
@@ -264,7 +265,7 @@ enum
 	SIT_MaxUndo          = 83,   /* C__: Int */
 	SIT_MaxLines         = 84,   /* C__: Int */
 	SIT_WordWrap         = 85,   /* C__: Enum (SITV_WW*) */
-//	SIT_TabStyle         = 118,  /* _SG: Int (defined for Tab: see enum SITV_TabEdit* */
+	// SIT_TabStyle      = 118,  /* _SG: Int (defined for Tab: see enum SITV_TabEdit* */
 
 	/* List box */
 	SIT_ListBoxFlags     = 86,   /* C__: Enum */
@@ -276,11 +277,11 @@ enum
 	SIT_TargetRow        = 92,   /* ___: Int (private, use SIT_RowTag() or SIT_RowSel()) */
 	SIT_RowTagArg        = 93,   /* _SG: Pointer (private) */
 	SIT_RowSelArg        = 94,   /* _SG: Bool (private) */
-	SIT_RowTextArg       = 95,   /* _SG: String (private) */
+	// SIT_Private2      = 95,
 	SIT_MakeVisible      = 96,   /* _S_: Int */
-//	SIT_ItemCount        = 117,  /* __G: Int (defined in ComboBox: same datatype, same semantic) */
-	SIT_ItemPerPage      = 97,   /* __G: Int */
-	SIT_ViewMode         = 98,   /* CSG: Enum */
+	// SIT_Private4      = 97,
+	// SIT_ItemCount     = 117,  /* __G: Int (defined in ComboBox: same datatype, same semantic) */
+	SIT_ViewMode         = 98,   /* C__: Enum */
 
 	/* Scrollbar, Slider and Progress */
 	SIT_MinValue         = 99,   /* CSG: Int */
@@ -295,6 +296,7 @@ enum
 	SIT_GaugePadding     = 108,  /* CSG: Int */
 	SIT_BuddyEdit        = 109,  /* C__: SIT_Widget */
 	SIT_IsDragged        = 110,  /* __G: Bool */
+	// SIT_Private5      = 111,
 	SIT_ArrowType        = 112,  /* C__: Enum */
 	SIT_WheelMult        = 113,  /* CSG: Int */
 
@@ -335,7 +337,6 @@ enum
 
 #define	SIT_RowTag(row)      SIT_TargetRow, row, SIT_RowTagArg
 #define	SIT_RowSel(row)      SIT_TargetRow, row, SIT_RowSelArg
-#define	SIT_RowText(row,col) SIT_TargetRow, ((row)|((col)<<24)), SIT_RowTextArg
 
 #define SITV_LabelSize(w,h)  (int) ((w) | ((h) << 16))
 
@@ -415,7 +416,7 @@ enum         /* SIT_ListBoxFlags */
 	SITV_SelectAlways   = 0x02,
 	SITV_SelectNone     = 0x04,
 	SITV_NoHeaders      = 0x08,
-	SITV_NoSort         = 0x10,
+	SITV_DoSort         = 0x10,
 };
 
 /* SIT_SortColumn */
@@ -426,7 +427,7 @@ enum         /* SIT_ListBoxFlags */
 
 enum         /* SIT_ViewMode */
 {
-	SITV_ListViewReport,
+	SITV_ListViewReport,   /* default value */
 	SITV_ListViewIcon,
 };
 
@@ -532,7 +533,7 @@ struct SIT_OnKey_t
 
 struct SIT_OnMouse_t     /* note: sizeof (struct SIT_OnMouse_t) must be 8 */
 {
-	enum                 /* unusual construct to get debug symbols */
+	enum                 /* to get debug symbols, while limiting the size of this field to 8bit */
 	{
 		SITOM_ButtonLeft,
 		SITOM_ButtonMiddle,

@@ -19,7 +19,7 @@
 extern int8_t normals[];               /* from render.c */
 extern double curTime;                 /* from main.c */
 extern int8_t relx[], rely[], relz[];  /* from mapUpdate.c */
-extern int8_t xoff[], yoff[], zoff[];
+extern int8_t xoff[], yoff[], zoff[], opp[];
 extern struct BlockSides_t blockSides; /* from blocks.c */
 static struct UpdatePrivate_t updates;
 
@@ -281,7 +281,6 @@ void mapUpdateBlock(Map map, vec4 pos, int blockId, int oldBlockId, DATA8 tile)
 			}
 			else
 			{
-				static uint8_t oppositeSENW[] = {SIDE_NORTH, SIDE_WEST, SIDE_SOUTH, SIDE_EAST, SIDE_TOP, SIDE_BOTTOM};
 				Block b = &blockIds[neighbors[i] >> 4];
 				DATA8 p = b->name + b->placement;
 				int   j;
@@ -292,15 +291,15 @@ void mapUpdateBlock(Map map, vec4 pos, int blockId, int oldBlockId, DATA8 tile)
 					int id = (p[0] << 8) | p[1];
 					switch (id) {
 					case PLACEMENT_GROUND:
-						if (i != SIDE_TOP) continue;
+						if (i != SIDE_TOP || ! blockIsAttached(neighbors[i], opp[i])) continue;
 						/* no ground below that block: remove it */
 						break;
 					case PLACEMENT_WALL:
-						if (i >= SIDE_TOP || ! blockIsAttached(neighbors[i], oppositeSENW[i]))
+						if (i >= SIDE_TOP || ! blockIsAttached(neighbors[i], opp[i]))
 							continue;
 						break;
 					default:
-						if (! blockIsAttached(neighbors[i], oppositeSENW[i]))
+						if (! blockIsAttached(neighbors[i], opp[i]))
 							continue;
 						break;
 					}

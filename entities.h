@@ -15,13 +15,16 @@ void entityParse(Chunk, NBTFile nbt, int offset);
 void entityUnload(Chunk);
 void entityAnimate(void);
 void entityRender(void);
-int  entityRaycast(Chunk c, vec4 dir, vec4 camera, vec4 cur);
+void entityDebug(int id);
+void entityInfo(int id, STRPTR buffer, int max);
+int  entityRaycast(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos);
 
 #define ENTITY_END    0xffff
 
 /* private stuff below */
 #ifdef ENTITY_IMPL
 #define VERTEX_SIZE   16
+#define VERTEX_WORDS  (VERTEX_SIZE/4)
 #define ENTITY_BATCH  256
 
 enum /* entity id and models */
@@ -51,6 +54,7 @@ struct Entity_t
 	float    pos[3];
 	float    motion[3];
 	DATA8    tile;
+	STRPTR   name; /* from NBT */
 };
 
 struct EntitiesPrivate_t

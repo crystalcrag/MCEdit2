@@ -396,7 +396,7 @@ Bool mapPointToBlock(Map map, vec4 camera, float * yawPitch, vec4 dir, vec4 ret,
 					if (check)
 					{
 						data->side = i;
-						data->entity = entityRaycast(map->center, dir, camera, inter);
+						data->entity = entityRaycast(map->center, dir, camera, inter, ret);
 						return data->entity == 0;
 					}
 
@@ -423,7 +423,7 @@ Bool mapPointToBlock(Map map, vec4 camera, float * yawPitch, vec4 dir, vec4 ret,
 							check = 1;
 							goto break_all;
 						}
-						data->entity = entityRaycast(map->center, dir, camera, inter);
+						data->entity = entityRaycast(map->center, dir, camera, inter, ret);
 						return data->entity == 0;
 					}
 					goto break_all;
@@ -442,7 +442,7 @@ Bool mapPointToBlock(Map map, vec4 camera, float * yawPitch, vec4 dir, vec4 ret,
 		if (i == 6)
 			break;
 	}
-	data->entity = entityRaycast(map->center, dir, camera, NULL);
+	data->entity = entityRaycast(map->center, dir, camera, NULL, ret);
 	return data->entity == 0;
 }
 

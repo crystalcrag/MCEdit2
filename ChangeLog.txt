@@ -1,6 +1,13 @@
 =========== Week 16 ===========
+thu Apr 22:
+	* added support for entity falling_block.
+
+Wed Apr 21:
+	* better integration of entity within engine (tooltip, debug).
+	* minor redstone bug fixes.
+
 Tue Apr 20:
-	* added raycasting for entities.
+	* added raycasting pickup for entities.
 
 =========== Week 15 ===========
 Sun Apr 18:

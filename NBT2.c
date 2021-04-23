@@ -611,8 +611,8 @@ void NBT_InitIter(NBTFile root, int offset, NBTIter iter)
 	uint8_t type = hdr->type;
 	switch (type&15) {
 	case TAG_Compound: iter->state = -1; /* iter over properties */ break;
-	case TAG_List:     iter->state = type == TAG_List_Compound ? hdr->count : 0; /* iter over items */ break;
 	case TAG_End:      iter->state =  0; return;
+	case TAG_List:     if (type == TAG_List_Compound) { iter->state = hdr->count; /* iter over items */ break; }
 	default:           iter->state = -1; iter->offset = offset; return; /* assume middle of compound */
 	}
 	/* move to payload */
@@ -1274,7 +1274,6 @@ int NBT_Save(NBTFile nbt, STRPTR path, NBT_WriteCb_t cb, APTR cbparam)
 	return 0;
 }
 
-#ifdef DEBUG
 int NBT_Dump(NBTFile root, int offset, int level, FILE * out)
 {
 	static STRPTR tagNames[] = {
@@ -1389,7 +1388,6 @@ int NBT_Dump(NBTFile root, int offset, int level, FILE * out)
 	}
 	return offset + ((sz + 3) & ~3) - old;
 }
-#endif
 
 /* parse standalone nbt file */
 int NBT_Parse(NBTFile file, STRPTR path)

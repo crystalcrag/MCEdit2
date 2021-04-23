@@ -277,7 +277,7 @@ int itemGetByName(STRPTR name, Bool forInventory)
 			 * some block id have a dedicated item id instead of reusing the block (and have the same tech name)
 			 * block like cauldron, repeater, doors, ... besides, the block id have no inventory model.
 			 */
-			if (hash->id >= 256 || blockIds[hash->id].inventory > 0)
+			if (hash->id >= 256 || blockIds[hash->id].inventory > 0 || ! forInventory)
 				return (hash->id << 4) | val;
 		}
 		if (hash->next > 0)
