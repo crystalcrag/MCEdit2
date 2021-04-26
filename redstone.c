@@ -362,9 +362,9 @@ static int redstoneIsWirePowering(BlockIter iter, int side)
 int redstoneIsPowered(struct BlockIter_t iter, int side, int minPower)
 {
 	Block b;
-	int i, pow = POW_NONE;
+	int i, pow = POW_NONE, ignore = 0;
 	if (side != RSSAMEBLOCK)
-		mapIter(&iter, relx[side], rely[side], relz[side]);
+		mapIter(&iter, relx[side], rely[side], relz[side]), ignore = 1 << opp[side];
 
 	/* check if the block itself if powered first */
 	i = getBlockId(&iter);
@@ -383,9 +383,10 @@ int redstoneIsPowered(struct BlockIter_t iter, int side, int minPower)
 	if (b->type != SOLID)
 		return POW_NONE;
 
-	for (i = 0; i < 6; i ++)
+	for (i = 0; i < 6; i ++, ignore >>= 1)
 	{
 		mapIter(&iter, xoff[i], yoff[i], zoff[i]);
+		if (ignore & 1) continue;
 		int id = getBlockId(&iter);
 		uint8_t data = id & 15;
 		id >>= 4;

@@ -1,5 +1,14 @@
 =========== Week 16 ===========
-thu Apr 22:
+Sat Apr 25:
+	* refactoring of entities mostly working.
+
+Sat Apr 24:
+	* major entities refactoring :-/
+
+Fri Apr 23:
+	* started entities VBO refactoring.
+
+Thu Apr 22:
 	* added support for entity falling_block.
 
 Wed Apr 21:

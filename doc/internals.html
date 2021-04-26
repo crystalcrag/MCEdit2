@@ -170,11 +170,12 @@
 
 <a class="sub1" href="#mesh"><span>Mesh generation</span></a>
 
-<a class="sub1" href="#LOD"><span>Dynamic LOD</span></a>
+<a class="sub1" href="#opengl"><span>Advanced OpenGL</span></a>
 
-<a class="sub1" href="#opengl"><span>Advanced OpenGL</a>
+<a class="sub1" href="#nbt2"><span>NBT API</span></a>
 
-<a class="sub1" href="#nbt2"><span>NBT API</a>
+<a class="sub1" href="#entities"><span>Entities</span></a>
+<a class="sub2" href="#structure"><span>Data stucture</span></h3>
 </div>
 
 <div id="content">
@@ -918,7 +919,51 @@ with these techniques.
 
 <h2 id="nbt2">NBT API</h2>
 
-<p>
+<h2 id="entities">Entities</h2>
+
+<p>This part will describe <b>how entities</b> (mobs, block moved by piston, dropped items, paintings, ...)
+<b>are managed</b> within this engine. This part is not trivial just by looking at the source code, since
+there are a lot of moving parts, with lots of datatypes:
+
+<h3 id="structure"><span>Data stucture</span></h3>
+
+<p>There are 6 datatypes used to manage entities:
+
+<ul>
+  <li><tt>struct Entity_t</tt> : represents an entity from within the world, as such, they have
+  a NBT record associated.
+
+  <li><tt>struct EntityBuf_t</tt> : <tt>struct Entity_t</tt> are allocated in batch (<tt>ENTITY_BATCH</tt>
+  count). It is easier to handle entities if pointers are not reallocated, so that reference can be held
+  within datatypes and without spreading the the reference all over the memory.
+
+  <li><tt>struct EntityBank_t</tt> : hold model data that will be used to render entities: we'll use
+  one model per entity, so that they can be drawn in a single call to <tt>glMultiDrawArraysIndirect()</tt>.
+
+  <p>This API will beed a command buffer (vboMDAI) and a per instance info (vboLoc). This list will
+  be rebuild with minimal changes whenever a entity is added or removed, which means a few more boilerplate
+  tables to track usage (most notable one being <tt>mdaiUsage</tt>).
+
+  <p>Assumption is made that entities around the player is rather low (less than 1000). Aas such, we
+  don't care about frustum culling, we let the vertex shader do the work.
+
+  <p>Once added, an entity model will remain in the VBO (there are no ways to remove models). A model
+  represent a complete entity, like for example: item frame and their item are one model. Block 36 is
+  one model...
+
+  <p>Models will be rendered on demand: there are way too many to generate them all at startup.
+
+  <p>Banks will hold a fixed number of vertices data: if that buffer is full or close to, a new bank
+  will be allocated.
+
+  <li><tt>struct EntityModel_t</tt> : describe what's in all the VBOs: since VBO are only stream
+  of bytes, but we also need to know the vertex location, size, and bounding box.
+
+  <li><tt>struct EntityEntry_t</tt> : given an entity, we want to know if its model is already available
+  in one bank.
+
+</ul>
+
 </div>
 
 </body>

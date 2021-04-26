@@ -9,6 +9,7 @@
 #define MCENTITY_H
 
 #include "chunks.h"
+#include "blocks.h"
 
 Bool entityInitStatic(void);
 void entityParse(Chunk, NBTFile nbt, int offset);
@@ -23,9 +24,10 @@ int  entityRaycast(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos);
 
 /* private stuff below */
 #ifdef ENTITY_IMPL
-#define VERTEX_SIZE   16
+#define BANK_SIZE     65536
 #define VERTEX_WORDS  (VERTEX_SIZE/4)
-#define ENTITY_BATCH  256
+#define ENTITY_SHIFT  8
+#define ENTITY_BATCH  (1 << ENTITY_SHIFT)
 
 enum /* entity id and models */
 {
@@ -44,34 +46,78 @@ enum /* entity id and models */
 	ENTITY_FALLING
 };
 
-typedef struct Entity_t *     Entity;
+typedef struct Entity_t *          Entity;
+typedef struct Entity_t            Entity_t;
+typedef struct EntityEntry_t *     EntityEntry;
+typedef struct EntityBuffer_t *    EntityBuffer;
+typedef struct EntityBank_t *      EntityBank;
+typedef struct EntityModel_t *     EntityModel;
+typedef struct EntityHash_t        EntityHash_t;
 
 struct Entity_t
 {
 	uint16_t next;
-	uint16_t modelId;
+	uint16_t VBObank;
+	uint16_t mdaiSlot;
 	uint8_t  select;
 	float    pos[3];
 	float    motion[3];
+	float    rotation[2];
 	DATA8    tile;
 	STRPTR   name; /* from NBT */
 };
 
+struct EntityEntry_t    /* HashTable entry */
+{
+	int      id;
+	uint16_t VBObank;   /* index in bank->models */
+	uint16_t next;      /* hash link */
+};
+
+struct EntityHash_t
+{
+	EntityEntry list;
+	int         count, max;
+};
+
+struct EntityBuffer_t /* entity allocated in batch (avoid realloc) */
+{
+	ListNode node;
+	int      count;
+	uint32_t usage[ENTITY_BATCH>>5];
+	Entity_t entities[ENTITY_BATCH];
+};
+
+struct EntityModel_t   /* where model data is and bounding box info */
+{
+	VTXBBox  bbox;
+	uint16_t first;
+	uint16_t count;
+};
+
+struct EntityBank_t
+{
+	ListNode    node;
+	EntityModel models;
+	int         modelCount;
+	uint16_t    vtxCount;
+	uint8_t     dirty;
+	int         vao;
+	int         vboModel;
+	int         vboLoc;
+	int         vboMDAI;
+	int         mdaiCount;
+	int         mdaiMax;
+	DATA32      mdaiUsage;
+};
+
 struct EntitiesPrivate_t
 {
-	Entity   list;
-	DATA32   usage;
-	int      count, max;
-	int      vao;
-	int      vbo;
-	int      vboLoc;
-	int      vboMDAI;
-	int      shader;
-	int      mdaiCount;
-	int      selected;
-	uint8_t  dirty;
-	uint16_t models[50];
-	uint16_t vertices[50];
+	EntityHash_t hash;
+	ListHead     list;         /* EntityBuffer */
+	ListHead     banks;        /* EntityBank */
+	int          shader;
+	Entity       selected;
 };
 
 #endif

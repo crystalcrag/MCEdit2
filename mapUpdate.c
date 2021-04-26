@@ -305,6 +305,8 @@ static void trackAddUpdate(BlockIter iter, int blockId)
 	update->cd = iter->cd;
 	update->offset = iter->offset;
 	update->blockId = blockId;
+
+	//fprintf(stderr, "adding update at %d,%d,%d\n", iter->ref->X + iter->x, iter->yabs, iter->ref->Z + iter->z);
 }
 
 /*
@@ -774,14 +776,22 @@ static void mapUpdateAddRSUpdate(BlockIter iterator, RSWire cnx)
 	if (b->rsupdate & RSUPDATE_RECV)
 		trackAddUpdate(&iter, 0xffff);
 
-	/* only check the where the update is, if power is very weak */
+	/* only check the where the update is, if power is weak */
 	if (cnx->pow != POW_WEAK && cnx->signal == RSUPDATE)
 	{
 		for (i = 0; i < 6; i ++)
 		{
 			/* we cannot perform the update yet, we need the signal to be updated all the way :-/ */
 			mapIter(&iter, xoff[i], yoff[i], zoff[i]);
-			Block b = &blockIds[iter.blockIds[iter.offset]];
+			int id = getBlockId(&iter);
+			Block b = &blockIds[id>>4];
+			switch (b->orientHint) {
+			case ORIENT_TORCH:
+				if (blockSides.torch[id&7] != opp[i]) continue;
+				break;
+			case ORIENT_SWNE: /* repeater */
+				if (i > 4 || blockSides.repeater[id&3] != opp[i]) continue;
+			}
 			if (b->rsupdate & RSUPDATE_RECV)
 				trackAddUpdate(&iter, 0xffff);
 		}
@@ -826,6 +836,9 @@ static void mapUpdatePropagateSignal(BlockIter iterator)
 		int8_t * XYZ = track.coord + track.pos;
 
 		mapIter(&neighbor, XYZ[0], XYZ[1], XYZ[2]);
+
+		if (neighbor.ref->X + neighbor.x == -175 && neighbor.yabs == 70 && neighbor.ref->Z + neighbor.z == -32)
+			puts("here");
 
 		signal = redstoneSignalStrength(&neighbor, False);
 		count = redstoneConnectTo(neighbor, connectTo);
@@ -1126,7 +1139,7 @@ static int mapUpdateIfPowered(Map map, BlockIter iterator, int oldId, int blockI
 			}
 			return ID(RSTORCH_OFF, blockId & 15);
 		}
-		else if ((oldId >> 4) == RSTORCH_OFF || init)
+		else if ((oldId >> 4) == RSTORCH_OFF)
 		{
 			/* torch went on */
 			mapUpdateConnected(map, iterator, blockId);
@@ -1332,6 +1345,8 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, Bool blockUpdate)
 		track.modif = NULL;
 		track.list  = &track.modif;
 	}
+
+	//fprintf(stderr, "setting block %g, %g, %g to %d:%d\n", pos[0], pos[1], pos[2], blockId >> 4, blockId & 15);
 
 	int oldId = iter.blockIds[iter.offset] << 4;
 	int XYZ[] = {iter.x, iter.yabs, iter.z};
