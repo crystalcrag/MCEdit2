@@ -6,7 +6,7 @@
  * position and info encode the following values:
  * - position.x
  * - position.y
- * - position.z : position relative to offsets + (position.xyz - 1920) / 3840.
+ * - position.z : position relative to offsets + (position.xyz - 1024) / 2048.
  * - info.x[bit0  -  8] : U tex coord (0 - 511)
  * - info.x[bit9  - 15] : V tex coord (7bits, hi part).
  * - info.y[bit0  -  2] : V tex coord (3bits, lo part).
@@ -36,9 +36,9 @@ flat out int rswire;
 void main(void)
 {
 	vec4 pos = vec4(
-		float(position.x - 1920) * 0.00026041666666666666, /* 1/3840 */
-		float(position.y - 1920) * 0.00026041666666666666,
-		float(position.z - 1920) * 0.00026041666666666666,
+		float(position.x - 15360) * 0.00048828125,
+		float(position.y - 15360) * 0.00048828125,
+		float(position.z - 15360) * 0.00048828125,
 		1
 	);
 	float U = float(info.x & 511);

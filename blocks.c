@@ -312,10 +312,67 @@ static void blockSetUVAndNormals(DATA16 vert, int inv, int setUV, float * vertex
 	else for (i = 0, vert += 4; i < 4; i ++, vert[0] |= dir<<3, vert += INT_PER_VERTEX);
 }
 
+/* needed by entity models */
+void blockCenterModel(DATA16 vertex, int count, int dU, int dV)
+{
+	uint16_t min[3] = {65535, 65535, 65535};
+	uint16_t max[3] = {0, 0, 0};
+	int      i, U, V;
+	for (i = 0; i < count; i ++, vertex += INT_PER_VERTEX)
+	{
+		uint16_t x = vertex[0], y = vertex[1], z = vertex[2];
+		if (min[0] > x) min[0] = x;   if (max[0] < x) max[0] = x;
+		if (min[1] > y) min[1] = y;   if (max[1] < y) max[1] = y;
+		if (min[2] > z) min[2] = z;   if (max[2] < z) max[2] = z;
+
+		/* shift texture U, V */
+		U = GET_UCOORD(vertex) + dU;
+		V = GET_VCOORD(vertex) + dV;
+		if (U == 512)  U = 511;
+		if (V == 1024) V = 1023;
+
+		CHG_UVCOORD(vertex, U, V);
+	}
+	min[0] = (max[0] - min[0]) >> 1;
+	min[1] = (max[1] - min[1]) >> 1;
+	min[2] = (max[2] - min[2]) >> 1;
+
+	/* center vertex around 0, 0 */
+	for (i = 0; i < count; i ++, vertex += INT_PER_VERTEX)
+	{
+		vertex[0] -= min[0];
+		vertex[1] -= min[1];
+		vertex[2] -= min[2];
+	}
+}
+
+int blockCountModelVertex(float * vert, int count)
+{
+	int i, j, faces, cont, cubeMap;
+	cubeMap = ((int) vert[0] & BHDR_CUBEMAP) > 0;
+	for (j = i = 0, faces = vert[0]; ; )
+	{
+		cont = faces & BHDR_CONTINUE;
+		if (cubeMap && (faces & BHDR_CUBEMAP) == 0)
+			j += popcount((faces >> BHDR_DETAILFACES) & BHDR_FACESMASK) * 4;
+
+		faces = popcount(faces & BHDR_FACESMASK);
+		switch (cubeMap) {
+		case 0: j += 13 + faces * 4; break;
+		case 1: j += 13 + 6 * 4; cubeMap ++; break; /* only first line is fully defined */
+		case 2: j += 13;
+		}
+		i += faces * 6;
+		if (cont == 0) break;
+		faces = vert[j];
+	}
+	return j > count ? 0 : i;
+}
+
 /*
  * main function to generate vertex data from TileFinder numbers
  */
-static DATA16 blockParseModel(float * values, int count)
+DATA16 blockParseModel(float * values, int count, DATA16 buffer)
 {
 	float * vert;
 	float * first;
@@ -332,26 +389,11 @@ static DATA16 blockParseModel(float * values, int count)
 	matIdent(rotCascade);
 
 	/* count the vertex needed for this model */
-	for (j = i = 0, faces = vert[0]; ; )
-	{
-		cont = faces & BHDR_CONTINUE;
-		if (cubeMap && (faces & BHDR_CUBEMAP) == 0)
-			j += popcount((faces >> BHDR_DETAILFACES) & BHDR_FACESMASK) * 4;
-
-		faces = popcount(faces & BHDR_FACESMASK);
-		switch (cubeMap) {
-		case 0: j += 13 + faces * 4; break;
-		case 1: j += 13 + 6 * 4; cubeMap ++; break; /* only first line is fully defined */
-		case 2: j += 13;
-		}
-		i += faces * 6;
-		if (cont == 0) break;
-		faces = values[j];
-	}
-	if (j > count)
+	i = blockCountModelVertex(values, count);
+	if (i == 0)
 		return NULL;
 
-	DATA16 out = blockAllocVertex(i);
+	DATA16 out = buffer ? buffer : blockAllocVertex(i);
 
 	/* scan each primitives */
 	for (p = out, rotCas = 0, i = 13; ; )
@@ -453,20 +495,18 @@ static DATA16 blockParseModel(float * values, int count)
 					matMultByVec3(coord, rot90, coord);
 
 				/*
-				 * X, Y, Z can vary between -0.5 and 16.5; each mapped to [0 - 3840 * 17];
+				 * X, Y, Z can vary between -7.5 and 23.5; each mapped to [0 - 65535];
 				 * coord[] is centered around 0,0,0 (a cube of unit 1 has vertices of +/- 0.5)
 				 */
-				val = roundf((coord[0] + 0.5) * BASEVTX) + (BASEVTX/2); p[0] = MIN(val, 65535);
-				val = roundf((coord[1] + 0.5) * BASEVTX) + (BASEVTX/2); p[1] = MIN(val, 65535);
-				val = roundf((coord[2] + 0.5) * BASEVTX) + (BASEVTX/2); p[2] = MIN(val, 65535);
+				val = roundf((coord[0] + 0.5) * BASEVTX) + ORIGINVTX; p[0] = MIN(val, 65535);
+				val = roundf((coord[1] + 0.5) * BASEVTX) + ORIGINVTX; p[1] = MIN(val, 65535);
+				val = roundf((coord[2] + 0.5) * BASEVTX) + ORIGINVTX; p[2] = MIN(val, 65535);
 				/* needed for blockSetUVAndNormals() */
 				coord[0] += 0.5;
 				coord[1] += 0.5;
 				coord[2] += 0.5;
 				if (cubeMap == 0 || (detail & 1))
 				{
-					/*if (altTex) val = altTex[0], altTex ++;
-					else*/
 					div_t res = div(tex[0], 513);
 					tex ++;
 					if (res.rem == 512) res.rem = 511;
@@ -517,7 +557,7 @@ static DATA16 blockRotateModel(int id, int orient)
 
 		model[0] = current | (orient & (3 << BHDR_ROT90SHIFT));
 
-		return blockParseModel(model, count);
+		return blockParseModel(model, count, NULL);
 	}
 	return NULL;
 }
@@ -572,7 +612,7 @@ static void blockExtractEmitterLoction(DATA16 model, DATA8 loc, int box)
 		{
 			for (i = 0; i < 3; i ++)
 			{
-				uint16_t v = model[i] - BASEVTX/2;
+				uint16_t v = model[i] - ORIGINVTX;
 				if (min[i] > v) min[i] = v;
 				if (max[i] < v) max[i] = v;
 			}
@@ -584,7 +624,7 @@ static void blockExtractEmitterLoction(DATA16 model, DATA8 loc, int box)
 		}
 		else break;
 	}
-	/* convert from range [0-65280] to [0-16] */
+	/* convert from range [0-65536] to [0-16] */
 	loc[0] = min[0] * 16 / BASEVTX; loc[3] = max[0] * 16 / BASEVTX;
 	loc[2] = min[2] * 16 / BASEVTX; loc[5] = max[2] * 16 / BASEVTX;
 	loc[1] = loc[4] = max[1] * 16 / BASEVTX;
@@ -610,7 +650,7 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 		/* previous block emitter list: save it now into previous block def */
 		if (emitUsage > 0)
 		{
-			DATA8 mem = blockIds[block.id].emitters = stringAddPool("", emitUsage);
+			DATA8 mem = blockIds[block.id].emitters = stringAddPool("", emitUsage + 16);
 			memcpy(mem, emitters, emitUsage + 16);
 		}
 		memset(&block, 0, sizeof block);
@@ -817,7 +857,7 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 			{
 				block.copyModel = table[1];
 			}
-			else block.model = blockParseModel(table, count);
+			else block.model = blockParseModel(table, count, NULL);
 			block.invState = (block.orientHint != ORIENT_BED);
 		}
 
@@ -1052,7 +1092,7 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 			}
 			else
 			{
-				state.custModel = blockParseModel(table, count);
+				state.custModel = blockParseModel(table, count, NULL);
 
 				if (state.custModel == NULL)
 				{
@@ -1648,9 +1688,9 @@ static int blockGenCommonBBox(float * bbox)
 				float y = (v[1] * bbox[1] + bbox[4]) / 16;
 				float z = (v[2] * bbox[2] + bbox[5]) / 16;
 
-				p[0] = roundf(x * BASEVTX) + BASEVTX/2;
-				p[1] = roundf(y * BASEVTX) + BASEVTX/2;
-				p[2] = roundf(z * BASEVTX) + BASEVTX/2;
+				p[0] = roundf(x * BASEVTX) + ORIGINVTX;
+				p[1] = roundf(y * BASEVTX) + ORIGINVTX;
+				p[2] = roundf(z * BASEVTX) + ORIGINVTX;
 				p[3] = 0;
 				p[4] = faceId | (i<<1);
 			}
@@ -1766,7 +1806,7 @@ int blockGenVertexBBox(BlockState b, VTXBBox box, int flag, int * vbo)
 
 			/* convert 3 pts to float */
 			for (j = 0; j < DIM(pts); j ++)
-				pts[j] = (p[indices[j]] - BASEVTX/2) * (1. / BASEVTX);
+				pts[j] = (p[indices[j]] - ORIGINVTX) * (1. / BASEVTX);
 
 			pts[3] -= pts[0];   pts[6] -= pts[0];
 			pts[4] -= pts[1];   pts[7] -= pts[1];
@@ -1980,13 +2020,13 @@ Bool blockGetBoundsForFace(VTXBBox box, int face, vec4 V0, vec4 V1, vec4 offset,
 
 		if (dir[3]) t += 3;
 		/* same as vertex shader blocks.vsh */
-		pt[0] = (box->pt1[0] - BASEVTX/2) * (1./BASEVTX);
-		pt[1] = (box->pt1[1] - BASEVTX/2) * (1./BASEVTX);
-		pt[2] = (box->pt1[2] - BASEVTX/2) * (1./BASEVTX);
+		pt[0] = (box->pt1[0] - ORIGINVTX) * (1./BASEVTX);
+		pt[1] = (box->pt1[1] - ORIGINVTX) * (1./BASEVTX);
+		pt[2] = (box->pt1[2] - ORIGINVTX) * (1./BASEVTX);
 
-		pt[3] = (box->pt2[0] - BASEVTX/2) * (1./BASEVTX);
-		pt[4] = (box->pt2[1] - BASEVTX/2) * (1./BASEVTX);
-		pt[5] = (box->pt2[2] - BASEVTX/2) * (1./BASEVTX);
+		pt[3] = (box->pt2[0] - ORIGINVTX) * (1./BASEVTX);
+		pt[4] = (box->pt2[1] - ORIGINVTX) * (1./BASEVTX);
+		pt[5] = (box->pt2[2] - ORIGINVTX) * (1./BASEVTX);
 
 		V0[x] = offset[x] + pt[x];
 		V0[y] = offset[y] + pt[y];
@@ -2627,16 +2667,27 @@ void blockPostProcessTexture(DATA8 * data, int * width, int * height, int bpp)
 	}
 
 	/* also load item texture */
-	DATA8 items = stbi_load(RESDIR "items.png", &w, &h, &bpp, bpp);
+	DATA8 image = stbi_load(RESDIR "items.png", &w, &h, &bpp, 4);
 
+	/* image must be 16x15 tiles, of same size than terrain.png */
 	if (sz == (w / 16) * bpp && sz == (h / 15) * bpp)
 	{
 		/* it is the size we expect, copy into tex */
-		for (s = items, k = w * bpp, d = dst + (ITEM_ADDTEXV * sz * *width) + ITEM_ADDTEXU * sz; h > 0; h --, s += k, d += stride)
+		for (s = image, k = w * bpp, d = dst + (ITEM_ADDTEXV * sz * *width) + ITEM_ADDTEXU * sz; h > 0; h --, s += k, d += stride)
 			memcpy(d, s, k);
 	}
 
-	free(items);
+	free(image);
+
+	/* and paintings texture */
+	image = stbi_load(RESDIR "paintings.png", &w, &h, &bpp, 4);
+
+	/* image must be 16x9 tiles */
+	if (sz == (w / 16) * bpp && sz == (h / 9) * bpp)
+	{
+		for (s = image, k = w * bpp, d = dst + ((ITEM_ADDTEXV+15) * sz * *width) + ITEM_ADDTEXU * sz; h > 0; h --, s += k, d += stride)
+			memcpy(d, s, k);
+	}
 
 	/* durability colors: located in tile 31, 3 */
 	blocks.duraColors = malloc(sz);
@@ -2669,9 +2720,9 @@ void blockGetEmitterLocation(int blockId, float loc[3])
 
 	VTXBBox bbox = blocks.bbox + state->bboxId;
 
-	loc[0] = (RandRange(bbox->pt1[0], bbox->pt2[0]) - BASEVTX/2) * (1./BASEVTX);
-	loc[2] = (RandRange(bbox->pt1[2], bbox->pt2[2]) - BASEVTX/2) * (1./BASEVTX);
-	loc[1] = (bbox->pt2[1] - BASEVTX/2) * (1./BASEVTX);
+	loc[0] = (RandRange(bbox->pt1[0], bbox->pt2[0]) - ORIGINVTX) * (1./BASEVTX);
+	loc[2] = (RandRange(bbox->pt1[2], bbox->pt2[2]) - ORIGINVTX) * (1./BASEVTX);
+	loc[1] = (bbox->pt2[1] - ORIGINVTX) * (1./BASEVTX);
 }
 
 

@@ -837,9 +837,6 @@ static void mapUpdatePropagateSignal(BlockIter iterator)
 
 		mapIter(&neighbor, XYZ[0], XYZ[1], XYZ[2]);
 
-		if (neighbor.ref->X + neighbor.x == -175 && neighbor.yabs == 70 && neighbor.ref->Z + neighbor.z == -32)
-			puts("here");
-
 		signal = redstoneSignalStrength(&neighbor, False);
 		count = redstoneConnectTo(neighbor, connectTo);
 		for (i = 0; i < count; i ++)

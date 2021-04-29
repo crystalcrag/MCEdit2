@@ -20,14 +20,17 @@ void entityDebug(int id);
 void entityInfo(int id, STRPTR buffer, int max);
 int  entityRaycast(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos);
 
-#define ENTITY_END    0xffff
+#define ENTITY_END         0xffff
+#define PAINTING_ADDTEXU   16
+#define PAINTING_ADDTEXV   (32+15)
+#define ENTITY_PAINTINGID  0x10000
 
 /* private stuff below */
 #ifdef ENTITY_IMPL
-#define BANK_SIZE     65536
-#define VERTEX_WORDS  (VERTEX_SIZE/4)
-#define ENTITY_SHIFT  8
-#define ENTITY_BATCH  (1 << ENTITY_SHIFT)
+#define BANK_SIZE          65536
+#define INFO_SIZE          24
+#define ENTITY_SHIFT       8
+#define ENTITY_BATCH       (1 << ENTITY_SHIFT)
 
 enum /* entity id and models */
 {
@@ -53,6 +56,7 @@ typedef struct EntityBuffer_t *    EntityBuffer;
 typedef struct EntityBank_t *      EntityBank;
 typedef struct EntityModel_t *     EntityModel;
 typedef struct EntityHash_t        EntityHash_t;
+typedef struct CustModel_t *       CustModel;
 
 struct Entity_t
 {
@@ -118,6 +122,15 @@ struct EntitiesPrivate_t
 	ListHead     banks;        /* EntityBank */
 	int          shader;
 	Entity       selected;
+	TEXT         paintings[256];
+	uint8_t      paintingNum;
+};
+
+struct CustModel_t
+{
+	float *  model;
+	int      vertex;
+	uint16_t U, V;
 };
 
 #endif

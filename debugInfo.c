@@ -90,9 +90,9 @@ void debugBlockVertex(Map map, SelBlock * select)
 				extern uint8_t cubeIndices[]; /* from chunks.c */
 
 				/* need to decode vertex buffer */
-				uint8_t x = round((p[0] - (BASEVTX/2)) * 0.00026041666666666666);
-				uint8_t y = round((p[1] - (BASEVTX/2)) * 0.00026041666666666666);
-				uint8_t z = round((p[2] - (BASEVTX/2)) * 0.00026041666666666666);
+				uint8_t x = round((p[0] - (ORIGINVTX)) * (1. / BASEVTX));
+				uint8_t y = round((p[1] - (ORIGINVTX)) * (1. / BASEVTX));
+				uint8_t z = round((p[2] - (ORIGINVTX)) * (1. / BASEVTX));
 				uint8_t U = (p[3] & 511) >> 4;
 				uint8_t V = (p[3] >> 10);
 				uint8_t side = (p[4] >> 3) & 7;

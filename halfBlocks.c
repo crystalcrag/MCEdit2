@@ -297,7 +297,7 @@ void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DAT
 			}
 
 			#undef  VERTEX
-			#define VERTEX(x)     ((x) * (BASEVTX/2) + BASEVTX/2)
+			#define VERTEX(x)     ((x) * (BASEVTX/2) + ORIGINVTX)
 			#define IPV           INT_PER_VERTEX
 
 			/* add rect [pos x rect] to mesh (4 vertices) */

@@ -37,42 +37,43 @@ typedef struct KeyVal_t *        KeyVal;
 typedef struct SIT_Accel_t       SIT_Accel;
 
 /* datatypes passed as second argument for callback events */
+typedef struct LocaleInfo_t *    LocaleInfo;     /* value stored for SIT_LocaleInfo tag */
 typedef struct SIT_OnKey_t       SIT_OnKey;      /* OnVanillaKey, OnRawKey */
 typedef struct SIT_OnMouse_t     SIT_OnMouse;    /* OnClick, OnMouseMove */
 typedef struct SIT_OnSort_t      SIT_OnSort;     /* OnSortItem */
 typedef struct SIT_OnPaint_t     SIT_OnPaint;    /* OnPaint */
 typedef struct SIT_OnVal_t       SIT_OnVal;      /* OnSetOrGet */
-typedef struct LocaleInfo_t *    LocaleInfo;     /* value stored for SIT_LocaleInfo tag */
+typedef struct SIT_OnCellPaint_t SIT_OnCellPaint;
 
 /* generic callback prototype for events */
 typedef int (*SIT_CallProc)(SIT_Widget, APTR call_data, APTR user_data);
 
 typedef enum
 {
-	SIT_APP,               /* main app widget */
-	SIT_DIALOG,            /* top level shell dialog */
-	SIT_LABEL,             /* label with HTML tags (inline only) */
-	SIT_BUTTON,            /* push button, toggle button, check box */
-	SIT_EDITBOX,           /* single/multi-line edit field (text, password, number or float) */
-	SIT_FRAME,             /* like HTML <fieldset> */
-	SIT_LISTBOX,           /* list of objects that can be viewed as icon or column */
-	SIT_CANVAS,            /* user-defined content */
-	SIT_SCROLLBAR,         /* horizontal/vertical scroll bar */
-	SIT_SLIDER,            /* select a value using a slider */
-	SIT_PROGRESS,          /* progress indicator */
-	SIT_COMBOBOX,          /* drop down list or editable list */
-	SIT_TAB,               /* tab pane */
-	SIT_TOOLTIP,           /* popup windows with small caption text */
-	SIT_FILESELECT,        /* file selection/save (native widget) */
-	SIT_DIRSELECT,         /* directory selection (native widget) */
-	SIT_HTMLTAG            /* generic HTML tag (mostly used for internal stuff) */
+	SIT_APP,                     /* main app widget */
+	SIT_DIALOG,                  /* top level shell dialog */
+	SIT_LABEL,                   /* label with HTML tags (inline only) */
+	SIT_BUTTON,                  /* push button, toggle button, check box */
+	SIT_EDITBOX,                 /* single/multi-line edit field (text, password, number or float) */
+	SIT_FRAME,                   /* like HTML <fieldset> */
+	SIT_LISTBOX,                 /* list of objects that can be viewed as icon or column */
+	SIT_CANVAS,                  /* user-defined content */
+	SIT_SCROLLBAR,               /* horizontal/vertical scroll bar */
+	SIT_SLIDER,                  /* select a value using a slider */
+	SIT_PROGRESS,                /* progress indicator */
+	SIT_COMBOBOX,                /* drop down list or editable list */
+	SIT_TAB,                     /* tab pane */
+	SIT_TOOLTIP,                 /* popup windows with small caption text */
+	SIT_FILESELECT,              /* file selection/save (native widget) */
+	SIT_DIRSELECT,               /* directory selection (native widget) */
+	SIT_HTMLTAG                  /* generic HTML tag (mostly used for internal stuff) */
 }	SIT_TYPE;
 
-typedef enum               /* return code from SIT_RenderNodes() */
+typedef enum                     /* return code from SIT_RenderNodes() */
 {
-	SIT_RenderNothing,     /* back buffer not updated, no need to swap GL buffer */
-	SIT_RenderDone,        /* render is complete, should swap GL buffer */
-	SIT_RenderComposite    /* composited area remaining, check SIT_CompositedArea on SIT_App to see areas safe to draw */
+	SIT_RenderNothing,           /* back buffer not updated, no need to swap GL buffer */
+	SIT_RenderDone,              /* render is complete, should swap GL buffer */
+	SIT_RenderComposite          /* composited area remaining, check SIT_CompositedArea on SIT_App to see areas safe to draw */
 }	SIT_RENDER;
 
 /*
@@ -111,7 +112,8 @@ DLLIMP int        SIT_ListInsertItem(SIT_Widget, int row, APTR rowTag, ...);
 DLLIMP void       SIT_ListDeleteRow(SIT_Widget, int row);
 DLLIMP SIT_Widget SIT_ListInsertControlIntoCell(SIT_Widget, int row, int cell);
 DLLIMP void       SIT_ListFinishInsertControl(SIT_Widget);
-DLLIMP void       SIT_ListReorgColumns(SIT_Widget);
+DLLIMP STRPTR     SIT_ListGetCellText(SIT_Widget, int col, int row);
+DLLIMP void       SIT_ListReorgColumns(SIT_Widget, STRPTR);
 DLLIMP int        SIT_TextGetWithSoftline(SIT_Widget, STRPTR buffer, int max);
 DLLIMP void       SIT_MoveNearby(SIT_Widget, int XYWH[4], int defAlign);
 DLLIMP void       SIT_ForceRefresh(void);
@@ -146,7 +148,7 @@ DLLIMP void       SIT_ProcessResize(int width, int height);
  * of memory with the widget; use SIT_UserData to get a pointer to the beginning of the buffer
  * block will be zeroed at creation, 32bit aligned
  */
-#define SIT_EXTRA(amount)       ((amount)<<16)
+#define SIT_EXTRA(amount)        ((amount)<<16)
 
 enum /* possible parameters for 'level' of SIT_Log() */
 {
@@ -158,9 +160,9 @@ enum /* possible parameters for 'level' of SIT_Log() */
 
 enum /* possible parameters for 'what' of SIT_Nuke() */
 {
-	SITV_NukeCtrl,           /* want to load a completely new interface */
-	SITV_NukeTheme,          /* want to restart everything from scratch */
-	SITV_NukeAll             /* free all possible memory allocated by SITGL */
+	SITV_NukeCtrl,               /* want to load a completely new interface */
+	SITV_NukeTheme,              /* want to restart everything from scratch */
+	SITV_NukeAll                 /* free all possible memory allocated by SITGL */
 };
 
 /* tag list for SIT_CreateWidget */
@@ -170,7 +172,7 @@ enum
 	SIT_TagList          = 1,    /* KeyVal */
 
 	/* generic tags   -   Note: C = Create, S = Set, G = Get, R = Geometric reflow if set */
-	/* note: order of these tags matter up to SIT_TagPrivate3: they must match declaration of WidgetClass[] is SIT_Wigdet.c */
+	/* note: order of these tags matter up to SIT_EndCommonTags: they must match declaration of WidgetClass[] is SIT_Wigdet.c */
 	SIT_Title            = 2,    /* CSGR: String */
 	SIT_Style            = 3,    /* CSGR: String (inline CSS styles) */
 	SIT_Name             = 4,    /* __G_: String */
@@ -221,7 +223,7 @@ enum
 	SIT_MinHeight        = 49,   /* CSGR: Int (unit) */
 	SIT_MaxBoxWidth      = 50,   /* CSGR: Int (unit) */
 	SIT_MaxBoxHeight     = 51,   /* CSGR: Int (unit) */
-	SIT_TagPrivate3      = 52,   /* Sentinel, not a tag */
+	SIT_EndCommonTags    = 52,   /* Sentinel, not a tag */
 
 	/* App */
 	SIT_DefSBArrows      = 53,   /* CSG: Enum, see SIT_ArrowType */
@@ -277,9 +279,10 @@ enum
 	SIT_TargetRow        = 92,   /* ___: Int (private, use SIT_RowTag() or SIT_RowSel()) */
 	SIT_RowTagArg        = 93,   /* _SG: Pointer (private) */
 	SIT_RowSelArg        = 94,   /* _SG: Bool (private) */
+	// SIT_AutoComplete  = 116,  /* _S_: String (already defined in ComboBox) */
 	// SIT_Private2      = 95,
 	SIT_MakeVisible      = 96,   /* _S_: Int */
-	// SIT_Private4      = 97,
+	SIT_CellPaint        = 97,   /* CSG: SIT_CallProc */
 	// SIT_ItemCount     = 117,  /* __G: Int (defined in ComboBox: same datatype, same semantic) */
 	SIT_ViewMode         = 98,   /* C__: Enum */
 
@@ -296,7 +299,7 @@ enum
 	SIT_GaugePadding     = 108,  /* CSG: Int */
 	SIT_BuddyEdit        = 109,  /* C__: SIT_Widget */
 	SIT_IsDragged        = 110,  /* __G: Bool */
-	// SIT_Private5      = 111,
+	// SIT_Private3      = 111,
 	SIT_ArrowType        = 112,  /* C__: Enum */
 	SIT_WheelMult        = 113,  /* CSG: Int */
 
@@ -332,18 +335,18 @@ enum
 };
 
 /* aliases */
-#define	SIT_SliderPos        SIT_ScrollPos
-#define	SIT_ProgressPos      SIT_ScrollPos
+#define	SIT_SliderPos            SIT_ScrollPos
+#define	SIT_ProgressPos          SIT_ScrollPos
 
-#define	SIT_RowTag(row)      SIT_TargetRow, row, SIT_RowTagArg
-#define	SIT_RowSel(row)      SIT_TargetRow, row, SIT_RowSelArg
+#define	SIT_RowTag(row)          SIT_TargetRow, row, SIT_RowTagArg
+#define	SIT_RowSel(row)          SIT_TargetRow, row, SIT_RowSelArg
 
-#define SITV_LabelSize(w,h)  (int) ((w) | ((h) << 16))
+#define SITV_LabelSize(w,h)      (int) ((w) | ((h) << 16))
 
 enum         /* SIT_RefreshMode */
 {
-	SITV_RefreshAlways,      /* default: redraw interface at each frame */
-	SITV_RefreshAsNeeded     /* only when something has changed */
+	SITV_RefreshAlways,          /* default: redraw interface at each frame */
+	SITV_RefreshAsNeeded         /* only when something has changed */
 };
 
 enum         /* SIT_Overflow */
@@ -356,7 +359,7 @@ enum         /* SIT_Overflow */
 };
 
 /* alias */
-#define SITV_EllipsisMiddle     	SITV_EllipsisPath
+#define SITV_EllipsisMiddle      SITV_EllipsisPath
 
 typedef enum /* SIT_Attachment */
 {
@@ -368,12 +371,12 @@ typedef enum /* SIT_Attachment */
 	SITV_AttachMiddle,
 	SITV_AttachNoOverlap,
 #ifdef SIT_P_H
-	SITV_AttachFixed     /* Private geometry attachment */
+	SITV_AttachFixed             /* Private geometry attachment */
 #endif
 }	SIT_AttachType;
 
-#define	SITV_AttachPos(percent)      ((ULONG)((percent) * 65536 / 100))
-#define	SITV_OffsetCenter            0x3fffffff /* SIT_AttachPosition only */
+#define	SITV_AttachPos(percent)  ((ULONG)((percent) * 65536 / 100))
+#define	SITV_OffsetCenter        0x3fffffff /* SIT_AttachPosition only */
 
 enum         /* SIT_ButtonType */
 {
@@ -388,8 +391,8 @@ enum         /* SIT_ButtonType */
 
 enum         /* SIT_EditType */
 {
-//	SITV_Multiline,     // already defined for SIT_Overflow
-	SITV_TextBox  = 1,  // default
+//	SITV_Multiline,              // already defined for SIT_Overflow
+	SITV_TextBox  = 1,           /* default */
 	SITV_Password = 2,
 	SITV_Integer  = 3,
 	SITV_Float    = 4,
@@ -405,9 +408,9 @@ enum         /* SIT_CheckState */
 
 enum         /* SIT_ResizePolicy */
 {
-	SITV_Auto,          /* enlarge/reduce as needed */
-	SITV_Fixed,         /* compute once */
-	SITV_Optimal        /* (dialog only) get optimal box */
+	SITV_Auto,                   /* enlarge/reduce as needed */
+	SITV_Fixed,                  /* compute once */
+	SITV_Optimal                 /* (dialog only) get optimal box */
 };
 
 enum         /* SIT_ListBoxFlags */
@@ -423,11 +426,11 @@ enum         /* SIT_ListBoxFlags */
 #define	SITV_SortColumn(column, direction)   (direction < 0 ? -column-2 : column)
 
 /* special value for rowTag parameter of SIT_ListInsertItem() */
-#define SITV_CategoryRow          ((APTR)-1)
+#define SITV_CategoryRow         ((APTR)-1)
 
 enum         /* SIT_ViewMode */
 {
-	SITV_ListViewReport,   /* default value */
+	SITV_ListViewReport,         /* default value */
 	SITV_ListViewIcon,
 };
 
@@ -457,9 +460,9 @@ enum         /* SIT_TabStyle (SIT_TAB) */
 
 enum         /* SIT_TabStyle (SIT_EDITBOX) */
 {
-	SITV_TabEditNormal,      /* default: include tab in multi-line text */
-	SITV_TabEditToSpace,     /* convert tab to space */
-	SITV_TabEditForbid       /* don't use tab in multi-line text (like single line) */
+	SITV_TabEditNormal,          /* default: include tab in multi-line text */
+	SITV_TabEditToSpace,         /* convert tab to space */
+	SITV_TabEditForbid           /* don't use tab in multi-line text (like single line) */
 };
 
 /* use this flag for SIT_TabStyle to use a bitfield instead of a tab number as first parameter for SIT_TabNum() */
@@ -467,15 +470,15 @@ enum         /* SIT_TabStyle (SIT_EDITBOX) */
 
 enum         /* SIT_ArrowType */
 {
-	SITV_NoArrows,           /* default style */
-	SITV_ArrowsTopBottom,    /* will be left/right if hscroll */
-	SITV_ArrowsTop,          /* or left */
-	SITV_ArrowsBottom        /* or right */
+	SITV_NoArrows,               /* default style */
+	SITV_ArrowsTopBottom,        /* will be left/right if hscroll */
+	SITV_ArrowsTop,              /* or left */
+	SITV_ArrowsBottom            /* or right */
 };
 
 enum         /* SIT_ToolTipAnchor */
 {
-	SITV_TooltipNearParent,  /* default style */
+	SITV_TooltipNearParent,      /* default style */
 	SITV_TooltipFollowMouse
 };
 
@@ -497,7 +500,7 @@ enum         /* SIT_MoveNearby() defAlign parameter bitfield */
 };
 
 /* special value for SIT_DisplayTime */
-#define SITV_ResetTime      2000000000
+#define SITV_ResetTime           2000000000
 
 enum /* event type (SIT_AddCallback) */
 {	                     // Call data
@@ -513,8 +516,8 @@ enum /* event type (SIT_AddCallback) */
 	SITE_OnPaint,        // GC
 	SITE_OnRawKey,       // SIT_OnKey *
 	SITE_OnVanillaKey,   // SIT_OnKey *
-	SITE_OnScroll,       // ULONG
-	SITE_OnMenu,         // ULONG
+	SITE_OnScroll,       // int
+	SITE_OnSortColumn,   // int
 	SITE_OnSortItem,     // SIT_OnSort *
 	SITE_OnSetOrGet,     // SIT_OnVal *
 	SITE_OnGeometrySet,  // int [3]
@@ -564,6 +567,13 @@ struct SIT_OnPaint_t
 	float x, y;    /* recommended area to refresh */
 	float w, h;
 	APTR  nvg;     /* nanovg context */
+};
+
+struct SIT_OnCellPaint_t
+{
+	uint8_t fgColor[4];
+	uint8_t bgColor[4];
+	int     rowColumn; /* 0 based */
 };
 
 struct SIT_OnVal_t

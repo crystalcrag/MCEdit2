@@ -11,8 +11,10 @@
 #include <malloc.h>
 #include <string.h>
 #include <stdlib.h>
+#include <ctype.h>
 #include <math.h>
 #include <stdio.h>
+#include "SIT.h"
 #include "entities.h"
 #include "blocks.h"
 #include "maps.h"
@@ -21,21 +23,72 @@
 struct EntitiesPrivate_t entities;
 
 static void hashAlloc(int);
-static int  entityAddModel(int);
+static int  entityAddModel(int, CustModel);
+
+static Bool entityCreateModel(const char * file, STRPTR * keys, int lineNum)
+{
+	STRPTR id, name, model;
+	int    modelId, index;
+
+	id    = jsonValue(keys, "id");
+	model = jsonValue(keys, "model");
+	if (! id || ! model || *model != '[')
+	{
+		SIT_Log(SIT_ERROR, "%s: missing property %s for entity on line %d\n", file, id ? "model" : "id", lineNum);
+		return False;
+	}
+
+	index = StrCount(model, ',') + 1;
+	struct CustModel_t cust = {.vertex = index, .model = alloca(index * 4)};
+
+	switch (FindInList("painting", id, 0)) {
+	case 0:
+		name = jsonValue(keys, "name");
+		if (! name) return False;
+		if (entities.paintings[0]) StrCat(entities.paintings, sizeof entities.paintings, 0, ",");
+		StrCat(entities.paintings, sizeof entities.paintings, 0, name);
+		modelId = ENTITY_PAINTINGID + entities.paintingNum;
+		entities.paintingNum ++;
+		cust.U = PAINTING_ADDTEXU * 16;
+		cust.V = PAINTING_ADDTEXV * 16;
+		break;
+	default:
+		SIT_Log(SIT_ERROR, "%s: unknown entity type %s on line %d", file, id, lineNum);
+		return False;
+	}
+
+	for (index = 0, model ++; index < cust.vertex && IsDef(model); index ++)
+	{
+		float val = strtof(model, &model);
+		while (isspace(*model)) model ++;
+		if (*model == ',')
+			 model ++;
+		while (isspace(*model)) model ++;
+		cust.model[index] = val;
+	}
+
+	entityAddModel(modelId, &cust);
+
+	return True;
+}
 
 Bool entityInitStatic(void)
 {
 	/* pre-alloc some entities */
 	hashAlloc(ENTITY_BATCH);
 	/* already add model for unknown entity */
-	entityAddModel(0);
+	entityAddModel(0, NULL);
+
+	/* parse entity description models */
+	if (! jsonParse(RESDIR "entities.js", entityCreateModel))
+		return False;
 
 	entities.shader = createGLSLProgram("entities.vsh", "entities.fsh", NULL);
 	return entities.shader;
 }
 
 /*
- * quick and dirty hash table to associated id with bank+vbo
+ * quick and dirty hash table to associated entity id with bank+vbo
  */
 #define EOL     0xffff
 
@@ -79,6 +132,7 @@ static void hashInsert(int id, int VBObank)
 		/* redo from scratch */
 		hashAlloc(max+1);
 
+		entities.hash.count = 0;
 		for (entry = old, eof = entry + max; entry < eof; entry ++)
 		{
 			if (entry->VBObank > 0)
@@ -112,6 +166,7 @@ static void hashInsert(int id, int VBObank)
 	entry->VBObank = VBObank;
 	entry->id      = id;
 	entry->next    = EOL;
+	entities.hash.count ++;
 }
 
 /*
@@ -136,13 +191,14 @@ static int entityModelCount(int id)
 	return 0;
 }
 
-static int entityGenModel(EntityBank bank, int id)
+static int entityGenModel(EntityBank bank, int id, CustModel cust)
 {
 	glBindBuffer(GL_ARRAY_BUFFER, bank->vboModel);
 	DATA16  buffer = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
 	VTXBBox bbox   = NULL;
 	int     count  = 0;
 
+	buffer += bank->vtxCount * INT_PER_VERTEX;
 	if (id < ID(256, 0))
 	{
 		extern uint8_t texCoord[];
@@ -172,6 +228,12 @@ static int entityGenModel(EntityBank bank, int id)
 			}
 		}
 	}
+	else if (cust)
+	{
+		count = blockCountModelVertex(cust->model, cust->vertex);
+		blockParseModel(cust->model, cust->vertex, buffer);
+		blockCenterModel(buffer, count, cust->U, cust->V);
+	}
 	glUnmapBuffer(GL_ARRAY_BUFFER);
 	bank->vtxCount += count;
 
@@ -197,23 +259,25 @@ static int entityGenModel(EntityBank bank, int id)
 	/* VBObank: 6 first bits are for bank number, 10 next are for model number (index in bank->models) */
 	for (max <<= 6; bank->node.ln_Prev; max ++, PREV(bank));
 
+	//fprintf(stderr, "model %d, first: %d, count: %d, id: %x\n", max >> 6, models->first, count, id);
+
 	hashInsert(id, max);
 
 	return max;
 }
 
-static int entityAddModel(int id)
+static int entityAddModel(int id, CustModel cust)
 {
 	EntityBank bank;
 	int modelId = hashSearch(id);
 	if (modelId > 0) return modelId;
 
 	/* not yet in cache, add it on the fly */
-	int count = entityModelCount(id);
+	int count = cust ? blockCountModelVertex(cust->model, cust->vertex) : entityModelCount(id);
 	if (count == 0) return ENTITY_UNKNOWN;
 
 	/* check for a free place */
-	for (bank = HEAD(entities.banks); bank && bank->vtxCount + count < BANK_SIZE; NEXT(bank));
+	for (bank = HEAD(entities.banks); bank && bank->vtxCount + count > BANK_SIZE; NEXT(bank));
 
 	if (bank == NULL)
 	{
@@ -233,14 +297,17 @@ static int entityAddModel(int id)
 		glVertexAttribIPointer(1, 2, GL_UNSIGNED_SHORT, BYTES_PER_VERTEX, (void *) 6);
 		glEnableVertexAttribArray(1);
 		glBindBuffer(GL_ARRAY_BUFFER, bank->vboLoc);
-		glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, 0, 0);
+		glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, INFO_SIZE, 0);
 		glEnableVertexAttribArray(2);
 		glVertexAttribDivisor(2, 1);
+		glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, INFO_SIZE, (void *) 16);
+		glEnableVertexAttribArray(3);
+		glVertexAttribDivisor(3, 1);
 		glBindVertexArray(0);
 	}
 
 	/* check if it has already been generated */
-	return entityGenModel(bank, id);
+	return entityGenModel(bank, id, cust);
 }
 
 static Entity entityAlloc(uint16_t * entityLoc)
@@ -269,10 +336,11 @@ static Entity entityAlloc(uint16_t * entityLoc)
 static int entityGetModelId(Entity entity)
 {
 	STRPTR id = entity->name;
-	return 0;
 
 	if (strncmp(id, "minecraft:", 10) == 0)
 		id += 10;
+
+	NBTFile_t nbt = {.mem = entity->tile};
 
 	if (strcmp(id, "falling_block") == 0)
 	{
@@ -280,7 +348,6 @@ static int entityGetModelId(Entity entity)
 		int    data  = 0;
 		int    off;
 
-		NBTFile_t nbt = {.mem = entity->tile};
 		NBTIter_t prop;
 		NBT_IterCompound(&prop, entity->tile);
 		while ((off = NBT_Iter(&prop)) >= 0)
@@ -291,17 +358,28 @@ static int entityGetModelId(Entity entity)
 			}
 		}
 		if (block)
-			return entityAddModel(itemGetByName(block, False) | data);
+			return entityAddModel(itemGetByName(block, False) | data, NULL);
+	}
+	else if (strcmp(id, "painting") == 0)
+	{
+		int off = NBT_FindNode(&nbt, 0, "Motive");
+		if (off >= 0)
+		{
+			off = FindInList(entities.paintings, NBT_Payload(&nbt, off), 0);
+			if (off >= 0) return hashSearch(ENTITY_PAINTINGID + off);
+		}
 	}
 	return ENTITY_UNKNOWN;
 }
 
-static void entityFillLocation(Entity ent, vec4 loc)
+static void entityFillLocation(Entity ent, float loc[6])
 {
 	loc[0] = ent->pos[0] - 0.5;
 	loc[1] = ent->pos[1] - 0.5;
 	loc[2] = ent->pos[2] - 0.5;
 	loc[3] = ent->select ? 511 : 255; /* skylight/blocklight */
+	loc[4] = ent->rotation[0];
+	loc[5] = ent->rotation[1];
 }
 
 static void entityAddToCommandList(Entity entity)
@@ -313,18 +391,18 @@ static void entityAddToCommandList(Entity entity)
 	for (i = VBObank & 63, bank = HEAD(entities.banks); i > 0; i --, NEXT(bank));
 
 	bank->mdaiCount ++;
-	if (bank->dirty) return;
+	if (bank->dirty) return; /* will be redone at once */
 	if (bank->mdaiCount < bank->mdaiMax)
 	{
 		EntityModel model = bank->models + (VBObank >> 6);
-		MDAICmd_t   cmd   = {.count = model->count, .baseInstance = bank->mdaiCount-1, .instanceCount = 1, .first = model->count};
+		MDAICmd_t   cmd   = {.count = model->count, .baseInstance = bank->mdaiCount-1, .instanceCount = 1, .first = model->first};
 		int         slot  = mapFirstFree(bank->mdaiUsage, bank->mdaiMax >> 5);
-		vec4        loc;
+		float       loc[INFO_SIZE/4];
 
 		entity->mdaiSlot = slot;
 		entityFillLocation(entity, loc);
 		glBindBuffer(GL_ARRAY_BUFFER, bank->vboLoc);
-		glBufferSubData(GL_ARRAY_BUFFER, slot * 16, 16, loc);
+		glBufferSubData(GL_ARRAY_BUFFER, slot * INFO_SIZE, INFO_SIZE, loc);
 		glBindBuffer(GL_ARRAY_BUFFER, bank->vboMDAI);
 		glBufferSubData(GL_ARRAY_BUFFER, slot * 16, 16, &cmd);
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -371,7 +449,12 @@ void entityParse(Chunk c, NBTFile nbt, int offset)
 				c->entityList = next;
 
 			pos[VY] += 0.5; /* not sure why */
-			memcpy(entity->pos, pos, sizeof pos);
+			memcpy(entity->pos, pos, 6 * 4);
+			/* convert angle to trigonometric rad */
+			entity->rotation[0] = pos[6] * M_PI / 180;
+			entity->rotation[1] = - pos[7] * (2*M_PI / 360);
+			if (entity->rotation[1] < 0) entity->rotation[1] += 2*M_PI;
+
 			entity->tile = nbt->mem + offset;
 			entity->next = ENTITY_END;
 			entity->select = 0;
@@ -397,7 +480,7 @@ static EntityModel entityGetModelById(Entity entity)
 	EntityBank bank;
 	int i = entity->VBObank;
 
-	for (bank = HEAD(entities.banks); i & 63; NEXT(bank));
+	for (bank = HEAD(entities.banks); i & 63; i --, NEXT(bank));
 
 	return bank->models + (i >> 6);
 }
@@ -433,54 +516,45 @@ static void entitySetSelection(Entity entity)
 	{
 		EntityBank bank;
 		int i;
-		for (i = entity->VBObank & 63, bank = HEAD(entities.banks); i > 0; i --, NEXT(bank));
 
-		if (! bank->dirty)
+		if (entities.selected)
 		{
-			/* selection flag is set directly in VBO meta-data */
-			float val = 255;
-			glBindBuffer(GL_ARRAY_BUFFER, bank->vboLoc);
-			if (entities.selected)
+			for (i = entities.selected->VBObank & 63, bank = HEAD(entities.banks); i > 0; i --, NEXT(bank));
+			if (! bank->dirty)
 			{
-				glBufferSubData(GL_ARRAY_BUFFER, entities.selected->mdaiSlot * 16 - 4, 4, &val);
-				entities.selected->select = 0;
+				float val = 255;
+				glBindBuffer(GL_ARRAY_BUFFER, bank->vboLoc);
+				glBufferSubData(GL_ARRAY_BUFFER, entities.selected->mdaiSlot * INFO_SIZE + 12, 4, &val);
 			}
-			val = 511;
-			if (entity)
-				glBufferSubData(GL_ARRAY_BUFFER, entity->mdaiSlot * 16 - 4, 4, &val);
+			entities.selected->select = 0;
 		}
-		if (entity) entity->select = 1;
+
+		if (entity)
+		{
+			for (i = entity->VBObank & 63, bank = HEAD(entities.banks); i > 0; i --, NEXT(bank));
+
+			if (! bank->dirty)
+			{
+				/* selection flag is set directly in VBO meta-data */
+				float val = 511;
+				glBindBuffer(GL_ARRAY_BUFFER, bank->vboLoc);
+				glBufferSubData(GL_ARRAY_BUFFER, entity->mdaiSlot * INFO_SIZE + 12, 4, &val);
+			}
+			entity->select = 1;
+		}
 		entities.selected = entity;
 	}
 }
 
-#if 0
-/* get bounding box of entity for one face */
-static void entityGetBBoxForFace(Entity entity, int side, float points[6], vec4 norm)
+static void fillNormal(vec4 norm, int side)
 {
-	extern uint8_t vertex[];
-	extern uint8_t cubeIndices[];
 	extern int8_t  normals[];
-	DATA8 pt = vertex + cubeIndices[side * 4 + 1];
-	points[VX] = pt[0] - 0.5 + entity->pos[VX];
-	points[VY] = pt[1] - 0.5 + entity->pos[VY];
-	points[VZ] = pt[2] - 0.5 + entity->pos[VZ];
-
-	pt = vertex + cubeIndices[side * 4 + 3];
-	points[VX+3] = pt[0] - 0.5 + entity->pos[VX];
-	points[VY+3] = pt[1] - 0.5 + entity->pos[VY];
-	points[VZ+3] = pt[2] - 0.5 + entity->pos[VZ];
-
-	if (points[0] > points[3]) norm[0] = points[0], points[0] = points[3], points[3] = norm[0];
-	if (points[2] > points[5]) norm[0] = points[2], points[2] = points[5], points[5] = norm[0];
-
 	int8_t * normal = normals + side * 4;
 	norm[VX] = normal[VX];
 	norm[VY] = normal[VY];
 	norm[VZ] = normal[VZ];
 	norm[VT] = 1;
 }
-#endif
 
 int intersectRayPlane(vec4 P0, vec4 u, vec4 V0, vec norm, vec4 I);
 
@@ -512,16 +586,19 @@ int entityRaycast(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos)
 			if (vecDistSquare(camera, list->pos) < maxDist * 1.5)
 			{
 				float points[6];
+				float pos[6];
 				vec4  norm, inter;
 				int   j;
+				entityFillLocation(list, pos);
 				/* assume rectangular bounding box (not necessarily axis aligned though) */
 				for (j = 0; j < 6; j ++)
 				{
 					/* XXX need to rely on cross-product instead */
 					if ((flags & (1 << j)) == 0) continue;
 
+					fillNormal(norm, j);
 					EntityModel model = entityGetModelById(list);
-					blockGetBoundsForFace(model->bbox, j, points, points+3, list->pos, 0);
+					blockGetBoundsForFace(model->bbox, j, points, points+3, pos, 0);
 					if (intersectRayPlane(camera, dir, points, norm, inter))
 					{
 						/* check if points is contained within the face */
@@ -606,7 +683,7 @@ void entityRender(void)
 			bank->mdaiUsage = realloc(bank->mdaiUsage, (max = bank->mdaiMax >> 5) * 4);
 			memset(bank->mdaiUsage, 0, max * 4);
 
-			glBufferData(GL_ARRAY_BUFFER, bank->mdaiMax * 16, NULL, GL_STATIC_DRAW);
+			glBufferData(GL_ARRAY_BUFFER, bank->mdaiMax * INFO_SIZE, NULL, GL_STATIC_DRAW);
 			glBufferData(GL_DRAW_INDIRECT_BUFFER, bank->mdaiMax * 16, NULL, GL_STATIC_DRAW);
 
 			float * loc = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
@@ -629,7 +706,7 @@ void entityRender(void)
 					cmd->count = model->count;
 					cmd->first = model->first;
 					cmd->instanceCount = 1;
-					loc += 4; cmd ++; inst ++;
+					loc += INFO_SIZE/4; cmd ++; inst ++;
 				}
 			}
 			glUnmapBuffer(GL_ARRAY_BUFFER);

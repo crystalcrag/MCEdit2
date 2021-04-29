@@ -17,9 +17,9 @@ void main(void)
 
 	/* same vertex data than blocks.vsh */
 	gl_Position = projMatrix * mvMatrix * vec4(
-		float(position.x - 1920) * 0.00026041666666666666 + info.x, /* 1/3840 */
-		float(position.y - 1920) * 0.00026041666666666666 + info.y,
-		float(position.z - 1920) * 0.00026041666666666666 + info.z,
+		float(position.x - 15360) * 0.00048828125 + info.x, /* 1/2048 */
+		float(position.y - 15360) * 0.00048828125 + info.y,
+		float(position.z - 15360) * 0.00048828125 + info.z,
 		1
 	);
 }

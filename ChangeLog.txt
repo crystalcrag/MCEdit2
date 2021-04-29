@@ -1,5 +1,12 @@
+=========== Week 17 ===========
+Tue Apr 27:
+	* first version of paintings.
+
+Mon Apr 26:
+	* started support for paintings.
+
 =========== Week 16 ===========
-Sat Apr 25:
+Sun Apr 25:
 	* refactoring of entities mostly working.
 
 Sat Apr 24:

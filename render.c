@@ -601,6 +601,7 @@ void renderSetViewMat(vec4 pos, vec4 lookat, float * yawPitch)
 /* tooltip is about to be deleted, clear reference */
 static int clearRef(SIT_Widget w, APTR cd, APTR ud)
 {
+	fprintf(stderr, "tooltip destroyed\n");
 	render.blockInfo = NULL;
 	return 1;
 }
@@ -948,9 +949,10 @@ void renderBlockInfo(SelBlock * sel)
 {
 	static vec4 pos;
 
-	if (memcmp(pos, sel->current, sizeof pos))
+	if (memcmp(pos, sel->current, 12))
 	{
 		TEXT msg[256];
+		memcpy(pos, sel->current, 12);
 		if (sel->extra.entity == 0)
 		{
 			int id    = sel->extra.blockId;

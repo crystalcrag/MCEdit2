@@ -20,6 +20,7 @@ void    blockParseConnectedTexture(void);
 void    blockParseBoundingBox(void);
 void    blockParseInventory(int vbo);
 void    blockPostProcessTexture(DATA8 * data, int * w, int * h, int bpp);
+void    blockCenterModel(DATA16 vertex, int count, int U, int V);
 int     blockGetConnect(BlockState, DATA8 neighbors);
 VTXBBox blockGetBBox(BlockState);
 int     blockGetConnect4(DATA8 neighbors, int type);
@@ -31,8 +32,10 @@ Bool    blockIsAttached(int blockId, int side);
 int     blockAdjustPlacement(int blockId, BlockOrient info);
 int     blockAdjustOrient(int blockId, BlockOrient info, vec4 inter);
 int     blockGenModel(int vbo, int blockId);
+int     blockCountModelVertex(float * vert, int count);
 DATA8   blockGetDurability(float dura);
 DATA8   blockCreateTileEntity(int blockId, vec4 pos, APTR arg);
+DATA16  blockParseModel(float * values, int count, DATA16 buffer);
 void    blockGetEmitterLocation(int blockId, float offset[5]);
 
 void    halfBlockGenMesh(WriteBuffer, DATA8 model, int size /* 2 or 8 */, DATA8 xyz, DATA8 tex, DATA16 blockIds);
@@ -285,8 +288,9 @@ enum                       /* special values for Block_t.rswire */
 
 #define BYTES_PER_VERTEX   10
 #define INT_PER_VERTEX     5
-#define BASEVTX            3840      /* ~ 65536/17 */
-#define VERTEX(x)          ((x) * BASEVTX + BASEVTX/2)
+#define BASEVTX            2048      /* 65536/32 */
+#define ORIGINVTX          15360     /* 7.5 * 2048 */
+#define VERTEX(x)          ((x) * BASEVTX + ORIGINVTX)
 #define STATEFLAG(b,x)     ((b)->rotate & x)
 #define SPECIALSTATE(b)    ((b)->special & 31)
 #define CATFLAGS           0x0f

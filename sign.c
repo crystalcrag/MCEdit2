@@ -101,8 +101,8 @@ void signFillVertex(int blockId, float pt[6], int uv[4])
 				{
 					for (i = 0; i < 3; i ++)
 					{
-						pt[i]   = (vertex[i]    - BASEVTX/2) * 0.00026041666666666666;
-						pt[i+3] = (vertex[10+i] - BASEVTX/2) * 0.00026041666666666666;
+						pt[i]   = (vertex[i]    - ORIGINVTX) * (1. / BASEVTX);
+						pt[i+3] = (vertex[10+i] - ORIGINVTX) * (1. / BASEVTX);
 					}
 				}
 				if (uv)

@@ -218,7 +218,7 @@ int main(int nb, char * argv[])
 
 	SIT_SetValues(mcedit.app,
 		SIT_DefSBSize,   SITV_Em(0.5),
-		SIT_RefreshMode, SITV_RefreshAsNeeded,
+		SIT_RefreshMode, SITV_RefreshAlways,
 		SIT_AddFont,     "sans-serif",      "system",
 		SIT_AddFont,     "sans-serif-bold", "system/Bold",
 		SIT_AccelTable,  accels,
@@ -549,6 +549,8 @@ void mceditUIOverlay(void)
 	int       itemConnect;
 	vec4      pos;
 
+	SIT_SetValues(mcedit.app, SIT_RefreshMode, SITV_RefreshAsNeeded, NULL);
+
 	if (mcedit.forceSel)
 	{
 		mcedit.forceSel = 0;
@@ -719,6 +721,7 @@ void mceditUIOverlay(void)
 
 	exit:
 	SIT_Nuke(SITV_NukeCtrl);
+	SIT_SetValues(mcedit.app, SIT_RefreshMode, SITV_RefreshAlways, NULL);
 	SDL_EnableUNICODE(0);
 }
 
@@ -737,7 +740,6 @@ void mceditSideView(void)
 	debugSetPos(mcedit.app, &mcedit.exit);
 	debugWorld(SDL_GetTicks());
 	mx = my = 0;
-	SIT_SetValues(mcedit.app, SIT_RefreshMode, SITV_RefreshAlways, NULL);
 	SDL_GL_SwapBuffers();
 
 	while (! mcedit.exit && SDL_WaitEvent(&event))
@@ -849,7 +851,6 @@ void mceditSideView(void)
 	}
 	debugLoadSaveState(PREFS_PATH, False);
 	mcedit.state = GAMELOOP_WORLD;
-	SIT_SetValues(mcedit.app, SIT_RefreshMode, SITV_RefreshAsNeeded, NULL);
 	SIT_Nuke(SITV_NukeCtrl);
 }
 
