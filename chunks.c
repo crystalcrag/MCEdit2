@@ -242,40 +242,15 @@ static void chunkExpandTileEntities(Chunk c)
 	}
 }
 
-static void chunkExpandEntities(Chunk c)
+void chunkExpandEntities(Chunk c)
 {
-	int off = NBT_FindNode(&c->nbt, 0, "Entities");
-	c->entityList = ENTITY_END;
+	int off = c->entOffset;
+	c->cflags |= CFLAG_HASENTITY;
 	if (off >= 0)
 	{
 		NBTHdr hdr = (NBTHdr) (c->nbt.mem + off);
 		if (hdr->count == 0) return; /* empty list */
-		c->entOffset = off;
 		entityParse(c, &c->nbt, off);
-		#if 0
-		fprintf(stderr, "Entities for chunk %d, %d [%d, %d]:\n", c->X, c->Z, hdr->count, hdr->size);
-		NBTIter_t iter;
-		NBT_InitIter(&c->nbt, off, &iter);
-		while ((off = NBT_Iter(&iter)) >= 0)
-		{
-			int name = NBT_FindNode(&c->nbt, off, "id");
-			int pos  = NBT_FindNode(&c->nbt, off, "Pos");
-
-			if (name >= 0 && pos >= 0)
-			{
-				float loc[3];
-				STRPTR id = NBT_Payload(&c->nbt, name);
-				NBT_ConvertToFloat(&c->nbt, pos, loc, 3);
-				fprintf(stderr, "- %s at %g, %g, %g\n", id, loc[0], loc[1], loc[2]);
-				if (strcmp(id, "minecraft:falling_block") == 0)
-				{
-					while ((pos = NBT_Dump(&c->nbt, off, 3, stderr)) >= 0)
-						off += pos;
-				}
-			}
-			else fprintf(stderr, "- weird entity: name: %d, pos: %d\n", name, pos);
-		}
-		#endif
 	}
 }
 
@@ -364,10 +339,11 @@ Bool chunkLoad(Chunk chunk, const char * path, int x, int z)
 			chunk->terrainDeco    = NBT_ToInt(&nbt, NBT_FindNode(&nbt, 0, "TerrainPopulated"), 0);
 			chunk->heightMap      = NBT_Payload(&nbt, NBT_FindNode(&nbt, 0, "HeightMap"));
 			chunk->biomeMap       = NBT_Payload(&nbt, NBT_FindNode(&nbt, 0, "Biomes"));
+			chunk->entOffset      = NBT_FindNode(&nbt, 0, "Entities");
+			chunk->entityList     = ENTITY_END;
 
 			chunkExpandTileEntities(chunk);
-			chunkExpandEntities(chunk);
-			//chunk->entities       = NBT_FindNode(&nbt, 0, "entities");
+
 			int secOffset = NBT_FindNode(&nbt, 0, "Sections");
 			if (secOffset > 0)
 			{
@@ -1559,6 +1535,8 @@ int chunkFree(Chunk c)
 		chunkFreeHash((EntityHash) c->tileEntities, c->nbt.mem, c->nbt.mem + c->nbt.usage);
 		c->tileEntities = NULL;
 	}
+	if (c->cflags & CFLAG_HASENTITY)
+		entityUnload(c);
 	NBT_Free(&c->nbt);
 	memset(c->layer, 0, c->maxy * sizeof c->layer[0]);
 	memset(&c->nbt, 0, sizeof c->nbt);

@@ -33,6 +33,7 @@ Bool      chunkAddTileEntity(Chunk, int * XYZ, DATA8 mem);
 Bool      chunkUpdateNBT(Chunk, int blockOffset, NBTFile nbt);
 void      chunkUpdateTilePosition(Chunk, int * XYZ, DATA8 tile);
 void      chunkMarkForUpdate(Chunk);
+void      chunkExpandEntities(Chunk);
 
 struct ChunkData_t                     /* one sub-chunk of 16x16x16 blocks */
 {
@@ -88,6 +89,7 @@ enum /* flags for Chunk_t.flags */
 	CFLAG_GOTDATA    = 0x01,           /* data has been retrieved */
 	CFLAG_HASMESH    = 0x02,           /* mesh generated and pushed to GPU */
 	CFLAG_NEEDSAVE   = 0x04,           /* modifications need to be saved on disk */
+	CFLAG_HASENTITY  = 0x08,           /* entity transfered in active list */
 	CFLAG_MARKMODIF  = 0x10,           /* mark for modif at the NBT level */
 };
 

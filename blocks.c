@@ -313,11 +313,13 @@ static void blockSetUVAndNormals(DATA16 vert, int inv, int setUV, float * vertex
 }
 
 /* needed by entity models */
-void blockCenterModel(DATA16 vertex, int count, int dU, int dV)
+void blockCenterModel(DATA16 vertex, int count, int dU, int dV, VTXBBox bbox)
 {
-	uint16_t min[3] = {65535, 65535, 65535};
-	uint16_t max[3] = {0, 0, 0};
-	int      i, U, V;
+	DATA16 start = vertex;
+	DATA16 min, max;
+	int    i, U, V;
+	memset(min = bbox->pt1, 0xff, sizeof bbox->pt1);
+	memset(max = bbox->pt2, 0x00, sizeof bbox->pt2);
 	for (i = 0; i < count; i ++, vertex += INT_PER_VERTEX)
 	{
 		uint16_t x = vertex[0], y = vertex[1], z = vertex[2];
@@ -333,17 +335,20 @@ void blockCenterModel(DATA16 vertex, int count, int dU, int dV)
 
 		CHG_UVCOORD(vertex, U, V);
 	}
-	min[0] = (max[0] - min[0]) >> 1;
-	min[1] = (max[1] - min[1]) >> 1;
-	min[2] = (max[2] - min[2]) >> 1;
+	uint16_t shift[] = {
+		(max[0] - min[0]) >> 1,
+		(max[1] - min[1]) >> 1,
+		(max[2] - min[2]) >> 1
+	};
 
 	/* center vertex around 0, 0 */
-	for (i = 0; i < count; i ++, vertex += INT_PER_VERTEX)
+	for (i = 0, vertex = start; i < count; i ++, vertex += INT_PER_VERTEX)
 	{
-		vertex[0] -= min[0];
-		vertex[1] -= min[1];
-		vertex[2] -= min[2];
+		vertex[0] -= shift[0];
+		vertex[1] -= shift[1];
+		vertex[2] -= shift[2];
 	}
+	for (i = 0; i < 3; min[i] -= shift[i], max[i] -= shift[i], i ++);
 }
 
 int blockCountModelVertex(float * vert, int count)

@@ -170,9 +170,11 @@
 
 <a class="sub1" href="#mesh"><span>Mesh generation</span></a>
 
-<a class="sub1" href="#opengl"><span>Advanced OpenGL</span></a>
+<a class="sub1" href="#LOD"><span>Dynamic LOD</span></a>
 
-<a class="sub1" href="#nbt2"><span>NBT API</span></a>
+<a class="sub1" href="#opengl"><span>Advanced OpenGL</a>
+
+<a class="sub1" href="#nbt2"><span>NBT API</a>
 
 <a class="sub1" href="#entities"><span>Entities</span></a>
 <a class="sub2" href="#structure"><span>Data stucture</span></h3>
@@ -217,8 +219,8 @@ be close to player position, not 0,0,0).
 <h3 id="faceorder"><span>Face enumeration order</span></h3>
 
 <p>Whenever there is a need to enumerate nearby objects within the voxel space, the same order will
-be used almost everytime. For example, to enumerate the 6 nearby blocks a given block is directly
-connected to, to enumerate the 6 chunks a given chunk is connected to, to generate the mesh of the
+be used almost everytime. For example: to enumerate the 6 nearby voxels a given block is directly
+connected to, to enumerate the 6 neighbors a given chunk is connected to, to generate the mesh of the
 6 faces a given cube is composed of, ... these will always be done in the same order:
 <ol>
   <li><b>South</b>
@@ -238,11 +240,11 @@ sides have been visited (therefore have values from 0 to 63), or simply as a enu
 the code base, this is a reminder of this order.
 
 <p>Technically, there are no obligations to respect that order all over the place, but it makes it easy
-to reuse look-up tables all over the place, without having to worry about compatibility.
+to reuse the same look-up tables over and over again, without having to worry about compatibility.
 
 <h3 id="datatypes"><span>Datatypes</span></h3>
 
-<p>Datatypes in the engine follows a small but kind of helpful convention: if a structure has to be
+<p>Datatypes in the engine follows a small, but kind of helpful convention: if a structure has to be
 declared as a value, <b>it is not</b> typedef'ed, and the name <b>always have</b> a trailing <tt>_t</tt>
 (the t stands for <tt>type</tt> of course).
 
@@ -569,7 +571,21 @@ hidden by nearer chunk. A good primer on how this algorithm can be read from the
 The version implemented in this engine is <b>way simpler</b> than that. At the cost of (slightly) more
 chunks being drawn.
 
-<p>/* ... */
+<p>The basic principle behind this implementation of the cave culling is this: <b>a cube viewed using
+a perspective projection matrix has at most 3 faces visible</b>. If we can somewhat "prove" that those
+faces are hidden, we then can discard the entire chunk from the visible list.
+
+<p>First, we need to know which face is visible according to player position and orientation. This can
+easily done using a vector dot product between vector that goes from camera to one of the vertices of
+the face (any vertex will do) and the normal of the face: if that number is negative, the face is hidden.
+
+<p>Then for the faces that are potentially visible, we can check if the face they are connected to is
+completely opaque. If that's the case, there are no way the user will be able to see that face. If all
+the visible faces are also hidden, the entire chunk can be removed from the visible.
+
+<p>This simple trick works relatively well for caves, where there are usually lots of solid blocks all
+around. It is not as advanced as the algorithm described above, but given how cheap it is, it is a
+trivial optimization to do.
 
 <h2 id="blocks">Block API</h2>
 
@@ -676,7 +692,7 @@ possible properties:
     <li><tt>SIGN</tt>: they need special processing (allocate off-screen texture).
     <li><tt>BED</tt>: their models depend on tile entity.
   </ul>
-  <p>Additionaly, you can OR these values, with the following flags (ie: separated by |):
+  <p>Additionnaly, you can OR these values, with the following flags (ie: separated by |):
   <ul>
 	<li><tt>CNXTEX</tt>: generate connected texture for all state description. Texture will be auto-generated
 	from state description.

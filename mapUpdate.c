@@ -1092,8 +1092,7 @@ static int mapUpdateIfPowered(Map map, BlockIter iterator, int oldId, int blockI
 		break;
 	case RSSTICKYPISTON:
 	case RSPISTON:
-		// TODO
-		break;
+		return mapUpdatePiston(iterator, blockId, init);
 	case RSDISPENSER:
 	case RSDROPPER:
 		/* very similar to gence gate actually */

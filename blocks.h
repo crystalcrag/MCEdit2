@@ -20,7 +20,7 @@ void    blockParseConnectedTexture(void);
 void    blockParseBoundingBox(void);
 void    blockParseInventory(int vbo);
 void    blockPostProcessTexture(DATA8 * data, int * w, int * h, int bpp);
-void    blockCenterModel(DATA16 vertex, int count, int U, int V);
+void    blockCenterModel(DATA16 vertex, int count, int U, int V, VTXBBox bbox);
 int     blockGetConnect(BlockState, DATA8 neighbors);
 VTXBBox blockGetBBox(BlockState);
 int     blockGetConnect4(DATA8 neighbors, int type);

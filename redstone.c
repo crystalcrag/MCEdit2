@@ -1,5 +1,6 @@
 /*
- * redstone.c : handle logic to propagate redstone signals and generates block updates
+ * redstone.c : handle logic to propagate redstone signals (mapUpdate.c will generate
+ *              block updates, blockUpdate.c will process them).
  *
  * written by T.Pierron, feb 2021.
  */

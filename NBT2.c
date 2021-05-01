@@ -1274,6 +1274,7 @@ int NBT_Save(NBTFile nbt, STRPTR path, NBT_WriteCb_t cb, APTR cbparam)
 	return 0;
 }
 
+#ifdef DEBUG
 int NBT_Dump(NBTFile root, int offset, int level, FILE * out)
 {
 	static STRPTR tagNames[] = {
@@ -1388,6 +1389,7 @@ int NBT_Dump(NBTFile root, int offset, int level, FILE * out)
 	}
 	return offset + ((sz + 3) & ~3) - old;
 }
+#endif
 
 /* parse standalone nbt file */
 int NBT_Parse(NBTFile file, STRPTR path)

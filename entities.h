@@ -57,25 +57,26 @@ typedef struct EntityBank_t *      EntityBank;
 typedef struct EntityModel_t *     EntityModel;
 typedef struct EntityHash_t        EntityHash_t;
 typedef struct CustModel_t *       CustModel;
+typedef struct BBoxBuffer_t *      BBoxBuffer;
 
 struct Entity_t
 {
-	uint16_t next;
-	uint16_t VBObank;
-	uint16_t mdaiSlot;
+	uint16_t next;                 /* first ENTITY_SHIFT bits: index in buffer, remain: buffer index  */
+	uint16_t VBObank;              /* first 6bits: bank index, remain: model index */
+	uint16_t mdaiSlot;             /* GL draw index */
 	uint8_t  select;
 	float    pos[3];
 	float    motion[3];
 	float    rotation[2];
 	DATA8    tile;
-	STRPTR   name; /* from NBT */
+	STRPTR   name;                 /* from NBT */
 };
 
-struct EntityEntry_t    /* HashTable entry */
+struct EntityEntry_t               /* HashTable entry */
 {
-	int      id;
-	uint16_t VBObank;   /* index in bank->models */
-	uint16_t next;      /* hash link */
+	int      id;                   /* model id */
+	uint16_t VBObank;              /* index in bank->models */
+	uint16_t next;                 /* hash link */
 };
 
 struct EntityHash_t
@@ -84,7 +85,7 @@ struct EntityHash_t
 	int         count, max;
 };
 
-struct EntityBuffer_t /* entity allocated in batch (avoid realloc) */
+struct EntityBuffer_t              /* entity allocated in batch (avoid realloc) */
 {
 	ListNode node;
 	int      count;
@@ -92,7 +93,7 @@ struct EntityBuffer_t /* entity allocated in batch (avoid realloc) */
 	Entity_t entities[ENTITY_BATCH];
 };
 
-struct EntityModel_t   /* where model data is and bounding box info */
+struct EntityModel_t               /* where model data is and bounding box info */
 {
 	VTXBBox  bbox;
 	uint16_t first;
@@ -120,6 +121,7 @@ struct EntitiesPrivate_t
 	EntityHash_t hash;
 	ListHead     list;         /* EntityBuffer */
 	ListHead     banks;        /* EntityBank */
+	ListHead     bbox;         /* BBoxBuffer */
 	int          shader;
 	Entity       selected;
 	TEXT         paintings[256];
@@ -131,6 +133,14 @@ struct CustModel_t
 	float *  model;
 	int      vertex;
 	uint16_t U, V;
+	VTXBBox  bbox;
+};
+
+struct BBoxBuffer_t
+{
+	ListNode         node;
+	struct VTXBBox_t bbox[ENTITY_BATCH];
+	int              count;
 };
 
 #endif

@@ -76,6 +76,7 @@ Bool signInitStatic(NVGCTX vg, int font)
 	return True;
 }
 
+/* get the vertices where the text will be drawn on */
 void signFillVertex(int blockId, float pt[6], int uv[4])
 {
 	BlockState b = blockGetById(blockId);
@@ -133,6 +134,7 @@ static DATA8 signParseText(STRPTR json, DATA8 length)
 	return json;
 }
 
+/* convert sign text into a user-editable string for a multi-line text edit */
 void signGetText(vec4 pos, DATA8 text, int max)
 {
 	int XYZ[] = {pos[0], pos[1], pos[2]};
@@ -189,7 +191,7 @@ static void signParseEntity(SignText sign)
 	}
 }
 
-/* update texture */
+/* update off-screen texture for a given sign */
 static void signUpdateBank(SignText sign)
 {
 	static char ellipsis[] = "...";
@@ -262,7 +264,7 @@ static void signUpdateBank(SignText sign)
 }
 
 
-/* sign has been modified, re-generate tile entity */
+/* sign has been modified, re-generate tile entity and texture */
 void signSetText(Chunk chunk, vec4 pos, DATA8 msg)
 {
 	STRPTR text[4], tile;
@@ -294,7 +296,7 @@ void signSetText(Chunk chunk, vec4 pos, DATA8 msg)
 	}
 
 	SignText sign;
-	for (i = signs.count, sign = signs.list; i > 0; i ++, sign ++)
+	for (i = signs.count, sign = signs.list; i > 0; i --, sign ++)
 	{
 		if (memcmp(sign->XYZ, XYZ, sizeof XYZ) == 0)
 		{
@@ -311,7 +313,7 @@ void signSetText(Chunk chunk, vec4 pos, DATA8 msg)
 			sign->tile = tile;
 			signParseEntity(sign);
 
-			if (sign->bank > 0)
+			if (sign->bank >= 0)
 				signUpdateBank(sign);
 
 			break;
@@ -328,7 +330,7 @@ int signAddToList(int blockId, DATA8 tile, int prev, uint8_t light)
 	/* extract all the information we will need to render the sign from NBT */
 	signParseEntity(&sign);
 
-	/* check already in the list */
+	/* check if it is already in the list */
 	int first = prev;
 	if (prev >= 0)
 	{
@@ -336,7 +338,7 @@ int signAddToList(int blockId, DATA8 tile, int prev, uint8_t light)
 		{
 			SignText ptr = signs.list + prev;
 			if (memcmp(ptr->XYZ, sign.XYZ, sizeof sign.XYZ) == 0)
-				/* already in the list: assume no changes */
+				/* already in the list: assume no changes (there is a dedicated function for this: signSetText()) */
 				return first;
 			if (ptr->next == 0) break;
 			prev = ptr->next;
@@ -378,16 +380,17 @@ int signAddToList(int blockId, DATA8 tile, int prev, uint8_t light)
 void signDel(DATA8 tile)
 {
 	SignText sign;
-	int      i, slot;
+	int      i;
 	for (i = 0, sign = signs.list; i < signs.count && sign->tile != tile; sign ++, i ++);
 	if (i < signs.count)
 	{
+		int slot = sign->bank;
 		signs.usage[i >> 5] ^= 1 << (i & 31);
 		signs.count --;
 		if (i < signs.count)
 			memmove(signs.list + i, signs.list + i + 1, (signs.count - i) * sizeof *signs.list);
 
-		if ((slot = sign->bank) >= 0)
+		if (slot >= 0)
 		{
 			SignBank bank = signs.banks + (slot & 0xff);
 

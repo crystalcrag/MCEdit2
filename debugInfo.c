@@ -127,7 +127,7 @@ void debugBlockVertex(Map map, SelBlock * select)
 }
 
 /* show limits of the chunk where the player is currently */
-void debugToggle(Map map)
+void debugInit(Map map)
 {
 	/* debug chunk data: will use blocks.vsh */
 	ChunkData air = map->air;

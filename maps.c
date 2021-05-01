@@ -483,7 +483,7 @@ static void mapShowChunks(Map map)
  * dynamic chunk loading depending on player position
  */
 
-void mapRedoGenList(Map map)
+static void mapRedoGenList(Map map)
 {
 	int8_t * spiral;
 	int      XC   = CPOS(map->cx) << 4;
@@ -501,6 +501,31 @@ void mapRedoGenList(Map map)
 			c->X = XC + (spiral[0] << 4);
 			c->Z = ZC + (spiral[1] << 4);
 			ListAddTail(&map->genList, &c->next);
+		}
+		/* push entities into active list */
+		else if ((c->cflags & CFLAG_HASENTITY) == 0)
+		{
+			//fprintf(stderr, "loading entities from %d, %d\n", c->X, c->Z);
+			chunkExpandEntities(c);
+		}
+	}
+}
+
+/* unload entities from lazy chunk XXX should be kept in a special state */
+static void mapMarkLazyChunk(Map map)
+{
+	int8_t * ptr;
+	int      i, area = map->mapArea;
+
+	for (i = frustum.lazyCount, ptr = frustum.lazy; i > 0; ptr += 2, i --)
+	{
+		Chunk c = &map->chunks[(map->mapX + ptr[0] + area) % area + (map->mapZ + ptr[1] + area) % area * area];
+
+		if (c->cflags & CFLAG_HASENTITY)
+		{
+			if (c->entityList != ENTITY_END)
+				entityUnload(c);
+			c->cflags &= ~CFLAG_HASENTITY;
 		}
 	}
 }
@@ -565,6 +590,7 @@ Bool mapMoveCenter(Map map, vec4 old, vec4 pos)
 		}
 		mapRedoGenList(map);
 		map->center = map->chunks + (map->mapX + map->mapZ * area);
+		mapMarkLazyChunk(map);
 		#ifdef DEBUG
 		fprintf(stderr, "new map center: %d, %d (%d,%d)\n", map->mapX, map->mapZ, (int) pos[VX], (int) pos[VZ]);
 		mapShowChunks(map);
@@ -646,6 +672,9 @@ void mapGenerateMesh(Map map)
 			}
 		}
 
+		if ((list->cflags & CFLAG_HASENTITY) == 0)
+			chunkExpandEntities(list);
+
 //		if (map->genList.lh_Head == NULL)
 //			mapShowChunks(map);
 
@@ -674,7 +703,7 @@ Chunk mapAllocArea(int area)
 	if (chunks)
 	{
 		/* should be property of a map... */
-		int8_t * ptr  = realloc(frustum.spiral, dist * dist * 2);
+		int8_t * ptr = realloc(frustum.spiral, dist * dist * 2 + (dist * 4 + 4) * 2);
 
 		if (ptr)
 		{
@@ -695,9 +724,26 @@ Chunk mapAllocArea(int area)
 					ptr[1] = j - (dist >> 1);
 				}
 			}
-			qsort(frustum.spiral, dist*dist, 2, sortByDist);
+			i = dist * dist;
+			qsort(frustum.spiral, i, 2, sortByDist);
+			frustum.lazy = frustum.spiral + i * 2;
 
-			/* reset chunkNeighbor table: it depends of map size */
+			/* to quickly enumerate all lazy chunks (need when map center has changed) */
+			for (ptr = frustum.lazy, j = 0, dist += 2, i = dist >> 1; j < dist; j ++, ptr += 4)
+			{
+				ptr[0] = ptr[2] = j - i;
+				ptr[1] = - i;
+				ptr[3] =   i;
+			}
+			for (j = 0, dist -= 2; j < dist; j ++, ptr += 4)
+			{
+				ptr[1] = ptr[3] = j - (dist >> 1);
+				ptr[0] = - i;
+				ptr[2] =   i;
+			}
+			frustum.lazyCount = (ptr - frustum.lazy) >> 1;
+
+			/* reset chunkNeighbor table: it depends on map size */
 			static uint8_t wrap[] = {0, 12, 4, 6, 8, 2, 9, 1, 3}; /* bitfield: &1:+Z, &2:+X, &4:-Z, &8:-X, ie: SENW */
 
 			for (j = 0, dist = area, n = area*area; j < DIM(wrap); j ++)

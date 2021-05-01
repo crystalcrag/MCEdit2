@@ -18,6 +18,7 @@ struct ParticlePrivate_t particles;
 struct EmitterPrivate_t  emitters;
 extern double curTime;
 
+//#define NOEMITTERS
 //#define SLOW
 
 void particlesInit(int vbo)
@@ -69,6 +70,7 @@ static Particle particlesAlloc(void)
 	return list->buffer;
 }
 
+#ifndef NOEMITTERS
 static Emitter emitterAlloc(void)
 {
 	int count = emitters.count;
@@ -92,17 +94,16 @@ static Emitter emitterAlloc(void)
 	emitters.count ++;
 	return emitters.buffer + mapFirstFree(emitters.usage, max);
 }
+#endif
 
 static int particlesGetBlockInfo(Map map, vec4 pos, DATA8 plight)
 {
-	uint8_t light, sky;
-
 	struct BlockIter_t iter;
 	mapInitIter(map, &iter, pos, False);
 	if (iter.cd)
 	{
-		light = iter.blockIds[(iter.offset >> 1) + BLOCKLIGHT_OFFSET];
-		sky   = iter.blockIds[(iter.offset >> 1) + SKYLIGHT_OFFSET];
+		uint8_t light = iter.blockIds[(iter.offset >> 1) + BLOCKLIGHT_OFFSET];
+		uint8_t sky   = iter.blockIds[(iter.offset >> 1) + SKYLIGHT_OFFSET];
 		if (iter.offset & 1) light = (sky & 0xf0) | (light >> 4);
 		else                 light = (sky << 4) | (light & 0x0f);
 		*plight = light;
@@ -111,6 +112,7 @@ static int particlesGetBlockInfo(Map map, vec4 pos, DATA8 plight)
 	*plight = 0xf0;
 	return 0;
 }
+
 
 void particlesExplode(Map map, int count, int blockId, vec4 pos)
 {
@@ -222,22 +224,25 @@ void particlesSmoke(Map map, int blockId, vec4 pos)
 	else p->color = (rand() & 15) | (60 << 4);
 }
 
+#ifndef NOEMITTERS
 static Emitter particlesAddEmitter(vec4 pos, int blockId, int type, int interval)
 {
 	Emitter emit = emitterAlloc();
 
-	if (interval < 16)
-		interval = 16;
+	if (emit)
+	{
+		if (interval < 16)
+			interval = 16;
 
-	memcpy(emit->loc, pos, sizeof emit->loc);
-	emit->type = type;
-	emit->interval = interval;
-	emit->time = curTime + 100;
-	emit->blockId = blockId;
-	emit->next = -1;
+		memcpy(emit->loc, pos, sizeof emit->loc);
+		emit->type = type;
+		emit->interval = interval;
+		emit->time = curTime + 100;
+		emit->blockId = blockId;
+		emit->next = -1;
 
-//	fprintf(stderr, "adding emitter at %g,%g,%g for %d:%d\n", pos[0], pos[1], pos[2], blockId>>4, blockId & 15);
-
+		// fprintf(stderr, "adding emitter at %g,%g,%g for %d:%d\n", pos[0], pos[1], pos[2], blockId>>4, blockId & 15);
+	}
 	return emit;
 }
 
@@ -414,6 +419,10 @@ void particlesChunkUpdate(Map map, ChunkData cd)
 		}
 	}
 }
+#else
+void particlesChunkUpdate(Map map, ChunkData cd) { }
+void particleMakeActive(Map map) { }
+#endif
 
 static int emitterSort(const void * item1, const void * item2)
 {
@@ -582,8 +591,9 @@ int particlesAnimate(Map map, vec4 camera)
 					if (! p->onGround)
 					{
 						/* check if block above has changed */
-						pos[VY] += p->onGround ? -1 : 1;
+						pos[VY] += 1;
 						Block b = blockIds + particlesGetBlockInfo(map, pos, &light);
+						if (p->dir[VY] >= 0)
 						if (! (b->type == SOLID || b->type == TRANS || b->type == CUST) || b->bboxPlayer == BBOX_NONE)
 							p->brake[VX] = p->brake[VZ] = 0.001, p->dir[VY] = 0.02;
 					}
@@ -592,8 +602,8 @@ int particlesAnimate(Map map, vec4 camera)
 				}
 				/* inside a solid block: light will be 0 */
 
-				if (pos[VX] != old[VX]) p->dir[VX] = p->brake[VX] = 0, p->loc[VX] = buf[-5];
-				if (pos[VZ] != old[VZ]) p->dir[VZ] = p->brake[VZ] = 0, p->loc[VZ] = buf[-3];
+				if (pos[VX] != old[VX]) p->dir[VX] = p->brake[VX] = 0, p->loc[VX] = buf[-5]; else
+				if (pos[VZ] != old[VZ]) p->dir[VZ] = p->brake[VZ] = 0, p->loc[VZ] = buf[-3]; else
 				if (pos[VY] >  old[VY])
 				{
 					/* hit a ceiling */
@@ -607,8 +617,8 @@ int particlesAnimate(Map map, vec4 camera)
 				else if (pos[VY] < old[VY])
 				{
 					/* hit the ground */
-					p->loc[VY] = buf[-4] = pos[VY]+0.95;
 					p->dir[VY] = 0;
+					p->loc[VY] = buf[-4]; // = pos[VY]+0.95;
 					p->brake[VY] = 0;
 					p->onGround = 1;
 				}

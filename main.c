@@ -321,7 +321,6 @@ void mceditWorld(void)
 					mapSaveLevelDat(mcedit.level);
 					break;
 				case SDLK_F7:
-					entityDebugCmd();
 					breakPoint = ! breakPoint;
 					break;
 				case SDLK_EQUALS:
@@ -551,15 +550,18 @@ void mceditUIOverlay(void)
 
 	SIT_SetValues(mcedit.app, SIT_RefreshMode, SITV_RefreshAsNeeded, NULL);
 
-	if (mcedit.forceSel)
-	{
-		mcedit.forceSel = 0;
-		renderShowBlockInfo(False, DEBUG_SELECTION);
-	}
 	mcuiTakeSnapshot(mcedit.app, mcedit.width, mcedit.height);
 	memcpy(oldPlayerInv, mcedit.player.inventory.items, sizeof oldPlayerInv);
 	MapExtraData sel = renderGetSelectedBlock(pos, NULL);
 	itemCount = 0;
+
+	if (mcedit.forceSel)
+	{
+		/* selection will have to be released before exiting interface */
+		mcedit.forceSel = 0;
+		renderShowBlockInfo(False, DEBUG_SELECTION);
+	}
+
 	if (sel)
 	{
 		struct MapExtraData_t link;

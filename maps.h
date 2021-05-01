@@ -53,6 +53,8 @@ struct Frustum_t                   /* frustum culling static tables (see doc/int
 	uint32_t  neighbors[8];        /* 8 corners having 8 neighbors: bitfield encode 27 neighbors */
 	uint8_t   chunkOffsets[27];    /* bitfield of where each chunks are (S, E, N, W, T, B) */
 	int8_t *  spiral;
+	int8_t *  lazy;
+	uint16_t  lazyCount;
 	uint8_t   firstFree[256];
 	float *   mvp;                 /* model-view-projection matrix (4x4) */
 };

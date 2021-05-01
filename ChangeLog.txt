@@ -1,4 +1,16 @@
 =========== Week 17 ===========
+Fri Apr 30:
+	* bugs fixed (standing sign preview, sign text not generated if first in chunk, fail to get text
+	  from sign if holding an item in inventory, particle bits had jerky movements).
+	* entities are loaded according to player location.
+	* piston reacts to block update (need extension though).
+
+Thu Apr 29:
+	* better load/unload of entities (limited to visible render distance).
+
+Wed Apr 28:
+	* painting are rendered (cannot be placed though).
+
 Tue Apr 27:
 	* first version of paintings.
 

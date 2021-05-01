@@ -25,6 +25,26 @@ struct EntitiesPrivate_t entities;
 static void hashAlloc(int);
 static int  entityAddModel(int, CustModel);
 
+static VTXBBox entityAllocBBox(void)
+{
+	BBoxBuffer buf = HEAD(entities.bbox);
+
+	if (buf == NULL || buf->count == ENTITY_BATCH)
+	{
+		buf = malloc(sizeof *buf);
+		buf->count = 0;
+		ListAddHead(&entities.bbox, &buf->node);
+	}
+
+	VTXBBox bbox = buf->bbox + (buf->count ++);
+
+	memset(bbox, 0, sizeof *bbox);
+	bbox->sides = 63;
+	bbox->aabox = 1;
+
+	return bbox;
+}
+
 static Bool entityCreateModel(const char * file, STRPTR * keys, int lineNum)
 {
 	STRPTR id, name, model;
@@ -51,6 +71,7 @@ static Bool entityCreateModel(const char * file, STRPTR * keys, int lineNum)
 		entities.paintingNum ++;
 		cust.U = PAINTING_ADDTEXU * 16;
 		cust.V = PAINTING_ADDTEXV * 16;
+		cust.bbox = entityAllocBBox();
 		break;
 	default:
 		SIT_Log(SIT_ERROR, "%s: unknown entity type %s on line %d", file, id, lineNum);
@@ -194,7 +215,7 @@ static int entityModelCount(int id)
 static int entityGenModel(EntityBank bank, int id, CustModel cust)
 {
 	glBindBuffer(GL_ARRAY_BUFFER, bank->vboModel);
-	DATA16  buffer = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
+	DATA16  buffer = glMapBuffer(GL_ARRAY_BUFFER, GL_READ_WRITE);
 	VTXBBox bbox   = NULL;
 	int     count  = 0;
 
@@ -232,7 +253,7 @@ static int entityGenModel(EntityBank bank, int id, CustModel cust)
 	{
 		count = blockCountModelVertex(cust->model, cust->vertex);
 		blockParseModel(cust->model, cust->vertex, buffer);
-		blockCenterModel(buffer, count, cust->U, cust->V);
+		blockCenterModel(buffer, count, cust->U, cust->V, bbox = cust->bbox);
 	}
 	glUnmapBuffer(GL_ARRAY_BUFFER);
 	bank->vtxCount += count;
@@ -374,9 +395,9 @@ static int entityGetModelId(Entity entity)
 
 static void entityFillLocation(Entity ent, float loc[6])
 {
-	loc[0] = ent->pos[0] - 0.5;
-	loc[1] = ent->pos[1] - 0.5;
-	loc[2] = ent->pos[2] - 0.5;
+	loc[0] = ent->pos[0];
+	loc[1] = ent->pos[1];
+	loc[2] = ent->pos[2];
 	loc[3] = ent->select ? 511 : 255; /* skylight/blocklight */
 	loc[4] = ent->rotation[0];
 	loc[5] = ent->rotation[1];
@@ -386,17 +407,23 @@ static void entityAddToCommandList(Entity entity)
 {
 	EntityBank bank;
 	int VBObank = entity->VBObank;
-	int i;
+	int i, slot;
 
 	for (i = VBObank & 63, bank = HEAD(entities.banks); i > 0; i --, NEXT(bank));
 
-	bank->mdaiCount ++;
+	if (bank->mdaiCount < bank->mdaiMax)
+	{
+		slot = mapFirstFree(bank->mdaiUsage, bank->mdaiMax >> 5);
+		if (bank->mdaiCount <= slot)
+			bank->mdaiCount = slot + 1;
+	}
+	else bank->mdaiCount ++;
+
 	if (bank->dirty) return; /* will be redone at once */
 	if (bank->mdaiCount < bank->mdaiMax)
 	{
 		EntityModel model = bank->models + (VBObank >> 6);
-		MDAICmd_t   cmd   = {.count = model->count, .baseInstance = bank->mdaiCount-1, .instanceCount = 1, .first = model->first};
-		int         slot  = mapFirstFree(bank->mdaiUsage, bank->mdaiMax >> 5);
+		MDAICmd_t   cmd   = {.count = model->count, .baseInstance = slot, .instanceCount = 1, .first = model->first};
 		float       loc[INFO_SIZE/4];
 
 		entity->mdaiSlot = slot;
@@ -448,9 +475,8 @@ void entityParse(Chunk c, NBTFile nbt, int offset)
 			if (c->entityList == ENTITY_END)
 				c->entityList = next;
 
-			pos[VY] += 0.5; /* not sure why */
 			memcpy(entity->pos, pos, 6 * 4);
-			/* convert angle to trigonometric rad */
+
 			entity->rotation[0] = pos[6] * M_PI / 180;
 			entity->rotation[1] = - pos[7] * (2*M_PI / 360);
 			if (entity->rotation[1] < 0) entity->rotation[1] += 2*M_PI;
@@ -485,6 +511,7 @@ static EntityModel entityGetModelById(Entity entity)
 	return bank->models + (i >> 6);
 }
 
+#ifdef DEBUG /* stderr not available in release build */
 void entityDebug(int id)
 {
 	Entity entity = entityGetById(id);
@@ -500,13 +527,14 @@ void entityDebug(int id)
 		NBT_Dump(&nbt, off, 3, stderr);
 	}
 }
+#endif
 
 /* used by tooltip */
 void entityInfo(int id, STRPTR buffer, int max)
 {
 	Entity entity = entityGetById(id);
 
-	sprintf(buffer, "X: %.1f\nY: %.1f\nZ: %.1f\n<dim>Entity:</dim> %s", entity->pos[0], entity->pos[1], entity->pos[2], entity->name);
+	sprintf(buffer, "X: %g\nY: %g\nZ: %g\n<dim>Entity:</dim> %s", entity->pos[0], entity->pos[1], entity->pos[2], entity->name);
 }
 
 /* mark new entity as selected and unselect old if any */
@@ -632,11 +660,32 @@ int entityRaycast(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos)
 /* chunk <c> is about to be unloaded, remove all entities references we have here */
 void entityUnload(Chunk c)
 {
-	//
+	static MDAICmd_t clear = {0};
+	int slot;
+	for (slot = c->entityList; slot != ENTITY_END; )
+	{
+		int i;
+		EntityBuffer buf;
+		EntityBank   bank;
+		for (buf = HEAD(entities.list), i = slot >> ENTITY_SHIFT; i > 0; i --, NEXT(buf));
+		i = slot & (ENTITY_BATCH-1);
+		Entity entity = buf->entities + i;
+		buf->usage[i>>5] ^= 1 << (i & 31);
+		buf->count --;
+		entity->tile = NULL;
+		slot = entity->next;
+		for (i = entity->VBObank, bank = HEAD(entities.banks); i > 0; i --, NEXT(bank));
+		i = entity->mdaiSlot;
+		bank->mdaiUsage[i>>5] ^= 1 << (i & 31);
+		glBindBuffer(GL_ARRAY_BUFFER, bank->vboMDAI);
+		glBufferSubData(GL_ARRAY_BUFFER, i * 16, 16, &clear);
+	}
+	c->entityList = ENTITY_END;
 }
 
 void entityDelete(Chunk c, DATA8 tile)
 {
+	//
 }
 
 void entityAnimate(void)
@@ -644,6 +693,7 @@ void entityAnimate(void)
 	//
 }
 
+#ifdef DEBUG
 void entityDebugCmd(void)
 {
 	EntityBank bank = HEAD(entities.banks);
@@ -655,14 +705,16 @@ void entityDebugCmd(void)
 	MDAICmd cmd = glMapBuffer(GL_DRAW_INDIRECT_BUFFER, GL_READ_ONLY);
 
 	int i;
-	for (i = 0; i < bank->mdaiCount; i ++, cmd ++, loc += 4)
+	for (i = 0; i < bank->mdaiCount; i ++, cmd ++, loc += INFO_SIZE/4)
 	{
-		fprintf(stderr, "%d. item at %g,%g,%g, model: %d, count: %d [%d-%d]\n", i, loc[0], loc[1], loc[2], cmd->first, cmd->count, cmd->baseInstance, cmd->instanceCount);
+		fprintf(stderr, "%d. item at %4d,%4d,%4d, model: %d, count: %d [%d-%d]\n", i, (int) loc[0], (int) loc[1], (int) loc[2],
+			cmd->first, cmd->count, cmd->baseInstance, cmd->instanceCount);
 	}
 
 	glUnmapBuffer(GL_ARRAY_BUFFER);
 	glUnmapBuffer(GL_DRAW_INDIRECT_BUFFER);
 }
+#endif
 
 void entityRender(void)
 {

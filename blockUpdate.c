@@ -500,6 +500,28 @@ int mapUpdateDoor(BlockIter iterator, int blockId, Bool init)
 	else return blockId | (powered << 2);
 }
 
+/* power level near piston has changed */
+int mapUpdatePiston(BlockIter iterator, int blockId, Bool init)
+{
+	int avoid = blockSides.piston[blockId & 7];
+	int i;
+	for (i = 0; i < 6 && (i == avoid || ! redstoneIsPowered(*iterator, i, POW_WEAK)); i ++);
+	if (blockId & 8)
+	{
+		if (i < 6) return blockId;
+		/* piston powered, but no power source */
+		if (init) return blockId & ~8;
+		else mapUpdateTable(iterator, (blockId & ~8) & 15, DATA_OFFSET);
+	}
+	else if (i < 6)
+	{
+		/* not powered, but has a power source nearby */
+		if (init) return blockId | 8;
+		else mapUpdateTable(iterator, (blockId | 8) & 15, DATA_OFFSET);
+	}
+	return blockId;
+}
+
 
 /* return the activated state of <blockId>, but does not modify any tables */
 int mapActivateBlock(BlockIter iter, vec4 pos, int blockId)

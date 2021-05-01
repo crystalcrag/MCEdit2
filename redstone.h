@@ -32,7 +32,11 @@ struct RSWire_t /* track where a wire can connect to */
 #define RSSAMEBLOCK   255 /* possible value for <side> param of redstoneIsPowered() */
 #define MAXSIGNAL     15
 #define RSMAXUPDATE   12
-#define RSMAXDISTRAIL 5   /* maximum distance a power source will power golden rails */
+#ifndef DEBUG
+#define RSMAXDISTRAIL 9   /* maximum distance a power source will power golden rails */
+#else
+#define RSMAXDISTRAIL 4   /* easier to debug */
+#endif
 #define RSUPDATE      255
 
 enum /* common redstone devices */
@@ -70,8 +74,5 @@ enum /* return value from redstoneIsPowered() */
 	POW_NORMAL,       /* redstone wire powered */
 	POW_STRONG,       /* repeater/torch powered (can transmit signal through block) */
 };
-
-/* part of return value from redstonePowerAdjust() */
-#define TICK_DELAY(tick)      ((tick) << 16)
 
 #endif

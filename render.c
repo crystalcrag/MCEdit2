@@ -402,7 +402,7 @@ Bool renderInitStatic(int width, int height, APTR sitRoot)
 	glGenBuffers(2, &render.vboBBoxVTX);
 	glBindBuffer(GL_ARRAY_BUFFER, render.vboBBoxVTX);
 	/* 8 vertices per bbox, 12 bytes per vertex (3 floats), 20 max bounding box */
-	glBufferData(GL_ARRAY_BUFFER, 8 * 6 * 20, NULL, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, 8 * 12 * 20, NULL, GL_STATIC_DRAW);
 	glBindBuffer(GL_ARRAY_BUFFER, render.vboBBoxIdx);
 	/* indirect buffer: 36 for faces, 24 for lines, 2 bytes per index, 20 sets max */
 	glBufferData(GL_ARRAY_BUFFER, (24 + 36) * 2 * 20, NULL, GL_STATIC_DRAW);
@@ -532,8 +532,8 @@ Map renderInitWorld(STRPTR path, int renderDist)
 		render.camera[VY] = render.level->cy + PLAYER_HEIGHT;
 		render.camera[VZ] = render.level->cz;
 
-		/* actually just allocate some vbo */
-		debugToggle(render.level);
+		/* allocate some vbo to display chunk boundary */
+		debugInit(render.level);
 
 		return render.level;
 	}
@@ -549,10 +549,13 @@ void renderToggleDebug(int what)
 /* print info from VBO */
 void renderDebugBlock(void)
 {
+	/* no stderr in release build anyway */
+	#ifdef DEBUG
 	if (render.selection.extra.entity > 0)
 		entityDebug(render.selection.extra.entity);
 	else
 		debugBlockVertex(render.level, &render.selection);
+	#endif
 }
 
 /* screen size changed */
@@ -617,7 +620,7 @@ void renderShowBlockInfo(Bool show, int what)
 			render.blockInfo = SIT_CreateWidget("blockinfo", SIT_TOOLTIP, render.sitRoot,
 				SIT_ToolTipAnchor, SITV_TooltipFollowMouse,
 				SIT_DelayTime,     3600000,
-				SIT_DisplayTime,   10000,
+				SIT_DisplayTime,   100000,
 				NULL
 			);
 			SIT_AddCallback(render.blockInfo, SITE_OnFinalize, clearRef, NULL);
