@@ -48,15 +48,6 @@ static float invShading[] = { /* inventory shading for 3d blocks */
 	0.75, 0, 0, 0,
 };
 
-int8_t normals[] = { /* normal per face */
-	 0,  0,  1, 0,
-	 1,  0,  0, 0,
-	 0,  0, -1, 0,
-	-1,  0,  0, 0,
-	 0,  1,  0, 0,
-	 0, -1,  0, 0
-};
-
 void GLAPIENTRY debugGLError(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, const void* userParam)
 {
 	STRPTR str, sev;
@@ -125,7 +116,7 @@ static void renderSelection(void)
 				loc[0] = render.selection.current[0] + offset[0];
 				loc[1] = render.selection.current[1] - 1;
 				loc[2] = render.selection.current[2] + offset[2];
-				if (! blockIsSolidSide(mapGetBlockId(render.level, loc, NULL), SIDE_TOP) || info.pointToId != 0)
+				if (! blockIsSolidSide(mapGetBlockId(render.level, loc, NULL), SIDE_TOP) /* || info.pointToId != 0*/)
 				{
 					render.selection.sel |= SEL_NOCURRENT;
 					return;
@@ -1006,7 +997,6 @@ void renderFrustum(Bool snapshot)
 			3, 2,   2, 6,   6, 7,   7, 3,
 			0, 3,   1, 2,   5, 6,   4, 7,
 		};
-		extern uint8_t vertex[];
 
 		ChunkData cd;
 		DATA16    vtx;

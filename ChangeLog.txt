@@ -1,4 +1,7 @@
 =========== Week 17 ===========
+Sat May 1:
+	* more aggressive face culling for block type CUST.
+
 Fri Apr 30:
 	* bugs fixed (standing sign preview, sign text not generated if first in chunk, fail to get text
 	  from sign if holding an item in inventory, particle bits had jerky movements).
@@ -181,7 +184,7 @@ Sun Mar 7:
 Sat Mar 6:
 	* added frustum debug outlines.
 	* signDel().
-	* rework coodinates system relative to player pos.
+	* rework coordinates system relative to player pos.
 
 Fri Mar 5:
 	* particles system improved.

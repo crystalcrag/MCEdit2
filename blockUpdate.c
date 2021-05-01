@@ -16,7 +16,6 @@
 #include "blockUpdate.h"
 #include "redstone.h"
 
-extern int8_t normals[];               /* from render.c */
 extern double curTime;                 /* from main.c */
 extern int8_t relx[], rely[], relz[];  /* from mapUpdate.c */
 extern int8_t xoff[], yoff[], zoff[], opp[];

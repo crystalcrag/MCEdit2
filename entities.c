@@ -576,7 +576,6 @@ static void entitySetSelection(Entity entity)
 
 static void fillNormal(vec4 norm, int side)
 {
-	extern int8_t  normals[];
 	int8_t * normal = normals + side * 4;
 	norm[VX] = normal[VX];
 	norm[VY] = normal[VY];

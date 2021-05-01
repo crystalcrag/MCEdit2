@@ -754,6 +754,21 @@ static int8_t offsetConnected[] = { /* T, E, B, W */
 	9+13, 1+13, -9+13, -1+13,     9+13, -3+13, -9+13,  3+13,    9+13, -1+13, -9+13,  1+13,
 	9+13, 3+13, -9+13, -3+13,    -3+13,  1+13,  3+13, -1+13,    3+13,  1+13, -3+13, -1+13
 };
+int8_t normals[] = { /* normal per face */
+	 0,  0,  1, 0,
+	 1,  0,  0, 0,
+	 0,  0, -1, 0,
+	-1,  0,  0, 0,
+	 0,  1,  0, 0,
+	 0, -1,  0, 0
+};
+
+#define VTX_1      (BASEVTX + ORIGINVTX)
+#define VTX_0      ORIGINVTX
+uint8_t  axisCheck[] = {2, 0, 2, 0, 1, 1};
+uint16_t axisAlign[] = {VTX_1, VTX_1, VTX_0, VTX_0, VTX_1, VTX_0};
+#undef VTX_0
+#undef VTX_1
 
 /*
  * 26 surrounding blocks that can impact shading around one block: all blocks except center one
@@ -929,7 +944,7 @@ void chunkUpdate(Chunk c, ChunkData empty, int layer, ChunkFlushCb_t flush)
 	if (neighbors[6]->emitters)
 		neighbors[6]->emitters[0] = 0;
 
-//	if (c->X == -208 && neighbors[6]->Y == 32 && c->Z == -48)
+//	if (c->X == -176 && neighbors[6]->Y == 64 && c->Z == -32)
 //		breakPoint = 1;
 
 	for (pos = air = 0; pos < 16*16*16; pos ++)
@@ -943,8 +958,8 @@ void chunkUpdate(Chunk c, ChunkData empty, int layer, ChunkFlushCb_t flush)
 		block = blocks[pos];
 		state = blockGetByIdData(block, data);
 
-//		if (breakPoint && pos == 3904)
-//			puts("here"), breakPoint = 2;
+//		if (breakPoint && pos == 2183)
+//			breakPoint = 2;
 
 		if (blockIds[block].particle)
 			if (block != 55 || data > 0) // XXX needs to be declared in blockTable.js :-/
@@ -1076,7 +1091,6 @@ static void chunkGenQuad(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 			}
 			else if (side < 6)
 			{
-				extern int8_t normals[];
 				/* offset 1/16 of a block in the direction of their normal */
 				int8_t * normal = normals + side * 4;
 				p[0] += normal[0] * (BASEVTX/16);
@@ -1264,6 +1278,25 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 			/* discard vertex */
 			continue;
 		}
+		/* check if we can eliminate some faces */
+		uint8_t norm = GET_NORMAL(model);
+		if (model[axisCheck[norm]] == axisAlign[norm])
+		{
+			extern int8_t opp[];
+			struct BlockIter_t iter;
+			int8_t * normal = normals + norm * 4;
+			mapInitIterOffset(&iter, neighbors[6], pos);
+			mapIter(&iter, normal[0], normal[1], normal[2]);
+
+			if (blockIsSideHidden(getBlockId(&iter), model, opp[norm]))
+			{
+				/* skip entire face (6 vertices) */
+				model += IPV;
+				count -= BYTES_PER_VERTEX;
+				continue;
+			}
+		}
+
 		out[0] = model[0] + x;
 		out[1] = model[1] + y;
 		out[2] = model[2] + z;
@@ -1417,6 +1450,9 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 				if (TYPE(t) == SOLID)
 					occlusion |= 1<<k;
 			}
+			/* cust with no model: don't apply ambient occlusion, like cust model will */
+			if (b->type == CUST)
+				occlusion = 0;
 			if (STATEFLAG(b, CNXTEX))
 			{
 				static uint8_t texUV[12];

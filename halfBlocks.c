@@ -48,8 +48,6 @@ static uint8_t modelsSize2[] = {
 
 /* auto-generated from modelsSize2[] */
 static uint8_t modelsSize0[DIM(modelsSize2)];
-extern uint8_t cubeIndices[];
-extern uint8_t vertex[];
 
 static uint8_t dirs[] = {1, 4, 0, 4, 1, 4, 0, 4, 1, 0, 1, 0}; /* dir in <j> index */
 static uint8_t axis[] = {2, 0, 0, 0, 1};

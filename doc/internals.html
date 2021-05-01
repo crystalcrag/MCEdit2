@@ -177,7 +177,7 @@
 <a class="sub1" href="#nbt2"><span>NBT API</a>
 
 <a class="sub1" href="#entities"><span>Entities</span></a>
-<a class="sub2" href="#structure"><span>Data stucture</span></h3>
+<a class="sub2" href="#structure"><span>Data stucture</span></a>
 </div>
 
 <div id="content">
@@ -581,7 +581,7 @@ the face (any vertex will do) and the normal of the face: if that number is nega
 
 <p>Then for the faces that are potentially visible, we can check if the face they are connected to is
 completely opaque. If that's the case, there are no way the user will be able to see that face. If all
-the visible faces are also hidden, the entire chunk can be removed from the visible.
+the visible faces are also hidden, the entire chunk can be omitted.
 
 <p>This simple trick works relatively well for caves, where there are usually lots of solid blocks all
 around. It is not as advanced as the algorithm described above, but given how cheap it is, it is a

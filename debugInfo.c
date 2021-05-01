@@ -75,7 +75,7 @@ void debugBlockVertex(Map map, SelBlock * select)
 		for (i = -1; bank; PREV(bank), i ++);
 		fprintf(stderr, "bank: %d, offset: %d, size: %d\n", i, mem->offset, mem->size);
 
-		if (block->type == SOLID || block->type == TRANS)
+		if (block->type == SOLID || block->type == TRANS || (block->type == CUST && block->custModel == NULL))
 		{
 			buffer = malloc(mem->size);
 			bank = iter.cd->glBank;
@@ -86,9 +86,6 @@ void debugBlockVertex(Map map, SelBlock * select)
 			for (i = mem->size, p = buffer; i > 0; i -= 3*BYTES_PER_VERTEX, p += 3*INT_PER_VERTEX)
 			{
 				extern uint8_t texCoord[];
-				extern uint8_t vertex[];
-				extern uint8_t cubeIndices[]; /* from chunks.c */
-
 				/* need to decode vertex buffer */
 				uint8_t x = round((p[0] - (ORIGINVTX)) * (1. / BASEVTX));
 				uint8_t y = round((p[1] - (ORIGINVTX)) * (1. / BASEVTX));
@@ -113,7 +110,7 @@ void debugBlockVertex(Map map, SelBlock * select)
 					{
 						fprintf(stderr, "VERTEX: %d,%d,%d [%d] - NORM: %d (%c) - uv: %d,%d - OCS: %d - LIGHT: %d SKY:%d\n",
 							x, y, z, (coord-vertex)/3, side, "SENWTB"[side], U, V, (p[4] >> 6) & 3, (p[4]>>8) & 15, p[4]>>12);
-						/* found out vertex of a triangle, there must 2 more */
+						/* found one vertex of a triangle, there must be 2 more */
 						p -= 2*INT_PER_VERTEX;
 						i += 2*BYTES_PER_VERTEX;
 						break;

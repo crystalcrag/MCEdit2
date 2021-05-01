@@ -23,8 +23,6 @@ struct BlockState_t * blockStates;
 struct BlockPrivate_t blocks;
 static BlockVertex    blockVertex;
 static BlockVertex    stringPool;
-extern uint8_t        vertex[]; /* from chunks.c */
-extern uint8_t        cubeIndices[];
 
 #define STRICT_PARSING     /* check for misspelled property */
 
@@ -732,7 +730,7 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 		value = jsonValue(keys, "orient");
 		if (value)
 		{
-			block.orientHint = FindInList("LOG,FULL,BED,SLAB,TORCH,STAIRS,SENW,SWNE,DOOR,SE,LEVER", value, 0)+1;
+			block.orientHint = FindInList("LOG,FULL,BED,SLAB,TORCH,STAIRS,SENW,SWNE,DOOR,SE,LEVER,SNOW", value, 0)+1;
 			if (block.orientHint == 0)
 			{
 				SIT_Log(SIT_ERROR, "%s: unknown orient hint '%s' on line %d\n", file, value, line);
@@ -2142,7 +2140,6 @@ static int blockModelQuad(BlockState b, DATA16 buffer)
 {
 	extern uint8_t quadIndices[]; /* from chunks.c */
 	extern uint8_t quadSides[];
-	extern int8_t  normals[];     /* from render.c */
 
 	DATA8  sides = &b->pxU;
 	DATA16 p = buffer;
@@ -2285,6 +2282,14 @@ int blockAdjustOrient(int blockId, BlockOrient info, vec4 inter)
 		}
 		return (blockId & ~15) | side;
 		break;
+	case ORIENT_SNOW:
+		if ((blockId >> 4) == (info->pointToId >> 4) && (blockId & 7) < 7)
+		{
+			/* add one layer instead */
+			info->keepPos = 1;
+			return info->pointToId + 1;
+		}
+		break;
 	default:
 		/* special block placement */
 		switch (b->special) {
@@ -2306,7 +2311,7 @@ int blockAdjustOrient(int blockId, BlockOrient info, vec4 inter)
 /* check if block <blockId> is attached to given side (SIDE_*) */
 Bool blockIsAttached(int blockId, int side)
 {
-	/* those tables will convert block data in SIDE_* enum */
+	/* note: side is relative to current block, not neighbor */
 	Block b = &blockIds[blockId >> 4];
 
 	switch (b->orientHint) {
@@ -2350,26 +2355,86 @@ Bool blockIsSolidSide(int blockId, int side)
 	return False;
 }
 
+static void fillVertex(DATA16 face, DATA16 dest, int axis)
+{
+	static uint8_t axis1[] = {0, 2, 0, 2, 0, 0};
+	static uint8_t axis2[] = {1, 1, 1, 1, 2, 2};
+
+	uint8_t a1 = axis1[axis];
+	uint8_t a2 = axis2[axis];
+
+	dest[0] = face[a1];
+	dest[1] = face[a1+INT_PER_VERTEX*2];
+	dest[2] = face[a2];
+	dest[3] = face[a2+INT_PER_VERTEX*2];
+	if (dest[1] < dest[0]) dest[0] = dest[1], dest[0] = face[a1];
+	if (dest[3] < dest[2]) dest[2] = dest[3], dest[3] = face[a2];
+}
+
+/* check if vertices from <face> would be hidden by block on <side> */
+Bool blockIsSideHidden(int blockId, DATA16 face, int side)
+{
+	BlockState state = blockGetById(blockId);
+	switch (state->type) {
+	case SOLID: return True;
+	case TRANS:
+	case INVIS:
+	case LIKID:
+	case QUAD:  return False;
+	case CUST:
+		if (state->custModel)
+		{
+			/* be a bit more aggressive with custom models */
+			extern uint8_t axisCheck[];
+
+			uint16_t bounds1[4];
+			uint16_t bounds2[4];
+			DATA16   model;
+			int      count;
+			uint8_t  check;
+			fillVertex(face, bounds1, check = axisCheck[side]);
+			/* need to analyze vertex data */
+			for (model = state->custModel, count = model[-1]; count > 0; count -= 6, model += INT_PER_VERTEX * 6)
+			{
+				uint8_t norm = GET_NORMAL(model);
+				if (norm != side) continue;
+				fillVertex(model, bounds2, check);
+				/* <face> is covered by neighbor: discard */
+				if (bounds2[0] <= bounds1[0] && bounds2[2] <= bounds1[2] &&
+				    bounds2[1] >= bounds1[1] && bounds2[3] >= bounds1[3])
+					return True;
+			}
+		}
+		/* else assume SOLID */
+	default:
+		return True;
+	}
+}
+
 int blockAdjustPlacement(int blockId, BlockOrient info)
 {
 	Block b = &blockIds[blockId >> 4];
 	Block d = &blockIds[info->pointToId >> 4];
 	DATA8 p = b->name + b->placement;
-	int   check = 0;
-	int   i;
+	char  check = 0;
+	char  i;
 
 	for (i = p[0], p ++; i > 0; i --, p += 2)
 	{
 		int id = (p[0] << 8) | p[1];
 		switch (id) {
 		case PLACEMENT_GROUND:
-			check = 1;
-			if (info->side == 4 && blockIsSolidSide(info->pointToId, SIDE_TOP))
+			check |= 3;
+			if (info->side != 4) break;
+			check |= 4;
+			if (blockIsSolidSide(info->pointToId, SIDE_TOP))
 				return PLACEMENT_OK;
 			break;
 		case PLACEMENT_WALL:
+			check |= 2;
 			if (info->side >= 4) /* top or bottom side */
 				continue;
+			check |= 4;
 
 			if (d->type == SOLID)
 			{
@@ -2387,11 +2452,12 @@ int blockAdjustPlacement(int blockId, BlockOrient info)
 		case PLACEMENT_SOLID:
 			return blockIsSolidSide(info->pointToId, info->side);
 		default:
-			if (d->id == (id >> 4))
+			if ((check & 6) != 2 && d->id == (id >> 4))
 				return PLACEMENT_OK;
 		}
 	}
-	if (check && b->name[b->placement] == 1 && info->side < 4)
+	/* if pointing to the side of a block, check if there is a ground nearby */
+	if ((check & 1) && info->side < 4)
 		return PLACEMENT_GROUND;
 	return PLACEMENT_NONE;
 }
