@@ -12,15 +12,18 @@
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
-#include <math.h>
 #include <stdio.h>
+#include <math.h>
 #include "SIT.h"
 #include "entities.h"
 #include "blocks.h"
 #include "maps.h"
+#include "redstone.h"
+#include "blockUpdate.h"
 #include "glad.h"
 
 struct EntitiesPrivate_t entities;
+extern double curTime; /* from main.c */
 
 static void hashAlloc(int);
 static int  entityAddModel(int, CustModel);
@@ -350,13 +353,17 @@ static Entity entityAlloc(uint16_t * entityLoc)
 	int slot = mapFirstFree(buffer->usage, ENTITY_BATCH>>5);
 	*entityLoc = i | slot;
 
-	return buffer->entities + slot;
+	return memset(buffer->entities + slot, 0, sizeof (struct Entity_t));
 }
 
 /* get model to use for rendering this entity */
 static int entityGetModelId(Entity entity)
 {
 	STRPTR id = entity->name;
+
+	/* block pushed by piston */
+	if (entity->blockId > 0)
+		return entityAddModel(entity->blockId, NULL);
 
 	if (strncmp(id, "minecraft:", 10) == 0)
 		id += 10;
@@ -457,9 +464,9 @@ void entityParse(Chunk c, NBTFile nbt, int offset)
 		while ((off = NBT_Iter(&entity)) >= 0)
 		{
 			switch (FindInList("Pos,Motion,Rotation,id", entity.name, 0)) {
-			case 0: NBT_ConvertToFloat(nbt, off, pos,   3); break;
-			case 1: NBT_ConvertToFloat(nbt, off, pos+3, 3); break;
-			case 2: NBT_ConvertToFloat(nbt, off, pos+6, 2); break;
+			case 0: NBT_ToFloat(nbt, off, pos,   3); break;
+			case 1: NBT_ToFloat(nbt, off, pos+3, 3); break;
+			case 2: NBT_ToFloat(nbt, off, pos+6, 2); break;
 			case 3: id = NBT_Payload(nbt, off);
 			}
 		}
@@ -656,40 +663,138 @@ int entityRaycast(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos)
 	return 0;
 }
 
+/* remove any reference of this entity in all the data structure */
+static uint16_t entityClear(EntityBuffer buf, int index)
+{
+	static MDAICmd_t clear = {0};
+	EntityBank bank;
+
+	Entity entity = buf->entities + index;
+	buf->usage[index>>5] ^= 1 << (index & 31);
+	buf->count --;
+	entity->tile = NULL;
+
+	for (index = entity->VBObank & 63, bank = HEAD(entities.banks); index > 0; index --, NEXT(bank));
+	index = entity->mdaiSlot;
+	bank->mdaiUsage[index>>5] ^= 1 << (index & 31);
+	glBindBuffer(GL_ARRAY_BUFFER, bank->vboMDAI);
+	glBufferSubData(GL_ARRAY_BUFFER, index * 16, 16, &clear);
+
+	return entity->next;
+}
+
 /* chunk <c> is about to be unloaded, remove all entities references we have here */
 void entityUnload(Chunk c)
 {
-	static MDAICmd_t clear = {0};
 	int slot;
 	for (slot = c->entityList; slot != ENTITY_END; )
 	{
 		int i;
 		EntityBuffer buf;
-		EntityBank   bank;
 		for (buf = HEAD(entities.list), i = slot >> ENTITY_SHIFT; i > 0; i --, NEXT(buf));
-		i = slot & (ENTITY_BATCH-1);
-		Entity entity = buf->entities + i;
-		buf->usage[i>>5] ^= 1 << (i & 31);
-		buf->count --;
-		entity->tile = NULL;
-		slot = entity->next;
-		for (i = entity->VBObank, bank = HEAD(entities.banks); i > 0; i --, NEXT(bank));
-		i = entity->mdaiSlot;
-		bank->mdaiUsage[i>>5] ^= 1 << (i & 31);
-		glBindBuffer(GL_ARRAY_BUFFER, bank->vboMDAI);
-		glBufferSubData(GL_ARRAY_BUFFER, i * 16, 16, &clear);
+		slot = entityClear(buf, slot & (ENTITY_BATCH-1));
 	}
 	c->entityList = ENTITY_END;
 }
 
+/* remove entity from given chunk */
 void entityDelete(Chunk c, DATA8 tile)
 {
-	//
+	DATA16 prev;
+	int    slot;
+	for (prev = &c->entityList, slot = *prev; slot != ENTITY_END; slot = *prev)
+	{
+		int i;
+		EntityBuffer buf;
+		for (buf = HEAD(entities.list), i = slot >> ENTITY_SHIFT; i > 0; i --, NEXT(buf));
+		Entity entity = buf->entities + i;
+		if (entity->tile == tile)
+		{
+			*prev = entity->next;
+			entityClear(buf, i);
+			break;
+		}
+		prev = &entity->next;
+	}
 }
 
-void entityAnimate(void)
+void entityAnimate(Map map)
 {
-	//
+	EntityAnim anim;
+	int i, j, time = curTime;
+	for (i = entities.animCount, anim = entities.animate; i > 0; i --)
+	{
+		Entity entity = anim->entity;
+		int remain = anim->stopTime - time;
+		if (remain > 0)
+		{
+			for (j = 0; j < 3; j ++)
+				entity->pos[j] += (entity->motion[j] - entity->pos[j]) * (time - anim->prevTime) / remain;
+			anim->prevTime = time;
+			/* update VBO */
+			if (entity->VBObank > 0)
+			{
+				EntityBank bank;
+				for (j = entity->VBObank & 63, bank = HEAD(entities.banks); j > 0; j --, NEXT(bank));
+				glBindBuffer(GL_ARRAY_BUFFER, bank->vboLoc);
+				glBufferSubData(GL_ARRAY_BUFFER, entity->mdaiSlot * INFO_SIZE, 12, entity->pos);
+			}
+			anim ++;
+		}
+		else /* anim done: remove entity */
+		{
+			memcpy(entity->pos, entity->motion, 12);
+			updateFinished(map, entity->tile);
+			entities.animCount --;
+			/* remove from list */
+			memmove(anim, anim + 1, (i - 1) * sizeof *anim);
+			EntityBuffer buf;
+			for (buf = HEAD(entities.list); buf; NEXT(buf))
+			{
+				if (buf->entities <= entity && entity <= EOT(buf->entities))
+				{
+					entityClear(buf, entity - buf->entities);
+					break;
+				}
+			}
+		}
+	}
+}
+
+void entityUpdateOrCreate(vec4 pos, int blockId, vec4 dest, int ticks, DATA8 tile)
+{
+	EntityAnim anim;
+	Entity     entity;
+	uint16_t   slot;
+
+	/* check if it is already in the list */
+	for (slot = entities.animCount, anim = entities.animate, entity = NULL; slot > 0; slot --, anim ++)
+	{
+		entity = anim->entity;
+		if (entity->tile == tile) break;
+	}
+
+	if (slot == 0)
+		entity = entityAlloc(&slot);
+
+	memcpy(entity->pos, pos, 12);
+	memcpy(entity->motion, dest, 12);
+	entity->blockId = blockId;
+	entity->tile = tile;
+	entity->VBObank = entityGetModelId(entity);
+	entityAddToCommandList(entity);
+
+	/* push it into the animate list */
+	if (entities.animCount == entities.animMax)
+	{
+		entities.animMax += ENTITY_BATCH;
+		entities.animate = realloc(entities.animate, entities.animMax * sizeof *entities.animate);
+	}
+	anim = entities.animate + entities.animCount;
+	entities.animCount ++;
+	anim->prevTime = (int) curTime;
+	anim->stopTime = anim->prevTime + ticks * 20 * (1000 / TICK_PER_SECOND);
+	anim->entity = entity;
 }
 
 #ifdef DEBUG
@@ -765,11 +870,16 @@ void entityRender(void)
 			bank->dirty = 0;
 		}
 
+		/* piston head will overdraw piston block causing z-fighting */
+		glEnable(GL_POLYGON_OFFSET_FILL);
+		glPolygonOffset(-1.0, 1.0);
+
 		glEnable(GL_CULL_FACE);
 		glCullFace(GL_BACK);
 		glUseProgram(entities.shader);
 		glBindVertexArray(bank->vao);
 		glBindBuffer(GL_DRAW_INDIRECT_BUFFER, bank->vboMDAI);
 		glMultiDrawArraysIndirect(GL_TRIANGLES, 0, bank->mdaiCount, 0);
+		glDisable(GL_POLYGON_OFFSET_FILL);
 	}
 }

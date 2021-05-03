@@ -7,9 +7,10 @@
 #ifndef BLOCK_UPDATE
 #define BLOCK_UPDATE
 
-#define TICK_PER_SECOND    10     /* needs to be a divisor of 1000 */
+#include "maps.h"
 
 void updateTick(Map map);
+void updateFinished(Map map, DATA8 tile);
 void updateAdd(BlockIter iter, int blockId, int nbTick);
 void updateRemove(ChunkData cd, int offset, int clearSorted);
 Bool updateAlloc(int max);

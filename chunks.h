@@ -76,7 +76,7 @@ struct Chunk_t                         /* an entire column of 16x16 blocks */
 	int       teOffset;                /* same with "TileEntities" */
 	int       entOffset;               /* "Entities" offset */
 	int       signList;                /* linked list of all the signs in this chunk */
-	int       entityList;              /* linked list of all entities in this chunk */
+	uint16_t  entityList;              /* linked list of all entities in this chunk */
 	NBTFile_t nbt;                     /* keep entire NBT structure, we'll need it to save chunk back to region */
 };
 
@@ -110,8 +110,7 @@ typedef struct EntityEntry_t *         EntityEntry;
 
 struct EntityEntry_t
 {
-	uint16_t xz;
-	uint16_t y;
+	uint32_t xzy;
 	uint16_t prev;
 	uint16_t next;
 	DATA8    data;

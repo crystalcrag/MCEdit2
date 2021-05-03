@@ -378,7 +378,7 @@
 		{state:12, name: "-west",           tex: [31, 4,13, 6,31, 4,14, 6], rotate: 1329, model: [SAME_AS, ID(29,12)]},
 		{state:13, name: "-east",           tex: [31, 4,14, 6,31, 4,13, 6], rotate: 19,   model: [SAME_AS, ID(29,12)]},
 
-	{id: 34, name: "Piston extension", type: CUST, bbox: FULL, tech: "piston_head"},
+	{id: 34, name: "Piston head", type: CUST, bbox: FULL},
 		{state: 0, name: "+down",  tex: [31, 5,31, 5,31, 5,31, 5], model: [
 			319,16,4,16,0,0,0,0,0,0,0,0,0,49456,51508,51492,49440,49456,51508,51492,49440,49456,51508,51492,49440,49456,51508,51492,49440,49440,
 				57648,57632,49424,49440,57648,57632,49424,

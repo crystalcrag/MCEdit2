@@ -232,7 +232,7 @@ enum                       /* possible values for <side> parameter of blockIsSol
 
 #define blockGetByIdData(id,data) (blockStates + blockStateIndex[((id) << 4) | (data)])
 #define blockGetById(id)          (blockStates + blockStateIndex[id])
-#define ID(id, data)              ((id)*16+(data))
+#define ID(id, data)              (((id) << 4) | (data))
 #define TYPE(block)               (block->type)
 #define SIDE_NONE                 0
 

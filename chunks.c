@@ -82,9 +82,9 @@ static DATA8 chunkInsertTileEntity(EntityHash hash, EntityEntry ent)
 	EntityEntry old;
 	EntityEntry free;
 	EntityEntry dest = (EntityEntry) (hash + 1);
-	int         slot = ((ent->xz << 16) | ent->y) % hash->max;
+	int         slot = ent->xzy % hash->max;
 
-	for (old = NULL, free = dest + slot; free->data && ! (free->xz == ent->xz && free->y == ent->y); )
+	for (old = NULL, free = dest + slot; free->data && free->xzy != ent->xzy; )
 	{
 		old = free;
 		if (free->next == EOF_MARKER)
@@ -145,8 +145,7 @@ Bool chunkAddTileEntity(Chunk c, int * XYZ, DATA8 mem)
 	int count = hash->count + 1;
 
 	/* encode pos in 3 bytes */
-	entry.xz = (XYZ[0] << 4) | XYZ[2];
-	entry.y  = XYZ[1];
+	entry.xzy = (XYZ[1]<<16) | (XYZ[0] << 4) | XYZ[2];
 
 	if (count == hash->max)
 	{
@@ -254,18 +253,17 @@ void chunkExpandEntities(Chunk c)
 	}
 }
 
-/* get tile entity data based on its coordinates within chunk */
+/* get tile entity data based on its coordinates within chunk (same as chunkAddTileEntity()) */
 DATA8 chunkGetTileEntity(Chunk c, int * XYZ)
 {
 	if (! c->tileEntities) return NULL;
 	EntityHash  hash = c->tileEntities;
 	EntityEntry base = (EntityEntry) (hash + 1);
-	uint16_t    xz   = (XYZ[0] << 4) | XYZ[2];
-	uint16_t    y    = XYZ[1];
-	EntityEntry ent  = base + ((xz << 16) | y) % hash->max;
+	uint32_t    xzy  = (XYZ[1] << 16) | (XYZ[0] << 4) | XYZ[2];
+	EntityEntry ent  = base + xzy % hash->max;
 
 	if (ent->data == NULL) return NULL;
-	while (ent->xz != xz || ent->y != y)
+	while (ent->xzy != xzy)
 	{
 		if (ent->next == EOF_MARKER) return NULL;
 		ent = base + ent->next;
@@ -279,27 +277,33 @@ DATA8 chunkDeleteTileEntity(Chunk c, int * XYZ)
 	if (! c->tileEntities) return False;
 	EntityHash  hash = c->tileEntities;
 	EntityEntry base = (EntityEntry) (hash + 1);
-	uint16_t    xz   = (XYZ[0] << 4) | XYZ[2];
-	uint16_t    y    = XYZ[1];
-	EntityEntry ent  = base + ((xz << 16) | y) % hash->max;
+	uint32_t    xzy  = (XYZ[1] << 16) | (XYZ[0] << 4) | XYZ[2];
+	EntityEntry ent  = base + xzy % hash->max;
 	DATA8       data = ent->data;
 
 	if (data == NULL) return False;
-	while (ent->xz != xz || ent->y != y)
+	while (ent->xzy != xzy)
 	{
 		if (ent->next == EOF_MARKER) return False;
 		ent = base + ent->next;
 	}
-	/* remove link XXX if removing head of chain, next TE will be lost */
 	if (ent->prev != EOF_MARKER)
 	{
 		EntityEntry prev = base + ent->prev;
 		prev->next = ent->next;
+		if (ent->next != EOF_MARKER)
+		{
+			EntityEntry next = base + ent->next;
+			next->prev = ent->prev;
+		}
 	}
-	if (ent->next != EOF_MARKER)
+	else if (ent->next != EOF_MARKER)
 	{
+		/* removing first link in the chain: need to move next item here */
 		EntityEntry next = base + ent->next;
-		next->prev = ent->prev;
+		memmove(ent, base, sizeof *ent);
+		ent->prev = EOF_MARKER;
+		ent = next;
 	}
 	if (! (c->nbt.mem <= data && data < c->nbt.mem + c->nbt.usage))
 		free(data);
@@ -1278,7 +1282,7 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 			/* discard vertex */
 			continue;
 		}
-		/* check if we can eliminate some faces */
+		/* check if we can eliminate even more faces */
 		uint8_t norm = GET_NORMAL(model);
 		if (model[axisCheck[norm]] == axisAlign[norm])
 		{
@@ -1450,7 +1454,7 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 				if (TYPE(t) == SOLID)
 					occlusion |= 1<<k;
 			}
-			/* cust with no model: don't apply ambient occlusion, like cust model will */
+			/* CUST with no model: don't apply ambient occlusion, like CUST model will */
 			if (b->type == CUST)
 				occlusion = 0;
 			if (STATEFLAG(b, CNXTEX))

@@ -777,6 +777,15 @@ int NBT_FindNodeFromStream(DATA8 nbt, int offset, STRPTR name)
 	return NBT_FindNode(&file, offset, name);
 }
 
+APTR NBT_PayloadFromStream(DATA8 stream, int offset, STRPTR name)
+{
+	NBTFile_t file = {.mem = stream};
+	if (stream == NULL) return NULL;
+	int off = NBT_FindNode(&file, offset, name);
+	if (off < 0) return NULL;
+	return NBT_Payload(&file, off);
+}
+
 int NBT_ToInt(NBTFile root, int offset, int def)
 {
 	if (offset < 0) return def;
@@ -800,7 +809,7 @@ int NBT_ToInt(NBTFile root, int offset, int def)
  * modification functions
  */
 
-Bool NBT_ConvertToFloat(NBTFile root, int offset, float * array, int nb)
+Bool NBT_ToFloat(NBTFile root, int offset, float * array, int nb)
 {
 	if (offset < 0) return 0;
 	NBTHdr  hdr  = HDR(root, offset);

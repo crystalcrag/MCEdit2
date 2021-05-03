@@ -12,7 +12,6 @@
 #include <SDL/SDL.h>
 #include <glad.h>
 #include <malloc.h>
-#include <math.h>
 #include <time.h>
 #include <stdio.h>
 #include "MCEdit.h"
@@ -22,7 +21,7 @@
 #include "blockUpdate.h"
 #include "mapUpdate.h"
 #include "interface.h"
-#include "nanovg.h"
+#include "entities.h"
 #include "SIT.h"
 
 GameState_t mcedit;
@@ -474,13 +473,11 @@ void mceditWorld(void)
 				renderPointToBlock(mcedit.mouseX, mcedit.mouseY);
 			}
 		}
-		if (sunMove)
-		{
-			skydomeMoveSun(sunMove);
-		}
+		if (sunMove) skydomeMoveSun(sunMove);
 		curTime = FrameGetTime();
 		renderWorld();
 		updateTick(mcedit.level);
+		entityAnimate(mcedit.level);
 		SIT_RenderNodes(curTime);
 		SDL_GL_SwapBuffers();
 		FrameWaitNext();

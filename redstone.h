@@ -7,6 +7,8 @@
 #ifndef REDSTONE_H
 #define REDSTONE_H
 
+#define TICK_PER_SECOND    10     /* needs to be a divisor of 1000 */
+
 typedef struct RSWire_t *     RSWire;
 
 int  redstoneConnectTo(struct BlockIter_t iter, RSWire connectTo);
@@ -46,6 +48,8 @@ enum /* common redstone devices */
 	RSPOWERRAILS   = 27,
 	RSSTICKYPISTON = 29,
 	RSPISTON       = 33,
+	RSPISTONHEAD   = 34,
+	RSPISTONEXT    = 36,
 	RSWIRE         = 55,
 	RSLEVER        = 69,
 	RSTORCH_OFF    = 75,

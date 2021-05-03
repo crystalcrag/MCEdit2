@@ -241,6 +241,8 @@ int itemMaxDurability(Item item)
 
 int itemGetByName(STRPTR name, Bool forInventory)
 {
+	if (name == NULL)
+		return -1;
 	if ('0' <= name[0] && name[0] <= '9')
 	{
 		/* older versions used numeric id directly */
@@ -300,9 +302,9 @@ STRPTR itemGetTechName(int itemId, STRPTR out, int max)
 	}
 	else
 	{
-		BlockState b = blockGetById(itemId);
-
-		if (b && b->inventory == BBOX_NONE) itemId &= ~15;
+		// XXX not sure why this was needed
+		// BlockState b = blockGetById(itemId);
+		// if (b && b->inventory == 0) itemId &= ~15;
 		tech = blockIds[itemId>>4].tech;
 	}
 

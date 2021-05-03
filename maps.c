@@ -898,7 +898,7 @@ Map mapInitFromPath(STRPTR path, int renderDist)
 	{
 		float xyz[3];
 
-		if (NBT_ConvertToFloat(&nbt, NBT_FindNode(&nbt, 0, "pos"), xyz, 3))
+		if (NBT_ToFloat(&nbt, NBT_FindNode(&nbt, 0, "pos"), xyz, 3))
 		{
 			map->cx = xyz[0];
 			map->cy = xyz[1];

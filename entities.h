@@ -8,17 +8,18 @@
 #ifndef MCENTITY_H
 #define MCENTITY_H
 
-#include "chunks.h"
+#include "maps.h"
 #include "blocks.h"
 
 Bool entityInitStatic(void);
 void entityParse(Chunk, NBTFile nbt, int offset);
 void entityUnload(Chunk);
-void entityAnimate(void);
+void entityAnimate(Map map);
 void entityRender(void);
 void entityDebug(int id);
 void entityInfo(int id, STRPTR buffer, int max);
 int  entityRaycast(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos);
+void entityUpdateOrCreate(vec4 pos, int blockId, vec4 dest, int ticks, DATA8 tile);
 
 #define ENTITY_END         0xffff
 #define PAINTING_ADDTEXU   16
@@ -56,6 +57,7 @@ typedef struct EntityBuffer_t *    EntityBuffer;
 typedef struct EntityBank_t *      EntityBank;
 typedef struct EntityModel_t *     EntityModel;
 typedef struct EntityHash_t        EntityHash_t;
+typedef struct EntityAnim_t *      EntityAnim;
 typedef struct CustModel_t *       CustModel;
 typedef struct BBoxBuffer_t *      BBoxBuffer;
 
@@ -64,6 +66,7 @@ struct Entity_t
 	uint16_t next;                 /* first ENTITY_SHIFT bits: index in buffer, remain: buffer index  */
 	uint16_t VBObank;              /* first 6bits: bank index, remain: model index */
 	uint16_t mdaiSlot;             /* GL draw index */
+	uint16_t blockId;
 	uint8_t  select;
 	float    pos[3];
 	float    motion[3];
@@ -122,10 +125,20 @@ struct EntitiesPrivate_t
 	ListHead     list;         /* EntityBuffer */
 	ListHead     banks;        /* EntityBank */
 	ListHead     bbox;         /* BBoxBuffer */
+	EntityAnim   animate;
+	int          animCount;
+	int          animMax;
 	int          shader;
 	Entity       selected;
-	TEXT         paintings[256];
+	TEXT         paintings[256]; /* convert painting id to models id */
 	uint8_t      paintingNum;
+};
+
+struct EntityAnim_t
+{
+	int      stopTime;
+	int      prevTime;
+	Entity   entity;
 };
 
 struct CustModel_t

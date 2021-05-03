@@ -22,8 +22,8 @@ void playerInit(Player p, NBTFile levelDat)
 
 	memset(p, 0, sizeof *p);
 
-	NBT_ConvertToFloat(levelDat, NBT_FindNode(levelDat, player, "Pos"), p->pos, 3);
-	NBT_ConvertToFloat(levelDat, NBT_FindNode(levelDat, player, "Rotation"), rotation, 2);
+	NBT_ToFloat(levelDat, NBT_FindNode(levelDat, player, "Pos"), p->pos, 3);
+	NBT_ToFloat(levelDat, NBT_FindNode(levelDat, player, "Rotation"), rotation, 2);
 
 	p->pos[VT]  = p->lookat[VT] = 1;
 	p->sinh     = -1;
