@@ -991,9 +991,9 @@ static void mapUpdateChangeRedstone(Map map, BlockIter iterator, int side, RSWir
 	Block b = &blockIds[iter.blockIds[iter.offset]];
 	int   i, count, flags;
 
-	if (b->type == SOLID)
+	if (b->type == SOLID || b->id == 0)
 	{
-		flags = 127 ^ (1 << (opp[side]+1));
+		flags = 127 ^ (side == RSSAMEBLOCK ? 1 : 1 << (opp[side]+1));
 		count = 6;
 	}
 	else
@@ -1031,6 +1031,7 @@ static void mapUpdateDeleteRedstone(Map map, BlockIter iterator, int blockId)
 	case RSTORCH_ON:
 	case RSBLOCK:
 		mapUpdateDeleteSignal(iterator, 0);
+		mapUpdateChangeRedstone(map, iterator, RSSAMEBLOCK, NULL);
 		break;
 	case RSREPEATER_ON:
 		iterator->blockIds[iterator->offset] = 0;
@@ -1408,7 +1409,11 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, Bool blockUpdate)
 		{
 			mapUpdateDeleteSignal(&iter, blockId);
 		}
-		else mapUpdatePropagateSignal(&iter);
+		else
+		{
+			mapUpdatePropagateSignal(&iter);
+			mapUpdateChangeRedstone(map, &iter, RSSAMEBLOCK, NULL);
+		}
 	}
 
 	/* block replaced: check if there is a tile entity to delete */

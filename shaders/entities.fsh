@@ -5,9 +5,10 @@
  */
 out vec4 color;
 in  vec2 texcoord;
-flat in float shade;
 flat in int   isBlock;
 flat in int   isSelected;
+flat in float skyLight;
+flat in float blockLight;
 
 layout (binding=0) uniform sampler2D blocksTex;
 layout (binding=1) uniform sampler2D mobTex;
@@ -18,7 +19,11 @@ void main(void)
 		color = texture(blocksTex, texcoord);
 	else
 		color = texture(mobTex, texcoord);
-	color *= vec4(shade, shade, shade, 1);
+
+	float sky = 0.80 * skyLight * skyLight + 0.2; if (sky < 0) sky = 0;
+	float block = blockLight * blockLight * (1 - sky);
+	color *= vec4(sky, sky, sky, 1) + vec4(1.5 * block, 1.2 * block, 1 * block, 0);
+
 	if (isSelected > 0)
 		color = mix(color, vec4(1,1,1,1), 0.5);
 }

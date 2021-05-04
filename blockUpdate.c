@@ -518,11 +518,12 @@ static void mapUpdateAddPistonExt(struct BlockIter_t iter, int blockId, Bool ext
 	{
 		NBTFile_t ret = {.page = 127};
 		TEXT itemId[128];
-		int  id = ID(RSPISTONHEAD, blockId & 15);
+		int  id = ID(RSPISTONHEAD, blockId & 7);
 
 		if ((blockId >> 4) == RSSTICKYPISTON)
 			id |= 8;
 
+		itemId[0] = 0;
 		NBT_Add(&ret,
 			TAG_String, "id",        itemGetTechName(id, itemId, sizeof itemId),
 			TAG_Int,    "x",         (int) dest[VX],
@@ -557,13 +558,16 @@ static void mapUpdateAddPistonExt(struct BlockIter_t iter, int blockId, Bool ext
 		memcpy(tmp, src, 12);
 		memcpy(src, dest, 12);
 		memcpy(dest, tmp, 12);
+		/* piston retracting: remove head block (silently) */
+		mapUpdateTable(&iter, 0, DATA_OFFSET);
+		iter.blockIds[iter.offset] = 0;
 	}
 
 	blockId = itemGetByName(NBT_PayloadFromStream(tile, 0, "id"), False);
 	/* create or update the moving block */
 	if (blockId > 0)
 		/* XXX need progress */
-		entityUpdateOrCreate(src, blockId, dest, 2, tile);
+		entityUpdateOrCreate(src, blockId, dest, 1, tile);
 }
 
 /* power level near piston has changed */
@@ -578,7 +582,6 @@ int mapUpdatePiston(BlockIter iterator, int blockId, Bool init)
 		/* piston extended, but no power source */
 		mapUpdateAddPistonExt(*iterator, blockId, False);
 		if (init) return blockId & ~8;
-		else mapUpdateTable(iterator, (blockId & ~8) & 15, DATA_OFFSET);
 	}
 	else if (i < 6)
 	{
@@ -881,17 +884,22 @@ void updateFinished(Map map, DATA8 tile)
 
 	switch (blockId >> 4) {
 	case RSPISTONHEAD:
-		if (NBT_ToInt(&nbt, NBT_FindNode(&nbt, 0, "extending"), 0) == 0)
+		if (NBT_ToInt(&nbt, NBT_FindNode(&nbt, 0, "extending"), 0) == 1)
 		{
-			/* piston retracted, remove piston head */
-			mapUpdate(map, pos, 0, NULL, True);
+			/* piston extended: add real piston head (instead of entity) */
+			mapUpdate(map, pos, blockId, NULL, True);
 		}
-		else
+		else /* piston retracted: remove extended state on piston */
 		{
-			/* piston extended: add piston head */
+			uint8_t ext = blockSides.piston[blockId & 7];
+			pos[0] -= relx[ext];
+			pos[1] -= rely[ext];
+			pos[2] -= relz[ext];
+			if (blockId & 8)
+				blockId = ID(RSSTICKYPISTON, blockId & 7);
+			else
+				blockId = ID(RSPISTON, blockId & 7);
 			mapUpdate(map, pos, blockId, NULL, True);
 		}
 	}
 }
-
-

@@ -1,4 +1,11 @@
+=========== Week 18 ===========
+Mon May 3:
+	* piston extends/retracts according to redstone update, animation looks fine.
+
 =========== Week 17 ===========
+Sun May 2:
+	* first version of piston extension: still lots of details to fix :-/
+
 Sat May 1:
 	* more aggressive face culling for block type CUST.
 
@@ -230,6 +237,9 @@ Sat Feb 20:
 
 Fri Feb 19:
 	* OIT work mostly (on intel at least).
+
+Feb 15 ~ 18:
+	* tried to implement sorted fragment from opengl ninth edition (a.k.a OIT).
 
 =========== Week 6 ===========
 Fri Feb 12:
@@ -533,7 +543,7 @@ Thu Nov 5:
 
 Wed Nov 4:
 	* SITGL: first implementation of overflow: ellipsis.
-	* frustum culling continued: used matrix approch: ok.
+	* frustum culling continued: used matrix approach: ok.
 
 Tue Nov 3:
 	* frustum culling continued: tried geometric approach: failed.
@@ -777,7 +787,6 @@ Wed Aug 26:
 	* skylight update seems complete (2D only though).
 	* debug SITGL text edit multi-line.
 	* started doc for SITGL.
-	* started particles system.
 
 Tue Aug 25:
 	* skylight update almost complete, edge case when setblock > heightMap[x].

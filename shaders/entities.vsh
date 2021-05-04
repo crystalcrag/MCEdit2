@@ -11,9 +11,10 @@ layout (location=3) in vec2  rotation;
 #include "uniformBlock.glsl"
 
 out vec2 texcoord;
-flat out float shade;
 flat out int   isBlock;
 flat out int   isSelected;
+flat out float skyLight;
+flat out float blockLight;
 
 void main(void)
 {
@@ -36,13 +37,24 @@ void main(void)
 		)).xyz;
 	}
 
+	float shade = shading[(info.y >> 3) & 7].x;
+	int meta = int(offsets.w);
 	gl_Position = projMatrix * mvMatrix * vec4(pos + offsets.xyz, 1);
 	float U = float(info.x & 511);
 	float V = float(((info.x >> 6) & ~7) | (info.y & 7));
 	if (V == 1023) V = 1024;
 	if (U == 511)  U = 512;
 	texcoord = vec2(U * 0.001953125, V * 0.0009765625);
-	shade = shading[(info.y >> 3) & 7].x;
+	blockLight = float(meta & 15) / 15.;
+	skyLight = float(meta & 0xf0) / 240.;
+	if (blockLight > skyLight)
+	{
+		/* diminish slightly ambient occlusion if there is blockLight overpowering skyLight */
+		shade += (blockLight - skyLight) * 0.35;
+		if (shade > 1) shade = 1;
+	}
+	blockLight *= shade;
+	skyLight   *= shade;
 	isBlock = 1;
-	isSelected = int(offsets.w) & 256;
+	isSelected = meta & 256;
 }

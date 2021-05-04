@@ -405,7 +405,7 @@ static void entityFillLocation(Entity ent, float loc[6])
 	loc[0] = ent->pos[0];
 	loc[1] = ent->pos[1];
 	loc[2] = ent->pos[2];
-	loc[3] = ent->select ? 511 : 255; /* skylight/blocklight */
+	loc[3] = ent->select ? 296 : 240; /* skylight/blocklight */
 	loc[4] = ent->rotation[0];
 	loc[5] = ent->rotation[1];
 }
@@ -557,7 +557,7 @@ static void entitySetSelection(Entity entity)
 			for (i = entities.selected->VBObank & 63, bank = HEAD(entities.banks); i > 0; i --, NEXT(bank));
 			if (! bank->dirty)
 			{
-				float val = 255;
+				float val = 240;
 				glBindBuffer(GL_ARRAY_BUFFER, bank->vboLoc);
 				glBufferSubData(GL_ARRAY_BUFFER, entities.selected->mdaiSlot * INFO_SIZE + 12, 4, &val);
 			}
@@ -571,7 +571,7 @@ static void entitySetSelection(Entity entity)
 			if (! bank->dirty)
 			{
 				/* selection flag is set directly in VBO meta-data */
-				float val = 511;
+				float val = 496;
 				glBindBuffer(GL_ARRAY_BUFFER, bank->vboLoc);
 				glBufferSubData(GL_ARRAY_BUFFER, entity->mdaiSlot * INFO_SIZE + 12, 4, &val);
 			}
@@ -793,7 +793,7 @@ void entityUpdateOrCreate(vec4 pos, int blockId, vec4 dest, int ticks, DATA8 til
 	anim = entities.animate + entities.animCount;
 	entities.animCount ++;
 	anim->prevTime = (int) curTime;
-	anim->stopTime = anim->prevTime + ticks * 20 * (1000 / TICK_PER_SECOND);
+	anim->stopTime = anim->prevTime + ticks * (1000 / TICK_PER_SECOND);
 	anim->entity = entity;
 }
 
