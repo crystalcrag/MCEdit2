@@ -41,28 +41,6 @@ struct RSWire_t /* track where a wire can connect to */
 #endif
 #define RSUPDATE      255
 
-enum /* common redstone devices */
-{
-	RSDISPENSER    = 23,
-	RSNOTEBLOCK    = 25,
-	RSPOWERRAILS   = 27,
-	RSSTICKYPISTON = 29,
-	RSPISTON       = 33,
-	RSPISTONHEAD   = 34,
-	RSPISTONEXT    = 36,
-	RSWIRE         = 55,
-	RSLEVER        = 69,
-	RSTORCH_OFF    = 75,
-	RSTORCH_ON     = 76,
-	RSREPEATER_OFF = 93,
-	RSREPEATER_ON  = 94,
-	RSLAMP         = 123,
-	RSBLOCK        = 152,
-	RSHOPPER       = 154,
-	RSDROPPER      = 158,
-	RSOBSERVER     = 218
-};
-
 enum /* possible values Block_t.rsupdate */
 {
 	RSUPDATE_NONE = 0,     /* this block doesn't care about redstone signal update */

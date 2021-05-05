@@ -208,13 +208,15 @@ int mapGetBlockId(Map map, vec4 pos, MapExtraData extra)
 
 		int blockId = cd->blockIds[offset] << 4;
 		int data    = cd->blockIds[(offset>>1) + DATA_OFFSET];
-		// DEBUG
-		//if (blockId == (9<<4)) return 0; /* ignore water */
-		// END DEBUG
+		/* retracting piston head: ignore */
+		if (blockId == ID(RSPISTONHEAD, 0) && chunkGetTileEntity(ref, (int[3]) {offset & 15, pos[1], (offset >> 4) & 15}))
+			blockId = data = 0;
+
 		if (offset & 1) data >>= 4;
 		else            data &= 15;
 		if (blockIds[blockId>>4].special != BLOCK_DOOR)
 			blockId |= data;
+
 		if (extra)
 		{
 			BlockState b = blockGetById(blockId);

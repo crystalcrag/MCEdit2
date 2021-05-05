@@ -2,7 +2,7 @@
 Voxel engine compatible with Minecraft 1.12
 
 Honest try at recreating the creative mode of Minecraft 1.12, using as little dependencies as possible. So far, this are the ones required:
-* **OpenGL 4.3**: this is not due to lazyness, but because the terrain is rendered by a couple of draw calls using glMultiDrawArraysIndirect(), which is available only in GLv4.3. Replacing this draw call with one compatible with GLv3 is not going to be easy.
+* **OpenGL 4.3**: this is not due to lazyness, but because this engine makes **HEAVY** use of instanced rendering for maximum performance, by using glMultiDrawArraysIndirect() which is available only in GLv4.3. Replacing this draw call with one compatible with GLv3 is not going to be easy (wihtout some serious performance drop).
 * **SDL1**: why not SDL2 ? Because SDL1 is largely enough for this project.
 * **SITGL**: that's a pretty big one. It is used to render/manage user interface (because doing this using only bare bone OpenGL calls is way above my tolerance to pain). SITGL only depends on OpenGL v3.
 * **zlib**: needed for reading/writing NBT. Any version can be used.

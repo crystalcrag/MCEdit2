@@ -11,7 +11,6 @@
 #include <math.h>
 #include "blocks.h"
 #include "particles.h"
-#include "redstone.h"
 #include "glad.h"
 
 struct ParticlePrivate_t particles;

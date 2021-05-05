@@ -743,8 +743,8 @@ void entityAnimate(Map map)
 		}
 		else /* anim done: remove entity */
 		{
+			DATA8 tile = entity->tile;
 			memcpy(entity->pos, entity->motion, 12);
-			updateFinished(map, entity->tile);
 			entities.animCount --;
 			/* remove from list */
 			memmove(anim, anim + 1, (i - 1) * sizeof *anim);
@@ -757,6 +757,7 @@ void entityAnimate(Map map)
 					break;
 				}
 			}
+			updateFinished(map, tile);
 		}
 	}
 }
@@ -793,8 +794,10 @@ void entityUpdateOrCreate(vec4 pos, int blockId, vec4 dest, int ticks, DATA8 til
 	anim = entities.animate + entities.animCount;
 	entities.animCount ++;
 	anim->prevTime = (int) curTime;
-	anim->stopTime = anim->prevTime + ticks * (1000 / TICK_PER_SECOND);
+	anim->stopTime = anim->prevTime + ticks * 20 * (1000 / TICK_PER_SECOND);
 	anim->entity = entity;
+
+	fprintf(stderr, "adding entity %d at %p\n", entities.animCount, tile);
 }
 
 #ifdef DEBUG

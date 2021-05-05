@@ -1,4 +1,7 @@
 =========== Week 18 ===========
+Tue May 4:
+	* bugs fixed: world corruption when deleting tile entity, piston head extend/retract edge cases.
+
 Mon May 3:
 	* piston extends/retracts according to redstone update, animation looks fine.
 

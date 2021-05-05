@@ -307,6 +307,7 @@ DATA8 chunkDeleteTileEntity(Chunk c, int * XYZ)
 	}
 	if (! (c->nbt.mem <= data && data < c->nbt.mem + c->nbt.usage))
 		free(data);
+	hash->count --;
 	ent->data = NULL;
 	return data;
 }
@@ -1226,6 +1227,14 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 		break;
 	case BLOCK_SIGN:
 		c->signList = signAddToList(b->id, chunkGetTileEntityFromOffset(c, neighbors[6]->Y, pos), c->signList, light);
+		break;
+	default:
+		/* piston head with a tile entity: head will be rendered as an entity if it is moving */
+		if ((b->id >> 4) == RSPISTONHEAD)
+		{
+			if (chunkGetTileEntity(c, (int[3]){x, (Y << 4) + y, z}))
+				return;
+		}
 	}
 
 	if (model == NULL)

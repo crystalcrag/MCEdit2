@@ -1983,8 +1983,8 @@
 	{id: 153, name: "Quartz ore", type: SOLID, inv: CUBE, cat: BUILD},
 		{state: 0, tex: [15,11,15,11,15,11,15,11,15,11,15,11]},
 
-	{id: 154, name: "Hopper", type: CUST, inv: MODEL, invState: 0, cat: REDSTONE, bbox: MAX, orient: FULL, tile: 1, rsupdate: RECEIVE},
-		{state: 0, name: "-facing_down", tex: [10, 8,10, 8,10, 8,10, 8], model: [
+	{id: 154, name: "Hopper", type: CUST, inv: ITEM2D, invState: 0, cat: REDSTONE, bbox: MAX, orient: FULL, tile: 1, rsupdate: RECEIVE},
+		{state: 0, name: "-facing_down", tex: [23,40,23,40,23,40,23,40], model: [
 			431,4,4,4,6,0,6,0,0,0,0,0,0,123312,131520,131536,123328,123312,131520,131536,123328,123312,131520,131536,123328,123312,
 				131520,131536,123328,254944,263152,263168,254960,123328,131536,131552,123344,
 			431,8,6,8,4,4,4,0,0,0,0,0,0,

@@ -501,7 +501,7 @@ int mapUpdateDoor(BlockIter iterator, int blockId, Bool init)
 }
 
 /* add tile entity for piston extension */
-static void mapUpdateAddPistonExt(struct BlockIter_t iter, int blockId, Bool extend)
+static Bool mapUpdateAddPistonExt(struct BlockIter_t iter, int blockId, Bool extend)
 {
 	uint8_t ext = blockSides.piston[blockId & 7];
 	vec4    src = {iter.x + iter.ref->X, iter.yabs, iter.z + iter.ref->Z};
@@ -538,6 +538,8 @@ static void mapUpdateAddPistonExt(struct BlockIter_t iter, int blockId, Bool ext
 		chunkAddTileEntity(iter.ref, XYZ, ret.mem);
 		tile = ret.mem;
 	}
+	else return False;
+	#if 0
 	else /* already a tile entity: likely that fields are not up to date */
 	{
 		NBTFile_t nbt = {.mem = tile};
@@ -552,15 +554,14 @@ static void mapUpdateAddPistonExt(struct BlockIter_t iter, int blockId, Bool ext
 			NBT_SetFloat(&nbt, off, &progress, 1);
 		}
 	}
+	#endif
+
 	if (! extend)
 	{
 		vec4 tmp;
 		memcpy(tmp, src, 12);
 		memcpy(src, dest, 12);
 		memcpy(dest, tmp, 12);
-		/* piston retracting: remove head block (silently) */
-		mapUpdateTable(&iter, 0, DATA_OFFSET);
-		iter.blockIds[iter.offset] = 0;
 	}
 
 	blockId = itemGetByName(NBT_PayloadFromStream(tile, 0, "id"), False);
@@ -568,6 +569,8 @@ static void mapUpdateAddPistonExt(struct BlockIter_t iter, int blockId, Bool ext
 	if (blockId > 0)
 		/* XXX need progress */
 		entityUpdateOrCreate(src, blockId, dest, 1, tile);
+
+	return True;
 }
 
 /* power level near piston has changed */
@@ -578,15 +581,16 @@ int mapUpdatePiston(BlockIter iterator, int blockId, Bool init)
 	for (i = 0; i < 6 && (i == avoid || ! redstoneIsPowered(*iterator, i, POW_WEAK)); i ++);
 	if (blockId & 8)
 	{
-		if (i < 6) return blockId;
 		/* piston extended, but no power source */
-		mapUpdateAddPistonExt(*iterator, blockId, False);
+		if (i < 6 || ! mapUpdateAddPistonExt(*iterator, blockId, False))
+			return blockId;
 		if (init) return blockId & ~8;
 	}
 	else if (i < 6)
 	{
 		/* not extended, but has a power source nearby */
-		mapUpdateAddPistonExt(*iterator, blockId, True);
+		if (! mapUpdateAddPistonExt(*iterator, blockId, True))
+			return blockId;
 		if (init) return blockId | 8;
 		else mapUpdateTable(iterator, (blockId | 8) & 15, DATA_OFFSET);
 	}
@@ -884,14 +888,13 @@ void updateFinished(Map map, DATA8 tile)
 
 	switch (blockId >> 4) {
 	case RSPISTONHEAD:
-		if (NBT_ToInt(&nbt, NBT_FindNode(&nbt, 0, "extending"), 0) == 1)
+		if (NBT_ToInt(&nbt, NBT_FindNode(&nbt, 0, "extending"), 0) == 0)
 		{
-			/* piston extended: add real piston head (instead of entity) */
-			mapUpdate(map, pos, blockId, NULL, True);
-		}
-		else /* piston retracted: remove extended state on piston */
-		{
+			/* piston retracted */
 			uint8_t ext = blockSides.piston[blockId & 7];
+			/* delete head */
+			mapUpdate(map, pos, 0, NULL, UPDATE_SILENT);
+			/* remove extended state on piston */
 			pos[0] -= relx[ext];
 			pos[1] -= rely[ext];
 			pos[2] -= relz[ext];
@@ -899,7 +902,8 @@ void updateFinished(Map map, DATA8 tile)
 				blockId = ID(RSSTICKYPISTON, blockId & 7);
 			else
 				blockId = ID(RSPISTON, blockId & 7);
-			mapUpdate(map, pos, blockId, NULL, True);
 		}
+		/* else piston extended: add real piston head (instead of entity) */
+		mapUpdate(map, pos, blockId, NULL, True);
 	}
 }

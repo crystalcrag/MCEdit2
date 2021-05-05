@@ -9,7 +9,7 @@
 
 #include "maps.h"
 
-void mapUpdate(Map, vec4 pos, int blockId, DATA8 tile, Bool blockUpdate);
+void mapUpdate(Map, vec4 pos, int blockId, DATA8 tile, int blockUpdate);
 void mapUpdateBlock(Map, vec4 pos, int blockId, int oldBlockId, DATA8 tile);
 void mapUpdatePowerRails(Map map, BlockIter iter);
 int  mapUpdateGate(BlockIter, int id, Bool init);
@@ -18,6 +18,11 @@ int  mapUpdatePiston(BlockIter, int blockId, Bool init);
 void mapUpdateTable(BlockIter, int val, int table);
 void mapActivate(Map, vec4 pos);
 int  mapActivateBlock(BlockIter, vec4 pos, int blockId);
+
+enum /* extra flags for blockUpdate param from mapUpdate() */
+{
+	UPDATE_SILENT = 16
+};
 
 /* private stuff below that point */
 typedef struct BlockUpdate_t *     BlockUpdate;

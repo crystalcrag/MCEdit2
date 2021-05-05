@@ -986,7 +986,7 @@ static void mapUpdateChangeRedstone(Map map, BlockIter iterator, int side, RSWir
 	if (dir)
 		mapIter(&iter, dir->dx, dir->dy, dir->dz);
 	else if (side != RSSAMEBLOCK)
-		mapIter(&iter, relx[side], 0, relz[side]);
+		mapIter(&iter, relx[side], rely[side], relz[side]);
 
 	Block b = &blockIds[iter.blockIds[iter.offset]];
 	int   i, count, flags;
@@ -1262,6 +1262,7 @@ static void mapUpdateListChunk(Map map)
 	*first = NULL;
 	*save = NULL;
 	track.modif = NULL;
+	track.list  = &track.modif;
 }
 
 /*
@@ -1292,7 +1293,7 @@ static void mapUpdateMesh(Map map)
 	fprintf(stderr, "%d chunk updated, max: %d, usage: %d\n", track.pos, track.max, track.maxUsage);
 }
 
-/* async update: NBT tables need to be updates before we can apply these */
+/* async update: NBT tables need to be up to date before we can apply these changes */
 static void mapUpdateFlush(Map map)
 {
 	BlockUpdate update;
@@ -1332,11 +1333,13 @@ static void mapUpdateFlush(Map map)
 /*
  * main entry point for altering voxel tables and keep them consistent.
  */
-void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, Bool blockUpdate)
+void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 {
 	struct BlockIter_t iter;
+	uint8_t silent = blockUpdate & UPDATE_SILENT;
 
 	mapInitIter(map, &iter, pos, blockId > 0);
+	blockUpdate &= 15;
 	if (blockUpdate)
 	{
 		track.modif = NULL;
@@ -1455,11 +1458,14 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, Bool blockUpdate)
 		mapUpdateMesh(map);
 		renderPointToBlock(-1, -1);
 	}
+	/* transfer modified chunk in a list, but don't re-generate mesh yet */
+	else mapUpdateListChunk(map);
 
 	if (blockId == 0)
 	{
 		updateRemove(iter.cd, iter.offset, True);
-		particlesExplode(map, 4, oldId, pos);
+		if (! silent)
+			particlesExplode(map, 4, oldId, pos);
 	}
 }
 
