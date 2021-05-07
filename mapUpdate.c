@@ -1093,7 +1093,7 @@ static int mapUpdateIfPowered(Map map, BlockIter iterator, int oldId, int blockI
 		break;
 	case RSSTICKYPISTON:
 	case RSPISTON:
-		return mapUpdatePiston(iterator, blockId, init);
+		return mapUpdatePiston(map, iterator, blockId, init);
 	case RSDISPENSER:
 	case RSDROPPER:
 		/* very similar to gence gate actually */
@@ -1269,7 +1269,7 @@ static void mapUpdateListChunk(Map map)
  * generic block update function: dispatch to various other functions of this module.
  */
 
-static void mapUpdateMesh(Map map)
+void mapUpdateMesh(Map map)
 {
 	ChunkData cd, next;
 	track.pos = 0;
@@ -1294,7 +1294,7 @@ static void mapUpdateMesh(Map map)
 }
 
 /* async update: NBT tables need to be up to date before we can apply these changes */
-static void mapUpdateFlush(Map map)
+void mapUpdateFlush(Map map)
 {
 	BlockUpdate update;
 	int         i, j;
@@ -1328,6 +1328,14 @@ static void mapUpdateFlush(Map map)
 			i --;
 		}
 	}
+}
+
+/* blocks moved by piston update can't be updated directly, they need to be done at once */
+void mapUpdatePush(Map map, vec4 pos, int blockId)
+{
+	struct BlockIter_t iter;
+	mapInitIter(map, &iter, pos, False);
+	trackAddUpdate(&iter, blockId);
 }
 
 /*

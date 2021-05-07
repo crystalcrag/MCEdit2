@@ -16,6 +16,7 @@ int  redstoneSignalStrength(BlockIter iter, Bool dirty);
 Bool redstonePropagate(int blockId);
 int  redstoneIsPowered(struct BlockIter_t iter, int side, int minPower);
 void redstonePowerChange(struct BlockIter_t iter, RSWire connectTo, int count);
+int  redstonePushedByPiston(struct BlockIter_t iter, RSWire list);
 
 
 #define redstoneRepeaterDelay(blockId)       (((blockId&15) >> 2)+1)
@@ -34,6 +35,7 @@ struct RSWire_t /* track where a wire can connect to */
 #define RSSAMEBLOCK   255 /* possible value for <side> param of redstoneIsPowered() */
 #define MAXSIGNAL     15
 #define RSMAXUPDATE   12
+#define MAXPUSH       12  /* maximum number of blocks that can be pushed/retracted by piston (note: stack allocated) */
 #ifndef DEBUG
 #define RSMAXDISTRAIL 9   /* maximum distance a power source will power golden rails */
 #else

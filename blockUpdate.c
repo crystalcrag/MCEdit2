@@ -506,11 +506,12 @@ static Bool mapUpdateAddPistonExt(struct BlockIter_t iter, int blockId, Bool ext
 	uint8_t ext = blockSides.piston[blockId & 7];
 	vec4    src = {iter.x + iter.ref->X, iter.yabs, iter.z + iter.ref->Z};
 
-	/* XXX not sure where this is stored: piston block or entension block */
+	/* XXX not sure where this tile entity is stored: use position it is now */
 	mapIter(&iter, relx[ext], rely[ext], relz[ext]);
+	vec4 dest = {iter.x + iter.ref->X, iter.yabs, iter.z + iter.ref->Z};
 
-	int  XYZ[] = {iter.x, iter.yabs, iter.z};
-	vec4 dest  = {XYZ[0] + iter.ref->X, XYZ[1], XYZ[2] + iter.ref->Z};
+	float * pos = blockId & 8 ? dest : src;
+	int XYZ[] = {pos[0], pos[1], pos[2]};
 
 	DATA8 tile = chunkGetTileEntity(iter.ref, XYZ);
 
@@ -523,38 +524,24 @@ static Bool mapUpdateAddPistonExt(struct BlockIter_t iter, int blockId, Bool ext
 		if ((blockId >> 4) == RSSTICKYPISTON)
 			id |= 8;
 
-		itemId[0] = 0;
 		NBT_Add(&ret,
 			TAG_String, "id",        itemGetTechName(id, itemId, sizeof itemId),
-			TAG_Int,    "x",         (int) dest[VX],
-			TAG_Int,    "y",         (int) dest[VY],
-			TAG_Int,    "z",         (int) dest[VZ],
+			TAG_Int,    "x",         XYZ[VX],
+			TAG_Int,    "y",         XYZ[VY],
+			TAG_Int,    "z",         XYZ[VZ],
 			TAG_Int,    "extending", extend,
 			TAG_Int,    "facing",    blockId & 7,
 			TAG_Double, "progress",  0.0,
 			TAG_Int,    "source",    1,
 			TAG_End
 		);
+		//fprintf(stderr, "adding tile entity at %d,%d,%d\n", XYZ[0], XYZ[1], XYZ[2]);
+		XYZ[0] &= 15;
+		XYZ[2] &= 15;
 		chunkAddTileEntity(iter.ref, XYZ, ret.mem);
 		tile = ret.mem;
 	}
 	else return False;
-	#if 0
-	else /* already a tile entity: likely that fields are not up to date */
-	{
-		NBTFile_t nbt = {.mem = tile};
-		int       off = NBT_FindNode(&nbt, 0, "extending");
-
-		if (NBT_ToInt(&nbt, off, 0) != extend)
-		{
-			float progress;
-			NBT_SetInt(&nbt, off, extend);
-			off = NBT_FindNode(&nbt, 0, "progress");
-			NBT_ToFloat(&nbt, off, &progress, 1); progress = 1 - progress;
-			NBT_SetFloat(&nbt, off, &progress, 1);
-		}
-	}
-	#endif
 
 	if (! extend)
 	{
@@ -573,27 +560,77 @@ static Bool mapUpdateAddPistonExt(struct BlockIter_t iter, int blockId, Bool ext
 	return True;
 }
 
-/* power level near piston has changed */
-int mapUpdatePiston(BlockIter iterator, int blockId, Bool init)
+/* convert blocks push/rectracted by a piston into block 36 */
+void mapUpdateToBlock36(Map map, RSWire list, int count, int dir, BlockIter iterator)
 {
-	int avoid = blockSides.piston[blockId & 7];
 	int i;
+	vec4 pos = {iterator->x + iterator->ref->X, iterator->yabs, iterator->z + iterator->ref->Z};
+	vec4 off = {relx[dir], rely[dir], relz[dir]};
+	if (count > 0 && list->signal > 0)
+		off[0] = -off[0], off[1] = -off[1], off[2] = -off[2];
+	for (i = 0; i < count; i ++, list ++)
+	{
+		vec4 src = {pos[0] + list->dx, pos[1] + list->dy, pos[2] + list->dz};
+		vec4 dst = {src[0] + off[0], src[1] + off[1], src[2] + off[2]};
+
+		/* place tile entity of block 36 into destination (like piston head) */
+		NBTFile_t tile = {.page = 127};
+		TEXT      itemId[128];
+		STRPTR    blockName;
+		itemGetTechName(ID(RSPISTONEXT, 0), itemId, sizeof itemId);
+		blockName = strchr(itemId, 0) + 1;
+		itemGetTechName(list->blockId << 4, blockName, sizeof itemId - (blockName - itemId));
+
+		NBT_Add(&tile,
+			TAG_String, "id",        itemId,
+			TAG_String, "blockId",   blockName,
+			TAG_Int,    "blockData", list->data,
+			TAG_Int,    "x",         (int) src[VX],
+			TAG_Int,    "y",         (int) src[VY],
+			TAG_Int,    "z",         (int) src[VZ],
+			TAG_End
+		);
+		mapUpdate(map, src, RSPISTONEXT, tile.mem, False);
+
+		entityUpdateOrCreate(src, RSPISTONEXT, dst, 1, tile.mem);
+	}
+}
+
+/* power level near piston has changed */
+int mapUpdatePiston(Map map, BlockIter iterator, int blockId, Bool init)
+{
+	struct RSWire_t connect[MAXPUSH];
+
+	int avoid = blockSides.piston[blockId & 7];
+	int count, i;
 	for (i = 0; i < 6 && (i == avoid || ! redstoneIsPowered(*iterator, i, POW_WEAK)); i ++);
+
+	count = redstonePushedByPiston(*iterator, connect);
+	/* there is at least one block blocking the piston movement */
+	if (count < 0) return blockId;
+
 	if (blockId & 8)
 	{
 		/* piston extended, but no power source */
 		if (i < 6 || ! mapUpdateAddPistonExt(*iterator, blockId, False))
+			/* already moving: wait until piston has finished */
 			return blockId;
-		if (init) return blockId & ~8;
+		if (init)
+			blockId &= ~8;
+		/* else keep extended state until head has fully retracted */
 	}
 	else if (i < 6)
 	{
 		/* not extended, but has a power source nearby */
 		if (! mapUpdateAddPistonExt(*iterator, blockId, True))
 			return blockId;
-		if (init) return blockId | 8;
-		else mapUpdateTable(iterator, (blockId | 8) & 15, DATA_OFFSET);
+		if (init)
+			blockId |= 8;
+		else /* already convert to extended state */
+			mapUpdateTable(iterator, (blockId | 8) & 15, DATA_OFFSET);
 	}
+	/* convert all blocks pushed to block 36 */
+	mapUpdateToBlock36(map, connect, count, avoid, iterator);
 	return blockId;
 }
 
@@ -865,26 +902,21 @@ void updateTick(Map map)
 }
 
 /* entity animation done (typical: piston and blocks moved in the process) */
-void updateFinished(Map map, DATA8 tile)
+void updateFinished(Map map, DATA8 tile, vec4 dest)
 {
 	NBTFile_t nbt = {.mem = tile};
-	NBTIter_t iter;
-	vec4      pos;
 	int       blockId, i;
-	uint8_t   flags;
 
-	NBT_IterCompound(&iter, tile);
-	flags = 0;
-	while ((i = NBT_Iter(&iter)) >= 0 && flags != 15)
+	if (tile == NULL)
 	{
-		switch (FindInList("X,Y,Z,id", iter.name, 0)) {
-		case 0: pos[0] = NBT_ToInt(&nbt, i, 0); flags |= 1; break;
-		case 1: pos[1] = NBT_ToInt(&nbt, i, 0); flags |= 2; break;
-		case 2: pos[2] = NBT_ToInt(&nbt, i, 0); flags |= 4; break;
-		case 3: blockId = itemGetByName(NBT_Payload(&nbt, i), False); flags |= 8;
-		}
+		mapUpdateFlush(map);
+		mapUpdateMesh(map);
+		return;
 	}
-	if (flags != 15) return;
+
+	i = NBT_FindNode(&nbt, 0, "id");
+	if (i < 0) return;
+	blockId = itemGetByName(NBT_Payload(&nbt, i), False);
 
 	switch (blockId >> 4) {
 	case RSPISTONHEAD:
@@ -893,17 +925,25 @@ void updateFinished(Map map, DATA8 tile)
 			/* piston retracted */
 			uint8_t ext = blockSides.piston[blockId & 7];
 			/* delete head */
-			mapUpdate(map, pos, 0, NULL, UPDATE_SILENT);
+			mapUpdatePush(map, dest, 0);
 			/* remove extended state on piston */
-			pos[0] -= relx[ext];
-			pos[1] -= rely[ext];
-			pos[2] -= relz[ext];
+			dest[0] -= relx[ext];
+			dest[1] -= rely[ext];
+			dest[2] -= relz[ext];
 			if (blockId & 8)
 				blockId = ID(RSSTICKYPISTON, blockId & 7);
 			else
 				blockId = ID(RSPISTON, blockId & 7);
 		}
 		/* else piston extended: add real piston head (instead of entity) */
-		mapUpdate(map, pos, blockId, NULL, True);
+		mapUpdatePush(map, dest, blockId);
+		break;
+	case RSPISTONEXT:
+		/* convert block 36 into actual blocks */
+		blockId = itemGetByName(NBT_Payload(&nbt, NBT_FindNode(&nbt, 0, "blockId")), False) |
+		          NBT_ToInt(&nbt, NBT_FindNode(&nbt, 0, "blockData"), 0);
+		if (blockId > 0)
+			mapUpdatePush(map, dest, blockId);
+		break;
 	}
 }

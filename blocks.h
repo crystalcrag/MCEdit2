@@ -48,23 +48,30 @@ struct Block_t             /* per id information */
 	uint16_t id;           /* [0-255] */
 	int8_t   type;         /* enum */
 	int8_t   inventory;    /* enum */
+
 	int8_t   invState;
 	int8_t   category;     /* enum */
 	int8_t   bbox;         /* enum */
 	int8_t   bboxPlayer;   /* enum */
+
 	int8_t   particle;     /* enum */
 	uint8_t  states;
 	uint8_t  emitLight;    /* value of light emitted 0 ~ 15 */
 	uint8_t  opacSky;      /* reduction of skyLight */
+
 	uint8_t  opacLight;    /* reduction of blockLight */
 	uint8_t  orientHint;   /* auto-orient based on camera angle */
 	uint8_t  tileEntity;   /* type of tile entity (TILE_*) */
 	uint8_t  special;      /* enum BLOCK_* */
+
 	uint8_t  rswire;       /* redstone wire can attach to this block */
 	uint8_t  rsupdate;     /* update state if redstone signal change around block */
 	uint8_t  copyModel;    /* copy invmodel from this block id */
 	uint8_t  placement;    /* allowed blocks this one can be placed on (index in blocks.placements) */
+
 	uint8_t  gravity;      /* block affected by gravity */
+	uint8_t  pushable;     /* can be pushed by piston or /retracted by sticky piston */
+
 	STRPTR   name;         /* description as displayed to user */
 	STRPTR   tech;         /* technical name as stored in NBT */
 	DATA16   model;        /* custom inventory model */
@@ -230,6 +237,15 @@ enum                       /* possible values for <side> parameter of blockIsSol
 	SIDE_BOTTOM
 };
 
+enum                       /* possible for Block_t.pushable */
+{
+	NOPUSH,                /* block is fixed */
+	PUSH_ONLY,             /* can only be pushed, not retracted by sticky (glazed terracotta) */
+	PUSH_DESTROY,          /* block will be destroyed on push (flower, crops) */
+	PUSH_DROPITEM,         /* block will be removed and droped as an item */
+	PUSH_AND_RETRACT,      /* default value */
+};
+
 enum                       /* common redstone devices */
 {
 	RSDISPENSER    = 23,
@@ -249,6 +265,7 @@ enum                       /* common redstone devices */
 	RSBLOCK        = 152,
 	RSHOPPER       = 154,
 	RSDROPPER      = 158,
+	SLIMEBLOCK     = 165,
 	RSOBSERVER     = 218
 };
 

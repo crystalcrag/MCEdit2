@@ -175,7 +175,7 @@ static void mcuiRefreshTooltip(MCInventory inv)
 	}
 
 	/* and technical name */
-	itemGetTechName(item->id, title, sizeof title);
+	itemGetTechName(item->id, title + index, sizeof title - index);
 	StrCat(title, sizeof title, index, "</dim>");
 
 	SIT_SetValues(mcui.toolTip, SIT_Title, title, SIT_DisplayTime, SITV_ResetTime, NULL);

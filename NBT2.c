@@ -815,7 +815,7 @@ Bool NBT_ToFloat(NBTFile root, int offset, float * array, int nb)
 	NBTHdr  hdr  = HDR(root, offset);
 	DATA8   mem  = hdr->name + ((hdr->minNameSz + 4) & ~3);
 	uint8_t type = hdr->type;
-	int     sz   = sizeof_type[type>>4];
+	int     sz   = sizeof_type[type >= TAG_List ? type>>4 : type];
 
 	if ((type & 15) == TAG_List)
 	{

@@ -274,6 +274,60 @@ int redstoneConnectTo(struct BlockIter_t iter, RSWire connectTo)
 	return list - connectTo;
 }
 
+/* list blocks pushed/retracted by piston (<iter> must point to piston block) */
+int redstonePushedByPiston(struct BlockIter_t iter, RSWire list)
+{
+	int blockId = getBlockId(&iter);
+	int retract = blockId & 8;
+	int count   = 0;
+	if ((blockId >> 4) == RSPISTON && retract)
+		/* extended: non-sticky piston can't retract anything (including slime block) */
+		return 0;
+
+	uint8_t dir = blockSides.piston[blockId & 7];
+	int8_t  dx  = relx[dir], dy = rely[dir], dz = relz[dir];
+	int8_t  x   = dx, y = dy, z = dz;
+	if (blockId & 8)
+		/* extended: skip piston head */
+		x += dx, y += dy, z += dz;
+
+	mapIter(&iter, x, y, z);
+
+	while (count < MAXPUSH)
+	{
+		Block b = blockIds + iter.blockIds[iter.offset];
+
+		if (b->id == 0)
+			return count;
+		switch (b->pushable) {
+		case NOPUSH:
+			return retract ? count : -1;
+		case PUSH_ONLY:
+			if (retract) return count;
+			break;
+		case PUSH_DESTROY:
+		case PUSH_DROPITEM:
+			if (retract) return count;
+		}
+
+		list->dx = x;
+		list->dy = y;
+		list->dz = z;
+		list->blockId = b->id;
+		list->data = iter.blockIds[DATA_OFFSET + (iter.offset >> 1)];
+		list->pow = 0;
+		list->signal = retract;
+		if (iter.offset & 1) list->data >>= 4;
+		else list->data &= 15;
+		count ++;
+		list ++;
+		x += dx; y += dy; z += dz;
+		mapIter(&iter, dx, dy, dz);
+	}
+	/* push limit exceeded */
+	return -1;
+}
+
 /* get signal strength emitted by block pointed by <iter> */
 int redstoneSignalStrength(BlockIter iter, Bool dirty)
 {

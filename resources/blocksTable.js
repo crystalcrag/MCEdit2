@@ -50,19 +50,19 @@
 		{state:10, name: "+acacia",   tex: [20, 1], quad: [CROSS], inv: NONE},
 		{state:11, name: "+dark oak", tex: [20, 0], quad: [CROSS], inv: NONE},
 
-	{id: 7, name: "Bedrock", type: SOLID, inv: CUBE, cat: BUILD},
+	{id: 7, name: "Bedrock", type: SOLID, inv: CUBE, cat: BUILD, pushable: NO},
 		{state: 0, name: "Bedrock",  tex: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]},
 
-	{id: 8, name: "Water", type: TRANS, special: LIQUID, tech: "flowing_water", opacLight: 3, opacSky: 3},
+	{id: 8, name: "Water", type: TRANS, special: LIQUID, tech: "flowing_water", opacLight: 3, opacSky: 3, pushable: DESTROY},
 		{state: 0, name: "+flowing", tex: [13,12,13,12,13,12,13,12,13,12,13,12]},
 
-	{id: 9, name: "Water", type: TRANS, special: LIQUID, opacLight: 3, opacSky: 3},
+	{id: 9, name: "Water", type: TRANS, special: LIQUID, opacLight: 3, opacSky: 3, pushable: DESTROY},
 		{state: 0, name: "+still", tex: [13,12,13,12,13,12,13,12,13,12,13,12]},
 
-	{id: 10, name: "Lava", type: TRANS, special: LIQUID, bbox: NONE, emitLight: 15, tech: "flowing_lava"}, /* TODO */
+	{id: 10, name: "Lava", type: TRANS, special: LIQUID, bbox: NONE, emitLight: 15, tech: "flowing_lava", pushable: DESTROY}, /* TODO */
 		{state: 0, name: "+flowing", tex: [13,14,13,14,13,14,13,14,13,14,13,14]},
 
-	{id: 11, name: "Lava", type: TRANS, special: LIQUID, bbox: NONE, emitLight: 15}, /* TODO */
+	{id: 11, name: "Lava", type: TRANS, special: LIQUID, bbox: NONE, emitLight: 15, pushable: DESTROY}, /* TODO */
 		{state: 0, name: "+still", tex: [13,14,13,14,13,14,13,14,13,14,13,14]},
 
 	{id: 12, name: "Sand", type: SOLID, inv: CUBE, cat: BUILD, gravity: 1},
@@ -99,7 +99,7 @@
 		{state:14, name: "-birch",      tex: [ 5, 7, 5, 7, 5, 7, 5, 7, 5, 7, 5, 7]},
 		{state:15, name: "-jungle",     tex: [ 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9]},
 
-	{id: 18, name: "Leaves", type: TRANS, inv: CUBE, cat: DECO, special: LEAVES, opacLight: 1, opacSky: 1},
+	{id: 18, name: "Leaves", type: TRANS, inv: CUBE, cat: DECO, special: LEAVES, opacLight: 1, opacSky: 1, pushable: DESTROY},
 		{state: 0, name: "+oak",    tex: [4, 3, 4, 3, 4, 3, 4, 3, 4, 3, 4, 3]},
 		{state: 1, name: "+spruce", tex: [4, 8, 4, 8, 4, 8, 4, 8, 4, 8, 4, 8]},
 		{state: 2, name: "+birch",  tex: [4, 3, 4, 3, 4, 3, 4, 3, 4, 3, 4, 3]},
@@ -128,7 +128,7 @@
 	{id: 22, name: "Lapis lazuli block", type: SOLID, inv: CUBE, cat: BUILD},
 		{state: 0, name: "-", tex: [0, 9, 0, 9, 0, 9, 0, 9, 0, 9, 0, 9]},
 
-	{id: 23, name: "Dispenser", type: SOLID, inv: CUBE, invState: 3, cat: REDSTONE, orient: FULL, rsupdate: RECEIVE, tile: 1},
+	{id: 23, name: "Dispenser", type: SOLID, inv: CUBE, invState: 3, cat: REDSTONE, orient: FULL, rsupdate: RECEIVE, tile: 1, pushable: NO},
 		{state: 0, name: "+down",      tex: [13, 2,13, 2,13, 2,13, 2,14, 3,18, 5]},
 		{state: 1, name: "+up",        tex: [13, 2,13, 2,13, 2,13, 2,18, 5,14, 3]},
 		{state: 2, name: "+north",     tex: [13, 2,13, 2,14, 2,13, 2,14, 3,14, 3]},
@@ -150,7 +150,7 @@
 	{id: 25, name: "Note Block", type: SOLID, inv: CUBE, rsupdate: RECEIVE, cat: DECO},
 		{state: 0, name: "-", tex: [10, 4,10, 4,10, 4,10, 4,10, 4,10, 4]},
 
-	{id: 26, name: "Bed", type: CUST, bbox: MAX, orient: BED, tile: 1, inv: MODEL, cat: DECO, invmodel: [
+	{id: 26, name: "Bed", type: CUST, bbox: MAX, orient: BED, tile: 1, inv: MODEL, cat: DECO, pushable: DROPITEM, invmodel: [
 			/* white */
 			1823,16,8,32,-2,8,0,0,0,0,5,30,0,200887,205504,205520,200903,209079,213696,213728,209111,77591,82208,82224,77607,209111,213728,213696,209079,213728,213696,221904,221936,
 			/* orange */
@@ -299,7 +299,8 @@
 		{state:14, name: "-red",    model: [SAME_AS, ID(26, 2)]},
 		{state:15, name: "-black",  model: [SAME_AS, ID(26, 3)]},
 
-	{id: 27, name: "Powered rail", type: QUAD, inv: ITEM2D, invState: 0, cat: RAILS, special: RAILS, orient: SE, rsupdate: RECEIVE, tech: "golden_rail", placement: "ground"},
+	{id: 27, name: "Powered rail", type: QUAD, inv: ITEM2D, invState: 0, cat: RAILS, special: RAILS, orient: SE, rsupdate: RECEIVE,
+		tech: "golden_rail", placement: "ground", pushable: YES},
 		{state: 0, name: "+OFF,N/S", tex: [3, 10], quad: [BOTTOM]},
 		{state: 1, name: "+OFF,E/W", tex: [3, 10], quad: [BOTTOM], rotate: 1},
 		{state: 2, name: "+OFF,A/E", tex: [3, 10], quad: [ASCE]},
@@ -313,7 +314,8 @@
 		{state:12, name: "+ON,A/N",  tex: [3, 11], quad: [ASCN]},
 		{state:13, name: "+ON,A/S",  tex: [3, 11], quad: [ASCS]},
 
-	{id: 28, name: "Detector rail", type: QUAD, inv: ITEM2D, cat: RAILS, special: RAILS, rswire: ALLDIR, invState: 0, orient: SE, placement: "ground"},
+	{id: 28, name: "Detector rail", type: QUAD, inv: ITEM2D, cat: RAILS, special: RAILS, rswire: ALLDIR, invState: 0, orient: SE,
+		placement: "ground", pushable: YES},
 		{state: 0, name: "+OFF,N/S", tex: [ 3, 12], quad: [BOTTOM]},
 		{state: 1, name: "+OFF,E/W", tex: [ 3, 12], quad: [BOTTOM], rotate: 1},
 		{state: 2, name: "+OFF,A/E", tex: [ 3, 12], quad: [ASCE]},
@@ -353,7 +355,7 @@
 		{state:12, name: "-west",  tex: [31, 4,13, 6,31, 4,14, 6], rotate: 1329, model: [SAME_AS, ID(29, 10), 1855]},
 		{state:13, name: "-east",  tex: [31, 4,14, 6,31, 4,13, 6], rotate: 19,   model: [SAME_AS, ID(29, 10), 831]},
 
-	{id: 30, name: "Cobweb", type: QUAD, inv: ITEM2D, cat: DECO},
+	{id: 30, name: "Cobweb", type: QUAD, inv: ITEM2D, cat: DECO, pushable: DROPITEM},
 		{state: 0, tex: [11, 0], quad: [CROSS]},
 
 	{id: 31, name: "Tall grass", type: QUAD, inv: ITEM2D, cat: DECO, placement: "ground"},
@@ -378,7 +380,7 @@
 		{state:12, name: "-west",           tex: [31, 4,13, 6,31, 4,14, 6], rotate: 1329, model: [SAME_AS, ID(29,12)]},
 		{state:13, name: "-east",           tex: [31, 4,14, 6,31, 4,13, 6], rotate: 19,   model: [SAME_AS, ID(29,12)]},
 
-	{id: 34, name: "Piston head", type: CUST, bbox: FULL},
+	{id: 34, name: "Piston head", type: CUST, bbox: FULL, pushable: NO},
 		{state: 0, name: "+down",  tex: [31, 5,31, 5,31, 5,31, 5], model: [
 			319,16,4,16,0,0,0,0,0,0,0,0,0,51508,49456,49440,51492,51508,49456,49440,51492,51508,49456,49440,51492,51508,49456,49440,51492,
 				49440,57648,57632,49424,49440,57648,57632,49424,
@@ -434,12 +436,12 @@
 		{state:14, name: "+red",            tex: [1, 8, 1, 8, 1, 8, 1, 8, 1, 8, 1, 8]},
 		{state:15, name: "+black",          tex: [1, 7, 1, 7, 1, 7, 1, 7, 1, 7, 1, 7]},
 
-	{id: 36, name: "Block 36", type: INVIS, tech: "piston_extension"}, /* block moved by piston */
+	{id: 36, name: "Block 36", type: INVIS, tech: "piston_extension", pushable: NO}, /* block moved by piston */
 
-	{id: 37, name: "Dandelion", type: QUAD, inv: ITEM2D, cat: DECO, tech: "yellow_flower", placement: "dirt,grass"},
+	{id: 37, name: "Dandelion", type: QUAD, inv: ITEM2D, cat: DECO, tech: "yellow_flower", placement: "dirt,grass", pushable: DROPITEM},
 		{state: 0, tex: [13, 0], quad: [CROSS]},
 
-	{id: 38, name: "Poppy", type: QUAD,  inv: ITEM2D, cat: DECO, tech: "red_flower", placement: "dirt,grass"},
+	{id: 38, name: "Poppy", type: QUAD,  inv: ITEM2D, cat: DECO, tech: "red_flower", placement: "dirt,grass", pushable: DROPITEM},
 		{state: 0, name: "-",            tex: [12, 0], quad: [CROSS]},
 		{state: 1, name: "Blue orchid",  tex: [16, 0], quad: [CROSS]},
 		{state: 2, name: "Allium",       tex: [17, 0], quad: [CROSS]},
@@ -450,10 +452,10 @@
 		{state: 7, name: "Pink tulip",   tex: [18, 1], quad: [CROSS]},
 		{state: 8, name: "Oxeye daisy",  tex: [19, 1], quad: [CROSS]},
 
-	{id: 39, name: "Brown mushroom", type: QUAD, inv: ITEM2D, cat: DECO, placement: "ground"},
+	{id: 39, name: "Brown mushroom", type: QUAD, inv: ITEM2D, cat: DECO, placement: "ground", pushable: DROPITEM},
 		{state: 0, tex: [13, 1], quad: [CROSS]},
 
-	{id: 40, name: "Red mushroom", type: QUAD, inv: ITEM2D, cat: DECO, placement: "ground"},
+	{id: 40, name: "Red mushroom", type: QUAD, inv: ITEM2D, cat: DECO, placement: "ground", pushable: DROPITEM},
 		{state: 0, tex: [12, 1], quad: [CROSS]},
 
 	{id: 41, name: "Gold block", type: SOLID, inv: CUBE, cat: BUILD},
@@ -511,11 +513,11 @@
 	{id: 48, name: "Moss cobblestone", type: SOLID, inv: CUBE, cat: BUILD},
 		{state: 0, tex: [4, 2, 4, 2, 4, 2, 4, 2, 4, 2, 4, 2]},
 
-	{id: 49, name: "Obsidian", type: SOLID, inv: CUBE, cat: BUILD},
+	{id: 49, name: "Obsidian", type: SOLID, inv: CUBE, cat: BUILD, pushable: NO},
 		{state: 0, tex: [5, 2, 5, 2, 5, 2, 5, 2, 5, 2, 5, 2]},
 
 	{id: 50, name: "Torch", type: CUST, inv: ITEM2D, bbox: FULL, bboxPlayer: NONE, invState: 0, cat: DECO, emitLight: 14,
-		placement: "wall,ground", orient: TORCH, particle: SMOKE},
+		placement: "wall,ground", orient: TORCH, particle: SMOKE, pushable: DROPITEM},
 		{state: 0, name: "+up", tex: [0, 5, 0, 5, 0, 5, 0, 5], model: [
 			31,2,10,2,7,0,7,0,0,0,0,0,0,44125,49255,49257,44127,44125,49255,49257,44127,44125,49255,49257,44127,44125,49255,49257,44127,44125,45151,45153,44127,
 		]},
@@ -546,7 +548,7 @@
 		{state:14, name: "+age 14", tex: [15, 1], quad: [CROSS]},
 		{state:15, name: "+age 15", tex: [15, 1], quad: [CROSS]},
 
-	{id: 52, name: "Monster Spawner", type: TRANS, inv: CUBE, cat: DECO, tech: "mob_spawner", tile: 1},
+	{id: 52, name: "Monster Spawner", type: TRANS, inv: CUBE, cat: DECO, tech: "mob_spawner", tile: 1, pushable: NO},
 		{state: 0, tex: [1, 4, 1, 4, 1, 4, 1, 4, 1, 4, 1, 4]},
 
 	{id: 53, name: "Oak stairs", type: SOLID, inv: MODEL, invState: 0, cat: BUILD, special: STAIRS, orient: STAIRS, invmodel: [
@@ -563,7 +565,7 @@
 		{state: 6, name: "+top, south",    tex: [4, 0, 4, 0, 4, 0, 4, 0, 4, 0, 4, 0]},
 		{state: 7, name: "+top, north",    tex: [4, 0, 4, 0, 4, 0, 4, 0, 4, 0, 4, 0]},
 
-	{id: 54, name: "Chest", type: CUST, special: CHEST, inv: MODEL, bbox: FULL, invState: 3, cat: DECO, tile: 1, orient: SENW},
+	{id: 54, name: "Chest", type: CUST, special: CHEST, inv: MODEL, bbox: FULL, invState: 3, cat: DECO, tile: 1, orient: SENW, pushable: NO},
 		{state: 0, tex: [17, 3,17, 3,18, 3,17, 3], model: [
 			319+BHDR_INCFACEID,14,14,14,1,0,1,0,0,0,0,0,0,24896,33104,33120,24912,24896,33104,33120,24912,24912,33120,33136,24928,24896,
 				33104,33120,24912,24880,33088,33104,24896,24880,33088,33104,24896,
@@ -582,7 +584,8 @@
 		{state: 4, name: "+west",  tex: [17, 3,17, 3,17, 3,18, 3], model: [SAME_AS, ID(54, 0), 1855]},
 		{state: 5, name: "+east",  tex: [17, 3,18, 3,17, 3,17, 3], model: [SAME_AS, ID(54, 0), 831]},
 
-	{id: 55, name: "Redstone wire", type: CUST, special: RSWIRE, bboxPlayer: NONE, rswire: ALLDIR, particle: SMOKE, rsupdate: GENERATE, placement: "ground"},
+	{id: 55, name: "Redstone wire", type: CUST, special: RSWIRE, bboxPlayer: NONE, rswire: ALLDIR, particle: SMOKE, rsupdate: GENERATE,
+		placement: "ground", pushable: DROPITEM},
 		{state: 0, tex: [26,35,26,35,26,35,26,35], model: [
 			272+BHDR_INCFACEID,3,0.1,4,6,0,12,0,0,0,0,0,0,88306,90358,90361,88309,
 			272+BHDR_INCFACEID,4,0.1,2,12,0,7,0,0,0,0,0,0,85747,86773,86777,85751,
@@ -621,7 +624,7 @@
 	{id: 58, name: "Crafting table", type: SOLID, inv: CUBE, cat: DECO},
 		{state: 0, tex: [12, 3,11, 3,12, 3,11, 3,11, 2, 4, 0]},
 
-	{id: 59, name: "Wheat", type: QUAD, inv: NONE, placement: "farmland"},
+	{id: 59, name: "Wheat", type: QUAD, inv: NONE, placement: "farmland", pushable: DROPITEM},
 		{state: 0, name: "+stage_1", tex: [ 8, 5], quad: [CROSS]},
 		{state: 1, name: "-2",       tex: [ 9, 5], quad: [CROSS]},
 		{state: 2, name: "-3",       tex: [10, 5], quad: [CROSS]},
@@ -641,7 +644,7 @@
 		{state: 6, name: "-",    tex: [2, 0, 2, 0, 2, 0, 2, 0, 7, 5, 2, 0]},
 		{state: 7, name: "+wet", tex: [2, 0, 2, 0, 2, 0, 2, 0, 7, 5, 2, 0]},
 
-	{id: 61, name: "Furnace", type: SOLID, inv: CUBE, invState: 0, cat: DECO, orient: SENW, tile: 1},
+	{id: 61, name: "Furnace", type: SOLID, inv: CUBE, invState: 0, cat: DECO, orient: SENW, tile: 1, pushable: NO},
 		{state: 0, name: "-",      tex: [12, 2,13, 2,13, 2,13, 2,14, 3,14, 3]},
 		{state: 1, name: "-",      tex: [12, 2,13, 2,13, 2,13, 2,14, 3,14, 3]},
 		{state: 2, name: "+north", tex: [13, 2,13, 2,12, 2,13, 2,14, 3,14, 3]},
@@ -649,7 +652,7 @@
 		{state: 4, name: "+west",  tex: [13, 2,13, 2,13, 2,12, 2,14, 3,14, 3]},
 		{state: 5, name: "-east",  tex: [13, 2,12, 2,13, 2,13, 2,13, 2,14, 3]},
 
-	{id: 62, name: "Lit furnace", type: SOLID, tile: 1, particle: SMOKE},
+	{id: 62, name: "Lit furnace", type: SOLID, tile: 1, particle: SMOKE, pushable: NO},
 		{state: 0, name: "-",      tex: [13, 3,13, 2,13, 2,13, 2,14, 3,14, 3], emit: [S]},
 		{state: 1, name: "-",      tex: [12, 2,13, 2,13, 2,13, 2,14, 3,14, 3]},
 		{state: 2, name: "+north", tex: [13, 2,13, 2,13, 3,13, 2,14, 3,14, 3], emit: [N]},
@@ -657,7 +660,7 @@
 		{state: 4, name: "+west",  tex: [13, 2,13, 2,13, 2,13, 3,14, 3,14, 3], emit: [W]},
 		{state: 5, name: "+east",  tex: [13, 2,13, 3,13, 2,13, 2,13, 2,14, 3], emit: [E]},
 
-	{id: 63, name: "Sign post", bbox: FULL, bboxPlayer: NONE, type: CUST, special: SIGN, tech: "standing_sign", tile: 1, placement: "ground"},
+	{id: 63, name: "Sign post", bbox: FULL, bboxPlayer: NONE, type: CUST, special: SIGN, tech: "standing_sign", tile: 1, placement: "ground", pushable: NO},
 		{state: 0, name: "+S", tex: [27,42,27,42,27,42,27,42], model: [
 			319,16,9,1,0,9,7.5,0,0,0,0,0,0,16672,22828,22812,16656,80,6236,6234,78,80,6236,6220,64,66,6222,6220,64,80,1106,1090,64,5210,6236,6220,5194,
 			15,1,9,1,7.5,0,7.5,0,0,0,0,0,0,8276,16484,16482,8274,8276,16484,16482,8274,8276,16484,16482,8274,8276,16484,16482,8274,
@@ -688,7 +691,7 @@
 		{state:15, name: "+S-SE", model: [SAME_AS, ID(63, 3), 1855]},
 
 	/* oak door */
-	{id: 64, name: "Wooden door", type: CUST, bbox: MAX, special: DOOR, orient: DOOR, rsupdate: RECEIVE, placement: "ground"},
+	{id: 64, name: "Wooden door", type: CUST, bbox: MAX, special: DOOR, orient: DOOR, rsupdate: RECEIVE, placement: "ground", pushable: DROPITEM},
 		{state: 0, name: "+facing_west, hinge north", tex: [1, 6, 1, 6, 1, 6, 1, 6], model: [
 			63,3,32,16,0,0,0,0,0,0,0,0,0,41056,57472,57475,41059,41072,57488,57472,41056,41059,57475,57472,41056,41056,57472,57488,41072,49277,41069,41072,
 				49280,49280,57488,57485,49277,
@@ -704,14 +707,15 @@
 		{state: 6, name: "+east, hinge north", model: [SAME_AS, ID(64, 4), 1087]},
 		{state: 7, name: "+south, hinge east", model: [SAME_AS, ID(64, 4), 1599]},
 
-	{id: 65, name: "Ladder", type: QUAD, inv: ITEM2D, invState: 0, cat: DECO, orient: SENW, placement: "wall"},
+	{id: 65, name: "Ladder", type: QUAD, inv: ITEM2D, invState: 0, cat: DECO, orient: SENW, placement: "wall", pushable: DROPITEM},
 		{state: 0, name: "+north", tex: [3, 5], quad: [NORTH]},
 		{state: 2, name: "+south", tex: [3, 5], quad: [SOUTH]},
 		{state: 3, name: "+north", tex: [3, 5], quad: [NORTH]},
 		{state: 4, name: "+east",  tex: [3, 5], quad: [EAST]},
 		{state: 5, name: "-west",  tex: [3, 5], quad: [WEST]},
 
-	{id: 66, name: "Rails", type: QUAD, inv: ITEM2D, invState: 0, cat: RAILS, rsupdate: RECEIVE, special: RAILS, orient: SE, tech: "rail", placement: "ground"},
+	{id: 66, name: "Rails", type: QUAD, inv: ITEM2D, invState: 0, cat: RAILS, rsupdate: RECEIVE, special: RAILS, orient: SE, tech: "rail",
+		placement: "ground", pushable: YES},
 		{state: 0, name: "+N/S",             tex: [0, 8], quad: [BOTTOM]},
 		{state: 1, name: "+E/W",             tex: [0, 8], quad: [BOTTOM], rotate: 1},
 		{state: 2, name: "+ascending east",  tex: [0, 8], quad: [ASCE]},
@@ -733,7 +737,7 @@
 		{state: 6, name: "+top, south",    tex: [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1]},
 		{state: 7, name: "+top, north",    tex: [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1]},
 
-	{id: 68, name: "Wall sign", type: CUST, bbox: MAX, bboxPlayer: NONE, tile: 1, special: SIGN, placement: "ground,wall"},
+	{id: 68, name: "Wall sign", type: CUST, bbox: MAX, bboxPlayer: NONE, tile: 1, special: SIGN, placement: "ground,wall", pushable: NO},
 		{state: 2, name: "+north", tex: [27,42,27,42,27,42,27,42], model: [
 			63,16,8.5,1.5,0,3.75,14.5,0,0,0,0,0,0,80,6236,6220,64,2128,8284,8282,2126,16672,22828,22812,16656,2116,8272,8274,2118,80,1106,1090,64,2132,3158,3142,2116,
 		]},
@@ -742,7 +746,7 @@
 		{state: 5, name: "+east",  model: [SAME_AS, ID(68, 2), 575]},
 
 	{id: 69, name: "Lever", type: CUST, inv: ITEM2D, invState: 0, cat: REDSTONE, bbox: FULL, bboxPlayer: NONE, rswire: ALLDIR, orient: LEVER,
-		placement: "solid", rsupdate: GENERATE, keepModel: 1},
+		placement: "solid", rsupdate: GENERATE, keepModel: 1, pushable: DROPITEM},
 		{state: 0, name: "-(attached_bottom)", tex: [8, 11], model: [
 			815,6,3,8,5,13,4,0,0,0,0,0,0,49264,50803,50797,49258,49258,50797,50789,49250,49264,50803,50797,49258,49258,50797,50789,49250,50803,54907,54901,50797,
 			574,2,2,10,7,11,0,-30,0,0,0,0,0,57465,57463,52333,52335,52335,53361,53359,52333,52333,52335,57465,57463,52335,57465,57463,52333,52335,57465,57463,52333,
@@ -785,7 +789,7 @@
 		]},
 
 	{id: 70, name: "Stone pressure plate", type: CUST, bbox: MAX, bboxPlayer: NONE, inv: MODEL, cat: REDSTONE, rswire: ALLDIR,
-		placement: "ground", rsupdate: GENERATE, special: PLATE, invmodel: [ /* a bit bigger */
+		placement: "ground", rsupdate: GENERATE, special: PLATE, pushable: DROPITEM, invmodel: [ /* a bit bigger */
 			191,16,1,16,0,0,0,0,0,0,0,0,0,16,8224,8240,32,16,8224,8240,32,16,8224,8240,32,16,8224,8240,32,16,8224,8240,32,16,8224,8240,32,16
 		]},
 		{state: 0, name: "-", tex: [1, 0], model: [
@@ -795,7 +799,7 @@
 			31,14,0.5,14,1,0,1,0,0,0,0,0,0,7712,8225,8239,7726,544,7726,7727,545,17,530,544,31,529,7711,7712,530,530,7712,7726,544,
 		]},
 
-	{id: 71, name: "Iron door", type: CUST, bbox: MAX, special: DOOR, orient: DOOR, rsupdate: RECEIVE, placement: "ground"},
+	{id: 71, name: "Iron door", type: CUST, bbox: MAX, special: DOOR, orient: DOOR, rsupdate: RECEIVE, placement: "ground", pushable: DROPITEM},
 		{state: 0, name: "+facing_west, hinge north", tex: [2, 6, 2, 6, 2, 6, 2, 6], model: [
 			63,3,32,16,0,0,0,0,0,0,0,0,0,41072,57488,57491,41075,41088,57504,57488,41072,41075,57491,57488,41072,41072,57488,57504,41088,41088,49296,
 				49293,41085,49296,57504,57501,49293,
@@ -812,7 +816,7 @@
 		{state: 7, name: "+south, hinge east", model: [SAME_AS, ID(71, 4), 1599]},
 
 	{id: 72, name: "Wooden pressure plate", type: CUST, bbox: MAX, bboxPlayer: NONE, inv: MODEL, cat: REDSTONE, rswire: ALLDIR,
-		placement: "ground", rsupdate: GENERATE, special: PLATE, invmodel: [ /* a bit bigger */
+		placement: "ground", rsupdate: GENERATE, special: PLATE, pushable: DROPITEM, invmodel: [ /* a bit bigger */
 		191,16,1,16,0,0,0,0,0,0,0,0,0,64,8272,8288,80,64,8272,8288,80,64,8272,8288,80,64,8272,8288,80,64,8272,8288,80,64,8272,8288,80,
 		]},
 		{state: 0, name: "-", tex: [4, 0], model: [
@@ -829,7 +833,7 @@
 		{state: 0, tex: [20, 4,20, 4,20, 4,20, 4,20, 4,20, 4]},
 
 	{id: 75, name: "Redstone torch", type: CUST, bbox: FULL, bboxPlayer: NONE, rswire: ALLDIR, rsupdate: INOUT, orient: TORCH,
-		placement: "wall,ground", tech: "unlit_redstone_torch"},
+		placement: "wall,ground", pushable: DROPITEM, tech: "unlit_redstone_torch"},
 		{state: 0, name: "+OFF,_up", tex: [3, 7, 3, 7, 3, 7, 3, 7], model: [
 			31,2,10,2,7,0,7,0,0,0,0,0,0,60591,65721,65719,60589,60591,65721,65719,60589,60591,65721,65719,60589,60591,65721,65719,60589,60591,61617,61615,60589,
 		]},
@@ -843,7 +847,7 @@
 		{state: 5, name: "-up",    model: [SAME_AS, ID(75, 0)]},
 
 	{id: 76, name: "Redstone torch", type: CUST, bbox: FULL, bboxPlayer: NONE, inv: ITEM2D, cat: REDSTONE, invState: 0, rswire: ALLDIR, rsupdate: INOUT,
-		orient: TORCH, emitLight: 7, placement: "wall,ground", particle: SMOKE},
+		orient: TORCH, emitLight: 7, placement: "wall,ground", pushable: DROPITEM, particle: SMOKE},
 		{state: 0, name: "+ON,_up", tex: [3, 6, 3, 6, 3, 6, 3, 6], model: [
 			287,2,10,2,7,0,7,0,0,0,0,0,0,52383,57513,57511,52381,52383,57513,57511,52381,52383,57513,57511,52381,52383,57513,57511,52381,52383,53409,53407,52381,
 			261,4,4,2,6,7,7,0,0,0,0,0,0,51871,53923,53919,51867,51871,53923,53919,51867,
@@ -861,7 +865,7 @@
 		{state: 5, name: "-up",    model: [SAME_AS, ID(76, 0)]},
 
 	{id: 77, name: "Stone button", type: CUST, inv: MODEL, cat: REDSTONE, bbox: MAX, bboxPlayer: NONE, orient: LEVER, placement: "solid",
-		rswire: ALLDIR, rsupdate: GENERATE, invmodel: [ /* a bit bigger */
+		rswire: ALLDIR, rsupdate: GENERATE, pushable: DROPITEM, invmodel: [ /* a bit bigger */
 			695,3,6,8,4,5,4,0,0,0,0,0,0,16,8224,8240,32,16,8224,8240,32,16,8224,8240,32,16,8224,8240,32,16,8224,8240,32,16,8224,8240,32,
 		]},
 		{state: 0, name: "+bottom", tex: [31, 7,31, 7, 31, 7, 31, 7], model: [
@@ -889,7 +893,8 @@
 		{state: 11, name: "-south", model: [SAME_AS, ID(77, 9), 567]},
 		{state: 12, name: "-north", model: [SAME_AS, ID(77, 9), 1591]},
 
-	{id: 78, name: "Snow layer", type: CUST, bbox: MAX, inv: MODEL, invState: 0, placement: "ground,leaves,leaves2,snow_layer", orient: SNOW, cat: DECO, inv: NONE},
+	{id: 78, name: "Snow layer", type: CUST, bbox: MAX, inv: MODEL, invState: 0, placement: "ground,leaves,leaves2,snow_layer",
+		orient: SNOW, cat: DECO, inv: NONE, pushable: DESTROY},
 		{state: 0, name: "+1", inv: DECO, tex: [2, 4, 2, 4, 2, 4, 2, 4, 2, 4], model: [
 			63,16,2,16,0,0,0,0,0,0,0,0,0,40062,41088,41072,40046,40062,41088,41072,40046,40062,41088,41072,40046,40062,41088,41072,40046,
 				32880,41088,41072,32864,32865,41073,41088,32880,
@@ -929,7 +934,7 @@
 	{id: 80, name: "Snow block", type: SOLID, inv: CUBE, cat: DECO, tech: "snow"},
 		{state: 0, tex: [2, 4, 2, 4, 2, 4, 2, 4, 2, 4, 2, 4]},
 
-	{id: 81, name: "Cactus", type: CUST, bbox: MAX, placement: "sand", inv: MODEL, invState: 0, cat: DECO},
+	{id: 81, name: "Cactus", type: CUST, bbox: MAX, placement: "sand", inv: MODEL, invState: 0, cat: DECO, pushable: DROPITEM},
 		{state: 0, tex: [6, 4, 6, 4, 6, 4, 6, 4, 5, 4, 7, 4], model: [
 			261,16,16,14,0,0,1,0,0,0,0,0,0,32928,41136,41152,32944,32928,41136,41152,32944,
 			266,14,16,16,1,0,0,0,0,0,0,0,0,32928,41136,41152,32944,32928,41136,41152,32944,
@@ -954,10 +959,10 @@
 	{id: 82, name: "Clay", type: SOLID, inv: CUBE, cat: BUILD},
 		{state: 0, tex: [8, 4, 8, 4, 8, 4, 8, 4, 8, 4, 8, 4]},
 
-	{id: 83, name: "Sugar Cane", type: QUAD, inv: ITEM2D, cat: CROPS, tech: "reeds", placement: "dirt,sand,grass"},
+	{id: 83, name: "Sugar Cane", type: QUAD, inv: ITEM2D, cat: CROPS, tech: "reeds", placement: "dirt,sand,grass", pushable: DROPITEM},
 		{state: 0, tex: [9, 4], quad: [CROSS]},
 
-	{id: 84, name: "Jukebox", type: SOLID, inv: CUBE, cat: DECO, tile: 1},
+	{id: 84, name: "Jukebox", type: SOLID, inv: CUBE, cat: DECO, tile: 1, pushable: NO},
 		{state: 0, tex: [10, 4,10, 4,10, 4,10, 4,11, 4,10, 4]},
 
 	{id: 85, name: "Fence", type: CUST, bbox: FULL, inv: MODEL, cat: DECO, special: FENCE, invmodel: [
@@ -978,7 +983,7 @@
 			181,6,3,2,0,6,7,0,0,0,0,0,0,
 		]},
 
-	{id: 86, name: "Pumpkin", type: SOLID, inv: CUBE, cat: DECO, orient: SWNE},
+	{id: 86, name: "Pumpkin", type: SOLID, inv: CUBE, cat: DECO, orient: SWNE, pushable: DROPITEM},
 		{state: 0, name: "+carved", tex: [7, 7, 6, 7, 6, 7, 6, 7, 6, 6, 6, 6]},
 		{state: 1, name: "+west",   tex: [6, 7, 6, 7, 6, 7, 7, 7, 6, 6, 6, 6], inv: NONE},
 		{state: 2, name: "+north",  tex: [6, 7, 6, 7, 7, 7, 6, 7, 6, 6, 6, 6], inv: NONE},
@@ -997,19 +1002,19 @@
 	{id: 89, name: "Glowstone", type: SOLID, inv: CUBE, cat: DECO, emitLight: 15},
 		{state: 0, tex: [9, 6, 9, 6, 9, 6, 9, 6, 9, 6, 9, 6]},
 
-	{id: 90, name: "Nether portal", type: CUST, bbox: MAX, bboxPlayer: NONE, tech: "portal"},
+	{id: 90, name: "Nether portal", type: CUST, bbox: MAX, bboxPlayer: NONE, tech: "portal", pushable: NO},
 		{state: 2, name: "+N/S", tex: [6,15, 6,15, 6,15, 6,15, 6,15], model: [
 			5,16,16,4,0,0,6,0,0,0,0,0,0,123216,131424,131440,123232,123216,131424,131440,123232,
 		]},
 		{state: 1, name: "+E/W", model: [SAME_AS, ID(90, 2), 517]},
 
-	{id: 91, name: "Jack-O-Lantern", type: SOLID, inv: CUBE, invState: 0, cat: DECO, tech: "lit_pumpkin", orient: SENW, emitLight: 15},
+	{id: 91, name: "Jack-O-Lantern", type: SOLID, inv: CUBE, invState: 0, cat: DECO, tech: "lit_pumpkin", orient: SENW, emitLight: 15, pushable: DROPITEM},
 		{state: 0, name: "+south", tex: [8, 7, 6, 7, 6, 7, 6, 7, 6, 6, 6, 6]},
 		{state: 1, name: "+west",  tex: [6, 7, 6, 7, 6, 7, 8, 7, 6, 6, 6, 6]},
 		{state: 2, name: "+north", tex: [6, 7, 6, 7, 8, 7, 6, 7, 6, 6, 6, 6]},
 		{state: 3, name: "+east",  tex: [6, 7, 8, 7, 6, 7, 6, 7, 6, 6, 6, 6]},
 
-	{id: 92, name: "Cake", type: CUST, bbox: MAX, inv: NONE, placement: "ground"},
+	{id: 92, name: "Cake", type: CUST, bbox: MAX, inv: NONE, placement: "ground", pushable: DESTROY},
 		{state: 0, name: "-", tex: [10, 7,10, 7,10, 7,10, 7, 9, 7,12, 7], model: [
 			191,14,8,14,1,0,1,0,0,0,0,0,0,57616,65824,65840,57632,57616,65824,65840,57632,57616,65824,65840,57632,57616,65824,65840,57632,57600,65808,65824,
 				57616,57648,65856,65872,57664,
@@ -1039,7 +1044,8 @@
 				57616,57648,65856,65872,57664,
 		]},
 
-	{id: 93, name: "Repeater", type: CUST, inv: NONE, bbox: MAX, rswire: FRONTBACK, tech: "unpowered_repeater", rsupdate: INOUT, placement: "ground", orient: SWNE},
+	{id: 93, name: "Repeater", type: CUST, inv: NONE, bbox: MAX, rswire: FRONTBACK, tech: "unpowered_repeater", rsupdate: INOUT,
+		placement: "ground", orient: SWNE, pushable: DROPITEM},
 		{state: 0, name: "-(OFF, delay 1,_north)", tex: [3, 8, 3, 8, 3, 8, 3, 8, 3, 8], model: [
 			287,16,2,16,0,0,0,0,0,0,0,0,0,72894,73920,73936,72910,66754,65728,65712,66738,66754,65728,65712,66738,66754,65728,65712,66738,65712,73920,73936,65728,
 			287,2,5,2,7,2,2,0,0,0,0,0,0,60589,63154,63156,60591,60589,63154,63156,60591,60589,63154,63156,60591,60589,63154,63156,60591,60589,61615,61617,60591,
@@ -1074,7 +1080,7 @@
 		{state:15, name: "-west",  model: [SAME_AS, ID(93,12), 1823]},
 
 	{id: 94, name: "Repeater", type: CUST, inv: NONE, bbox: MAX, cat: REDSTONE, rswire: FRONTBACK, tech: "powered_repeater", particle: SMOKE, placement: "ground",
-		emitLight: 7, orient: SWNE, rsupdate: INOUT},
+		emitLight: 7, orient: SWNE, rsupdate: INOUT, pushable: DROPITEM},
 		{state: 0, name: "-(ON, delay 1,_north)", tex: [12,11,12,11,12,11,12,11,12,11], emit: [2, 5], model: [
 			287,16,2,16,0,0,0,0,0,0,0,0,0,72894,73920,73936,72910,66754,65728,65712,66738,66754,65728,65712,66738,66754,65728,65712,66738,73920,82128,82144,73936,
 			261,4,6,2,6,2,2,0,0,0,0,0,0,51867,54945,54949,51871,51867,54945,54949,51871,
@@ -1269,16 +1275,16 @@
 			32+BHDR_INCFACEID,2,16,2,7,0,7,0,0,0,0,0,0,77534,78560,78562,77536,
 		]},
 
-	{id: 103, name: "Melon", type: SOLID, inv: CUBE, cat: CROPS},
+	{id: 103, name: "Melon", type: SOLID, inv: CUBE, cat: CROPS, pushable: DROPITEM},
 		{state: 0, tex: [8, 8, 8, 8, 8, 8, 8, 8, 9, 8, 9, 8]},
 
-	{id: 104, name: "Pumpkin stem", type: QUAD, placement: "farmland"},
+	{id: 104, name: "Pumpkin stem", type: QUAD, placement: "farmland", pushable: DROPITEM},
 		{state: 0, tex: [15, 6], quad: [CROSS]},
 
-	{id: 105, name: "Melon stem", type: QUAD, placement: "farmland"},
+	{id: 105, name: "Melon stem", type: QUAD, placement: "farmland", pushable: DROPITEM},
 		{state: 0, tex: [15, 6], quad: [CROSS]},
 
-	{id: 106, name: "Vines", type: QUAD, inv: ITEM2D, invState: 1, cat: DECO, orient: SENW, special: NOSIDE, tech: "vine", placement: "wall"},
+	{id: 106, name: "Vines", type: QUAD, inv: ITEM2D, invState: 1, cat: DECO, orient: SENW, special: NOSIDE, tech: "vine", placement: "wall", pushable: DESTROY},
 		{state: 1, name: "+S",    tex: [15, 8], quad: [SOUTH]},
 		{state: 2, name: "+W",    tex: [15, 8], quad: [WEST]},
 		{state: 3, name: "+SW",   tex: [15, 8], quad: [SOUTH, WEST]},
@@ -1359,7 +1365,7 @@
 	{id: 110, name: "Mycelium", type: SOLID, inv: CUBE, cat: BUILD},
 		{state: 0, tex: [13, 4,13, 4,13, 4,13, 4,14, 4, 2, 0]},
 
-	{id: 111, name: "Lily pad", type: QUAD, inv: ITEM2D, cat: DECO, tech: "waterlily", placement: "water"},
+	{id: 111, name: "Lily pad", type: QUAD, inv: ITEM2D, cat: DECO, tech: "waterlily", placement: "water", pushable: DROPITEM},
 		{state: 0, tex: [12, 4], quad: [BOTTOM]},
 
 	{id: 112, name: "Nether brick", type: SOLID, inv: CUBE, cat: BUILD},
@@ -1395,19 +1401,19 @@
 		{state: 6, name: "+top, south",    tex: [0,14, 0,14, 0,14, 0,14, 0,14, 0,14]},
 		{state: 7, name: "+top, north",    tex: [0,14, 0,14, 0,14, 0,14, 0,14, 0,14]},
 
-	{id: 115, name: "Nether wart", type: QUAD},
+	{id: 115, name: "Nether wart", type: QUAD, pushable: DROPITEM},
 		{state: 0, name: "-",      tex: [2,14], quad: [CROSS]},
 		{state: 1, name: "+age 1", tex: [3,14], quad: [CROSS]},
 		{state: 2, name: "+age 2", tex: [3,14], quad: [CROSS]},
 		{state: 3, name: "+age 3", tex: [4,14], quad: [CROSS]},
 
-	{id: 116, name: "Enchanting table", type: CUST, bbox: MAX, inv: MODEL, cat: DECO},
+	{id: 116, name: "Enchanting table", type: CUST, bbox: MAX, inv: MODEL, cat: DECO, pushable: NO},
 		{state: 0, tex: [6,11, 6,11, 6,11, 6,11], model: [
 			191,16,12,16,0,0,0,0,0,0,0,0,0,90384,98592,98608,90400,90384,98592,98608,90400,90384,98592,98608,90400,90384,98592,
 				98608,90400,82176,90384,90400, 82192,90400,98608,98624,90416,
 		]},
 
-	{id: 117, name: "Brewing stand", type: CUST, bbox: MAX, tile: 1, placement: "ground"},
+	{id: 117, name: "Brewing stand", type: CUST, bbox: MAX, tile: 1, placement: "ground", pushable: NO},
 		{state: 0, tex: [13, 9,13, 9,13, 9,13, 9], model: [
 			1311,2,14,2,7,0,7,0,0,0,0,0,0,75113,82295,82297,75115,75113,82295,82297,75115,75113,82295,82297,75115,75113,82295,82297,75115,81269,82295,82297,81271,
 			1311,6,2,6,8,0,9,0,0,0,0,0,0,77657,78683,78689,77663,77663,77665,74587,74585,74066,75092,75098,74072,74577,77655,77657,74579,77663,74585,74579,77657,
@@ -1522,12 +1528,12 @@
 			16,16,16,16,0,0,0,0,0,0,0,0,0,65856,74064,74080,65872,
 		]},
 
-	{id: 119, name: "End portal", type: CUST, bbox: MAX, tile: 1},
+	{id: 119, name: "End portal", type: CUST, bbox: MAX, tile: 1, pushable: NO},
 		{state: 0, tex: [16,15,16,15,16,15,16,15], model: [
 			16,16,15,16,0,0,0,0,0,0,0,0,0,123376,131584,131600,123392,
 		]},
 
-	{id: 120, name: "End portal frame", type: CUST, bbox: MAX, inv: MODEL, invState: 0, orient: SENW, cat: DECO, tile: 1},
+	{id: 120, name: "End portal frame", type: CUST, bbox: MAX, inv: MODEL, invState: 0, orient: SENW, cat: DECO, tile: 1, pushable: NO},
 		{state: 0, name: "+south", tex: [14, 9,14, 9,14, 9,14, 9], model: [
 			63,16,13,16,0,0,0,0,0,0,0,0,0,76164,82833,82849,76180,76164,82833,82849,76180,76164,82833,82849,76180,76164,82833,82849,76180,74112,74096,82304,82320,
 				90528,90544,82336,82320,
@@ -1547,7 +1553,7 @@
 	{id: 121, name: "End stone", type: SOLID, inv: CUBE, cat: BUILD},
 		{state: 0, tex: [15,10,15,10,15,10,15,10,15,10,15,10]},
 
-	{id: 122, name: "Dragon egg", type: CUST, bbox: MAX, inv: MODEL, cat: DECO, placement: "ground", gravity: 1},
+	{id: 122, name: "Dragon egg", type: CUST, bbox: MAX, inv: MODEL, cat: DECO, placement: "ground", gravity: 1, pushable: DROPITEM},
 		{state: 0, tex: [7,11, 7,11, 7,11, 7,11], model: [
 			431,12,1,12,2,0,2,0,0,0,0,0,0,82192,90400,90416,82208,82192,90400,90416,82208,82192,90400,90416,82208,82192,90400,90416,82208,
 				82192,90400,90416,82208,82192,90400,90416,82208,
@@ -1589,7 +1595,7 @@
 		{state:13, name: "-dark oak", tex: [1,15, 1,15, 1,15, 1,15, 1,15, 1,15], inv: NONE},
 
 	/* minecraft 1.2 */
-	{id: 127, name: "Cocoa beans", type: CUST, bbox: MAX, orient: SWNE, placement: "wall,log"},
+	{id: 127, name: "Cocoa beans", type: CUST, bbox: MAX, orient: SWNE, placement: "wall,log", pushable: DROPITEM},
 		{state: 0, name: "+age 0, south", tex: [10,10,10,10,10,10,10,10], model: [
 		319,4,5,4,6,7,11,0,0,0,0,0,0,84303,86868,86872,84307,84303,86868,86872,84307,84303,86868,86872,84307,84303,86868,86872,84307,82240,
 			84292,84296,82244,82240,84292,84296,82244,
@@ -1629,7 +1635,7 @@
 	{id: 129, name: "Emerald ore", type: SOLID, inv: CUBE, cat: BUILD},
 		{state: 0, tex: [11,10,11,10,11,10,11,10,11,10,11,10]},
 
-	{id: 130, name: "Ender chest", type: CUST, bbox: MAX, inv: MODEL, invState: 0, cat: DECO},
+	{id: 130, name: "Ender chest", type: CUST, bbox: MAX, inv: MODEL, invState: 0, cat: DECO, pushable: NO},
 		{state: 0, name: "+north", tex: [16, 2,16, 2,16, 2,16, 2,16, 2], model: [
 			319,14,14,14,1,0,1,0,0,0,0,0,0,16704,24912,24928,16720,16704,24912,24928,16720,16672,24880,24896,16688,16704,24912,24928,16720,16688,
 				24896,24912,16704,16720,24928,24944,16736,
@@ -1641,7 +1647,8 @@
 		{state: 4, name: "+west",  model: [SAME_AS, ID(130, 0), 1855]},
 		{state: 5, name: "+east",  model: [SAME_AS, ID(130, 0), 831]},
 
-	{id: 131, name: "Tripwire hook", type: CUST, inv: ITEM2D, cat: REDSTONE, invState: 0, orient: SWNE, bbox: FULL, bboxPlayer: NONE, placement: "wall"},
+	{id: 131, name: "Tripwire hook", type: CUST, inv: ITEM2D, cat: REDSTONE, invState: 0, orient: SWNE, bbox: FULL,
+		bboxPlayer: NONE, placement: "wall", pushable: DROPITEM},
 		{state: 0, name: "+unattached,_south", tex: [12, 10], model: [
 			318,4,8,2,6,1,14,0,0,0,0,0,0,3659,7763,7765,3661,3661,7765,7769,3665,3665,7769,7771,3667,2635,3661,3665,2639,2635,3661,3665,2639,
 			319,1.8,4.8,1.8,7.1,5,11.5,-45,0,0,0,0,0,5198,5203,4177,4172,5716,5721,4695,4690,7254,7259,6233,6228,3663,3668,2642,2637,4687,5713,
@@ -1673,7 +1680,7 @@
 		{state:14, name: "-north", model: [SAME_AS, ID(131, 12), 1342]},
 		{state:15, name: "-east",  model: [SAME_AS, ID(131, 12), 1854]},
 
-	{id: 132, name: "Tripwire", type: CUST, orient: SE, bbox: MAX, bboxPlayer: NONE}, /* TODO */
+	{id: 132, name: "Tripwire", type: CUST, orient: SE, bbox: MAX, bboxPlayer: NONE, pushable: DROPITEM}, /* TODO */
 
 	{id: 133, name: "Emerald block", type: SOLID, inv: CUBE, cat: BUILD},
 		{state: 0, tex: [9, 1, 9, 1, 9, 1, 9, 1, 9, 1, 9, 1]},
@@ -1717,7 +1724,7 @@
 		{state: 4, name: "-west",  tex: [22, 0,21, 3,22, 0,21, 0,22, 0,22, 0,  3859]},
 		{state: 5, name: "-east",  tex: [22, 0,21, 0,22, 0,21, 3,22, 0,22, 0,  1329]},
 
-	{id: 138, name: "Beacon", type: CUST, bbox: MAX, inv: MODEL, invState: 0, cat: DECO, emitLight: 15},
+	{id: 138, name: "Beacon", type: CUST, bbox: MAX, inv: MODEL, invState: 0, cat: DECO, emitLight: 15, pushable: NO},
 		{state: 0, tex: [9, 2, 9, 2, 9, 2, 9, 2, 9, 2], model: [
 			287,12,3,12,2,0,2,0,0,0,0,0,0,16498,18037,18049,16510,16498,18037,18049,16510,16498,18037,18049,16510,16498,18037,18049,16510,17524,23680,23692,17536,
 			287,10,10,10,3,3,3,0,0,0,0,0,0,17074,24256,24270,17088,17074,24256,24270,17088,17074,24256,24270,17088,17074,24256,24270,17088,17074,24256,24270,17088,
@@ -1746,14 +1753,14 @@
 			138+BHDR_INCFACEID,16,14,6,0,0,5,0,0,0,0,0,0,
 		]},
 
-	{id: 140, name: "Flower Pot", type: CUST, bbox: MAX},
+	{id: 140, name: "Flower Pot", type: CUST, bbox: MAX, pushable: DROPITEM},
 		{state: 0, tex: [10,11,10,11,10,11,10,11,10,11], model: [
 			303,6,6,6,5,0,5,0,0,0,0,0,0,95583,98661,98667,95589,95583,98661,98667,95589,95583,98661,98667,95589,95583,98661,98667,95589,95583,98661,98667,95589,
 			367,4,2,4,6,4,6,0,0,0,0,0,0,97636,98662,98666,97640,96100,98152,98154,96102,95584,96610,96614,95588,96096,98148,98150,96098,3116,5168,5172,3120,
 			16,6,6,6,5,0,5,0,0,0,0,0,0,91992,95070,95076,91998,
 		]},
 
-	{id: 141, name: "Carrots", type: QUAD},
+	{id: 141, name: "Carrots", type: QUAD, pushable: DROPITEM},
 		{state: 0, name: "-",      tex: [ 8, 12], quad: [CROSS]},
 		{state: 1, name: "+age 1", tex: [ 8, 12], quad: [CROSS]},
 		{state: 2, name: "+age 2", tex: [ 9, 12], quad: [CROSS]},
@@ -1763,7 +1770,7 @@
 		{state: 6, name: "+age 6", tex: [10, 12], quad: [CROSS]},
 		{state: 7, name: "+age 7", tex: [11, 12], quad: [CROSS]},
 
-	{id: 142, name: "Potatoes", type: QUAD},
+	{id: 142, name: "Potatoes", type: QUAD, pushable: DROPITEM},
 		{state: 0, name: "-",      tex: [ 8, 12], quad: [CROSS]},
 		{state: 1, name: "+age 1", tex: [ 8, 12], quad: [CROSS]},
 		{state: 2, name: "+age 2", tex: [ 9, 12], quad: [CROSS]},
@@ -1774,7 +1781,7 @@
 		{state: 7, name: "+age 7", tex: [12, 12], quad: [CROSS]},
 
 	{id: 143, name: "Wooden button", type: CUST, bbox: MAX, bboxPlayer: NONE, inv: MODEL, cat: REDSTONE, orient: LEVER, placement: "solid",
-		rswire: ALLDIR, rsupdate: GENERATE, invmodel: [
+		rswire: ALLDIR, rsupdate: GENERATE, pushable: DROPITEM, invmodel: [
 		695,3,6,8,4,5,4,0,0,0,0,0,0,64,8272,8288,80,64,8272,8288,80,64,8272,8288,80,64,8272,8288,80,64,8272,8288,80,64,8272,8288,80,
 		]},
 		{state: 0, name: "+bottom", tex: [31, 8,31, 8,31, 8,31, 8], model: [
@@ -1837,7 +1844,7 @@
 		{state:11, name: "-E/W", model: [SAME_AS, ID(145, 9)]},
 
 	/* minecraft 1.5 */
-	{id: 146, name: "Trapped chest", type: CUST, bbox: FULL, special: CHEST, inv: MODEL, invState: 3, tile: 1, cat: DECO, orient: SENW},
+	{id: 146, name: "Trapped chest", type: CUST, bbox: FULL, special: CHEST, inv: MODEL, invState: 3, tile: 1, cat: DECO, orient: SENW, pushable: NO},
 		{state: 0, tex: [17, 6,17, 6,18, 6,17, 6], model: [
 			319+BHDR_INCFACEID,14,14,14,1,0,1,0,0,0,0,0,0,49520,57728,57744,49536,49520,57728,57744,49536,49536,57744,57760,49552,49520,57728,
 				57744,49536,49504,57712,57728,49520,49504,57712,57728,49520,
@@ -1856,7 +1863,7 @@
 		{state: 5, name: "+east",  tex: [17, 6,18, 6,17, 6,17, 6], model: [SAME_AS, ID(146, 0), 831]},
 
 	{id: 147, name: "Gold pressure plate", type: CUST, bbox: MAX, bboxPlayer: NONE, inv: MODEL, invState: 0, placement: "ground",
-		cat: REDSTONE, rswire: ALLDIR, rsupdate: GENERATE, special: PLATE, tech: "light_weighted_pressure_plate"},
+		cat: REDSTONE, rswire: ALLDIR, rsupdate: GENERATE, special: PLATE, pushable: DROPITEM, tech: "light_weighted_pressure_plate"},
 		{state: 0, tex: [7, 1, 7, 1, 7, 1, 7, 1], model: [
 			159,14,1,14,1,0,1,0,0,0,0,0,0,8320,16528,16544,8336,8320,16528,16544,8336,8320,16528,16544,8336,8320,16528,16544,8336,8320,16528,16544,8336,8320,16528,16544,8336,
 		]},
@@ -1879,7 +1886,7 @@
 		{state:15, name: "-15", model: [SAME_AS, ID(147, 1)]},
 
 	{id: 148, name: "Iron pressure plate", type: CUST, bbox: MAX, bboxPlayer: NONE, inv: MODEL, invState: 0, placement: "ground",
-		cat: REDSTONE, rswire: ALLDIR, rsupdate: GENERATE, special: PLATE, tech: "heavy_weighted_pressure_plate"},
+		cat: REDSTONE, rswire: ALLDIR, rsupdate: GENERATE, special: PLATE, pushable: DROPITEM, tech: "heavy_weighted_pressure_plate"},
 		{state: 0, tex: [6, 1, 6, 1, 6, 1, 6, 1], model: [
 			159,14,1,14,1,0,1,0,0,0,0,0,0,8304,16512,16528,8320,8304,16512,16528,8320,8304,16512,16528,8320,8304,16512,16528,8320,
 			106848,115056,115072,106864,8320,16528,16544,8336,
@@ -1903,7 +1910,8 @@
 		{state:14, name: "-14", model: [SAME_AS, ID(148, 1)]},
 		{state:15, name: "-15", model: [SAME_AS, ID(148, 1)]},
 
-	{id: 149, name: "Comparator", type: CUST, bbox: MAX, orient: SENW, placement: "ground", rswire: ALLDIR, tech: "unpowered_comparator", rsupdate: INOUT, tile: 1},
+	{id: 149, name: "Comparator", type: CUST, bbox: MAX, orient: SENW, placement: "ground", rswire: ALLDIR, tech: "unpowered_comparator",
+		rsupdate: INOUT, tile: 1, pushable: DROPITEM},
 		{state: 0, name: "-(OFF,_north)", tex: [11,11,11,11,11,11,11,11], model: [
 			287,16,2,16,0,0,0,0,0,0,0,0,0,97646,98672,98688,97662,97646,98672,98688,97662,97646,98672,98688,97662,97646,98672,98688,97662,90464,98672,98688,90480,
 			287,2,2,2,7,2,2,0,0,0,0,0,0,60589,61615,61617,60591,60589,61615,61617,60591,60589,61615,61617,60591,60589,61615,61617,60591,60589,61615,61617,60591,
@@ -1954,9 +1962,9 @@
 		{state:15, name: "-west",  model: [SAME_AS, ID(149, 12), 1823]},
 
 	/* unused: was emitting light, causing too much lag in large contraption */
-	{id: 150, name: "Comparator (old)", type: INVIS, placement: "ground", tech: "powered_comparator"},
+	{id: 150, name: "Comparator (old)", type: INVIS, placement: "ground", tech: "powered_comparator", pushable: DROPITEM},
 
-	{id: 151, name: "Daylight detector", type: CUST, bbox: MAX, cat: REDSTONE, rswire: ALLDIR, inv: MODEL, invState: 0, tile: 1},
+	{id: 151, name: "Daylight detector", type: CUST, bbox: MAX, cat: REDSTONE, rswire: ALLDIR, inv: MODEL, invState: 0, tile: 1, pushable: NO},
 		{state: 0, name:"-power_0", tex: [13,11,13,11,13,11,13,11], model: [
 			63,16,6,16,0,0,0,0,0,0,0,0,0,21866,24944,24960,21882,21866,24944,24960,21882,21866,24944,24960,21882,21866,24944,24960,21882,
 			90496,98704,98720,90512,16736,24944,24960,16752,
@@ -1983,7 +1991,7 @@
 	{id: 153, name: "Quartz ore", type: SOLID, inv: CUBE, cat: BUILD},
 		{state: 0, tex: [15,11,15,11,15,11,15,11,15,11,15,11]},
 
-	{id: 154, name: "Hopper", type: CUST, inv: ITEM2D, invState: 0, cat: REDSTONE, bbox: MAX, orient: FULL, tile: 1, rsupdate: RECEIVE},
+	{id: 154, name: "Hopper", type: CUST, inv: ITEM2D, invState: 0, cat: REDSTONE, bbox: MAX, orient: FULL, tile: 1, rsupdate: RECEIVE, pushable: NO},
 		{state: 0, name: "-facing_down", tex: [23,40,23,40,23,40,23,40], model: [
 			431,4,4,4,6,0,6,0,0,0,0,0,0,123312,131520,131536,123328,123312,131520,131536,123328,123312,131520,131536,123328,123312,
 				131520,131536,123328,254944,263152,263168,254960,123328,131536,131552,123344,
@@ -2021,7 +2029,7 @@
 		{state: 6, name: "+top, south",    tex: [9,13, 9,13, 9,13, 9,13, 9,13, 9,13]},
 		{state: 7, name: "+top, north",    tex: [9,13, 9,13, 9,13, 9,13, 9,13, 9,13]},
 
-	{id: 157, name: "Activator rail", type: QUAD, inv: ITEM2D, invState: 0, placement: "ground", cat: RAILS, special: RAILS, orient: SE},
+	{id: 157, name: "Activator rail", type: QUAD, inv: ITEM2D, invState: 0, placement: "ground", cat: RAILS, special: RAILS, orient: SE, pushable: YES},
 		{state: 0, name: "-OFF,_N/S",                tex: [10, 13], quad: [BOTTOM]},
 		{state: 1, name: "-E/W",                     tex: [10, 13], quad: [BOTTOM], rotate: 1},
 		{state: 2, name: "-ascending_east",          tex: [10, 13], quad: [ASCE]},
@@ -2035,7 +2043,7 @@
 		{state:12, name: "-north",                   tex: [11, 13], quad: [ASCN]},
 		{state:13, name: "-south",                   tex: [11, 13], quad: [ASCS]},
 
-	{id: 158, name: "Dropper", type: SOLID, inv: CUBE, invState: 1, cat: REDSTONE, rsupdate: RECEIVE, orient: FULL},
+	{id: 158, name: "Dropper", type: SOLID, inv: CUBE, invState: 1, cat: REDSTONE, rsupdate: RECEIVE, orient: FULL, pushable: NO},
 		{state: 0, name: "+down",      tex: [14, 3,14, 3,14, 3,14, 3,14, 3,18, 4]},
 		{state: 1, name: "+up",        tex: [14, 3,14, 3,14, 3,14, 3,18, 4,14, 3]},
 		{state: 2, name: "+north",     tex: [13, 2,13, 2,10, 2,13, 2,14, 3,14, 3]},
@@ -2114,7 +2122,7 @@
 		{state:15, name: "+black",      tex: [15, 19,15, 19,15,19,15,19,15,17,15,17], model: [COPY, ID(160, 0)]},
 
 	/* minecraft 1.7 */
-	{id: 161, name: "Leaves", type: TRANS, special: LEAVES, inv: CUBE, cat: DECO, tech: "leaves2", opacLight: 1, opacSky: 1},
+	{id: 161, name: "Leaves", type: TRANS, special: LEAVES, inv: CUBE, cat: DECO, tech: "leaves2", opacLight: 1, opacSky: 1, pushable: DESTROY},
 		{state: 0, name: "+acacia",             tex: [4, 3, 4, 3, 4, 3, 4, 3, 4, 3, 4, 3], inv: NONE},
 		{state: 1, name: "+dark oak",           tex: [4, 3, 4, 3, 4, 3, 4, 3, 4, 3, 4, 3], inv: NONE},
 		{state: 4, name: "+acacia, no decay",   tex: [4, 3, 4, 3, 4, 3, 4, 3, 4, 3, 4, 3]},
@@ -2154,7 +2162,7 @@
 	{id: 165, name: "Slime block", type: TRANS, inv: CUBE, cat: REDSTONE, tech: "slime"}, /* XXX need testing opacSky/opacLight */
 		{state: 0, tex: [17,15,17,15,17,15,17,15,17,15,17,15]},
 
-	{id: 166, name: "Barrier", type: TRANS, inv: CUBE, cat: BUILD},
+	{id: 166, name: "Barrier", type: TRANS, inv: CUBE, cat: BUILD, pushable: NO},
 		{state: 0, tex: [10, 1,10, 1,10, 1,10, 1,10, 1,10, 1]},
 
 	{id: 167, name: "Iron trapdoor", type: CUST, inv: MODEL, invState: 0, cat: REDSTONE, rsupdate: RECEIVE, bbox: MAX, special: TRAPDOOR},
@@ -2272,7 +2280,7 @@
 	{id: 174, name: "Packed ice", type: SOLID, inv: CUBE, cat: BUILD},
 		{state: 0, tex: [0,16, 0,16, 0,16, 0,16, 0,16, 0,16]},
 
-	{id: 175, name: "Double plant", type: QUAD, inv: ITEM2D, cat: DECO, placement: "dirt,grass", special: TALLFLOWER},
+	{id: 175, name: "Double plant", type: QUAD, inv: ITEM2D, cat: DECO, placement: "dirt,grass", special: TALLFLOWER, pushable: DROPITEM},
 		{state: 0, name: "+lower",     tex: [16, 9], quad: [CROSS], inv: NONE},
 		{state: 1, name: "+lower",     tex: [16,10], quad: [CROSS], inv: NONE},
 		{state: 2, name: "+lower",     tex: [16,11], quad: [CROSS], inv: NONE},
@@ -2290,7 +2298,8 @@
 	{id: 176, name: "Banner (standing)", type: CUST, bbox: MAX}, /* TODO */
 	{id: 177, name: "Banner (wall)",     type: CUST, bbox: MAX},
 
-	{id: 178, name: "Nighttime sensor", type: CUST, bbox: MAX, inv: MODEL, invState: 0, cat: REDSTONE, rswire: ALLDIR, tech: "daylight_detector_inverted"},
+	{id: 178, name: "Nighttime sensor", type: CUST, bbox: MAX, inv: MODEL, invState: 0, cat: REDSTONE, rswire: ALLDIR,
+		tech: "daylight_detector_inverted", pushable: NO},
 		{state: 0, name: "-power_0", tex: [19, 4,19, 4,19, 4,19, 4], model: [
 			63,16,6,16,0,0,0,0,0,0,0,0,0,21866,24944,24960,21882,21866,24944,24960,21882,21866,24944,24960,21882,21866,24944,24960,21882,33136,41344,
 				41360,33152,16736,24944,24960,16752,
@@ -2649,7 +2658,7 @@
 			181,6,3,2,0,6,7,0,0,0,0,0,0,
 		]},
 
-	{id: 193, name: "Spruce door", type: CUST, bbox: MAX, special: DOOR, orient: DOOR, rsupdate: RECEIVE, placement: "ground"},
+	{id: 193, name: "Spruce door", type: CUST, bbox: MAX, special: DOOR, orient: DOOR, rsupdate: RECEIVE, placement: "ground", pushable: DROPITEM},
 		{state: 0, name: "+facing_west, hinge north", tex: [5, 21, 5, 21, 5, 21, 5, 21], model: [
 			63,3,32,16,0,0,0,0,0,0,0,0,0,164240,180656,180659,164243,164256,180672,180656,164240,164243,180659,180656,164240,164240,180656,180672,
 				164256,164256,172464,172461,164253,172464,180672,180669,172461,
@@ -2665,7 +2674,7 @@
 		{state: 6, name: "+east, hinge north", model: [SAME_AS, ID(193, 4), 1087]},
 		{state: 7, name: "+south, hinge east", model: [SAME_AS, ID(193, 4), 1599]},
 
-	{id: 194, name: "Birch door", type: CUST, bbox: MAX, special: DOOR, orient: DOOR, rsupdate: RECEIVE, placement: "ground"},
+	{id: 194, name: "Birch door", type: CUST, bbox: MAX, special: DOOR, orient: DOOR, rsupdate: RECEIVE, placement: "ground", pushable: DROPITEM},
 		{state: 0, name: "+facing_west, hinge north", tex: [6, 21, 6, 21, 6, 21, 6, 21], model: [
 			63,3,32,16,0,0,0,0,0,0,0,0,0,164240,180656,180659,164243,164256,180672,180656,164240,164243,180659,180656,164240,164240,180656,180672,
 				164256,164256,172464,172461,164253,172464,180672,180669,172461,
@@ -2681,7 +2690,7 @@
 		{state: 6, name: "+east, hinge north", model: [SAME_AS, ID(194, 4), 1087]},
 		{state: 7, name: "+south, hinge east", model: [SAME_AS, ID(194, 4), 1599]},
 
-	{id: 195, name: "Jungle door", type: CUST, bbox: MAX, special: DOOR, orient: DOOR, rsupdate: RECEIVE, placement: "ground"},
+	{id: 195, name: "Jungle door", type: CUST, bbox: MAX, special: DOOR, orient: DOOR, rsupdate: RECEIVE, placement: "ground", pushable: DROPITEM},
 		{state: 0, name: "+facing_west, hinge north", tex: [7, 21, 7, 21, 7, 21, 7, 21], model: [
 			63,3,32,16,0,0,0,0,0,0,0,0,0,164272,180688,180691,164275,164272,180688,180704,164288,164275,180691,180688,164272,164288,180704,180688,
 				164272,164285,172493,172496,164288,172493,180701,180704,172496,
@@ -2697,7 +2706,7 @@
 		{state: 6, name: "+east, hinge north", model: [SAME_AS, ID(195, 4), 1087]},
 		{state: 7, name: "+south, hinge east", model: [SAME_AS, ID(195, 4), 1599]},
 
-	{id: 196, name: "Acacia door", type: CUST, bbox: MAX, special: DOOR, orient: DOOR, rsupdate: RECEIVE, placement: "ground"},
+	{id: 196, name: "Acacia door", type: CUST, bbox: MAX, special: DOOR, orient: DOOR, rsupdate: RECEIVE, placement: "ground", pushable: DROPITEM},
 		{state: 0, name: "+facing_west, hinge north", tex: [8, 21, 8, 21, 8, 21, 8, 21], model: [
 			63,3,32,16,0,0,0,0,0,0,0,0,0,164288,180704,180707,164291,164288,180704,180720,164304,164291,180707,180704,164288,164288,180704,180720,
 				164304,164301,172509,172512,164304,172509,180717,180720,172512,
@@ -2713,7 +2722,7 @@
 		{state: 6, name: "+east, hinge north", model: [SAME_AS, ID(196, 4), 1087]},
 		{state: 7, name: "+south, hinge east", model: [SAME_AS, ID(196, 4), 1599]},
 
-	{id: 197, name: "Dark oak door", type: CUST, bbox: MAX, special: DOOR, orient: DOOR, rsupdate: RECEIVE, placement: "ground"},
+	{id: 197, name: "Dark oak door", type: CUST, bbox: MAX, special: DOOR, orient: DOOR, rsupdate: RECEIVE, placement: "ground", pushable: DROPITEM},
 		{state: 0, name: "+facing_west, hinge north", tex: [9, 21, 9, 21, 9, 21, 9, 21], model: [
 			63,3,32,16,0,0,0,0,0,0,0,0,0,164304,180720,180723,164307,164304,180720,180736,164320,164307,180723,180720,164304,164320,180736,180720,
 				164304,164317,172525,172528,164320,172525,180733,180736,172528,
@@ -2793,7 +2802,7 @@
 	{id: 206, name: "End stone bricks", type: SOLID, inv: CUBE, cat: BUILD},
 		{state: 0, name: "-", tex: [18,18,18,18,18,18,18,18,18,18,18,18]},
 
-	{id: 207, name: "Beetroot", type: QUAD},
+	{id: 207, name: "Beetroot", type: QUAD, pushable: DROPITEM},
 		{state: 0, name: "-(age_0)",  tex: [2, 29], quad: [CROSS]},
 		{state: 1, name: "-1",        tex: [3, 29], quad: [CROSS]},
 		{state: 2, name: "-2",        tex: [4, 29], quad: [CROSS]},
@@ -2802,10 +2811,10 @@
 	{id: 208, name: "Path block", type: SOLID, inv: CUBE, cat: DECO, tech: "grass_path"},
 		{state: 0, tex: [1,29, 1,29, 1,29, 1,29, 0,29, 2, 0]},
 
-	{id: 209, name: "End gateway", type: SOLID}, 
+	{id: 209, name: "End gateway", type: SOLID, pushable: NO}, 
 		{state: 0, tex: [16,15,16,15,16,15,16,15,16,15,16,15]},
 
-	{id: 210, name: "Repeating command block", type: SOLID, inv: CUBE, invState: 0, cat: REDSTONE, orient: FULL},
+	{id: 210, name: "Repeating command block", type: SOLID, inv: CUBE, invState: 0, cat: REDSTONE, orient: FULL, pushable: NO},
 		{state: 0, name: "+down",               tex: [22, 1,22, 1,22, 1,22, 1,21, 4,21, 1,  170]},
 		{state: 1, name: "+up",                 tex: [22, 1,22, 1,22, 1,22, 1,21, 1,21, 4]},
 		{state: 2, name: "+north",              tex: [21, 4,22, 1,21, 1,22, 1,22, 1,22, 1,  2244]},
@@ -2819,7 +2828,7 @@
 		{state:12, name: "+west",               tex: [22, 4,21, 4,22, 4,21, 1,22, 4,22, 4,  3859]},
 		{state:13, name: "+east",               tex: [22, 4,21, 1,22, 4,21, 4,22, 4,22, 4,  1329]},
 
-	{id: 211, name: "Chain command block", type: SOLID, inv: CUBE, invState: 0, cat: REDSTONE, orient: FULL},
+	{id: 211, name: "Chain command block", type: SOLID, inv: CUBE, invState: 0, cat: REDSTONE, orient: FULL, pushable: NO},
 		{state: 0, name: "+down",               tex: [22, 2,22, 2,22, 2,22, 2,21, 5,21, 2,  170]},
 		{state: 1, name: "+up",                 tex: [22, 2,22, 2,22, 2,22, 2,21, 2,21, 5]},
 		{state: 2, name: "+north",              tex: [21, 5,22, 2,21, 2,22, 2,22, 2,22, 2,  2244]},
@@ -2834,7 +2843,7 @@
 		{state:13, name: "+east",               tex: [22, 5,21, 2,22, 5,21, 5,22, 5,22, 5,  1329]},
 
 	/* minecraft 1.10 */
-	{id: 212, name: "Frosted ice", type: TRANS, inv: CUBE, cat: DECO, opacSky: 3, opacLight: 3},
+	{id: 212, name: "Frosted ice", type: TRANS, inv: CUBE, cat: DECO, opacSky: 3, opacLight: 3, pushable: DESTROY},
 		{state: 0, tex: [3, 4, 3, 4, 3, 4, 3, 4, 3, 4, 3, 4]},
 
 	{id: 213, name: "Magma block", type: SOLID, inv: CUBE, cat: BUILD},
@@ -2862,7 +2871,7 @@
 		{state: 4, name: "+west",  tex: [2,21, 0,21, 2,21, 4,21, 1,21, 1,21,  1280]},
 		{state: 5, name: "+east",  tex: [2,21, 4,21, 2,21, 0,21, 1,21, 1,21,  3840]},
 
-	{id: 219, name: "White shulker box", type: TRANS, inv: CUBE, cat: DECO, invState: 0, orient: FULL, tile: 1},
+	{id: 219, name: "White shulker box", type: TRANS, inv: CUBE, cat: DECO, invState: 0, orient: FULL, tile: 1, pushable: DROPITEM},
 		{state: 0, name: "+down",  tex: [3,25, 3,25, 3,25, 3,25, 3,27, 3,26,  170]},
 		{state: 1, name: "+up",    tex: [3,25, 3,25, 3,25, 3,25, 3,26, 3,27]},
 		{state: 2, name: "+north", tex: [3,27, 3,25, 3,26, 3,25, 3,25, 3,25,  2244]},
@@ -2870,7 +2879,7 @@
 		{state: 4, name: "+west",  tex: [3,25, 3,27, 3,25, 3,26, 3,25, 3,25,  3859]},
 		{state: 5, name: "+east",  tex: [3,25, 3,26, 3,25, 3,27, 3,25, 3,25,  1329]},
 
-	{id: 220, name: "Orange shulker box", type: TRANS, inv: CUBE, cat: DECO, invState: 0, orient: FULL, tile: 1},
+	{id: 220, name: "Orange shulker box", type: TRANS, inv: CUBE, cat: DECO, invState: 0, orient: FULL, tile: 1, pushable: DROPITEM},
 		{state: 0, name: "+down",  tex: [5,25, 5,25, 5,25, 5,25, 5,27, 5,26,  170]},
 		{state: 1, name: "+up",    tex: [5,25, 5,25, 5,25, 5,25, 5,26, 5,27]},
 		{state: 2, name: "+north", tex: [5,27, 5,25, 5,26, 5,25, 5,25, 5,25,  2244]},
@@ -2878,7 +2887,7 @@
 		{state: 4, name: "+west",  tex: [5,25, 5,27, 5,25, 5,26, 5,25, 5,25,  3859]},
 		{state: 5, name: "+east",  tex: [5,25, 5,26, 5,25, 5,27, 5,25, 5,25,  1329]},
 
-	{id: 221, name: "Magenta shulker box", type: TRANS, inv: CUBE, cat: DECO, invState: 0, orient: FULL, tile: 1},
+	{id: 221, name: "Magenta shulker box", type: TRANS, inv: CUBE, cat: DECO, invState: 0, orient: FULL, tile: 1, pushable: DROPITEM},
 		{state: 0, name: "+down",  tex: [13,25,13,25,13,25,13,25,13,27,13,26,  170]},
 		{state: 1, name: "+up",    tex: [13,25,13,25,13,25,13,25,13,26,13,27]},
 		{state: 2, name: "+north", tex: [13,27,13,25,13,26,13,25,13,25,13,25,  2244]},
@@ -2886,7 +2895,7 @@
 		{state: 4, name: "+west",  tex: [13,25,13,27,13,25,13,26,13,25,13,25,  3859]},
 		{state: 5, name: "+east",  tex: [13,25,13,26,13,25,13,27,13,25,13,25,  1329]},
 
-	{id: 222, name: "Light blue shulker box", type: TRANS, inv: CUBE, cat: DECO, invState: 0, orient: FULL, tile: 1},
+	{id: 222, name: "Light blue shulker box", type: TRANS, inv: CUBE, cat: DECO, invState: 0, orient: FULL, tile: 1, pushable: DROPITEM},
 		{state: 0, name: "+down",  tex: [10,25,10,25,10,25,10,25,10,27,10,26,  170]},
 		{state: 1, name: "+up",    tex: [10,25,10,25,10,25,10,25,10,26,10,27]},
 		{state: 2, name: "+north", tex: [10,27,10,25,10,26,10,25,10,25,10,25,  2244]},
@@ -2894,7 +2903,7 @@
 		{state: 4, name: "+west",  tex: [10,25,10,27,10,25,10,26,10,25,10,25,  3859]},
 		{state: 5, name: "+east",  tex: [10,25,10,26,10,25,10,27,10,25,10,25,  1329]},
 
-	{id: 223, name: "Yellow shulker box", type: TRANS, inv: CUBE, cat: DECO, invState: 0, orient: FULL, tile: 1},
+	{id: 223, name: "Yellow shulker box", type: TRANS, inv: CUBE, cat: DECO, invState: 0, orient: FULL, tile: 1, pushable: DROPITEM},
 		{state: 0, name: "+down",  tex: [6,25, 6,25, 6,25, 6,25, 6,27, 6,26,  170]},
 		{state: 1, name: "+up",    tex: [6,25, 6,25, 6,25, 6,25, 6,26, 6,27]},
 		{state: 2, name: "+north", tex: [6,27, 6,25, 6,26, 6,25, 6,25, 6,25,  2244]},
@@ -2902,7 +2911,7 @@
 		{state: 4, name: "+west",  tex: [6,25, 6,27, 6,25, 6,26, 6,25, 6,25,  3859]},
 		{state: 5, name: "+east",  tex: [6,25, 6,26, 6,25, 6,27, 6,25, 6,25,  1329]},
 
-	{id: 224, name: "Lime shulker box", type: TRANS, inv: CUBE, cat: DECO, invState: 0, orient: FULL, tile: 1},
+	{id: 224, name: "Lime shulker box", type: TRANS, inv: CUBE, cat: DECO, invState: 0, orient: FULL, tile: 1, pushable: DROPITEM},
 		{state: 0, name: "+down",  tex: [7,25, 7,25, 7,25, 7,25, 7,27, 7,26,  170]},
 		{state: 1, name: "+up",    tex: [7,25, 7,25, 7,25, 7,25, 7,26, 7,27]},
 		{state: 2, name: "+north", tex: [7,27, 7,25, 7,26, 7,25, 7,25, 7,25,  2244]},
@@ -2910,7 +2919,7 @@
 		{state: 4, name: "+west",  tex: [7,25, 7,27, 7,25, 7,26, 7,25, 7,25,  3859]},
 		{state: 5, name: "+east",  tex: [7,25, 7,26, 7,25, 7,27, 7,25, 7,25,  1329]},
 
-	{id: 225, name: "Pink shulker box", type: TRANS, inv: CUBE, cat: DECO, invState: 0, orient: FULL, tile: 1},
+	{id: 225, name: "Pink shulker box", type: TRANS, inv: CUBE, cat: DECO, invState: 0, orient: FULL, tile: 1, pushable: DROPITEM},
 		{state: 0, name: "+down",  tex: [14,25,14,25,14,25,14,25,14,27,14,26,  170]},
 		{state: 1, name: "+up",    tex: [14,25,14,25,14,25,14,25,14,26,14,27]},
 		{state: 2, name: "+north", tex: [14,27,14,25,14,26,14,25,14,25,14,25,  2244]},
@@ -2918,7 +2927,7 @@
 		{state: 4, name: "+west",  tex: [14,25,14,27,14,25,14,26,14,25,14,25,  3859]},
 		{state: 5, name: "+east",  tex: [14,25,14,26,14,25,14,27,14,25,14,25,  1329]},
 
-	{id: 226, name: "Gray shulker box", type: TRANS, inv: CUBE, cat: DECO, invState: 0, orient: FULL, tile: 1},
+	{id: 226, name: "Gray shulker box", type: TRANS, inv: CUBE, cat: DECO, invState: 0, orient: FULL, tile: 1, pushable: DROPITEM},
 		{state: 0, name: "+down",  tex: [1,25, 1,25, 1,25, 1,25, 1,27, 1,26,  170]},
 		{state: 1, name: "+up",    tex: [1,25, 1,25, 1,25, 1,25, 1,26, 1,27]},
 		{state: 2, name: "+north", tex: [1,27, 1,25, 1,26, 1,25, 1,25, 1,25,  2244]},
@@ -2926,7 +2935,7 @@
 		{state: 4, name: "+west",  tex: [1,25, 1,27, 1,25, 1,26, 1,25, 1,25,  3859]},
 		{state: 5, name: "+east",  tex: [1,25, 1,26, 1,25, 1,27, 1,25, 1,25,  1329]},
 
-	{id: 227, name: "Light gray shulker box", type: TRANS, inv: CUBE, cat: DECO, invState: 0, orient: FULL, tile: 1},
+	{id: 227, name: "Light gray shulker box", type: TRANS, inv: CUBE, cat: DECO, invState: 0, orient: FULL, tile: 1, pushable: DROPITEM},
 		{state: 0, name: "+down",  tex: [2,25, 2,25, 2,25, 2,25, 2,27, 2,26,  170]},
 		{state: 1, name: "+up",    tex: [2,25, 2,25, 2,25, 2,25, 2,26, 2,27]},
 		{state: 2, name: "+north", tex: [2,27, 2,25, 2,26, 2,25, 2,25, 2,25,  2244]},
@@ -2934,7 +2943,7 @@
 		{state: 4, name: "+west",  tex: [2,25, 2,27, 2,25, 2,26, 2,25, 2,25,  3859]},
 		{state: 5, name: "+east",  tex: [2,25, 2,26, 2,25, 2,27, 2,25, 2,25,  1329]},
 
-	{id: 228, name: "Cyan shulker box", type: TRANS, inv: CUBE, cat: DECO, invState: 0, orient: FULL, tile: 1},
+	{id: 228, name: "Cyan shulker box", type: TRANS, inv: CUBE, cat: DECO, invState: 0, orient: FULL, tile: 1, pushable: DROPITEM},
 		{state: 0, name: "+down",  tex: [9,25, 9,25, 9,25, 9,25, 9,27, 9,26,  170]},
 		{state: 1, name: "+up",    tex: [9,25, 9,25, 9,25, 9,25, 9,26, 9,27]},
 		{state: 2, name: "+north", tex: [9,27, 9,25, 9,26, 9,25, 9,25, 9,25,  2244]},
@@ -2942,7 +2951,7 @@
 		{state: 4, name: "+west",  tex: [9,25, 9,27, 9,25, 9,26, 9,25, 9,25,  3859]},
 		{state: 5, name: "+east",  tex: [9,25, 9,26, 9,25, 9,27, 9,25, 9,25,  1329]},
 
-	{id: 229, name: "Purple shulker box", type: TRANS, inv: CUBE, cat: DECO, invState: 0, orient: FULL, tile: 1},
+	{id: 229, name: "Purple shulker box", type: TRANS, inv: CUBE, cat: DECO, invState: 0, orient: FULL, tile: 1, pushable: DROPITEM},
 		{state: 0, name: "+down",  tex: [12,25,12,25,12,25,12,25,12,27,12,26,  170]},
 		{state: 1, name: "+up",    tex: [12,25,12,25,12,25,12,25,12,26,12,27]},
 		{state: 2, name: "+north", tex: [12,27,12,25,12,26,12,25,12,25,12,25,  2244]},
@@ -2950,7 +2959,7 @@
 		{state: 4, name: "+west",  tex: [12,25,12,27,12,25,12,26,12,25,12,25,  3859]},
 		{state: 5, name: "+east",  tex: [12,25,12,26,12,25,12,27,12,25,12,25,  1329]},
 
-	{id: 230, name: "Blue shulker box", type: TRANS, inv: CUBE, cat: DECO, invState: 0, orient: FULL, tile: 1},
+	{id: 230, name: "Blue shulker box", type: TRANS, inv: CUBE, cat: DECO, invState: 0, orient: FULL, tile: 1, pushable: DROPITEM},
 		{state: 0, name: "+down",  tex: [11,25,11,25,11,25,11,25,11,27,11,26,  170]},
 		{state: 1, name: "+up",    tex: [11,25,11,25,11,25,11,25,11,26,11,27]},
 		{state: 2, name: "+north", tex: [11,27,11,25,11,26,11,25,11,25,11,25,  2244]},
@@ -2958,7 +2967,7 @@
 		{state: 4, name: "+west",  tex: [11,25,11,27,11,25,11,26,11,25,11,25,  3859]},
 		{state: 5, name: "+east",  tex: [11,25,11,26,11,25,11,27,11,25,11,25,  1329]},
 
-	{id: 231, name: "Brown shulker box", type: TRANS, inv: CUBE, cat: DECO, invState: 0, orient: FULL, tile: 1},
+	{id: 231, name: "Brown shulker box", type: TRANS, inv: CUBE, cat: DECO, invState: 0, orient: FULL, tile: 1, pushable: DROPITEM},
 		{state: 0, name: "+down",  tex: [15,25,15,25,15,25,15,25,15,27,15,26,  170]},
 		{state: 1, name: "+up",    tex: [15,25,15,25,15,25,15,25,15,26,15,27]},
 		{state: 2, name: "+north", tex: [15,27,15,25,15,26,15,25,15,25,15,25,  2244]},
@@ -2966,7 +2975,7 @@
 		{state: 4, name: "+west",  tex: [15,25,15,27,15,25,15,26,15,25,15,25,  3859]},
 		{state: 5, name: "+east",  tex: [15,25,15,26,15,25,15,27,15,25,15,25,  1329]},
 
-	{id: 232, name: "Green shulker box", type: TRANS, inv: CUBE, cat: DECO, invState: 0, orient: FULL, tile: 1},
+	{id: 232, name: "Green shulker box", type: TRANS, inv: CUBE, cat: DECO, invState: 0, orient: FULL, tile: 1, pushable: DROPITEM},
 		{state: 0, name: "+down",  tex: [8,25, 8,25, 8,25, 8,25, 8,27, 8,26,  170]},
 		{state: 1, name: "+up",    tex: [8,25, 8,25, 8,25, 8,25, 8,26, 8,27]},
 		{state: 2, name: "+north", tex: [8,27, 8,25, 8,26, 8,25, 8,25, 8,25,  2244]},
@@ -2974,7 +2983,7 @@
 		{state: 4, name: "+west",  tex: [8,25, 8,27, 8,25, 8,26, 8,25, 8,25,  3859]},
 		{state: 5, name: "+east",  tex: [8,25, 8,26, 8,25, 8,27, 8,25, 8,25,  1329]},
 
-	{id: 233, name: "Red shulker box", type: TRANS, inv: CUBE, cat: DECO, invState: 0, orient: FULL, tile: 1},
+	{id: 233, name: "Red shulker box", type: TRANS, inv: CUBE, cat: DECO, invState: 0, orient: FULL, tile: 1, pushable: DROPITEM},
 		{state: 0, name: "+down",  tex: [4,25, 4,25, 4,25, 4,25, 4,27, 4,26,  170]},
 		{state: 1, name: "+up",    tex: [4,25, 4,25, 4,25, 4,25, 4,26, 4,27]},
 		{state: 2, name: "+north", tex: [4,27, 4,25, 4,26, 4,25, 4,25, 4,25,  2244]},
@@ -2982,7 +2991,7 @@
 		{state: 4, name: "+west",  tex: [4,25, 4,27, 4,25, 4,26, 4,25, 4,25,  3859]},
 		{state: 5, name: "+east",  tex: [4,25, 4,26, 4,25, 4,27, 4,25, 4,25,  1329]},
 
-	{id: 234, name: "Black shulker box", type: TRANS, inv: CUBE, cat: DECO, invState: 0, orient: FULL, tile: 1},
+	{id: 234, name: "Black shulker box", type: TRANS, inv: CUBE, cat: DECO, invState: 0, orient: FULL, tile: 1, pushable: DROPITEM},
 		{state: 0, name: "+down",  tex: [0,25, 0,25, 0,25, 0,25, 0,27, 0,26,  170]},
 		{state: 1, name: "+up",    tex: [0,25, 0,25, 0,25, 0,25, 0,26, 0,27]},
 		{state: 2, name: "+north", tex: [0,27, 0,25, 0,26, 0,25, 0,25, 0,25,  2244]},
@@ -2991,97 +3000,97 @@
 		{state: 5, name: "+east",  tex: [0,25, 0,26, 0,25, 0,27, 0,25, 0,25,  1329]},
 
 	/* minecraft 1.12 */
-	{id: 235, name: "White glazed terracotta", type: SOLID, inv: CUBE, invState: 0, cat: BUILD, orient: SWNE},
+	{id: 235, name: "White glazed terracotta", type: SOLID, inv: CUBE, invState: 0, cat: BUILD, orient: SWNE, pushable: PUSHONLY},
 		{state: 0, name: "+south", tex: [3,24, 3,24, 3,24, 3,24, 3,24, 3,24,  27]},
 		{state: 1, name: "+west",  tex: [3,24, 3,24, 3,24, 3,24, 3,24, 3,24,  3526]},
 		{state: 2, name: "+north", tex: [3,24, 3,24, 3,24, 3,24, 3,24, 3,24,  2737]},
 		{state: 3, name: "+east",  tex: [3,24, 3,24, 3,24, 3,24, 3,24, 3,24,  1900]},
 
-	{id: 236, name: "Orange glazed terracotta", type: SOLID, inv: CUBE, invState: 0, cat: BUILD, orient: SWNE},
+	{id: 236, name: "Orange glazed terracotta", type: SOLID, inv: CUBE, invState: 0, cat: BUILD, orient: SWNE, pushable: PUSHONLY},
 		{state: 0, name: "+south", tex: [5,24, 5,24, 5,24, 5,24, 5,24, 5,24,  27]},
 		{state: 1, name: "+west",  tex: [5,24, 5,24, 5,24, 5,24, 5,24, 5,24,  3526]},
 		{state: 2, name: "+north", tex: [5,24, 5,24, 5,24, 5,24, 5,24, 5,24,  2737]},
 		{state: 3, name: "+east",  tex: [5,24, 5,24, 5,24, 5,24, 5,24, 5,24,  1900]},
 
-	{id: 237, name: "Magenta glazed terracotta", type: SOLID, inv: CUBE, invState: 0, cat: BUILD, orient: SWNE},
+	{id: 237, name: "Magenta glazed terracotta", type: SOLID, inv: CUBE, invState: 0, cat: BUILD, orient: SWNE, pushable: PUSHONLY},
 		{state: 0, name: "+south", tex: [13,24,13,24,13,24,13,24,13,24,13,24,  27]},
 		{state: 1, name: "+west",  tex: [13,24,13,24,13,24,13,24,13,24,13,24,  3526]},
 		{state: 2, name: "+north", tex: [13,24,13,24,13,24,13,24,13,24,13,24,  2737]},
 		{state: 3, name: "+east",  tex: [13,24,13,24,13,24,13,24,13,24,13,24,  1900]},
 
-	{id: 238, name: "Light blue glazed terracotta", type: SOLID, inv: CUBE, invState: 0, cat: BUILD, orient: SWNE},
+	{id: 238, name: "Light blue glazed terracotta", type: SOLID, inv: CUBE, invState: 0, cat: BUILD, orient: SWNE, pushable: PUSHONLY},
 		{state: 0, name: "+south", tex: [10,24,10,24,10,24,10,24,10,24,10,24,  27]},
 		{state: 1, name: "+west",  tex: [10,24,10,24,10,24,10,24,10,24,10,24,  3526]},
 		{state: 2, name: "+north", tex: [10,24,10,24,10,24,10,24,10,24,10,24,  2737]},
 		{state: 3, name: "+east",  tex: [10,24,10,24,10,24,10,24,10,24,10,24,  1900]},
 
-	{id: 239, name: "Yellow glazed terracotta", type: SOLID, inv: CUBE, invState: 0, cat: BUILD, orient: SWNE},
+	{id: 239, name: "Yellow glazed terracotta", type: SOLID, inv: CUBE, invState: 0, cat: BUILD, orient: SWNE, pushable: PUSHONLY},
 		{state: 0, name: "+south", tex: [6,24, 6,24, 6,24, 6,24, 6,24, 6,24,  27]},
 		{state: 1, name: "+west",  tex: [6,24, 6,24, 6,24, 6,24, 6,24, 6,24,  3526]},
 		{state: 2, name: "+north", tex: [6,24, 6,24, 6,24, 6,24, 6,24, 6,24,  2737]},
 		{state: 3, name: "+east",  tex: [6,24, 6,24, 6,24, 6,24, 6,24, 6,24,  1900]},
 
-	{id: 240, name: "Lime glazed terracotta", type: SOLID, inv: CUBE, invState: 0, cat: BUILD, orient: SWNE},
+	{id: 240, name: "Lime glazed terracotta", type: SOLID, inv: CUBE, invState: 0, cat: BUILD, orient: SWNE, pushable: PUSHONLY},
 		{state: 0, name: "+south", tex: [7,24, 7,24, 7,24, 7,24, 7,24, 7,24,  27]},
 		{state: 1, name: "+west",  tex: [7,24, 7,24, 7,24, 7,24, 7,24, 7,24,  3526]},
 		{state: 2, name: "+north", tex: [7,24, 7,24, 7,24, 7,24, 7,24, 7,24,  2737]},
 		{state: 3, name: "+east",  tex: [7,24, 7,24, 7,24, 7,24, 7,24, 7,24,  1900]},
 
-	{id: 241, name: "Pink glazed terracotta", type: SOLID, inv: CUBE, invState: 0, cat: BUILD, orient: SWNE},
+	{id: 241, name: "Pink glazed terracotta", type: SOLID, inv: CUBE, invState: 0, cat: BUILD, orient: SWNE, pushable: PUSHONLY},
 		{state: 0, name: "+south", tex: [14,24,14,24,14,24,14,24,14,24,14,24,  27]},
 		{state: 1, name: "+west",  tex: [14,24,14,24,14,24,14,24,14,24,14,24,  3526]},
 		{state: 2, name: "+north", tex: [14,24,14,24,14,24,14,24,14,24,14,24,  2737]},
 		{state: 3, name: "+east",  tex: [14,24,14,24,14,24,14,24,14,24,14,24,  1900]},
 
-	{id: 242, name: "Gray glazed terracotta", type: SOLID, inv: CUBE, invState: 0, cat: BUILD, orient: SWNE},
+	{id: 242, name: "Gray glazed terracotta", type: SOLID, inv: CUBE, invState: 0, cat: BUILD, orient: SWNE, pushable: PUSHONLY},
 		{state: 0, name: "+south", tex: [1,24, 1,24, 1,24, 1,24, 1,24, 1,24,  27]},
 		{state: 1, name: "+west",  tex: [1,24, 1,24, 1,24, 1,24, 1,24, 1,24,  3526]},
 		{state: 2, name: "+north", tex: [1,24, 1,24, 1,24, 1,24, 1,24, 1,24,  2737]},
 		{state: 3, name: "+east",  tex: [1,24, 1,24, 1,24, 1,24, 1,24, 1,24,  1900]},
 
-	{id: 243, name: "Light gray glazed terracotta", type: SOLID, inv: CUBE, invState: 0, cat: BUILD, orient: SWNE},
+	{id: 243, name: "Light gray glazed terracotta", type: SOLID, inv: CUBE, invState: 0, cat: BUILD, orient: SWNE, pushable: PUSHONLY},
 		{state: 0, name: "+south", tex: [2,24, 2,24, 2,24, 2,24, 2,24, 2,24,  27]},
 		{state: 1, name: "+west",  tex: [2,24, 2,24, 2,24, 2,24, 2,24, 2,24,  3526]},
 		{state: 2, name: "+north", tex: [2,24, 2,24, 2,24, 2,24, 2,24, 2,24,  2737]},
 		{state: 3, name: "+east",  tex: [2,24, 2,24, 2,24, 2,24, 2,24, 2,24,  1900]},
 
-	{id: 244, name: "Cyan glazed terracotta", type: SOLID, inv: CUBE, invState: 0, cat: BUILD, orient: SWNE},
+	{id: 244, name: "Cyan glazed terracotta", type: SOLID, inv: CUBE, invState: 0, cat: BUILD, orient: SWNE, pushable: PUSHONLY},
 		{state: 0, name: "+south", tex: [9,24, 9,24, 9,24, 9,24, 9,24, 9,24,  27]},
 		{state: 1, name: "+west",  tex: [9,24, 9,24, 9,24, 9,24, 9,24, 9,24,  3526]},
 		{state: 2, name: "+north", tex: [9,24, 9,24, 9,24, 9,24, 9,24, 9,24,  2737]},
 		{state: 3, name: "+east",  tex: [9,24, 9,24, 9,24, 9,24, 9,24, 9,24,  1900]},
 
-	{id: 245, name: "Purple glazed terracotta", type: SOLID, inv: CUBE, invState: 0, cat: BUILD, orient: SWNE},
+	{id: 245, name: "Purple glazed terracotta", type: SOLID, inv: CUBE, invState: 0, cat: BUILD, orient: SWNE, pushable: PUSHONLY},
 		{state: 0, name: "+south", tex: [12,24,12,24,12,24,12,24,12,24,12,24,  27]},
 		{state: 1, name: "+west",  tex: [12,24,12,24,12,24,12,24,12,24,12,24,  3526]},
 		{state: 2, name: "+north", tex: [12,24,12,24,12,24,12,24,12,24,12,24,  2737]},
 		{state: 3, name: "+east",  tex: [12,24,12,24,12,24,12,24,12,24,12,24,  1900]},
 
-	{id: 246, name: "Blue glazed terracotta", type: SOLID, inv: CUBE, invState: 0, cat: BUILD, orient: SWNE},
+	{id: 246, name: "Blue glazed terracotta", type: SOLID, inv: CUBE, invState: 0, cat: BUILD, orient: SWNE, pushable: PUSHONLY},
 		{state: 0, name: "+south", tex: [11,24,11,24,11,24,11,24,11,24,11,24,  27]},
 		{state: 1, name: "+west",  tex: [11,24,11,24,11,24,11,24,11,24,11,24,  3526]},
 		{state: 2, name: "+north", tex: [11,24,11,24,11,24,11,24,11,24,11,24,  2737]},
 		{state: 3, name: "+east",  tex: [11,24,11,24,11,24,11,24,11,24,11,24,  1900]},
 
-	{id: 247, name: "Brown glazed terracotta", type: SOLID, inv: CUBE, invState: 0, cat: BUILD, orient: SWNE},
+	{id: 247, name: "Brown glazed terracotta", type: SOLID, inv: CUBE, invState: 0, cat: BUILD, orient: SWNE, pushable: PUSHONLY},
 		{state: 0, name: "+south", tex: [15,24,15,24,15,24,15,24,15,24,15,24,  27]},
 		{state: 1, name: "+west",  tex: [15,24,15,24,15,24,15,24,15,24,15,24,  3526]},
 		{state: 2, name: "+north", tex: [15,24,15,24,15,24,15,24,15,24,15,24,  2737]},
 		{state: 3, name: "+east",  tex: [15,24,15,24,15,24,15,24,15,24,15,24,  1900]},
 
-	{id: 248, name: "Green glazed terracotta", type: SOLID, inv: CUBE, invState: 0, cat: BUILD, orient: SWNE},
+	{id: 248, name: "Green glazed terracotta", type: SOLID, inv: CUBE, invState: 0, cat: BUILD, orient: SWNE, pushable: PUSHONLY},
 		{state: 0, name: "+south", tex: [8,24, 8,24, 8,24, 8,24, 8,24, 8,24,  27]},
 		{state: 1, name: "+west",  tex: [8,24, 8,24, 8,24, 8,24, 8,24, 8,24,  3526]},
 		{state: 2, name: "+north", tex: [8,24, 8,24, 8,24, 8,24, 8,24, 8,24,  2737]},
 		{state: 3, name: "+east",  tex: [8,24, 8,24, 8,24, 8,24, 8,24, 8,24,  1900]},
 
-	{id: 249, name: "Red glazed terracotta", type: SOLID, inv: CUBE, invState: 0, cat: BUILD, orient: SWNE},
+	{id: 249, name: "Red glazed terracotta", type: SOLID, inv: CUBE, invState: 0, cat: BUILD, orient: SWNE, pushable: PUSHONLY},
 		{state: 0, name: "+south", tex: [4,24, 4,24, 4,24, 4,24, 4,24, 4,24,  27]},
 		{state: 1, name: "+west",  tex: [4,24, 4,24, 4,24, 4,24, 4,24, 4,24,  3526]},
 		{state: 2, name: "+north", tex: [4,24, 4,24, 4,24, 4,24, 4,24, 4,24,  2737]},
 		{state: 3, name: "+east",  tex: [4,24, 4,24, 4,24, 4,24, 4,24, 4,24,  1900]},
 
-	{id: 250, name: "Black glazed terracotta", type: SOLID, inv: CUBE, invState: 0, cat: BUILD, orient: SWNE},
+	{id: 250, name: "Black glazed terracotta", type: SOLID, inv: CUBE, invState: 0, cat: BUILD, orient: SWNE, pushable: PUSHONLY},
 		{state: 0, name: "+south", tex: [0,24, 0,24, 0,24, 0,24, 0,24, 0,24,  27]},
 		{state: 1, name: "+west",  tex: [0,24, 0,24, 0,24, 0,24, 0,24, 0,24,  3526]},
 		{state: 2, name: "+north", tex: [0,24, 0,24, 0,24, 0,24, 0,24, 0,24,  2737]},

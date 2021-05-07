@@ -289,11 +289,12 @@ int itemGetByName(STRPTR name, Bool forInventory)
 	}
 }
 
-/* note: out must be NULL terminated before calling this function */
+/* get technical name of a block that can be saved in NBT */
 STRPTR itemGetTechName(int itemId, STRPTR out, int max)
 {
 	STRPTR tech = NULL;
-	int i = StrCat(out, max, 0, "minecraft:");
+	int i = 0;
+	CopyString(out, "minecraft:", max);
 	if (itemId >= ID(256,0))
 	{
 		ItemDesc desc = itemGetById(itemId & ~15);

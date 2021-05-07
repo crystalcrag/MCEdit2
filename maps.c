@@ -1084,7 +1084,6 @@ Bool mapSerializeItems(MapExtraData sel, STRPTR listName, Item items, int itemCo
 		else
 		{
 			/* not yet created: add required fields */
-			itemId[0] = 0;
 			NBT_Add(ret,
 				TAG_String, "id", itemGetTechName(sel->blockId & ~15, itemId, sizeof itemId),
 				TAG_Int,    "x",  XYZ[0] + c->X,
@@ -1117,7 +1116,6 @@ Bool mapSerializeItems(MapExtraData sel, STRPTR listName, Item items, int itemCo
 			else if (b->special == BLOCK_TALLFLOWER)
 				data -= 10;
 		}
-		itemId[0] = 0;
 		NBT_Add(ret,
 			TAG_String, "id",     itemGetTechName(id & ~15, itemId, sizeof itemId),
 			TAG_Byte,   "Slot",   i,

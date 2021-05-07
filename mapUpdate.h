@@ -14,10 +14,13 @@ void mapUpdateBlock(Map, vec4 pos, int blockId, int oldBlockId, DATA8 tile);
 void mapUpdatePowerRails(Map map, BlockIter iter);
 int  mapUpdateGate(BlockIter, int id, Bool init);
 int  mapUpdateDoor(BlockIter, int blockId, Bool init);
-int  mapUpdatePiston(BlockIter, int blockId, Bool init);
+int  mapUpdatePiston(Map, BlockIter, int blockId, Bool init);
 void mapUpdateTable(BlockIter, int val, int table);
 void mapActivate(Map, vec4 pos);
 int  mapActivateBlock(BlockIter, vec4 pos, int blockId);
+void mapUpdateMesh(Map);
+void mapUpdateFlush(Map);
+void mapUpdatePush(Map, vec4 pos, int blockId);
 
 enum /* extra flags for blockUpdate param from mapUpdate() */
 {

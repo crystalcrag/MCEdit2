@@ -823,6 +823,21 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 			block.gravity = 1;
 		}
 
+		/* can this block be affected by piston */
+		value = jsonValue(keys, "pushable");
+		/* default value */
+		block.pushable = block.type == QUAD ? PUSH_DESTROY : PUSH_AND_RETRACT;
+		if (value)
+		{
+			int type = FindInList("NO,PUSHONLY,DESTROY,DROPITEM,YES", value, 0);
+			if (type < 0)
+			{
+				SIT_Log(SIT_ERROR, "%s: unknown pushable value '%s' on line %d\n", file, value, line);
+				return False;
+			}
+			block.pushable = type;
+		}
+
 		/* check for tile entity for this block XXX somewhat useless */
 		value = jsonValue(keys, "tile");
 		if (value && atoi(value) > 0)
@@ -890,7 +905,7 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 		{
 			if (FindInList(
 				"id,name,type,inv,invstate,cat,special,tech,bbox,orient,keepModel,particle,rsupdate,"
-				"emitLight,opacSky,opacLight,tile,invmodel,rswire,placement,bboxPlayer,gravity", *keys, 0) < 0)
+				"emitLight,opacSky,opacLight,tile,invmodel,rswire,placement,bboxPlayer,gravity,pushable", *keys, 0) < 0)
 			{
 				SIT_Log(SIT_ERROR, "%s: unknown property \"%s\" on line %d\n", file, *keys, line);
 				return False;
@@ -2560,7 +2575,6 @@ DATA8 blockCreateTileEntity(int blockId, vec4 pos, APTR arg)
 		return NULL;
 
 	/* standard fields for tile entity */
-	itemId[0] = 0;
 	NBT_Add(&ret,
 		TAG_String, "id", itemGetTechName(id & ~15, itemId, sizeof itemId),
 		TAG_Int,    "x",  (int) pos[VX],

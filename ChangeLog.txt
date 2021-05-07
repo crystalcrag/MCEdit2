@@ -1,4 +1,10 @@
 =========== Week 18 ===========
+Thu May 6:
+	* pushable blocks first version seems working; need more test though.
+
+Wed May 5:
+	* pushable blocks boilerplate and early logic for block 36.
+
 Tue May 4:
 	* bugs fixed: world corruption when deleting tile entity, piston head extend/retract edge cases.
 

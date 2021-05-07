@@ -721,7 +721,7 @@ void entityDelete(Chunk c, DATA8 tile)
 void entityAnimate(Map map)
 {
 	EntityAnim anim;
-	int i, j, time = curTime;
+	int i, j, time = curTime, finalize = 0;
 	for (i = entities.animCount, anim = entities.animate; i > 0; i --)
 	{
 		Entity entity = anim->entity;
@@ -732,19 +732,17 @@ void entityAnimate(Map map)
 				entity->pos[j] += (entity->motion[j] - entity->pos[j]) * (time - anim->prevTime) / remain;
 			anim->prevTime = time;
 			/* update VBO */
-			if (entity->VBObank > 0)
-			{
-				EntityBank bank;
-				for (j = entity->VBObank & 63, bank = HEAD(entities.banks); j > 0; j --, NEXT(bank));
-				glBindBuffer(GL_ARRAY_BUFFER, bank->vboLoc);
-				glBufferSubData(GL_ARRAY_BUFFER, entity->mdaiSlot * INFO_SIZE, 12, entity->pos);
-			}
+			EntityBank bank;
+			for (j = entity->VBObank & 63, bank = HEAD(entities.banks); j > 0; j --, NEXT(bank));
+			glBindBuffer(GL_ARRAY_BUFFER, bank->vboLoc);
+			glBufferSubData(GL_ARRAY_BUFFER, entity->mdaiSlot * INFO_SIZE, 12, entity->pos);
 			anim ++;
 		}
 		else /* anim done: remove entity */
 		{
 			DATA8 tile = entity->tile;
-			memcpy(entity->pos, entity->motion, 12);
+			vec4  dest;
+			memcpy(dest, entity->motion, 12);
 			entities.animCount --;
 			/* remove from list */
 			memmove(anim, anim + 1, (i - 1) * sizeof *anim);
@@ -757,9 +755,12 @@ void entityAnimate(Map map)
 					break;
 				}
 			}
-			updateFinished(map, tile);
+			updateFinished(map, tile, dest);
+			finalize = 1;
 		}
 	}
+	if (finalize)
+		updateFinished(map, NULL, NULL);
 }
 
 void entityUpdateOrCreate(vec4 pos, int blockId, vec4 dest, int ticks, DATA8 tile)
