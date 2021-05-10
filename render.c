@@ -851,6 +851,93 @@ void renderItems(Item items, int count, float scale)
 	if (ext) renderDrawExtInv(items, scale, count);
 }
 
+#define QUAD_SIZE       (6 * BYTES_PER_VERTEX)
+
+static int compare(const void * item1, const void * item2)
+{
+	return * (DATA16) item2 - * (DATA16) item1;
+}
+
+/*
+ * sort alpha transpareny vertices: while costly to do that on the CPU, this operation
+ * is not done every frame hopefully.
+ */
+static inline void renderSortVertex(GPUBank bank, ChunkData cd)
+{
+	cd->yaw = render.yaw;
+	cd->pitch = render.pitch;
+
+	GPUMem mem = bank->usedList + cd->glSlot;
+
+	DATA16 src1, src2, dist;
+	int    count = cd->glAlpha / QUAD_SIZE, i;
+
+	/* pre-compute distance of vertices */
+	dist = alloca(count * 4);
+	float X = cd->chunk->X - render.camera[0];
+	float Z = cd->chunk->Z - render.camera[2];
+	float Y = cd->Y        - render.camera[1];
+
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, bank->vboTerrain);
+	DATA8 vertex = glMapBuffer(GL_ELEMENT_ARRAY_BUFFER, GL_READ_WRITE);
+
+	/* glSize == size of opaque vertices: alpha are just located after that */
+	vertex += mem->offset + (cd->glSize - cd->glAlpha);
+
+	for (src1 = (DATA16) vertex, src2 = dist, i = 0; i < count; i ++, src2 += 2, src1 += QUAD_SIZE/2)
+	{
+		float dx = (src1[0] - ORIGINVTX) * (1./BASEVTX) + X;
+		float dy = (src1[1] - ORIGINVTX) * (1./BASEVTX) + Y;
+		float dz = (src1[2] - ORIGINVTX) * (1./BASEVTX) + Z;
+
+		/* don't care about loss of precision */
+		src2[0] = dx*dx + dy*dy + dz*dz;
+		src2[1] = i;
+	}
+
+	/* can't sort 2 arrays at the same time: sort the cheapest first */
+	qsort(dist, count, 4, compare);
+
+	/* then move quads from the vertex array */
+	for (i = 0, src1 = dist; i < count; i ++, src1 += 2)
+	{
+		if (src1[1] != i)
+		{
+			uint8_t  tmpbuf[QUAD_SIZE];
+			uint16_t loc;
+			DATA16   cur, tmp;
+
+			/* need to be moved */
+			memcpy(tmpbuf, cur = (DATA16) (vertex + i * QUAD_SIZE), QUAD_SIZE);
+			memcpy(cur, tmp = (DATA16) (vertex + src1[1] * QUAD_SIZE), QUAD_SIZE);
+			for (loc = src1[1] * 2 + 1, cur = tmp; dist[loc] != i; cur = tmp)
+			{
+				uint16_t pos = dist[loc];
+				memcpy(cur, tmp = (DATA16) (vertex + pos * QUAD_SIZE), QUAD_SIZE);
+				dist[loc] = loc >> 1;
+				loc = pos * 2 + 1;
+			}
+			dist[loc] = loc >> 1;
+			memcpy(cur, tmpbuf, QUAD_SIZE);
+		}
+	}
+
+	#if 0
+	puts("=========================");
+	for (i = 0, src1 = (DATA16) vertex; i < count; i ++, src1 += QUAD_SIZE/2)
+	{
+		static STRPTR colors[] = {"WHITE","ORANGE","MAGENTA","LBLUE","YELLOW","LIME","PINK","DGRAY","GRAY","CYAN","PURPLE","BLUE","BROWN","GREEN","RED","BLACK","???"};
+		int V = (GET_VCOORD(src1) >> 4)-33;
+		if (V > 16) V = 16;
+
+		fprintf(stderr, "face: %c, dist: %d, color: %s\n", "SENWTB"[GET_NORMAL(src1)], dist[i*2], colors[V]);
+	}
+	#endif
+
+	glUnmapBuffer(GL_ELEMENT_ARRAY_BUFFER);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+}
+
 /* setup the GL_DRAW_INDIRECT_BUFFER for glMultiDrawArraysIndirect() to draw 95% of the terrain */
 static void renderPrepVisibleChunks(Map map)
 {
@@ -867,6 +954,7 @@ static void renderPrepVisibleChunks(Map map)
 		if (bank->vtxSize == 0) continue;
 		bank->cmdTotal = 0;
 		bank->cmdAlpha = 0;
+		int alphaIndex = bank->vtxSize - 1;
 		glBindBuffer(GL_ARRAY_BUFFER, bank->vboLocation);
 		glBindBuffer(GL_DRAW_INDIRECT_BUFFER, bank->vboMDAI);
 		bank->locBuffer = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
@@ -902,20 +990,28 @@ static void renderPrepVisibleChunks(Map map)
 					loc[2] = chunk->Z;
 					bank->cmdTotal ++;
 				}
+				/* alpha chunks needs to be drawn from far to near */
 				if (alpha > 0)
 				{
 					bank->cmdAlpha ++;
-					int i = bank->vtxSize - bank->cmdAlpha;
-					cmd = bank->cmdBuffer + i;
+					cmd = bank->cmdBuffer + alphaIndex;
 					cmd->count = alpha / BYTES_PER_VERTEX;
 					cmd->instanceCount = 1;
 					cmd->first = start;
-					cmd->baseInstance = i; /* needed by glVertexAttribDivisor() */
+					cmd->baseInstance = alphaIndex; /* needed by glVertexAttribDivisor() */
 
-					loc = bank->locBuffer + i * 3;
+					loc = bank->locBuffer + alphaIndex * 3;
 					loc[0] = chunk->X;
 					loc[1] = cd->Y;
 					loc[2] = chunk->Z;
+					alphaIndex --;
+
+					/* check if we need to sort vertex: this is costly but should not be done very often */
+					if ((fabsf(render.yaw - cd->yaw) > M_PI_4 && fabsf(render.yaw - cd->yaw - 2*M_PI) > M_PI_4) ||
+						 fabsf(render.pitch - cd->pitch) > M_PI_4)
+					{
+						renderSortVertex(bank, cd);
+					}
 				}
 			}
 		}
@@ -1593,7 +1689,6 @@ void renderFinishMesh(void)
 	for (list = HEAD(alphaBanks), alpha = 0; list; alpha += list->usage, NEXT(list));
 
 	total = size + alpha;
-	//if (total == 0) fprintf(stderr, "chunk %3d, %2d, %3d: %6d bytes\n", cd->chunk->X, cd->Y, cd->chunk->Z, total);
 	bank = cd->glBank;
 	if (bank)
 	{

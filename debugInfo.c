@@ -266,8 +266,6 @@ void debugSetPos(APTR app, int * exitCode)
 	debug.slice = 0;
 	debug.app = app;
 
-	fprintf(stderr, "direction = %d\n", render.direction);
-
 	/* max coord range */
 	Chunk c = render.level->center;
 	int max = (render.level->maxDist+1) >> 1;
@@ -311,7 +309,7 @@ void debugSetPos(APTR app, int * exitCode)
 }
 
 /* render side view of world */
-void debugWorld(int time)
+void debugWorld(void)
 {
 	static uint8_t skyColor[]  = {0x7e, 0xdf, 0xff, 0xff}; /* RGBA */
 	static uint8_t caveColor[] = {0x33, 0x33, 0x33, 0xff};
@@ -392,16 +390,16 @@ void debugWorld(int time)
 					if (tex[0] < 16 && V == 62) V = 63;
 					switch (ang) {
 					case 1: // 90
-						U = 64 - (V + 1);
+						U = - (V + 1);
 						V = tex[0];
 						break;
 					case 2: // 180
-						U = 32 - (U + 1);
-						V = 64 - (V + 1);
+						U = - (U + 1);
+						V = - (V + 1);
 						break;
 					case 3: // 270
 						U = V;
-						V = 64 - (tex[0] + 1);
+						V = - (tex[0] + 1);
 					}
 					nvgFillPaint(vg, nvgImagePattern(vg, x - (U * 16) * tile, y - (V * 16) * tile,
 						512 * tile, 1024 * tile, ang * M_PI_2, render.nvgTerrain, 1));
@@ -416,6 +414,13 @@ void debugWorld(int time)
 					skyTxt = skyVal + sky*2;
 					nvgFillColorRGBA8(vg, debug.showLightValue ? "\xff\xff\x88\xff" : "\xff\xff\xff\xff");
 					nvgText(vg, x + xoff, y + 3, skyTxt, skyTxt+2);
+				}
+				if (chunkGetTileEntity(iter.ref, (int[3]) {iter.x, iter.yabs, iter.z}))
+				{
+					/* this block has a tile entity */
+					nvgStrokeColorRGBA8(vg, "\xff\xff\x00\xff");
+					nvgStrokeWidth(vg, 4);
+					nvgStroke(vg);
 				}
 			}
 			else /* no ChunkData: show sky */
@@ -578,7 +583,8 @@ void debugWorld(int time)
 
 	nvgEndFrame(vg);
 
-	SIT_RenderNodes(time);
+	extern double curTime;
+	SIT_RenderNodes(curTime);
 }
 
 /* this view won't load new chunk */

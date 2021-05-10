@@ -249,7 +249,7 @@ enum                       /* possible for Block_t.pushable */
 enum                       /* common redstone devices */
 {
 	RSDISPENSER    = 23,
-	RSNOTEBLOCK    = 25,
+	RSNOTEBLOCK    = 25,   // TODO
 	RSPOWERRAILS   = 27,
 	RSSTICKYPISTON = 29,
 	RSPISTON       = 33,
@@ -262,11 +262,12 @@ enum                       /* common redstone devices */
 	RSREPEATER_OFF = 93,
 	RSREPEATER_ON  = 94,
 	RSLAMP         = 123,
+	RSCOMPARATOR   = 149,  // TODO
 	RSBLOCK        = 152,
-	RSHOPPER       = 154,
+	RSHOPPER       = 154,  // TODO
 	RSDROPPER      = 158,
-	SLIMEBLOCK     = 165,
-	RSOBSERVER     = 218
+	SLIMEBLOCK     = 165,  // TODO
+	RSOBSERVER     = 218   // TODO
 };
 
 #define blockGetByIdData(id,data) (blockStates + blockStateIndex[((id) << 4) | (data)])

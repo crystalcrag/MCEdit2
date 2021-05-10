@@ -233,8 +233,8 @@ int main(int nb, char * argv[])
 		return 1;
 	}
 
-	mcedit.level = renderInitWorld("TestMesh", mcedit.maxDist);
-//	mcedit.level = renderInitWorld("World1_12", mcedit.maxDist);
+//	mcedit.level = renderInitWorld("TestMesh", mcedit.maxDist);
+	mcedit.level = renderInitWorld("World1_12", mcedit.maxDist);
 	mcedit.state = GAMELOOP_WORLD;
 
 	if (mcedit.level == NULL)
@@ -341,7 +341,9 @@ void mceditWorld(void)
 					mceditDoAction(ACTION_ACTIVATE);
 					break;
 				case SDLK_i:
+					FramePauseUnpause(True);
 					mceditUIOverlay();
+					FramePauseUnpause(False);
 					mcedit.player.inventory.update ++;
 					break;
 				default:
@@ -676,7 +678,7 @@ void mceditUIOverlay(void)
 
 		/* update and render */
 		mcuiInitDrawItems();
-		switch (SIT_RenderNodes(SDL_GetTicks())) {
+		switch (SIT_RenderNodes(curTime)) {
 		case SIT_RenderComposite:
 			mcuiDrawItems();
 			SIT_RenderNodes(0);
@@ -736,8 +738,9 @@ void mceditSideView(void)
 	int       mx, my;
 	int *     sdlk;
 
+	FramePauseUnpause(True);
 	debugSetPos(mcedit.app, &mcedit.exit);
-	debugWorld(SDL_GetTicks());
+	debugWorld();
 	mx = my = 0;
 	SDL_GL_SwapBuffers();
 
@@ -843,7 +846,7 @@ void mceditSideView(void)
 
 		if (refresh || SIT_NeedRefresh())
 		{
-			debugWorld(SDL_GetTicks());
+			debugWorld();
 			SDL_GL_SwapBuffers();
 			refresh = 0;
 		}
@@ -851,6 +854,7 @@ void mceditSideView(void)
 	debugLoadSaveState(PREFS_PATH, False);
 	mcedit.state = GAMELOOP_WORLD;
 	SIT_Nuke(SITV_NukeCtrl);
+	FramePauseUnpause(False);
 }
 
 #ifdef	WIN32

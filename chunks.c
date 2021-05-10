@@ -949,6 +949,10 @@ void chunkUpdate(Chunk c, ChunkData empty, int layer, ChunkFlushCb_t flush)
 	if (neighbors[6]->emitters)
 		neighbors[6]->emitters[0] = 0;
 
+	/* default sorting for alpha quads */
+	neighbors[6]->yaw = 3.14926535 * 1.5;
+	neighbors[6]->pitch = 0;
+
 //	if (c->X == -176 && neighbors[6]->Y == 64 && c->Z == -32)
 //		breakPoint = 1;
 

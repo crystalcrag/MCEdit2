@@ -54,6 +54,7 @@ struct ChunkData_t                     /* one sub-chunk of 16x16x16 blocks */
 	int       glSlot;
 	int       glSize;                  /* size in bytes */
 	int       glAlpha;                 /* alpha triangles, need separate pass */
+	float     yaw, pitch;              /* heuristic to limit amount of sorting */
 };
 
 struct Chunk_t                         /* an entire column of 16x16 blocks */

@@ -573,7 +573,7 @@ void mapUpdateToBlock36(Map map, RSWire list, int count, int dir, BlockIter iter
 		vec4 src = {pos[0] + list->dx, pos[1] + list->dy, pos[2] + list->dz};
 		vec4 dst = {src[0] + off[0], src[1] + off[1], src[2] + off[2]};
 
-		/* place tile entity of block 36 into destination (like piston head) */
+		/* place tile entity of block 36 into source block (like piston head) */
 		NBTFile_t tile = {.page = 127};
 		TEXT      itemId[128];
 		STRPTR    blockName;
@@ -590,9 +590,9 @@ void mapUpdateToBlock36(Map map, RSWire list, int count, int dir, BlockIter iter
 			TAG_Int,    "z",         (int) src[VZ],
 			TAG_End
 		);
-		mapUpdate(map, src, RSPISTONEXT, tile.mem, False);
+		mapUpdate(map, src, ID(RSPISTONEXT, 0), tile.mem, False);
 
-		entityUpdateOrCreate(src, RSPISTONEXT, dst, 1, tile.mem);
+		entityUpdateOrCreate(src, (list->blockId << 4) | list->data, dst, 1, tile.mem);
 	}
 }
 
@@ -672,7 +672,7 @@ int mapActivateBlock(BlockIter iter, vec4 pos, int blockId)
 	case BLOCK_FENCEGATE:
 		return blockId ^ 4;
 	default:
-		switch (FindInList("unpowered_repeater,powered_repeater,cake,lever,stone_button,wooden_button,cocoa_beans", b->tech, 0)) {
+		switch (FindInList("unpowered_repeater,powered_repeater,cake,lever,stone_button,wooden_button,cocoa_beans,cauldron", b->tech, 0)) {
 		case 0:
 		case 1: /* repeater: bit3~4: delay */
 			if ((blockId & 12) == 12) blockId &= ~12;
@@ -703,6 +703,10 @@ int mapActivateBlock(BlockIter iter, vec4 pos, int blockId)
 		case 6: /* cocoa beans - cycle through different growth stage */
 			if ((blockId & 15) < 8) blockId += 4;
 			else                    blockId &= 0xfff0;
+			break;
+		case 7: /* cauldron - fill level */
+			if ((blockId & 3) < 3) blockId ++;
+			else                   blockId &= 0xfff0;
 			break;
 		default:
 			return 0;
@@ -905,6 +909,8 @@ void updateTick(Map map)
 void updateFinished(Map map, DATA8 tile, vec4 dest)
 {
 	NBTFile_t nbt = {.mem = tile};
+	NBTIter_t iter;
+	float     src[3];
 	int       blockId, i;
 
 	if (tile == NULL)
@@ -914,22 +920,26 @@ void updateFinished(Map map, DATA8 tile, vec4 dest)
 		return;
 	}
 
-	i = NBT_FindNode(&nbt, 0, "id");
-	if (i < 0) return;
-	blockId = itemGetByName(NBT_Payload(&nbt, i), False);
+	NBT_IterCompound(&iter, tile);
+	uint8_t flags = 0;
+	while ((i = NBT_Iter(&iter)) >= 0 && flags != 15)
+	{
+		switch (FindInList("X,Y,Z,id", iter.name, 0)) {
+		case 0: src[0] = NBT_ToInt(&nbt, i, 0); flags |= 1; break;
+		case 1: src[1] = NBT_ToInt(&nbt, i, 0); flags |= 2; break;
+		case 2: src[2] = NBT_ToInt(&nbt, i, 0); flags |= 4; break;
+		case 3: blockId = itemGetByName(NBT_Payload(&nbt, i), False); flags |= 8;
+		}
+	}
+	if (flags != 15) return;
 
 	switch (blockId >> 4) {
 	case RSPISTONHEAD:
 		if (NBT_ToInt(&nbt, NBT_FindNode(&nbt, 0, "extending"), 0) == 0)
 		{
-			/* piston retracted */
-			uint8_t ext = blockSides.piston[blockId & 7];
-			/* delete head */
-			mapUpdatePush(map, dest, 0);
+			/* piston retracted: delete head */
+			mapUpdatePush(map, src, 0);
 			/* remove extended state on piston */
-			dest[0] -= relx[ext];
-			dest[1] -= rely[ext];
-			dest[2] -= relz[ext];
 			if (blockId & 8)
 				blockId = ID(RSSTICKYPISTON, blockId & 7);
 			else
@@ -943,7 +953,12 @@ void updateFinished(Map map, DATA8 tile, vec4 dest)
 		blockId = itemGetByName(NBT_Payload(&nbt, NBT_FindNode(&nbt, 0, "blockId")), False) |
 		          NBT_ToInt(&nbt, NBT_FindNode(&nbt, 0, "blockData"), 0);
 		if (blockId > 0)
+		{
+			/* delete block 36 */
+			mapUpdatePush(map, src, 0);
+			/* add block pushed in its final position */
 			mapUpdatePush(map, dest, blockId);
+		}
 		break;
 	}
 }

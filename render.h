@@ -43,7 +43,7 @@ enum /* possible values for <what> of renderToggleDebug */
 
 /* side view */
 void debugSetPos(APTR sitroot, int * exitCode);
-void debugWorld(int time);
+void debugWorld(void);
 void debugScrollView(int dx, int dy);
 void debugMoveSlice(int dz);
 void debugRotateView(int dir);

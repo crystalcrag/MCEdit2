@@ -1304,7 +1304,6 @@ void mapUpdateFlush(Map map)
 		{
 			int   offset = update->offset;
 			Chunk c = update->cd->chunk;
-			Block b = &blockIds[update->cd->blockIds[offset]];
 			vec4  pos;
 			track.updateUsage[j>>5] ^= 1 << (j & 31);
 			track.updateCount --;
@@ -1321,10 +1320,9 @@ void mapUpdateFlush(Map map)
 				if (offset != newId)
 				{
 					mapUpdate(map, pos, newId, NULL, False);
-					fprintf(stderr, "updating block %s at %g,%g,%g\n", b->name, pos[0], pos[1], pos[2]);
 				}
 			}
-			else mapUpdate(map, pos, update->blockId, NULL, False);
+			else mapUpdate(map, pos, update->blockId, NULL, UPDATE_SILENT);
 			i --;
 		}
 	}
@@ -1333,8 +1331,32 @@ void mapUpdateFlush(Map map)
 /* blocks moved by piston update can't be updated directly, they need to be done at once */
 void mapUpdatePush(Map map, vec4 pos, int blockId)
 {
+	/* otherwise update order will depend on piston push direction: way too annoying */
 	struct BlockIter_t iter;
 	mapInitIter(map, &iter, pos, False);
+	switch (blockId >> 4) {
+	case RSPISTON:
+	case RSSTICKYPISTON:
+		/* XXX already set meta data to prevent calling mapUpdatePiston() again */
+		mapUpdateTable(&iter, blockId & 15, DATA_OFFSET);
+	}
+
+	/* update must not overwrite each other */
+	BlockUpdate update;
+	int         i, j;
+	for (i = track.updateCount, update = track.updates, j = 0; i > 0; j ++, update ++)
+	{
+		if ((track.updateUsage[j>>5] & (1 << (j & 31))) == 0) continue;
+		if (update->offset == iter.offset && update->cd == iter.cd)
+		{
+			/* air blocks have lower priority */
+			if (blockId > 0)
+				update->blockId = blockId;
+			fprintf(stderr,"reusing block update %p:%d\n", iter.cd, iter.offset);
+			return;
+		}
+		i --;
+	}
 	trackAddUpdate(&iter, blockId);
 }
 
@@ -1354,6 +1376,11 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 		track.list  = &track.modif;
 	}
 
+	if (iter.blockIds == NULL)
+	{
+		if (blockId == 0) return;
+		/* XXX else create new chunk */
+	}
 	//fprintf(stderr, "setting block %g, %g, %g to %d:%d\n", pos[0], pos[1], pos[2], blockId >> 4, blockId & 15);
 
 	int oldId = iter.blockIds[iter.offset] << 4;
@@ -1365,6 +1392,7 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 	else                 oldId |= *data & 15;
 
 	if (oldId == blockId)
+		// XXX tile entity might differ
 		return;
 
 	/* this needs to be done before tables are updated */

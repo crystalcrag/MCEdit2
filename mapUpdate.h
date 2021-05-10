@@ -24,7 +24,8 @@ void mapUpdatePush(Map, vec4 pos, int blockId);
 
 enum /* extra flags for blockUpdate param from mapUpdate() */
 {
-	UPDATE_SILENT = 16
+	UPDATE_SILENT    = 16,
+	UPDATE_KEEPLIGHT = 32,
 };
 
 /* private stuff below that point */
