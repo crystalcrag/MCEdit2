@@ -21,6 +21,7 @@ int  mapActivateBlock(BlockIter, vec4 pos, int blockId);
 void mapUpdateMesh(Map);
 void mapUpdateFlush(Map);
 void mapUpdatePush(Map, vec4 pos, int blockId);
+uint8_t mapGetSkyBlockLight(BlockIter iter);
 
 enum /* extra flags for blockUpdate param from mapUpdate() */
 {

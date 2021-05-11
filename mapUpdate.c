@@ -208,29 +208,30 @@ void mapUpdateTable(BlockIter iter, int val, int table)
 
 static uint8_t mapGetSky(BlockIter iter)
 {
-	int   off = iter->offset;
-	DATA8 sky = iter->blockIds + SKYLIGHT_OFFSET + (off >> 1);
-	if (off & 1) return *sky >> 4;
-	else         return *sky & 15;
+	int     off = iter->offset;
+	uint8_t sky = iter->blockIds[SKYLIGHT_OFFSET + (off >> 1)];
+	if (off & 1) return sky >> 4;
+	else         return sky & 15;
 }
 
 static uint8_t mapGetLight(BlockIter iter)
 {
-	int   off   = iter->offset;
-	DATA8 light = iter->blockIds + BLOCKLIGHT_OFFSET + (off >> 1);
-	if (off & 1) return *light >> 4;
-	else         return *light & 15;
+	int     off   = iter->offset;
+	uint8_t light = iter->blockIds[BLOCKLIGHT_OFFSET + (off >> 1)];
+	if (off & 1) return light >> 4;
+	else         return light & 15;
 }
 
-#if 0
-static inline uint8_t mapGetData(BlockIter iter)
+/* get both combined: 4 most significant bits = sky, 4 lowest = block light */
+uint8_t mapGetSkyBlockLight(BlockIter iter)
 {
-	int   off  = iter->offset;
-	DATA8 data = iter->blockIds + DATA_OFFSET + (off >> 1);
-	if (off & 1) return *data >> 4;
-	else         return *data & 15;
+	int     off   = iter->offset;
+	uint8_t sky   = iter->blockIds[SKYLIGHT_OFFSET + (off >> 1)];
+	uint8_t light = iter->blockIds[BLOCKLIGHT_OFFSET + (off >> 1)];
+
+	if (off & 1) return (sky & 0xf0) | (light >> 4);
+	else         return ((sky & 15) << 4) | (light & 15);
 }
-#endif
 
 #define STEP     126   /* need to be multiple of 3 */
 

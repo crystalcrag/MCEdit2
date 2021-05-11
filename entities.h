@@ -19,7 +19,7 @@ void entityRender(void);
 void entityDebug(int id);
 void entityInfo(int id, STRPTR buffer, int max);
 int  entityRaycast(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos);
-void entityUpdateOrCreate(vec4 pos, int blockId, vec4 dest, int ticks, DATA8 tile);
+void entityUpdateOrCreate(vec4 pos, int blockId, vec4 dest, int ticks, DATA8 tile, uint8_t light);
 
 #define ENTITY_END         0xffff
 #define PAINTING_ADDTEXU   16
@@ -68,6 +68,7 @@ struct Entity_t
 	uint16_t mdaiSlot;             /* GL draw index */
 	uint16_t blockId;
 	uint8_t  select;
+	uint8_t  light;
 	float    pos[3];
 	float    motion[3];
 	float    rotation[2];

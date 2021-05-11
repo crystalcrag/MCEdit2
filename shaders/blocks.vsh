@@ -74,7 +74,9 @@ void main(void)
 	else if (blockLight > skyLight)
 	{
 		/* diminish slightly ambient occlusion if there is blockLight overpowering skyLight */
-		shade += (blockLight - skyLight) * 0.35;
+		shade += (blockLight - skyLight) * 0.35 +
+			/* cancel some of the shading per face */
+			(1 - shading[normal].x) * 0.5;
 		if (shade > 1) shade = 1;
 	}
 	blockLight *= shade;

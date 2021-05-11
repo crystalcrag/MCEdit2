@@ -555,7 +555,7 @@ static Bool mapUpdateAddPistonExt(struct BlockIter_t iter, int blockId, Bool ext
 	/* create or update the moving block */
 	if (blockId > 0)
 		/* XXX need progress */
-		entityUpdateOrCreate(src, blockId, dest, 1, tile);
+		entityUpdateOrCreate(src, blockId, dest, 1, tile, mapGetSkyBlockLight(&iter));
 
 	return True;
 }
@@ -577,6 +577,7 @@ void mapUpdateToBlock36(Map map, RSWire list, int count, int dir, BlockIter iter
 		NBTFile_t tile = {.page = 127};
 		TEXT      itemId[128];
 		STRPTR    blockName;
+		uint8_t   light;
 		itemGetTechName(ID(RSPISTONEXT, 0), itemId, sizeof itemId);
 		blockName = strchr(itemId, 0) + 1;
 		itemGetTechName(list->blockId << 4, blockName, sizeof itemId - (blockName - itemId));
@@ -592,7 +593,12 @@ void mapUpdateToBlock36(Map map, RSWire list, int count, int dir, BlockIter iter
 		);
 		mapUpdate(map, src, ID(RSPISTONEXT, 0), tile.mem, False);
 
-		entityUpdateOrCreate(src, (list->blockId << 4) | list->data, dst, 1, tile.mem);
+		{
+			struct BlockIter_t iter = *iterator;
+			mapIter(&iter, list->dx + (int) off[0], list->dy + (int) off[1], list->dz + (int) off[2]);
+			light = mapGetSkyBlockLight(&iter);
+		}
+		entityUpdateOrCreate(src, (list->blockId << 4) | list->data, dst, 1, tile.mem, light);
 	}
 }
 

@@ -20,6 +20,7 @@
 #include "maps.h"
 #include "redstone.h"
 #include "blockUpdate.h"
+#include "mapUpdate.h"
 #include "glad.h"
 
 struct EntitiesPrivate_t entities;
@@ -405,7 +406,7 @@ static void entityFillLocation(Entity ent, float loc[6])
 	loc[0] = ent->pos[0];
 	loc[1] = ent->pos[1];
 	loc[2] = ent->pos[2];
-	loc[3] = ent->select ? 296 : 240; /* skylight/blocklight */
+	loc[3] = ent->light | (ent->select ? 256 : 0);
 	loc[4] = ent->rotation[0];
 	loc[5] = ent->rotation[1];
 }
@@ -442,6 +443,19 @@ static void entityAddToCommandList(Entity entity)
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
 	}
 	else bank->dirty = 1; /* redo the list from scratch */
+}
+
+static uint8_t entityGetLight(Chunk c, vec4 pos)
+{
+	struct BlockIter_t iter;
+	int Y = CPOS(pos[1]);
+	if (Y < 0) return 0;
+	if (Y >= c->maxy) return 240;
+
+	ChunkData cd = c->layer[Y];
+	mapInitIterOffset(&iter, cd, CHUNK_POS2OFFSET(c, pos, cd->Y));
+
+	return mapGetSkyBlockLight(&iter);
 }
 
 /* extract information from NBT records */
@@ -492,6 +506,7 @@ void entityParse(Chunk c, NBTFile nbt, int offset)
 			entity->next = ENTITY_END;
 			entity->select = 0;
 			entity->name = id;
+			entity->light = entityGetLight(c, pos);
 			entity->VBObank = entityGetModelId(entity);
 			entityAddToCommandList(entity);
 		}
@@ -557,7 +572,7 @@ static void entitySetSelection(Entity entity)
 			for (i = entities.selected->VBObank & 63, bank = HEAD(entities.banks); i > 0; i --, NEXT(bank));
 			if (! bank->dirty)
 			{
-				float val = 240;
+				float val = entities.selected->light;
 				glBindBuffer(GL_ARRAY_BUFFER, bank->vboLoc);
 				glBufferSubData(GL_ARRAY_BUFFER, entities.selected->mdaiSlot * INFO_SIZE + 12, 4, &val);
 			}
@@ -571,7 +586,7 @@ static void entitySetSelection(Entity entity)
 			if (! bank->dirty)
 			{
 				/* selection flag is set directly in VBO meta-data */
-				float val = 496;
+				float val = entity->light | 256;
 				glBindBuffer(GL_ARRAY_BUFFER, bank->vboLoc);
 				glBufferSubData(GL_ARRAY_BUFFER, entity->mdaiSlot * INFO_SIZE + 12, 4, &val);
 			}
@@ -763,7 +778,7 @@ void entityAnimate(Map map)
 		updateFinished(map, NULL, NULL);
 }
 
-void entityUpdateOrCreate(vec4 pos, int blockId, vec4 dest, int ticks, DATA8 tile)
+void entityUpdateOrCreate(vec4 pos, int blockId, vec4 dest, int ticks, DATA8 tile, uint8_t light)
 {
 	EntityAnim anim;
 	Entity     entity;
@@ -783,6 +798,7 @@ void entityUpdateOrCreate(vec4 pos, int blockId, vec4 dest, int ticks, DATA8 til
 	memcpy(entity->motion, dest, 12);
 	entity->blockId = blockId;
 	entity->tile = tile;
+	entity->light = light;
 	entity->VBObank = entityGetModelId(entity);
 	entityAddToCommandList(entity);
 

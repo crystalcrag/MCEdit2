@@ -867,6 +867,8 @@ static inline void renderSortVertex(GPUBank bank, ChunkData cd)
 	cd->yaw = render.yaw;
 	cd->pitch = render.pitch;
 
+//	fprintf(stderr, "sorting %d quads\n", cd->glAlpha / QUAD_SIZE);
+
 	GPUMem mem = bank->usedList + cd->glSlot;
 
 	DATA16 src1, src2, dist;
@@ -938,15 +940,31 @@ static inline void renderSortVertex(GPUBank bank, ChunkData cd)
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 }
 
+static inline Bool renderHasPlayerMoved(Map map, ChunkData cd)
+{
+	int off = CHUNK_POS2OFFSET(cd->chunk, render.camera, cd->Y);
+
+	if (map->curOffset != off)
+	{
+		map->curOffset = off;
+		return True;
+	}
+	return False;
+}
+
 /* setup the GL_DRAW_INDIRECT_BUFFER for glMultiDrawArraysIndirect() to draw 95% of the terrain */
 static void renderPrepVisibleChunks(Map map)
 {
-	ChunkData cd;
+	ChunkData cd, player;
 	GPUBank   bank;
 	MDAICmd   cmd;
 	float *   loc;
 
 	render.debugTotalTri = 0;
+
+	int Y = CPOS(render.camera[1]);
+	if (0 <= Y && Y < map->center->maxy)
+		player = map->center->layer[Y];
 
 	/* prep all the terrain chunks we will need to render */
 	for (bank = HEAD(gpuBanks); bank; NEXT(bank))
@@ -1008,7 +1026,8 @@ static void renderPrepVisibleChunks(Map map)
 
 					/* check if we need to sort vertex: this is costly but should not be done very often */
 					if ((fabsf(render.yaw - cd->yaw) > M_PI_4 && fabsf(render.yaw - cd->yaw - 2*M_PI) > M_PI_4) ||
-						 fabsf(render.pitch - cd->pitch) > M_PI_4)
+					     fabsf(render.pitch - cd->pitch) > M_PI_4 ||
+					     (player == cd && renderHasPlayerMoved(map, cd)))
 					{
 						renderSortVertex(bank, cd);
 					}

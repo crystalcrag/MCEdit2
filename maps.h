@@ -35,6 +35,7 @@ struct Map_t
 	int       mapSize;             /* mapArea * mapArea */
 	int       frame;               /* needed by frustum culling */
 	int       GPUchunk;            /* statistic used by debug screen (chunks with mesh on GPU) */
+	uint16_t  curOffset;           /* reduce sorting for alpha transparency */
 	Chunk     center;              /* chunks + mapX + mapZ * mapArea */
 	ListHead  genList;             /* chunks to process */
 	Chunk     genLast;
