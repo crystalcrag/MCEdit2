@@ -942,7 +942,7 @@ static inline void renderSortVertex(GPUBank bank, ChunkData cd)
 
 static inline Bool renderHasPlayerMoved(Map map, ChunkData cd)
 {
-	int off = CHUNK_POS2OFFSET(cd->chunk, render.camera, cd->Y);
+	int off = CHUNK_POS2OFFSET(cd->chunk, render.camera);
 
 	if (map->curOffset != off)
 	{

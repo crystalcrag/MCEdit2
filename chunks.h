@@ -11,9 +11,10 @@
 #include "NBT2.h"
 
 #define BUILD_HEIGHT                   256
+#define CHUNK_DIRTY                    0x80
 #define CHUNK_LIMIT                    (BUILD_HEIGHT/16)
 #define CHUNK_BLOCK_POS(x,z,y)         ((x) + ((z) << 4) + ((y) << 8))
-#define CHUNK_POS2OFFSET(chunk,pos,Y)  (((int) floorf(pos[VX]) - chunk->X) + (((int) floorf(pos[VZ]) - chunk->Z) << 4) + (((int) floorf(pos[VY]) - Y) << 8))
+#define CHUNK_POS2OFFSET(chunk,pos)    (((int) floorf(pos[VX]) - chunk->X) + (((int) floorf(pos[VZ]) - chunk->Z) << 4) + (((int) floorf(pos[VY]) & 15) << 8))
 
 typedef struct Chunk_t *               Chunk;
 typedef struct ChunkData_t             ChunkData_t;
@@ -39,7 +40,7 @@ void      chunkExpandEntities(Chunk);
 struct ChunkData_t                     /* one sub-chunk of 16x16x16 blocks */
 {
 	ChunkData visible;                 /* frustum culling list */
-	ChunkData update;                  /* need updating */
+	ChunkData update;                  /* mesh needs to be updated */
 	Chunk     chunk;                   /* bidirectional link */
 	uint16_t  Y;                       /* vertical pos in blocks */
 
@@ -55,7 +56,7 @@ struct ChunkData_t                     /* one sub-chunk of 16x16x16 blocks */
 	int       glSlot;
 	int       glSize;                  /* size in bytes */
 	int       glAlpha;                 /* alpha triangles, need separate pass */
-	float     yaw, pitch;              /* heuristic to limit amount of sorting */
+	float     yaw, pitch;              /* heuristic to limit amount of sorting for alpha transparency */
 };
 
 struct Chunk_t                         /* an entire column of 16x16 blocks */
@@ -93,6 +94,7 @@ enum /* flags for Chunk_t.flags */
 	CFLAG_NEEDSAVE   = 0x04,           /* modifications need to be saved on disk */
 	CFLAG_HASENTITY  = 0x08,           /* entity transfered in active list */
 	CFLAG_MARKMODIF  = 0x10,           /* mark for modif at the NBT level */
+	CFLAG_ETTLIGHT   = 0x20,           /* update entity light for this chunk */
 };
 
 enum /* NBT update tag */

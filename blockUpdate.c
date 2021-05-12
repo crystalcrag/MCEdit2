@@ -505,15 +505,17 @@ static Bool mapUpdateAddPistonExt(struct BlockIter_t iter, int blockId, Bool ext
 {
 	uint8_t ext = blockSides.piston[blockId & 7];
 	vec4    src = {iter.x + iter.ref->X, iter.yabs, iter.z + iter.ref->Z};
+	Chunk   ref = iter.ref;
 
 	/* XXX not sure where this tile entity is stored: use position it is now */
 	mapIter(&iter, relx[ext], rely[ext], relz[ext]);
 	vec4 dest = {iter.x + iter.ref->X, iter.yabs, iter.z + iter.ref->Z};
 
-	float * pos = blockId & 8 ? dest : src;
+	float * pos = src;
+	if (blockId & 8) pos = dest, ref = iter.ref;
 	int XYZ[] = {pos[0], pos[1], pos[2]};
 
-	DATA8 tile = chunkGetTileEntity(iter.ref, XYZ);
+	DATA8 tile = chunkGetTileEntity(ref, XYZ);
 
 	if (! tile)
 	{
@@ -538,7 +540,7 @@ static Bool mapUpdateAddPistonExt(struct BlockIter_t iter, int blockId, Bool ext
 		//fprintf(stderr, "adding tile entity at %d,%d,%d\n", XYZ[0], XYZ[1], XYZ[2]);
 		XYZ[0] &= 15;
 		XYZ[2] &= 15;
-		chunkAddTileEntity(iter.ref, XYZ, ret.mem);
+		chunkAddTileEntity(ref, XYZ, ret.mem);
 		tile = ret.mem;
 	}
 	else return False;
@@ -555,7 +557,7 @@ static Bool mapUpdateAddPistonExt(struct BlockIter_t iter, int blockId, Bool ext
 	/* create or update the moving block */
 	if (blockId > 0)
 		/* XXX need progress */
-		entityUpdateOrCreate(src, blockId, dest, 1, tile, mapGetSkyBlockLight(&iter));
+		entityUpdateOrCreate(ref, src, blockId, dest, 1, tile, mapGetSkyBlockLight(&iter));
 
 	return True;
 }
@@ -563,21 +565,26 @@ static Bool mapUpdateAddPistonExt(struct BlockIter_t iter, int blockId, Bool ext
 /* convert blocks push/rectracted by a piston into block 36 */
 void mapUpdateToBlock36(Map map, RSWire list, int count, int dir, BlockIter iterator)
 {
-	int i;
 	vec4 pos = {iterator->x + iterator->ref->X, iterator->yabs, iterator->z + iterator->ref->Z};
 	vec4 off = {relx[dir], rely[dir], relz[dir]};
+	int  i;
+
 	if (count > 0 && list->signal > 0)
+		/* retracting blocks instead */
 		off[0] = -off[0], off[1] = -off[1], off[2] = -off[2];
+
 	for (i = 0; i < count; i ++, list ++)
 	{
 		vec4 src = {pos[0] + list->dx, pos[1] + list->dy, pos[2] + list->dz};
 		vec4 dst = {src[0] + off[0], src[1] + off[1], src[2] + off[2]};
 
+		struct BlockIter_t iter = *iterator;
+		mapIter(&iter, list->dx, list->dy, list->dz);
+
 		/* place tile entity of block 36 into source block (like piston head) */
 		NBTFile_t tile = {.page = 127};
 		TEXT      itemId[128];
 		STRPTR    blockName;
-		uint8_t   light;
 		itemGetTechName(ID(RSPISTONEXT, 0), itemId, sizeof itemId);
 		blockName = strchr(itemId, 0) + 1;
 		itemGetTechName(list->blockId << 4, blockName, sizeof itemId - (blockName - itemId));
@@ -593,12 +600,7 @@ void mapUpdateToBlock36(Map map, RSWire list, int count, int dir, BlockIter iter
 		);
 		mapUpdate(map, src, ID(RSPISTONEXT, 0), tile.mem, False);
 
-		{
-			struct BlockIter_t iter = *iterator;
-			mapIter(&iter, list->dx + (int) off[0], list->dy + (int) off[1], list->dz + (int) off[2]);
-			light = mapGetSkyBlockLight(&iter);
-		}
-		entityUpdateOrCreate(src, (list->blockId << 4) | list->data, dst, 1, tile.mem, light);
+		entityUpdateOrCreate(iter.ref, src, (list->blockId << 4) | list->data, dst, 1, tile.mem, mapGetSkyBlockLight(&iter));
 	}
 }
 

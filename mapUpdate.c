@@ -17,6 +17,7 @@
 #include "sign.h"
 #include "particles.h"
 #include "redstone.h"
+#include "entities.h"
 #include "NBT2.h"
 
 /* order is S, E, N, W, T, B ({xyz}off last slot is to get back to starting pos) */
@@ -202,6 +203,10 @@ void mapUpdateTable(BlockIter iter, int val, int table)
 		*track.list = cd;
 		track.list = &cd->update;
 	}
+	if (table == SKYLIGHT_OFFSET || table == BLOCKLIGHT_OFFSET)
+		/* entity light in this chunk needs to be updated */
+		iter->ref->cflags |= CFLAG_ETTLIGHT;
+
 	/* track which side it is near to (we might have to update nearby chunk too) */
 	cd->slot |= (slots[iter->z] << 1) | (slots[iter->x] << 2) | (slots[iter->y] << 5);
 }
@@ -1195,6 +1200,7 @@ static int mapUpdateIfPowered(Map map, BlockIter iterator, int oldId, int blockI
 /*
  * link chunks that have been modified in the update
  */
+
 static void mapUpdateListChunk(Map map)
 {
 	ChunkData * first = &map->dirty;
@@ -1209,9 +1215,11 @@ static void mapUpdateListChunk(Map map)
 
 	for (cd = track.modif; cd; cd = next)
 	{
-		uint8_t slots = cd->slot >> 1, i;
-		int     layer = cd->Y >> 4;
-		Chunk   c     = cd->chunk;
+		ChunkData nbor;
+		uint8_t   slots = cd->slot >> 1, i;
+		int       layer = cd->Y >> 4;
+		Chunk     c     = cd->chunk;
+
 		*first = cd;
 		first = &cd->update;
 		next = *first;
@@ -1222,13 +1230,19 @@ static void mapUpdateListChunk(Map map)
 			save = &c->save;
 			c->cflags |= CFLAG_NEEDSAVE;
 		}
+		if (c->cflags & CFLAG_ETTLIGHT)
+		{
+			if (c->entityList != ENTITY_END)
+				entityUpdateLight(c);
+			c->cflags &= ~CFLAG_ETTLIGHT;
+		}
 
 		/* check for nearby chunks (S, E, N, W) */
 		for (i = 1, slots = (cd->slot >> 1) & 15; slots; i <<= 1, slots >>= 1)
 		{
 			if ((slots & 1) == 0) continue;
-			Chunk     chunk = c + chunkNeighbor[c->neighbor + i];
-			ChunkData nbor  = chunk->layer[layer];
+			Chunk chunk = c + chunkNeighbor[c->neighbor + i];
+			nbor = chunk->layer[layer];
 			if (nbor && nbor->slot == 0)
 			{
 				*first = nbor;
@@ -1238,28 +1252,29 @@ static void mapUpdateListChunk(Map map)
 		}
 		/* top */
 		slots = cd->slot;
-		if ((slots & 32) && layer < CHUNK_LIMIT)
+		if ((slots & 32) && layer < CHUNK_LIMIT && (nbor = c->layer[layer+1]))
 		{
-			ChunkData top = c->layer[layer+1];
-			if (top && top->slot == 0)
+			if (nbor->slot == 0)
 			{
-				*first = top;
-				first = &top->update;
-				top->slot = 1;
+				*first = nbor;
+				first = &nbor->update;
+				nbor->slot = CHUNK_DIRTY | 1;
 			}
+			else nbor->slot |= CHUNK_DIRTY;
 		}
 		/* bottom */
-		if ((slots & 128) && layer > 0)
+		if ((slots & 128) && layer > 0 && (nbor = c->layer[layer-1]))
 		{
-			ChunkData bottom = c->layer[layer-1];
-			if (bottom && bottom->slot == 0)
+			if (nbor->slot == 0)
 			{
-				*first = bottom;
-				first = &bottom->update;
-				bottom->slot = 1;
+				*first = nbor;
+				first = &nbor->update;
+				nbor->slot = CHUNK_DIRTY | 1;
 			}
+			else nbor->slot |= CHUNK_DIRTY;
 		}
 	}
+
 	*first = NULL;
 	*save = NULL;
 	track.modif = NULL;
@@ -1274,6 +1289,10 @@ void mapUpdateMesh(Map map)
 {
 	ChunkData cd, next;
 	track.pos = 0;
+
+	/* list of sub-chunks that we need to update their mesh */
+	mapUpdateListChunk(map);
+
 	for (cd = map->dirty; cd; cd = next)
 	{
 		cd->slot = 0;
@@ -1483,20 +1502,16 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 		/* update nearby block if needed */
 		mapUpdateBlock(map, pos, blockId, oldId, tile);
 
-		/* list of sub-chunks that we need to update their mesh */
-		mapUpdateListChunk(map);
-
 		/* updates triggered by previous block updates */
 		if (track.updateCount > 0)
-		{
 			mapUpdateFlush(map);
-		}
+
 		/* update mesh */
 		mapUpdateMesh(map);
 		renderPointToBlock(-1, -1);
 	}
 	/* transfer modified chunk in a list, but don't re-generate mesh yet */
-	else mapUpdateListChunk(map);
+	// else mapUpdateListChunk(map);
 
 	if (blockId == 0)
 	{

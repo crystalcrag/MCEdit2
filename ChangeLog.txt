@@ -1,4 +1,26 @@
+=========== Week 19 ===========
+Tue May 11:
+	* bug fixed when multiple ChunkData updates happen in a single tick: not all nearby chunks were updated.
+	* new entity were not added to chunk entity list: light were not updated if it changed later.
+
+Mon May 10:
+	* alpha transparency refined.
+	* entity uses skylight/blocklight.
+	* slight adjust in AO for blocks.
+
 =========== Week 18 ===========
+Sun May 9:
+	* alpha transparency using CPU sorted triangles: meh, but it works.
+	* model for cauldron was mess-up.
+
+Sat May 8:
+	* piston mostly working.
+	* started proper handling of alpha transparency.
+
+Fri May 7:
+	* debug entity moved by piston.
+	* slice view failed to apply rotation to texture.
+
 Thu May 6:
 	* pushable blocks first version seems working; need more test though.
 

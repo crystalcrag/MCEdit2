@@ -17,9 +17,10 @@ void entityUnload(Chunk);
 void entityAnimate(Map map);
 void entityRender(void);
 void entityDebug(int id);
+void entityUpdateLight(Chunk c);
 void entityInfo(int id, STRPTR buffer, int max);
 int  entityRaycast(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos);
-void entityUpdateOrCreate(vec4 pos, int blockId, vec4 dest, int ticks, DATA8 tile, uint8_t light);
+void entityUpdateOrCreate(Chunk c, vec4 pos, int blockId, vec4 dest, int ticks, DATA8 tile, uint8_t light);
 
 #define ENTITY_END         0xffff
 #define PAINTING_ADDTEXU   16

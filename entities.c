@@ -453,7 +453,7 @@ static uint8_t entityGetLight(Chunk c, vec4 pos)
 	if (Y >= c->maxy) return 240;
 
 	ChunkData cd = c->layer[Y];
-	mapInitIterOffset(&iter, cd, CHUNK_POS2OFFSET(c, pos, cd->Y));
+	mapInitIterOffset(&iter, cd, CHUNK_POS2OFFSET(c, pos));
 
 	return mapGetSkyBlockLight(&iter);
 }
@@ -712,7 +712,7 @@ void entityUnload(Chunk c)
 	c->entityList = ENTITY_END;
 }
 
-/* remove entity from given chunk */
+/* remove one entity from given chunk */
 void entityDelete(Chunk c, DATA8 tile)
 {
 	DATA16 prev;
@@ -778,7 +778,7 @@ void entityAnimate(Map map)
 		updateFinished(map, NULL, NULL);
 }
 
-void entityUpdateOrCreate(vec4 pos, int blockId, vec4 dest, int ticks, DATA8 tile, uint8_t light)
+void entityUpdateOrCreate(Chunk c, vec4 pos, int blockId, vec4 dest, int ticks, DATA8 tile, uint8_t light)
 {
 	EntityAnim anim;
 	Entity     entity;
@@ -792,7 +792,11 @@ void entityUpdateOrCreate(vec4 pos, int blockId, vec4 dest, int ticks, DATA8 til
 	}
 
 	if (slot == 0)
+	{
 		entity = entityAlloc(&slot);
+		entity->next = c->entityList;
+		c->entityList = slot;
+	}
 
 	memcpy(entity->pos, pos, 12);
 	memcpy(entity->motion, dest, 12);
@@ -816,6 +820,30 @@ void entityUpdateOrCreate(vec4 pos, int blockId, vec4 dest, int ticks, DATA8 til
 
 	fprintf(stderr, "adding entity %d at %p\n", entities.animCount, tile);
 }
+
+/* sky/block light has changed in this chunk */
+void entityUpdateLight(Chunk c)
+{
+	Entity entity;
+	int    id;
+	for (id = c->entityList; id != ENTITY_END; id = entity->next)
+	{
+		entity = entityGetById(id);
+		uint8_t light = entityGetLight(c, entity->pos);
+		if (light != entity->light)
+		{
+			EntityBank bank;
+			int j;
+			entity->light = light;
+			for (j = entity->VBObank & 63, bank = HEAD(entities.banks); j > 0; j --, NEXT(bank));
+			float val = light;
+			if (entity->select) val += 256;
+			glBindBuffer(GL_ARRAY_BUFFER, bank->vboLoc);
+			glBufferSubData(GL_ARRAY_BUFFER, entity->mdaiSlot * INFO_SIZE + 12, 4, &val);
+		}
+	}
+}
+
 
 #ifdef DEBUG
 void entityDebugCmd(void)
