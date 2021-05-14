@@ -892,25 +892,97 @@ with an integer assigned to it. Beside this property, you can also use these one
 
 <h2 id="opengl">Advanced OpenGL</h2>
 
-<p>This section will explain some aspects of rendering pipeline. This being OpenGL and based on shaders,
-the way geometry is usually not that obvious (at least if you are not that familiar with OpenGL).
+<p>This section will explain some aspects of rendering pipeline.
 
 <h3 id="translucency"><span>Handling translucent blocks</span></h3>
 
-<p>That part was probably one of the biggest crap shoot to implement. 2 attempts (depth peeling and
-fragment sorting) were tried, but ultimately were entirely discarded because of serious shortcomings
-in the way they inherently works. Therefore the first 2 sections are a remimder to not waste your time
+<p>That part was probably one of the biggest <b>crap shoot to implement</b>. 2 attempts were tried
+(depth peeling and fragment sorting), but ultimately were entirely discarded because of serious shortcomings
+in the way they inherently work. Therefore the first 2 sections are a remimder to not waste your time
 with these techniques.
 
 <h4 id="oit"><span>Fragment sorting on GPU (Order Independent Transparency)</span></h4>
 
+<p>In the OpenGL red book ninth edition, there is a fully working example for handling alpha transparency
+in a <b>completely generic and 100% accurate way</b>, for any type of geometry. The implementation seems elegant,
+not very intrusive, therefore rather easy to integrate, and indeed handle absolutely all use cases.
+
+<p>The basic idea with this technique is this:
+
+<blockquote>
+<p>Instead of writing translucent fragment directly in the
+framebuffer, within the fragment shader, you write them in a (very big) linked list. Thanks to OpenGLv4
+atomic types and counters, this can be achieved rather easily.
+
+<p>The linked list is implemented using 2 textures: one texture the size of the framebuffer, where each
+pixel will actually stored the head of the linked list as a 32bit integer. The second texture will contain
+the fragments (unsorted). For each element in this texture, we need: the RGBA color (32bit int),
+the depth value (32bit float) and the next fragment in the list (32bit int), therefore 12 bytes per
+translucent fragment.
+
+<p>Once all fragments has been written in that list, you start a second pass to write them in the
+framebuffer, by using the head texture to get all translucent fragment at given position, sort them
+by decreasing depth, combining them using pre-multiplied alpha and finally writing the result into
+the framebuffer.
+</blockquote>
+
+<p>That technique works indeed fine, except for a few use cases where <b>performance can suffer
+massively</b>: a simple way to push this technique to its limit, is simply to have 2 quads, one
+behind the other, very close to the camera. In that case, this is what will happen (supposing a
+framebuffer of <tt>1920x1080px</tt>):
+<ul>
+  <li>Each pixel of the framebuffer will have to write 2 fragments in the linked list.
+  <li><tt>2</tt> fragments times <tt>1920px</tt> times <tt>1080px</tt> times <tt>16</tt> bytes (12 bytes
+  per fragment + 4 bytes for head of linked list) times <tt>60</tt> (frame per second) = a little bit
+  under 4 Gb / second. That is going to saturate the memory bandwidth of all but high-end configuration.
+  <li>To add insult to injury, if you were to sort those quads using the CPU, it would be just a few hundreeds
+  bytes to move around.
+</ul>
+
+<p>In conclusion: <b>for a voxel engine, it is not advised to rely on this technique alone</b>.
+
 <h4 id="depthpeel"><span>Depth peeling</span></h4>
+
+<p>Another technique to handle alpha transparency in a completely generic way, with 100% accuracy, and
+mostly handled by the GPU. The idea of this technique is as follows:
+
+<blockquote>
+<p>Once again instead of writing the fragments directly in the main framebuffer, you write them into
+another one (that has a color and <b>two</b> depth buffers). Obviously on that framebuffer, you will
+have to mange the depth buffers on your own. The first depth buffer needs to be initialized to the min
+value, and the second to the max value.
+
+<p>On the CPU side, you start a loop with the number of "peel" of transparency you want to uncover.
+There is a technique to get the exact number of loop, but as a starting point use an arbitrary number,
+like 2 or 3.
+
+<p>In the fragment shader handling translucent triangles, you overwrite the color only if the depth of the
+fragment is higher than the value currently stored in the first depth buffer and lower than the second
+one. If outside that, discard the fragment.
+
+<p>Doing so, you just extracted the first layer of the farthest translucent fragments. You can now merge
+the color buffer with the main framebuffer, using a trivial shader and a quad covering the entire screen.
+
+<p>Next step is to swap first and second depth buffer, and continue with the next iteration of the loop.
+</blockquote>
+
+<p>The main problem with this approach is getting the exact number of loops required to draw all the
+transparent fragments. Due to the asynchronous nature of GPU, this value is not that trivial to get
+without stalling the pipeline.
+
+<p>One way to do this, is to use an generic buffer counter within an atomic operator, to use as a
+boolean, whenever a pass writing at least one fragment in the color buffer. If at the end of all your
+loops, this boolean is set, it means that there was not enough loops. If unset, it means there was
+too many. Sadly, at this point you can increase/decrease the number of loop only by one. And to make
+things even worse, you will be able to read that buffer, only after the back buffer has been swapped
+(ie: after calling SDL_GL_SwapBuffers()).
+
+<p>This is far from ideal in practice, and this technique has somewhat the same problem than the linked
+of fragments: it requires too much bandwidth.
 
 <h4 id="cpusort"><span>Triangles sorting on CPU</span></h4>
 
 <!--
- *
- * There are 3 major ways to handle translucency with OpenGL:
  * - Sort primitive back to front on the CPU: simple but can be very costly if lost of triangles.
  *
  * - Depth peeling: you sort layer of geometry in the fragment shader using 2 depth buffers, and continue
@@ -923,14 +995,6 @@ with these techniques.
  *   - Cons: you need multiple pass to render the full scene, getting the exact count if tricky and add a
  *           decent amount of complexity.
  *
- * - Sorted linked list of fragments: instead of writing translucent fragment in the
- *			framebuffer, you write them in a (rather big) linked list, and once of the geomtry has
- *			been processed, you write it back to the framebuffer.
- *   + Pros: handle all kind of complexity, in 2 passes (the second one being very simple).
- *   + Pros: not that complex to implement.
- *   - Cons: high memory requirement: for 1920x1080, you need 64Mb at the very least.
- *   - Cons: you might need more passes for very complex scene (lots of overlapping translucent fragment).
- *   - Cons: memory bandwidth needed to read/store all the fragments can be prohibitive.
 -->
 
 <h2 id="nbt2">NBT API</h2>

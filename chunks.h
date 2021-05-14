@@ -11,7 +11,6 @@
 #include "NBT2.h"
 
 #define BUILD_HEIGHT                   256
-#define CHUNK_DIRTY                    0x80
 #define CHUNK_LIMIT                    (BUILD_HEIGHT/16)
 #define CHUNK_BLOCK_POS(x,z,y)         ((x) + ((z) << 4) + ((y) << 8))
 #define CHUNK_POS2OFFSET(chunk,pos)    (((int) floorf(pos[VX]) - chunk->X) + (((int) floorf(pos[VZ]) - chunk->Z) << 4) + (((int) floorf(pos[VY]) & 15) << 8))

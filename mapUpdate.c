@@ -649,9 +649,8 @@ static void mapUpdateRemLight(BlockIter iterator)
 	}
 }
 
-static void mapUpdateObstructLight(BlockIter iterator)
+static void mapUpdateObstructLight(struct BlockIter_t iter)
 {
-	struct BlockIter_t iter = *iterator;
 	int8_t light;
 
 	mapUpdateInitTrack(track);
@@ -663,7 +662,7 @@ static void mapUpdateObstructLight(BlockIter iterator)
 
 	while (track.usage > 0)
 	{
-		struct BlockIter_t neighbor = *iterator;
+		struct BlockIter_t neighbor = iter;
 
 		int8_t * XYZ = track.coord + track.pos;
 		int8_t   i, dim, max, k;
@@ -675,6 +674,7 @@ static void mapUpdateObstructLight(BlockIter iterator)
 		{
 			mapIter(&neighbor, xoff[i], yoff[i], zoff[i]);
 
+			/* check if there is a light with a higher level than the one being deleted */
 			int block = neighbor.blockIds[neighbor.offset];
 			light = mapGetLight(&neighbor);
 			dim   = blockIds[block].emitLight;
@@ -682,13 +682,14 @@ static void mapUpdateObstructLight(BlockIter iterator)
 			dim   = blockGetLightOpacity(block, 1);
 			if (dim < MAXLIGHT)
 			{
-				struct BlockIter_t iter = neighbor;
+				struct BlockIter_t depend = neighbor;
 				/* check if there is a block light == light + dim surrounding this pos */
 				for (k = max = 0; k < 6; k ++)
 				{
-					mapIter(&iter, xoff[k], yoff[k], zoff[k]);
-					if (blockGetLightOpacity(iter.blockIds[iter.offset], 0) == MAXLIGHT) continue;
-					uint8_t light2 = mapGetLight(&iter);
+					/* this means that deleted light was not a local maximum */
+					mapIter(&depend, xoff[k], yoff[k], zoff[k]);
+					if (blockGetLightOpacity(depend.blockIds[depend.offset], 0) == MAXLIGHT) continue;
+					uint8_t light2 = mapGetLight(&depend);
 					if (light2 == light + dim) break;
 					if (max < light2) max = light2;
 				}
@@ -711,22 +712,33 @@ static void mapUpdateObstructLight(BlockIter iterator)
 	}
 }
 
-static void mapUpdateRestoreLight(Map map, BlockIter iterator)
+static void mapUpdateRestoreLight(struct BlockIter_t iter)
 {
-	struct BlockIter_t neighbor = *iterator;
-	int i, max;
+	int i, max = mapGetLight(&iter);
 	for (i = max = 0; i < 6; i ++)
 	{
-		mapIter(&neighbor, xoff[i], yoff[i], zoff[i]);
-
-		uint8_t light = mapGetLight(&neighbor);
+		mapIter(&iter, xoff[i], yoff[i], zoff[i]);
+		uint8_t light = mapGetLight(&iter);
 		if (max < light)
 			max = light;
 	}
+	/* back to origin */
+	mapIter(&iter, 0, 1, 0);
 	if (max > 0)
-		mapUpdateAddLight(iterator, max-blockGetLightOpacity(iterator->blockIds[iterator->offset], 1));
+		mapUpdateAddLight(&iter, max-blockGetLightOpacity(iter.blockIds[iter.offset], 1));
 	else
-		mapUpdateTable(iterator, 0, BLOCKLIGHT_OFFSET);
+		mapUpdateTable(&iter, 0, BLOCKLIGHT_OFFSET);
+}
+
+static Bool mapUpdateIsLocalMax(struct BlockIter_t iter, int light)
+{
+	int i;
+	for (i = 0; i < 6; i ++)
+	{
+		mapIter(&iter, xoff[i], yoff[i], zoff[i]);
+		if (mapGetLight(&iter) > light) return False;
+	}
+	return True;
 }
 
 /* dispatch changes to block light update functions */
@@ -746,8 +758,14 @@ static void mapUpdateBlockLight(Map map, BlockIter iter, int oldId, int newId)
 	{
 		uint8_t opac = blockIds[newId>>4].opacLight, i;
 		uint8_t light = mapGetLight(iter);
-		if (opac == 0 || light == 0)
+		if (light == MAXLIGHT || mapUpdateIsLocalMax(*iter, light))
 		{
+			/* a light has been removed, but light not updated :-/ */
+			mapUpdateRemLight(iter);
+		}
+		else if (opac == 0 || light == 0)
+		{
+			/* what does this do already? */
 			struct BlockIter_t neighbor = *iter;
 			neighbor.alloc = False;
 			for (i = 0; i < 6; i ++)
@@ -755,14 +773,14 @@ static void mapUpdateBlockLight(Map map, BlockIter iter, int oldId, int newId)
 				mapIter(&neighbor, xoff[i], yoff[i], zoff[i]);
 				if (neighbor.cd && mapGetLight(&neighbor) > 1)
 				{
-					mapUpdateRestoreLight(map, iter);
+					mapUpdateRestoreLight(*iter);
 					break;
 				}
 			}
 		}
 		else if (newLight != light)
 		{
-			mapUpdateObstructLight(iter);
+			mapUpdateObstructLight(*iter);
 		}
 	}
 }
@@ -1258,9 +1276,8 @@ static void mapUpdateListChunk(Map map)
 			{
 				*first = nbor;
 				first = &nbor->update;
-				nbor->slot = CHUNK_DIRTY | 1;
+				nbor->slot = 1;
 			}
-			else nbor->slot |= CHUNK_DIRTY;
 		}
 		/* bottom */
 		if ((slots & 128) && layer > 0 && (nbor = c->layer[layer-1]))
@@ -1269,9 +1286,8 @@ static void mapUpdateListChunk(Map map)
 			{
 				*first = nbor;
 				first = &nbor->update;
-				nbor->slot = CHUNK_DIRTY | 1;
+				nbor->slot = 1;
 			}
-			else nbor->slot |= CHUNK_DIRTY;
 		}
 	}
 
@@ -1387,6 +1403,7 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 {
 	struct BlockIter_t iter;
 	uint8_t silent = blockUpdate & UPDATE_SILENT;
+	uint8_t doLight = (blockUpdate & UPDATE_KEEPLIGHT) == 0;
 
 	mapInitIter(map, &iter, pos, blockId > 0);
 	blockUpdate &= 15;
@@ -1430,8 +1447,9 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 	if (iter.offset & 1) *data = (*data & 0x0f) | ((blockId & 0xf) << 4);
 	else                 *data = (*data & 0xf0) | (blockId & 0xf);
 
-	/* update skyLight */
+	if (doLight)
 	{
+		/* update skyLight */
 		uint8_t newSkyOpac = blockGetSkyOpacity(blockId>>4, 0);
 		uint8_t oldSkyOpac = blockGetSkyOpacity(oldId>>4, 0);
 		if (newSkyOpac != oldSkyOpac)
@@ -1441,10 +1459,10 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 			else
 				mapUpdateSkyLightUnblock(&iter);
 		}
+		/* update blockLight */
+		mapUpdateBlockLight(map, &iter, oldId, blockId);
 	}
-
-	/* update blockLight */
-	mapUpdateBlockLight(map, &iter, oldId, blockId);
+	else mapUpdateRestoreLight(iter);
 
 	if (iter.cd->slot == 0 && blockId != oldId)
 	{

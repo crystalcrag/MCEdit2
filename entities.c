@@ -722,11 +722,12 @@ void entityDelete(Chunk c, DATA8 tile)
 		int i;
 		EntityBuffer buf;
 		for (buf = HEAD(entities.list), i = slot >> ENTITY_SHIFT; i > 0; i --, NEXT(buf));
-		Entity entity = buf->entities + i;
+		slot &= ENTITY_BATCH-1;
+		Entity entity = buf->entities + slot;
 		if (entity->tile == tile)
 		{
 			*prev = entity->next;
-			entityClear(buf, i);
+			entityClear(buf, slot);
 			break;
 		}
 		prev = &entity->next;
@@ -760,16 +761,9 @@ void entityAnimate(Map map)
 			memcpy(dest, entity->motion, 12);
 			entities.animCount --;
 			/* remove from list */
+			Chunk c = mapGetChunk(map, dest);
 			memmove(anim, anim + 1, (i - 1) * sizeof *anim);
-			EntityBuffer buf;
-			for (buf = HEAD(entities.list); buf; NEXT(buf))
-			{
-				if (buf->entities <= entity && entity <= EOT(buf->entities))
-				{
-					entityClear(buf, entity - buf->entities);
-					break;
-				}
-			}
+			entityDelete(c, tile);
 			updateFinished(map, tile, dest);
 			finalize = 1;
 		}
@@ -818,7 +812,7 @@ void entityUpdateOrCreate(Chunk c, vec4 pos, int blockId, vec4 dest, int ticks, 
 	anim->stopTime = anim->prevTime + ticks * 20 * (1000 / TICK_PER_SECOND);
 	anim->entity = entity;
 
-	fprintf(stderr, "adding entity %d at %p\n", entities.animCount, tile);
+	fprintf(stderr, "adding entity %d at %p / %d\n", entities.animCount, tile, slot);
 }
 
 /* sky/block light has changed in this chunk */
@@ -846,25 +840,16 @@ void entityUpdateLight(Chunk c)
 
 
 #ifdef DEBUG
-void entityDebugCmd(void)
+void entityDebugCmd(Chunk c)
 {
-	EntityBank bank = HEAD(entities.banks);
-
-	glBindBuffer(GL_ARRAY_BUFFER, bank->vboLoc);
-	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, bank->vboMDAI);
-
-	float * loc = glMapBuffer(GL_ARRAY_BUFFER, GL_READ_ONLY);
-	MDAICmd cmd = glMapBuffer(GL_DRAW_INDIRECT_BUFFER, GL_READ_ONLY);
-
-	int i;
-	for (i = 0; i < bank->mdaiCount; i ++, cmd ++, loc += INFO_SIZE/4)
+	Entity entity;
+	int id;
+	for (id = c->entityList; id != ENTITY_END; id = entity->next)
 	{
-		fprintf(stderr, "%d. item at %4d,%4d,%4d, model: %d, count: %d [%d-%d]\n", i, (int) loc[0], (int) loc[1], (int) loc[2],
-			cmd->first, cmd->count, cmd->baseInstance, cmd->instanceCount);
-	}
+		entity = entityGetById(id);
 
-	glUnmapBuffer(GL_ARRAY_BUFFER);
-	glUnmapBuffer(GL_DRAW_INDIRECT_BUFFER);
+		fprintf(stderr, "entity %d at %g, %g, %g: %s\n", id, entity->pos[0], entity->pos[1], entity->pos[2], entity->name);
+	}
 }
 #endif
 

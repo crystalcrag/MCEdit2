@@ -305,6 +305,7 @@ DATA8 chunkDeleteTileEntity(Chunk c, int * XYZ)
 		ent->prev = EOF_MARKER;
 		ent = next;
 	}
+	fprintf(stderr, "deleting tile entity at %d, %d, %d\n", c->X + XYZ[0], XYZ[1], c->Z + XYZ[2]);
 	if (! (c->nbt.mem <= data && data < c->nbt.mem + c->nbt.usage))
 		free(data);
 	hash->count --;
@@ -717,7 +718,7 @@ uint8_t cubeIndices[6*4] = { /* face (quad) of cube: S, E, N, W, T, B */
 	9, 0, 3, 6,    6, 3, 15, 18,     18, 15, 12, 21,     21, 12, 0, 9,    21, 9, 6, 18,      0, 12, 15, 3
 /*  3, 0, 1, 2,    2, 1,  5,  6,      6,  5,  4,  7,      7,  4, 0, 3,     7, 3, 2,  6,      0,  4,  5, 1 */
 };
-static uint8_t skyBlockOffset[] = {
+uint8_t skyBlockOffset[] = {
 	15, 16, 24, 25,    6,  7, 15, 16,    7,  8, 16, 17,    16, 17, 25, 26,
 	14, 17, 23, 26,    5,  8, 14, 17,    2,  5, 11, 14,    11, 14, 20, 23,
 	10, 11, 19, 20,    1,  2, 10, 11,    0,  1,  9, 10,     9, 10, 18, 19,
@@ -953,7 +954,7 @@ void chunkUpdate(Chunk c, ChunkData empty, int layer, ChunkFlushCb_t flush)
 	neighbors[6]->yaw = 3.14926535 * 1.5;
 	neighbors[6]->pitch = 0;
 
-//	if (c->X == -176 && neighbors[6]->Y == 64 && c->Z == -32)
+//	if (c->X == -208 && neighbors[6]->Y == 32 && c->Z == -48)
 //		breakPoint = 1;
 
 	for (pos = air = 0; pos < 16*16*16; pos ++)
@@ -967,7 +968,7 @@ void chunkUpdate(Chunk c, ChunkData empty, int layer, ChunkFlushCb_t flush)
 		block = blocks[pos];
 		state = blockGetByIdData(block, data);
 
-//		if (breakPoint && pos == 2183)
+//		if (breakPoint && pos == 4069)
 //			breakPoint = 2;
 
 		if (blockIds[block].particle)
@@ -1493,7 +1494,7 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 		if (b->special == BLOCK_HALF || b->special == BLOCK_STAIRS)
 		{
 			uint8_t pos[3] = {x<<1, y<<1, z<<1};
-			halfBlockGenMesh(buffer, halfBlockGetModel(b, 2, blockIds3x3), 2, pos, &b->nzU, blockIds3x3);
+			halfBlockGenMesh(buffer, halfBlockGetModel(b, 2, blockIds3x3), 2, pos, &b->nzU, blockIds3x3, skyBlock);
 			break;
 		}
 

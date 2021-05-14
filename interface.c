@@ -178,7 +178,7 @@ static void mcuiRefreshTooltip(MCInventory inv)
 	itemGetTechName(item->id, title + index, sizeof title - index);
 	StrCat(title, sizeof title, index, "</dim>");
 
-	SIT_SetValues(mcui.toolTip, SIT_Title, title, SIT_DisplayTime, SITV_ResetTime, NULL);
+	SIT_SetValues(mcui.toolTip, SIT_Visible, True, SIT_Title, title, SIT_DisplayTime, SITV_ResetTime, NULL);
 }
 
 static int mcuiDragItem(SIT_Widget w, APTR cd, APTR ud)

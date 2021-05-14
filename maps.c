@@ -320,7 +320,7 @@ static Bool mapBlockIsFaceVisible(Map map, vec4 pos, int blockId, int8_t * offse
 		vec4 neighbor = {pos[0] + offset[0], pos[1] + offset[1], pos[2] + offset[2], 1};
 
 		BlockState n = blockGetById(mapGetBlockId(map, neighbor, NULL));
-		return n->type != SOLID;
+		return n->type != SOLID || n->special == BLOCK_HALF;
 	}
 	return True;
 }
@@ -367,8 +367,6 @@ Bool mapPointToBlock(Map map, vec4 camera, float * yawPitch, vec4 dir, vec4 ret,
 	block = mapGetBlockId(map, plane, data);
 	cnx   = data->cnxFlags;
 	data->entity = 0;
-
-//	fprintf(stderr, "flags = %x\n", flags);
 
 	while (vecDistSquare(pos, camera) < MAX_PICKUP*MAX_PICKUP)
 	{

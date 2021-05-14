@@ -39,7 +39,7 @@ DATA8   blockCreateTileEntity(int blockId, vec4 pos, APTR arg);
 DATA16  blockParseModel(float * values, int count, DATA16 buffer);
 void    blockGetEmitterLocation(int blockId, float offset[5]);
 
-void    halfBlockGenMesh(WriteBuffer, DATA8 model, int size /* 2 or 8 */, DATA8 xyz, DATA8 tex, DATA16 blockIds);
+void    halfBlockGenMesh(WriteBuffer, DATA8 model, int size /* 2 or 8 */, DATA8 xyz, DATA8 tex, DATA16 blockIds, DATA8 skyBlock);
 DATA8   halfBlockGetModel(BlockState, int size /* 1, 2 or 8 */, DATA16 blockIds);
 void    halfBlockInit(void);
 

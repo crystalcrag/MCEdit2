@@ -1,4 +1,11 @@
 =========== Week 19 ===========
+Thu May 13:
+	* better half slab lighting: not quite right yet, but at least not hardcoded.
+
+Wed May 12:
+	* entity list per chunk bug fixed.
+	* entity light update is smoother when pushed by piston.
+
 Tue May 11:
 	* bug fixed when multiple ChunkData updates happen in a single tick: not all nearby chunks were updated.
 	* new entity were not added to chunk entity list: light were not updated if it changed later.

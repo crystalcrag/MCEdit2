@@ -1364,7 +1364,7 @@ int blockInvModelCube(DATA16 ret, BlockState b, DATA8 texCoord)
 			if (b->special == BLOCK_HALF)
 			{
 				/* half-slab model */
-				ret[1] = ret[1] / 2 + (BASEVTX/4);
+				ret[1] = (ret[1]-ORIGINVTX) / 2 + ORIGINVTX;
 				if (i < 4) texV = tex[1] * 8 + V * 16;
 				if ((b->id & 15) > 7)
 				{
@@ -2497,7 +2497,7 @@ static int blockModelStairs(DATA16 buffer, int blockId)
 	uint8_t  pos[] = {0, 0, 0};
 	memset(blockIds3x3, 0, sizeof blockIds3x3);
 	blockIds3x3[13] = blockId;
-	halfBlockGenMesh(&write, halfBlockGetModel(b, 2, blockIds3x3), 2, pos, &b->nzU, blockIds3x3);
+	halfBlockGenMesh(&write, halfBlockGetModel(b, 2, blockIds3x3), 2, pos, &b->nzU, blockIds3x3, (DATA8) blockIds3x3);
 	return (write.cur - write.start) / INT_PER_VERTEX;
 }
 

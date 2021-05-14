@@ -51,7 +51,8 @@ static uint8_t modelsSize0[DIM(modelsSize2)];
 
 static uint8_t dirs[] = {1, 4, 0, 4, 1, 4, 0, 4, 1, 0, 1, 0}; /* dir in <j> index */
 static uint8_t axis[] = {2, 0, 0, 0, 1};
-static int8_t  dir0[] = {2, 0, 2, 0, 1, 1}; /* index in pos/rect */
+static uint8_t dir0[] = {2, 0, 2, 0, 1, 1}; /* index in pos/rect */
+extern uint8_t skyBlockOffset[];
 
 void halfBlockInit(void)
 {
@@ -168,7 +169,7 @@ DATA8 halfBlockGetModel(BlockState b, int size, DATA16 blockIds)
  * Main function to convert a detail block metadata into a triangle mesh:
  * contrary to chunk meshing, we try harder to make triangles as big as possible.
  */
-void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DATA8 xyz, DATA8 tex, DATA16 blockIds)
+void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DATA8 xyz, DATA8 tex, DATA16 blockIds, DATA8 skyBlock)
 {
 	int16_t offset[6];
 	uint8_t pos[4];
@@ -305,6 +306,7 @@ void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DAT
 				static uint8_t coordU[] = {0, 2, 0, 2, 0, 0};
 				static uint8_t coordV[] = {1, 1, 1, 1, 2, 2};
 				static uint8_t invUV[]  = {0, 1, 1, 0, 2, 0};
+				static uint8_t corner[] = {4*16, 5*16, 7*16, 6*16, 0, 1*16, 3*16, 2*16};
 				int8_t vtx[4];
 				memcpy(vtx, pos, sizeof vtx);
 				DATA8 idx = vertex + *face2;
@@ -319,9 +321,22 @@ void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DAT
 				vtx[4] = vtx[coordU[j]] << texSz;
 				int U = (UV[0] << 4) + (invUV[j] == 1 ? 16 - vtx[4] : vtx[4]);  vtx[4] = vtx[coordV[j]] << texSz;
 				int V = (UV[1] << 4) + (invUV[j] != 2 ? 16 - vtx[4] : vtx[4]);
-
 				out[3] = U | ((V & ~7) << 6);
-				out[4] = (V & 7) | (j << 3) | (0xf0 << 8);
+				out[4] = (V & 7) | (j << 3);
+
+				uint8_t off = j * 16 + k * 2;
+				uint8_t max, l, skyval;
+				for (l = skyval = max = 0; l < 4; l ++, off ++)
+				{
+					uint8_t  skyvtx = skyBlock[skyBlockOffset[off]];
+					uint16_t light  = skyvtx & 15;
+					skyvtx &= 0xf0;
+					/* max for block light */
+					if (max < light) max = light;
+					if (skyvtx > 0 && (skyval > skyvtx || skyval == 0)) skyval = skyvtx;
+				}
+				out[4] |= (skyval | max) << 8;
+
 				out += IPV;
 			}
 			memcpy(out,     out - 4*IPV, BYTES_PER_VERTEX);

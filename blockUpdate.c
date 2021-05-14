@@ -537,7 +537,7 @@ static Bool mapUpdateAddPistonExt(struct BlockIter_t iter, int blockId, Bool ext
 			TAG_Int,    "source",    1,
 			TAG_End
 		);
-		//fprintf(stderr, "adding tile entity at %d,%d,%d\n", XYZ[0], XYZ[1], XYZ[2]);
+		fprintf(stderr, "adding tile entity at %d,%d,%d\n", XYZ[0], XYZ[1], XYZ[2]);
 		XYZ[0] &= 15;
 		XYZ[2] &= 15;
 		chunkAddTileEntity(ref, XYZ, ret.mem);
@@ -598,7 +598,7 @@ void mapUpdateToBlock36(Map map, RSWire list, int count, int dir, BlockIter iter
 			TAG_Int,    "z",         (int) src[VZ],
 			TAG_End
 		);
-		mapUpdate(map, src, ID(RSPISTONEXT, 0), tile.mem, False);
+		mapUpdate(map, src, ID(RSPISTONEXT, 0), tile.mem, UPDATE_KEEPLIGHT);
 
 		entityUpdateOrCreate(iter.ref, src, (list->blockId << 4) | list->data, dst, 1, tile.mem, mapGetSkyBlockLight(&iter));
 	}
@@ -952,6 +952,13 @@ void updateFinished(Map map, DATA8 tile, vec4 dest)
 				blockId = ID(RSSTICKYPISTON, blockId & 7);
 			else
 				blockId = ID(RSPISTON, blockId & 7);
+		}
+		else /* delete tile entity on piston body */
+		{
+			/* no need to trigger a mesh update: the block is already in the correct state */
+			Chunk c = mapGetChunk(map, src);
+			int   XYZ[] = {(int) src[0] - c->X, src[1], (int) src[2] - c->Z};
+			chunkDeleteTileEntity(c, XYZ);
 		}
 		/* else piston extended: add real piston head (instead of entity) */
 		mapUpdatePush(map, dest, blockId);
