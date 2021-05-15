@@ -334,6 +334,7 @@ static void mapUpdateSkyLightBlock(BlockIter iterator)
 	i = CHUNK_BLOCK_POS(iter.x, iter.z, 0);
 	if (iter.ref->heightMap[i] < iter.yabs+1)
 	{
+		/* block is higher than heightmap (or at the same level) */
 		int j, max;
 		sky = mapGetSky(&iter) - blockGetSkyOpacity(iter.blockIds[iter.offset], 0);
 		/* block is not blocking sky (ie: glass) */
@@ -463,9 +464,7 @@ static void mapUpdateSkyLightUnblock(BlockIter iterator)
 	{
 		/* highest block removed: compute new height */
 		int startY = iter.yabs;
-		/* check if a transparent block has been removed */
-		if (mapGetSky(&iter) == MAXSKY)
-			return;
+		int transp = mapGetSky(&iter) == MAXSKY;
 		while (iter.yabs >= 0 && blockGetSkyOpacity(iter.blockIds[iter.offset], 0) == 0)
 		{
 			mapUpdateTable(&iter, MAXSKY, SKYLIGHT_OFFSET);
@@ -473,6 +472,8 @@ static void mapUpdateSkyLightUnblock(BlockIter iterator)
 			mapIter(&iter, 0, -1, 0);
 		}
 		iter.ref->heightMap[i] = iter.yabs+1;
+		/* check if a transparent block has been removed */
+		if (transp) return;
 		iter = *iterator;
 	}
 	else
@@ -525,6 +526,16 @@ static void mapUpdateSkyLightUnblock(BlockIter iterator)
 		track.usage -= 3;
 		if (track.pos == track.max) track.pos = 0;
 	}
+}
+
+/* only restore the sky light for the block pointed by <iter> */
+static void mapUpdateRestoreSky(BlockIter iterator)
+{
+	struct BlockIter_t iter = *iterator;
+
+	mapIter(&iter, 0, 1, 0);
+	uint8_t sky = mapGetSky(&iter);
+	mapUpdateTable(iterator, sky == MAXSKY ? MAXSKY : sky - 1, SKYLIGHT_OFFSET);
 }
 
 /*
@@ -1462,7 +1473,11 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 		/* update blockLight */
 		mapUpdateBlockLight(map, &iter, oldId, blockId);
 	}
-	else mapUpdateRestoreLight(iter);
+	else
+	{
+		mapUpdateRestoreSky(&iter);
+		mapUpdateRestoreLight(iter);
+	}
 
 	if (iter.cd->slot == 0 && blockId != oldId)
 	{

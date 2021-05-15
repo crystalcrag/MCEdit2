@@ -855,12 +855,12 @@ void renderItems(Item items, int count, float scale)
 
 static int compare(const void * item1, const void * item2)
 {
-	return * (DATA16) item2 - * (DATA16) item1;
+	return * (DATA32) item2 - * (DATA32) item1;
 }
 
 /*
  * sort alpha transpareny vertices: while costly to do that on the CPU, this operation
- * is not done every frame hopefully.
+ * is not done every frame
  */
 static inline void renderSortVertex(GPUBank bank, ChunkData cd)
 {
@@ -870,12 +870,12 @@ static inline void renderSortVertex(GPUBank bank, ChunkData cd)
 //	fprintf(stderr, "sorting %d quads\n", cd->glAlpha / QUAD_SIZE);
 
 	GPUMem mem = bank->usedList + cd->glSlot;
-
-	DATA16 src1, src2, dist;
+	DATA16 vtx;
+	DATA32 src1, src2, dist;
 	int    count = cd->glAlpha / QUAD_SIZE, i;
 
-	/* pre-compute distance of vertices */
-	dist = alloca(count * 4);
+	/* pre-compute distance of vertices: they are not that cheap to compute */
+	dist = count <= 512 ? alloca(count * 8) : malloc(count * 8);
 	float X = cd->chunk->X - render.camera[0];
 	float Z = cd->chunk->Z - render.camera[2];
 	float Y = cd->Y        - render.camera[1];
@@ -883,22 +883,35 @@ static inline void renderSortVertex(GPUBank bank, ChunkData cd)
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, bank->vboTerrain);
 	DATA8 vertex = glMapBuffer(GL_ELEMENT_ARRAY_BUFFER, GL_READ_WRITE);
 
-	/* glSize == size of opaque vertices: alpha are just located after that */
+	/* glSize == size of all vertices (in bytes), glAlpha == amount of alpha vertices (at the end) */
 	vertex += mem->offset + (cd->glSize - cd->glAlpha);
 
-	for (src1 = (DATA16) vertex, src2 = dist, i = 0; i < count; i ++, src2 += 2, src1 += QUAD_SIZE/2)
+	for (vtx = (DATA16) vertex, src2 = dist, i = 0; i < count; i ++, src2 += 2, vtx += QUAD_SIZE/2)
 	{
-		float dx = (src1[0] - ORIGINVTX) * (1./BASEVTX) + X;
-		float dy = (src1[1] - ORIGINVTX) * (1./BASEVTX) + Y;
-		float dz = (src1[2] - ORIGINVTX) * (1./BASEVTX) + Z;
+		#define VTX(x)     ((vtx[x] - ORIGINVTX) * (1./BASEVTX))
+		#define IPV        INT_PER_VERTEX
+		float dx = VTX(0);
+		float dy = (VTX(1) + VTX(2*IPV+1)) * 0.5;
+		float dz = VTX(2);
 
-		/* don't care about loss of precision */
-		src2[0] = dx*dx + dy*dy + dz*dz;
+		/* use triangle center for sorting */
+		switch (GET_NORMAL(vtx)) {
+		case SIDE_NORTH:
+		case SIDE_SOUTH: dx = (dx + VTX(2*IPV)) * 0.5; break;
+		default:         dx = (dx + VTX(2*IPV)) * 0.5; // no break;
+		case SIDE_WEST:
+		case SIDE_EAST:  dz = (dz + VTX(2*IPV+2)) * 0.5; break;
+		}
+		dx += X; dy += Y; dz += Z;
+		/* qosrt() doesn't want float return value, so convert to fixed point */
+		src2[0] = (dx*dx + dy*dy + dz*dz) * 1024;
 		src2[1] = i;
+		#undef IPV
+		#undef VTX
 	}
 
 	/* can't sort 2 arrays at the same time: sort the cheapest first */
-	qsort(dist, count, 4, compare);
+	qsort(dist, count, 8, compare);
 
 	/* then move quads from the vertex array */
 	for (i = 0, src1 = dist; i < count; i ++, src1 += 2)
@@ -923,16 +936,18 @@ static inline void renderSortVertex(GPUBank bank, ChunkData cd)
 			memcpy(cur, tmpbuf, QUAD_SIZE);
 		}
 	}
+	if (count > 512)
+		free(dist);
 
 	#if 0
 	puts("=========================");
-	for (i = 0, src1 = (DATA16) vertex; i < count; i ++, src1 += QUAD_SIZE/2)
+	for (i = 0, vtx = (DATA16) vertex; i < count; i ++, vtx += QUAD_SIZE/2)
 	{
 		static STRPTR colors[] = {"WHITE","ORANGE","MAGENTA","LBLUE","YELLOW","LIME","PINK","DGRAY","GRAY","CYAN","PURPLE","BLUE","BROWN","GREEN","RED","BLACK","???"};
-		int V = (GET_VCOORD(src1) >> 4)-33;
-		if (V > 16) V = 16;
+		int V = (GET_VCOORD(vtx) >> 4)-33;
+		if (V < 0 || V > 16) V = 16;
 
-		fprintf(stderr, "face: %c, dist: %d, color: %s\n", "SENWTB"[GET_NORMAL(src1)], dist[i*2], colors[V]);
+		fprintf(stderr, "face: %c, dist: %u, color: %s\n", "SENWTB"[GET_NORMAL(vtx)], dist[i*2], colors[V]);
 	}
 	#endif
 

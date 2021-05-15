@@ -306,7 +306,6 @@ void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DAT
 				static uint8_t coordU[] = {0, 2, 0, 2, 0, 0};
 				static uint8_t coordV[] = {1, 1, 1, 1, 2, 2};
 				static uint8_t invUV[]  = {0, 1, 1, 0, 2, 0};
-				static uint8_t corner[] = {4*16, 5*16, 7*16, 6*16, 0, 1*16, 3*16, 2*16};
 				int8_t vtx[4];
 				memcpy(vtx, pos, sizeof vtx);
 				DATA8 idx = vertex + *face2;

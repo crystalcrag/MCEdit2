@@ -89,7 +89,7 @@ Bool playerProcessKey(Player p, int key, int mod)
 		return False;
 	if ((mod & SITK_FlagUp) == 0)
 	{
-		p->slower = (mod & SITK_Shift) > 0;
+		p->slower = (mod & SITK_FlagShift) > 0;
 		switch (key) {
 		case FORWARD:  p->keyvec &= ~PLAYER_MOVE_BACK;    p->keyvec |= PLAYER_MOVE_FORWARD; break;
 		case BACKWARD: p->keyvec &= ~PLAYER_MOVE_FORWARD; p->keyvec |= PLAYER_MOVE_BACK; break;

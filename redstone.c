@@ -287,6 +287,7 @@ int redstonePushedByPiston(struct BlockIter_t iter, RSWire list)
 	uint8_t dir = blockSides.piston[blockId & 7];
 	int8_t  dx  = relx[dir], dy = rely[dir], dz = relz[dir];
 	int8_t  x   = dx, y = dy, z = dz;
+
 	if (blockId & 8)
 		/* extended: skip piston head */
 		x += dx, y += dy, z += dz;
@@ -322,6 +323,7 @@ int redstonePushedByPiston(struct BlockIter_t iter, RSWire list)
 		count ++;
 		list ++;
 		x += dx; y += dy; z += dz;
+		if (retract) return 1;
 		mapIter(&iter, dx, dy, dz);
 	}
 	/* push limit exceeded */

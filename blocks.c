@@ -748,7 +748,7 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 				int flag = FindInList(
 					"NORMAL,CHEST,DOOR,NOSIDE,HALF,STAIRS,GLASS,FENCE,FENCE2,"
 					"WALL,RSWIRE,LEAVES,LIQUID,DOOR_TOP,TALLFLOWER,RAILS,TRAPDOOR,"
-					"SIGN,PLATE,NOCONNECT,CNXTEX", value, 0
+					"SIGN,PLATE,SOLIDOUTER,NOCONNECT,CNXTEX", value, 0
 				);
 				if (flag < 0)
 				{
@@ -1468,6 +1468,8 @@ void blockParseInventory(int vbo)
 				vtx = blockInvCountVertex(state->custModel, ALLFACEIDS);
 			else
 				vtx = 36; /* assume cube */
+			if (b->special == BLOCK_SOLIDOUTER)
+				vtx += 36;
 			break;
 		default: continue;
 		}
@@ -1517,6 +1519,8 @@ void blockParseInventory(int vbo)
 				total = blockInvCopyFromModel(vertex, state->custModel, ALLFACEIDS);
 			else
 				total = blockInvModelCube(vertex, state, texCoordRevU);
+			if (b->special == BLOCK_SOLIDOUTER)
+				total += blockInvModelCube(vertex + total * INT_PER_VERTEX, state, texCoordRevU);
 			break;
 		default:
 			continue;
@@ -2542,6 +2546,10 @@ int blockGenModel(int vbo, int blockId)
 				break;
 			case BLOCK_CHEST:
 				vtx = blockInvCopyFromModel(buffer, b->custModel, 2);
+				break;
+			case BLOCK_SOLIDOUTER:
+				vtx = blockInvCopyFromModel(buffer, b->custModel, ALLFACEIDS);
+				vtx += blockInvModelCube(buffer + vtx * INT_PER_VERTEX, b, texCoord);
 				break;
 			default:
 				vtx = blockInvCopyFromModel(buffer, b->custModel, ALLFACEIDS);

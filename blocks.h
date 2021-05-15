@@ -156,6 +156,7 @@ enum                       /* values for Block_t.special */
 	BLOCK_TRAPDOOR,
 	BLOCK_SIGN,            /* need extra special processing for rendering */
 	BLOCK_PLATE,           /* pressure plate */
+	BLOCK_SOLIDOUTER,      /* custom model with solid cube as outer face (slime block) */
 	BLOCK_LASTSPEC,
 	BLOCK_BED,
 	BLOCK_CNXTEX    = 64,  /* relocate texture to connected texture row */
@@ -273,7 +274,6 @@ enum                       /* common redstone devices */
 #define blockGetByIdData(id,data) (blockStates + blockStateIndex[((id) << 4) | (data)])
 #define blockGetById(id)          (blockStates + blockStateIndex[id])
 #define ID(id, data)              (((id) << 4) | (data))
-#define TYPE(block)               (block->type)
 #define SIDE_NONE                 0
 
 #define MAXSKY        15   /* maximum values for SkyLight table */

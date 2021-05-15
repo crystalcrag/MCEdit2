@@ -170,8 +170,6 @@
 
 <a class="sub1" href="#mesh"><span>Mesh generation</span></a>
 
-<a class="sub1" href="#LOD"><span>Dynamic LOD</span></a>
-
 <a class="sub1" href="#opengl"><span>Advanced OpenGL</a>
 
 <a class="sub1" href="#nbt2"><span>NBT API</a>
@@ -206,20 +204,20 @@ to be known:
   <img src="images/axis.svg">
 </div>
 
-<p>The coordinate system uses a left hand axis. X is mapped to east-west (increasing X goes to east,
+<p>The <b>coordinate system uses a left hand axis</b>. X is mapped to east-west (increasing X goes to east,
 decreasing goes to west). Z is mapped to north-south (increasing Z goes to south, decreasing goes to
 north). Y is elevation.
 
 <p>Meshes of various objects use a counter-clockwise (CCW) orientation to check if they are front-facing.
 
 <p>Coordinates are relative to player (ie: if you want an object close to camera, coordinates must
-be close to player position, not 0,0,0).
+be close to player position, not 0,0,0). <span class="n">XXX</span> That's not good actually :-/
 
 
 <h3 id="faceorder"><span>Face enumeration order</span></h3>
 
-<p>Whenever there is a need to enumerate nearby objects within the voxel space, the same order will
-be used almost everytime. For example: to enumerate the 6 nearby voxels a given block is directly
+<p>Whenever there is a need to enumerate nearby objects within the voxel space, the <b>same order will
+be used almost everytime</b>. For example: to enumerate the 6 nearby voxels a given block is directly
 connected to, to enumerate the 6 neighbors a given chunk is connected to, to generate the mesh of the
 6 faces a given cube is composed of, ... these will always be done in the same order:
 <ol>
@@ -231,7 +229,7 @@ connected to, to enumerate the 6 neighbors a given chunk is connected to, to gen
   <li><b>Bottom</b>
 </ol>
 
-<p>Keep that order in mind, it is used extensively in one form or another throughout the entire code
+<p>Keep that order in mind, it is <b><u>used extensively</u></b> in one form or another throughout the entire code
 base. It can be used as indices in a for-loop from 0 to 5, be used as a bit field to remember which
 sides have been visited (therefore have values from 0 to 63), or simply as a enumeration value
 (<tt>SIDE_*</tt>).
@@ -566,7 +564,7 @@ fake chunk.
 <h3 id="cavecull"><span>Cave culling</span></h3>
 
 <p>There is one last step that is done at the same time: cave culling, or removing chunks that are completely
-hidden by nearer chunk. A good primer on how this algorithm can be read from the original
+hidden by nearer chunks. A good primer on how this algorithm works can be read from the original
 <a href="https://tomcc.github.io/2014/08/31/visibility-1.html">author</a> that developped it for Minecraft MCPE.
 The version implemented in this engine is <b>way simpler</b> than that. At the cost of (slightly) more
 chunks being drawn.
@@ -579,9 +577,9 @@ faces are hidden, we then can discard the entire chunk from the visible list.
 easily done using a vector dot product between vector that goes from camera to one of the vertices of
 the face (any vertex will do) and the normal of the face: if that number is negative, the face is hidden.
 
-<p>Then for the faces that are potentially visible, we can check if the face they are connected to is
+<p>Then, for the faces that are potentially visible, we can check if the face they are connected to is
 completely opaque. If that's the case, there are no way the user will be able to see that face. If all
-the visible faces are also hidden, the entire chunk can be omitted.
+the visible faces are obscured, the entire chunk can be omitted.
 
 <p>This simple trick works relatively well for caves, where there are usually lots of solid blocks all
 around. It is not as advanced as the algorithm described above, but given how cheap it is, it is a
@@ -593,9 +591,10 @@ trivial optimization to do.
 table describes all of the blocks recognized by this engine and their different states, along with
 their custom models if any.
 
-<p>This table does not cover 100% of use cases though. Some special processing is hardcoded within the
-engine (like redstone behavior, block with tile entities). Still, this table covers about 95% of all
-Minecraft 1.12 blocks.
+<p>This table does not cover 100% of use cases though: you cannot change it and expect to have a
+completely different "game". Some special processing is hardcoded within the engine (like redstone
+behavior, block with tile entities). Still, this table is used to define a huge chunk of the engine
+behavior.
 
 <p>This table uses the javascript object notation format. It is similar to the JSON format, with a few
 changes: property names don't have to be enclosed in double quotes and property values can contain expressions.
@@ -611,12 +610,12 @@ constants assigned to property must be spelled using only <b>uppercase letters</
   <li><b>State description</b>: also known as meta-data. Each block in the terrain can have up to 4bits
   of extra information, that can describe 16 different states. This is the purpose of these objects:
   provide a complete description of one state: custom mesh model and/or texture coordinate if block
-  is completely solid.
+  is completely solid. Not all 16 states have to be defined, but at least 1.
 </ol>
 
 <h3 id="blockdesc"><span>Block description</span></h3>
 
-<p>A block description must contain the property <tt>id</tt> and assigned to an integer. Here are the
+<p>A block description must contain the property <tt>id</tt> and be assigned to an integer. Here are the
 possible properties:
 <ul>
   <li><tt>id</tt>: the block ID as it is stored in the NBT table <tt>Sections/Blocks</tt> of a chunk.
@@ -791,7 +790,7 @@ possible properties:
 <p>An object declaraction is recognized as a state declaration it is contains a <tt>state</tt> property
 with an integer assigned to it. Beside this property, you can also use these ones:
 <ul>
-  <li><tt>state</tt>: an integer between 0 and 15 that will be stoed in <tt>Sections/Data</tt> table in a chunk.
+  <li><tt>state</tt>: an integer between 0 and 15 that will be stored in <tt>Sections/Data</tt> table in a chunk.
   This table has only 4bits of information per block. More information can be stored using TileEntity.
   <li><tt>name</tt>: this field should describe a bit more in detail what the state is doing: for example,
   if the block is orientation dependent, you should include which way the state is pointing, or if the
@@ -915,7 +914,7 @@ framebuffer, within the fragment shader, you write them in a (very big) linked l
 atomic types and counters, this can be achieved rather easily.
 
 <p>The linked list is implemented using 2 textures: one texture the size of the framebuffer, where each
-pixel will actually stored the head of the linked list as a 32bit integer. The second texture will contain
+pixel will actually store the head of the linked list as a 32bit integer. The second texture will contain
 the fragments (unsorted). For each element in this texture, we need: the RGBA color (32bit int),
 the depth value (32bit float) and the next fragment in the list (32bit int), therefore 12 bytes per
 translucent fragment.
@@ -923,7 +922,7 @@ translucent fragment.
 <p>Once all fragments has been written in that list, you start a second pass to write them in the
 framebuffer, by using the head texture to get all translucent fragment at given position, sort them
 by decreasing depth, combining them using pre-multiplied alpha and finally writing the result into
-the framebuffer.
+the framebuffer (which means returning the final color from the fragment shader).
 </blockquote>
 
 <p>That technique works indeed fine, except for a few use cases where <b>performance can suffer
@@ -935,21 +934,21 @@ framebuffer of <tt>1920x1080px</tt>):
   <li><tt>2</tt> fragments times <tt>1920px</tt> times <tt>1080px</tt> times <tt>16</tt> bytes (12 bytes
   per fragment + 4 bytes for head of linked list) times <tt>60</tt> (frame per second) = a little bit
   under 4 Gb / second. That is going to saturate the memory bandwidth of all but high-end configuration.
-  <li>To add insult to injury, if you were to sort those quads using the CPU, it would be just a few hundreeds
-  bytes to move around.
+  <li>To add insult to injury, if you were to sort those quads using the CPU, it would be just a few
+  hundreeds <b>of bytes</b> to move around.
 </ul>
 
 <p>In conclusion: <b>for a voxel engine, it is not advised to rely on this technique alone</b>.
 
 <h4 id="depthpeel"><span>Depth peeling</span></h4>
 
-<p>Another technique to handle alpha transparency in a completely generic way, with 100% accuracy, and
-mostly handled by the GPU. The idea of this technique is as follows:
+<p>Another technique to handle alpha transparency in a <b>completely generic</b> way, with 100% accuracy, and
+<em>mostly</em> handled by the GPU. The idea behind this technique is as follows:
 
 <blockquote>
 <p>Once again instead of writing the fragments directly in the main framebuffer, you write them into
-another one (that has a color and <b>two</b> depth buffers). Obviously on that framebuffer, you will
-have to mange the depth buffers on your own. The first depth buffer needs to be initialized to the min
+another one (that has one color and <b>two</b> depth buffers). Obviously on that framebuffer, you will
+have to manage both depth buffers on your own. The first depth buffer needs to be initialized to the min
 value, and the second to the max value.
 
 <p>On the CPU side, you start a loop with the number of "peel" of transparency you want to uncover.
@@ -957,45 +956,65 @@ There is a technique to get the exact number of loop, but as a starting point us
 like 2 or 3.
 
 <p>In the fragment shader handling translucent triangles, you overwrite the color only if the depth of the
-fragment is higher than the value currently stored in the first depth buffer and lower than the second
-one. If outside that, discard the fragment.
+fragment is higher than the value currently stored in the first depth buffer (ie: farther) and lower
+than the second one (ie: nearer). If outside of that range, discard the fragment.
 
 <p>Doing so, you just extracted the first layer of the farthest translucent fragments. You can now merge
 the color buffer with the main framebuffer, using a trivial shader and a quad covering the entire screen.
 
-<p>Next step is to swap first and second depth buffer, and continue with the next iteration of the loop.
+<p>Next step is to swap the first and second depth buffer, initialize the (new) first depth buffer to
+the min value, clear the color buffer and continue with the next iteration of the loop.
+
+<p>On the second iteration, you'll have extracted the second farthest layer of translucent fragments.
 </blockquote>
 
-<p>The main problem with this approach is getting the exact number of loops required to draw all the
-transparent fragments. Due to the asynchronous nature of GPU, this value is not that trivial to get
-without stalling the pipeline.
+<p>The <b>main problem with this approach</b> is getting the exact number of loops required to draw all the
+transparent fragments: if you do too little, some geometry will be missing and if you do too many loops,
+you are going to waste time doing completely unnecessary work. But, due to the asynchronous nature of
+GPUs, this value is not that trivial to get without stalling the pipeline.
 
-<p>One way to do this, is to use an generic buffer counter within an atomic operator, to use as a
-boolean, whenever a pass writing at least one fragment in the color buffer. If at the end of all your
-loops, this boolean is set, it means that there was not enough loops. If unset, it means there was
-too many. Sadly, at this point you can increase/decrease the number of loop only by one. And to make
-things even worse, you will be able to read that buffer, only after the back buffer has been swapped
-(ie: after calling SDL_GL_SwapBuffers()).
+<p>One way to do this, is to use a generic buffer accessed through an atomic operator, like <tt>atomicOr()</tt>,
+to be called whenever at least one fragment is <b>discarded</b> due to the being replaced by a farther
+fragment (ie: testing against the first depth buffer). That means, there are fragments that still need
+processing.
+
+<p>Sadly, once your loop is done, you cannot read the content of the buffer, to know if you should continue
+or stop. Due to the asynchronous nature of OpenGL, the only moment where it is safe to do so, is when
+swaping the back/front framebuffer (ie: <tt>SDL_GL_SwapBuffers()</tt>). At this point you know that, the GPU
+is done with the previous frame, and the content of the buffer is accurate now.
+
+<p>Worse: if there was not enough loops, at this point you can only increase the number of loops by one.
+If you scene just switch from one layer of transparency to one containing a lot, even at 60 frame per
+second, you'll be able to see the translucent layers being peeled frame per frame, as the number of loops
+is increased each frame.
 
 <p>This is far from ideal in practice, and this technique has somewhat the same problem than the linked
-of fragments: it requires too much bandwidth.
+list of fragments: it requires too much bandwidth and/or up to date OpenGL implementation, which makes it
+particularly annoying to debug when something goes wrong (usually due to buggy driver).
+
 
 <h4 id="cpusort"><span>Triangles sorting on CPU</span></h4>
 
-<!--
- * - Sort primitive back to front on the CPU: simple but can be very costly if lost of triangles.
- *
- * - Depth peeling: you sort layer of geometry in the fragment shader using 2 depth buffers, and continue
- *			until there is nothing to render.
- *   + Pros: it can render scene of any complexity (include intersecting geomtry), using a fixed amount of RAM.
- *   + Pros: 99% of the work is done on the GPU.
- *   - Cons: far from trivial to implement
- *   - Cons: memory meeded is still quite high: 2 complete framebuffers (color buffer and depth), at 1920x1080,
- *           that 30Mb of RAM.
- *   - Cons: you need multiple pass to render the full scene, getting the exact count if tricky and add a
- *           decent amount of complexity.
- *
--->
+<p>The technique that is ultimately used in this engine is simply by <b>sorting the triangles from farthest
+to nearest</b>. As with the previous 2 techniques, it has its own shortcomings: it is not 100% accurate
+(typical use case where it fails: 2 intersecting triangles/quads), and since the sorting is done on
+the CPU, you have to be careful to not do it every frame.
+
+<p>It has its advantages though:
+<ul>
+  <li>It is very straightforward to implement and <b>debug</b> (well, compared to hardware accelerated sorting).
+  <li>A voxel engine has a lot of tricks you can use to considerably reduce the amount of sorting needed.
+</ul>
+
+<p>In this engine, the sorting is actually <b>divided in 2 parts</b>. All sorting algorithm
+have to assume that one operation necessary to sort items is going to be cheap: either comparison
+or moving memory (ideally both). In this case, neither of them are particularly cheap if we were to use
+the vertex data as direct source. That's why we create a first array which is both cheap to move its
+individual items around (just 8 bytes per item) and to compare those items (subtract two 32bit integers).
+
+<p>Once this array has been sorted, we use it to move vertex data. Thanks to the information stored
+in that secondary array, each quads from the vertex array has to be moved at most 2 times (and most of
+the time, data will be copied from one place of the array to another, ie: using one <tt>memcpy</tt>).
 
 <h2 id="nbt2">NBT API</h2>
 
@@ -1005,7 +1024,7 @@ of fragments: it requires too much bandwidth.
 <b>are managed</b> within this engine. This part is not trivial just by looking at the source code, since
 there are a lot of moving parts, with lots of datatypes:
 
-<h3 id="structure"><span>Data stucture</span></h3>
+<h3 id="structure"><span>Data stuctures</span></h3>
 
 <p>There are 6 datatypes used to manage entities:
 
@@ -1015,7 +1034,7 @@ there are a lot of moving parts, with lots of datatypes:
 
   <li><tt>struct EntityBuf_t</tt> : <tt>struct Entity_t</tt> are allocated in batch (<tt>ENTITY_BATCH</tt>
   count). It is easier to handle entities if pointers are not reallocated, so that reference can be held
-  within datatypes and without spreading the the reference all over the memory.
+  within datatypes. Allocating them in batch, will somewhat keep those entities close in memory.
 
   <li><tt>struct EntityBank_t</tt> : hold model data that will be used to render entities: we'll use
   one model per entity, so that they can be drawn in a single call to <tt>glMultiDrawArraysIndirect()</tt>.

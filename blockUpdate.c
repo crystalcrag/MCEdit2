@@ -244,7 +244,7 @@ void mapUpdateBlock(Map map, vec4 pos, int blockId, int oldBlockId, DATA8 tile)
 		};
 		int i = oldBlockId >> 4;
 
-		if ((i == RSPISTON || i == RSSTICKYPISTON) && oldBlockId >= 8)
+		if ((i == RSPISTON || i == RSSTICKYPISTON) && (oldBlockId & 8))
 		{
 			/* extended piston: delete extension */
 			i = blockSides.piston[oldBlockId & 7];
@@ -974,6 +974,5 @@ void updateFinished(Map map, DATA8 tile, vec4 dest)
 			/* add block pushed in its final position */
 			mapUpdatePush(map, dest, blockId);
 		}
-		break;
 	}
 }

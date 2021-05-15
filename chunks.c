@@ -800,6 +800,10 @@ static int occlusionIfNeighbor[] = { /* indexed by cube indices */
 };
 #undef IDS
 
+static int occlusionForSlab[] = { /* indexed by face id: S,E,N,W,T,B */
+	1<<16, 1<<14, 1<<10, 1<<12, 1<<22, 1<<4
+};
+
 #if 0 /* XXX FACEVEC not good: need 33 bits, only 32 available */
 #define FACE(x,v1,v2)                       ((x-1) | (v1<<4) | (v2<<7))
 #define FACEVEC(x,y,z,v1,v2,v3,v4,v5,v6)    (FACE(x,v1,v2) | (FACE(y,v3,v4) << 10) | (FACE(z,v5,v6)<<20))
@@ -954,8 +958,8 @@ void chunkUpdate(Chunk c, ChunkData empty, int layer, ChunkFlushCb_t flush)
 	neighbors[6]->yaw = 3.14926535 * 1.5;
 	neighbors[6]->pitch = 0;
 
-//	if (c->X == -208 && neighbors[6]->Y == 32 && c->Z == -48)
-//		breakPoint = 1;
+	if (c->X == -208 && neighbors[6]->Y == 32 && c->Z == -48)
+		breakPoint = 1;
 
 	for (pos = air = 0; pos < 16*16*16; pos ++)
 	{
@@ -968,14 +972,14 @@ void chunkUpdate(Chunk c, ChunkData empty, int layer, ChunkFlushCb_t flush)
 		block = blocks[pos];
 		state = blockGetByIdData(block, data);
 
-//		if (breakPoint && pos == 4069)
-//			breakPoint = 2;
+		if (breakPoint && pos == 4085)
+			breakPoint = 2;
 
 		if (blockIds[block].particle)
 			if (block != 55 || data > 0) // XXX needs to be declared in blockTable.js :-/
 				chunkAddEmitters(neighbors[6], pos, blockIds[block].particle - 1);
 
-		switch (TYPE(state)) {
+		switch (state->type) {
 		case QUAD:
 			chunkGenQuad(neighbors, &opaque, state, pos);
 			break;
@@ -983,7 +987,9 @@ void chunkUpdate(Chunk c, ChunkData empty, int layer, ChunkFlushCb_t flush)
 			if (state->custModel)
 			{
 				chunkGenCust(neighbors, STATEFLAG(state, ALPHATEX) ? &alpha : &opaque, state, pos);
-				break;
+				/* SOLIDOUTER: custom block with ambient occlusion */
+				if (state->special != BLOCK_SOLIDOUTER)
+					break;
 			}
 			/* else no break; */
 		case SOLID:
@@ -1368,7 +1374,7 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 	DATA16   p;
 	DATA8    tex;
 	DATA8    blocks = neighbors[6]->blockIds;
-	int      side, sides, occlusion, rotate;
+	int      side, sides, occlusion, slab, rotate;
 	int      i, j, k, n;
 	uint8_t  x, y, z, Y, data;
 	Chunk    c;
@@ -1382,7 +1388,7 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 	sides = xsides[x] | ysides[y] | zsides[z];
 
 	/* outer loop: iterate over each faces (6) */
-	for (i = 0, side = 1, occlusion = -1, tex = &b->nzU, rotate = b->rotate, j = (rotate&3) * 8; i < DIM(cubeIndices);
+	for (i = 0, side = 1, occlusion = -1, tex = &b->nzU, rotate = b->rotate, j = (rotate&3) * 8, slab = 0; i < DIM(cubeIndices);
 		 i += 4, side <<= 1, rotate >>= 2, tex += 2, j = (rotate&3) * 8)
 	{
 		BlockState t;
@@ -1409,7 +1415,7 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 			}
 
 			/* face hidden by another opaque block: 75% of SOLID blocks will be culled by this test */
-			switch (TYPE(t)) {
+			switch (t->type) {
 			case SOLID:
 				switch (t->special) {
 				case BLOCK_HALF:
@@ -1420,7 +1426,7 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 				}
 				break;
 			case TRANS:
-				if (TYPE(b) == TRANS) continue;
+				if (b->type == TRANS) continue;
 			}
 		}
 
@@ -1465,12 +1471,16 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 				}
 				t = blockGetByIdData(id, off & 1 ? data >> 4 : data & 0xf);
 				blockIds3x3[k] = t->id;
-				if (TYPE(t) == SOLID)
+				if (t->type == SOLID || (t->type == CUST && t->special == BLOCK_SOLIDOUTER))
+				{
 					occlusion |= 1<<k;
+					if (t->special == BLOCK_HALF)
+						slab |= 1<<k;
+				}
 			}
 			/* CUST with no model: don't apply ambient occlusion, like CUST model will */
-			if (b->type == CUST)
-				occlusion = 0;
+			if (b->type == CUST && b->special != BLOCK_SOLIDOUTER)
+				occlusion = slab = 0;
 			if (STATEFLAG(b, CNXTEX))
 			{
 				static uint8_t texUV[12];
@@ -1526,7 +1536,7 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 				if (p[4] < light) p[4] = light;
 				if (skyvtx > 0 && (skyval > skyvtx || skyval == 0)) skyval = skyvtx;
 			}
-			p[4] |= (i << 1) | (skyval << 8) | (popcount(occlusion & occlusionIfNeighbor[i+k]) << 6);
+			p[4] |= (i << 1) | (skyval << 8) | (popcount((occlusion & occlusionIfNeighbor[i+k]) | (slab & occlusionForSlab[i>>2])) << 6);
 
 			if (liquid && coord[1] == 1)
 			{

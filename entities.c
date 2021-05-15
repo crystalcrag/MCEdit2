@@ -809,7 +809,7 @@ void entityUpdateOrCreate(Chunk c, vec4 pos, int blockId, vec4 dest, int ticks, 
 	anim = entities.animate + entities.animCount;
 	entities.animCount ++;
 	anim->prevTime = (int) curTime;
-	anim->stopTime = anim->prevTime + ticks * 20 * (1000 / TICK_PER_SECOND);
+	anim->stopTime = anim->prevTime + ticks * (1000 / TICK_PER_SECOND);
 	anim->entity = entity;
 
 	fprintf(stderr, "adding entity %d at %p / %d\n", entities.animCount, tile, slot);

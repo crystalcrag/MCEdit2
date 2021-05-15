@@ -187,7 +187,6 @@ struct MeshBuffer_t                /* temporary buffer used to collect data from
 /* debug info */
 void debugBlockVertex(Map, SelBlock *);
 void debugInit(Map);
-void debugBlockInfo(APTR vg, SelBlock *, int * XY);
 void debugCoord(APTR vg, vec4 camera, int total);
 void debugPoint(vec4 pos);
 void debugLine(vec4 p1, vec4 p2);

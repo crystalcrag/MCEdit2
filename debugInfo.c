@@ -565,12 +565,6 @@ void debugWorld(void)
 	}
 	#endif
 
-	if (render.debugInfo & DEBUG_BLOCK)
-	{
-//		nvgFontSize(vg, FONTSIZE);
-//		debugBlockInfo(vg, &debug.sel, &debug.mX);
-	}
-
 	float scale = render.height * 0.15;
 	nvgSave(vg);
 	nvgTranslate(vg, render.width - scale, render.height - scale); scale -= 20;
