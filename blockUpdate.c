@@ -500,20 +500,20 @@ int mapUpdateDoor(BlockIter iterator, int blockId, Bool init)
 	else return blockId | (powered << 2);
 }
 
-/* add tile entity for piston extension */
-static Bool mapUpdateAddPistonExt(struct BlockIter_t iter, int blockId, Bool extend)
+/* add tile entity for piston extension: <iter> points at piston block */
+static Bool mapUpdateAddPistonExt(Map map, struct BlockIter_t iter, int blockId, Bool extend)
 {
 	uint8_t ext = blockSides.piston[blockId & 7];
 	vec4    src = {iter.x + iter.ref->X, iter.yabs, iter.z + iter.ref->Z};
 	Chunk   ref = iter.ref;
 
-	/* XXX not sure where this tile entity is stored: use position it is now */
+	/* XXX not sure where this tile entity for moving head is stored: use position it is now */
 	mapIter(&iter, relx[ext], rely[ext], relz[ext]);
 	vec4 dest = {iter.x + iter.ref->X, iter.yabs, iter.z + iter.ref->Z};
 
 	float * pos = src;
 	if (blockId & 8) pos = dest, ref = iter.ref;
-	int XYZ[] = {pos[0], pos[1], pos[2]};
+	int XYZ[] = {(int) pos[0] & 15, pos[1], (int) pos[2] & 15};
 
 	DATA8 tile = chunkGetTileEntity(ref, XYZ);
 
@@ -528,18 +528,15 @@ static Bool mapUpdateAddPistonExt(struct BlockIter_t iter, int blockId, Bool ext
 
 		NBT_Add(&ret,
 			TAG_String, "id",        itemGetTechName(id, itemId, sizeof itemId),
-			TAG_Int,    "x",         XYZ[VX],
-			TAG_Int,    "y",         XYZ[VY],
-			TAG_Int,    "z",         XYZ[VZ],
+			TAG_Int,    "x",         (int) pos[VX],
+			TAG_Int,    "y",         (int) pos[VY],
+			TAG_Int,    "z",         (int) pos[VZ],
 			TAG_Int,    "extending", extend,
 			TAG_Int,    "facing",    blockId & 7,
 			TAG_Double, "progress",  0.0,
 			TAG_Int,    "source",    1,
 			TAG_End
 		);
-		fprintf(stderr, "adding tile entity at %d,%d,%d\n", XYZ[0], XYZ[1], XYZ[2]);
-		XYZ[0] &= 15;
-		XYZ[2] &= 15;
 		chunkAddTileEntity(ref, XYZ, ret.mem);
 		tile = ret.mem;
 	}
@@ -552,6 +549,7 @@ static Bool mapUpdateAddPistonExt(struct BlockIter_t iter, int blockId, Bool ext
 		memcpy(src, dest, 12);
 		memcpy(dest, tmp, 12);
 	}
+	else mapUpdate(map, dest, ID(RSPISTONEXT, 0), NULL, UPDATE_KEEPLIGHT);
 
 	blockId = itemGetByName(NBT_PayloadFromStream(tile, 0, "id"), False);
 	/* create or update the moving block */
@@ -601,6 +599,13 @@ void mapUpdateToBlock36(Map map, RSWire list, int count, int dir, BlockIter iter
 		mapUpdate(map, src, ID(RSPISTONEXT, 0), tile.mem, UPDATE_KEEPLIGHT);
 
 		entityUpdateOrCreate(iter.ref, src, (list->blockId << 4) | list->data, dst, 1, tile.mem, mapGetSkyBlockLight(&iter));
+
+		/* also replace destination block */
+		mapIter(&iter, off[0], off[1], off[2]);
+		uint8_t block = iter.blockIds[iter.offset];
+		if (block != RSPISTONEXT && block != RSPISTONHEAD)
+			fprintf(stderr, "adding block 36 at %g,%g,%g\n", dst[0], dst[1], dst[2]),
+			mapUpdate(map, dst, ID(RSPISTONEXT, 0), NULL, UPDATE_KEEPLIGHT);
 	}
 }
 
@@ -611,18 +616,21 @@ int mapUpdatePiston(Map map, BlockIter iterator, int blockId, Bool init)
 
 	int avoid = blockSides.piston[blockId & 7];
 	int count, i;
-	for (i = 0; i < 6 && (i == avoid || ! redstoneIsPowered(*iterator, i, POW_WEAK)); i ++);
-
-	count = redstonePushedByPiston(*iterator, connect);
-	/* there is at least one block blocking the piston movement */
-	if (count < 0) return blockId;
+	for (i = count = 0; i < 6 && (i == avoid || ! redstoneIsPowered(*iterator, i, POW_WEAK)); i ++);
 
 	if (blockId & 8)
 	{
 		/* piston extended, but no power source */
-		if (i < 6 || ! mapUpdateAddPistonExt(*iterator, blockId, False))
+		count = redstonePushedByPiston(*iterator, connect);
+		/* there is at least one block blocking the piston movement */
+		if (count < 0) return blockId;
+
+		if (i < 6 || ! mapUpdateAddPistonExt(map, *iterator, blockId, False))
 			/* already moving: wait until piston has finished */
 			return blockId;
+
+		mapUpdateToBlock36(map, connect, count, avoid, iterator);
+
 		if (init)
 			blockId &= ~8;
 		/* else keep extended state until head has fully retracted */
@@ -630,15 +638,20 @@ int mapUpdatePiston(Map map, BlockIter iterator, int blockId, Bool init)
 	else if (i < 6)
 	{
 		/* not extended, but has a power source nearby */
-		if (! mapUpdateAddPistonExt(*iterator, blockId, True))
+		count = redstonePushedByPiston(*iterator, connect);
+		if (count < 0) return blockId;
+
+		/* convert all blocks pushed to block 36 (in reverse order) */
+		mapUpdateToBlock36(map, EOT(connect) - count, count, avoid, iterator);
+
+		if (! mapUpdateAddPistonExt(map, *iterator, blockId, True))
 			return blockId;
+
 		if (init)
 			blockId |= 8;
 		else /* already convert to extended state */
 			mapUpdateTable(iterator, (blockId | 8) & 15, DATA_OFFSET);
 	}
-	/* convert all blocks pushed to block 36 */
-	mapUpdateToBlock36(map, connect, count, avoid, iterator);
 	return blockId;
 }
 

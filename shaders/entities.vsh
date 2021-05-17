@@ -45,16 +45,8 @@ void main(void)
 	if (V == 1023) V = 1024;
 	if (U == 511)  U = 512;
 	texcoord = vec2(U * 0.001953125, V * 0.0009765625);
-	blockLight = float(meta & 15) / 15.;
-	skyLight = float(meta & 0xf0) / 240.;
-	if (blockLight > skyLight)
-	{
-		/* diminish slightly ambient occlusion if there is blockLight overpowering skyLight */
-		shade += (blockLight - skyLight) * 0.35;
-		if (shade > 1) shade = 1;
-	}
-	blockLight *= shade;
-	skyLight   *= shade;
+	blockLight = float(meta & 15) * shade / 15.;
+	skyLight = float(meta & 0xf0) * shade / 240.;
 	isBlock = 1;
 	isSelected = meta & 256;
 }

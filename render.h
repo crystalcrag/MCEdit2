@@ -63,7 +63,7 @@ enum /* possible flags for paramter <what> of debugToggleInfo() (side view) */
 /* chunk transfer to GPU */
 void renderFlush(WriteBuffer);
 void renderInitBuffer(ChunkData cd);
-void renderFinishMesh(void);
+void renderFinishMesh(Bool updateVtxSize);
 void renderFreeArray(ChunkData);
 
 /* house keeping */

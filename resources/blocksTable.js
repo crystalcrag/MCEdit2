@@ -2,7 +2,7 @@
 	/*
 	 * note: texture coord were filled with TileFinder.exe
 	 * custom models can be copied then pasted into TileFinder.exe
-	 * syntax of this table is explained in internals.html
+	 * syntax of this table is explained in doc/internals.html
 	 */
 	{id: 0, name: "Air", type: INVIS},
 		{state: 0, name: "-"},
@@ -1378,7 +1378,7 @@
 		447,16,2,2,0,6,6.5,0,0,0,0,0,0,
 		191,3,16,3,11,0,6,0,0,0,0,0,0,
 		]},
-		{state: 0, tex: [0,14], model: [
+		{state: 0, tex: [0,14, 0,14, 0,14, 0,14], model: [
 			447,4,16,4,6,0,6,0,0,0,0,0,0,114912,123120,123136,114928,114912,123120,123136,114928,114912,123120,123136,114928,
 				114912,123120,123136,114928,114912,123120,123136,114928,114912,123120,123136,114928,
 			442+BHDR_INCFACEID,2,3,6,7,6,10,0,0,0,0,0,0,  /* south */

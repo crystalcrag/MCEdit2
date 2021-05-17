@@ -173,7 +173,7 @@ void debugInit(Map map)
 		struct WriteBuffer_t write = {.start = buffer, .cur = p};
 		renderInitBuffer(air);
 		renderFlush(&write);
-		renderFinishMesh();
+		renderFinishMesh(False);
 	}
 }
 

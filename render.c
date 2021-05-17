@@ -1235,7 +1235,7 @@ void renderWorld(void)
 
 	/* third pass: translucent terrain */
 	glUseProgram(render.shaderBlocks);
-	glDepthMask(GL_FALSE);
+//	glDepthMask(GL_FALSE);
 	for (bank = HEAD(gpuBanks); bank; NEXT(bank))
 	{
 		if (bank->cmdAlpha > 0)
@@ -1246,7 +1246,7 @@ void renderWorld(void)
 			glMultiDrawArraysIndirect(GL_TRIANGLES, (void*)(bank->cmdTotal*16), bank->cmdAlpha, 0);
 		}
 	}
-	glDepthMask(GL_TRUE);
+//	glDepthMask(GL_TRUE);
 
 	/* show limit of chunk boundary where player is */
 	if (render.debug & RENDER_DEBUG_CURCHUNK)
@@ -1711,17 +1711,20 @@ void renderAllocCmdBuffer(void)
 }
 
 /* transfer mesh to GPU */
-void renderFinishMesh(void)
+void renderFinishMesh(Bool updateVtxSize)
 {
 	MeshBuffer list;
 	int        size, alpha;
 	int        total, offset;
+	int        oldSize, oldAlpha;
 	ChunkData  cd;
 	GPUBank    bank;
 
 	for (list = HEAD(meshBanks), cd = list->chunk, size = 0; list; size += list->usage, NEXT(list));
 	for (list = HEAD(alphaBanks), alpha = 0; list; alpha += list->usage, NEXT(list));
 
+	oldSize = cd->glSize;
+	oldAlpha = cd->glAlpha;
 	total = size + alpha;
 	bank = cd->glBank;
 	if (bank)
@@ -1753,6 +1756,13 @@ void renderFinishMesh(void)
 			glBufferSubData(GL_ARRAY_BUFFER, offset, list->usage, list->buffer);
 
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
+	}
+	if (updateVtxSize)
+	{
+		if ((oldSize > 0) != (cd->glSize > 0))
+			bank->vtxSize += oldSize ? -1 : 1;
+		if ((oldAlpha > 0) != (cd->glAlpha > 0))
+			bank->vtxSize += oldAlpha ? -1 : 1;
 	}
 }
 

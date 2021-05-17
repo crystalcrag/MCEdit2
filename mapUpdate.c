@@ -535,7 +535,8 @@ static void mapUpdateRestoreSky(BlockIter iterator)
 
 	mapIter(&iter, 0, 1, 0);
 	uint8_t sky = mapGetSky(&iter);
-	mapUpdateTable(iterator, sky == MAXSKY ? MAXSKY : sky - 1, SKYLIGHT_OFFSET);
+	if (0 < sky && sky < MAXSKY) sky --;
+	mapUpdateTable(iterator, sky, SKYLIGHT_OFFSET);
 }
 
 /*
@@ -1327,7 +1328,7 @@ void mapUpdateMesh(Map map)
 		//fprintf(stderr, "updating chunk %d, %d, %d\n", cd->chunk->X, cd->Y, cd->chunk->Z);
 		renderInitBuffer(cd);
 		chunkUpdate(cd->chunk, map->air, cd->Y >> 4, renderFlush);
-		renderFinishMesh();
+		renderFinishMesh(True);
 		particlesChunkUpdate(map, cd);
 		if (cd->pendingDel)
 			/* link within chunk has already been removed in chunkUpdate() */

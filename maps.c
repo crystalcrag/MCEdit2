@@ -657,7 +657,7 @@ void mapGenerateMesh(Map map)
 				/* this is the function that will convert chunk into triangles */
 				renderInitBuffer(cd);
 				chunkUpdate(list, map->air, i, renderFlush);
-				renderFinishMesh();
+				renderFinishMesh(False);
 				particlesChunkUpdate(map, cd);
 				if (cd->pendingDel)
 				{

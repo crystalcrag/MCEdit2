@@ -267,7 +267,7 @@ enum                       /* common redstone devices */
 	RSBLOCK        = 152,
 	RSHOPPER       = 154,  // TODO
 	RSDROPPER      = 158,
-	SLIMEBLOCK     = 165,  // TODO
+	SLIMEBLOCK     = 165,
 	RSOBSERVER     = 218   // TODO
 };
 

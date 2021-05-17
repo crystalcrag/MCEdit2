@@ -826,7 +826,7 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 		/* can this block be affected by piston */
 		value = jsonValue(keys, "pushable");
 		/* default value */
-		block.pushable = block.type == QUAD ? PUSH_DESTROY : PUSH_AND_RETRACT;
+		block.pushable = block.type == QUAD || block.id == 0 ? PUSH_DESTROY : PUSH_AND_RETRACT;
 		if (value)
 		{
 			int type = FindInList("NO,PUSHONLY,DESTROY,DROPITEM,YES", value, 0);

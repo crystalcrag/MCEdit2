@@ -287,47 +287,109 @@ int redstonePushedByPiston(struct BlockIter_t iter, RSWire list)
 	uint8_t dir = blockSides.piston[blockId & 7];
 	int8_t  dx  = relx[dir], dy = rely[dir], dz = relz[dir];
 	int8_t  x   = dx, y = dy, z = dz;
+	int8_t  expand = 1;
+
+	struct BlockIter_t orig = iter;
+	struct RSWire_t check[MAXPUSH];
+	uint8_t maxCheck = 0;
+	uint8_t flags = 0;
+	uint8_t inCheck = 0;
+
+	/* onyl check blocks from these directions when checking for slime blocks */
+	switch (blockId & 7) {
+	case 0: case 1: flags = 31; break;
+	case 2: case 3: flags = 63 - 5; break;
+	default:        flags = 63 - 10; break;
+	}
 
 	if (blockId & 8)
 		/* extended: skip piston head */
 		x += dx, y += dy, z += dz;
+	else
+		expand = -1, list += MAXPUSH-1;
 
 	mapIter(&iter, x, y, z);
 
-	while (count < MAXPUSH)
+	for (;;)
 	{
-		Block b = blockIds + iter.blockIds[iter.offset];
+		while (count < MAXPUSH)
+		{
+			Block b = blockIds + iter.blockIds[iter.offset];
 
-		if (b->id == 0)
-			return count;
-		switch (b->pushable) {
-		case NOPUSH:
-			return retract ? count : -1;
-		case PUSH_ONLY:
-			if (retract) return count;
-			break;
-		case PUSH_DESTROY:
-		case PUSH_DROPITEM:
-			if (retract) return count;
+			if (b->id == 0)
+				break;
+			switch (b->pushable) {
+			case NOPUSH:
+				if (retract && inCheck == 0) goto break_all;
+				else return -1;
+			case PUSH_ONLY:
+				if (retract) goto break_all;
+				break;
+			case PUSH_DESTROY:
+			case PUSH_DROPITEM:
+				if (retract) goto break_all;
+			}
+
+			list->dx = x;
+			list->dy = y;
+			list->dz = z;
+			list->blockId = b->id;
+			list->data = iter.blockIds[DATA_OFFSET + (iter.offset >> 1)];
+			list->pow = 0;
+			list->signal = retract;
+			if (iter.offset & 1) list->data >>= 4;
+			else list->data &= 15;
+			if (b->id == SLIMEBLOCK)
+			{
+				/* check for connected blocks */
+				struct BlockIter_t slime = iter;
+				uint8_t i, dir;
+				for (i = 0, dir = flags; i < 6 && dir; i ++, dir >>= 1)
+				{
+					mapIter(&slime, xoff[i], yoff[i], zoff[i]);
+					if ((dir & 1) == 0) continue;
+					b = blockIds + slime.blockIds[slime.offset];
+					if (b->pushable == PUSH_AND_RETRACT)
+					{
+						if (count == MAXPUSH) return -1;
+						RSWire cnx = check + maxCheck;
+						cnx->dx = x + relx[i];
+						cnx->dy = y + rely[i];
+						cnx->dz = z + relz[i];
+						cnx->blockId = b->id;
+						cnx->pow = 0;
+						cnx->signal = retract;
+						cnx->data = slime.blockIds[DATA_OFFSET + (slime.offset >> 1)];
+						if (slime.offset & 1) cnx->data >>= 4;
+						else cnx->data &= 15;
+						list += expand;
+						count ++;
+						*list = *cnx;
+						maxCheck ++;
+					}
+				}
+			}
+			count ++;
+			list += expand;
+			x += dx; y += dy; z += dz;
+			if (retract) break;
+			mapIter(&iter, dx, dy, dz);
 		}
-
-		list->dx = x;
-		list->dy = y;
-		list->dz = z;
-		list->blockId = b->id;
-		list->data = iter.blockIds[DATA_OFFSET + (iter.offset >> 1)];
-		list->pow = 0;
-		list->signal = retract;
-		if (iter.offset & 1) list->data >>= 4;
-		else list->data &= 15;
-		count ++;
-		list ++;
-		x += dx; y += dy; z += dz;
-		if (retract) return 1;
-		mapIter(&iter, dx, dy, dz);
+		break_all:
+		if (maxCheck == 0) break;
+		if (! inCheck)
+		{
+			if (retract) dx = -dx, dy = -dy, dz = -dz;
+			inCheck = 1;
+		}
+		iter = orig;
+		mapIter(&iter, x = check->dx + dx, y = check->dy + dy, z = check->dz + dz);
+		maxCheck --;
+		memmove(check, check + 1, maxCheck * sizeof *check);
 	}
+
 	/* push limit exceeded */
-	return -1;
+	return count <= MAXPUSH ? count : -1;
 }
 
 /* get signal strength emitted by block pointed by <iter> */

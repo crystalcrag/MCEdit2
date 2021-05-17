@@ -1,14 +1,29 @@
 =========== Week 19 ===========
+Sun May 16:
+	* render bug when removing an alpha chunk from a bank in mapUpdate() (vtxSize was not up to date).
+	* piston block pushing glitches: blocks could collide.
+	* light on entities is not correct: need 8 block/sky values :-/
+
+Sat May 15:
+	* adjust alpha sort: uses uint32_t instead of uint16_t for distance; also use triangle center
+	  instead of first vertex.
+	* slime block pushes blocks attached to it.
+	* SITGL VTerm mostly done: need doc though.
+
+Fri May 14:
+	* fix AO between full block and half slab.
+	* piston fix with skylight update.
+
 Thu May 13:
 	* better half slab lighting: not quite right yet, but at least not hardcoded.
 
 Wed May 12:
 	* entity list per chunk bug fixed.
-	* entity light update is smoother when pushed by piston.
+	* entity light update is smoother when pushed by piston (avoid removing light when converted to block 36).
 
 Tue May 11:
-	* bug fixed when multiple ChunkData updates happen in a single tick: not all nearby chunks were updated.
-	* new entity were not added to chunk entity list: light were not updated if it changed later.
+	* bug fixed when multiple ChunkData updates happening in a single tick: not all nearby chunks were updated.
+	* new entity were not added to chunk entity list: light were not updated if it changes later.
 
 Mon May 10:
 	* alpha transparency refined.
@@ -22,11 +37,11 @@ Sun May 9:
 
 Sat May 8:
 	* piston mostly working.
-	* started proper handling of alpha transparency.
+	* started proper handling of alpha transparency (using sorted triangles).
 
 Fri May 7:
 	* debug entity moved by piston.
-	* slice view failed to apply rotation to texture.
+	* slice view failed to apply rotation to texture, due to GL_REPEAT flags removed from terrain.png.
 
 Thu May 6:
 	* pushable blocks first version seems working; need more test though.

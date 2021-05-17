@@ -171,11 +171,13 @@
 <a class="sub1" href="#mesh"><span>Mesh generation</span></a>
 
 <a class="sub1" href="#opengl"><span>Advanced OpenGL</a>
+<a class="sub2" href="#translucency"><span>Alpha transparency</span></a>
+<a class="sub2" href="#gpubanks"><span>Managing chunks on GPU</span></a>
 
 <a class="sub1" href="#nbt2"><span>NBT API</a>
 
 <a class="sub1" href="#entities"><span>Entities</span></a>
-<a class="sub2" href="#structure"><span>Data stucture</span></a>
+<a class="sub2" href="#structure"><span>Data structure</span></a>
 </div>
 
 <div id="content">
@@ -689,9 +691,14 @@ possible properties:
     <li><tt>RAILS</tt>: this flag is used when placing rails to know which neighbor to update.
     <li><tt>TRAPDOOR</tt>: block update from redstone/user.
     <li><tt>SIGN</tt>: they need special processing (allocate off-screen texture).
+    <li><tt>PLATE</tt>: pressure plate (needed for redstone signal).
+    <li><tt>SOLIDOUTER</tt>: only useful for <tt>CUST</tt> block type: the block model will be a mix
+	of <tt>SOLID</tt> and <tt>CUBE</tt>: the outer layer of the model will use a unit textured cube,
+	using the texture declared in the <tt>tex</tt> field of the state description. The purpose of
+	this flag is to allow custom block model to benefit from ambient occlusion.
     <li><tt>BED</tt>: their models depend on tile entity.
   </ul>
-  <p>Additionnaly, you can OR these values, with the following flags (ie: separated by |):
+  <p>Additionally, you can OR these values, with the following flags (ie: separated by |):
   <ul>
 	<li><tt>CNXTEX</tt>: generate connected texture for all state description. Texture will be auto-generated
 	from state description.
@@ -782,12 +789,28 @@ possible properties:
   be necessary for block type <tt>CUST</tt>, even though nothing prevent you from using with any other
   type. The format of this field is a bit complicated and be explained in the <a href="#blockmodel">next section</a>.
 
+  <li><tt>pushable</tt>: how this block is going to be affected if pushed/retracted by a piston. Enumeration
+  value that can take one of the following value:
+  <ul>
+    <li><tt>NO</tt>: block can't be pushed, not retracted (obsidian, chests, ...)
+    <li><tt>YES</tt>: default value for all blocks except <tt>QUAD</tt>.
+    <li><tt>PUSHONLY</tt>: can only be pushed, but not retracted (glazed terracotta).
+    <li><tt>DESTROY</tt>: completely destroy the block if pushed (leaves, grass, ...): this is the
+	default for <tt>QUAD</tt>.
+    <li><tt>DROPITEM</tt>: remove the block, but create an item entity (flowers, ...).
+  </ul>
+  <p><b>Note</b>: this engine supports moving blocks containing tile entities (furnace, chests, ...),
+  even though in the default block definition, they have been marked as non-movable.
+
+  <li><tt>gravity</tt>: integer that can be either <tt>0</tt> or <tt>1</tt>. If set to <tt>1</tt>, the
+  block will be converted to a falling entity, if placed above air (be it manually or with pistons).
+
   <li><tt>keepModel</tt>: hack.
 </ul>
 
 <h3 id="statedesc"><span>State description</span></h3>
 
-<p>An object declaraction is recognized as a state declaration it is contains a <tt>state</tt> property
+<p>An object declaraction is recognized as a state declaration if it is contains a <tt>state</tt> property
 with an integer assigned to it. Beside this property, you can also use these ones:
 <ul>
   <li><tt>state</tt>: an integer between 0 and 15 that will be stored in <tt>Sections/Data</tt> table in a chunk.
@@ -870,7 +893,7 @@ with an integer assigned to it. Beside this property, you can also use these one
   are declared on their own lines (there no JSON tokens mix in those lines, besides what's required
   to make an array of numbers). The reason for this, is that those lines can be selected in a standard
   text editor, then copied and pasted inside <tt>TileFinder</tt> to see what the model looks like.
-  You can also copy the model from <tt>TileFinder</tt> to the text file again, if you modifed it later.
+  You can also copy the model from <tt>TileFinder</tt> to the text file again, if you modify it later.
 
   <li><tt>rotate</tt>: 
 
@@ -896,22 +919,23 @@ with an integer assigned to it. Beside this property, you can also use these one
 <h3 id="translucency"><span>Handling translucent blocks</span></h3>
 
 <p>That part was probably one of the biggest <b>crap shoot to implement</b>. 2 attempts were tried
-(depth peeling and fragment sorting), but ultimately were entirely discarded because of serious shortcomings
-in the way they inherently work. Therefore the first 2 sections are a remimder to not waste your time
-with these techniques.
+(depth peeling and fragment sorting on the GPU), but ultimately were entirely discarded because of
+serious shortcomings in the way they inherently work. Therefore the first 2 sections are a remimder
+to not waste your time with these techniques.
 
 <h4 id="oit"><span>Fragment sorting on GPU (Order Independent Transparency)</span></h4>
 
 <p>In the OpenGL red book ninth edition, there is a fully working example for handling alpha transparency
-in a <b>completely generic and 100% accurate way</b>, for any type of geometry. The implementation seems elegant,
-not very intrusive, therefore rather easy to integrate, and indeed handle absolutely all use cases.
+in a <b>completely generic and 100% accurate way</b>, for any type of geometry, entirely on the GPU. The
+implementation seemed elegant, not very intrusive, therefore rather easy to integrate, and indeed handle
+absolutely all use cases.
 
 <p>The basic idea with this technique is this:
 
 <blockquote>
-<p>Instead of writing translucent fragment directly in the
-framebuffer, within the fragment shader, you write them in a (very big) linked list. Thanks to OpenGLv4
-atomic types and counters, this can be achieved rather easily.
+<p>Instead of writing translucent fragment directly in the main framebuffer, within the fragment shader,
+you write them in a (very big) linked list. Thanks to OpenGLv4 atomic types and counters, this can be
+achieved rather easily.
 
 <p>The linked list is implemented using 2 textures: one texture the size of the framebuffer, where each
 pixel will actually store the head of the linked list as a 32bit integer. The second texture will contain
@@ -922,7 +946,7 @@ translucent fragment.
 <p>Once all fragments has been written in that list, you start a second pass to write them in the
 framebuffer, by using the head texture to get all translucent fragment at given position, sort them
 by decreasing depth, combining them using pre-multiplied alpha and finally writing the result into
-the framebuffer (which means returning the final color from the fragment shader).
+the framebuffer (ie: returning the final color from the fragment shader).
 </blockquote>
 
 <p>That technique works indeed fine, except for a few use cases where <b>performance can suffer
@@ -935,15 +959,15 @@ framebuffer of <tt>1920x1080px</tt>):
   per fragment + 4 bytes for head of linked list) times <tt>60</tt> (frame per second) = a little bit
   under 4 Gb / second. That is going to saturate the memory bandwidth of all but high-end configuration.
   <li>To add insult to injury, if you were to sort those quads using the CPU, it would be just a few
-  hundreeds <b>of bytes</b> to move around.
+  hundreeds <b>of bytes</b> to move around each second.
 </ul>
 
 <p>In conclusion: <b>for a voxel engine, it is not advised to rely on this technique alone</b>.
 
 <h4 id="depthpeel"><span>Depth peeling</span></h4>
 
-<p>Another technique to handle alpha transparency in a <b>completely generic</b> way, with 100% accuracy, and
-<em>mostly</em> handled by the GPU. The idea behind this technique is as follows:
+<p>This is another technique to handle alpha transparency in a <b>completely generic</b> way, with 100%
+accuracy, and <em>mostly</em> handled by the GPU. The idea behind this technique is as follows:
 
 <blockquote>
 <p>Once again instead of writing the fragments directly in the main framebuffer, you write them into
@@ -975,8 +999,10 @@ GPUs, this value is not that trivial to get without stalling the pipeline.
 
 <p>One way to do this, is to use a generic buffer accessed through an atomic operator, like <tt>atomicOr()</tt>,
 to be called whenever at least one fragment is <b>discarded</b> due to the being replaced by a farther
-fragment (ie: testing against the first depth buffer). That means, there are fragments that still need
-processing.
+fragment, that is testing against the first depth buffer. If the fragment is discarded when tested against
+the second depth buffer, that means this fragment has already been processed, and therefore should not
+update the flag buffer. If at the end of a loop this buffer contains a non-zero value, it means there
+are fragments that still need processing.
 
 <p>Sadly, once your loop is done, you cannot read the content of the buffer, to know if you should continue
 or stop. Due to the asynchronous nature of OpenGL, the only moment where it is safe to do so, is when
@@ -986,7 +1012,7 @@ is done with the previous frame, and the content of the buffer is accurate now.
 <p>Worse: if there was not enough loops, at this point you can only increase the number of loops by one.
 If you scene just switch from one layer of transparency to one containing a lot, even at 60 frame per
 second, you'll be able to see the translucent layers being peeled frame per frame, as the number of loops
-is increased each frame.
+is increased one by one.
 
 <p>This is far from ideal in practice, and this technique has somewhat the same problem than the linked
 list of fragments: it requires too much bandwidth and/or up to date OpenGL implementation, which makes it
@@ -995,10 +1021,10 @@ particularly annoying to debug when something goes wrong (usually due to buggy d
 
 <h4 id="cpusort"><span>Triangles sorting on CPU</span></h4>
 
-<p>The technique that is ultimately used in this engine is simply by <b>sorting the triangles from farthest
+<p>The technique that is ultimately used in this engine is simply <b>sorting the triangles from farthest
 to nearest</b>. As with the previous 2 techniques, it has its own shortcomings: it is not 100% accurate
 (typical use case where it fails: 2 intersecting triangles/quads), and since the sorting is done on
-the CPU, you have to be careful to not do it every frame.
+the CPU, it is going to lag the rendering whenever there are too many triangles to sort.
 
 <p>It has its advantages though:
 <ul>
@@ -1007,7 +1033,7 @@ the CPU, you have to be careful to not do it every frame.
 </ul>
 
 <p>In this engine, the sorting is actually <b>divided in 2 parts</b>. All sorting algorithm
-have to assume that one operation necessary to sort items is going to be cheap: either comparison
+have to assume that one of the operations necessary to sort items is going to be cheap: either comparison
 or moving memory (ideally both). In this case, neither of them are particularly cheap if we were to use
 the vertex data as direct source. That's why we create a first array which is both cheap to move its
 individual items around (just 8 bytes per item) and to compare those items (subtract two 32bit integers).
@@ -1015,6 +1041,47 @@ individual items around (just 8 bytes per item) and to compare those items (subt
 <p>Once this array has been sorted, we use it to move vertex data. Thanks to the information stored
 in that secondary array, each quads from the vertex array has to be moved at most 2 times (and most of
 the time, data will be copied from one place of the array to another, ie: using one <tt>memcpy</tt>).
+
+<p>Triangles are sorted by whole quads (ie: 6 vertices at a time, ie: 2 triangles), because the meshing
+phase actually only generates quads. The distance used to sort triangles is actually the distance from
+the camera <b>to the center of the whole quad</b>, that distance being converted to fixed point.
+
+<p>The sorting itself is handled by the good old libc <tt>qsort()</tt>.
+
+<p>To reduce the amount of sorting needed, a few tricks are used:
+<ul>
+  <li><b>Chunks are sorted by the frustum culling</b>: the frustum culling function already builds a list
+  of chunk that are roughly sorted from front to back. It is not perfect, but as far as alpha transparency
+  is concerned, it is good enough. Which means:
+
+  <li><b>Sorted by chunks</b>: we only have to sort the alpha triangles on a per chunk basis. Which
+  means all the chunks hidden by frustum/caves don't have to be processed whatsoever. Also since vertex data
+  is already stored per chunk, usually in non-contiguous memory segment, it would have been a <b>major
+  inconvenience</b> to have to sort them globally.
+
+  <li><b>Viewing angles threshold</b>: the list of visible chunks can change every time the model-view
+  matrix is changed (which is to say quite often). Still, it is not required to sort the triangles
+  every time the yaw/pitch/position are changed.
+
+  <p>For the yaw/pitch, their values are stored in a chunk at the time of sorting. If these values change
+  later, the sorting will be redone only if one of angles differ for more than 45&deg;.
+
+  <p>The position is only taken in account for the chunk the player currently is. Consider the following
+  situation:
+  <div class="image">
+    <img src="images/sortedalpha.png">
+  </div>
+  <p>The plus sign marks the player position: the yellow block is the closest (therefore draw last), while
+  the purple and green are farther (therefore draw first). If the player were to move in the direction
+  pointed by the arrow, at some point, the yellow block will become farther than the purple, therefore
+  the draw order needs to be changed. That's why the current chunk is reordered whenever the player
+  position changes.
+</ul>
+
+<h3 id="gpubanks"><span>Managing chunks on GPU</span></h3>
+
+<p>Chunks are rendered using instance rendering, which helps reduce by quite a bit the overhead of OpenGL
+draw calls, at the price of a bit more work on the CPU side in order for the GPU to do its work.
 
 <h2 id="nbt2">NBT API</h2>
 
@@ -1024,7 +1091,7 @@ the time, data will be copied from one place of the array to another, ie: using 
 <b>are managed</b> within this engine. This part is not trivial just by looking at the source code, since
 there are a lot of moving parts, with lots of datatypes:
 
-<h3 id="structure"><span>Data stuctures</span></h3>
+<h3 id="structure"><span>Data structures</span></h3>
 
 <p>There are 6 datatypes used to manage entities:
 

@@ -206,11 +206,16 @@ static int entityModelCount(int id)
 	{
 		/* normal block */
 		BlockState b = blockGetById(id);
-		if (id == 0) return 36;
+		if (id == 0) return 36; /* unknown entity: a cube */
 		switch (b->type) {
 		case SOLID:
 		case TRANS: return 36;
-		case CUST:  return b->custModel ? b->custModel[-1] : 0;
+		case CUST:
+			if (b->custModel == NULL) return 36; /* assume cube, if no model */
+			id = b->custModel[-1];
+			if (b->special == BLOCK_SOLIDOUTER)
+				id += 36;
+			return id;
 		}
 	}
 	return 0;
@@ -250,7 +255,10 @@ static int entityGenModel(EntityBank bank, int id, CustModel cust)
 				count = b->custModel[-1];
 				memcpy(buffer, b->custModel, count * BYTES_PER_VERTEX);
 				bbox  = blockGetBBox(b);
+				if (b->special == BLOCK_SOLIDOUTER)
+					count += blockInvModelCube(buffer + count * INT_PER_VERTEX, b, texCoord);
 			}
+			else count = blockInvModelCube(buffer, b, texCoord);
 		}
 	}
 	else if (cust)
@@ -317,14 +325,18 @@ static int entityAddModel(int id, CustModel cust)
 		glBindVertexArray(bank->vao);
 		glBindBuffer(GL_ARRAY_BUFFER, bank->vboModel);
 		glBufferData(GL_ARRAY_BUFFER, BANK_SIZE * BYTES_PER_VERTEX, NULL, GL_STATIC_DRAW);
+		/* 3 uint16_t for vertex position (rel to info0 */
 		glVertexAttribIPointer(0, 3, GL_UNSIGNED_SHORT, BYTES_PER_VERTEX, 0);
 		glEnableVertexAttribArray(0);
+		/* 2 uint16_t texture coord, normal */
 		glVertexAttribIPointer(1, 2, GL_UNSIGNED_SHORT, BYTES_PER_VERTEX, (void *) 6);
 		glEnableVertexAttribArray(1);
 		glBindBuffer(GL_ARRAY_BUFFER, bank->vboLoc);
+		/* 3 floats for model position, 1 for light/sky */
 		glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, INFO_SIZE, 0);
 		glEnableVertexAttribArray(2);
 		glVertexAttribDivisor(2, 1);
+		/* 2 floats for rotation */
 		glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, INFO_SIZE, (void *) 16);
 		glEnableVertexAttribArray(3);
 		glVertexAttribDivisor(3, 1);
@@ -809,10 +821,15 @@ void entityUpdateOrCreate(Chunk c, vec4 pos, int blockId, vec4 dest, int ticks, 
 	anim = entities.animate + entities.animCount;
 	entities.animCount ++;
 	anim->prevTime = (int) curTime;
-	anim->stopTime = anim->prevTime + ticks * (1000 / TICK_PER_SECOND);
+	anim->stopTime =
+	#ifdef DEBUG
+		anim->prevTime + ticks * 20 * (1000 / TICK_PER_SECOND);
+	#else
+		anim->prevTime + ticks * (1000 / TICK_PER_SECOND);
+	#endif
 	anim->entity = entity;
 
-	fprintf(stderr, "adding entity %d at %p / %d\n", entities.animCount, tile, slot);
+//	fprintf(stderr, "adding entity %d at %p / %d\n", entities.animCount, tile, slot);
 }
 
 /* sky/block light has changed in this chunk */
