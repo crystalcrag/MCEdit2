@@ -20,7 +20,8 @@ void entityDebug(int id);
 void entityUpdateLight(Chunk c);
 void entityInfo(int id, STRPTR buffer, int max);
 int  entityRaycast(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos);
-void entityUpdateOrCreate(Chunk c, vec4 pos, int blockId, vec4 dest, int ticks, DATA8 tile, uint8_t light);
+void entityUpdateOrCreate(Chunk c, vec4 pos, int blockId, vec4 dest, int ticks, DATA8 tile);
+void entityDebugCmd(Chunk c);
 
 #define ENTITY_END         0xffff
 #define PAINTING_ADDTEXU   16
@@ -30,7 +31,8 @@ void entityUpdateOrCreate(Chunk c, vec4 pos, int blockId, vec4 dest, int ticks, 
 /* private stuff below */
 #ifdef ENTITY_IMPL
 #define BANK_SIZE          65536
-#define INFO_SIZE          24
+#define INFO_SIZE          48
+#define LIGHT_SIZE         24
 #define ENTITY_SHIFT       8
 #define ENTITY_BATCH       (1 << ENTITY_SHIFT)
 
@@ -66,13 +68,12 @@ struct Entity_t
 {
 	uint16_t next;                 /* first ENTITY_SHIFT bits: index in buffer, remain: buffer index  */
 	uint16_t VBObank;              /* first 6bits: bank index, remain: model index */
-	uint16_t mdaiSlot;             /* GL draw index */
+	uint16_t mdaiSlot;             /* GL draw index in VBObank */
 	uint16_t blockId;
-	uint8_t  select;
-	uint8_t  light;
-	float    pos[3];
 	float    motion[3];
+	float    pos[4];
 	float    rotation[2];
+	uint32_t light[6];
 	DATA8    tile;
 	STRPTR   name;                 /* from NBT */
 };

@@ -555,7 +555,7 @@ static Bool mapUpdateAddPistonExt(Map map, struct BlockIter_t iter, int blockId,
 	/* create or update the moving block */
 	if (blockId > 0)
 		/* XXX need progress */
-		entityUpdateOrCreate(ref, src, blockId, dest, 1, tile, mapGetSkyBlockLight(&iter));
+		entityUpdateOrCreate(ref, src, blockId, dest, 1, tile);
 
 	return True;
 }
@@ -598,7 +598,7 @@ void mapUpdateToBlock36(Map map, RSWire list, int count, int dir, BlockIter iter
 		);
 		mapUpdate(map, src, ID(RSPISTONEXT, 0), tile.mem, UPDATE_KEEPLIGHT);
 
-		entityUpdateOrCreate(iter.ref, src, (list->blockId << 4) | list->data, dst, 1, tile.mem, mapGetSkyBlockLight(&iter));
+		entityUpdateOrCreate(iter.ref, src, (list->blockId << 4) | list->data, dst, 1, tile.mem);
 
 		/* also replace destination block */
 		mapIter(&iter, off[0], off[1], off[2]);

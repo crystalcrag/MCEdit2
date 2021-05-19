@@ -1,3 +1,10 @@
+=========== Week 20 ===========
+Tue May 18:
+	* entity lighting redone again: use same values as blocks.vsh (24 for values: 4 per face).
+
+Mon May 17:
+	* entity lighting redone: use 27 surrounding block/sky light values.
+
 =========== Week 19 ===========
 Sun May 16:
 	* render bug when removing an alpha chunk from a bank in mapUpdate() (vtxSize was not up to date).

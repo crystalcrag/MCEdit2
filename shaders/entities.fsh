@@ -3,12 +3,13 @@
 /*
  * fragment shader for entities
  */
-out vec4 color;
-in  vec2 texcoord;
-flat in int   isBlock;
-flat in int   isSelected;
-flat in float skyLight;
-flat in float blockLight;
+
+flat in  int   isBlock;
+flat in  int   isSelected;
+     out vec4  color;
+     in  vec2  texcoord;
+     in  float skyLight;
+     in  float blockLight;
 
 layout (binding=0) uniform sampler2D blocksTex;
 layout (binding=1) uniform sampler2D mobTex;

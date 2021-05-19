@@ -320,7 +320,7 @@ void mceditWorld(void)
 					mapSaveLevelDat(mcedit.level);
 					break;
 				case SDLK_F7:
-					renderPointToBlock(785, 567);
+					entityDebugCmd(mcedit.level->center);
 					breakPoint = ! breakPoint;
 					break;
 				case SDLK_EQUALS:

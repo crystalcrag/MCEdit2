@@ -325,14 +325,14 @@ static int entityAddModel(int id, CustModel cust)
 		glBindVertexArray(bank->vao);
 		glBindBuffer(GL_ARRAY_BUFFER, bank->vboModel);
 		glBufferData(GL_ARRAY_BUFFER, BANK_SIZE * BYTES_PER_VERTEX, NULL, GL_STATIC_DRAW);
-		/* 3 uint16_t for vertex position (rel to info0 */
+		/* 3 uint16_t for vertex position (rel to info) */
 		glVertexAttribIPointer(0, 3, GL_UNSIGNED_SHORT, BYTES_PER_VERTEX, 0);
 		glEnableVertexAttribArray(0);
 		/* 2 uint16_t texture coord, normal */
 		glVertexAttribIPointer(1, 2, GL_UNSIGNED_SHORT, BYTES_PER_VERTEX, (void *) 6);
 		glEnableVertexAttribArray(1);
 		glBindBuffer(GL_ARRAY_BUFFER, bank->vboLoc);
-		/* 3 floats for model position, 1 for light/sky */
+		/* 3 floats for model position, 1 for meta data */
 		glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, INFO_SIZE, 0);
 		glEnableVertexAttribArray(2);
 		glVertexAttribDivisor(2, 1);
@@ -340,6 +340,14 @@ static int entityAddModel(int id, CustModel cust)
 		glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, INFO_SIZE, (void *) 16);
 		glEnableVertexAttribArray(3);
 		glVertexAttribDivisor(3, 1);
+		/* 24 uint8_t for lighting */
+		glVertexAttribIPointer(4, 3, GL_UNSIGNED_INT, INFO_SIZE, (void *) 24);
+		glEnableVertexAttribArray(4);
+		glVertexAttribDivisor(4, 1);
+
+		glVertexAttribIPointer(5, 3, GL_UNSIGNED_INT, INFO_SIZE, (void *) 36);
+		glEnableVertexAttribArray(5);
+		glVertexAttribDivisor(5, 1);
 		glBindVertexArray(0);
 	}
 
@@ -399,7 +407,7 @@ static int entityGetModelId(Entity entity)
 			}
 		}
 		if (block)
-			return entityAddModel(itemGetByName(block, False) | data, NULL);
+			return entityAddModel(entity->blockId = itemGetByName(block, False) | data, NULL);
 	}
 	else if (strcmp(id, "painting") == 0)
 	{
@@ -411,16 +419,6 @@ static int entityGetModelId(Entity entity)
 		}
 	}
 	return ENTITY_UNKNOWN;
-}
-
-static void entityFillLocation(Entity ent, float loc[6])
-{
-	loc[0] = ent->pos[0];
-	loc[1] = ent->pos[1];
-	loc[2] = ent->pos[2];
-	loc[3] = ent->light | (ent->select ? 256 : 0);
-	loc[4] = ent->rotation[0];
-	loc[5] = ent->rotation[1];
 }
 
 static void entityAddToCommandList(Entity entity)
@@ -444,12 +442,10 @@ static void entityAddToCommandList(Entity entity)
 	{
 		EntityModel model = bank->models + (VBObank >> 6);
 		MDAICmd_t   cmd   = {.count = model->count, .baseInstance = slot, .instanceCount = 1, .first = model->first};
-		float       loc[INFO_SIZE/4];
 
 		entity->mdaiSlot = slot;
-		entityFillLocation(entity, loc);
 		glBindBuffer(GL_ARRAY_BUFFER, bank->vboLoc);
-		glBufferSubData(GL_ARRAY_BUFFER, slot * INFO_SIZE, INFO_SIZE, loc);
+		glBufferSubData(GL_ARRAY_BUFFER, slot * INFO_SIZE, INFO_SIZE, entity->pos);
 		glBindBuffer(GL_ARRAY_BUFFER, bank->vboMDAI);
 		glBufferSubData(GL_ARRAY_BUFFER, slot * 16, 16, &cmd);
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -457,17 +453,70 @@ static void entityAddToCommandList(Entity entity)
 	else bank->dirty = 1; /* redo the list from scratch */
 }
 
-static uint8_t entityGetLight(Chunk c, vec4 pos)
+static void entityGetLight(Chunk c, vec4 pos, DATA32 light, Bool full)
 {
-	struct BlockIter_t iter;
 	int Y = CPOS(pos[1]);
-	if (Y < 0) return 0;
-	if (Y >= c->maxy) return 240;
-
-	ChunkData cd = c->layer[Y];
-	mapInitIterOffset(&iter, cd, CHUNK_POS2OFFSET(c, pos));
-
-	return mapGetSkyBlockLight(&iter);
+	if (Y < 0)
+	{
+		memset(light, 0, LIGHT_SIZE);
+	}
+	else if (Y >= c->maxy)
+	{
+		memset(light, 240, LIGHT_SIZE);
+	}
+	else if (full) /* grab the 27 block/sky light value and get max value on each corner */
+	{
+		extern uint8_t skyBlockOffset[];
+		static uint8_t shiftValues[] = { /* 4 entries per face, ordered S,E,N,W,T,B */
+			0,8,24,16, 0,8,24,16, 0,8,24,16, 0,8,24,16, 0,16,24,8, 16,0,8,25
+		};
+		struct BlockIter_t iter;
+		uint8_t skyBlockLight[27];
+		uint8_t x, y, z, i;
+		ChunkData cd = c->layer[Y];
+		mapInitIterOffset(&iter, cd, CHUNK_POS2OFFSET(c, pos));
+		mapIter(&iter, -1, -1, -1);
+		for (y = i = 0; ; )
+		{
+			for (z = 0; ; )
+			{
+				for (x = 0; ; )
+				{
+					skyBlockLight[i++] = mapGetSkyBlockLight(&iter);
+					x ++;
+					if (x == 3) break;
+					mapIter(&iter, 1, 0, 0);
+				}
+				z ++;
+				if (z == 3) break;
+				mapIter(&iter, -2, 0, 1);
+			}
+			y ++;
+			if (y == 3) break;
+			mapIter(&iter, -2, 1, -2);
+		}
+		DATA8 p;
+		memset(light, 0, 24);
+		for (i = 0, p = skyBlockOffset; i < 24; i ++)
+		{
+			uint8_t max;
+			for (x = max = 0; x < 4; x ++, p ++)
+			{
+				uint8_t val = skyBlockLight[*p];
+				uint8_t sky = val & 0xf0; val &= 0x0f;
+				if ((max & 0xf0) < sky) max = (max & 0x0f) | sky;
+				if ((max & 0x0f) < val) max = (max & 0xf0) | val;
+			}
+			light[i >> 2] |= max << shiftValues[i];
+		}
+	}
+	else /* single block */
+	{
+		struct BlockIter_t iter;
+		ChunkData cd = c->layer[Y];
+		mapInitIterOffset(&iter, cd, CHUNK_POS2OFFSET(c, pos));
+		memset(light, mapGetSkyBlockLight(&iter), LIGHT_SIZE);
+	}
 }
 
 /* extract information from NBT records */
@@ -516,10 +565,10 @@ void entityParse(Chunk c, NBTFile nbt, int offset)
 
 			entity->tile = nbt->mem + offset;
 			entity->next = ENTITY_END;
-			entity->select = 0;
+			entity->pos[VT] = 0;
 			entity->name = id;
-			entity->light = entityGetLight(c, pos);
 			entity->VBObank = entityGetModelId(entity);
+			entityGetLight(c, pos, entity->light, entity->blockId > 0);
 			entityAddToCommandList(entity);
 		}
 	}
@@ -584,11 +633,11 @@ static void entitySetSelection(Entity entity)
 			for (i = entities.selected->VBObank & 63, bank = HEAD(entities.banks); i > 0; i --, NEXT(bank));
 			if (! bank->dirty)
 			{
-				float val = entities.selected->light;
+				float val = 0;
 				glBindBuffer(GL_ARRAY_BUFFER, bank->vboLoc);
 				glBufferSubData(GL_ARRAY_BUFFER, entities.selected->mdaiSlot * INFO_SIZE + 12, 4, &val);
 			}
-			entities.selected->select = 0;
+			entities.selected->pos[VT] = 0;
 		}
 
 		if (entity)
@@ -598,11 +647,11 @@ static void entitySetSelection(Entity entity)
 			if (! bank->dirty)
 			{
 				/* selection flag is set directly in VBO meta-data */
-				float val = entity->light | 256;
+				float val = 1;
 				glBindBuffer(GL_ARRAY_BUFFER, bank->vboLoc);
 				glBufferSubData(GL_ARRAY_BUFFER, entity->mdaiSlot * INFO_SIZE + 12, 4, &val);
 			}
-			entity->select = 1;
+			entity->pos[VT] = 1;
 		}
 		entities.selected = entity;
 	}
@@ -647,10 +696,8 @@ int entityRaycast(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos)
 			if (vecDistSquare(camera, list->pos) < maxDist * 1.5)
 			{
 				float points[6];
-				float pos[6];
 				vec4  norm, inter;
 				int   j;
-				entityFillLocation(list, pos);
 				/* assume rectangular bounding box (not necessarily axis aligned though) */
 				for (j = 0; j < 6; j ++)
 				{
@@ -659,7 +706,7 @@ int entityRaycast(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos)
 
 					fillNormal(norm, j);
 					EntityModel model = entityGetModelById(list);
-					blockGetBoundsForFace(model->bbox, j, points, points+3, pos, 0);
+					blockGetBoundsForFace(model->bbox, j, points, points+3, list->pos, 0);
 					if (intersectRayPlane(camera, dir, points, norm, inter))
 					{
 						/* check if points is contained within the face */
@@ -784,7 +831,7 @@ void entityAnimate(Map map)
 		updateFinished(map, NULL, NULL);
 }
 
-void entityUpdateOrCreate(Chunk c, vec4 pos, int blockId, vec4 dest, int ticks, DATA8 tile, uint8_t light)
+void entityUpdateOrCreate(Chunk c, vec4 pos, int blockId, vec4 dest, int ticks, DATA8 tile)
 {
 	EntityAnim anim;
 	Entity     entity;
@@ -808,8 +855,8 @@ void entityUpdateOrCreate(Chunk c, vec4 pos, int blockId, vec4 dest, int ticks, 
 	memcpy(entity->motion, dest, 12);
 	entity->blockId = blockId;
 	entity->tile = tile;
-	entity->light = light;
 	entity->VBObank = entityGetModelId(entity);
+	entityGetLight(c, pos, entity->light, True);
 	entityAddToCommandList(entity);
 
 	/* push it into the animate list */
@@ -823,7 +870,7 @@ void entityUpdateOrCreate(Chunk c, vec4 pos, int blockId, vec4 dest, int ticks, 
 	anim->prevTime = (int) curTime;
 	anim->stopTime =
 	#ifdef DEBUG
-		anim->prevTime + ticks * 20 * (1000 / TICK_PER_SECOND);
+		anim->prevTime + ticks  * (1000 / TICK_PER_SECOND);
 	#else
 		anim->prevTime + ticks * (1000 / TICK_PER_SECOND);
 	#endif
@@ -839,22 +886,20 @@ void entityUpdateLight(Chunk c)
 	int    id;
 	for (id = c->entityList; id != ENTITY_END; id = entity->next)
 	{
+		uint32_t light[LIGHT_SIZE/4];
 		entity = entityGetById(id);
-		uint8_t light = entityGetLight(c, entity->pos);
-		if (light != entity->light)
+		entityGetLight(c, entity->pos, light, entity->blockId > 0);
+		if (memcmp(light, entity->light, LIGHT_SIZE) == 0)
 		{
 			EntityBank bank;
 			int j;
-			entity->light = light;
+			memcpy(entity->light, light, LIGHT_SIZE);
 			for (j = entity->VBObank & 63, bank = HEAD(entities.banks); j > 0; j --, NEXT(bank));
-			float val = light;
-			if (entity->select) val += 256;
 			glBindBuffer(GL_ARRAY_BUFFER, bank->vboLoc);
-			glBufferSubData(GL_ARRAY_BUFFER, entity->mdaiSlot * INFO_SIZE + 12, 4, &val);
+			glBufferSubData(GL_ARRAY_BUFFER, entity->mdaiSlot * INFO_SIZE + 24, LIGHT_SIZE, light);
 		}
 	}
 }
-
 
 #ifdef DEBUG
 void entityDebugCmd(Chunk c)
@@ -866,6 +911,44 @@ void entityDebugCmd(Chunk c)
 		entity = entityGetById(id);
 
 		fprintf(stderr, "entity %d at %g, %g, %g: %s\n", id, entity->pos[0], entity->pos[1], entity->pos[2], entity->name);
+
+		if (entity->blockId != ID(1, 0)) continue;
+		#if 0
+		EntityModel model;
+		EntityBank  bank;
+		uint32_t    light[2];
+		int i;
+		for (i = entity->VBObank & 63, bank = HEAD(entities.banks); i > 0; i --, NEXT(bank));
+		model = bank->models + (entity->VBObank >> 6);
+		int count = model->count * BYTES_PER_VERTEX;
+		DATA16 buffer = alloca(count);
+
+		light[0] = light[1] = 0;
+		glBindBuffer(GL_ARRAY_BUFFER, bank->vboLoc);
+		glGetBufferSubData(GL_ARRAY_BUFFER, entity->mdaiSlot * INFO_SIZE + 24, LIGHT_SIZE, light);
+
+		glBindBuffer(GL_ARRAY_BUFFER, bank->vboModel);
+		glGetBufferSubData(GL_ARRAY_BUFFER, model->first * BYTES_PER_VERTEX, count, buffer);
+		while (count > 0)
+		{
+			vec4 pos = {
+				(buffer[0] - 15360) * 0.00048828125 /* 1/2048. */,
+				(buffer[1] - 15360) * 0.00048828125,
+				(buffer[2] - 15360) * 0.00048828125
+			};
+			uint32_t corner = (pos[VX] <= 0.5 ? 0 : 1) + (pos[VZ] <= 0.5 ? 0 : 2) + (pos[VY] <= 0.5 ? 0 : 4);
+			uint32_t meta;
+
+			if (corner < 4)
+				meta = light[0] >> (corner << 3);
+			else
+				meta = light[1] >> ((corner - 4) << 3);
+
+			fprintf(stderr, "vertex = %g,%g,%g, NORM = %d, sky = %d, block = %d\n", pos[0], pos[1], pos[2], GET_NORMAL(buffer), (meta & 0xf0) >> 4, meta & 15);
+			count  -= BYTES_PER_VERTEX;
+			buffer += INT_PER_VERTEX;
+		}
+		#endif
 	}
 }
 #endif
@@ -906,7 +989,7 @@ void entityRender(void)
 					if (cur->tile == NULL) continue; j --;
 					if ((cur->VBObank & 63) != i) continue;
 					cur->mdaiSlot = mapFirstFree(bank->mdaiUsage, max);
-					entityFillLocation(cur, loc);
+					memcpy(loc, cur->pos, INFO_SIZE);
 					EntityModel model = bank->models + (cur->VBObank >> 6);
 					cmd->baseInstance = inst;
 					cmd->count = model->count;

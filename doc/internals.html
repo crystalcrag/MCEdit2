@@ -1054,7 +1054,7 @@ the camera <b>to the center of the whole quad</b>, that distance being converted
   of chunk that are roughly sorted from front to back. It is not perfect, but as far as alpha transparency
   is concerned, it is good enough. Which means:
 
-  <li><b>Sorted by chunks</b>: we only have to sort the alpha triangles on a per chunk basis. Which
+  <li><b>Vertex sorted per chunk</b>: we only have to sort the alpha triangles on a per chunk basis. Which
   means all the chunks hidden by frustum/caves don't have to be processed whatsoever. Also since vertex data
   is already stored per chunk, usually in non-contiguous memory segment, it would have been a <b>major
   inconvenience</b> to have to sort them globally.
@@ -1080,10 +1080,16 @@ the camera <b>to the center of the whole quad</b>, that distance being converted
 
 <h3 id="gpubanks"><span>Managing chunks on GPU</span></h3>
 
-<p>Chunks are rendered using instance rendering, which helps reduce by quite a bit the overhead of OpenGL
-draw calls, at the price of a bit more work on the CPU side in order for the GPU to do its work.
+<p>Chunks are rendered using instance rendering, which helps reduce the overhead of OpenGL draw calls,
+at the price of a bit more work on the CPU side in order for the GPU to do its work.
+
+<p>/* ... */
 
 <h2 id="nbt2">NBT API</h2>
+
+<p>NBT API in this engine does not exactly follow a tradionnal API you might expect for manipulating
+a tree of arbitrary data types.
+
 
 <h2 id="entities">Entities</h2>
 

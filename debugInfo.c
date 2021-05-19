@@ -108,7 +108,7 @@ void debugBlockVertex(Map map, SelBlock * select)
 					    texCoord[k]   + tex[0] == U &&
 					    texCoord[k+1] + tex[1] == V)
 					{
-						fprintf(stderr, "VERTEX: %d,%d,%d [%d] - NORM: %d (%c) - uv: %d,%d - OCS: %d - LIGHT: %d SKY:%d\n",
+						fprintf(stderr, "VERTEX: %d,%d,%d [%d] - NORM: %d (%c) - uv: %d,%d - OCS: %d - LIGHT: %d, SKY: %d\n",
 							x, y, z, (coord-vertex)/3, side, "SENWTB"[side], U, V, (p[4] >> 6) & 3, (p[4]>>8) & 15, p[4]>>12);
 						/* found one vertex of a triangle, there must be 2 more */
 						p -= 2*INT_PER_VERTEX;
