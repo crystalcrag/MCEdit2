@@ -17,7 +17,6 @@
 #include "SIT.h"
 #include "entities.h"
 #include "blocks.h"
-#include "maps.h"
 #include "redstone.h"
 #include "blockUpdate.h"
 #include "mapUpdate.h"
@@ -28,6 +27,20 @@ extern double curTime; /* from main.c */
 
 static void hashAlloc(int);
 static int  entityAddModel(int, CustModel);
+
+static struct VTXBBox_t entitiesBBox[] = {
+	{  BOX(1.0, 1.0, 1.0), .sides = 63, .aabox = 1},  /* ENTITY_UNKNOWN */
+	{BOXCY(0.6, 1.8, 0.6), .sides = 63, .aabox = 1},  /* ENTITY_PLAYER */
+};
+
+VTXBBox entityGetBBox(int id)
+{
+	if (id < 0 || id >= DIM(entitiesBBox))
+		return entitiesBBox;
+
+	return entitiesBBox + id;
+}
+
 
 static VTXBBox entityAllocBBox(void)
 {
@@ -241,7 +254,8 @@ static int entityGenModel(EntityBank bank, int id, CustModel cust)
 			};
 			/* used by unknwon entity */
 			count = blockInvModelCube(buffer, &unknownEntity, texCoord);
-			bbox  = blockGetBBox(blockGetById(ID(1,0)));
+			bbox  = entityAllocBBox();
+			blockCenterModel(buffer, count, 0, 0, bbox);
 		}
 		else switch (b->type) {
 		case SOLID:
@@ -568,6 +582,8 @@ void entityParse(Chunk c, NBTFile nbt, int offset)
 			entity->pos[VT] = 0;
 			entity->name = id;
 			entity->VBObank = entityGetModelId(entity);
+			if (entity->VBObank == 0) /* unknwon entity */
+				entity->pos[1] += 0.5;
 			entityGetLight(c, pos, entity->light, entity->blockId > 0);
 			entityAddToCommandList(entity);
 		}
@@ -616,8 +632,30 @@ void entityDebug(int id)
 void entityInfo(int id, STRPTR buffer, int max)
 {
 	Entity entity = entityGetById(id);
+	STRPTR name;
+	int    count;
 
-	sprintf(buffer, "X: %g\nY: %g\nZ: %g\n<dim>Entity:</dim> %s", entity->pos[0], entity->pos[1], entity->pos[2], entity->name);
+	count = sprintf(buffer, "<b>Entity</b>\nX: %g\nY: %g\nZ: %g\n", entity->pos[0], entity->pos[1], entity->pos[2]);
+
+	if ((id = entity->blockId) > 0)
+	{
+		BlockState b = blockGetById(id);
+		if (b == NULL)
+			name = NULL;
+		else
+			name = b->name;
+	}
+	else if ((name = entity->name) == NULL)
+	{
+		name = "<unknown>";
+	}
+	if (name)
+		count = StrCat(buffer, max, count, name);
+	if (id > 0)
+		count += sprintf(buffer + count, " <dim>(%d:%d)</dim>", id >> 4, id&15);
+
+	if (fabsf(entity->rotation[0]) > EPSILON)
+		sprintf(buffer + count, "\n<dim>Rotation:</dim> %g\n", entity->rotation[0] * 180 / M_PI);
 }
 
 /* mark new entity as selected and unselect old if any */
@@ -673,7 +711,7 @@ int entityRaycast(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos)
 {
 	float maxDist = cur ? vecDistSquare(camera, cur) : 1e6;
 	int   flags = (dir[VX] < 0 ? 2 : 8) | (dir[VY] < 0 ? 16 : 32) | (dir[VZ] < 0 ? 1 : 4);
-	int   i, id;
+	int   i, id, curId;
 	Chunk chunks[4];
 
 	if ((c->cflags & CFLAG_GOTDATA) == 0)
@@ -685,11 +723,12 @@ int entityRaycast(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos)
 	chunks[3] = c + chunkNeighbor[c->neighbor + ((flags & 15) ^ 15)];
 
 	/* scan 4 nearby chunk */
-	for (i = 0; i < 4; i ++)
+	for (i = 0, curId = -1; i < 4; i ++)
 	{
 		c = chunks[i];
 		if (c->entityList == ENTITY_END) continue;
 		Entity list = entityGetById(id = c->entityList);
+		Entity best = NULL;
 		for (;;)
 		{
 			/* just a quick heuristic to get rid of most entities */
@@ -710,21 +749,30 @@ int entityRaycast(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos)
 					if (intersectRayPlane(camera, dir, points, norm, inter))
 					{
 						/* check if points is contained within the face */
+						float dist;
 						if (points[VX] <= inter[VX] && inter[VX] <= points[VX+3] &&
 							points[VY] <= inter[VY] && inter[VY] <= points[VY+3] &&
 							points[VZ] <= inter[VZ] && inter[VZ] <= points[VZ+3] &&
 							/* <inter> is the exact coordinate */
-							vecDistSquare(camera, inter) < maxDist)
+							(dist = vecDistSquare(camera, inter)) < maxDist)
 						{
+							maxDist = dist;
 							memcpy(ret_pos, list->pos, 12);
-							entitySetSelection(list);
-							return id;
+							best = list;
+							curId = id;
+							/* need to check if there is a nearer entity first :-/ */
+							break;
 						}
 					}
 				}
 			}
 			if (list->next == ENTITY_END)
 			{
+				if (best)
+				{
+					entitySetSelection(best);
+					return curId;
+				}
 				if (entities.selected > 0)
 					entitySetSelection(NULL);
 				break;
@@ -870,7 +918,7 @@ void entityUpdateOrCreate(Chunk c, vec4 pos, int blockId, vec4 dest, int ticks, 
 	anim->prevTime = (int) curTime;
 	anim->stopTime =
 	#ifdef DEBUG
-		anim->prevTime + ticks  * (1000 / TICK_PER_SECOND);
+		anim->prevTime + ticks * 2000 * (1000 / TICK_PER_SECOND);
 	#else
 		anim->prevTime + ticks * (1000 / TICK_PER_SECOND);
 	#endif

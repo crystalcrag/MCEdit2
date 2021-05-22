@@ -958,8 +958,8 @@ void chunkUpdate(Chunk c, ChunkData empty, int layer, ChunkFlushCb_t flush)
 	neighbors[6]->yaw = 3.14926535 * 1.5;
 	neighbors[6]->pitch = 0;
 
-	if (c->X == -208 && neighbors[6]->Y == 32 && c->Z == -48)
-		breakPoint = 1;
+//	if (c->X == -208 && neighbors[6]->Y == 32 && c->Z == -48)
+//		breakPoint = 1;
 
 	for (pos = air = 0; pos < 16*16*16; pos ++)
 	{
@@ -972,8 +972,8 @@ void chunkUpdate(Chunk c, ChunkData empty, int layer, ChunkFlushCb_t flush)
 		block = blocks[pos];
 		state = blockGetByIdData(block, data);
 
-		if (breakPoint && pos == 4085)
-			breakPoint = 2;
+//		if (breakPoint && pos == 4085)
+//			breakPoint = 2;
 
 		if (blockIds[block].particle)
 			if (block != 55 || data > 0) // XXX needs to be declared in blockTable.js :-/

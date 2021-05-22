@@ -315,6 +315,7 @@ static Bool mapBlockIsFaceVisible(Map map, vec4 pos, int blockId, int8_t * offse
 {
 	BlockState b = blockGetById(blockId);
 
+	if (b->type == INVIS) return False;
 	if (b->type == SOLID || b->type == TRANS)
 	{
 		vec4 neighbor = {pos[0] + offset[0], pos[1] + offset[1], pos[2] + offset[2], 1};

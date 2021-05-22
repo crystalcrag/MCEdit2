@@ -792,7 +792,7 @@ possible properties:
   <li><tt>pushable</tt>: how this block is going to be affected if pushed/retracted by a piston. Enumeration
   value that can take one of the following value:
   <ul>
-    <li><tt>NO</tt>: block can't be pushed, not retracted (obsidian, chests, ...)
+    <li><tt>NO</tt>: block can't be pushed, nor retracted (obsidian, chests, ...)
     <li><tt>YES</tt>: default value for all blocks except <tt>QUAD</tt>.
     <li><tt>PUSHONLY</tt>: can only be pushed, but not retracted (glazed terracotta).
     <li><tt>DESTROY</tt>: completely destroy the block if pushed (leaves, grass, ...): this is the
@@ -800,7 +800,8 @@ possible properties:
     <li><tt>DROPITEM</tt>: remove the block, but create an item entity (flowers, ...).
   </ul>
   <p><b>Note</b>: this engine supports moving blocks containing tile entities (furnace, chests, ...),
-  even though in the default block definition, they have been marked as non-movable.
+  even though in the default block definition file (<tt>blocksTable.js</tt>), they have been marked
+  as non-movable.
 
   <li><tt>gravity</tt>: integer that can be either <tt>0</tt> or <tt>1</tt>. If set to <tt>1</tt>, the
   block will be converted to a falling entity, if placed above air (be it manually or with pistons).
@@ -895,12 +896,27 @@ with an integer assigned to it. Beside this property, you can also use these one
   text editor, then copied and pasted inside <tt>TileFinder</tt> to see what the model looks like.
   You can also copy the model from <tt>TileFinder</tt> to the text file again, if you modify it later.
 
-  <li><tt>rotate</tt>: 
+  <li><tt>rotate</tt>: rotate applied to texture coordinate, 6 groups of 2 bits. Rotation are ordered
+  <tt>S,E,N,W,T,B</tt>. The texture will be rotated in multiple of 90&deg; clock-wise (when viewed
+  in front), the multiple being the number encoded as 2bits.
 
-  <li><tt>emit</tt>: 
+  <li><tt>emit</tt>: where emitters are located in the model. An array containing one emitter location
+  per entry. It can be one of the letter <tt>S,E,N,W,T,B</tt>, indicating that the entire face can emit
+  particles (the location will be randomly selected when a particle is spawned). Or it can be a number:
+  if the block has a custom model, this is the primitive number that will be used as location.
 </ul>
 
 <h3 id="blockmodel"><span>Block models</span></h3>
+
+<p>Custom models that don't fit <tt>QUAD</tt> or <tt>SOLID</tt> can still use arbitrary shapes using
+the property <tt>model</tt> on a state description object. All the models has been filled using using
+an external application: <tt>TileFinder</tt>. This section will describe how the models are encoded,
+but be warned that this format has not been designed to be manually editied.
+
+<p>Contrary to typical models description format (like <tt>.obj</tt>) which usually only contains
+triangles, this format uses cubes/boxes as basic primitives, where each face can be selectively
+hidden or textured. You can also apply rotation, scaling, translation to each individual box and
+by grouping multiple boxes, you get a model.
 
 <p>/* ... */
 
@@ -1071,11 +1087,11 @@ the camera <b>to the center of the whole quad</b>, that distance being converted
   <div class="image">
     <img src="images/sortedalpha.png">
   </div>
-  <p>The plus sign marks the player position: the yellow block is the closest (therefore draw last), while
-  the purple and green are farther (therefore draw first). If the player were to move in the direction
-  pointed by the arrow, at some point, the yellow block will become farther than the purple, therefore
-  the draw order needs to be changed. That's why the current chunk is reordered whenever the player
-  position changes.
+  <p>The plus sign marks the player position: the <b>yellow block is the closest</b> (therefore drawn
+  last), while the <b>purple and green are farther</b> (therefore drawn first). If the player were to
+  move in the direction pointed by the arrow, at some point, the yellow block will become farther than
+  the purple, therefore the draw order needs to be changed. That's why the current chunk is reordered
+  whenever the player position changes.
 </ul>
 
 <h3 id="gpubanks"><span>Managing chunks on GPU</span></h3>
@@ -1090,6 +1106,7 @@ at the price of a bit more work on the CPU side in order for the GPU to do its w
 <p>NBT API in this engine does not exactly follow a tradionnal API you might expect for manipulating
 a tree of arbitrary data types.
 
+<p>/* ... */
 
 <h2 id="entities">Entities</h2>
 

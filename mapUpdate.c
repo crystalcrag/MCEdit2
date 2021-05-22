@@ -93,8 +93,8 @@ void mapInitIter(Map map, BlockIter iter, vec4 pos, Bool autoAlloc)
 	}
 	iter->ref  = ref;
 	iter->cd   = cd = layer < CHUNK_LIMIT ? ref->layer[layer] : NULL;
-	iter->x    = (int) pos[0] - ref->X;
-	iter->z    = (int) pos[2] - ref->Z;
+	iter->x    = floorf(pos[0]) - ref->X;
+	iter->z    = floorf(pos[2]) - ref->Z;
 	iter->y    = y & 15;
 	iter->yabs = y;
 

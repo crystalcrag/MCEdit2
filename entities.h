@@ -22,23 +22,17 @@ void entityInfo(int id, STRPTR buffer, int max);
 int  entityRaycast(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos);
 void entityUpdateOrCreate(Chunk c, vec4 pos, int blockId, vec4 dest, int ticks, DATA8 tile);
 void entityDebugCmd(Chunk c);
+VTXBBox entityGetBBox(int id);
 
 #define ENTITY_END         0xffff
 #define PAINTING_ADDTEXU   16
 #define PAINTING_ADDTEXV   (32+15)
 #define ENTITY_PAINTINGID  0x10000
 
-/* private stuff below */
-#ifdef ENTITY_IMPL
-#define BANK_SIZE          65536
-#define INFO_SIZE          48
-#define LIGHT_SIZE         24
-#define ENTITY_SHIFT       8
-#define ENTITY_BATCH       (1 << ENTITY_SHIFT)
-
 enum /* entity id and models */
 {
 	ENTITY_UNKNOWN,
+	ENTITY_PLAYER,
 	ENTITY_CHICKEN,
 	ENTITY_SHEEP,
 	ENTITY_COW,
@@ -52,6 +46,20 @@ enum /* entity id and models */
 	ENTITY_ENDERMAN,
 	ENTITY_FALLING
 };
+
+/* private stuff below */
+#ifdef ENTITY_IMPL
+#define BANK_SIZE          65536
+#define INFO_SIZE          48
+#define LIGHT_SIZE         24
+#define ENTITY_SHIFT       8
+#define ENTITY_BATCH       (1 << ENTITY_SHIFT)
+#define BOX(szx,szy,szz)   \
+	{-szx/2 * BASEVTX + ORIGINVTX, -szy/2 * BASEVTX + ORIGINVTX, -szz/2 * BASEVTX + ORIGINVTX}, \
+	{ szx/2 * BASEVTX + ORIGINVTX,  szy/2 * BASEVTX + ORIGINVTX,  szz/2 * BASEVTX + ORIGINVTX}
+#define BOXCY(szx,szy,szz) \
+	{-szx/2 * BASEVTX + ORIGINVTX,                 ORIGINVTX, -szz/2 * BASEVTX + ORIGINVTX}, \
+	{ szx/2 * BASEVTX + ORIGINVTX, szy * BASEVTX + ORIGINVTX,  szz/2 * BASEVTX + ORIGINVTX}
 
 typedef struct Entity_t *          Entity;
 typedef struct Entity_t            Entity_t;

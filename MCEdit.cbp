@@ -89,6 +89,9 @@
 		<Unit filename="particles.c">
 			<Option compilerVar="CC" />
 		</Unit>
+		<Unit filename="physics.c">
+			<Option compilerVar="CC" />
+		</Unit>
 		<Unit filename="player.c">
 			<Option compilerVar="CC" />
 		</Unit>

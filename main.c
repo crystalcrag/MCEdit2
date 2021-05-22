@@ -137,7 +137,7 @@ static int mceditSaveChanges(SIT_Widget w, APTR cd, APTR ud)
 {
 	if (! mapSaveAll(mcedit.level))
 		SIT_Log(SIT_ERROR, "Fail to save changes: %s\n", GetError());
-	if (mcedit.player.mode == MODE_CREATIVE)
+	if (mcedit.player.pmode == MODE_CREATIVE)
 	{
 		playerSaveLocation(&mcedit.player, &mcedit.level->levelDat);
 		mapSaveLevelDat(mcedit.level);
@@ -290,10 +290,12 @@ void mceditWorld(void)
 					mcedit.forceSel = 1;
 					renderShowBlockInfo(True, DEBUG_SELECTION);
 					break;
+				#ifdef DEBUG
 				case SDLK_BACKSPACE:
 					paused = ! paused;
 					FramePauseUnpause(paused);
 					break;
+				#endif
 				case SDLK_TAB:
 					mcedit.state = GAMELOOP_SIDEVIEW;
 					mcedit.exit = 2;
@@ -314,15 +316,17 @@ void mceditWorld(void)
 					break;
 				case SDLK_F5: sunMove |= 1; break;
 				case SDLK_F6: sunMove |= 2; break;
-					break;
+				case SDLK_F8: mcedit.player.pmode = mcedit.player.pmode == MODE_CREATIVE ? MODE_SPECTATOR : MODE_CREATIVE; break;
 				case SDLK_F10: // DEBUG
 					playerSaveLocation(&mcedit.player, &mcedit.level->levelDat);
 					mapSaveLevelDat(mcedit.level);
 					break;
 				case SDLK_F7:
-					entityDebugCmd(mcedit.level->center);
-					breakPoint = ! breakPoint;
-					break;
+					playerStickToGround(&mcedit.player, mcedit.level);
+					goto setviewmat;
+					//breakPoint = ! breakPoint;
+					//renderPointToBlock(560, 320);
+					//break;
 				case SDLK_EQUALS:
 				case SDLK_PLUS:
 					if (mapSetRenderDist(mcedit.level, mcedit.maxDist+1))
@@ -468,7 +472,8 @@ void mceditWorld(void)
 		}
 		if (mcedit.player.keyvec)
 		{
-			playerMove(&mcedit.player);
+			playerMove(&mcedit.player, mcedit.level);
+			setviewmat:
 			renderSetViewMat(mcedit.player.pos, mcedit.player.lookat, &mcedit.player.angleh);
 			if (! capture)
 			{
@@ -703,7 +708,7 @@ void mceditUIOverlay(void)
 		/* changes were made to container */
 		mapSerializeItems(sel, "Items", item, itemCount, &chest);
 
-	if (mcedit.player.mode == MODE_CREATIVE && memcmp(oldPlayerInv, mcedit.player.inventory.items, sizeof oldPlayerInv))
+	if (mcedit.player.pmode >= MODE_CREATIVE && memcmp(oldPlayerInv, mcedit.player.inventory.items, sizeof oldPlayerInv))
 		/* only update NBT if player is in creative mode */
 		mapSerializeItems(NULL, "Inventory", mcedit.player.inventory.items, DIM(oldPlayerInv), &playerInv);
 

@@ -1,14 +1,24 @@
 =========== Week 20 ===========
+Fri May 21:
+	* entities collision continued.
+
+Thu May 20:
+	* adding physics collision test (took long enough...).
+
+Wed May 19:
+	* entity selection/raypicking improved.
+	* started entity physics.
+
 Tue May 18:
-	* entity lighting redone again: use same values as blocks.vsh (24 for values: 4 per face).
+	* entity lighting redone again: use same values as blocks.vsh (24 values: 4 per face).
 
 Mon May 17:
-	* entity lighting redone: use 27 surrounding block/sky light values.
+	* entity lighting redone: use 27 surrounding block/sky light values: not good enough :-/
 
 =========== Week 19 ===========
 Sun May 16:
 	* render bug when removing an alpha chunk from a bank in mapUpdate() (vtxSize was not up to date).
-	* piston block pushing glitches: blocks could collide.
+	* piston block pushing glitches: blocks could collide (missing block 36 on destination).
 	* light on entities is not correct: need 8 block/sky values :-/
 
 Sat May 15:

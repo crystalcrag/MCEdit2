@@ -10,7 +10,8 @@
 #include <stdlib.h>
 #include "player.h"
 #include "blocks.h"
-#include "maps.h"
+#include "physics.h"
+#include "entities.h"
 #include "SIT.h"
 
 static float sensitivity = 1/1000.;
@@ -25,12 +26,11 @@ void playerInit(Player p, NBTFile levelDat)
 	NBT_ToFloat(levelDat, NBT_FindNode(levelDat, player, "Pos"), p->pos, 3);
 	NBT_ToFloat(levelDat, NBT_FindNode(levelDat, player, "Rotation"), rotation, 2);
 
-	p->pos[VT]  = p->lookat[VT] = 1;
-	p->sinh     = -1;
-	p->cosv     = 1;
-	p->speed    = 0.3;
-	p->onground = 1;
-	p->mode     = NBT_ToInt(levelDat, NBT_FindNode(levelDat, player, "playerGameType"), MODE_SURVIVAL);
+	p->pos[VT] = p->lookat[VT] = 1;
+	p->sinh    = -1;
+	p->cosv    = 1;
+	p->speed   = 0.3;
+	p->pmode   = NBT_ToInt(levelDat, NBT_FindNode(levelDat, player, "playerGameType"), MODE_SURVIVAL);
 
 	/*
 	 * rotation[] comes from level.dat: they are not trigonometric angles:
@@ -139,34 +139,54 @@ void playerLookAt(Player p, int dx, int dy)
 //		p->lookat[VX], p->lookat[VY], p->lookat[VZ]);
 }
 
-void playerMove(Player p)
+void playerMove(Player p, Map map)
 {
-	float dx, dy, dz, speed = p->speed;
+	float speed = p->speed;
+	vec4  orig_pos, diff;
+	memcpy(orig_pos, p->pos, 16);
+	memset(diff, 0, 16);
 	if (p->slower) speed *= 0.25;
 	if (p->keyvec & (PLAYER_UP|PLAYER_DOWN))
 	{
-		dy = p->keyvec & PLAYER_UP ? speed : -speed;
-		p->lookat[VY] += dy;
-		p->pos[VY] += dy;
+		diff[VY] = p->keyvec & PLAYER_UP ? speed : -speed;
 	}
 	if (p->keyvec & (PLAYER_STRAFE_LEFT|PLAYER_STRAFE_RIGHT))
 	{
-		dz = p->keyvec & PLAYER_STRAFE_RIGHT ? speed : -speed;
-		dx = - p->sinh * dz; // cos(angleh+90) == - sin(angleh)
-		dz =   p->cosh * dz; // sin(angleh+90) ==   cos(angleh)
-		p->lookat[VX] += dx; p->pos[VX] += dx;
-		p->lookat[VZ] += dz; p->pos[VZ] += dz;
+		diff[VZ] = p->keyvec & PLAYER_STRAFE_RIGHT ? speed : -speed;
+		diff[VX] = - p->sinh * diff[VZ]; // cos(angleh+90) == - sin(angleh)
+		diff[VZ] =   p->cosh * diff[VZ]; // sin(angleh+90) ==   cos(angleh)
 	}
 	if (p->keyvec & (PLAYER_MOVE_FORWARD|PLAYER_MOVE_BACK))
 	{
-		dz = p->keyvec & PLAYER_MOVE_FORWARD ? speed : -speed;
-		dy = p->sinv * dz;
-		dx = p->cosh * dz * p->cosv;
-		dz = p->sinh * dz * p->cosv;
-		p->lookat[VX] += dx; p->pos[VX] += dx;
-		p->lookat[VZ] += dz; p->pos[VZ] += dz;
-		p->lookat[VY] += dy; p->pos[VY] += dy;
+		diff[VZ] = p->keyvec & PLAYER_MOVE_FORWARD ? speed : -speed;
+		diff[VY] = p->sinv * diff[VZ];
+		diff[VX] = p->cosh * diff[VZ] * p->cosv;
+		diff[VZ] = p->sinh * diff[VZ] * p->cosv;
 	}
+	vecAdd(p->pos, p->pos, diff);
+	if (p->pmode <= MODE_CREATIVE)
+	{
+		/* bounding box of voxels will constraint movement in these modes */
+		physicsCheckCollision(map, orig_pos, p->pos, entityGetBBox(ENTITY_PLAYER));
+		vecSub(diff, p->pos, orig_pos);
+	}
+	vecAdd(p->lookat, p->lookat, diff);
+}
+
+void playerStickToGround(Player p, Map map)
+{
+	struct BlockIter_t iter;
+	fprintf(stderr, "pos = %g, %g, Y: %g", p->pos[VX], p->pos[VZ], p->pos[VY]);
+	mapInitIter(map, &iter, p->pos, False);
+	while (iter.blockIds[iter.offset] == 0)
+		mapIter(&iter, 0, -1, 0);
+
+	float diff = iter.yabs + 1 - p->pos[VY];
+	p->pos[VY] = iter.yabs + 1;
+	p->lookat[VY] += diff;
+	int ground = physicsCheckOnGround(map, p->pos, entityGetBBox(ENTITY_PLAYER));
+
+	fprintf(stderr, " - new Y: %g, onground: %d\n", p->pos[VY], ground);
 }
 
 /*

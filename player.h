@@ -64,11 +64,14 @@ void playerSaveLocation(Player, NBTFile levelDat);
 void playerUpdateNBT(Player, NBTFile levelDat);
 void playerSensitivity(float s);
 void playerLookAt(Player, int mx, int my);
-void playerMove(Player);
 Bool playerProcessKey(Player, int key, int pressed);
 void playerInitPickup(PickupBlock);
 void playerAddInventory(Player, int blockId, DATA8 tileEntity);
 void playerScrollInventory(Player, int dir);
+#ifdef MCMAPS_H
+void playerMove(Player, Map);
+void playerStickToGround(Player, Map);
+#endif
 
 struct Player_t
 {
@@ -81,7 +84,7 @@ struct Player_t
 	uint8_t onground;
 	uint8_t slower;
 	uint8_t keyvec;
-	uint8_t mode;
+	uint8_t pmode;
 	InvBuf  inventory;
 };
 
