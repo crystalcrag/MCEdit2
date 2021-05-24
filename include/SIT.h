@@ -33,6 +33,7 @@ extern "C" {
 
 /* basic datatypes (plus those defined in UtilityLib) */
 typedef struct SIT_Widget_t *    SIT_Widget;
+typedef struct SIT_Action_t *    SIT_Action;
 typedef struct KeyVal_t *        KeyVal;
 typedef struct SIT_Accel_t       SIT_Accel;
 
@@ -88,7 +89,7 @@ DLLIMP void       SIT_Nuke(int what);
 DLLIMP void       SIT_Exit(int code);
 DLLIMP void       SIT_Free(APTR pointer);
 DLLIMP void       SIT_Log(int level, STRPTR fmt, ...) PRINTFWARN(2,3);
-DLLIMP SIT_RENDER SIT_RenderNodes(float time_in_ms);
+DLLIMP SIT_RENDER SIT_RenderNodes(double time_in_ms);
 DLLIMP void       SIT_RenderNode(SIT_Widget root);
 DLLIMP Bool       SIT_CreateWidgets(SIT_Widget parent, STRPTR fmt, ...);
 DLLIMP void       SIT_RemoveWidget(SIT_Widget);
@@ -119,12 +120,17 @@ DLLIMP void       SIT_MoveNearby(SIT_Widget, int XYWH[4], int defAlign);
 DLLIMP void       SIT_ForceRefresh(void);
 DLLIMP int        SIT_NeedRefresh(void);
 DLLIMP int        SIT_InitDrag(SIT_CallProc);
+DLLIMP Bool       SIT_ParseCSSColor(STRPTR cssColor, uint8_t ret[4]);
 
 DLLIMP Bool       SIT_ListSetCell(SIT_Widget w, int row, int col, APTR rowTag, int align, STRPTR text);
 DLLIMP Bool       SIT_ListSetColumn(SIT_Widget, int col, int width, int align, STRPTR label);
 
 DLLIMP STRPTR     SIT_GetFromClipboard(int * size);
 DLLIMP Bool       SIT_CopyToClipboard(STRPTR text, int size);
+
+/* async actions */
+DLLIMP SIT_Action SIT_ActionAdd(SIT_Widget, double start_ms, double end_ms, SIT_CallProc, APTR ud);
+DLLIMP void       SIT_ActionReschedule(SIT_Action act, double start_ms, double end_ms);
 
 /* pump events to the library */
 DLLIMP void       SIT_ProcessMouseMove(float x, float y);
@@ -267,6 +273,7 @@ enum
 	SIT_MaxUndo          = 83,   /* C__: Int */
 	SIT_MaxLines         = 84,   /* C__: Int */
 	SIT_WordWrap         = 85,   /* C__: Enum (SITV_WW*) */
+	SIT_RoundTo          = 95,   /* _SG: Int */
 	// SIT_TabStyle      = 118,  /* _SG: Int (defined for Tab: see enum SITV_TabEdit* */
 
 	/* List box */
@@ -280,7 +287,6 @@ enum
 	SIT_RowTagArg        = 93,   /* _SG: Pointer (private) */
 	SIT_RowSelArg        = 94,   /* _SG: Bool (private) */
 	// SIT_AutoComplete  = 116,  /* _S_: String (already defined in ComboBox) */
-	// SIT_Private2      = 95,
 	SIT_MakeVisible      = 96,   /* _S_: Int */
 	SIT_CellPaint        = 97,   /* CSG: SIT_CallProc */
 	// SIT_ItemCount     = 117,  /* __G: Int (defined in ComboBox: same datatype, same semantic) */
@@ -299,7 +305,7 @@ enum
 	SIT_GaugePadding     = 108,  /* CSG: Int */
 	SIT_BuddyEdit        = 109,  /* C__: SIT_Widget */
 	SIT_IsDragged        = 110,  /* __G: Bool */
-	// SIT_Private3      = 111,
+	// SIT_Private2      = 111,
 	SIT_ArrowType        = 112,  /* C__: Enum */
 	SIT_WheelMult        = 113,  /* CSG: Int */
 
@@ -482,6 +488,9 @@ enum         /* SIT_ToolTipAnchor */
 	SITV_TooltipFollowMouse
 };
 
+/* special value for SIT_DisplayTime and SIT_DelayTime */
+#define SITV_TooltipManualTrigger       100000000
+
 enum         /* SIT_WordWrap */
 {
 	SITV_WWNone,
@@ -562,11 +571,23 @@ struct SIT_OnSort_t
 	int  column;   /* 0 based */
 };
 
+struct SIT_TextShadow_t
+{
+	float   dx, dy, blur;
+	uint8_t color[4];
+};
+
+typedef struct SIT_TextShadow_t *    SITTSH;
+
 struct SIT_OnPaint_t
 {
-	float x, y;    /* recommended area to refresh */
-	float w, h;
-	APTR  nvg;     /* nanovg context */
+	float  x, y;    /* recommended area to refresh */
+	float  w, h;
+	float  fontSize;
+	int    fontId;
+	APTR   nvg;     /* nanovg context */
+	int    shadowCount;
+	SITTSH shadow;
 };
 
 struct SIT_OnCellPaint_t

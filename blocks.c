@@ -1556,10 +1556,16 @@ void blockParseInventory(int vbo)
  * generate bounding box for blocks
  */
 
-VTXBBox blockGetBBox(BlockState b)
+VTXBBox blockGetBBoxForVertex(BlockState b)
 {
 	int index = b->bboxId;
 	return index == 0 ? NULL : blocks.bbox + index;
+}
+
+VTXBBox blockGetBBox(BlockState b)
+{
+	int index = b->bboxId;
+	return index == 0 ? NULL : blocks.bboxExact + index;
 }
 
 static void blockBBoxInit(VTXBBox box)
@@ -1571,9 +1577,10 @@ static void blockBBoxInit(VTXBBox box)
 /* generate bounding box for collision detection based on custom vertex data */
 static void blockGenBBox(DATA16 buffer, int len, int type)
 {
-	DATA16  data = buffer;
-	VTXBBox box  = blocks.bbox + blocks.bboxMax, first = box;
-	VTXBBox ref  = NULL;
+	DATA16  data  = buffer;
+	VTXBBox box   = blocks.bbox + blocks.bboxMax, first = box;
+	VTXBBox exact = blocks.bboxExact + blocks.bboxMax;
+	VTXBBox ref   = NULL;
 	int     i, j;
 
 	if (len == 0) return;
@@ -1631,8 +1638,11 @@ static void blockGenBBox(DATA16 buffer, int len, int type)
 	}
 
 	/* 1st: adjust vertex data for drawing lines/faces */
-	for (box = blocks.bbox + blocks.bboxMax, i = box->cont; i > 0; i --, box ++)
+	for (box = blocks.bbox + blocks.bboxMax, i = box->cont; i > 0; i --, box ++, exact ++)
 	{
+		/* keep a non-shifted copy first */
+		memcpy(exact, box, sizeof *box);
+
 		#define SHIFT     ((int) (0.01 * BASEVTX))
 		box->pt1[0] -= SHIFT;
 		box->pt1[1] -= SHIFT;
@@ -1930,7 +1940,13 @@ void blockParseBoundingBox(void)
 
 //	fprintf(stderr, "bbox count = %d (%d bytes)\n", bbox, bbox * sizeof *blocks.bbox);
 
-	blocks.bbox = calloc(sizeof *blocks.bbox, bbox);
+	/*
+	 * first set is used to render bbox on screen with a slight offset (0.01 unit) to avoid
+	 * z-fighting: we will also need to shift vertex, which is a not so trivial operation;
+	 * second (bboxExact) will be used for collision without offset.
+	 */
+	blocks.bbox = calloc(sizeof *blocks.bbox, bbox * 2);
+	blocks.bboxExact = blocks.bbox + bbox;
 
 	/* first: generate common bounding boxes */
 	for (blocks.bboxMax = 1, j = i = 0; i < DIM(bboxModels); j ++)

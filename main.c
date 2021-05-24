@@ -146,6 +146,15 @@ static int mceditSaveChanges(SIT_Widget w, APTR cd, APTR ud)
 	return 1;
 }
 
+/* ask player a coordinate to jump to */
+static int mceditGoto(SIT_Widget w, APTR cd, APTR ud)
+{
+	FramePauseUnpause(True);
+	mceditUIOverlay(MCUI_OVERLAY_GOTO);
+	FramePauseUnpause(False);
+	return 1;
+}
+
 /* enable auto-repeat for text widget */
 static int mceditTrackFocus(SIT_Widget w, APTR cd, APTR ud)
 {
@@ -212,6 +221,7 @@ int main(int nb, char * argv[])
 		{SITK_FlagCapture + SITK_Escape,            SITE_OnClose, NULL},
 		{SITK_FlagCapture + SITK_FlagCtrl + 's',    SITE_OnActivate, NULL, mceditSaveChanges},
 		{                   SITK_FlagCtrl + 'a',    SITE_OnActivate, "about"},
+		{                   SITK_FlagCtrl + 'g',    SITE_OnActivate, NULL, mceditGoto},
 		{0}
 	};
 
@@ -322,7 +332,6 @@ void mceditWorld(void)
 					mapSaveLevelDat(mcedit.level);
 					break;
 				case SDLK_F7:
-					playerStickToGround(&mcedit.player, mcedit.level);
 					goto setviewmat;
 					//breakPoint = ! breakPoint;
 					//renderPointToBlock(560, 320);
@@ -347,7 +356,7 @@ void mceditWorld(void)
 					break;
 				case SDLK_i:
 					FramePauseUnpause(True);
-					mceditUIOverlay();
+					mceditUIOverlay(MCUI_OVERLAY_BLOCK);
 					FramePauseUnpause(False);
 					mcedit.player.inventory.update ++;
 					break;
@@ -543,7 +552,7 @@ void mceditDoAction(int action)
 /*
  * display a modal user interface on top of editor
  */
-void mceditUIOverlay(void)
+void mceditUIOverlay(int type)
 {
 	static ItemBuf oldPlayerInv[MAXCOLINV * 4];
 
@@ -554,81 +563,90 @@ void mceditUIOverlay(void)
 	vec4      pos;
 
 	SIT_SetValues(mcedit.app, SIT_RefreshMode, SITV_RefreshAsNeeded, NULL);
-
 	mcuiTakeSnapshot(mcedit.app, mcedit.width, mcedit.height);
-	memcpy(oldPlayerInv, mcedit.player.inventory.items, sizeof oldPlayerInv);
-	MapExtraData sel = renderGetSelectedBlock(pos, NULL);
-	itemCount = 0;
 
-	if (mcedit.forceSel)
-	{
-		/* selection will have to be released before exiting interface */
-		mcedit.forceSel = 0;
-		renderShowBlockInfo(False, DEBUG_SELECTION);
-	}
+	MapExtraData sel;
+	switch (type) {
+	case MCUI_OVERLAY_BLOCK:
+		memcpy(oldPlayerInv, mcedit.player.inventory.items, sizeof oldPlayerInv);
+		sel = renderGetSelectedBlock(pos, NULL);
+		itemCount = 0;
 
-	if (sel)
-	{
-		struct MapExtraData_t link;
-		Block  b    = &blockIds[sel->blockId>>4];
-		STRPTR tech = b->tech;
-		STRPTR sep  = strchr(tech, '_');
-		/* skip color name :-/ */
-		if (sep && strcmp(sep+1, "shulker_box") == 0)
-			goto case_INV;
-
-		/* extract inventories from NBT structure */
-		switch (FindInList("chest,trapped_chest,shulker,ender_chest,dispenser,dropper", tech, 0)) {
-		case 0:
-		case 1:
-			/* possibly a double-chest */
-			itemConnect = mapConnectChest(mcedit.level, sel, &link);
-
-			if (itemConnect > 0)
-			{
-				itemCount = 54;
-				item = alloca(sizeof *item * 54 * 2);
-				switch (itemConnect) {
-				case 1:
-					mapDecodeItems(item,    27, mapLocateItems(sel));
-					mapDecodeItems(item+27, 27, mapLocateItems(&link));
-					break;
-				case 2:
-					mapDecodeItems(item,    27, mapLocateItems(&link));
-					mapDecodeItems(item+27, 27, mapLocateItems(sel));
-				}
-				memcpy(item + 54, item, 54 * sizeof *item);
-				mcuiEditChestInventory(&mcedit.player.inventory, item, 54);
-				break;
-			}
-			// else no break;
-		case 2:
-		case_INV:
-			/* single chest */
-			itemCount = 27;
-			item = alloca(sizeof *item * 27 * 2);
-			mapDecodeItems(item, 27, mapLocateItems(sel));
-			memcpy(item + 27, item, 27 * sizeof *item);
-			mcuiEditChestInventory(&mcedit.player.inventory, item, 27);
-			break;
-		case 3: /* ender chest */
-			break;
-		case 4: /* dispenser */
-		case 5: /* dropper */
-			itemCount = 9;
-			item = alloca(sizeof *item * 9 * 2);
-			mapDecodeItems(item, 9, mapLocateItems(sel));
-			memcpy(item + 9, item, 9 * sizeof *item);
-			mcuiEditChestInventory(&mcedit.player.inventory, item, 9);
-			break;
-		default:
-			if (b->special == BLOCK_SIGN)
-				mcuiCreateSignEdit(mcedit.level, pos, sel->blockId, &mcedit.exit);
-			else
-				mcuiCreateInventory(&mcedit.player.inventory);
+		if (mcedit.forceSel)
+		{
+			/* selection will have to be released before exiting interface */
+			mcedit.forceSel = 0;
+			renderShowBlockInfo(False, DEBUG_SELECTION);
 		}
+
+		if (sel)
+		{
+			struct MapExtraData_t link;
+			Block  b    = &blockIds[sel->blockId>>4];
+			STRPTR tech = b->tech;
+			STRPTR sep  = strchr(tech, '_');
+			/* skip color name :-/ */
+			if (sep && strcmp(sep+1, "shulker_box") == 0)
+				goto case_INV;
+
+			/* extract inventories from NBT structure */
+			switch (FindInList("chest,trapped_chest,shulker,ender_chest,dispenser,dropper", tech, 0)) {
+			case 0:
+			case 1:
+				/* possibly a double-chest */
+				itemConnect = mapConnectChest(mcedit.level, sel, &link);
+
+				if (itemConnect > 0)
+				{
+					itemCount = 54;
+					item = alloca(sizeof *item * 54 * 2);
+					switch (itemConnect) {
+					case 1:
+						mapDecodeItems(item,    27, mapLocateItems(sel));
+						mapDecodeItems(item+27, 27, mapLocateItems(&link));
+						break;
+					case 2:
+						mapDecodeItems(item,    27, mapLocateItems(&link));
+						mapDecodeItems(item+27, 27, mapLocateItems(sel));
+					}
+					memcpy(item + 54, item, 54 * sizeof *item);
+					mcuiEditChestInventory(&mcedit.player.inventory, item, 54);
+					break;
+				}
+				// else no break;
+			case 2:
+			case_INV:
+				/* single chest */
+				itemCount = 27;
+				item = alloca(sizeof *item * 27 * 2);
+				mapDecodeItems(item, 27, mapLocateItems(sel));
+				memcpy(item + 27, item, 27 * sizeof *item);
+				mcuiEditChestInventory(&mcedit.player.inventory, item, 27);
+				break;
+			case 3: /* ender chest */
+				break;
+			case 4: /* dispenser */
+			case 5: /* dropper */
+				itemCount = 9;
+				item = alloca(sizeof *item * 9 * 2);
+				mapDecodeItems(item, 9, mapLocateItems(sel));
+				memcpy(item + 9, item, 9 * sizeof *item);
+				mcuiEditChestInventory(&mcedit.player.inventory, item, 9);
+				break;
+			default:
+				if (b->special == BLOCK_SIGN)
+					mcuiCreateSignEdit(mcedit.level, pos, sel->blockId, &mcedit.exit);
+				else
+					mcuiCreateInventory(&mcedit.player.inventory);
+			}
+		}
+		else mcuiCreateInventory(&mcedit.player.inventory);
+		break;
+
+	case MCUI_OVERLAY_GOTO:
+		memcpy(pos, mcedit.player.pos, sizeof pos);
+		mcuiGoto(mcedit.app, pos);
 	}
-	else mcuiCreateInventory(&mcedit.player.inventory);
 
 	SDL_EnableUNICODE(1);
 
@@ -701,29 +719,37 @@ void mceditUIOverlay(void)
 	mcedit.exit = 0;
 
 	/* check if there was any modifications */
-	NBTFile_t chest = {0};
-	NBTFile_t playerInv = {0};
-
-	if (itemCount > 0 && memcmp(item, item + itemCount, itemCount * sizeof *item))
-		/* changes were made to container */
-		mapSerializeItems(sel, "Items", item, itemCount, &chest);
-
-	if (mcedit.player.pmode >= MODE_CREATIVE && memcmp(oldPlayerInv, mcedit.player.inventory.items, sizeof oldPlayerInv))
-		/* only update NBT if player is in creative mode */
-		mapSerializeItems(NULL, "Inventory", mcedit.player.inventory.items, DIM(oldPlayerInv), &playerInv);
-
-	if (chest.mem)
+	if (type == MCUI_OVERLAY_BLOCK)
 	{
-		chunkUpdateNBT(sel->chunk, sel->offset + (sel->cd->Y<<8), &chest);
-		renderAddModif();
+		NBTFile_t chest = {0};
+		NBTFile_t playerInv = {0};
+
+		if (itemCount > 0 && memcmp(item, item + itemCount, itemCount * sizeof *item))
+			/* changes were made to container */
+			mapSerializeItems(sel, "Items", item, itemCount, &chest);
+
+		if (mcedit.player.pmode >= MODE_CREATIVE && memcmp(oldPlayerInv, mcedit.player.inventory.items, sizeof oldPlayerInv))
+			/* only update NBT if player is in creative mode */
+			mapSerializeItems(NULL, "Inventory", mcedit.player.inventory.items, DIM(oldPlayerInv), &playerInv);
+
+		if (chest.mem)
+		{
+			chunkUpdateNBT(sel->chunk, sel->offset + (sel->cd->Y<<8), &chest);
+			renderAddModif();
+		}
+
+		if (playerInv.mem)
+		{
+			int offset = NBT_Insert(&mcedit.level->levelDat, "Player.Inventory", TAG_List_Compound, &playerInv);
+			NBT_Free(&playerInv);
+			if (offset >= 0)
+				mapDecodeItems(mcedit.player.inventory.items, MAXCOLINV, NBT_Hdr(&mcedit.level->levelDat, offset));
+		}
 	}
-
-	if (playerInv.mem)
+	else if (type == MCUI_OVERLAY_GOTO)
 	{
-		int offset = NBT_Insert(&mcedit.level->levelDat, "Player.Inventory", TAG_List_Compound, &playerInv);
-		NBT_Free(&playerInv);
-		if (offset >= 0)
-			mapDecodeItems(mcedit.player.inventory.items, MAXCOLINV, NBT_Hdr(&mcedit.level->levelDat, offset));
+		playerTeleport(&mcedit.player, mcedit.level, pos);
+		renderSetViewMat(mcedit.player.pos, mcedit.player.lookat, &mcedit.player.angleh);
 	}
 
 	exit:

@@ -1,4 +1,12 @@
 =========== Week 20 ===========
+Sat May 23:
+	* first version of collision somewhat working, still needs lots of fine tuning :-/
+
+Sat May 22:
+	* collision detection continued.
+	* added "Goto" dialog to move player at precise coordinates (Ctrl+G).
+	* minor bug fix in SITGL edit box (float value was not synced when modified, def buttons).
+
 Fri May 21:
 	* entities collision continued.
 

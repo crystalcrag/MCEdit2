@@ -23,6 +23,7 @@ void    blockPostProcessTexture(DATA8 * data, int * w, int * h, int bpp);
 void    blockCenterModel(DATA16 vertex, int count, int U, int V, VTXBBox bbox);
 int     blockGetConnect(BlockState, DATA8 neighbors);
 VTXBBox blockGetBBox(BlockState);
+VTXBBox blockGetBBoxForVertex(BlockState);
 int     blockGetConnect4(DATA8 neighbors, int type);
 int     blockGenVertexBBox(BlockState b, VTXBBox box, int flag, int * vbo);
 int     blockInvGetModelSize(int id);
@@ -352,6 +353,7 @@ struct BlockPrivate_t      /* static info kept in blocks.c */
 	DATA16   invModelOff;  /* offset in VBO, indexed by Block_t.invId */
 	DATA16   placements;   /* placement constraint for blocks */
 	VTXBBox  bbox;         /* bounding box vertex (array), indexed by Block_t.bboxId */
+	VTXBBox  bboxExact;    /* boubding box fro exact collision detection, indexed by Block_t.bboxId */
 	int      totalVtx;     /* mem allocated for custom model data (mostly debug info) */
 	int      bboxMax;      /* max bounding box in array */
 	int      maxVtxCust;   /* max number of vertices for custom models */

@@ -606,6 +606,9 @@ DLLIMP int nvgCreateFontMemAtIndex(NVGcontext* ctx, const char* name, unsigned c
 // Finds a loaded font of specified name, and returns handle to it, or -1 if the font is not found.
 DLLIMP int nvgFindFont(NVGcontext* ctx, const char* name);
 
+// Retrieve the name of the font as is was when registered (note: return value is read-only)
+DLLIMP char * nvgGetFontName(NVGcontext* ctx, int id);
+
 // Adds a fallback font by handle.
 DLLIMP int nvgAddFallbackFontId(NVGcontext* ctx, int baseFont, int fallbackFont);
 

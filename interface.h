@@ -16,6 +16,7 @@ void mcuiTakeSnapshot(SIT_Widget app, int width, int height);
 void mcuiCreateInventory(Inventory);
 void mcuiEditChestInventory(Inventory, Item items, int count);
 void mcuiCreateSignEdit(Map map, vec4 pos, int blockId, int * exit);
+void mcuiGoto(SIT_Widget parent, vec4 pos);
 void mcuiInitDrawItems(void);
 void mcuiDrawItems(void);
 

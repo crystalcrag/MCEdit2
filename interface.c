@@ -888,3 +888,43 @@ void mcuiCreateSignEdit(Map map, vec4 pos, int blockId, int * exit)
 
 	SIT_ManageWidget(diag);
 }
+
+/*
+ * ask player a coordinate to jump to
+ */
+static float mcuiCurPos[3];
+static int mcuiGetCoord(SIT_Widget w, APTR cd, APTR ud)
+{
+	memcpy(ud, mcuiCurPos, sizeof mcuiCurPos);
+	SIT_CloseDialog(w);
+	SIT_Exit(1);
+	return 1;
+}
+
+void mcuiGoto(SIT_Widget parent, vec4 pos)
+{
+	SIT_Widget diag = SIT_CreateWidget("goto", SIT_DIALOG, parent,
+		SIT_DialogStyles, SITV_Plain | SITV_Modal,
+		NULL
+	);
+	memcpy(mcuiCurPos, pos, 12);
+
+	SIT_CreateWidgets(diag,
+		"<label name=title title='Enter the coordinate you want to jump to:' left=FORM right=FORM style='text-align: center'>"
+		"<label name=Xlab title=X:>"
+		"<editbox name=X roundTo=2 editType=", SITV_Float, "width=10em scrollPos=", mcuiCurPos, "top=WIDGET,title,1em left=WIDGET,Xlab,0.5em>"
+		"<label name=Ylab title=Y: left=WIDGET,X,1em>"
+		"<editbox name=Y roundTo=2 editType=", SITV_Float, "width=10em scrollPos=", mcuiCurPos+1, "top=WIDGET,title,1em left=WIDGET,Ylab,0.5em>"
+		"<label name=Zlab title=Z: left=WIDGET,Y,1em>"
+		"<editbox name=Z roundTo=2 editType=", SITV_Float, "width=10em scrollPos=", mcuiCurPos+2, "top=WIDGET,title,1em left=WIDGET,Zlab,0.5em>"
+		"<button name=ok title=Goto top=WIDGET,X,1em buttonType=", SITV_DefaultButton, ">"
+		"<button name=ko title=Cancel top=WIDGET,X,1em right=FORM buttonType=", SITV_CancelButton, ">"
+	);
+	SIT_SetAttributes(diag,
+		"<Xlab top=MIDDLE,X><Ylab top=MIDDLE,Y><Zlab top=MIDDLE,Z><ok right=WIDGET,ko,0.5em>"
+	);
+	SIT_AddCallback(SIT_GetById(diag, "ok"), SITE_OnActivate, mcuiGetCoord, pos);
+
+	SIT_ManageWidget(diag);
+}
+

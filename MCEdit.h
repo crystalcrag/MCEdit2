@@ -37,7 +37,7 @@ enum /* possible values for state: which game loop are we running */
 };
 
 void mceditWorld(void);        /* gameloop for WORLD */
-void mceditUIOverlay(void);    /* display an interface on top of editor */
+void mceditUIOverlay(int);     /* display an interface on top of editor */
 void mceditSideView(void);     /* gameloop for SIDEVIEW */
 void mceditWorldSelct(void);   /* world selection */
 void mceditDoAction(int);
@@ -46,6 +46,12 @@ enum
 {
 	ACTION_PLACEBLOCK,
 	ACTION_ACTIVATE
+};
+
+enum /* possible value for parameter mceditUIOverlay() */
+{
+	MCUI_OVERLAY_BLOCK,
+	MCUI_OVERLAY_GOTO
 };
 
 /* ID string */

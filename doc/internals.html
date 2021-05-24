@@ -911,12 +911,30 @@ with an integer assigned to it. Beside this property, you can also use these one
 <p>Custom models that don't fit <tt>QUAD</tt> or <tt>SOLID</tt> can still use arbitrary shapes using
 the property <tt>model</tt> on a state description object. All the models has been filled using using
 an external application: <tt>TileFinder</tt>. This section will describe how the models are encoded,
-but be warned that this format has not been designed to be manually editied.
+but be warned that this format has not been designed to be manually edited.
 
 <p>Contrary to typical models description format (like <tt>.obj</tt>) which usually only contains
 triangles, this format uses cubes/boxes as basic primitives, where each face can be selectively
 hidden or textured. You can also apply rotation, scaling, translation to each individual box and
 by grouping multiple boxes, you get a model.
+
+<p>Each lines usually represent a primitives (ie: box), even though to keep line length under control,
+some might have been wrapped. The first number is a bit field encoding quite a few parameters:
+<ul>
+  <li><tt>bit0~5</tt>: faces activated for this box, bitfield ordered <tt>S,E,N,W,T,B</tt>.
+  <li><tt>bit6</tt>: normals are inverted: ie: if south face is active, it should use normal from north face.
+  <li><tt>bit7</tt>: texture should be applied using a cube map. Texture will coordinates refer to a
+  tile in the main texture file, but should be reduced according to the face size/position.
+  <li><tt>bit8</tt>: if set, it means there are more primitives following this one.
+  <li><tt>bit9~10</tt>: model needs to be rotated by 90 degrees increment CCW (ie: trigonometric rotation).
+  Careful though: normals will need to be readjusted. This field is carried to next primitives if any,
+  therefore should only be set on the first one.
+  <li><tt>bit11~16</tt>: detail face: <tt>S,E,N,W,T,B</tt> bitfield indicating faces for which an exact
+  texture coordinate will be provided, instead of a cube map. Usually <tt>bit7</tt> is also set when
+  using these.
+  <li><tt>bit17~...</tt>: face ID: used for models that have optional parts (fences, glass panes, iron bar, restone
+  dust, ...).
+</ul>
 
 <p>/* ... */
 

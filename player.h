@@ -69,6 +69,7 @@ void playerInitPickup(PickupBlock);
 void playerAddInventory(Player, int blockId, DATA8 tileEntity);
 void playerScrollInventory(Player, int dir);
 #ifdef MCMAPS_H
+void playerTeleport(Player, Map, vec4 pos);
 void playerMove(Player, Map);
 void playerStickToGround(Player, Map);
 #endif

@@ -195,7 +195,7 @@ static void renderSelection(void)
 
 		/* draw block bounding box */
 		BlockState b   = blockGetById(render.selection.extra.blockId);
-		VTXBBox    box = blockGetBBox(b); if (! box) return;
+		VTXBBox    box = blockGetBBoxForVertex(b); if (! box) return;
 		int        off = 0;
 		int        flg = render.selection.extra.cnxFlags;
 		int        count;

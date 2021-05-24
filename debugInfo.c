@@ -28,6 +28,7 @@ void debugBlockVertex(Map map, SelBlock * select)
 		struct BlockIter_t iter;
 
 		mapInitIter(map, &iter, select->current, False);
+		if (iter.blockIds == NULL) return;
 
 		BlockState block = blockGetById(getBlockId(&iter));
 		int        xyz[3], i;
@@ -193,7 +194,7 @@ static void nvgMultiLineText(NVGcontext * vg, float x, float y, STRPTR start, ST
 void debugCoord(APTR vg, vec4 camera, int total)
 {
 	TEXT message[256];
-	int  len = sprintf(message, "XYZ: %.2f, %.2f, %.2f", camera[0], camera[1], camera[2]);
+	int  len = sprintf(message, "XYZ: %.2f, %.2f, %.2f (feet)", camera[0], camera[1] - PLAYER_HEIGHT, camera[2]);
 	int  vis;
 	ChunkData cd;
 

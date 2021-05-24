@@ -159,9 +159,16 @@ void playerMove(Player p, Map map)
 	if (p->keyvec & (PLAYER_MOVE_FORWARD|PLAYER_MOVE_BACK))
 	{
 		diff[VZ] = p->keyvec & PLAYER_MOVE_FORWARD ? speed : -speed;
+		#if 0
+		/* follow direction pointed by camera */
 		diff[VY] = p->sinv * diff[VZ];
 		diff[VX] = p->cosh * diff[VZ] * p->cosv;
 		diff[VZ] = p->sinh * diff[VZ] * p->cosv;
+		#else
+		/* only move on the XZ plane */
+		diff[VX] = p->cosh * diff[VZ];
+		diff[VZ] = p->sinh * diff[VZ];
+		#endif
 	}
 	vecAdd(p->pos, p->pos, diff);
 	if (p->pmode <= MODE_CREATIVE)
@@ -171,6 +178,16 @@ void playerMove(Player p, Map map)
 		vecSub(diff, p->pos, orig_pos);
 	}
 	vecAdd(p->lookat, p->lookat, diff);
+}
+
+void playerTeleport(Player p, Map map, vec4 pos)
+{
+	vec4 diff;
+	if (p->pmode <= MODE_CREATIVE)
+		physicsCheckCollision(map, p->pos, pos, entityGetBBox(ENTITY_PLAYER));
+	vecSub(diff, pos, p->pos);
+	vecAdd(p->lookat, p->lookat, diff);
+	memcpy(p->pos, pos, 12);
 }
 
 void playerStickToGround(Player p, Map map)
