@@ -573,7 +573,7 @@ chunks being drawn.
 
 <p>The basic principle behind this implementation of the cave culling is this: <b>a cube viewed using
 a perspective projection matrix has at most 3 faces visible</b>. If we can somewhat "prove" that those
-faces are hidden, we then can discard the entire chunk from the visible list.
+faces are hidden, we can then discard the entire chunk from the visible list.
 
 <p>First, we need to know which face is visible according to player position and orientation. This can
 easily done using a vector dot product between vector that goes from camera to one of the vertices of
@@ -921,8 +921,10 @@ by grouping multiple boxes, you get a model.
 <p>Each lines usually represent a primitives (ie: box), even though to keep line length under control,
 some might have been wrapped. The first number is a bit field encoding quite a few parameters:
 <ul>
-  <li><tt>bit0~5</tt>: faces activated for this box, bitfield ordered <tt>S,E,N,W,T,B</tt>.
-  <li><tt>bit6</tt>: normals are inverted: ie: if south face is active, it should use normal from north face.
+  <li><tt>bit0~5</tt>: faces activated for this box, bitfield ordered <tt>S,E,N,W,T,B</tt>. Faces not
+  activated will have no triangles generated for them at all.
+  <li><tt>bit6</tt>: normals are inverted: ie: if south face is active, it should use normal for the
+  north face.
   <li><tt>bit7</tt>: texture should be applied using a cube map. Texture will coordinates refer to a
   tile in the main texture file, but should be reduced according to the face size/position.
   <li><tt>bit8</tt>: if set, it means there are more primitives following this one.
@@ -933,8 +935,23 @@ some might have been wrapped. The first number is a bit field encoding quite a f
   texture coordinate will be provided, instead of a cube map. Usually <tt>bit7</tt> is also set when
   using these.
   <li><tt>bit17~...</tt>: face ID: used for models that have optional parts (fences, glass panes, iron bar, restone
-  dust, ...).
+  dust, ...). More on this field later.
 </ul>
+
+<p>After that, numbers are a bit more straightforward:
+<ul>
+  <li><b>3 floats</b>: size of the box, in 1/16 units (ie: 16 = a full voxel), specified in X, Y, Z order.
+  Can be fractionnal if needed. Model can have size of up to <tt>112x112x122</tt> (7 voxels). Although,
+  due to frustum culling, it is advised to keep them below 32x32x32 (2 voxels).
+  <li><b>3 floats</b>: translation to apply, also in 1/16 unit, that will be applied to the X, Y, Z axis.
+  <li><b>3 floats</b>: rotation in degrees, CCW (trigonometric rotation) on the X, Y, Z axis.
+  <li><b>3 floats</b>: rotation in degrees, CCW. The difference with the previous 3 numbers, is that
+  these rotations will be carried onto the next primitives.
+</ul>
+
+<p>At last, these number can be followed by up to 24 integers which represent the UV coordinates of
+the texture to use for the faces defined for this box. There are 4 numbers per face. The number of
+faces is the number of bits activated in the first number (ie: <tt>popcount((int) model[0] & 63)</tt>).
 
 <p>/* ... */
 
@@ -1066,7 +1083,7 @@ the CPU, it is going to lag the rendering whenever there are too many triangles 
   <li>A voxel engine has a lot of tricks you can use to considerably reduce the amount of sorting needed.
 </ul>
 
-<p>In this engine, the sorting is actually <b>divided in 2 parts</b>. All sorting algorithm
+<p>In this engine, the sorting is actually <b>divided in 2 parts</b>. All sorting algorithms
 have to assume that one of the operations necessary to sort items is going to be cheap: either comparison
 or moving memory (ideally both). In this case, neither of them are particularly cheap if we were to use
 the vertex data as direct source. That's why we create a first array which is both cheap to move its
@@ -1122,7 +1139,14 @@ at the price of a bit more work on the CPU side in order for the GPU to do its w
 <h2 id="nbt2">NBT API</h2>
 
 <p>NBT API in this engine does not exactly follow a tradionnal API you might expect for manipulating
-a tree of arbitrary data types.
+a tree of arbitrary data types. The main problem that this API was trying to solve is to keep 
+everything related to an NBT tree as close as possible in memory, to benefit from cache locality.
+
+<p>For example, the different tables of a chunk (<tt>Blocks</tt>, <tt>Data</tt>, <tt>BLockLight</tt>,
+<tt>SkyLight</tt>) pushed this logic quite far: a single memory buffer is allocated for these and all
+of them are placed at fixed offsets relative to the <tt>Blocks</tt> table (since all these tables
+always have the same size), such as if you have a pointer to the beginning of the <tt>Blocks</tt>
+table, you can access all the others by applying a fixed offset.
 
 <p>/* ... */
 

@@ -1,3 +1,10 @@
+=========== Week 21 ===========
+Tue May 25:
+	* player speed is not framerate dependent anymore.
+
+Mon May 24:
+	* bounding box collision seems working (only single VTXBBox though).
+
 =========== Week 20 ===========
 Sat May 23:
 	* first version of collision somewhat working, still needs lots of fine tuning :-/

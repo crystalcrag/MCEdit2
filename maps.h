@@ -9,6 +9,7 @@
 
 #include <stdint.h>
 #include "chunks.h"
+#include "blocks.h"
 #include "items.h"
 
 typedef struct Map_t *             Map;
@@ -84,25 +85,26 @@ struct BlockIter_t                 /* iterate over nearby blocks */
 	DATA8     blockIds;            /* blockIds table within ChunkData or NULL if sub-chunk is missing */
 };
 
-void   mapInitStatic(void);
-Map    mapInitFromPath(STRPTR path, int renderDist);
-void   mapGenerateMesh(Map);
-int    mapGetBlockId(Map, vec4 pos, MapExtraData canBeNULL);
-Bool   mapPointToBlock(Map, vec4 camera, float * yawPitch, vec4 dir, vec4 ret, MapExtraData exxtra);
-Bool   mapMoveCenter(Map, vec4 old, vec4 pos);
-Bool   mapSetRenderDist(Map, int maxDist);
-Bool   mapSaveAll(Map);
-Bool   mapSaveLevelDat(Map);
-int    mapConnectChest(Map, MapExtraData sel, MapExtraData ret);
-NBTHdr mapLocateItems(MapExtraData);
-void   mapDecodeItems(Item item, int count, NBTHdr nbtItems);
-Bool   mapSerializeItems(MapExtraData sel, STRPTR listName, Item items, int count, NBTFile ret);
-Bool   mapUpdateNBT(MapExtraData sel, NBTFile nbt);
-void   mapViewFrustum(Map, mat4 mvp, vec4 camera);
-int    mapFirstFree(uint32_t * usage, int count);
-Chunk  mapGetChunk(Map, vec4 pos);
-int    getBlockId(BlockIter iter);
-void   printCoord(STRPTR hdr, BlockIter);
+void    mapInitStatic(void);
+Map     mapInitFromPath(STRPTR path, int renderDist);
+void    mapGenerateMesh(Map);
+int     mapGetBlockId(Map, vec4 pos, MapExtraData canBeNULL);
+Bool    mapPointToBlock(Map, vec4 camera, float * yawPitch, vec4 dir, vec4 ret, MapExtraData exxtra);
+Bool    mapMoveCenter(Map, vec4 old, vec4 pos);
+Bool    mapSetRenderDist(Map, int maxDist);
+Bool    mapSaveAll(Map);
+Bool    mapSaveLevelDat(Map);
+int     mapConnectChest(Map, MapExtraData sel, MapExtraData ret);
+NBTHdr  mapLocateItems(MapExtraData);
+void    mapDecodeItems(Item item, int count, NBTHdr nbtItems);
+Bool    mapSerializeItems(MapExtraData sel, STRPTR listName, Item items, int count, NBTFile ret);
+Bool    mapUpdateNBT(MapExtraData sel, NBTFile nbt);
+void    mapViewFrustum(Map, mat4 mvp, vec4 camera);
+int     mapFirstFree(uint32_t * usage, int count);
+Chunk   mapGetChunk(Map, vec4 pos);
+VTXBBox mapGetBBox(BlockIter iterator);
+int     getBlockId(BlockIter iter);
+void    printCoord(STRPTR hdr, BlockIter);
 
 /*
  * block iterator over map

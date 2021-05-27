@@ -86,6 +86,7 @@ struct Player_t
 	uint8_t slower;
 	uint8_t keyvec;
 	uint8_t pmode;
+	int     tick;
 	InvBuf  inventory;
 };
 

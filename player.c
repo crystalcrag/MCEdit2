@@ -15,6 +15,7 @@
 #include "SIT.h"
 
 static float sensitivity = 1/1000.;
+extern double curTime; /* from main.c */
 
 void playerInit(Player p, NBTFile levelDat)
 {
@@ -29,7 +30,7 @@ void playerInit(Player p, NBTFile levelDat)
 	p->pos[VT] = p->lookat[VT] = 1;
 	p->sinh    = -1;
 	p->cosv    = 1;
-	p->speed   = 0.3;
+	p->speed   = 6; /* blocks per second */
 	p->pmode   = NBT_ToInt(levelDat, NBT_FindNode(levelDat, player, "playerGameType"), MODE_SURVIVAL);
 
 	/*
@@ -103,6 +104,8 @@ Bool playerProcessKey(Player p, int key, int mod)
 			return True;
 		default: return False;
 		}
+		if (p->tick == 0)
+			p->tick = curTime;
 	}
 	else /* released */
 	{
@@ -115,7 +118,10 @@ Bool playerProcessKey(Player p, int key, int mod)
 		case 'z':      p->keyvec &= ~PLAYER_DOWN; break;
 		default:       return False;
 		}
+		if (p->keyvec == 0)
+			p->tick = 0;
 	}
+	/* return if the key was processed or not */
 	return True;
 }
 
@@ -141,43 +147,47 @@ void playerLookAt(Player p, int dx, int dy)
 
 void playerMove(Player p, Map map)
 {
-	float speed = p->speed;
-	vec4  orig_pos, diff;
+	int diff = (int) curTime - p->tick;
+	if (diff == 0) return;
+	if (diff > 100) diff = 100; /* lots of lag :-/ */
+	p->tick = curTime;
+
+	float speed = p->speed * diff * 0.001;
+	vec4  orig_pos;
+
 	memcpy(orig_pos, p->pos, 16);
-	memset(diff, 0, 16);
 	if (p->slower) speed *= 0.25;
 	if (p->keyvec & (PLAYER_UP|PLAYER_DOWN))
 	{
-		diff[VY] = p->keyvec & PLAYER_UP ? speed : -speed;
+		p->pos[VY] += p->keyvec & PLAYER_UP ? speed : -speed;
 	}
 	if (p->keyvec & (PLAYER_STRAFE_LEFT|PLAYER_STRAFE_RIGHT))
 	{
-		diff[VZ] = p->keyvec & PLAYER_STRAFE_RIGHT ? speed : -speed;
-		diff[VX] = - p->sinh * diff[VZ]; // cos(angleh+90) == - sin(angleh)
-		diff[VZ] =   p->cosh * diff[VZ]; // sin(angleh+90) ==   cos(angleh)
+		float s = p->keyvec & PLAYER_STRAFE_RIGHT ? speed : -speed;
+		p->pos[VX] += - p->sinh * s; // cos(angleh+90) == - sin(angleh)
+		p->pos[VZ] +=   p->cosh * s; // sin(angleh+90) ==   cos(angleh)
 	}
 	if (p->keyvec & (PLAYER_MOVE_FORWARD|PLAYER_MOVE_BACK))
 	{
-		diff[VZ] = p->keyvec & PLAYER_MOVE_FORWARD ? speed : -speed;
+		float s = p->keyvec & PLAYER_MOVE_FORWARD ? speed : -speed;
 		#if 0
 		/* follow direction pointed by camera */
-		diff[VY] = p->sinv * diff[VZ];
-		diff[VX] = p->cosh * diff[VZ] * p->cosv;
-		diff[VZ] = p->sinh * diff[VZ] * p->cosv;
+		p->pos[VY] += p->sinv * s;
+		p->pos[VX] += p->cosh * s * p->cosv;
+		p->pos[VZ] += p->sinh * s * p->cosv;
 		#else
 		/* only move on the XZ plane */
-		diff[VX] = p->cosh * diff[VZ];
-		diff[VZ] = p->sinh * diff[VZ];
+		p->pos[VX] += p->cosh * s;
+		p->pos[VZ] += p->sinh * s;
 		#endif
 	}
-	vecAdd(p->pos, p->pos, diff);
 	if (p->pmode <= MODE_CREATIVE)
 	{
 		/* bounding box of voxels will constraint movement in these modes */
 		physicsCheckCollision(map, orig_pos, p->pos, entityGetBBox(ENTITY_PLAYER));
-		vecSub(diff, p->pos, orig_pos);
 	}
-	vecAdd(p->lookat, p->lookat, diff);
+	vecSub(orig_pos, p->pos, orig_pos);
+	vecAdd(p->lookat, p->lookat, orig_pos);
 }
 
 void playerTeleport(Player p, Map map, vec4 pos)

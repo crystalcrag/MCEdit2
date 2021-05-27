@@ -355,7 +355,7 @@
 		{state:12, name: "-west",  tex: [31, 4,13, 6,31, 4,14, 6,12, 6,12, 6,  1329], model: [SAME_AS, ID(29, 10), 1855]},
 		{state:13, name: "-east",  tex: [31, 4,14, 6,31, 4,13, 6,31, 4,31, 4,  3859], model: [SAME_AS, ID(29, 10), 831]},
 
-	{id: 30, name: "Cobweb", type: QUAD, inv: ITEM2D, cat: DECO, pushable: DROPITEM},
+	{id: 30, name: "Cobweb", type: QUAD, inv: ITEM2D, cat: DECO, pushable: DROPITEM, bboxPlayer: AUTO},
 		{state: 0, tex: [11, 0], quad: [CROSS]},
 
 	{id: 31, name: "Tall grass", type: QUAD, inv: ITEM2D, cat: DECO, placement: "ground"},
@@ -707,7 +707,7 @@
 		{state: 6, name: "+east, hinge north", model: [SAME_AS, ID(64, 4), 1087]},
 		{state: 7, name: "+south, hinge east", model: [SAME_AS, ID(64, 4), 1599]},
 
-	{id: 65, name: "Ladder", type: QUAD, inv: ITEM2D, invState: 0, cat: DECO, orient: SENW, placement: "wall", pushable: DROPITEM},
+	{id: 65, name: "Ladder", type: QUAD, inv: ITEM2D, invState: 0, cat: DECO, orient: SENW, placement: "wall", pushable: DROPITEM, bboxPlayer: AUTO},
 		{state: 0, name: "+north", tex: [3, 5], quad: [NORTH]},
 		{state: 2, name: "+south", tex: [3, 5], quad: [SOUTH]},
 		{state: 3, name: "+north", tex: [3, 5], quad: [NORTH]},
@@ -1365,7 +1365,7 @@
 	{id: 110, name: "Mycelium", type: SOLID, inv: CUBE, cat: BUILD},
 		{state: 0, tex: [13, 4,13, 4,13, 4,13, 4,14, 4, 2, 0]},
 
-	{id: 111, name: "Lily pad", type: QUAD, inv: ITEM2D, cat: DECO, tech: "waterlily", placement: "water", pushable: DROPITEM},
+	{id: 111, name: "Lily pad", type: QUAD, inv: ITEM2D, cat: DECO, tech: "waterlily", placement: "water", pushable: DROPITEM, bboxPlayer: AUTO},
 		{state: 0, tex: [12, 4], quad: [BOTTOM]},
 
 	{id: 112, name: "Nether brick", type: SOLID, inv: CUBE, cat: BUILD},

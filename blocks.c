@@ -712,7 +712,7 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 		}
 		/* bounding box for player */
 		value = jsonValue(keys, "bboxPlayer");
-		block.bboxPlayer = value ? FindInList("NONE,AUTO,MAX,FULL", value, 0) : block.bbox;
+		block.bboxPlayer = value ? FindInList("NONE,AUTO,MAX,FULL", value, 0) : (block.type == QUAD || block.type == LIKID ? BBOX_NONE : block.bbox);
 		if (block.bboxPlayer < 0)
 			block.bboxPlayer = block.bbox;
 		/* default bbox (cannot be overridden) */

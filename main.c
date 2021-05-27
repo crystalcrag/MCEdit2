@@ -332,10 +332,9 @@ void mceditWorld(void)
 					mapSaveLevelDat(mcedit.level);
 					break;
 				case SDLK_F7:
-					goto setviewmat;
-					//breakPoint = ! breakPoint;
-					//renderPointToBlock(560, 320);
-					//break;
+					breakPoint = ! breakPoint;
+					renderPointToBlock(560, 320);
+					break;
 				case SDLK_EQUALS:
 				case SDLK_PLUS:
 					if (mapSetRenderDist(mcedit.level, mcedit.maxDist+1))
@@ -482,7 +481,6 @@ void mceditWorld(void)
 		if (mcedit.player.keyvec)
 		{
 			playerMove(&mcedit.player, mcedit.level);
-			setviewmat:
 			renderSetViewMat(mcedit.player.pos, mcedit.player.lookat, &mcedit.player.angleh);
 			if (! capture)
 			{

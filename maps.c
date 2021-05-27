@@ -24,6 +24,7 @@ static struct Frustum_t frustum;
 /* given a direction encodded as bitfield (S, E, N, W), return offset of where that chunk is */
 int16_t chunkNeighbor[16*9];
 
+extern uint8_t openDoorDataToModel[];
 
 
 /*
@@ -240,7 +241,6 @@ int mapGetBlockId(Map map, vec4 pos, MapExtraData extra)
 				}
 				else /* bottom part */
 				{
-					extern uint8_t openDoorDataToModel[];
 					uint8_t data2;
 					/* get data from top part */
 					if (offset >= 256*15)
@@ -278,6 +278,43 @@ int getBlockId(BlockIter iter)
 	uint8_t data = iter->blockIds[DATA_OFFSET + (iter->offset >> 1)];
 	return (iter->blockIds[iter->offset] << 4) | (iter->offset & 1 ? data >> 4 : data & 15);
 }
+
+/* get bounding box from block pointed by iter */
+VTXBBox mapGetBBox(BlockIter iterator)
+{
+	if (iterator->blockIds == NULL)
+		return NULL;
+
+	int id = getBlockId(iterator);
+	Block block = blockIds + (id >> 4);
+
+	if (block->bboxPlayer == BBOX_NONE)
+		return NULL;
+
+	if (block->special == BLOCK_DOOR)
+	{
+		/* XXX need to use single block model intead :-/ */
+		struct BlockIter_t iter = *iterator;
+		int top;
+		if (id & 8)
+		{
+			/* top part: get bottom */
+			top = id;
+			mapIter(&iter, 0, -1, 0);
+			id = getBlockId(&iter);
+		}
+		else
+		{
+			mapIter(&iter, 0, 1, 0);
+			top = getBlockId(&iter);
+		}
+		top = (id&3) | ((top&1) << 2);
+		if (id & 4) top = openDoorDataToModel[top];
+		id = (id & ~15) | top;
+	}
+	return blockGetBBox(blockGetById(id));
+}
+
 
 
 /*
