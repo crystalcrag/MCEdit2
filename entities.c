@@ -30,7 +30,7 @@ static int  entityAddModel(int, CustModel);
 
 static struct VTXBBox_t entitiesBBox[] = {
 	{  BOX(1.0, 1.0, 1.0), .sides = 63, .aabox = 1},  /* ENTITY_UNKNOWN */
-	{BOXCY(0.6, 1.8, 0.6), .sides = 63, .aabox = 1},  /* ENTITY_PLAYER */
+	{BOXCY(0.6, 1.8, 0.6), .sides = 63, .aabox = 2},  /* ENTITY_PLAYER */
 };
 
 VTXBBox entityGetBBox(int id)

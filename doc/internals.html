@@ -148,36 +148,37 @@
 
 <div id="toc">
 <a class="sub1" href="#conventions"><span>Conventions</span></a>
-<a class="sub2" href="#coord"><span>Coordinate system</span></h3>
-<a class="sub2" href="#faceorder"><span>Face enumeration order</span></h3>
-<a class="sub2" href="#datatypes"><span>Datatypes</span></h3>
+  <a class="sub2" href="#coord"><span>Coordinate system</span></h3>
+  <a class="sub2" href="#faceorder"><span>Face enumeration order</span></h3>
+  <a class="sub2" href="#datatypes"><span>Datatypes</span></h3>
 
 <a class="sub1" href="#culling"><span>Frustum culling</span></a>
-<a class="sub2" href="#firstvers"><span>First version</span></a>
-<a class="sub2" href="#impl"><span>Implementation</span></a>
-<a class="sub2" href="#neighbors"><span>Enumerating neighbors</span></a>
-<a class="sub2" href="#edgecase"><span>Edge cases</span></a>
-<a class="sub2" href="#crossplane"><span>Cross-plane faces</span></a>
-<a class="sub2" href="#caveats"><span>Caveats</span></a>
-<a class="sub2" href="#fakechunks"><span>Fake chunks</span></a>
-<a class="sub2" href="#outside"><span>Outside bounds</span></a>
-<a class="sub2" href="#cavecull"><span>Cave culling</span></a>
+  <a class="sub2" href="#firstvers"><span>First version</span></a>
+  <a class="sub2" href="#impl"><span>Implementation</span></a>
+  <a class="sub2" href="#neighbors"><span>Enumerating neighbors</span></a>
+  <a class="sub2" href="#edgecase"><span>Edge cases</span></a>
+  <a class="sub2" href="#crossplane"><span>Cross-plane faces</span></a>
+  <a class="sub2" href="#caveats"><span>Caveats</span></a>
+  <a class="sub2" href="#fakechunks"><span>Fake chunks</span></a>
+  <a class="sub2" href="#outside"><span>Outside bounds</span></a>
+  <a class="sub2" href="#cavecull"><span>Cave culling</span></a>
 
 <a class="sub1" href="#blocks"><span>Block API</span></a>
-<a class="sub2" href="#blockdesc"><span>Block description</span></a>
-<a class="sub2" href="#statedesc"><span>State description</span></a>
-<a class="sub2" href="#blockmodel"><span>Block models</span></a>
+  <a class="sub2" href="#blockdesc"><span>Block description</span></a>
+  <a class="sub2" href="#statedesc"><span>State description</span></a>
+  <a class="sub2" href="#blockmodel"><span>Block models</span></a>
 
 <a class="sub1" href="#mesh"><span>Mesh generation</span></a>
 
 <a class="sub1" href="#opengl"><span>Advanced OpenGL</a>
-<a class="sub2" href="#translucency"><span>Alpha transparency</span></a>
-<a class="sub2" href="#gpubanks"><span>Managing chunks on GPU</span></a>
+  <a class="sub2" href="#translucency"><span>Alpha transparency</span></a>
+  <a class="sub2" href="#gpubanks"><span>Managing chunks on GPU</span></a>
 
 <a class="sub1" href="#nbt2"><span>NBT API</a>
 
 <a class="sub1" href="#entities"><span>Entities</span></a>
-<a class="sub2" href="#structure"><span>Data structure</span></a>
+  <a class="sub2" href="#structure"><span>Data structure</span></a>
+  <a class="sub2" href="#collision"><span>Collision correction</span></a>
 </div>
 
 <div id="content">
@@ -1063,7 +1064,8 @@ is done with the previous frame, and the content of the buffer is accurate now.
 <p>Worse: if there was not enough loops, at this point you can only increase the number of loops by one.
 If you scene just switch from one layer of transparency to one containing a lot, even at 60 frame per
 second, you'll be able to see the translucent layers being peeled frame per frame, as the number of loops
-is increased one by one.
+is increased one by one. This is going to be particularly jarring to see because layers are extracted
+from <B>back to front</b>.
 
 <p>This is far from ideal in practice, and this technique has somewhat the same problem than the linked
 list of fragments: it requires too much bandwidth and/or up to date OpenGL implementation, which makes it
@@ -1192,8 +1194,21 @@ there are a lot of moving parts, with lots of datatypes:
 
   <li><tt>struct EntityEntry_t</tt> : given an entity, we want to know if its model is already available
   in one bank.
-
 </ul>
+
+<h3 id="collision"><span>Collision correction</span></h3>
+
+<p>Collision detection in is engine is entirely handled by checking if <b>axis-aligned boxes</b> are
+intersecting each others. The obvious advantage is that detecting collision is very easy, the problem
+is actually knowing what to do once a collision is detected. This is by far the hardest part, since
+each collision will likely involve quite a few bounding box being intersected.
+
+<p>The usual technique you can find online will usually <b>break down at some point</b> because you
+cannot correct the collision by looking at one intersection at a time: you need to analyze them as a
+group. This section will document the strategy used in this engine, since once again, the source code
+can be quite cryptic.
+
+<p>/* ... */
 
 </div>
 

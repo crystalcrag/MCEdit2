@@ -1,6 +1,22 @@
 =========== Week 21 ===========
+Sun May 30:
+	* collision correction seems working with multiple bbox on XZ planes, needs check for Y still.
+
+Sat May 29:
+	* implementing bbox sorting for collision.
+
+Fri May 28:
+	* tried sorting bbox according to direction and finding largest rectangle covering the area: seems better.
+
+Thu May 27:
+	* tried grouping bbox and checking minimal distance to avoid collision: still meh.
+
+Wed May 26:
+	* tried quadrant approach for collision detection/resolution: meh.
+
 Tue May 25:
 	* player speed is not framerate dependent anymore.
+	* collision correction need more work.
 
 Mon May 24:
 	* bounding box collision seems working (only single VTXBBox though).

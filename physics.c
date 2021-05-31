@@ -14,39 +14,10 @@
 #include "entities.h"
 
 extern int8_t relx[], rely[], relz[], opp[];
-static uint8_t side2axis[] = {2, 0, 2, 0, 1, 1};
-static uint8_t side2area[] = {0, 0, 1, 1, 0, 1};
 
-static Bool hasEnoughGapBetween(struct BlockIter_t iter, int side, VTXBBox bbox, float minMax[6])
+static Bool intersectBBox(BlockIter iter, VTXBBox bbox, float minMax[6], float inter[6], float rel[3])
 {
-	static uint8_t axisSrc[] = {5, 3, 2, 0, 4, 1}; /* S, E, N, W, T, B */
-	static uint8_t axisDst[] = {2, 0, 5, 3, 1, 4};
-
-	/* we are dealing with bounding box faces, not vertex data */
-	mapIter(&iter, relx[side], rely[side], relz[side]);
-	if (iter.blockIds == NULL) return True;
-
-	VTXBBox neighbor = mapGetBBox(&iter);
-
-	if (neighbor)
-	{
-		/* if gap is too small, we can ignore that intersection */
-		int gap = bbox->pt1[axisSrc[side]] - neighbor->pt1[axisDst[side]];
-		int axis = side2axis[side];
-		switch (axis) {
-		case 0: gap -= relx[side] * BASEVTX; break;
-		case 1: gap -= rely[side] * BASEVTX; break;
-		case 2: gap -= relz[side] * BASEVTX;
-		}
-		if (gap < 0) gap = -gap;
-		return gap * (1./BASEVTX) > minMax[axis+3] - minMax[axis];
-	}
-	else return True;
-}
-
-static int intersectBBox(BlockIter iter, VTXBBox bbox, float minMax[6], float inter[6])
-{
-	float  pt[3] = {iter->ref->X + iter->x, iter->yabs, iter->ref->Z + iter->z};
+	float  pt[3] = {iter->ref->X + iter->x - rel[0], iter->yabs - rel[1], iter->ref->Z + iter->z - rel[2]};
 	int8_t i;
 
 	for (i = 0; i < 3; i ++)
@@ -54,81 +25,56 @@ static int intersectBBox(BlockIter iter, VTXBBox bbox, float minMax[6], float in
 		float boxmin = (bbox->pt1[i] - ORIGINVTX) * (1./BASEVTX) + pt[i];
 		float boxmax = (bbox->pt2[i] - ORIGINVTX) * (1./BASEVTX) + pt[i];
 
-		inter[i]   = boxmin > minMax[i] ? boxmin : minMax[i];
-		inter[3+i] = (boxmax < minMax[3+i] ? boxmax : minMax[3+i]) - inter[i];
+		inter[i]   = boxmin > minMax[i]   ? boxmin : minMax[i];
+		inter[3+i] = boxmax < minMax[3+i] ? boxmax : minMax[3+i];
 	}
-
-	if (inter[3] > EPSILON && inter[4] > EPSILON && inter[5] > EPSILON)
-	{
-		/* sort intersect axis from min to max: if we need to adjust something use the axis with the least amount of changes */
-		uint8_t order[3];
-
-		if (inter[VY+3] < inter[VZ+3])
-			memcpy(order, inter[VX+3] < inter[VY+3] ? "\0\2\1" : "\1\0\2", 3);
-		else
-			memcpy(order, inter[VX+3] < inter[VZ+3] ? "\0\2\1" : "\2\0\1", 3);
-
-		if (inter[order[1]+3] > inter[order[2]+3])
-			i = order[1], order[1] = order[2], order[2] = i;
-
-		/* which axis has been intersected */
-		for (i = 0; i < 3; i ++)
-		{
-			int8_t side = -1;
-			switch (order[i]) {
-			case VX:
-				if (fabsf(inter[VX] - minMax[VX]) < EPSILON)                 side = SIDE_WEST; else
-				if (fabsf(inter[VX] + inter[VX+3] - minMax[VX+3]) < EPSILON) side = SIDE_EAST;
-				break;
-			case VY:
-				if (fabsf(inter[VY] - minMax[VY]) < EPSILON)                 side = SIDE_BOTTOM; else
-				if (fabsf(inter[VY] + inter[VY+3] - minMax[VY+3]) < EPSILON) side = SIDE_TOP;
-				break;
-			case VZ:
-				if (fabsf(inter[VZ] - minMax[VZ]) < EPSILON)                 side = SIDE_NORTH; else
-				if (fabsf(inter[VZ] + inter[VZ+3] - minMax[VZ+3]) < EPSILON) side = SIDE_SOUTH;
-			}
-			if (side >= 0 && hasEnoughGapBetween(*iter, opp[side], bbox, minMax))
-				return side;
-		}
-	}
-	return -1;
+	return inter[0] < inter[3] && inter[1] < inter[4] && inter[2] < inter[5];
 }
 
-static Bool validAxis(struct BlockIter_t iter, VTXBBox bbox, float minMax[6], int axis, int count)
+int sortBoxes(const void * item1, const void * item2)
 {
-	float inter[6];
-	while (count > 0)
-	{
-		mapIter(&iter, 0, 1, 0);
-		uint8_t side = intersectBBox(&iter, bbox, minMax, inter);
-		if (side >= 0 && side2axis[side] != axis)
-			return False;
-		count --;
-	}
-	return True;
+	DATA16 box1 = (DATA16) item1;
+	DATA16 box2 = (DATA16) item2;
+	int    diff;
+	diff = (box1[2] & 3) < 2 ? box1[0] - box2[0] : box2[0] - box1[0];
+	if (diff == 0)
+		diff = box1[2] & 1 ? box2[1] - box1[1] : box1[1] - box2[1];
+	return diff;
 }
 
 /* try to move bounding box <bbox> from <start> to <end>, changing end if movement is blocked */
 void physicsCheckCollision(Map map, vec4 start, vec4 end, VTXBBox bbox)
 {
 	struct BlockIter_t iter;
-	float  minMax[6];
-	int8_t i, j, k;
+	float    bboxes[6 * 20];
+	uint16_t order[3 * 20];
+	float    minMax[6];
+	float    normx, normz;
+	int8_t   i, j, k;
+	int8_t   count, corner;
+
+	/* get the corner by which we entered the bounding box */
+	vecSub(minMax, end, start);
+	corner = 0;
+	if (minMax[VX] < 0) corner |= 1;
+	if (minMax[VZ] < 0) corner |= 2;
 
 	for (i = 0; i < 3; i ++)
 	{
-		minMax[i]   = (bbox->pt1[i] - ORIGINVTX) * (1./BASEVTX) + end[i];
-		minMax[3+i] = (bbox->pt2[i] - ORIGINVTX) * (1./BASEVTX) + end[i];
+		minMax[i]   = (bbox->pt1[i] - ORIGINVTX) * (1./BASEVTX);
+		minMax[3+i] = (bbox->pt2[i] - ORIGINVTX) * (1./BASEVTX);
 	}
 
-	int8_t dx = (int) minMax[VX+3] - (int) minMax[VX];
-	int8_t dy = (int) minMax[VY+3] - (int) minMax[VY];
-	int8_t dz = (int) minMax[VZ+3] - (int) minMax[VZ];
+	int8_t dx = (int) (minMax[VX+3] + end[VX]) - (int) (minMax[VX] + end[VX]);
+	int8_t dy = (int) (minMax[VY+3] + end[VY]) - (int) (minMax[VY] + end[VY]);
+	int8_t dz = (int) (minMax[VZ+3] + end[VZ]) - (int) (minMax[VZ] + end[VZ]);
 
-	static int count;
-	mapInitIter(map, &iter, minMax, False);
-	for (i = 0; ; )
+	/* first: gather all the bounding boxes we intersect */
+	vecAdd(bboxes, end, minMax);
+	mapInitIter(map, &iter, bboxes, False);
+	normx = 65534 / (minMax[VX+3] - minMax[VX]);
+	normz = 65534 / (minMax[VZ+3] - minMax[VZ]);
+	for (i = 0, count = 0; ; )
 	{
 		for (j = 0; ; )
 		{
@@ -136,25 +82,20 @@ void physicsCheckCollision(Map map, vec4 start, vec4 end, VTXBBox bbox)
 			{
 				/* check if bbox collides with any block it intersects in voxel space */
 				bbox = mapGetBBox(&iter);
-				if (bbox)
+				float * inter;
+				if (bbox && intersectBBox(&iter, bbox, minMax, inter = bboxes + count * 6, end))
 				{
-					float  inter[6];
-					int8_t side;
-
-					if (bbox && (side = intersectBBox(&iter, bbox, minMax, inter)) >= 0)
-					{
-						int8_t axis = side2axis[side];
-						float diff = end[axis];
-						/* VX and VZ axis: need to check remainder of column */
-						if (axis == VY || i == dy || validAxis(iter, bbox, minMax, axis, dy - i))
-						{
-							diff -= end[axis] = side2area[side] ? inter[axis] + inter[axis+3] + diff - minMax[axis] : inter[axis] - minMax[axis+3] + diff;
-							fprintf(stderr, "%d. shifting axis %d by %g\n", count, axis, diff);
-							minMax[axis]   -= diff;
-							minMax[axis+3] -= diff;
-						}
-					}
+					/* sort insert XXX depend on dir for <inter> */
+					DATA16 p = order + count * 3;
+					p[0] = corner < 2 ? lroundf((inter[VZ] - minMax[VZ]) * normz) :
+					                    lroundf((inter[VZ+3] - minMax[VZ]) * normz);
+					p[1] = corner & 1 ? lroundf((inter[VX+3] - minMax[VZ]) * normx) :
+					                    lroundf((inter[VX] - minMax[VX]) * normx);
+					p[2] = corner | (count << 2);
+					count ++;
+					//fprintf(stderr, "intersection at %d,%d,%d: %d\n", iter.ref->X + iter.x, iter.yabs, iter.ref->Z + iter.z, iter.blockIds[iter.offset]);
 				}
+
 				k ++;
 				if (k > dx) break;
 				mapIter(&iter, 1, 0, 0);
@@ -167,7 +108,85 @@ void physicsCheckCollision(Map map, vec4 start, vec4 end, VTXBBox bbox)
 		if (i > dy) break;
 		mapIter(&iter, -dx, 1, -dz);
 	}
-	count ++;
+
+	/* next: analyze what we gathered and try to find the minimum distance to avoid boxes collided */
+	if (count > 0)
+	{
+		/* try to maximize the area */
+		float * inter = NULL;
+		float   area1 = 0;
+		float   box[6]; /* X1, Z1, X2, Z2 */
+		float   size[3];
+		box[VX] = box[VX+3] = corner & 1 ? minMax[VX+3] : minMax[VX];
+		box[VZ] = box[VZ+3] = corner & 2 ? minMax[VZ+3] : minMax[VZ];
+		box[VY] = box[VY+3] = 0;
+		vecSub(size, minMax+3, minMax);
+		qsort(order, count, 6, sortBoxes);
+
+		/* WAY too annoying to generalize */
+		switch (corner) {
+		case 0: /* xmin - zmin */
+		case 2: /* xmin - zmax */
+			/* first box one is special */
+			box[VX+3] = box[VX] + size[VX];
+			for (i = 0, j = 2; i < count; i ++, j += 3)
+			{
+				float * next;
+				inter = bboxes + (order[j] >> 2) * 6;
+
+				if (inter[VX] >= box[VX+3]) continue;
+				area1 = (box[VX+3] - box[VX]) * (corner == 0 ? (box[VZ+3] = inter[VZ]) - box[VZ] : box[VZ] - (box[VZ+3] = inter[VZ+3]));
+				/* find next stop */
+				for (i ++, j += 3; i <= count; i ++, j += 3)
+				{
+					next = i == count ? minMax : bboxes + (order[j] >> 2) * 6;
+					if (next[VX] >= inter[VX]) continue;
+					float area2 = (inter[VX] - box[VX]) * (corner == 0 ? next[VZ] - box[VZ] : box[VZ] - next[VZ+3]);
+					if (area2 > area1)
+					{
+						box[VX+3] = inter[VX];
+						box[VZ+3] = corner == 0 ? next[VZ] : next[VZ+3];
+						inter = NULL;
+					}
+					break;
+				}
+			}
+			if (inter && (inter[VX] - box[VX]) * size[VZ] > area1)
+				box[VX+3] = inter[VX], box[VZ+3] = corner == 0 ? size[VZ] + box[VZ] : box[VZ] - size[VZ];
+			break;
+
+		case 1: /* xmax - zmin */
+		case 3: /* xmax - zmax */
+			box[VX+3] = box[VX] - size[VX];
+			for (i = 0, j = 2; i < count; i ++, j += 3)
+			{
+				float * next;
+				inter = bboxes + (order[j] >> 2) * 6;
+
+				if (inter[VX+3] <= box[VX+3]) continue;
+				area1 = (box[VX] - box[VX+3]) * (corner == 1 ? (box[VZ+3] = inter[VZ]) - box[VZ] : box[VZ] - (box[VZ+3] = inter[VZ+3]));
+				/* find next stop */
+				for (i ++, j += 3; i < count; i ++, j += 3)
+				{
+					next = bboxes + (order[j] >> 2) * 6;
+					if (next[VX] <= inter[VX]) continue;
+					float area2 = (box[VX] - inter[VX+3]) * (corner == 1 ? next[VZ] - box[VZ] : box[VZ] - next[VZ+3]);
+					if (area2 > area1)
+					{
+						box[VX+3] = inter[VX+3];
+						box[VZ+3] = corner == 0 ? next[VZ] : next[VZ+3];
+						inter = NULL;
+					}
+					break;
+				}
+			}
+			if (inter && (box[VX] - inter[VX+3]) * size[VZ] > area1)
+				box[VX+3] = inter[VX+3], box[VZ+3] = corner == 1 ? box[VZ] + size[VZ] : box[VZ] - size[VZ];
+		}
+		/* now we can correct <end> to cancel collision */
+		end[VX] += corner & 1 ? box[VX+3] - minMax[VX] : box[VX+3] - minMax[VX+3];
+		end[VZ] += corner & 2 ? box[VZ+3] - minMax[VZ] : box[VZ+3] - minMax[VZ+3];
+	}
 }
 
 Bool physicsCheckOnGround(Map map, vec4 start, VTXBBox bbox)
@@ -195,7 +214,7 @@ Bool physicsCheckOnGround(Map map, vec4 start, VTXBBox bbox)
 			{
 				float inter[6];
 
-				if (bbox && intersectBBox(&iter, bbox, minMax, inter) && inter[4] > EPSILON)
+				if (bbox && intersectBBox(&iter, bbox, minMax, inter, start) && inter[4] > EPSILON)
 					return True;
 			}
 			j ++;
