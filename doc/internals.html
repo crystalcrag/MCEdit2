@@ -1058,11 +1058,11 @@ are fragments that still need processing.
 
 <p>Sadly, once your loop is done, you cannot read the content of the buffer, to know if you should continue
 or stop. Due to the asynchronous nature of OpenGL, the only moment where it is safe to do so, is when
-swaping the back/front framebuffer (ie: <tt>SDL_GL_SwapBuffers()</tt>). At this point you know that, the GPU
+swapping the back/front framebuffer (ie: <tt>SDL_GL_SwapBuffers()</tt>). At this point you know that, the GPU
 is done with the previous frame, and the content of the buffer is accurate now.
 
 <p>Worse: if there was not enough loops, at this point you can only increase the number of loops by one.
-If you scene just switch from one layer of transparency to one containing a lot, even at 60 frame per
+If your scene just switched from one layer of transparency to one containing a lot, even at 60 frames per
 second, you'll be able to see the translucent layers being peeled frame per frame, as the number of loops
 is increased one by one. This is going to be particularly jarring to see because layers are extracted
 from <B>back to front</b>.
@@ -1198,15 +1198,31 @@ there are a lot of moving parts, with lots of datatypes:
 
 <h3 id="collision"><span>Collision correction</span></h3>
 
-<p>Collision detection in is engine is entirely handled by checking if <b>axis-aligned boxes</b> are
-intersecting each others. The obvious advantage is that detecting collision is very easy, the problem
-is actually knowing what to do once a collision is detected. This is by far the hardest part, since
-each collision will likely involve quite a few bounding box being intersected.
+<p>Collision detection in this engine is entirely done by checking if <b>axis-aligned boxes</b> are
+intersecting each others, and as of writing this document, that's all the primitives that are used, as
+far as entities are concerned. There are no ray, plane or sphere primitives in this engine (although
+raypicking uses ray/plane intersection), everything is done using AABox.
+
+<p>The main problem is actually knowing <b>what to do when a collision is detected</b>. This is by far
+the hardest part, since an entity colliding the landscape will likely involve quite a few bounding boxes
+being intersected.
 
 <p>The usual technique you can find online will usually <b>break down at some point</b> because you
 cannot correct the collision by looking at one intersection at a time: you need to analyze them as a
-group. This section will document the strategy used in this engine, since once again, the source code
-can be quite cryptic.
+whole. This section will document the strategy used in this engine, since once again, the source code
+will more than likely not be obvious at first sight.
+
+<p>To simplify the explanation, we'll limit the problem on the XZ plane (ie: 2D).
+
+<p>If there were only one bounding box at a time that were intersected, it would be just a matter of
+moving the entity's position along the smallest axis of the intersection box (in the opposite direction
+where the entity was moving): because this is the axis that will cause the minimum amount of change.
+
+<p>Sadly this will quickly break down when multiple bounding boxes are involved. Consider the simple
+case of an entity <b>sliding against a solid wall</b>:
+<div class="photo">
+  <img src="images/wall_collision.png">
+</div>
 
 <p>/* ... */
 

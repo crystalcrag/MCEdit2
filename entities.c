@@ -918,7 +918,7 @@ void entityUpdateOrCreate(Chunk c, vec4 pos, int blockId, vec4 dest, int ticks, 
 	anim->prevTime = (int) curTime;
 	anim->stopTime =
 	#ifdef DEBUG
-		anim->prevTime + ticks * 2000 * (1000 / TICK_PER_SECOND);
+		anim->prevTime + ticks * 10 * (1000 / TICK_PER_SECOND);
 	#else
 		anim->prevTime + ticks * (1000 / TICK_PER_SECOND);
 	#endif

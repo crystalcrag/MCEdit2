@@ -28,36 +28,27 @@ static Bool intersectBBox(BlockIter iter, VTXBBox bbox, float minMax[6], float i
 		inter[i]   = boxmin > minMax[i]   ? boxmin : minMax[i];
 		inter[3+i] = boxmax < minMax[3+i] ? boxmax : minMax[3+i];
 	}
-	return inter[0] < inter[3] && inter[1] < inter[4] && inter[2] < inter[5];
+	return inter[VX] < inter[VX+3] && inter[VY] < inter[VY+3] && inter[VZ] < inter[VZ+3];
 }
 
-int sortBoxes(const void * item1, const void * item2)
-{
-	DATA16 box1 = (DATA16) item1;
-	DATA16 box2 = (DATA16) item2;
-	int    diff;
-	diff = (box1[2] & 3) < 2 ? box1[0] - box2[0] : box2[0] - box1[0];
-	if (diff == 0)
-		diff = box1[2] & 1 ? box2[1] - box1[1] : box1[1] - box2[1];
-	return diff;
-}
 
 /* try to move bounding box <bbox> from <start> to <end>, changing end if movement is blocked */
 void physicsCheckCollision(Map map, vec4 start, vec4 end, VTXBBox bbox)
 {
 	struct BlockIter_t iter;
-	float    bboxes[6 * 20];
-	uint16_t order[3 * 20];
-	float    minMax[6];
-	float    normx, normz;
-	int8_t   i, j, k;
-	int8_t   count, corner;
+	float * inter;
+	float   bboxes[6 * 20];
+	float   minMax[6];
+	float   dir[3];
+	int8_t  i, j, k, count, corner;
 
 	/* get the corner by which we entered the bounding box */
-	vecSub(minMax, end, start);
+	vecSub(dir, end, start);
 	corner = 0;
-	if (minMax[VX] < 0) corner |= 1;
-	if (minMax[VZ] < 0) corner |= 2;
+	if (dir[VX] < 0) corner |= 1;
+	if (dir[VY] < 0) corner |= 2;
+	if (dir[VZ] < 0) corner |= 4;
+	memset(dir, 0, sizeof dir);
 
 	for (i = 0; i < 3; i ++)
 	{
@@ -72,28 +63,22 @@ void physicsCheckCollision(Map map, vec4 start, vec4 end, VTXBBox bbox)
 	/* first: gather all the bounding boxes we intersect */
 	vecAdd(bboxes, end, minMax);
 	mapInitIter(map, &iter, bboxes, False);
-	normx = 65534 / (minMax[VX+3] - minMax[VX]);
-	normz = 65534 / (minMax[VZ+3] - minMax[VZ]);
-	for (i = 0, count = 0; ; )
+	for (i = count = 0; ; )
 	{
 		for (j = 0; ; )
 		{
 			for (k = 0; ; )
 			{
-				/* check if bbox collides with any block it intersects in voxel space */
-				bbox = mapGetBBox(&iter);
-				float * inter;
-				if (bbox && intersectBBox(&iter, bbox, minMax, inter = bboxes + count * 6, end))
+				/* check if entity bbox (minMax) collides with any block in the voxel space */
+				int nb;
+				bbox = mapGetBBox(&iter, &nb);
+				for (inter = bboxes + count * 6; nb > 0; nb --, bbox ++)
 				{
-					/* sort insert XXX depend on dir for <inter> */
-					DATA16 p = order + count * 3;
-					p[0] = corner < 2 ? lroundf((inter[VZ] - minMax[VZ]) * normz) :
-					                    lroundf((inter[VZ+3] - minMax[VZ]) * normz);
-					p[1] = corner & 1 ? lroundf((inter[VX+3] - minMax[VZ]) * normx) :
-					                    lroundf((inter[VX] - minMax[VX]) * normx);
-					p[2] = corner | (count << 2);
+					if (! intersectBBox(&iter, bbox, minMax, inter, end))
+						continue;
 					count ++;
-					//fprintf(stderr, "intersection at %d,%d,%d: %d\n", iter.ref->X + iter.x, iter.yabs, iter.ref->Z + iter.z, iter.blockIds[iter.offset]);
+					inter += 6;
+					if (count == 20) goto break_all;
 				}
 
 				k ++;
@@ -110,83 +95,70 @@ void physicsCheckCollision(Map map, vec4 start, vec4 end, VTXBBox bbox)
 	}
 
 	/* next: analyze what we gathered and try to find the minimum distance to avoid boxes collided */
-	if (count > 0)
+	break_all:
+	for (i = 0, inter = bboxes; i < count; i ++, inter += 6)
 	{
-		/* try to maximize the area */
-		float * inter = NULL;
-		float   area1 = 0;
-		float   box[6]; /* X1, Z1, X2, Z2 */
+		/* order from min to max */
+		uint8_t order[3];
 		float   size[3];
-		box[VX] = box[VX+3] = corner & 1 ? minMax[VX+3] : minMax[VX];
-		box[VZ] = box[VZ+3] = corner & 2 ? minMax[VZ+3] : minMax[VZ];
-		box[VY] = box[VY+3] = 0;
-		vecSub(size, minMax+3, minMax);
-		qsort(order, count, 6, sortBoxes);
 
-		/* WAY too annoying to generalize */
-		switch (corner) {
-		case 0: /* xmin - zmin */
-		case 2: /* xmin - zmax */
-			/* first box one is special */
-			box[VX+3] = box[VX] + size[VX];
-			for (i = 0, j = 2; i < count; i ++, j += 3)
-			{
-				float * next;
-				inter = bboxes + (order[j] >> 2) * 6;
-
-				if (inter[VX] >= box[VX+3]) continue;
-				area1 = (box[VX+3] - box[VX]) * (corner == 0 ? (box[VZ+3] = inter[VZ]) - box[VZ] : box[VZ] - (box[VZ+3] = inter[VZ+3]));
-				/* find next stop */
-				for (i ++, j += 3; i <= count; i ++, j += 3)
-				{
-					next = i == count ? minMax : bboxes + (order[j] >> 2) * 6;
-					if (next[VX] >= inter[VX]) continue;
-					float area2 = (inter[VX] - box[VX]) * (corner == 0 ? next[VZ] - box[VZ] : box[VZ] - next[VZ+3]);
-					if (area2 > area1)
-					{
-						box[VX+3] = inter[VX];
-						box[VZ+3] = corner == 0 ? next[VZ] : next[VZ+3];
-						inter = NULL;
-					}
-					break;
-				}
-			}
-			if (inter && (inter[VX] - box[VX]) * size[VZ] > area1)
-				box[VX+3] = inter[VX], box[VZ+3] = corner == 0 ? size[VZ] + box[VZ] : box[VZ] - size[VZ];
-			break;
-
-		case 1: /* xmax - zmin */
-		case 3: /* xmax - zmax */
-			box[VX+3] = box[VX] - size[VX];
-			for (i = 0, j = 2; i < count; i ++, j += 3)
-			{
-				float * next;
-				inter = bboxes + (order[j] >> 2) * 6;
-
-				if (inter[VX+3] <= box[VX+3]) continue;
-				area1 = (box[VX] - box[VX+3]) * (corner == 1 ? (box[VZ+3] = inter[VZ]) - box[VZ] : box[VZ] - (box[VZ+3] = inter[VZ+3]));
-				/* find next stop */
-				for (i ++, j += 3; i < count; i ++, j += 3)
-				{
-					next = bboxes + (order[j] >> 2) * 6;
-					if (next[VX] <= inter[VX]) continue;
-					float area2 = (box[VX] - inter[VX+3]) * (corner == 1 ? next[VZ] - box[VZ] : box[VZ] - next[VZ+3]);
-					if (area2 > area1)
-					{
-						box[VX+3] = inter[VX+3];
-						box[VZ+3] = corner == 0 ? next[VZ] : next[VZ+3];
-						inter = NULL;
-					}
-					break;
-				}
-			}
-			if (inter && (box[VX] - inter[VX+3]) * size[VZ] > area1)
-				box[VX+3] = inter[VX+3], box[VZ+3] = corner == 1 ? box[VZ] + size[VZ] : box[VZ] - size[VZ];
+		vecSub(size, inter+3, inter);
+		{
+			float dx = fabsf(corner & 1 ? inter[VX+3] - minMax[VX] : inter[VX] - minMax[VX+3]);
+			float dz = fabsf(corner & 4 ? inter[VZ+3] - minMax[VZ] : inter[VZ] - minMax[VZ+3]);
+			if (size[VX] < size[VZ] && dx > dz) size[VZ] = 0, fprintf(stderr, "cancelling dx\n"); else
+			if (size[VZ] < size[VX] && dz > dx) size[VX] = 0, fprintf(stderr, "cancelling dz\n");
 		}
-		/* now we can correct <end> to cancel collision */
-		end[VX] += corner & 1 ? box[VX+3] - minMax[VX] : box[VX+3] - minMax[VX+3];
-		end[VZ] += corner & 2 ? box[VZ+3] - minMax[VZ] : box[VZ+3] - minMax[VZ+3];
+		if (size[VY] < size[VZ])
+			memcpy(order, size[VX] < size[VY] ? "\0\2\1" : "\1\0\2", 3);
+		else
+			memcpy(order, size[VX] < size[VZ] ? "\0\2\1" : "\2\0\1", 3);
+
+		if (size[order[1]] > size[order[2]])
+			order[1] = order[2];
+
+		for (j = 0; j < 2; j ++)
+		{
+			/* check if face is visible */
+			float * next = bboxes;
+			k = 0;
+			switch (order[j]) {
+			case VX:
+				for (; k < count; k ++, next += 6)
+					if (k != i && inter[VZ] >= next[VZ]   && inter[VZ+3] <= next[VZ+3]
+					           && inter[VY] <  next[VY+3] && inter[VY+3] >  next[VY]) break;
+				break;
+			case VZ:
+				for (; k < count; k ++, next += 6)
+					if (k != i && inter[VX] >= next[VX]   && inter[VX+3] <= next[VX+3]
+					           && inter[VY] <  next[VY+3] && inter[VY+3] >  next[VY]) break;
+				break;
+			case VY:
+				for (; k < count; k ++, next += 6)
+					if (k != i && inter[VX] >= next[VX] && inter[VX+3] <= next[VX+3] &&
+					              inter[VZ] >= next[VZ] && inter[VZ+3] <= next[VZ+3]) break;
+			}
+			if (k == count) break;
+		}
+		if (j < 2)
+		{
+			float delta;
+			k = order[j];
+			if (corner & (1 << k))
+			{
+				delta = inter[k+3] - minMax[k];
+				if (dir[k] < delta) dir[k] = delta;
+			}
+			else
+			{
+				delta = inter[k] - minMax[k+3];
+				if (dir[k] > delta) dir[k] = delta;
+			}
+		}
 	}
+	end[VX] += dir[VX];
+	end[VY] += dir[VY];
+	end[VZ] += dir[VZ];
 }
 
 Bool physicsCheckOnGround(Map map, vec4 start, VTXBBox bbox)
@@ -209,7 +181,8 @@ Bool physicsCheckOnGround(Map map, vec4 start, VTXBBox bbox)
 	{
 		for (j = 0; ; )
 		{
-			VTXBBox bbox = mapGetBBox(&iter);
+			int count;
+			VTXBBox bbox = mapGetBBox(&iter, &count);
 			if (bbox)
 			{
 				float inter[6];

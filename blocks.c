@@ -1640,7 +1640,7 @@ static void blockGenBBox(DATA16 buffer, int len, int type)
 	/* 1st: adjust vertex data for drawing lines/faces */
 	for (box = blocks.bbox + blocks.bboxMax, i = box->cont; i > 0; i --, box ++, exact ++)
 	{
-		/* keep a non-shifted copy first */
+		/* keep a non-shifted copy first: will be needed for collision detection/correction */
 		memcpy(exact, box, sizeof *box);
 
 		#define SHIFT     ((int) (0.01 * BASEVTX))
@@ -2006,6 +2006,11 @@ void blockParseBoundingBox(void)
 			/* get bounding box from custom model */
 			state->bboxId = blocks.bboxMax;
 			blockGenBBox(state->custModel, state->custModel[-1], b->bbox);
+			if (b->special == BLOCK_DOOR)
+			{
+				/* enlarge Y axis to highlight top and bottom part at the same time */
+				blocks.bbox[state->bboxId].pt2[VY] += BASEVTX;
+			}
 		}
 	}
 }
@@ -2566,6 +2571,14 @@ int blockGenModel(int vbo, int blockId)
 			case BLOCK_SOLIDOUTER:
 				vtx = blockInvCopyFromModel(buffer, b->custModel, ALLFACEIDS);
 				vtx += blockInvModelCube(buffer + vtx * INT_PER_VERTEX, b, texCoord);
+				break;
+			case BLOCK_DOOR:
+				/* generate bottom and top part */
+				vtx = i = blockInvCopyFromModel(buffer, b->custModel, ALLFACEIDS);
+				vtx += blockInvCopyFromModel(buffer + vtx * INT_PER_VERTEX, b[8].custModel, ALLFACEIDS);
+				/* shift top part 1 block up */
+				for (buffer += i * INT_PER_VERTEX; i < vtx; buffer[1] += BASEVTX, i ++, buffer += INT_PER_VERTEX);
+				buffer -= vtx * INT_PER_VERTEX;
 				break;
 			default:
 				vtx = blockInvCopyFromModel(buffer, b->custModel, ALLFACEIDS);

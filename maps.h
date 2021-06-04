@@ -102,7 +102,7 @@ Bool    mapUpdateNBT(MapExtraData sel, NBTFile nbt);
 void    mapViewFrustum(Map, mat4 mvp, vec4 camera);
 int     mapFirstFree(uint32_t * usage, int count);
 Chunk   mapGetChunk(Map, vec4 pos);
-VTXBBox mapGetBBox(BlockIter iterator);
+VTXBBox mapGetBBox(BlockIter iterator, int * count);
 int     getBlockId(BlockIter iter);
 void    printCoord(STRPTR hdr, BlockIter);
 

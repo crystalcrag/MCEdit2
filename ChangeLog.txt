@@ -1,6 +1,23 @@
+=========== Week 22 ===========
+Wed June 3:
+	* block model for door redone: split into 2 instead of a 2x1 block model.
+	* collision detection/correction simplified and seems working in all 3 axis.
+
+Wed June 2:
+	* hidden faces seems simpler so far, need more testing.
+	* SITGL doc done, at last.
+
+Tue June 1:
+	* area check with some tweaks kind of works, but is way too complex (and does not handle Y axis): need a simpler solution.
+	* analyze intersect bbox by checking hidden faces.
+
+Mon May 31:
+	* area heuristic not godd enough, distance does not work either, tried quadrant again: did not work.
+
 =========== Week 21 ===========
 Sun May 30:
 	* collision correction seems working with multiple bbox on XZ planes, needs check for Y still.
+	* SITGL VTerm v2 almost done: uses ring buffer, variable spaces and indent on soft line breaks.
 
 Sat May 29:
 	* implementing bbox sorting for collision.

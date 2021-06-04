@@ -280,8 +280,9 @@ int getBlockId(BlockIter iter)
 }
 
 /* get bounding box from block pointed by iter */
-VTXBBox mapGetBBox(BlockIter iterator)
+VTXBBox mapGetBBox(BlockIter iterator, int * count)
 {
+	*count = 0;
 	if (iterator->blockIds == NULL)
 		return NULL;
 
@@ -312,7 +313,13 @@ VTXBBox mapGetBBox(BlockIter iterator)
 		if (id & 4) top = openDoorDataToModel[top];
 		id = (id & ~15) | top;
 	}
-	return blockGetBBox(blockGetById(id));
+	VTXBBox box = blockGetBBox(blockGetById(id));
+	if (box)
+	{
+		*count = block->special == BLOCK_CHEST ? 1 : box->cont;
+		return box;
+	}
+	return NULL;
 }
 
 

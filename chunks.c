@@ -1188,22 +1188,31 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 		side = 0;
 		if (pos & 1) data >>= 4;
 		else         data &= 15;
-		if (data & 8) return; /* top part: will be rendered with bottom */
-		/* metadata is shared with top part */
-		if (sides & 16)
+		if (data & 8) /* top part: get bottom part */
 		{
-			side = blocks[(pos>>1) + 128 + DATA_OFFSET];
+			count = 8;
+			side = data;
+			if (sides & 32)
+				data = blocks[(pos>>1) - 128 + DATA_OFFSET];
+			else if (neighbors[5])
+				data = neighbors[5]->blockIds[DATA_OFFSET + (pos>>1) + 15*128];
+			if (pos & 1) data >>= 4;
+			else         data &= 15;
 		}
-		else if (neighbors[4])
+		else /* bottom part: get top part */
 		{
-			side = neighbors[4]->blockIds[DATA_OFFSET + ((pos>>1) & 127)];
+			if (sides & 16)
+				side = blocks[(pos>>1) + 128 + DATA_OFFSET];
+			else if (neighbors[4])
+				side = neighbors[4]->blockIds[DATA_OFFSET + ((pos>>1) & 127)];
+			if (pos & 1) side >>= 4;
+			else         side &= 15;
 		}
-		if (pos & 1) side >>= 4;
-		else         side &= 15;
 		side = (data & 3) | ((side&1) << 2);
 		b -= b->id & 15;
 		if (data & 4) side = openDoorDataToModel[side];
-		model = b[side].custModel;
+		model = b[side+count].custModel;
+		count = 0;
 		break;
 	case BLOCK_CHEST:
 	case BLOCK_FENCE:
