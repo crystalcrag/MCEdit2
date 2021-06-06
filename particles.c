@@ -359,7 +359,7 @@ static void particleMakeActive(Map map)
 void particlesChunkUpdate(Map map, ChunkData cd)
 {
 	Chunk chunk = cd->chunk;
-	int   pos[] = {emitters.cacheLoc[0] - (chunk->X >> 4), emitters.cacheLoc[1] - (cd->Y >> 4), emitters.cacheLoc[2] - (chunk->Z >> 4)};
+	int   pos[] = {emitters.cacheLoc[0] - (chunk->X >> 4), (cd->Y >> 4) - emitters.cacheLoc[1], emitters.cacheLoc[2] - (chunk->Z >> 4)};
 	int   i;
 
 	if (abs(pos[0]) <= 1 && abs(pos[1]) <= 1 && abs(pos[2]) <= 1)
@@ -379,6 +379,9 @@ void particlesChunkUpdate(Map map, ChunkData cd)
 				((int) oldEmit->loc[2] - chunk->Z) * 16 +
 				((int) oldEmit->loc[1] - cd->Y)    * 256;
 			int newOffset = *newIds & 0xfff;
+
+			if (oldOffset > 4096)
+				puts("here");
 
 			if (newOffset < oldOffset)
 			{

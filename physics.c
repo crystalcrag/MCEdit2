@@ -70,10 +70,12 @@ void physicsCheckCollision(Map map, vec4 start, vec4 end, VTXBBox bbox)
 			for (k = 0; ; )
 			{
 				/* check if entity bbox (minMax) collides with any block in the voxel space */
-				int nb;
-				bbox = mapGetBBox(&iter, &nb);
+				int nb, cnxFlags;
+				bbox = mapGetBBox(&iter, &nb, &cnxFlags);
 				for (inter = bboxes + count * 6; nb > 0; nb --, bbox ++)
 				{
+					uint8_t idx = bbox->flags & 0x7f;
+					if (idx > 0 && (cnxFlags & (1 << (idx - 1))) == 0) continue;
 					if (! intersectBBox(&iter, bbox, minMax, inter, end))
 						continue;
 					count ++;
@@ -96,66 +98,78 @@ void physicsCheckCollision(Map map, vec4 start, vec4 end, VTXBBox bbox)
 
 	/* next: analyze what we gathered and try to find the minimum distance to avoid boxes collided */
 	break_all:
+
+	/* first check if we can move the bounding box up (ie: climb stairs, half slab, ...) */
+	if (fabsf(dir[VY]) < EPSILON)
+	{
+		float dy = 0;
+		for (i = 0, inter = bboxes; i < count; i ++, inter += 6)
+		{
+			/* entity can passively walk up 0.5 blocks */
+			float diff = inter[VY+3] - minMax[VY];
+			if (diff > 0.5) break;
+			if (dy < diff) dy = diff;
+		}
+		if (i < count)
+		{
+			/* yes, check if there are enough vertical space */
+			end[VY] += dy;
+		}
+	}
+
 	for (i = 0, inter = bboxes; i < count; i ++, inter += 6)
 	{
 		/* order from min to max */
-		uint8_t order[3];
-		float   size[3];
+		float size[3];
 
 		vecSub(size, inter+3, inter);
 		{
 			float dx = fabsf(corner & 1 ? inter[VX+3] - minMax[VX] : inter[VX] - minMax[VX+3]);
+			float dy = fabsf(corner & 2 ? inter[VY+3] - minMax[VY] : inter[VY] - minMax[VY+3]);
 			float dz = fabsf(corner & 4 ? inter[VZ+3] - minMax[VZ] : inter[VZ] - minMax[VZ+3]);
-			if (size[VX] < size[VZ] && dx > dz) size[VZ] = 0, fprintf(stderr, "cancelling dx\n"); else
-			if (size[VZ] < size[VX] && dz > dx) size[VX] = 0, fprintf(stderr, "cancelling dz\n");
+			if ((size[VY] < size[VZ] && dz > dy) ||
+			    (size[VY] < size[VX] && dx > dy)) j = VY; else
+			if (size[VX] <= size[VZ] && dx > dz)  j = VZ; else
+			if (size[VZ] <= size[VX] && dz > dx)  j = VX; else
+			if (size[VY] < size[VZ]) j = size[VX] < size[VY] ? VX : VY;
+			else j = size[VX] < size[VZ] ? VX : VZ;
 		}
-		if (size[VY] < size[VZ])
-			memcpy(order, size[VX] < size[VY] ? "\0\2\1" : "\1\0\2", 3);
-		else
-			memcpy(order, size[VX] < size[VZ] ? "\0\2\1" : "\2\0\1", 3);
 
-		if (size[order[1]] > size[order[2]])
-			order[1] = order[2];
-
-		for (j = 0; j < 2; j ++)
-		{
-			/* check if face is visible */
-			float * next = bboxes;
-			k = 0;
-			switch (order[j]) {
-			case VX:
-				for (; k < count; k ++, next += 6)
-					if (k != i && inter[VZ] >= next[VZ]   && inter[VZ+3] <= next[VZ+3]
-					           && inter[VY] <  next[VY+3] && inter[VY+3] >  next[VY]) break;
-				break;
-			case VZ:
-				for (; k < count; k ++, next += 6)
-					if (k != i && inter[VX] >= next[VX]   && inter[VX+3] <= next[VX+3]
-					           && inter[VY] <  next[VY+3] && inter[VY+3] >  next[VY]) break;
-				break;
-			case VY:
-				for (; k < count; k ++, next += 6)
-					if (k != i && inter[VX] >= next[VX] && inter[VX+3] <= next[VX+3] &&
-					              inter[VZ] >= next[VZ] && inter[VZ+3] <= next[VZ+3]) break;
-			}
-			if (k == count) break;
+		/* check if face is visible */
+		float * next = bboxes;
+		k = 0;
+		switch (j) {
+		case VX:
+			for (; k < count; k ++, next += 6)
+				if (k != i && inter[VZ] >= next[VZ]   && inter[VZ+3] <= next[VZ+3] && (corner & 1 ? next[VX] >= inter[VX] : next[VX+3] <= inter[VX+3])
+						   && inter[VY] <  next[VY+3] && inter[VY+3] >  next[VY]) break;
+			break;
+		case VZ:
+			for (; k < count; k ++, next += 6)
+				if (k != i && inter[VX] >= next[VX]   && inter[VX+3] <= next[VX+3] && (corner & 4 ? next[VZ] >= inter[VZ] : next[VZ+3] <= inter[VZ+3])
+						   && inter[VY] <  next[VY+3] && inter[VY+3] >  next[VY]) break;
+			break;
+		case VY:
+			for (; k < count; k ++, next += 6)
+				if (k != i && inter[VX] >= next[VX] && inter[VX+3] <= next[VX+3] &&
+							  inter[VZ] >= next[VZ] && inter[VZ+3] <= next[VZ+3]) break;
 		}
-		if (j < 2)
+		if (k == count)
 		{
 			float delta;
-			k = order[j];
-			if (corner & (1 << k))
+			if (corner & (1 << j))
 			{
-				delta = inter[k+3] - minMax[k];
-				if (dir[k] < delta) dir[k] = delta;
+				delta = inter[j+3] - minMax[j];
+				if (fabsf(delta) <= size[j] && dir[j] < delta) dir[j] = delta;
 			}
 			else
 			{
-				delta = inter[k] - minMax[k+3];
-				if (dir[k] > delta) dir[k] = delta;
+				delta = inter[j] - minMax[j+3];
+				if (fabsf(delta) <= size[j] && dir[j] > delta) dir[j] = delta;
 			}
 		}
 	}
+
 	end[VX] += dir[VX];
 	end[VY] += dir[VY];
 	end[VZ] += dir[VZ];
@@ -181,8 +195,8 @@ Bool physicsCheckOnGround(Map map, vec4 start, VTXBBox bbox)
 	{
 		for (j = 0; ; )
 		{
-			int count;
-			VTXBBox bbox = mapGetBBox(&iter, &count);
+			int count, cnxFlags;
+			VTXBBox bbox = mapGetBBox(&iter, &count, &cnxFlags);
 			if (bbox)
 			{
 				float inter[6];

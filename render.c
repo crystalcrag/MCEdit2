@@ -978,8 +978,7 @@ static void renderPrepVisibleChunks(Map map)
 	render.debugTotalTri = 0;
 
 	int Y = CPOS(render.camera[1]);
-	if (0 <= Y && Y < map->center->maxy)
-		player = map->center->layer[Y];
+	player = (0 <= Y && Y < map->center->maxy ? map->center->layer[Y] : NULL);
 
 	/* prep all the terrain chunks we will need to render */
 	for (bank = HEAD(gpuBanks); bank; NEXT(bank))

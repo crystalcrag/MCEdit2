@@ -1,5 +1,13 @@
 =========== Week 22 ===========
-Wed June 3:
+Sat June 5:
+	* skylight not updated when placing opaque block.
+	* powered rails incorrect update in a lot of use cases.
+	* collision correction seems working for now.
+
+Fri June 4:
+	* connected models collision detection.
+
+Thu June 3:
 	* block model for door redone: split into 2 instead of a 2x1 block model.
 	* collision detection/correction simplified and seems working in all 3 axis.
 
@@ -12,7 +20,7 @@ Tue June 1:
 	* analyze intersect bbox by checking hidden faces.
 
 Mon May 31:
-	* area heuristic not godd enough, distance does not work either, tried quadrant again: did not work.
+	* area heuristic not good enough, distance does not work either, tried quadrant again: did not work.
 
 =========== Week 21 ===========
 Sun May 30:

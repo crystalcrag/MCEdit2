@@ -448,23 +448,21 @@ static void entityAddToCommandList(Entity entity)
 		slot = mapFirstFree(bank->mdaiUsage, bank->mdaiMax >> 5);
 		if (bank->mdaiCount <= slot)
 			bank->mdaiCount = slot + 1;
-	}
-	else bank->mdaiCount ++;
 
-	if (bank->dirty) return; /* will be redone at once */
-	if (bank->mdaiCount < bank->mdaiMax)
-	{
-		EntityModel model = bank->models + (VBObank >> 6);
-		MDAICmd_t   cmd   = {.count = model->count, .baseInstance = slot, .instanceCount = 1, .first = model->first};
+		if (! bank->dirty) /* else will be redone at once */
+		{
+			EntityModel model = bank->models + (VBObank >> 6);
+			MDAICmd_t   cmd   = {.count = model->count, .baseInstance = slot, .instanceCount = 1, .first = model->first};
 
-		entity->mdaiSlot = slot;
-		glBindBuffer(GL_ARRAY_BUFFER, bank->vboLoc);
-		glBufferSubData(GL_ARRAY_BUFFER, slot * INFO_SIZE, INFO_SIZE, entity->pos);
-		glBindBuffer(GL_ARRAY_BUFFER, bank->vboMDAI);
-		glBufferSubData(GL_ARRAY_BUFFER, slot * 16, 16, &cmd);
-		glBindBuffer(GL_ARRAY_BUFFER, 0);
+			entity->mdaiSlot = slot;
+			glBindBuffer(GL_ARRAY_BUFFER, bank->vboLoc);
+			glBufferSubData(GL_ARRAY_BUFFER, slot * INFO_SIZE, INFO_SIZE, entity->pos);
+			glBindBuffer(GL_ARRAY_BUFFER, bank->vboMDAI);
+			glBufferSubData(GL_ARRAY_BUFFER, slot * 16, 16, &cmd);
+			glBindBuffer(GL_ARRAY_BUFFER, 0);
+		}
 	}
-	else bank->dirty = 1; /* redo the list from scratch */
+	else bank->mdaiCount ++,  bank->dirty = 1; /* redo the list from scratch */
 }
 
 static void entityGetLight(Chunk c, vec4 pos, DATA32 light, Bool full)

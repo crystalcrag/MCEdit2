@@ -81,6 +81,11 @@ static float bboxModels[] = {
 	 311+BHDR_INCFACEID, 4.5,1,7.0, 11.5,0, 4.5,
 	 318+BHDR_INCFACEID, 7.0,1,4.5,  4.5,0, 0,
 	  61+BHDR_INCFACEID, 4.5,1,7.0,  0,  0, 4.5,
+	 319+BHDR_FUSE,      4,24, 4,  6, 0, 6,     /* fence: simplified and higher */
+	 315+BHDR_INCFACEID, 4,24, 6,  6, 0,10,
+	 311+BHDR_INCFACEID, 6,24, 4, 10, 0, 6,
+	 318+BHDR_INCFACEID, 4,24, 6,  6, 0, 0,
+	  61+BHDR_INCFACEID, 6,24, 4,  0, 0, 6,
 };
 
 /* convert some common block data into SIDE_* enum */
@@ -1565,6 +1570,9 @@ VTXBBox blockGetBBoxForVertex(BlockState b)
 VTXBBox blockGetBBox(BlockState b)
 {
 	int index = b->bboxId;
+	if (b->special == BLOCK_FENCE || b->special == BLOCK_FENCE2)
+		/* use a simplified bounding box for fence */
+		index = bboxModels[12];
 	return index == 0 ? NULL : blocks.bboxExact + index;
 }
 
@@ -1978,7 +1986,8 @@ void blockParseBoundingBox(void)
 			case CUST:
 				switch (b->special) {
 				case BLOCK_GLASS:  j = 10; break;
-				case BLOCK_RSWIRE: j = 15; break;
+				case BLOCK_RSWIRE: j = 11; break;
+				case BLOCK_FENCE:  j = 12; break;
 				}
 				break;
 			case QUAD:

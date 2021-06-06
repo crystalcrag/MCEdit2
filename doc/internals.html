@@ -172,7 +172,7 @@
 
 <a class="sub1" href="#opengl"><span>Advanced OpenGL</a>
   <a class="sub2" href="#translucency"><span>Alpha transparency</span></a>
-  <a class="sub2" href="#gpubanks"><span>Managing chunks on GPU</span></a>
+  <a class="sub2" href="#gpubanks"><span>Managing chunks on the GPU</span></a>
 
 <a class="sub1" href="#nbt2"><span>NBT API</a>
 
@@ -942,8 +942,8 @@ some might have been wrapped. The first number is a bit field encoding quite a f
 <p>After that, numbers are a bit more straightforward:
 <ul>
   <li><b>3 floats</b>: size of the box, in 1/16 units (ie: 16 = a full voxel), specified in X, Y, Z order.
-  Can be fractionnal if needed. Model can have size of up to <tt>112x112x122</tt> (7 voxels). Although,
-  due to frustum culling, it is advised to keep them below 32x32x32 (2 voxels).
+  Can be fractionnal if needed. Model can have size of up to <tt>112x112x112</tt> (7 voxels). Although,
+  due to frustum culling, it is advised to keep them below 16x16x16 (1 voxel).
   <li><b>3 floats</b>: translation to apply, also in 1/16 unit, that will be applied to the X, Y, Z axis.
   <li><b>3 floats</b>: rotation in degrees, CCW (trigonometric rotation) on the X, Y, Z axis.
   <li><b>3 floats</b>: rotation in degrees, CCW. The difference with the previous 3 numbers, is that
@@ -952,7 +952,7 @@ some might have been wrapped. The first number is a bit field encoding quite a f
 
 <p>At last, these number can be followed by up to 24 integers which represent the UV coordinates of
 the texture to use for the faces defined for this box. There are 4 numbers per face. The number of
-faces is the number of bits activated in the first number (ie: <tt>popcount((int) model[0] & 63)</tt>).
+faces is the number of bits activated in the first number (ie: <tt>popcount((int) model[0] & 63) * 4</tt>).
 
 <p>/* ... */
 
@@ -1033,10 +1033,14 @@ like 2 or 3.
 
 <p>In the fragment shader handling translucent triangles, you overwrite the color only if the depth of the
 fragment is higher than the value currently stored in the first depth buffer (ie: farther) and lower
-than the second one (ie: nearer). If outside of that range, discard the fragment.
+than the second one (ie: nearer). If the fragment passes both tests, update the <b>first</b> depth buffer
+to the depth of the fragment. If outside of that range, discard the fragment.
 
 <p>Doing so, you just extracted the first layer of the farthest translucent fragments. You can now merge
 the color buffer with the main framebuffer, using a trivial shader and a quad covering the entire screen.
+
+<p>You might think that the first depth buffer could be managed by OpenGL using a depth test set to
+<tt>GL_GREATER</tt>, but we will need the result of that test later.
 
 <p>Next step is to swap the first and second depth buffer, initialize the (new) first depth buffer to
 the min value, clear the color buffer and continue with the next iteration of the loop.
@@ -1131,10 +1135,52 @@ the camera <b>to the center of the whole quad</b>, that distance being converted
   whenever the player position changes.
 </ul>
 
-<h3 id="gpubanks"><span>Managing chunks on GPU</span></h3>
+<h3 id="gpubanks"><span>Managing chunks on the GPU</span></h3>
 
 <p>Chunks are rendered using instance rendering, which helps reduce the overhead of OpenGL draw calls,
 at the price of a bit more work on the CPU side in order for the GPU to do its work.
+
+<p>In a nutshell, chunks are stored in banks, which are pretty big memory segments (or vertex buffer
+objects) stored on the GPU (as of writing this, there are 20Mb in size). This segment are then managed
+using a custom allocator, where the meta-data used to track free/used memory is of course stored on
+the CPU.
+
+<h4>Vertex buffers</h4>
+
+<p>The code is located in <tt>render.c:renderStoreArrays()</tt> and <tt>render.c:renderFreeArray</tt>,
+and their sole purpose is to behave like a custom <tt>malloc()</tt> and <tt>free()</tt>. The only
+difference is that the actual memory is owned by the GPU.
+
+<p>To achieve this, there are 2 main datatypes:
+<ul>
+  <li><tt>GPUBank</tt>: this is the datatype used to manage an entire segment. Segments cannot be
+  reallocated (or at least, it is not advised to do it), therefore to alloc more memory, we'll have
+  to create more of these segments. OpenGL draw commands can only deal with one primary segment (or
+  VBO) at a time (VAO can deal with multiple VBO source, but they are processed in parallel, here
+  we would need a serial access). Therefore to draw the geometry of a scene, we'll need at least as
+  many draw commands as there are <tt>GPUBank</tt> involved in that scene (in practice, it will be
+  a lot more of course).
+
+  <li><tt>GPUMem</tt>: this datatype will track one allocation in a bank: the entire mesh of chunk
+  will be stored here. That includes opaque and translucent triangles. The memory segment will be
+  divided in 2: opaque triangles are stored at the start, followed by the translucent ones. This
+  information is actually stored at the <tt>ChunkData</tt> level (<tt>glSize</tt>: total size in
+  bytes of vertex data, <tt>glAlpha</tt>: size of alpha triangles in bytes, located at the end):
+  the reason is because that information is needed in a few places, and the GPU datatypes are
+  private to the render module.
+</ul>
+
+<p>Frustum culling will give us a list of <tt>ChunkData</tt> to render. The only thing to do is to
+"sort" them by <tt>GPUBank</tt> and fill-in the <tt>glMultiDrawArraysIndirect()</tt> data structures.
+There are 2: one for the indirect command (16 bytes per chunk) and one for model data (12 bytes per
+chunk, ie: 3 floats). This VBO model is part of the VAO of the <tt>GPUBank</tt>, but has a <tt>glVertexAttribDivisor()</tt>
+set to 1 (ie: only grab one vertex data per instance). It simply contain the position to offset all
+the triangles of that <tt>ChunkData</tt>, so that they appear where they should on screen.
+
+<p>There is one particular parameter that is critical to track though: it is the number of commands
+that will be issued in a single <tt>glMultiDrawArraysIndirect()</tt> call.
+
+<h4>Vertex data</h4>
 
 <p>/* ... */
 
@@ -1199,13 +1245,13 @@ there are a lot of moving parts, with lots of datatypes:
 <h3 id="collision"><span>Collision correction</span></h3>
 
 <p>Collision detection in this engine is entirely done by checking if <b>axis-aligned boxes</b> are
-intersecting each others, and as of writing this document, that's all the primitives that are used, as
-far as entities are concerned. There are no ray, plane or sphere primitives in this engine (although
-raypicking uses ray/plane intersection), everything is done using AABox.
+intersecting. Something that simple turned out to have <b>lots</b> of edge cases, and took many attempts
+to fine tune. This section will document most of the caveats to be aware, if you want to improve that
+part.
 
-<p>The main problem is actually knowing <b>what to do when a collision is detected</b>. This is by far
-the hardest part, since an entity colliding the landscape will likely involve quite a few bounding boxes
-being intersected.
+<p>Detecting a collision is extremely trivial using AABox, the main problem is actually <b>correcting
+the trajectory</b>, to cancel the collision. Therefore the problem at this point can be formally defined
+as <b>finding the smallest vector</b> to move the entity out of all the collision intersections.
 
 <p>The usual technique you can find online will usually <b>break down at some point</b> because you
 cannot correct the collision by looking at one intersection at a time: you need to analyze them as a
@@ -1214,15 +1260,21 @@ will more than likely not be obvious at first sight.
 
 <p>To simplify the explanation, we'll limit the problem on the XZ plane (ie: 2D).
 
-<p>If there were only one bounding box at a time that were intersected, it would be just a matter of
+<p>If there were only one bounding box at a time to process, it would be just a matter of
 moving the entity's position along the smallest axis of the intersection box (in the opposite direction
 where the entity was moving): because this is the axis that will cause the minimum amount of change.
 
-<p>Sadly this will quickly break down when multiple bounding boxes are involved. Consider the simple
-case of an entity <b>sliding against a solid wall</b>:
+<p>Sadly this technique will quickly break down when multiple bounding boxes are involved. Consider
+the simple case of an entity <b>sliding against a solid wall</b>:
 <div class="photo">
   <img src="images/wall_collision.png">
 </div>
+
+<p>You can already see what will happen in this case, if you look at one intersection at a time: the
+intersection box on the right is the smallest on the Z axis, and will therefore push the entity on that
+axis (which is what we would expect). The intersection on the left though, has X as its smallest axis,
+which will push the entity also on the X axis. In other word: <b>the entity will get stuck between the edges
+of voxels when sliding against a surface</b>.
 
 <p>/* ... */
 

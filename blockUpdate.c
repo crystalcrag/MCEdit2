@@ -97,8 +97,12 @@ static int mapGetRailNeighbors(Map map, DATA16 neighbors, vec4 pos)
 	return flags;
 }
 
-static int mapGetRailData(int curData, int flags)
+static int mapGetRailData(int blockId, int flags)
 {
+	static uint8_t curvedTo[] = {0, 0, 0, 6, 0, 0, 9, 0, 0, 7, 0, 0, 8};
+	uint8_t data = blockId & 15;
+	uint8_t curved = (blockId >> 4) == RSRAILS;
+	uint8_t powered = curved ? 0 : data & 8;
 	switch (flags & 15) {
 	case 1:
 	case 4:
@@ -106,21 +110,25 @@ static int mapGetRailData(int curData, int flags)
 	case 7:
 	case 13:
 		/* force a north/south direction */
-		return flags & 0x10 ? 5 : flags & 0x40 ? 4 : 0;
+		return powered | (flags & 0x10 ? 5 : flags & 0x40 ? 4 : 0);
 	case 2:
 	case 8:
 	case 10:
 	case 11:
 	case 14:
 		/* force a east/west direction */
-		return flags & 0x20 ? 2 : flags & 0x80 ? 3 : 1;
-	case 3:  return 6; /* curved to SE */
-	case 9:  return 7; /* curved to SW */
-	case 12: return 8; /* curved to NW */
-	case 6:  return 9; /* curved to NE */
-	default: return curData; /* use original direction */
+		return powered | (flags & 0x20 ? 2 : flags & 0x80 ? 3 : 1);
+	case 3:
+	case 9:
+	case 12:
+	case 6:
+		return curved ? curvedTo[flags & 15] : data;
+	default:
+		return data; /* use original direction */
 	}
 }
+
+#define RAILORIENT(blockId)    ((blockId >> 4) == RSRAILS ? blockId & 15 : blockId & 7)
 
 static void mapUpdateRails(Map map, vec4 pos, int blockId, DATA16 nbors)
 {
@@ -158,24 +166,26 @@ static void mapUpdateRails(Map map, vec4 pos, int blockId, DATA16 nbors)
 
 		mapGetNeigbors(map, loc, nbors2, 4);
 		flags2 = mapGetRailNeighbors(map, nbors2, loc) & ~15;
-		cnx = connect[id & 15];
+		cnx = connect[RAILORIENT(id)];
 		for (j = 0; j < 4; j ++)
 		{
 			uint16_t n = nbors2[j], flag = 1 << j;
 			if ((cnx & flag) == 0 || flag == opposite[i] || blockIds[n>>4].special != BLOCK_RAILS) continue;
-			if (connect[n & 15] & opposite[j]) flags2 |= flag;
+			if (connect[RAILORIENT(n)] & opposite[j]) flags2 |= flag;
 		}
 		if (popcount(flags2 & 15) < 2)
 		{
 			/* yes, we can */
 			flags2 |= opposite[i];
-			mapUpdate(map, loc, (id & ~15) | mapGetRailData(id & 15, flags2), NULL, False);
+			mapUpdate(map, loc, (id & ~15) | mapGetRailData(id, flags2), NULL, False);
 			data |= flags & (0x111 << i);
 			if (popcount(data&15) == 2) break;
 		}
 	}
-	mapSetData(map, pos, mapGetRailData(blockId & 15, data));
+	mapSetData(map, pos, mapGetRailData(blockId, data));
 }
+
+static void mapUpdateRailsChain(Map map, struct BlockIter_t iter, int id, int offset, int powered);
 
 static int8_t bedOffsetX[] = {0, -1,  0, 1};
 static int8_t bedOffsetZ[] = {1,  0, -1, 0};
@@ -224,6 +234,14 @@ void mapUpdateBlock(Map map, vec4 pos, int blockId, int oldBlockId, DATA8 tile)
 		case BLOCK_RAILS:
 			mapGetNeigbors(map, pos, neighbors, 6);
 			mapUpdateRails(map, pos, blockId, neighbors);
+			if ((blockId >> 4) == RSPOWERRAILS)
+			{
+				struct BlockIter_t iter;
+				mapInitIter(map, &iter, pos, False);
+				blockId = getBlockId(&iter);
+				mapUpdateRailsChain(map, iter, blockId, 0, 0);
+				mapUpdateRailsChain(map, iter, blockId, 4, 0);
+			}
 			break;
 		}
 	}
@@ -353,22 +371,22 @@ void mapUpdateBlock(Map map, vec4 pos, int blockId, int oldBlockId, DATA8 tile)
 	}
 }
 
-static void mapUpdateRailsChain(Map map, BlockIter iter, int id, int offset, int powered)
+static void mapUpdateRailsChain(Map map, struct BlockIter_t iter, int id, int offset, int powered)
 {
 	uint8_t power = powered;
 	uint8_t max;
 	for (max = 0; max < RSMAXDISTRAIL; max ++)
 	{
 		int8_t * next = railsNeigbors + (id & 7) * 8 + offset;
-		mapUpdateTable(iter, power ? (id&15) | 8 : id & ~0xffff8, DATA_OFFSET);
-		mapIter(iter, next[0], next[1], next[2]);
-		id = getBlockId(iter);
+		mapUpdateTable(&iter, power ? (id&15) | 8 : id & ~0xffff8, DATA_OFFSET);
+		mapIter(&iter, next[0], next[1], next[2]);
+		id = getBlockId(&iter);
 		if ((id >> 4) != RSPOWERRAILS)
 		{
 			/* check one block below: might be an ascending rail */
 			static uint8_t sideTop[] = {0xff, 0xff, SIDE_WEST, SIDE_EAST, SIDE_SOUTH, SIDE_NORTH, 0xff, 0xff};
-			mapIter(iter, 0, -1, 0);
-			id = getBlockId(iter);
+			mapIter(&iter, 0, -1, 0);
+			id = getBlockId(&iter);
 			if ((id >> 4) != RSPOWERRAILS)
 				break;
 			if (sideTop[id&7] != next[3])
@@ -383,10 +401,11 @@ static void mapUpdateRailsChain(Map map, BlockIter iter, int id, int offset, int
 			uint8_t i;
 			for (i = 0; i < 6; i ++)
 			{
-				if (redstoneIsPowered(*iter, i, POW_NORMAL))
+				if (redstoneIsPowered(iter, i, POW_NORMAL))
 				{
 					/* need to propagate the power from there now */
 					max = -1; power = 8; powered = 1;
+					offset = 4 - offset;
 					break;
 				}
 			}
@@ -399,13 +418,13 @@ static void mapUpdateRailsChain(Map map, BlockIter iter, int id, int offset, int
 		{
 			/* continue following the chain until we find the power source */
 			int8_t * next = railsNeigbors + (id & 7) * 8 + offset;
-			mapIter(iter, next[0], next[1], next[2]);
-			id = getBlockId(iter);
+			mapIter(&iter, next[0], next[1], next[2]);
+			id = getBlockId(&iter);
 			if ((id >> 4) == RSPOWERRAILS && (id&15) >= 8)
 			{
 				uint8_t i;
-				for (i = 0; i < 6 && ! redstoneIsPowered(*iter, i, POW_NORMAL); i ++);
-				if (i < 6) { mapUpdateRailsChain(map, iter, id, 4-offset, 4); break; }
+				for (i = 0; i < 6 && ! redstoneIsPowered(iter, i, POW_NORMAL); i ++);
+				if (i < 6) { mapUpdateRailsChain(map, iter, id, 4-offset, 8); break; }
 			}
 			else break;
 		}
@@ -424,15 +443,23 @@ void mapUpdatePowerRails(Map map, BlockIter iterator)
 	{
 		if (i == 6) return;
 		/* rails not powered, but has a power source nearby: update neighbor */
-		iter = *iterator; mapUpdateRailsChain(map, &iter, id, 0, 8);
-		iter = *iterator; mapUpdateRailsChain(map, &iter, id, 4, 8);
+		mapUpdateRailsChain(map, *iterator, id, 0, 8);
+		mapUpdateRailsChain(map, *iterator, id, 4, 8);
 	}
 	else if (i == 6)
 	{
 		/* rails powered with no power source nearby */
-		iter = *iterator; mapUpdateRailsChain(map, &iter, id, 0, 0);
-		iter = *iterator; mapUpdateRailsChain(map, &iter, id, 4, 0);
+		mapUpdateRailsChain(map, *iterator, id, 0, 0);
+		mapUpdateRailsChain(map, *iterator, id, 4, 0);
 	}
+}
+
+void mapUpdateDeleteRails(Map map, BlockIter iterator, int blockId)
+{
+	/* will be cleared properly later */
+	iterator->blockIds[iterator->offset] = 0;
+	mapUpdateRailsChain(map, *iterator, blockId, 0, 0);
+	mapUpdateRailsChain(map, *iterator, blockId, 4, 0);
 }
 
 /* power near fence gate/trapdoor/dropper/dispenser has changed */
@@ -933,6 +960,7 @@ void updateFinished(Map map, DATA8 tile, vec4 dest)
 	NBTIter_t iter;
 	float     src[3];
 	int       blockId, i;
+	uint8_t   flags = 0;
 
 	if (tile == NULL)
 	{
@@ -942,7 +970,7 @@ void updateFinished(Map map, DATA8 tile, vec4 dest)
 	}
 
 	NBT_IterCompound(&iter, tile);
-	uint8_t flags = 0;
+	blockId = 0;
 	while ((i = NBT_Iter(&iter)) >= 0 && flags != 15)
 	{
 		switch (FindInList("X,Y,Z,id", iter.name, 0)) {

@@ -258,6 +258,7 @@ enum                       /* common redstone devices */
 	RSPISTONHEAD   = 34,
 	RSPISTONEXT    = 36,
 	RSWIRE         = 55,
+	RSRAILS        = 66,   // TODO
 	RSLEVER        = 69,
 	RSTORCH_OFF    = 75,
 	RSTORCH_ON     = 76,

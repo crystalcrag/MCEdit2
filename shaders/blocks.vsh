@@ -60,9 +60,9 @@ void main(void)
 	/* ambient occlusion */
 	shadeOCS = 0;
 	switch ((info.y >> 6) & 3) {
-	case 1: shade -= 0.2; shadeOCS = 0.025; break;
-	case 2: shade -= 0.3; shadeOCS = 0.05; break;
-	case 3: shade -= 0.5; shadeOCS = 0.1; 
+	case 1: shade -= 0.1; shadeOCS = 0.025; break;
+	case 2: shade -= 0.2; shadeOCS = 0.05; break;
+	case 3: shade -= 0.3; shadeOCS = 0.1; 
 	}
 	skyLight   = float((info.y >> 12) & 15) / 15;
 	blockLight = float((info.y >> 8)  & 15) / 15;
@@ -74,7 +74,7 @@ void main(void)
 	else if (blockLight > skyLight)
 	{
 		/* diminish slightly ambient occlusion if there is blockLight overpowering skyLight */
-		shade += (blockLight - skyLight) * 0.35 +
+		shade += (blockLight - skyLight) * 0.2 +
 			/* cancel some of the shading per face */
 			(1 - shading[normal].x) * 0.5;
 		if (shade > 1) shade = 1;

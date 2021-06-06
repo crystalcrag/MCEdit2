@@ -328,7 +328,9 @@ static void mapUpdateSkyLightBlock(BlockIter iterator)
 	int8_t max, level, old, sky;
 	int    i;
 
+	sky = mapGetSky(iterator) - blockGetSkyOpacity(iter.blockIds[iter.offset], 0);
 	mapUpdateInitTrack(track);
+	mapUpdateTable(iterator, sky < 0 ? 0 : sky, SKYLIGHT_OFFSET);
 	track.unique = 1;
 
 	i = CHUNK_BLOCK_POS(iter.x, iter.z, 0);
@@ -1072,6 +1074,13 @@ static void mapUpdateDeleteRedstone(Map map, BlockIter iterator, int blockId)
 	case RSREPEATER_ON:
 		iterator->blockIds[iterator->offset] = 0;
 		mapUpdateChangeRedstone(map, iterator, blockSides.repeater[blockId & 3] ^ 2, NULL);
+		break;
+	case RSPOWERRAILS:
+		if (blockId & 8)
+		{
+			/* powered and about to be deleted */
+			mapUpdateDeleteRails(map, iterator, blockId);
+		}
 		break;
 	default:
 		/* this code will be executed whenever a solid block is deleted :-/ */

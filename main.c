@@ -278,7 +278,9 @@ int main(int nb, char * argv[])
 void mceditWorld(void)
 {
 	SDL_Event event;
+	#ifdef DEBUG
 	uint8_t   paused = 0;
+	#endif
 	uint8_t   ignore = 0;
 	uint8_t   capture = 0;
 	uint8_t   sunMove = 0;
@@ -563,12 +565,12 @@ void mceditUIOverlay(int type)
 	SIT_SetValues(mcedit.app, SIT_RefreshMode, SITV_RefreshAsNeeded, NULL);
 	mcuiTakeSnapshot(mcedit.app, mcedit.width, mcedit.height);
 
-	MapExtraData sel;
+	MapExtraData sel = NULL;
+	itemCount = 0;
 	switch (type) {
 	case MCUI_OVERLAY_BLOCK:
 		memcpy(oldPlayerInv, mcedit.player.inventory.items, sizeof oldPlayerInv);
 		sel = renderGetSelectedBlock(pos, NULL);
-		itemCount = 0;
 
 		if (mcedit.forceSel)
 		{

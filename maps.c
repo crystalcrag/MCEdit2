@@ -280,7 +280,7 @@ int getBlockId(BlockIter iter)
 }
 
 /* get bounding box from block pointed by iter */
-VTXBBox mapGetBBox(BlockIter iterator, int * count)
+VTXBBox mapGetBBox(BlockIter iterator, int * count, int * cnxFlags)
 {
 	*count = 0;
 	if (iterator->blockIds == NULL)
@@ -294,7 +294,6 @@ VTXBBox mapGetBBox(BlockIter iterator, int * count)
 
 	if (block->special == BLOCK_DOOR)
 	{
-		/* XXX need to use single block model intead :-/ */
 		struct BlockIter_t iter = *iterator;
 		int top;
 		if (id & 8)
@@ -313,6 +312,15 @@ VTXBBox mapGetBBox(BlockIter iterator, int * count)
 		if (id & 4) top = openDoorDataToModel[top];
 		id = (id & ~15) | top;
 	}
+	if (block->special == BLOCK_CHEST  ||
+		block->special == BLOCK_FENCE  ||
+		block->special == BLOCK_FENCE2 ||
+		block->special == BLOCK_GLASS)
+	{
+		*cnxFlags = mapGetConnect(iterator->cd, iterator->offset, blockGetById(id));
+	}
+	else *cnxFlags = 0xffff;
+
 	VTXBBox box = blockGetBBox(blockGetById(id));
 	if (box)
 	{
