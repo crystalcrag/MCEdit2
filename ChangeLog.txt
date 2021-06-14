@@ -1,4 +1,26 @@
+=========== Week 23 ===========
+Sun June 13:
+	* CUST mostly working, patching remaining broken features.
+
+Fri June 11:
+	* CUST refactoringc continued.
+
+Thu June 10:
+	* started CUST refactoring.
+
+Wed June 9:
+	* added QUAD to use new vertex data format.
+
+Tue June 8:
+	* vertex data refactoring continued: blocks and half-slab working.
+
+Mon June 7:
+	* vertex data refactoring continued.
+
 =========== Week 22 ===========
+Sun June 6:
+	* started vertex data refactoring (again): uses a geometry shader this time.
+
 Sat June 5:
 	* skylight not updated when placing opaque block.
 	* powered rails incorrect update in a lot of use cases.

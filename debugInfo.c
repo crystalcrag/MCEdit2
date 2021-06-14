@@ -124,58 +124,118 @@ void debugBlockVertex(Map map, SelBlock * select)
 	else fprintf(stderr, "no block selected");
 }
 
+static struct
+{
+	GLuint vao;
+	GLuint vbo;
+	GLuint vboLoc;
+	GLuint vboMDAI;
+	int    size, count;
+	int    X, Z;
+
+}	debugChunk;
+
 /* show limits of the chunk where the player is currently */
-void debugInit(Map map)
+void debugInit(void)
 {
 	/* debug chunk data: will use blocks.vsh */
-	ChunkData air = map->air;
+	glGenBuffers(3, &debugChunk.vbo);
+	glGenVertexArrays(1, &debugChunk.vao);
+	glBindVertexArray(debugChunk.vao);
+	glBindBuffer(GL_ARRAY_BUFFER, debugChunk.vbo);
+	glBufferData(GL_ARRAY_BUFFER, 16 * 4 * 4 * BYTES_PER_VERTEX, NULL, GL_STATIC_DRAW);
+	glVertexAttribIPointer(0, 3, GL_UNSIGNED_SHORT, BYTES_PER_VERTEX, 0);
+	glEnableVertexAttribArray(0);
+	glVertexAttribIPointer(1, 2, GL_UNSIGNED_SHORT, BYTES_PER_VERTEX, (void *) 6);
+	glEnableVertexAttribArray(1);
+	glBindBuffer(GL_ARRAY_BUFFER, debugChunk.vboLoc);
+	glBufferData(GL_ARRAY_BUFFER, 12 * CHUNK_LIMIT, NULL, GL_STATIC_DRAW);
+	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(2);
+	glVertexAttribDivisor(2, 1);
+	glBindVertexArray(0);
+	glBindBuffer(GL_ARRAY_BUFFER, debugChunk.vboMDAI);
+	glBufferData(GL_ARRAY_BUFFER, 16 * CHUNK_LIMIT, NULL, GL_STATIC_DRAW);
+	debugChunk.X = debugChunk.Z = 1 << 30;
+	debugChunk.size = 16 * 4 * 4;
 
-	if (! air->glBank)
+	DATA16 p;
+	int    i, j;
+
+	glBindBuffer(GL_ARRAY_BUFFER, debugChunk.vbo);
+	p = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
+
+	/* 4 faces */
+	for (i = 0; i < 4; i ++)
 	{
-		/* need to store vertex first */
-		uint16_t buffer[16 * 4 * 4 * INT_PER_VERTEX];
-		DATA16   p;
-		int      i, j;
-
-		/* 4 faces */
-		for (i = 0, p = buffer; i < 4; i ++)
+		uint8_t X = i & 1 ? 2  : 0;
+		uint8_t m = i > 1 ? 16 : 0;
+		uint8_t Z = 2 - X;
+		/* 16 vertical lines */
+		for (j = 0; j < 16; j ++)
 		{
-			uint8_t X = i & 1 ? 2  : 0;
-			uint8_t m = i > 1 ? 16 : 0;
-			uint8_t Z = 2 - X;
-			/* 16 vertical lines */
-			for (j = 0; j < 16; j ++)
-			{
-				p[X] = i == 1 || i == 2 ? VERTEX(16-j) : VERTEX(j);
-				p[1] = VERTEX(0);
-				p[Z] = VERTEX(m);
-				p[3] = (31*16+8) | (1 << 10);
-				p[4] = (6<<3) | (0xff << 8);
-				p += INT_PER_VERTEX;
-				memcpy(p, p - INT_PER_VERTEX, BYTES_PER_VERTEX);
-				p[1] = VERTEX(16);
-				p += INT_PER_VERTEX;
-			}
-			/* 16 horizontal lines */
-			for (j = 0; j < 16; j ++)
-			{
-				p[X] = VERTEX(0);
-				p[1] = VERTEX(j);
-				p[Z] = VERTEX(m);
-				p[3] = (31*16+8) | (j == 0 ? (2 << 10) : (1 << 10));
-				p[4] = (6<<3) | (0xff << 8);
-				p += INT_PER_VERTEX;
-				memcpy(p, p - INT_PER_VERTEX, BYTES_PER_VERTEX);
-				p[X] = VERTEX(16);
-				p += INT_PER_VERTEX;
-			}
+			p[X] = i == 1 || i == 2 ? VERTEX(16-j) : VERTEX(j);
+			p[1] = VERTEX(0);
+			p[Z] = VERTEX(m);
+			p[3] = (31*16+8) | (1 << 10);
+			p[4] = (6<<3) | (0xff << 8);
+			p += INT_PER_VERTEX;
+			memcpy(p, p - INT_PER_VERTEX, BYTES_PER_VERTEX);
+			p[1] = VERTEX(16);
+			p += INT_PER_VERTEX;
 		}
-
-		struct WriteBuffer_t write = {.start = buffer, .cur = p};
-		renderInitBuffer(air);
-		renderFlush(&write);
-		renderFinishMesh(False);
+		/* 16 horizontal lines */
+		for (j = 0; j < 16; j ++)
+		{
+			p[X] = VERTEX(0);
+			p[1] = VERTEX(j);
+			p[Z] = VERTEX(m);
+			p[3] = (31*16+8) | (j == 0 ? (2 << 10) : (1 << 10));
+			p[4] = (6<<3) | (0xff << 8);
+			p += INT_PER_VERTEX;
+			memcpy(p, p - INT_PER_VERTEX, BYTES_PER_VERTEX);
+			p[X] = VERTEX(16);
+			p += INT_PER_VERTEX;
+		}
 	}
+	glUnmapBuffer(GL_ARRAY_BUFFER);
+}
+
+void debugShowChunkBoundary(Chunk cur)
+{
+	if (cur->X != debugChunk.X || cur->Z != debugChunk.Z)
+	{
+		int     max = cur->maxy;
+		MDAICmd cmd;
+		float * loc;
+		int     i;
+
+		debugChunk.X = cur->X;
+		debugChunk.Z = cur->Z;
+		debugChunk.count = max;
+		glBindBuffer(GL_ARRAY_BUFFER, debugChunk.vboLoc);
+		glBindBuffer(GL_DRAW_INDIRECT_BUFFER, debugChunk.vboMDAI);
+		loc = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
+		cmd = glMapBuffer(GL_DRAW_INDIRECT_BUFFER, GL_WRITE_ONLY);
+
+		for (i = 0; i < max; cmd ++, loc += 3, i ++)
+		{
+			cmd->count = debugChunk.size;
+			cmd->instanceCount = 1;
+			cmd->first = 0;
+			cmd->baseInstance = i; /* needed by glVertexAttribDivisor() */
+
+			loc[0] = cur->X;
+			loc[1] = i*16;
+			loc[2] = cur->Z;
+		}
+		glUnmapBuffer(GL_ARRAY_BUFFER);
+		glUnmapBuffer(GL_DRAW_INDIRECT_BUFFER);
+	}
+	glUseProgram(render.shaderItems);
+	glBindVertexArray(debugChunk.vao);
+	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, debugChunk.vboMDAI);
+	glMultiDrawArraysIndirect(GL_LINES, 0, debugChunk.count, 0);
 }
 
 static void nvgMultiLineText(NVGcontext * vg, float x, float y, STRPTR start, STRPTR end)

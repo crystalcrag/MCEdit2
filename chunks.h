@@ -25,7 +25,7 @@ typedef void (*ChunkFlushCb_t)(WriteBuffer);
 void      chunkInitStatic(void);
 Bool      chunkLoad(Chunk, const char * path, int x, int z);
 Bool      chunkSave(Chunk, const char * path);
-void      chunkUpdate(Chunk update, ChunkData air, int layer, ChunkFlushCb_t cb);
+void      chunkUpdate(Chunk update, ChunkData air, int layer);
 int       chunkFree(Chunk);
 ChunkData chunkCreateEmpty(Chunk, int layer);
 DATA8     chunkGetTileEntity(Chunk, int * XYZ);

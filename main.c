@@ -206,7 +206,7 @@ int main(int nb, char * argv[])
 		return 1;
 	}
 
-	fprintf(stderr, "GL version = %s\n", (STRPTR) glGetString(GL_VERSION));
+	fprintf(stderr, "GL version = %s - vendor = %s\n", (STRPTR) glGetString(GL_VERSION), (STRPTR) glGetString(GL_RENDERER));
 
 	mcedit.app = SIT_Init(SIT_NVG_FLAGS, mcedit.width, mcedit.height, RESDIR INTERFACE "default.css", 1);
 
@@ -335,7 +335,7 @@ void mceditWorld(void)
 					break;
 				case SDLK_F7:
 					breakPoint = ! breakPoint;
-					renderPointToBlock(560, 320);
+					renderDebugBank();
 					break;
 				case SDLK_EQUALS:
 				case SDLK_PLUS:

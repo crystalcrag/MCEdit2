@@ -173,7 +173,7 @@ void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DAT
 {
 	int16_t offset[6];
 	uint8_t pos[4];
-	DATA16  out;
+	DATA32  out;
 	DATA8   xsides, ysides, zsides;
 	DATA8   faces, face;
 	int     total, i, j, k, texSz;
@@ -288,7 +288,7 @@ void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DAT
 				else break;
 			}
 
-			if (write->end - out < 6*BYTES_PER_VERTEX)
+			if (write->end - out < VERTEX_DATA_SIZE)
 			{
 				write->cur = out;
 				write->flush(write);
@@ -297,50 +297,74 @@ void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DAT
 
 			#undef  VERTEX
 			#define VERTEX(x)     ((x) * (BASEVTX/2) + ORIGINVTX)
-			#define IPV           INT_PER_VERTEX
 
-			/* add rect [pos x rect] to mesh (4 vertices) */
+			/* add rect [pos x rect] to mesh */
 			DATA8 UV = tex + (j << 1);
-			for (k = 0, face2 = cubeIndices + j * 4; k < 8; k += 2, face2 ++)
+			if (j == 1) rect[0] ++;
+			if (j == 4) rect[1] ++;
+			if (j == 0) rect[2] ++;
+
 			{
 				static uint8_t coordU[] = {0, 2, 0, 2, 0, 0};
 				static uint8_t coordV[] = {1, 1, 1, 1, 2, 2};
 				static uint8_t invUV[]  = {0, 1, 1, 0, 2, 0};
-				int8_t vtx[4];
-				memcpy(vtx, pos, sizeof vtx);
-				DATA8 idx = vertex + *face2;
-				if (idx[0]) vtx[0] += rect[0]+(j==1);
-				if (idx[1]) vtx[1] += rect[1]+(j==4);
-				if (idx[2]) vtx[2] += rect[2]+(j==0);
+				uint16_t X1, Y1, Z1, U, V, Usz, Vsz;
+				uint8_t  vtx[4];
+				#define  base     vtx[4]
 
-				out[0] = VERTEX(vtx[0]+xyz[0]);
-				out[1] = VERTEX(vtx[1]+xyz[1]);
-				out[2] = VERTEX(vtx[2]+xyz[2]);
+				face2 = cubeIndices + j * 4;
+				DATA8 idx = vertex + face2[3];
+				/* first vertex */
+				X1 = VERTEX(pos[0] + (idx[0] * rect[0]) + xyz[0]);
+				Y1 = VERTEX(pos[1] + (idx[1] * rect[1]) + xyz[1]);
+				Z1 = VERTEX(pos[2] + (idx[2] * rect[2]) + xyz[2]);
+				out[0] = X1 | (Y1 << 16);
 
-				vtx[4] = vtx[coordU[j]] << texSz;
-				int U = (UV[0] << 4) + (invUV[j] == 1 ? 16 - vtx[4] : vtx[4]);  vtx[4] = vtx[coordV[j]] << texSz;
-				int V = (UV[1] << 4) + (invUV[j] != 2 ? 16 - vtx[4] : vtx[4]);
-				out[3] = U | ((V & ~7) << 6);
-				out[4] = (V & 7) | (j << 3);
+				/* second vertex */
+				idx = vertex + face2[0];
+				vtx[0] = pos[0] + (idx[0] * rect[0]);
+				vtx[1] = pos[1] + (idx[1] * rect[1]);
+				vtx[2] = pos[2] + (idx[2] * rect[2]);
+				out[1] = Z1 | (RELDX(vtx[0] + xyz[0]) << 16);
+				out[2] = RELDY(vtx[1] + xyz[1]) | (RELDZ(vtx[2] + xyz[2]) << 14);
 
-				uint8_t off = j * 16 + k * 2;
-				uint8_t max, l, skyval;
-				for (l = skyval = max = 0; l < 4; l ++, off ++)
+				/* UV coord */
+				base = vtx[coordU[j]] << texSz; U = (UV[0] << 4) + (invUV[j] == 1 ? 16 - base : base);
+				base = vtx[coordV[j]] << texSz; V = (UV[1] << 4) + (invUV[j] != 2 ? 16 - base : base);
+
+				/* third vertex */
+				idx = vertex + face2[2];
+				vtx[0] = pos[0] + (idx[0] * rect[0]);
+				vtx[1] = pos[1] + (idx[1] * rect[1]);
+				vtx[2] = pos[2] + (idx[2] * rect[2]);
+
+				out[3] = RELDX(vtx[0] + xyz[0]) | (RELDY(vtx[1] + xyz[1]) << 14) | ((V & 512) << 19);
+				out[4] = RELDZ(vtx[2] + xyz[2]) | (U << 14) | (V << 23);
+
+				/* tex size and normal */
+				base = vtx[coordU[j]] << texSz; Usz = (UV[0] << 4) + (invUV[j] == 1 ? 16 - base : base);
+				base = vtx[coordV[j]] << texSz; Vsz = (UV[1] << 4) + (invUV[j] != 2 ? 16 - base : base);
+				out[5] = ((Usz + 128 - U) << 16) | ((Vsz + 128 - V) << 24) | (j << 8);
+				out[6] = 0;
+
+				/* skylight, blocklight, ocs */
+				for (k = 0; k < 4; k ++)
 				{
-					uint8_t  skyvtx = skyBlock[skyBlockOffset[off]];
-					uint16_t light  = skyvtx & 15;
-					skyvtx &= 0xf0;
-					/* max for block light */
-					if (max < light) max = light;
-					if (skyvtx > 0 && (skyval > skyvtx || skyval == 0)) skyval = skyvtx;
+					uint8_t off = j * 16 + k * 4;
+					uint8_t max, l, skyval;
+					for (l = skyval = max = 0; l < 4; l ++, off ++)
+					{
+						uint8_t  skyvtx = skyBlock[skyBlockOffset[off]];
+						uint16_t light  = skyvtx & 15;
+						skyvtx &= 0xf0;
+						/* max for block light */
+						if (max < light) max = light;
+						if (skyvtx > 0 && (skyval > skyvtx || skyval == 0)) skyval = skyvtx;
+					}
+					out[6] |= (skyval | max) << (k << 3);
 				}
-				out[4] |= (skyval | max) << 8;
-
-				out += IPV;
 			}
-			memcpy(out,     out - 4*IPV, BYTES_PER_VERTEX);
-			memcpy(out+IPV, out - 2*IPV, BYTES_PER_VERTEX);
-			out += 2*IPV;
+			out += VERTEX_INT_SIZE;
 		}
 	}
 	write->cur = out;

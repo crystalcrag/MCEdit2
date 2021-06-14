@@ -1,0 +1,160 @@
+/*
+ * default.css: stylesheet for internals.html
+ *
+ * written by T.Pierron, may 2020.
+ */ 
+
+html { font-family: Georgia, serif; margin: 0; padding: 0; font-size: 1.2vw }
+body { counter-reset: h2; padding-left: 18%; padding-top: 40px; background: url("images/bg.jpg") fixed; background-size: 100% 100%; margin: 0 }
+div#content { width: 80%; margin: 0 auto; padding: 60px 10px 60px; border: 32px solid #eee; border-width: 46px 43px 45px 32px;
+              border-image: url(images/Book_and_Quill.png) 46 43 45 32 fill stretch round; box-shadow: 0 0 10px black inset, 0 0 10px black }
+:nth-page(1) p { margin: 80px 0 }
+:nth-page(n+2) body { padding-top: 10px }
+p { text-align: justify; margin-left: 40px; margin-right: 10px }
+dd { margin-left: 40px; text-align: justify }
+dt { margin-left: 40px; page-break-after: avoid }
+h1 { background: black; color: white; padding: 9px 0 9px 40px; margin: 0 60px; text-align: center;
+   box-shadow: #888 5px 5px 5px }
+h1 span { font-variant: small-caps }
+h2 { counter-reset: h3; border-bottom: 3px solid; page-break-before: always; margin-top: 80px; margin-left: 40px }
+h3 { counter-reset: h4; page-break-after: avoid; margin-left: 40px }
+h4 { page-break-after: avoid; margin-left: 40px }
+h5 { margin-left: 40px; text-align: center }
+h5::after { content: ""; width: 50%; display: block; border-bottom: 2px solid black; margin: 2px auto }
+h2:before { counter-increment: h2; content: counter(h2) ". "; font-size: 2em }
+h3 span:before { counter-increment: h3; content: counter(h2) "." counter(h3) ". " }
+h3 { border-bottom: 1px solid #555; }
+h4:before { counter-increment: h4; content: counter(h2) "." counter(h3) "." counter(h4) ". " }
+#abstract { font-size: 1.3em; font-style: italic; border-top: 1px solid black; border-bottom: 1px solid black; margin: 120px 40px; text-shadow: 2px 2px rgba(0,0,0,0.1) }
+#auth { text-align: center; margin-bottom: 200px }
+dt { border-bottom: 2px groove #ccc; font-weight: bold; padding: 2px 0; margin-left: 40px; margin-top: 10px; page-break-after: avoid }
+pre { margin: 20px 50px; border: 5px solid rgba(0,0,0,0.3); border-width: 1px 1px 1px 5px; background: rgba(255,255,255,0.3);
+	padding: 10px 20px; font-family: monospace; tab-size: 4 }
+tt { font-weight: bold }
+table pre { margin: 0 }
+#content h2:first-child { page-break-before: auto }
+.nowrap { white-space: nowrap }
+table { margin-left: 40px }
+.sep { text-align: center; margin: -20px 0 -10px }
+.sep::after { content: "~"; color: #ccc; font-size: 4em }
+hr { width: 40% }
+
+.error { font-weight: bold; color: red }
+dd ol { margin-left: 60px }
+dd ol > li { margin-bottom: 5px }
+ul p, ol p, table p { margin-left: 0 }
+img { vertical-align: middle }
+blockquote { margin-left: 60px; font-style: italic; border-left: 10px solid #ccc; padding-left: 5px }
+table.selfref, ul, ol { margin-left: 40px }
+table.selfref td { padding-bottom: 8px }
+table.selfref ul, table.selfref ol { margin-left: 20px }
+ul.selfref { list-style-type: none }
+.selfref .marker { margin-right: 5px }
+li { margin-bottom: 15px }
+dim { color: rgba(0,0,0,0.3) }
+.key { background-color: #ddd; font-family: monospace; padding: 0px 3px; border-radius: 5px; border: 1px outset #860 }
+.image.vspace { margin-top: 40px; margin-bottom: 50px }
+.photo, .image { position: relative; margin: 20px 40px; text-align: center }
+.image img { margin: 0 auto }
+cap { font-size: 0.9em }
+.image > div,
+.image img { margin-left: 0 10px; display: block; box-shadow: #555 0 0 5px; border: 2px solid black }
+.marker { border: 2px solid orange; border-radius: 50%; padding: 0 5px; background-color: green; color: white; font-weight: bold;
+		box-shadow: black 0 0 5px; text-decoration: none }
+.marker.alt { border: 0; background-color: transparent; border-radius: 0; box-shadow: none; margin-right: 1em }
+.marker.alt::before { border: 2px solid red; background-color: blue; border-radius: 0; transform: rotate(45deg);
+					position: absolute; width: 1em; height: 1em; content: ""; box-shadow: black 0 0 5px; z-index: 1 }
+.marker.alt::after { content: attr(num); position: relative; z-index: 2; color: white; left: 0.3em }
+.marker.fat { padding: 1px 2px }
+.marker.small { font-size: 0.8em }
+.markerv { border-left: 1px solid #66f; position: absolute; top: 0; bottom: 0 }
+.image .marker { position: absolute }
+.image .marker.alt .lined,
+.image .marker.alt .lineu,
+.image .marker.alt .linel,
+.image .marker.alt .liner { border-color: red }
+.image .marker.alt .lineu { margin-left: 4px }
+.image .marker .lined { border-left: 2px solid orange; position: absolute; left: 50%; top: 100%; box-shadow: black 0 0 5px }
+.image .marker .lineu { border-left: 2px solid orange; position: absolute; left: 50%; bottom: 100%; box-shadow: black 0 0 5px }
+.image .marker .liner { border-bottom: 2px solid orange; position: absolute; left: 100%; top: 50%; box-shadow: black 0 0 5px }
+.image .marker .linel { border-bottom: 2px solid orange; position: absolute; right: 100%; top: 50%; box-shadow: black 0 0 5px }
+.image .rect { border: 2px solid orange; position: absolute; box-shadow: black 0 0 5px }
+.center { text-align: center }
+a { color: brown }
+prod { font-style: italic; color: blue; font-weight: bold }
+note { background-color: yellow }
+#toc { position: fixed; top: 0; left: 0; width: 18%; bottom: 0; overflow: auto; color: white; border-right: 2px solid rgba(255,255,255,0.2);
+	 background: linear-gradient(to right, rgba(0,0,0,0.3), rgba(0,0,0,0.7)), url(images/dirt.png); background-size: 100% 100%, 64px 64px;
+	 padding: 20px; box-sizing: border-box; counter-reset: tocH2 }
+table td { vertical-align: baseline }
+#info th { text-align: right; vertical-align: baseline }
+#toc a:hover span { text-decoration-style: solid; text-decoration: underline; color: #99ee28 }
+#toc a { display: block; margin: 5px 0; color: white; text-decoration: none }
+#toc a.sub1 span { text-decoration: underline; text-decoration-style: dotted }
+#toc a.sub1 { counter-reset: tocH3 }
+#toc a.sub2 { margin-left: 60px; counter-reset: tocH4 }
+#toc a.sub3 { margin-left: 60px; color: #ccc }
+#toc a.sub4 { margin-left: 90px; color: #ccc }
+#toc a.sub1::before { counter-increment: tocH2; content: counter(tocH2) ". " }
+#toc a.sub2::before { counter-increment: tocH3; content: counter(tocH2) "." counter(tocH3) ". ";
+					position: absolute; left: 35px; width: 40px; text-align: right }
+#toc a.sub3::before { counter-increment: tocH4; content: counter(tocH2) "." counter(tocH3) "." counter(tocH4) ". " }
+
+p.warning { font-family: sans-serif; font-weight: bold; color: red; font-size: 0.9em; margin-left: 60px; margin-right: 20px }
+
+.listview { border-collapse: collapse; margin-left: 40px }
+.listview td { border: 2px solid black }
+.listview caption { padding: 10px; font-weight: bold; border: 2px solid black; border-bottom: 0 }
+.listview caption.small { border: 0 }
+.listview caption.small::after { content: ""; width: 50%; display: block; border-bottom: 2px solid black; margin: 2px auto }
+.listview ul { margin-left: 0 }
+.listview thead td { background-color: black; color: white; text-align: center }
+.listview.BC2 tbody td:nth-child(n+2) { text-align: center }
+.listview.pad td { padding: 3px 8px }
+
+.danger { background-color: yellow; border: 1px solid #FF8800; border-width: 1px 0; color: red }
+.warn   { color: #aaa }
+code    { background-color: white; border: 1px solid #888; padding: 2px 5px }
+sans    { font-family: sans-serif }
+usrcls  { background-color: crimson; border-radius: 1em; padding: 0 0.5em; font-size: 0.8em; font-family: sans-serif; color: white }
+.fig { text-align: center }
+.fig cap { display: block; font-size: 0.8em }
+
+.imgcaption { display: inline-block }
+.imgcaption img { display: block; margin: 0 auto }
+.imgcaption .caption { display: block; text-align: center; font-size: 0.9em }
+.imgcaption.margin { margin-left: 40px }
+
+bits { display: block; margin: 20px 0 40px 80px }
+brow { display: block; margin-bottom: 1.5em }
+bitpart em { color: blue }
+bitpart { display: inline-block; border-bottom: 2px solid black; text-align: center; position: relative }
+bitpart::before { content: ""; height: 10px; border-left: 2px solid black; left: 0; bottom: 0; position: absolute }
+bitpart::after { content: attr(bit); left: -0.5em; bottom: -1.2em; position: absolute; color: gray }
+bitpart.sz0  { width: 2px; color: transparent }
+bitpart.sz1  { width: 15px }
+bitpart.sz3  { width: 45px }
+bitpart.sz4  { width: 60px }
+bitpart.sz8  { width: 120px }
+bitpart.sz9  { width: 135px }
+bitpart.sz10 { width: 150px }
+bitpart.sz12 { width: 180px }
+bitpart.sz16 { width: 240px }
+
+table.skewed { transform: skewx(-35deg); transform-origin: 0 100%; margin-bottom: 5px; box-shadow: 18px 15px rgba(0,0,0,0.1) }
+table.skewed td { border-width: 2px; padding: 5px; width: 30px; text-align: center; font-family: monospace }
+table { border-collapse: collapse }
+table thead td { background-color: black; color: white }
+table td { border: 1px solid black; padding: 3px }
+.c  { color:#2222AA }
+.i  { color:#54AAAA }
+.d  { color:#A600F7 }
+.o  { color:#FF00FF }
+.s  { color:#7700FF }
+.t  { color:#146A31; font-weight:bold }
+.k  { color:#A62828; font-weight:bold }
+.e  { color:#FFFFFF; background-color:#FF3333 }
+.n  { color:black;   background-color:#FFFF00 }
+.h  { font-weight: bold }
+
+.shortcut { background-color: white; font-family: monospace; padding: 0px 3px; border-radius: 5px; border: 1px outset #860 }

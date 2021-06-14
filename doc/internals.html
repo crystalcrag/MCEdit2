@@ -3,146 +3,7 @@
 <html>
 <head>
   <title>Internals</title>
-  <style type="text/css">
-  html { font-family: Georgia, serif; margin: 0; padding: 0; font-size: 1.2vw }
-  body { counter-reset: h2; padding-left: 18%; padding-top: 40px; background: url("images/bg.jpg") fixed; background-size: 100% 100%; margin: 0 }
-  div#content { width: 80%; margin: 0 auto; padding: 60px 10px 60px; border: 32px solid #eee; border-width: 46px 43px 45px 32px; border-image: url(images/Book_and_Quill.png) 46 43 45 32 fill stretch round ;
-  box-shadow: 0 0 10px black inset, 0 0 10px black }
-  :nth-page(1) p { margin: 80px 0 }
-  :nth-page(n+2) body { padding-top: 10px }
-  p { text-align: justify; margin-left: 40px; margin-right: 10px }
-  dd { margin-left: 40px; text-align: justify }
-  dt { margin-left: 40px; page-break-after: avoid }
-  h1 { background: black; color: white; padding: 9px 0 9px 40px; margin: 0 60px; text-align: center;
-       box-shadow: #888 5px 5px 5px }
-  h1 span { font-variant: small-caps }
-  h2 { counter-reset: h3; border-bottom: 3px solid; page-break-before: always; margin-top: 80px; margin-left: 40px }
-  h3 { counter-reset: h4; page-break-after: avoid; margin-left: 40px }
-  h4 { page-break-after: avoid; margin-left: 40px }
-  h5 { margin-left: 40px; text-align: center }
-  h5::after { content: ""; width: 50%; display: block; border-bottom: 2px solid black; margin: 2px auto }
-  h2:before { counter-increment: h2; content: counter(h2) ". "; font-size: 2em }
-  h3 span:before { counter-increment: h3; content: counter(h2) "." counter(h3) ". " }
-  h3 { border-bottom: 1px solid #555; }
-  h4:before { counter-increment: h4; content: counter(h2) "." counter(h3) "." counter(h4) ". " }
-  #abstract { font-size: 1.3em; font-style: italic; border-top: 1px solid black; border-bottom: 1px solid black; margin: 120px 40px; text-shadow: 2px 2px rgba(0,0,0,0.1) }
-  #auth { text-align: center; margin-bottom: 200px }
-  dt { border-bottom: 2px groove #ccc; font-weight: bold; padding: 2px 0; margin-left: 40px; margin-top: 10px; page-break-after: avoid }
-  pre { margin: 20px 50px; border: 5px solid rgba(0,0,0,0.3); border-width: 1px 1px 1px 5px; background: rgba(255,255,255,0.3);
-        padding: 10px 20px; font-family: monospace; tab-size: 4 }
-  tt { font-weight: bold }
-  table pre { margin: 0 }
-  #content h2:first-child { page-break-before: auto }
-  .nowrap { white-space: nowrap }
-  table { margin-left: 40px }
-  .sep { text-align: center; margin: -20px 0 -10px }
-  .sep::after { content: "~"; color: #ccc; font-size: 4em }
-  hr { width: 40% }
-
-  .error { font-weight: bold; color: red }
-  dd ol { margin-left: 60px }
-  dd ol > li { margin-bottom: 5px }
-  ul p, ol p, table p { margin-left: 0 }
-  img { vertical-align: middle }
-  blockquote { margin-left: 60px; font-style: italic; border-left: 10px solid #ccc; padding-left: 5px }
-  table.selfref, ul, ol { margin-left: 40px }
-  table.selfref td { padding-bottom: 8px }
-  table.selfref ul, table.selfref ol { margin-left: 20px }
-  ul.selfref { list-style-type: none }
-  .selfref .marker { margin-right: 5px }
-  li { margin-bottom: 15px }
-  dim { color: rgba(0,0,0,0.3) }
-  .key { background-color: #ddd; font-family: monospace; padding: 0px 3px; border-radius: 5px; border: 1px outset #860 }
-  .image.vspace { margin-top: 40px; margin-bottom: 50px }
-  .photo, .image { position: relative; margin: 20px 40px; text-align: center }
-  .image img { margin: 0 auto }
-  cap { font-size: 0.9em }
-  .image > div,
-  .image img { margin-left: 0 10px; display: block; box-shadow: #555 0 0 5px; border: 2px solid black }
-  .marker { border: 2px solid orange; border-radius: 50%; padding: 0 5px; background-color: green; color: white; font-weight: bold;
-            box-shadow: black 0 0 5px; text-decoration: none }
-  .marker.alt { border: 0; background-color: transparent; border-radius: 0; box-shadow: none; margin-right: 1em }
-  .marker.alt::before { border: 2px solid red; background-color: blue; border-radius: 0; transform: rotate(45deg);
-                        position: absolute; width: 1em; height: 1em; content: ""; box-shadow: black 0 0 5px; z-index: 1 }
-  .marker.alt::after { content: attr(num); position: relative; z-index: 2; color: white; left: 0.3em }
-  .marker.fat { padding: 1px 2px }
-  .marker.small { font-size: 0.8em }
-  .markerv { border-left: 1px solid #66f; position: absolute; top: 0; bottom: 0 }
-  .image .marker { position: absolute }
-  .image .marker.alt .lined,
-  .image .marker.alt .lineu,
-  .image .marker.alt .linel,
-  .image .marker.alt .liner { border-color: red }
-  .image .marker.alt .lineu { margin-left: 4px }
-  .image .marker .lined { border-left: 2px solid orange; position: absolute; left: 50%; top: 100%; box-shadow: black 0 0 5px }
-  .image .marker .lineu { border-left: 2px solid orange; position: absolute; left: 50%; bottom: 100%; box-shadow: black 0 0 5px }
-  .image .marker .liner { border-bottom: 2px solid orange; position: absolute; left: 100%; top: 50%; box-shadow: black 0 0 5px }
-  .image .marker .linel { border-bottom: 2px solid orange; position: absolute; right: 100%; top: 50%; box-shadow: black 0 0 5px }
-  .image .rect { border: 2px solid orange; position: absolute; box-shadow: black 0 0 5px }
-  .center { text-align: center }
-  a { color: brown }
-  prod { font-style: italic; color: blue; font-weight: bold }
-  note { background-color: yellow }
-  #toc { position: fixed; top: 0; left: 0; width: 18%; bottom: 0; overflow: auto; color: white; border-right: 2px solid rgba(255,255,255,0.2);
-         background: linear-gradient(to right, rgba(0,0,0,0.3), rgba(0,0,0,0.7)), url(images/dirt.png); background-size: 100% 100%, 64px 64px;
-         padding: 20px; box-sizing: border-box; counter-reset: tocH2 }
-  table td { vertical-align: baseline }
-  #info th { text-align: right; vertical-align: baseline }
-  #toc a:hover span { text-decoration-style: solid; text-decoration: underline; color: #99ee28 }
-  #toc a { display: block; margin: 5px 0; color: white; text-decoration: none }
-  #toc a.sub1 span { text-decoration: underline; text-decoration-style: dotted }
-  #toc a.sub1 { counter-reset: tocH3 }
-  #toc a.sub2 { margin-left: 60px; counter-reset: tocH4 }
-  #toc a.sub3 { margin-left: 60px; color: #ccc }
-  #toc a.sub4 { margin-left: 90px; color: #ccc }
-  #toc a.sub1::before { counter-increment: tocH2; content: counter(tocH2) ". " }
-  #toc a.sub2::before { counter-increment: tocH3; content: counter(tocH2) "." counter(tocH3) ". ";
-                        position: absolute; left: 35px; width: 40px; text-align: right }
-  #toc a.sub3::before { counter-increment: tocH4; content: counter(tocH2) "." counter(tocH3) "." counter(tocH4) ". " }
-
-  p.warning { font-family: sans-serif; font-weight: bold; color: red; font-size: 0.9em; margin-left: 60px; margin-right: 20px }
-
-  .listview { border-collapse: collapse; margin-left: 40px }
-  .listview td { border: 2px solid black }
-  .listview caption { padding: 10px; font-weight: bold; border: 2px solid black; border-bottom: 0 }
-  .listview caption.small { border: 0 }
-  .listview caption.small::after { content: ""; width: 50%; display: block; border-bottom: 2px solid black; margin: 2px auto }
-  .listview ul { margin-left: 0 }
-  .listview thead td { background-color: black; color: white; text-align: center }
-  .listview.BC2 tbody td:nth-child(n+2) { text-align: center }
-  .listview.pad td { padding: 3px 8px }
-
-  .danger { background-color: yellow; border: 1px solid #FF8800; border-width: 1px 0; color: red }
-  .warn   { color: #aaa }
-  code    { background-color: white; border: 1px solid #888; padding: 2px 5px }
-  sans    { font-family: sans-serif }
-  usrcls  { background-color: crimson; border-radius: 1em; padding: 0 0.5em; font-size: 0.8em; font-family: sans-serif; color: white }
-  .fig { text-align: center }
-  .fig cap { display: block; font-size: 0.8em }
-
-  .imgcaption { display: inline-block }
-  .imgcaption img { display: block; margin: 0 auto }
-  .imgcaption .caption { display: block; text-align: center; font-size: 0.9em }
-  .imgcaption.margin { margin-left: 40px }
-
-  table.skewed { transform: skewx(-35deg); transform-origin: 0 100%; margin-bottom: 5px; box-shadow: 18px 15px rgba(0,0,0,0.1) }
-  table.skewed td { border-width: 2px; padding: 5px; width: 30px; text-align: center; font-family: monospace }
-  table { border-collapse: collapse }
-  table thead td { background-color: black; color: white }
-  table td { border: 1px solid black; padding: 3px }
-  .c  { color:#2222AA }
-  .i  { color:#54AAAA }
-  .d  { color:#A600F7 }
-  .o  { color:#FF00FF }
-  .s  { color:#7700FF }
-  .t  { color:#146A31; font-weight:bold }
-  .k  { color:#A62828; font-weight:bold }
-  .e  { color:#FFFFFF; background-color:#FF3333 }
-  .n  { color:black;   background-color:#FFFF00 }
-  .h  { font-weight: bold }
-
-  .shortcut { background-color: white; font-family: monospace; padding: 0px 3px; border-radius: 5px; border: 1px outset #860 }
-  </style>
+  <link rel="stylesheet" type="text/css" href="default.css">
 </head>
 <body>
 
@@ -173,6 +34,8 @@
 <a class="sub1" href="#opengl"><span>Advanced OpenGL</a>
   <a class="sub2" href="#translucency"><span>Alpha transparency</span></a>
   <a class="sub2" href="#gpubanks"><span>Managing chunks on the GPU</span></a>
+    <a class="sub3" href="#vtxbuffers"><span>Vertex buffers</span></a>
+    <a class="sub3" href="#vtxdata"><span>Vertex data</span></a>
 
 <a class="sub1" href="#nbt2"><span>NBT API</a>
 
@@ -1145,7 +1008,7 @@ objects) stored on the GPU (as of writing this, there are 20Mb in size). This se
 using a custom allocator, where the meta-data used to track free/used memory is of course stored on
 the CPU.
 
-<h4>Vertex buffers</h4>
+<h4 id="vtxbuffers">Vertex buffers</h4>
 
 <p>The code is located in <tt>render.c:renderStoreArrays()</tt> and <tt>render.c:renderFreeArray</tt>,
 and their sole purpose is to behave like a custom <tt>malloc()</tt> and <tt>free()</tt>. The only
@@ -1174,13 +1037,72 @@ difference is that the actual memory is owned by the GPU.
 "sort" them by <tt>GPUBank</tt> and fill-in the <tt>glMultiDrawArraysIndirect()</tt> data structures.
 There are 2: one for the indirect command (16 bytes per chunk) and one for model data (12 bytes per
 chunk, ie: 3 floats). This VBO model is part of the VAO of the <tt>GPUBank</tt>, but has a <tt>glVertexAttribDivisor()</tt>
-set to 1 (ie: only grab one vertex data per instance). It simply contain the position to offset all
-the triangles of that <tt>ChunkData</tt>, so that they appear where they should on screen.
+set to 1 (ie: only grab one vertex data per instance). It simply contains the position to offset all
+the triangles of that <tt>ChunkData</tt>.
 
 <p>There is one particular parameter that is critical to track though: it is the number of commands
-that will be issued in a single <tt>glMultiDrawArraysIndirect()</tt> call.
+that will be issued in a single <tt>glMultiDrawArraysIndirect()</tt> call (<tt>vtxSize</tt>), knowing
+that if a chunk has opaque and translucent fragment, that will increase that number by 2.
 
-<h4>Vertex data</h4>
+<p>Knowing the total number of draw commands is critical in setting up the <tt>glMultiDrawArraysIndirect()</tt>
+command buffer, particularly the <tt>baseInstance</tt> field. Translucent chunk commands need to be
+filled from end to start in this buffer (because frustum culling sort them from front to back). If that
+<tt>vtxSize</tt> is incorrect, <tt>baseInstance</tt> will be off, and translucent fragment will not
+appear where they should.
+
+
+<h4 id="vtxdata">Vertex data</h4>
+
+<p>This section will describe how vertex data are stored on the GPU. Being the central piece of any
+voxel engine, this part had a decent amount of thoughts put into it (and quite a few refactoring).
+
+<p>Terrain meshes <b>only need quads to be rendered</b> (not necessarily axis aligned), and since there are a
+lot of them you'll want to store them efficiently: a typical <prod>Minecraft</prod> world with 16 chunks
+loaded surrounding the player (that is an area of 32x32 chunks) usually contains around 2,000,000 quads
+(not all of them will be rendered at once), or 16M vertices.
+
+<p>If you were to store the vertex data (coordinates, texture UV and some meta data) as floats, that
+would required about 400 Mb of data. While even a GPU from 2010 can easily handle this kind of load,
+reducing the amount of data means we could push the render distance way farther than this.
+
+<p>This engine manage use compress each quad down to 24 bytes (stored as 6 32bit unsigned integer),
+that means viewing a world on a far render distnace (16 chunks) usually requires about 50Mb of memory
+on the GPU side: that's actually not very much.
+
+<p>The format of each quad is as follows (stored in VBO as 6 <tt class="t">uint32_t</tt>):
+
+<bits>
+  <brow><bitpart class="sz8" bit="32">8: <em>Z1</em></bitpart><bitpart class="sz12" bit="24">12: <em>Y1</em></bitpart><bitpart class="sz12" bit="12">12: <em>X1</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
+
+  <brow><bitpart class="sz4" bit="32">4: <em>Z2</em></bitpart><bitpart class="sz12" bit="28">12: <em>Y2</em></bitpart><bitpart class="sz12" bit="16">12: <em>X2</em></bitpart><bitpart class="sz4" bit="4">4: <em>Z1</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
+
+  <brow><bitpart class="sz12" bit="32">12: <em>Y3</em></bitpart><bitpart class="sz12" bit="20">12: <em>X3</em></bitpart><bitpart class="sz8" bit="8">8: <em>Z2</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
+
+  <brow><bitpart class="sz1">&nbsp;</bitpart><bitpart class="sz10" bit="31">10: <em>V</em></bitpart><bitpart class="sz9" bit="21">9: <em>U</em></bitpart><bitpart class="sz12" bit="12">12: <em>Z3</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
+
+  <brow><bitpart class="sz8" bit="32">8: <em>Vsz</em></bitpart><bitpart class="sz8" bit="24">8: <em>Usz</em></bitpart><bitpart class="sz3" bit="16"><em>?</em></bitpart><bitpart class="sz1"><em>A</em></bitpart><bitpart class="sz1"><em>Y</em></bitpart><bitpart class="sz3" bit="11">3: <em>N</em></bitpart><bitpart class="sz8" bit="8">8: <em>OCS</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
+
+  <brow><bitpart class="sz8" bit="32">8: <em>Sky/Block</em></bitpart><bitpart class="sz8" bit="24">8: <em>Sky/Block</em></bitpart><bitpart class="sz8" bit="16">8: <em>Sky/Block</em></bitpart><bitpart class="sz8" bit="8">8: <em>Sky/Block</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
+</bits>
+
+<p>Where each field has the following meaning:
+<ul>
+  <li><tt>X<sub>i</sub></tt>, <tt>Y<sub>i</sub></tt>, <tt>Z<sub>i</sub></tt>: to represent a <tt>QUAD</tt>, you need
+  at least 3 coordinates. <tt>QUAD</tt> are not necessarily axis aligned, otherwise you could get away
+  with only 2.
+  <p>The coordinates are encoded as a fixed point number on 12bits that can encode the values between
+  -0.5 and 16.5. Some models slightly exceed their voxel space, and as such can also exceed a chunk
+  bounding box.
+  
+  <p>With that in mind the each voxel cube is therefore divided in 4096 / 17 = 240.941, which, in
+  practice is rounded down to 240. Therefore the convert from fixed to floating point, the formula is:
+  <pre>vec3 position = (fixed - 120) * (1 / 240.)</pre>
+
+  <p>That also means the models within a voxel have a precision of 0.004, which is not that much, but
+  as far as <prod>Minecraft 1.12</prod> is concerned, that actually enough.
+
+  <li><tt>U</tt>, <tt>V</tt>: coodinates of the top left corner of the texture to use for this <tt>QUAD</tt>.
+</ul>
 
 <p>/* ... */
 
@@ -1190,11 +1112,11 @@ that will be issued in a single <tt>glMultiDrawArraysIndirect()</tt> call.
 a tree of arbitrary data types. The main problem that this API was trying to solve is to keep 
 everything related to an NBT tree as close as possible in memory, to benefit from cache locality.
 
-<p>For example, the different tables of a chunk (<tt>Blocks</tt>, <tt>Data</tt>, <tt>BLockLight</tt>,
-<tt>SkyLight</tt>) pushed this logic quite far: a single memory buffer is allocated for these and all
-of them are placed at fixed offsets relative to the <tt>Blocks</tt> table (since all these tables
-always have the same size), such as if you have a pointer to the beginning of the <tt>Blocks</tt>
-table, you can access all the others by applying a fixed offset.
+<p>This is actually the main difference between this API and most other libraries you can find elsewhere:
+this API <b>strongly</b> favor read over write access. The rationale for this choice being that most
+chunks in a map will never be modified at all, and for those that will, most of time it is simply a
+matter of overwriting some tables (<tt>BlockLight</tt>, <tt>Blocks</tt>, <tt>Data</tt>, ...). Therefore
+optimizing read access was the main goal for this API.
 
 <p>/* ... */
 
@@ -1245,17 +1167,17 @@ there are a lot of moving parts, with lots of datatypes:
 <h3 id="collision"><span>Collision correction</span></h3>
 
 <p>Collision detection in this engine is entirely done by checking if <b>axis-aligned boxes</b> are
-intersecting. Something that simple turned out to have <b>lots</b> of edge cases, and took many attempts
-to fine tune. This section will document most of the caveats to be aware, if you want to improve that
-part.
+intersecting. It sounds simple, yet this part turned out to have <b>a lot</b> of edge cases, and took
+many attempts to fine tune. This section will document most of the caveats to be aware, if you ever want
+to improve that part.
 
-<p>Detecting a collision is extremely trivial using AABox, the main problem is actually <b>correcting
-the trajectory</b>, to cancel the collision. Therefore the problem at this point can be formally defined
-as <b>finding the smallest vector</b> to move the entity out of all the collision intersections.
+<p>Detecting a collision is extremely trivial with AABox, the main problem is actually <b>correcting
+the trajectory</b>, to cancel the collision. The problem is actually quite easy to formally define:
+<b>find the smallest vector</b> to move the entity out of all the collision intersections.
 
 <p>The usual technique you can find online will usually <b>break down at some point</b> because you
 cannot correct the collision by looking at one intersection at a time: you need to analyze them as a
-whole. This section will document the strategy used in this engine, since once again, the source code
+whole. This section will document the strategies used in this engine, since once again, the source code
 will more than likely not be obvious at first sight.
 
 <p>To simplify the explanation, we'll limit the problem on the XZ plane (ie: 2D).

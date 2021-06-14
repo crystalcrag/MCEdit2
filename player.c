@@ -181,11 +181,13 @@ void playerMove(Player p, Map map)
 		p->pos[VZ] += p->sinh * s;
 		#endif
 	}
+	#if 0
 	if (p->pmode <= MODE_CREATIVE)
 	{
 		/* bounding box of voxels will constraint movement in these modes */
 		physicsCheckCollision(map, orig_pos, p->pos, entityGetBBox(ENTITY_PLAYER));
 	}
+	#endif
 	vecSub(orig_pos, p->pos, orig_pos);
 	vecAdd(p->lookat, p->lookat, orig_pos);
 }

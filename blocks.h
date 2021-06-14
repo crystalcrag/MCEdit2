@@ -130,8 +130,9 @@ struct VTXBBox_t           /* used to store custom bounding box */
 
 struct WriteBuffer_t
 {
-	DATA16 start, end;
-	DATA16 cur;
+	DATA32 start, end;
+	DATA32 cur;
+	APTR   mesh;
 	int    alpha;
 	void (*flush)(WriteBuffer);
 };
@@ -330,10 +331,19 @@ enum                       /* special values for Block_t.rswire */
 	BACKONLY  = 3
 };
 
+/* terrain vertex */
+#define VERTEX_DATA_SIZE   28        /* 7 * uint32_t */
+#define VERTEX_INT_SIZE    7
+
+/* everything else vertex */
 #define BYTES_PER_VERTEX   10
 #define INT_PER_VERTEX     5
-#define BASEVTX            2048      /* 65536/32 */
-#define ORIGINVTX          15360     /* 7.5 * 2048 */
+#define BASEVTX            2048
+#define ORIGINVTX          15360
+#define MIDVTX             (1 << 13)
+#define RELDX(x)           (VERTEX(x) + MIDVTX - X1)
+#define RELDY(x)           (VERTEX(x) + MIDVTX - Y1)
+#define RELDZ(x)           (VERTEX(x) + MIDVTX - Z1)
 #define VERTEX(x)          ((x) * BASEVTX + ORIGINVTX)
 #define STATEFLAG(b,x)     ((b)->rotate & x)
 #define SPECIALSTATE(b)    ((b)->special & 31)

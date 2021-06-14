@@ -9,7 +9,6 @@ in  vec2 tc;
 in  float skyLight;
 in  float blockLight;
 in  float shadeOCS;
-flat in int biomeCol;
 flat in int rswire;
 
 /*
@@ -22,7 +21,7 @@ uniform vec3 biomeColor;
 void main(void)
 {
 	color = texture(blockTex, tc);
-	/* prevent writing to the depth buffer: easy way to handle opacity for bianry transparent block (ie: fully transparent or fully opaque) */
+	/* prevent writing to the depth buffer: easy way to handle opacity for transparent block */
 	if (color.a < 0.004)
 		discard;
 	if (rswire == 1)
@@ -31,11 +30,12 @@ void main(void)
 		color *= texture(blockTex, vec2(0.96875 + shadeOCS * 0.03125, 0.0556640625));
 		return;
 	}
-	else if (biomeCol == 1 && color.x == color.y && color.y == color.z)
+	/* last tex line: first 16 tex are biome dep */
+	else if (tc.y >= 0.96875 && color.x == color.y && color.y == color.z)
 	{
-		color.x = biomeColor.x * color.x;
-		color.y = biomeColor.y * color.y;
-		color.z = biomeColor.z * color.z;
+		color.x *= biomeColor.x;
+		color.y *= biomeColor.y;
+		color.z *= biomeColor.z;
 	}
 
 	float sky = 0.9 * skyLight * skyLight + 0.1 - shadeOCS; if (sky < 0) sky = 0;

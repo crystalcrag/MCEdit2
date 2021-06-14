@@ -39,6 +39,7 @@ static void chunkFillData(Chunk chunk, int y, int offset)
 	memset(cd->blockIds + SKYLIGHT_OFFSET, 255, 2048);
 	memset(cd->blockIds + BLOCKLIGHT_OFFSET, 0, 2048);
 	cd->blockIds[8+8*16+256*8] = 1;
+	cd->blockIds[DATA_OFFSET + ((8+8*16+256*8) >> 1)] = 1;
 	#endif
 
 	if (chunk->maxy <= y)
@@ -741,7 +742,7 @@ uint8_t quadIndices[] = {
 };
 
 /* normal vector for given quad type (QUAD_*); note: 6 = none */
-uint8_t quadSides[] = {6, 6, 0, 2, 3, 1, 4, 4, 4, 4, 4};
+uint8_t quadSides[] = {6, 6, 0, 2, 3, 1, 4, 1, 3, 2, 0};
 
 uint8_t openDoorDataToModel[] = {
 	5, 6, 7, 4, 3, 0, 1, 2
@@ -930,20 +931,15 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer opaque, BlockState b
  * transform chunk data into something useful for the vertex shader (blocks.vsh)
  * this is the "meshing" function for our world
  */
-void chunkUpdate(Chunk c, ChunkData empty, int layer, ChunkFlushCb_t flush)
+void chunkUpdate(Chunk c, ChunkData empty, int layer)
 {
-	static uint16_t bufOpaque[2000]; /* 10 bytes per vertex */
-	static uint16_t bufAlpha[2000];
-
-	struct WriteBuffer_t opaque = {.start = bufOpaque, .end = EOT(bufOpaque), .cur = bufOpaque, .flush = flush};
-	struct WriteBuffer_t alpha  = {.start = bufAlpha,  .end = EOT(bufAlpha),  .cur = bufAlpha,  .flush = flush, .alpha = 1};
-
+	struct WriteBuffer_t alpha, opaque;
 	ChunkData neighbors[7];    /* S, E, N, W, T, B, current */
-
 	int i, pos, air;
 
+	renderInitBuffer(neighbors[6] = c->layer[layer], &opaque, &alpha);
+
 	/* 6 surrounding chunks (+center) */
-	neighbors[6] = c->layer[layer];
 	neighbors[5] = layer > 0 ? c->layer[layer-1] : NULL;
 	neighbors[4] = layer+1 < c->maxy ? c->layer[layer+1] : empty;
 	for (i = 0; i < 4; i ++)
@@ -1021,8 +1017,8 @@ void chunkUpdate(Chunk c, ChunkData empty, int layer, ChunkFlushCb_t flush)
 		}
 	}
 
-	if (opaque.cur > bufOpaque) flush(&opaque);
-	if (alpha.cur > bufAlpha)   flush(&alpha);
+	if (opaque.cur > opaque.start) opaque.flush(&opaque);
+	if (alpha.cur  > alpha.start)  alpha.flush(&alpha);
 }
 
 /*
@@ -1036,18 +1032,15 @@ void chunkUpdate(Chunk c, ChunkData empty, int layer, ChunkFlushCb_t flush)
 #define META(cd,off)                ((cd)->blockIds[DATA_OFFSET + (off)])
 #define LIGHT(cd,off)               ((cd)->blockIds[BLOCKLIGHT_OFFSET + (off)])
 #define SKYLIT(cd,off)              ((cd)->blockIds[SKYLIGHT_OFFSET + (off)])
-#define IPV                         INT_PER_VERTEX
 
 /* tall grass, flowers, rails, ladder, vines, ... */
 static void chunkGenQuad(ChunkData neighbors[], WriteBuffer buffer, BlockState b, int pos)
 {
-	DATA16  p;
 	DATA8   tex   = &b->nzU;
 	DATA8   sides = &b->pxU;
 	Chunk   chunk = neighbors[6]->chunk;
-	int     vtx   = b->special == BLOCK_NOSIDE || b->pxU == QUAD_CROSS ? BYTES_PER_VERTEX*12 : BYTES_PER_VERTEX*6;
+	int     vtx   = b->special == BLOCK_NOSIDE || b->pxU == QUAD_CROSS ? VERTEX_DATA_SIZE*2 : VERTEX_DATA_SIZE;
 	int     seed  = neighbors[6]->Y ^ chunk->X ^ chunk->Z;
-	int     side, i, j, texOrient;
 	uint8_t x, y, z, light;
 
 	x =  LIGHT(neighbors[6], pos>>1);
@@ -1063,7 +1056,7 @@ static void chunkGenQuad(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 	if (b->special == BLOCK_TALLFLOWER && (b->id&15) == 10)
 	{
 		uint8_t data;
-		/* state 10 is use for top part of all tall flowers :-/ need to look at bottom part to know which top part to draw */
+		/* state 10 is used for top part of all tall flowers :-/ need to look at bottom part to know which top part to draw */
 		if (y == 0)
 			data = neighbors[5]->blockIds[DATA_OFFSET + ((pos + 256*15) >> 1)];
 		else
@@ -1075,60 +1068,72 @@ static void chunkGenQuad(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 	}
 
 	do {
+		static uint8_t vtxIndices[] = {3,0,2,    0,3,1}; /* front vertex, back vertex */
+
+		uint8_t side, norm, i, j;
+		DATA8   indices;
+		DATA32  out;
+
 		if (BUF_LESS_THAN(buffer, vtx))
 			buffer->flush(buffer);
 
-		p = buffer->cur;
-		side = quadSides[*sides];
-		for (i = 0, j = *sides * 4, texOrient = (b->rotate&3) * 8; i < 4; i ++, j ++, p += IPV, texOrient += 2)
+		out   = buffer->cur;
+		side  = *sides;
+		norm  = quadSides[side];
+		for (indices = vtxIndices, i = vtx; i > 0; indices += 3, out += VERTEX_INT_SIZE, i -= VERTEX_DATA_SIZE)
 		{
-			DATA8 coord = vertex + quadIndices[j];
+			uint16_t U, V, X1, Y1, Z1;
+			DATA8    coord;
 
-			p[0] = VERTEX(coord[0] + x);
-			p[1] = VERTEX(coord[1] + y);
-			p[2] = VERTEX(coord[2] + z);
-			p[3] = ((texCoord[texOrient]   + tex[0]) << 4) |
-			       ((texCoord[texOrient+1] + tex[1]) << 10);
-			p[4] = (light<<8) | (side << 3);
+			coord = vertex + quadIndices[side*4+indices[0]];
 
-			if (*sides <= QUAD_CROSS2)
+			/* first vertex */
+			X1 = VERTEX(coord[0] + x);
+			Y1 = VERTEX(coord[1] + y);
+			Z1 = VERTEX(coord[2] + z);
+
+			j = (b->rotate&3) * 8;
+			U = (texCoord[j]   + tex[0]) << 4;
+			V = (texCoord[j+1] + tex[1]) << 4;
+
+			/* second and third vertex */
+			coord  = vertex + quadIndices[side*4+indices[1]];
+			out[0] = X1 | (Y1 << 16);
+			out[1] = Z1 | (RELDX(coord[0] + x) << 16);
+			out[2] = RELDY(coord[1] + y) | (RELDZ(coord[2] + z) << 14);
+			coord  = vertex + quadIndices[side*4+indices[2]];
+			out[3] = RELDX(coord[0] + x) | (RELDY(coord[1] + y) << 14) | ((V & 512) << 19);
+			out[4] = RELDZ(coord[2] + z) | (U << 14) | (V << 23);
+
+			/* tex size, norm and ocs: none */
+			out[5] = (((texCoord[j+4] + tex[0]) * 16 + 128 - U) << 16) |
+					 (((texCoord[j+5] + tex[1]) * 16 + 128 - V) << 24) | (norm << 8);
+
+			if (texCoord[j] == texCoord[j + 6]) out[5] |= 1 << 11;
+			if (side >= QUAD_ASCE)              out[5] |= 1 << 12;
+			/* skylight/blocklight: uniform on all vertices */
+			out[6] = light | (light << 8) | (light << 16) | (light << 24);
+
+			if (side <= QUAD_CROSS2)
 			{
 				/* add some jitter to X,Z coord for QUAD_CROSS */
-				int jitter = (seed ^ (x ^ y ^ z)) & 0xff;
-				#if 1
-				if (jitter & 1) p[0] += BASEVTX/16;
-				if (jitter & 2) p[2] += BASEVTX/16;
-				if (jitter & 4) p[1] -= BASEVTX/16;
-				if (jitter & 8) p[1] -= BASEVTX/32;
-				#else
-				p[0] += (jitter&3) * BASEVTX/(3*16);
-				p[2] += (jitter>>2) * BASEVTX/(3*16);
-				#endif
+				uint8_t jitter = seed ^ (x ^ y ^ z);
+				if (jitter & 1) out[0] += BASEVTX/16;
+				if (jitter & 2) out[1] += BASEVTX/16;
+				if (jitter & 4) out[0] -= (BASEVTX/16) << 16;
+				if (jitter & 8) out[0] -= (BASEVTX/32) << 16;
 			}
-			else if (side < 6)
+			else if (norm < 6)
 			{
 				/* offset 1/16 of a block in the direction of their normal */
-				int8_t * normal = normals + side * 4;
-				p[0] += normal[0] * (BASEVTX/16);
-				p[1] += normal[1] * (BASEVTX/16);
-				p[2] += normal[2] * (BASEVTX/16);
+				int8_t * normal = normals + (side >= QUAD_ASCE ? 16 : norm * 4);
+				out[0] += normal[0] * (BASEVTX/16);
+				out[0] += normal[1] * (BASEVTX/16) << 16;
+				out[1] += normal[2] * (BASEVTX/16);
 			}
 		}
-		/* convert quad to triangles */
-		memcpy(p,   p-4*IPV, BYTES_PER_VERTEX);
-		memcpy(p+5, p-2*IPV, BYTES_PER_VERTEX);
-		p += 2*IPV;
-
-		if (vtx == 12*BYTES_PER_VERTEX)
-		{
-			/* need to add other side to prevent quad from being culled by glEnable(GL_CULLFACE) */
-			memcpy(p, p-2*IPV, 2*BYTES_PER_VERTEX); p += 2*IPV;
-			memcpy(p, p-7*IPV,   BYTES_PER_VERTEX); p += IPV;
-			memcpy(p, p-6*IPV,   BYTES_PER_VERTEX); p += IPV;
-			memcpy(p, p-5*IPV, 2*BYTES_PER_VERTEX); p += 2*IPV;
-		}
 		sides ++;
-		buffer->cur = p;
+		buffer->cur = out;
 	} while (*sides);
 }
 
@@ -1150,7 +1155,8 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 
 	uint8_t blockIds[14 * 2];
 	Chunk   c = neighbors[6]->chunk;
-	DATA16  model, out;
+	DATA32  out;
+	DATA16  model;
 	DATA8   blocks = neighbors[6]->blockIds, p;
 	int     sides, side, count, connect;
 	int     x, y, z;
@@ -1292,18 +1298,13 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 		}
 		connect = blockGetConnect(b, blockIds);
 	}
-	count = model[-1] * BYTES_PER_VERTEX;
-	if (BUF_LESS_THAN(buffer, count))
-		buffer->flush(buffer);
-
-	memcpy(buffer->cur, model, count);
 
 	x *= BASEVTX;
 	y *= BASEVTX;
 	z *= BASEVTX;
 
 	/* vertex and light info still need to be adjusted */
-	for (out = buffer->cur, side = light << 8; count > 0; count -= BYTES_PER_VERTEX, model += IPV)
+	for (count = model[-1]; count > 0; count -= 6, model += 6 * INT_PER_VERTEX)
 	{
 		uint8_t faceId = (model[4] >> 8) & 31;
 		if (faceId > 0 && (connect & (1 << (faceId-1))) == 0)
@@ -1322,19 +1323,36 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 			mapIter(&iter, normal[0], normal[1], normal[2]);
 
 			if (blockIsSideHidden(getBlockId(&iter), model, opp[norm]))
-			{
 				/* skip entire face (6 vertices) */
-				model += IPV;
-				count -= BYTES_PER_VERTEX;
 				continue;
-			}
 		}
 
-		out[0] = model[0] + x;
-		out[1] = model[1] + y;
-		out[2] = model[2] + z;
-		out[3] = model[3];
-		out[4] = (model[4] & 255) | side;
+		if (BUF_LESS_THAN(buffer, VERTEX_DATA_SIZE))
+			buffer->flush(buffer);
+
+		out = buffer->cur;
+		DATA16 coord = model + INT_PER_VERTEX * 3;
+		uint16_t X1 = coord[0] + x;
+		uint16_t Y1 = coord[1] + y;
+		uint16_t Z1 = coord[2] + z;
+		uint16_t U  = GET_UCOORD(model);
+		uint16_t V  = GET_VCOORD(model);
+
+		#define RELX(x)     ((x) + MIDVTX - X1)
+		#define RELY(x)     ((x) + MIDVTX - Y1)
+		#define RELZ(x)     ((x) + MIDVTX - Z1)
+
+		coord  = model;
+		out[0] = X1 | (Y1 << 16);
+		out[1] = Z1 | (RELX(coord[0]+x) << 16);
+		out[2] = RELY(coord[1]+y) | (RELZ(coord[2]+z) << 14);
+		coord  = model + INT_PER_VERTEX * 2;
+		out[3] = RELX(coord[0]+x) | (RELY(coord[1]+y) << 14) | ((V & 512) << 19);
+		out[4] = RELZ(coord[2]+z) | (U << 14) | (V << 23);
+		out[5] = ((GET_UCOORD(coord) + 128 - U) << 16) |
+		         ((GET_VCOORD(coord) + 128 - V) << 24) | (GET_NORMAL(model) << 8);
+		out[6] = light | (light << 8) | (light << 16) | (light << 24);
+
 		if (STATEFLAG(b, CNXTEX))
 		{
 			/* glass pane (stained and normal): relocate to simulate connected textures (only middle parts) */
@@ -1351,10 +1369,10 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 				if ((connect & (1 << (face+12))) && /* connected to same block */
 				    (connect & 0x0f0) > 0)
 				{
-					flag &= ((GET_NORMAL(out)+1) & 3) == face ? ~2 : ~8;
+					flag &= ((GET_NORMAL(model)+1) & 3) == face ? ~2 : ~8;
 				}
 
-				out[3] += flag * 16;
+				out[4] += flag << 18;
 			}
 			else if (13 <= faceId && faceId <= 16)
 			{
@@ -1366,13 +1384,11 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 				if ((connect & (1<<16)) == 0) flag |= 1;
 				if ((connect & (1<<17)) == 0) flag |= 4;
 
-				out[3] += flag * 16;
+				out[4] += flag << 18;
 			}
 		}
-		out += IPV;
+		buffer->cur = out + VERTEX_INT_SIZE;
 	}
-
-	buffer->cur = out;
 }
 
 /* most common block within a chunk */
@@ -1380,7 +1396,7 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 {
 	uint16_t blockIds3x3[27];
 	uint8_t  skyBlock[27];
-	DATA16   p;
+	DATA32   out;
 	DATA8    tex;
 	DATA8    blocks = neighbors[6]->blockIds;
 	int      side, sides, occlusion, slab, rotate;
@@ -1517,44 +1533,66 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 			break;
 		}
 
-		if (BUF_LESS_THAN(buffer, 6*BYTES_PER_VERTEX))
+		if (BUF_LESS_THAN(buffer, VERTEX_DATA_SIZE))
 			buffer->flush(buffer);
 
-		uint8_t liquid = b->special == BLOCK_LIQUID;
-
-		/* 4 vertices per face */
-		for (k = 0, p = buffer->cur; k < 4; k ++, j += 2, p += IPV)
+		/* generate one quad (see internals.html for format) */
 		{
-			DATA8 coord = vertex + cubeIndices[i+k];
-			int   skyval, off;
+			DATA8    coord = vertex + cubeIndices[i+3];
+			uint16_t texU  = (texCoord[j]   + tex[0]) << 4;
+			uint16_t texV  = (texCoord[j+1] + tex[1]) << 4;
+			uint16_t X1, Y1, Z1;
 
-			p[0] = VERTEX(coord[0]+x);
-			p[1] = VERTEX(coord[1]+y);
-			p[2] = VERTEX(coord[2]+z);
-			p[3] = ((texCoord[j]   + tex[0]) << 4) |
-			       ((texCoord[j+1] + tex[1]) << 10);
-			p[4] = 0;
+			X1 = VERTEX(coord[0]+x);
+			Y1 = VERTEX(coord[1]+y);
+			Z1 = VERTEX(coord[2]+z);
+			out = buffer->cur;
 
-			/* max between 4 voxels shared by this vertex */
-			for (n = skyval = 0, off = (i+k) * 4; n < 4; off ++, n ++)
+			/* write one quad */
+			coord  = vertex + cubeIndices[i];
+			out[0] = X1 | (Y1 << 16);
+			out[1] = Z1 | (RELDX(coord[0]+x) << 16);
+			out[2] = RELDY(coord[1]+y) | (RELDZ(coord[2]+z) << 14);
+			coord  = vertex + cubeIndices[i+2];
+			out[3] = RELDX(coord[0]+x) | (RELDY(coord[1]+y) << 14) | ((texV & 512) << 19);
+			out[4] = RELDZ(coord[2]+z) | (texU << 14) | (texV << 23);
+			out[5] = (((texCoord[j+4] + tex[0]) * 16 + 128 - texU) << 16) |
+			         (((texCoord[j+5] + tex[1]) * 16 + 128 - texV) << 24) | (i << 6);
+			out[6] = 0;
+
+			/* flip tex */
+			if (texCoord[j] == texCoord[j + 6]) out[5] |= 1<<11;
+
+			/* sky/block light values: 2*4bits per vertex = 4 bytes needed, ambient occlusion: 2bits per vertex = 1 byte needed */
+			for (k = 0; k < 4; k ++)
 			{
-				uint8_t  skyvtx = skyBlock[skyBlockOffset[off]];
-				uint16_t light  = (skyvtx & 15) << 8;
-				skyvtx &= 0xf0;
-				/* max for block light */
-				if (p[4] < light) p[4] = light;
-				if (skyvtx > 0 && (skyval > skyvtx || skyval == 0)) skyval = skyvtx;
-			}
-			p[4] |= (i << 1) | (skyval << 8) | (popcount((occlusion & occlusionIfNeighbor[i+k]) | (slab & occlusionForSlab[i>>2])) << 6);
+				uint8_t skyval, blockval, off;
+				for (n = skyval = blockval = 0, off = (i+k) * 4; n < 4; off ++, n ++)
+				{
+					uint8_t skyvtx = skyBlock[skyBlockOffset[off]];
+					uint8_t light  = skyvtx & 15;
+					skyvtx &= 0xf0;
+					/* max for block light */
+					if (blockval < light) blockval = light;
+					if (skyvtx > 0 && (skyval > skyvtx || skyval == 0)) skyval = skyvtx;
+				}
+				out[6] |= (skyval | blockval) << (k << 3);
 
-			if (liquid && coord[1] == 1)
-			{
-				static uint8_t lessAmbient[] = {0, 1<<6, 1<<6, 1<<6};
-				p[1] -= BASEVTX/8;
-				/* reduce ambient occlusion a bit */
-				p[4] = (p[4] & ~0xc0) | lessAmbient[(p[4] >> 6) & 3];
+				uint8_t ocs = popcount((occlusion & occlusionIfNeighbor[i+k]) | (slab & occlusionForSlab[i>>2]));
+
+				if (b->special == BLOCK_LIQUID && i == SIDE_TOP * 4)
+				{
+					/* reduce ambient occlusion a bit */
+					static uint8_t lessAmbient[] = {0, 1, 1, 1};
+					ocs = lessAmbient[ocs];
+					/* reduce Y by 0.2 unit */
+					out[0] -= (BASEVTX/8) << 16;
+				}
+				out[5] |= ocs << k*2;
 			}
 		}
+
+		#if 0
 		/* convert into triangles */
 		if ((p[-16] & 0xc0) || (p[-6] & 0xc0))
 		{
@@ -1571,7 +1609,8 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 			memcpy(p,     p - 4*IPV, BYTES_PER_VERTEX);
 			memcpy(p+IPV, p - 2*IPV, BYTES_PER_VERTEX);
 		}
-		buffer->cur = p + 2*IPV;
+		#endif
+		buffer->cur = out + VERTEX_INT_SIZE;
 	}
 }
 

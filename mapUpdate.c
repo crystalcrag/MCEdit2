@@ -1335,8 +1335,7 @@ void mapUpdateMesh(Map map)
 		cd->slot = 0;
 		next = cd->update;
 		//fprintf(stderr, "updating chunk %d, %d, %d\n", cd->chunk->X, cd->Y, cd->chunk->Z);
-		renderInitBuffer(cd);
-		chunkUpdate(cd->chunk, map->air, cd->Y >> 4, renderFlush);
+		chunkUpdate(cd->chunk, map->air, cd->Y >> 4);
 		renderFinishMesh(True);
 		particlesChunkUpdate(map, cd);
 		if (cd->pendingDel)

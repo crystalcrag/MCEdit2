@@ -2169,8 +2169,7 @@ static int blockGenWireModel(DATA16 buffer, int count)
 		{
 			static int8_t shift[] = {2, 11, 0, 11, 2, -11, 0, -11, 1, 11, 1, -11};
 			if ((j & 1) == 0) continue;
-			DATA16 vtx = p + shift[i];
-			vtx[0] += shift[i+1];
+			p[shift[i]] += shift[i+1];
 		}
 	}
 
@@ -2523,6 +2522,7 @@ static int blockModelBed(DATA16 buffer, int blockId)
 
 static int blockModelStairs(DATA16 buffer, int blockId)
 {
+	#if 0
 	struct WriteBuffer_t write = {
 		.start = buffer, .cur = buffer, .end = buffer + 300 * INT_PER_VERTEX
 	};
@@ -2533,6 +2533,9 @@ static int blockModelStairs(DATA16 buffer, int blockId)
 	blockIds3x3[13] = blockId;
 	halfBlockGenMesh(&write, halfBlockGetModel(b, 2, blockIds3x3), 2, pos, &b->nzU, blockIds3x3, (DATA8) blockIds3x3);
 	return (write.cur - write.start) / INT_PER_VERTEX;
+	#else
+	return 0;
+	#endif
 }
 
 /* generate vertex data for any block (compatible with blocks.vsh) */

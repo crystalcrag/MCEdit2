@@ -61,8 +61,7 @@ enum /* possible flags for paramter <what> of debugToggleInfo() (side view) */
 };
 
 /* chunk transfer to GPU */
-void renderFlush(WriteBuffer);
-void renderInitBuffer(ChunkData cd);
+void renderInitBuffer(ChunkData cd, WriteBuffer, WriteBuffer);
 void renderFinishMesh(Bool updateVtxSize);
 void renderFreeArray(ChunkData);
 
@@ -131,6 +130,7 @@ struct RenderWorld_t
 	vec4      camera;              /* player pos */
 	GLuint    shaderBlocks;        /* compiled shaders */
 	GLuint    shaderParticles;
+	GLuint    shaderItems;
 	GLuint    vaoInventory;        /* vao to draw inventory object */
 	GLuint    vaoBBox;
 	GLuint    vaoPreview;
@@ -181,12 +181,13 @@ struct MeshBuffer_t                /* temporary buffer used to collect data from
 	ListNode   node;
 	ChunkData  chunk;
 	uint16_t   usage;
-	uint8_t    buffer[0];          /* 64Kb: not declared here because gdb doesn't like big table */
+	uint32_t   buffer[0];          /* 64Kb: not declared here because gdb doesn't like big table */
 };
 
 /* debug info */
 void debugBlockVertex(Map, SelBlock *);
-void debugInit(Map);
+void debugInit(void);
+void debugShowChunkBoundary(Chunk cur);
 void debugCoord(APTR vg, vec4 camera, int total);
 void debugPoint(vec4 pos);
 void debugLine(vec4 p1, vec4 p2);
