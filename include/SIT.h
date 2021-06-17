@@ -74,7 +74,7 @@ typedef enum                     /* return code from SIT_RenderNodes() */
 {
 	SIT_RenderNothing,           /* back buffer not updated, no need to swap GL buffer */
 	SIT_RenderDone,              /* render is complete, should swap GL buffer */
-	SIT_RenderComposite          /* composited area remaining, check SIT_CompositedArea on SIT_App to see areas safe to draw */
+	SIT_RenderComposite          /* composited area remaining, check SIT_CompositedAreas on SIT_App to see areas safe to draw */
 }	SIT_RENDER;
 
 /*
@@ -121,8 +121,10 @@ DLLIMP void       SIT_ForceRefresh(void);
 DLLIMP int        SIT_NeedRefresh(void);
 DLLIMP int        SIT_InitDrag(SIT_CallProc);
 DLLIMP Bool       SIT_ParseCSSColor(STRPTR cssColor, uint8_t ret[4]);
+DLLIMP Bool       SIT_GetCSSValue(SIT_Widget, STRPTR property, APTR mem);
+DLLIMP float      SIT_EmToReal(SIT_Widget, uint32_t val);
 
-DLLIMP Bool       SIT_ListSetCell(SIT_Widget w, int row, int col, APTR rowTag, int align, STRPTR text);
+DLLIMP Bool       SIT_ListSetCell(SIT_Widget, int row, int col, APTR rowTag, int align, STRPTR text);
 DLLIMP Bool       SIT_ListSetColumn(SIT_Widget, int col, int width, int align, STRPTR label);
 
 DLLIMP STRPTR     SIT_GetFromClipboard(int * size);
@@ -130,7 +132,7 @@ DLLIMP Bool       SIT_CopyToClipboard(STRPTR text, int size);
 
 /* async actions */
 DLLIMP SIT_Action SIT_ActionAdd(SIT_Widget, double start_ms, double end_ms, SIT_CallProc, APTR ud);
-DLLIMP void       SIT_ActionReschedule(SIT_Action act, double start_ms, double end_ms);
+DLLIMP Bool       SIT_ActionReschedule(SIT_Action act, double start_ms, double end_ms);
 
 /* pump events to the library */
 DLLIMP void       SIT_ProcessMouseMove(float x, float y);
@@ -243,7 +245,7 @@ enum
 	SIT_AccelTable       = 61,   /* CSG: SIT_Accel * */
 	SIT_ExitCode         = 62,   /* CSG: Int * */
 	SIT_StyleSheet       = 63,   /* _S_: String */
-	SIT_CompositedArea   = 64,   /* __G: Int */
+	SIT_CompositedAreas  = 64,   /* __G: DATA8 */
 
 	/* Dialog tags */
 	SIT_DialogStyles     = 65,   /* C__: Bitfield */
@@ -657,7 +659,7 @@ enum /* values for SIT_OnKey_t.flags */
 	SITK_FlagCapture = 0x4000
 };
 
-#define RAWKEY(x)      (x << 21)
+#define RAWKEY(x)      ((x) << 21)
 
 enum /* special values for SIT_OnKey_t.keycode field */
 {
@@ -710,8 +712,7 @@ enum /* special values for SIT_OnKey_t.keycode field */
 	SITK_Escape      = RAWKEY(47),
 	SITK_Space       = RAWKEY(48),
 	SITK_Help        = RAWKEY(49),
-	SITK_Shift       = RAWKEY(50),
-	SITK_OEM         = 1UL << 31
+	SITK_Shift       = RAWKEY(50)
 };
 
 struct LocaleInfo_t        // example:

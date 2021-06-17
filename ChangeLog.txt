@@ -1,3 +1,16 @@
+=========== Week 24 ===========
+Wed June 16:
+	* avoid interpolation AO on hypothenuse of triangles.
+	* chunk updates reworked when updates happened near boundaries.
+
+Tue June 15:
+	* more bug fixes: AO slightly improved.
+	* debug info plugged back in.
+
+Mon June 14:
+	* stairs preview model fixed: convert terrain vertex to inv model vertex :-/
+	* slight bug in hidden face culling fixed.
+
 =========== Week 23 ===========
 Sun June 13:
 	* CUST mostly working, patching remaining broken features.

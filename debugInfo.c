@@ -38,7 +38,7 @@ void debugBlockVertex(Map map, SelBlock * select)
 		xyz[1] = iter.offset >> 8;
 
 		fprintf(stderr, "*** debug block info ***\n");
-		fprintf(stderr, "found block %d-%d: %s from %c\n", block->id >> 4, block->id & 15, block->name, "SENWTB"[select->extra.side]);
+		fprintf(stderr, "found block %d:%d (%s) from %c\n", block->id >> 4, block->id & 15, block->name, "SENWTB"[select->extra.side]);
 		fprintf(stderr, "located at %d,%d,%d, offset = %d, sub-chunk: %d,%d,%d, chunk: %d,%d,%d\n",
 			(int) select->current[0], (int) select->current[1], (int) select->current[2],
 			iter.offset, xyz[0], xyz[1], xyz[2], iter.ref->X, iter.cd->Y, iter.ref->Z
@@ -69,7 +69,7 @@ void debugBlockVertex(Map map, SelBlock * select)
 		#endif
 
 		/* get the sub buffer where the vertex data is located */
-		DATA16  buffer, p;
+		DATA32  buffer, p;
 		GPUBank bank = iter.cd->glBank;
 		GPUMem  mem  = bank->usedList + iter.cd->glSlot;
 
@@ -84,38 +84,41 @@ void debugBlockVertex(Map map, SelBlock * select)
 			glGetBufferSubData(GL_ARRAY_BUFFER, mem->offset, mem->size, buffer);
 			glBindBuffer(GL_ARRAY_BUFFER, 0);
 
-			for (i = mem->size, p = buffer; i > 0; i -= 3*BYTES_PER_VERTEX, p += 3*INT_PER_VERTEX)
+			for (i = mem->size, p = buffer; i > 0; i -= VERTEX_DATA_SIZE, p += VERTEX_INT_SIZE)
 			{
-				extern uint8_t texCoord[];
+				#define FROMVERTEX(x)       (((x) - ORIGINVTX) >> 11)
 				/* need to decode vertex buffer */
-				uint8_t x = round((p[0] - (ORIGINVTX)) * (1. / BASEVTX));
-				uint8_t y = round((p[1] - (ORIGINVTX)) * (1. / BASEVTX));
-				uint8_t z = round((p[2] - (ORIGINVTX)) * (1. / BASEVTX));
-				uint8_t U = (p[3] & 511) >> 4;
-				uint8_t V = (p[3] >> 10);
-				uint8_t side = (p[4] >> 3) & 7;
-				uint8_t j, k;
-				DATA8   tex;
+				uint16_t V1[] = {p[0], p[0] >> 16, p[1]};
+				uint16_t V2[] = {
+					FROMVERTEX(V1[0] + bitfieldExtract(p[1], 16, 14) - MIDVTX),
+					FROMVERTEX(V1[1] + bitfieldExtract(p[2],  0, 14) - MIDVTX),
+					FROMVERTEX(V1[2] + bitfieldExtract(p[2], 14, 14) - MIDVTX)
+				};
+				uint16_t V3[] = {
+					FROMVERTEX(V1[0] + bitfieldExtract(p[3],  0, 14) - MIDVTX),
+					FROMVERTEX(V1[1] + bitfieldExtract(p[3], 14, 14) - MIDVTX),
+					FROMVERTEX(V1[2] + bitfieldExtract(p[4],  0, 14) - MIDVTX)
+				};
+				uint8_t side = bitfieldExtract(p[5], 8, 3);
 
 				/* only the side being pointed at */
 				if (side != select->extra.side) continue; /* too verbose otherwise */
+				if (V2[0] > V3[0]) swap(V2[0], V3[0]);
+				if (V2[1] > V3[1]) swap(V2[1], V3[1]);
+				if (V2[2] > V3[2]) swap(V2[2], V3[2]);
 
-				for (j = 0, k = (block->rotate&3) * 8, tex = &block->nzU + side * 2; j < 4; j ++, k += 2)
+				if (xyz[0] <= V2[0] && V3[0] <= xyz[0]+1 &&
+				    xyz[1] <= V2[1] && V3[1] <= xyz[1]+1 &&
+				    xyz[2] <= V2[2] && V3[2] <= xyz[2]+1)
 				{
-					DATA8 coord = vertex + cubeIndices[(side<<2) + j];
-					if ((xyz[0] + coord[0]) == x &&
-					    (xyz[1] + coord[1]) == y &&
-					    (xyz[2] + coord[2]) == z &&
-					    texCoord[k]   + tex[0] == U &&
-					    texCoord[k+1] + tex[1] == V)
-					{
-						fprintf(stderr, "VERTEX: %d,%d,%d [%d] - NORM: %d (%c) - uv: %d,%d - OCS: %d - LIGHT: %d, SKY: %d\n",
-							x, y, z, (coord-vertex)/3, side, "SENWTB"[side], U, V, (p[4] >> 6) & 3, (p[4]>>8) & 15, p[4]>>12);
-						/* found one vertex of a triangle, there must be 2 more */
-						p -= 2*INT_PER_VERTEX;
-						i += 2*BYTES_PER_VERTEX;
-						break;
-					}
+					uint16_t U = bitfieldExtract(p[4], 14, 9);
+					uint16_t V = bitfieldExtract(p[4], 23, 9) | (bitfieldExtract(p[3], 28, 1) << 9);
+					fprintf(stderr, "VERTEX: %d,%d,%d - NORM: %d (%c) - uv: %d,%d - OCS: %d/%d/%d/%d (%d) - LIGHT: %d/%d/%d/%d, SKY: %d/%d/%d/%d\n",
+						FROMVERTEX(V1[0]), FROMVERTEX(V1[1]), FROMVERTEX(V1[2]), side, "SENWTB"[side], U, V, p[5]&3, (p[5]>>2)&3, (p[5]>>4)&3, (p[5]>>6)&3, p[5] & 255,
+						bitfieldExtract(p[6], 0, 4), bitfieldExtract(p[6],  8, 4), bitfieldExtract(p[6], 16, 4), bitfieldExtract(p[6], 24, 4),
+						bitfieldExtract(p[6], 4, 4), bitfieldExtract(p[6], 12, 4), bitfieldExtract(p[6], 20, 4), bitfieldExtract(p[6], 28, 4)
+					);
+					break;
 				}
 			}
 			free(buffer);

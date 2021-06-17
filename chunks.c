@@ -790,15 +790,25 @@ static uint8_t oppositeMask[64];
 static int16_t blockOffset[64];
 static int16_t blockOffset2[64];
 
-#define IDS(x,y,z)   (1<<(x-1))|(1<<(y-1))|(1<<(z-1))
+#define IDS(id1,id2)   (1<<id1)|(1<<id2)
+#define IDC(id)        (1<<id)
 static int occlusionIfNeighbor[] = { /* indexed by cube indices */
-	IDS(16,25,26),  IDS(16, 7, 8),  IDS( 8, 9,18),  IDS(26,27,18),
-	IDS(24,27,18),  IDS(18, 9, 6),  IDS( 3, 6,12),  IDS(12,21,24),
-	IDS(20,21,12),  IDS( 2, 3,12),  IDS( 1, 2,10),  IDS(10,19,20),
-	IDS(10,19,22),  IDS( 1, 4,10),  IDS( 4, 7,16),  IDS(16,25,22),
-	IDS(19,20,22),  IDS(22,25,26),  IDS(24,26,27),  IDS(20,21,24),
-	IDS( 4, 7, 8),  IDS( 1, 2, 4),  IDS( 2, 3, 6),  IDS( 6, 8, 9)
+	IDS(15,25),  IDS(15, 7),  IDS(17, 7),  IDS(25,17),
+	IDS(23,17),  IDS(17, 5),  IDS(11, 5),  IDS(23,11),
+	IDS(19,11),  IDS(11, 1),  IDS( 9, 1),  IDS(19,9),
+	IDS(21, 9),  IDS( 9, 3),  IDS(15, 3),  IDS(21,15),
+	IDS(21,19),  IDS(25,21),  IDS(23,25),  IDS(23,19),
+	IDS( 7, 3),  IDS( 3, 1),  IDS( 5, 1),  IDS( 7, 5)
 };
+static int occlusionIfCorner[] = {
+	IDC(24),  IDC( 6),  IDC( 8),  IDC(26),
+	IDC(26),  IDC( 8),  IDC( 2),  IDC(20),
+	IDC(20),  IDC( 2),  IDC( 0),  IDC(18),
+	IDC(18),  IDC( 0),  IDC( 6),  IDC(24),
+	IDC(18),  IDC(24),  IDC(26),  IDC(20),
+	IDC( 6),  IDC( 0),  IDC( 2),  IDC(8),
+};
+#undef IDC
 #undef IDS
 
 static int occlusionForSlab[] = { /* indexed by face id: S,E,N,W,T,B */
@@ -954,7 +964,7 @@ void chunkUpdate(Chunk c, ChunkData empty, int layer)
 	neighbors[6]->yaw = 3.14926535 * 1.5;
 	neighbors[6]->pitch = 0;
 
-//	if (c->X == -208 && neighbors[6]->Y == 32 && c->Z == -48)
+//	if (c->X == -208 && neighbors[6]->Y == 64 && c->Z == -48)
 //		breakPoint = 1;
 
 	for (pos = air = 0; pos < 16*16*16; pos ++)
@@ -968,7 +978,7 @@ void chunkUpdate(Chunk c, ChunkData empty, int layer)
 		block = blocks[pos];
 		state = blockGetByIdData(block, data);
 
-//		if (breakPoint && pos == 4085)
+//		if (breakPoint && pos == 846)
 //			breakPoint = 2;
 
 		if (blockIds[block].particle)
@@ -1352,6 +1362,10 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 		out[5] = ((GET_UCOORD(coord) + 128 - U) << 16) |
 		         ((GET_VCOORD(coord) + 128 - V) << 24) | (GET_NORMAL(model) << 8);
 		out[6] = light | (light << 8) | (light << 16) | (light << 24);
+		coord  = model + INT_PER_VERTEX * 3;
+
+		/* flip tex */
+		if (U == GET_UCOORD(coord)) out[5] |= 1<<11;
 
 		if (STATEFLAG(b, CNXTEX))
 		{
@@ -1566,7 +1580,7 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 			/* sky/block light values: 2*4bits per vertex = 4 bytes needed, ambient occlusion: 2bits per vertex = 1 byte needed */
 			for (k = 0; k < 4; k ++)
 			{
-				uint8_t skyval, blockval, off;
+				uint8_t skyval, blockval, off, ocs;
 				for (n = skyval = blockval = 0, off = (i+k) * 4; n < 4; off ++, n ++)
 				{
 					uint8_t skyvtx = skyBlock[skyBlockOffset[off]];
@@ -1578,7 +1592,11 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 				}
 				out[6] |= (skyval | blockval) << (k << 3);
 
-				uint8_t ocs = popcount((occlusion & occlusionIfNeighbor[i+k]) | (slab & occlusionForSlab[i>>2]));
+				switch (popcount((occlusion & occlusionIfNeighbor[i+k]) | (slab & occlusionForSlab[i>>2]))) {
+				case 2: ocs = 3; break;
+				case 1: ocs = 1; break;
+				default: ocs = occlusion & occlusionIfCorner[i+k] ? 1 : 0;
+				}
 
 				if (b->special == BLOCK_LIQUID && i == SIDE_TOP * 4)
 				{

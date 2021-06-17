@@ -28,7 +28,42 @@ int8_t relx[] = {0,  1,  0, -1, 0,  0};
 int8_t rely[] = {0,  0,  0,  0, 1, -1};
 int8_t relz[] = {1,  0, -1,  0, 0,  0};
 int8_t opp[]  = {2,  3,  0,  1, 5,  4};
-uint8_t slots[] = {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1};
+uint8_t slotsXZ[] = {8,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2};
+uint8_t slotsY[] = {64,0,0,0,0,0,0,0,0,0,0,0,0,0,0,32};
+
+/* these tables are used to list neighbor chunks, if a block is updated at a boundary (383 bytes) */
+static uint8_t updateChunk[] = {
+	0, 43, 1, 71, 3, 43, 26, 112, 5, 96, 88, 71, 60, 43, 26, 0, 8, 169, 164, 153,
+	148, 140, 129, 0, 107, 96, 88, 71, 60, 43, 26, 226, 17, 223, 220, 213, 210,
+	205, 198, 0, 195, 188, 183, 71, 176, 43, 26, 0, 174, 169, 164, 153, 148, 140,
+	129, 112, 107, 96, 88, 71, 60, 43, 26, 0,
+};
+
+static uint8_t updateLength[] = {
+	0, 1, 1, 3, 1, 2, 3, 5, 1, 3, 2, 5, 3, 5, 5, 8, 1, 3, 3, 7, 3, 5, 7, 37, 3, 7,
+	5, 11, 7, 11, 11, 17, 1, 3, 3, 7, 3, 5, 7, 69, 3, 7, 5, 101, 7, 133, 165, 200,
+	2, 5, 5, 11, 5, 8, 11, 17, 5, 11, 8, 17, 11, 17, 17, 26,
+};
+
+static uint16_t updateMore[] = {
+	451, 460, 2047, 411, 428, 585
+};
+
+static uint8_t updateChunks[243] = { /* bitfield S, E, N, W, T, B */
+	 1,  2,  3,  4,  6,  8,  9, 12, 16, 17, 18, 19, 20, 22, 24, 25, 28, 32, 33, 34,
+	35, 36, 38, 40, 41, 44,  2,  4,  6,  8, 12, 16, 18, 20, 22, 24, 28, 32, 34, 36,
+	38, 40, 44,  1,  4,  8,  9, 12, 16, 17, 20, 24, 25, 28, 32, 33, 36, 40, 41, 44,
+	 4,  8, 12, 16, 20, 24, 28, 32, 36, 40, 44,  1,  2,  3,  8,  9, 16, 17, 18, 19,
+	24, 25, 32, 33, 34, 35, 40, 41,  2,  8, 16, 18, 24, 32, 34, 40,  1,  8,  9, 16,
+	17, 24, 25, 32, 33, 40, 41,  8, 16, 24, 32, 40,  1,  2,  3,  4,  6, 16, 17, 18,
+	19, 20, 22, 32, 33, 34, 35, 36, 38,  2,  4,  6, 16, 18, 20, 22, 32, 34, 36, 38,
+	 1,  4, 16, 17, 20, 32, 33, 36,  4, 16, 20, 32, 36,  1,  2,  3, 16, 17, 18, 19,
+	32, 33, 34, 35,  2, 16, 18, 32, 34,  1, 16, 17, 32, 33, 16, 32,  4,  8, 12, 32,
+	36, 40, 44,  2,  8, 32, 34, 40,  1,  8,  9, 32, 33, 40, 41,  8, 32, 40,  2,  4,
+	 6, 32, 34, 36, 38,  1,  4, 32, 33, 36,  4, 32, 36,  1,  2,  3, 32, 33, 34, 35,
+	 2, 32, 34,  1, 32, 33,  1,  2,  3,  4,  6,  8,  9, 12, 16, 17, 18, 19, 20, 22,
+	24, 25, 28,
+};
 
 /* track iteratively blocks that needs change for blocklight/skylight */
 static struct MapUpdate_t track;
@@ -208,7 +243,7 @@ void mapUpdateTable(BlockIter iter, int val, int table)
 		iter->ref->cflags |= CFLAG_ETTLIGHT;
 
 	/* track which side it is near to (we might have to update nearby chunk too) */
-	cd->slot |= (slots[iter->z] << 1) | (slots[iter->x] << 2) | (slots[iter->y] << 5);
+	cd->slot |= slotsXZ[iter->z] | (slotsXZ[iter->x] << 1) | slotsY[iter->y];
 }
 
 static uint8_t mapGetSky(BlockIter iter)
@@ -1255,13 +1290,18 @@ static void mapUpdateListChunk(Map map)
 	for (cd = track.modif; cd; cd = next)
 	{
 		ChunkData nbor;
-		uint8_t   slots = cd->slot >> 1, i;
+		int       slots = cd->slot >> 1;
+		uint8_t   pos   = updateChunk[slots];
+		uint8_t   len   = updateLength[slots];
+		uint16_t  more  = 0;
 		int       layer = cd->Y >> 4;
 		Chunk     c     = cd->chunk;
 
 		*first = cd;
 		first = &cd->update;
 		next = *first;
+		if (len > 31)
+			more = updateMore[len >> 5], len &= 31;
 
 		if ((c->cflags & CFLAG_NEEDSAVE) == 0)
 		{
@@ -1276,39 +1316,29 @@ static void mapUpdateListChunk(Map map)
 			c->cflags &= ~CFLAG_ETTLIGHT;
 		}
 
-		/* check for nearby chunks (S, E, N, W) */
-		for (i = 1, slots = (cd->slot >> 1) & 15; slots; i <<= 1, slots >>= 1)
+		while (len > 0)
 		{
-			if ((slots & 1) == 0) continue;
-			Chunk chunk = c + chunkNeighbor[c->neighbor + i];
-			nbor = chunk->layer[layer];
+			int   sides = updateChunks[pos];
+			Chunk chunk = c + chunkNeighbor[c->neighbor + (sides & 15)];
+			if (sides & 16) /* top */
+			{
+				nbor = layer + 1 < chunk->maxy ? chunk->layer[layer+1] : NULL;
+			}
+			else if (sides & 32) /* bottom */
+			{
+				nbor = layer > 0 ? chunk->layer[layer-1] : NULL;
+			}
+			else nbor = chunk->layer[layer];
 			if (nbor && nbor->slot == 0)
 			{
 				*first = nbor;
 				first = &nbor->update;
 				nbor->slot = 1;
 			}
-		}
-		/* top */
-		slots = cd->slot;
-		if ((slots & 32) && layer < CHUNK_LIMIT && (nbor = c->layer[layer+1]))
-		{
-			if (nbor->slot == 0)
-			{
-				*first = nbor;
-				first = &nbor->update;
-				nbor->slot = 1;
-			}
-		}
-		/* bottom */
-		if ((slots & 128) && layer > 0 && (nbor = c->layer[layer-1]))
-		{
-			if (nbor->slot == 0)
-			{
-				*first = nbor;
-				first = &nbor->update;
-				nbor->slot = 1;
-			}
+			len --; pos ++;
+			if (len == 0)
+				/* sequence was broken in 2 */
+				len = more >> 6, pos += more & 31, more = 0;
 		}
 	}
 
@@ -1493,7 +1523,7 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 		/* not in update list: add it now */
 		iter.cd->slot = 1;
 		if (blockIds[(blockId == 0 ? oldId : blockId) >> 4].type != QUAD)
-			iter.cd->slot |= (slots[iter.z] << 1) | (slots[iter.x] << 2) | (slots[iter.y] << 5);
+			iter.cd->slot |= slotsXZ[iter.z] | (slotsXZ[iter.x] << 1) | slotsY[iter.y];
 		*track.list = iter.cd;
 		track.list = &iter.cd->update;
 	}

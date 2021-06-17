@@ -33,7 +33,7 @@ float getOCSValue(in uint ocs, in float skyLight, in float blockLight, in int no
 	if (normal == 6)
 		return 0;
 	switch (ocs) {
-	case 1: shade -= 0.1; OCS = 0.025; break;
+	case 1: shade -= 0.125; OCS = 0.025; break;
 	case 2: shade -= 0.2; OCS = 0.05; break;
 	case 3: shade -= 0.3; OCS = 0.1; 
 	}
@@ -59,75 +59,111 @@ void main(void)
 		normal = 4;
 
 	/* first vertex */
-	gl_Position = MVP * vec4(vertex1[0], 1);
 	float globalShade = normal < 6 ? shading[normal].x : 1;
 	float shade = globalShade;
 
-	skyLight    = float(bitfieldExtract(skyBlockLight[0], 28, 4)) / 15;
-	blockLight  = float(bitfieldExtract(skyBlockLight[0], 24, 4)) / 15;
-	/* ambient occlusion */
-	shadeOCS    = getOCSValue(bitfieldExtract(ocsNorm[0], 6, 2), skyLight, blockLight, normal, shade);
-	tc          = keepX ? vec2(texCoord[0].x, texCoord[0].w) :
-	                      vec2(texCoord[0].y, texCoord[0].z) ;
-	rswire      = normal == 7 ? 1 : 0;
-	skyLight   *= shade;
-	blockLight *= shade;
+	if (! ((ocsNorm[0] & 0xff) == 16 || (ocsNorm[0] & 0xff) == 1))
+	{
+		gl_Position = MVP * vec4(vertex1[0], 1);
+		skyLight    = float(bitfieldExtract(skyBlockLight[0], 28, 4)) / 15;
+		blockLight  = float(bitfieldExtract(skyBlockLight[0], 24, 4)) / 15;
+		/* ambient occlusion */
+		shadeOCS    = getOCSValue(bitfieldExtract(ocsNorm[0], 6, 2), skyLight, blockLight, normal, shade);
+		tc          = keepX ? vec2(texCoord[0].x, texCoord[0].w) :
+							  vec2(texCoord[0].y, texCoord[0].z) ;
+		rswire      = normal == 7 ? 1 : 0;
+		skyLight   *= shade;
+		blockLight *= shade;
 
-	EmitVertex();
+		EmitVertex();
 
-	/* second vertex */
-	gl_Position = MVP * vec4(vertex2[0], 1);
-	shade       = globalShade;
-	skyLight    = float(bitfieldExtract(skyBlockLight[0], 4, 4)) / 15;
-	blockLight  = float(bitfieldExtract(skyBlockLight[0], 0, 4)) / 15;
-	shadeOCS    = getOCSValue(bitfieldExtract(ocsNorm[0], 0, 2), skyLight, blockLight, normal, shade);
-	tc          = vec2(texCoord[0].x, texCoord[0].z);
-	skyLight   *= shade;
-	blockLight *= shade;
+		/* second vertex */
+		gl_Position = MVP * vec4(vertex2[0], 1);
+		shade       = globalShade;
+		skyLight    = float(bitfieldExtract(skyBlockLight[0], 4, 4)) / 15;
+		blockLight  = float(bitfieldExtract(skyBlockLight[0], 0, 4)) / 15;
+		shadeOCS    = getOCSValue(bitfieldExtract(ocsNorm[0], 0, 2), skyLight, blockLight, normal, shade);
+		tc          = vec2(texCoord[0].x, texCoord[0].z);
+		skyLight   *= shade;
+		blockLight *= shade;
 
-	EmitVertex();
+		EmitVertex();
 
-	/* third vertex */
-	gl_Position = MVP * vec4(vertex3[0], 1);
-	shade       = globalShade;
-	skyLight    = float(bitfieldExtract(skyBlockLight[0], 20, 4)) / 15;
-	blockLight  = float(bitfieldExtract(skyBlockLight[0], 16, 4)) / 15;
-	shadeOCS    = getOCSValue(bitfieldExtract(ocsNorm[0], 4, 2), skyLight, blockLight, normal, shade);
-	tc          = vec2(texCoord[0].y, texCoord[0].w);
-	skyLight   *= shade;
-	blockLight *= shade;
+		/* third vertex */
+		gl_Position = MVP * vec4(vertex3[0], 1);
+		shade       = globalShade;
+		skyLight    = float(bitfieldExtract(skyBlockLight[0], 20, 4)) / 15;
+		blockLight  = float(bitfieldExtract(skyBlockLight[0], 16, 4)) / 15;
+		shadeOCS    = getOCSValue(bitfieldExtract(ocsNorm[0], 4, 2), skyLight, blockLight, normal, shade);
+		tc          = vec2(texCoord[0].y, texCoord[0].w);
+		skyLight   *= shade;
+		blockLight *= shade;
 
-	EmitVertex();
+		EmitVertex();
 
-	/* fourth vertex */
-	gl_Position = MVP * vec4(vertex3[0] + (vertex2[0] - vertex1[0]), 1);
-	shade       = globalShade;
-	skyLight    = float(bitfieldExtract(skyBlockLight[0], 12, 4)) / 15;
-	blockLight  = float(bitfieldExtract(skyBlockLight[0], 8,  4)) / 15;
-	shadeOCS    = getOCSValue(bitfieldExtract(ocsNorm[0], 2, 2), skyLight, blockLight, normal, shade);
-	tc          = keepX ? vec2(texCoord[0].y, texCoord[0].z) :
-	                      vec2(texCoord[0].x, texCoord[0].w) ;
-	skyLight   *= shade;
-	blockLight *= shade;
+		/* fourth vertex */
+		gl_Position = MVP * vec4(vertex3[0] + (vertex2[0] - vertex1[0]), 1);
+		shade       = globalShade;
+		skyLight    = float(bitfieldExtract(skyBlockLight[0], 12, 4)) / 15;
+		blockLight  = float(bitfieldExtract(skyBlockLight[0], 8,  4)) / 15;
+		shadeOCS    = getOCSValue(bitfieldExtract(ocsNorm[0], 2, 2), skyLight, blockLight, normal, shade);
+		tc          = keepX ? vec2(texCoord[0].y, texCoord[0].z) :
+							  vec2(texCoord[0].x, texCoord[0].w) ;
+		skyLight   *= shade;
+		blockLight *= shade;
+	}
+	else /* rotate vertices by 90 deg: 2 - 0 - 3 - 1 */
+	{
+		/* third vertex */
+		gl_Position = MVP * vec4(vertex3[0], 1);
+		skyLight    = float(bitfieldExtract(skyBlockLight[0], 20, 4)) / 15;
+		blockLight  = float(bitfieldExtract(skyBlockLight[0], 16, 4)) / 15;
+		shadeOCS    = getOCSValue(bitfieldExtract(ocsNorm[0], 4, 2), skyLight, blockLight, normal, shade);
+		tc          = vec2(texCoord[0].y, texCoord[0].w);
+		skyLight   *= shade;
+		blockLight *= shade;
 
+		EmitVertex();
+
+		/* first vertex */
+		gl_Position = MVP * vec4(vertex1[0], 1);
+		shade       = globalShade;
+		skyLight    = float(bitfieldExtract(skyBlockLight[0], 28, 4)) / 15;
+		blockLight  = float(bitfieldExtract(skyBlockLight[0], 24, 4)) / 15;
+		/* ambient occlusion */
+		shadeOCS    = getOCSValue(bitfieldExtract(ocsNorm[0], 6, 2), skyLight, blockLight, normal, shade);
+		tc          = keepX ? vec2(texCoord[0].x, texCoord[0].w) :
+							  vec2(texCoord[0].y, texCoord[0].z) ;
+		rswire      = normal == 7 ? 1 : 0;
+		skyLight   *= shade;
+		blockLight *= shade;
+
+		EmitVertex();
+
+		/* fourth vertex */
+		gl_Position = MVP * vec4(vertex3[0] + (vertex2[0] - vertex1[0]), 1);
+		shade       = globalShade;
+		skyLight    = float(bitfieldExtract(skyBlockLight[0], 12, 4)) / 15;
+		blockLight  = float(bitfieldExtract(skyBlockLight[0], 8,  4)) / 15;
+		shadeOCS    = getOCSValue(bitfieldExtract(ocsNorm[0], 2, 2), skyLight, blockLight, normal, shade);
+		tc          = keepX ? vec2(texCoord[0].y, texCoord[0].z) :
+							  vec2(texCoord[0].x, texCoord[0].w) ;
+		skyLight   *= shade;
+		blockLight *= shade;
+
+		EmitVertex();
+
+		/* second vertex */
+		gl_Position = MVP * vec4(vertex2[0], 1);
+		shade       = globalShade;
+		skyLight    = float(bitfieldExtract(skyBlockLight[0], 4, 4)) / 15;
+		blockLight  = float(bitfieldExtract(skyBlockLight[0], 0, 4)) / 15;
+		shadeOCS    = getOCSValue(bitfieldExtract(ocsNorm[0], 0, 2), skyLight, blockLight, normal, shade);
+		tc          = vec2(texCoord[0].x, texCoord[0].z);
+		skyLight   *= shade;
+		blockLight *= shade;
+	}
 	EmitVertex();
 
 	EndPrimitive();
-
-	#if 0
-	if (shading[0].w > 0)
-	{
-		/* inventory items: using an orthogonal projection on XY plane */
-		float scale = offsets.z;
-		/* <offsets> is relative to bottom left corner of rendering box */
-		if (normal < 6)
-		{
-			/* cube: due to rotation, scale and offset need to be slightly adjusted */
-			scale *= 0.625;
-			pos = mvMatrix * ((pos - vec4(0.5, 0.5, 0.5, 0)) * vec4(scale,scale,scale,1)) + vec4(offsets.x + 0.85 * scale, offsets.y + 0.8 * scale, 25, 0);
-		}
-		else pos = pos * vec4(scale,scale,1,1) + vec4(offsets.x, offsets.y, 20, 0); /* quad */
-		gl_Position = projMatrix * pos;
-	}
-	#endif
 }

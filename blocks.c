@@ -2415,7 +2415,7 @@ static void fillVertex(DATA16 face, DATA16 dest, int axis)
 	dest[1] = face[a1+INT_PER_VERTEX*2];
 	dest[2] = face[a2];
 	dest[3] = face[a2+INT_PER_VERTEX*2];
-	if (dest[1] < dest[0]) dest[0] = dest[1], dest[0] = face[a1];
+	if (dest[1] < dest[0]) dest[0] = dest[1], dest[1] = face[a1];
 	if (dest[3] < dest[2]) dest[2] = dest[3], dest[3] = face[a2];
 }
 
@@ -2432,26 +2432,26 @@ Bool blockIsSideHidden(int blockId, DATA16 face, int side)
 	case CUST:
 		if (state->custModel)
 		{
+			extern int8_t opp[];
 			/* be a bit more aggressive with custom models */
-			extern uint8_t axisCheck[];
-
 			uint16_t bounds1[4];
 			uint16_t bounds2[4];
 			DATA16   model;
 			int      count;
-			uint8_t  check;
-			fillVertex(face, bounds1, check = axisCheck[side]);
+			fillVertex(face, bounds1, side);
+			side = opp[side];
 			/* need to analyze vertex data */
 			for (model = state->custModel, count = model[-1]; count > 0; count -= 6, model += INT_PER_VERTEX * 6)
 			{
 				uint8_t norm = GET_NORMAL(model);
 				if (norm != side) continue;
-				fillVertex(model, bounds2, check);
+				fillVertex(model, bounds2, side);
 				/* <face> is covered by neighbor: discard */
 				if (bounds2[0] <= bounds1[0] && bounds2[2] <= bounds1[2] &&
 				    bounds2[1] >= bounds1[1] && bounds2[3] >= bounds1[3])
 					return True;
 			}
+			return False;
 		}
 		/* else assume SOLID */
 	default:
@@ -2520,22 +2520,72 @@ static int blockModelBed(DATA16 buffer, int blockId)
 	return blockInvCopyFromModel(buffer, b->custModel, 2 << (blockId >> 12));
 }
 
+/* convert between terrain vertex to model vertetx */
+static int blockConvertVertex(DATA32 source, DATA32 end, DATA16 dest, int max)
+{
+	int i;
+	for (i = 0; source < end; source += VERTEX_INT_SIZE, i += 6, dest += INT_PER_VERTEX*6, max -= INT_PER_VERTEX*6)
+	{
+		if (max < INT_PER_VERTEX*6)
+			return 0;
+
+		/* yep, tedious busy work :-/ */
+		uint16_t U2  = bitfieldExtract(source[5], 16, 8);
+		uint16_t V2  = bitfieldExtract(source[5], 24, 8);
+		uint16_t U1  = bitfieldExtract(source[4], 14, 9);
+		uint16_t V1  = bitfieldExtract(source[4], 23, 9) | (bitfieldExtract(source[3], 28, 1) << 9);
+		uint8_t  Xeq = bitfieldExtract(source[5], 11, 1);
+		uint16_t rem = (source[5] & (7 << 3)) | 0xf000;
+
+		U2 = U1 + U2 - 128;
+		V2 = V1 + V2 - 128;
+		dest[0] = source[0];
+		dest[1] = source[0] >> 16;
+		dest[2] = source[1];
+		if (Xeq) SET_UVCOORD(dest, U1, V2);
+		else     SET_UVCOORD(dest, U2, V1);
+		dest[4] |= rem;
+
+		dest[5] = dest[0] + bitfieldExtract(source[1], 16, 14) - MIDVTX;
+		dest[6] = dest[1] + bitfieldExtract(source[2],  0, 14) - MIDVTX;
+		dest[7] = dest[2] + bitfieldExtract(source[2], 14, 14) - MIDVTX;
+		SET_UVCOORD(dest+5, U1, V1);
+		dest[9] |= rem;
+
+		dest[10] = dest[0] + bitfieldExtract(source[3],  0, 14) - MIDVTX;
+		dest[11] = dest[1] + bitfieldExtract(source[3], 14, 14) - MIDVTX;
+		dest[12] = dest[2] + bitfieldExtract(source[4],  0, 14) - MIDVTX;
+		SET_UVCOORD(dest+10, U2, V2);
+		dest[14] |= rem;
+
+		memcpy(dest + 15, dest + 10, BYTES_PER_VERTEX);
+		memcpy(dest + 20, dest + 5,  BYTES_PER_VERTEX);
+
+		dest[25] = dest[10] + dest[5] - dest[0];
+		dest[26] = dest[11] + dest[6] - dest[1];
+		dest[27] = dest[12] + dest[7] - dest[2];
+		if (Xeq) SET_UVCOORD(dest+25, U2, V1);
+		else     SET_UVCOORD(dest+25, U1, V2);
+		dest[29] |= rem;
+	}
+	return i;
+}
+
 static int blockModelStairs(DATA16 buffer, int blockId)
 {
-	#if 0
-	struct WriteBuffer_t write = {
-		.start = buffer, .cur = buffer, .end = buffer + 300 * INT_PER_VERTEX
-	};
-	BlockState b = blockGetById(blockId);
+	uint32_t temp[VERTEX_INT_SIZE * 20];
 	uint16_t blockIds3x3[27];
 	uint8_t  pos[] = {0, 0, 0};
+
+	struct WriteBuffer_t write = {
+		.start = temp, .cur = temp, .end = EOT(temp)
+	};
+	BlockState b = blockGetById(blockId);
 	memset(blockIds3x3, 0, sizeof blockIds3x3);
 	blockIds3x3[13] = blockId;
 	halfBlockGenMesh(&write, halfBlockGetModel(b, 2, blockIds3x3), 2, pos, &b->nzU, blockIds3x3, (DATA8) blockIds3x3);
-	return (write.cur - write.start) / INT_PER_VERTEX;
-	#else
-	return 0;
-	#endif
+
+	return blockConvertVertex(temp, write.cur, buffer, 300);
 }
 
 /* generate vertex data for any block (compatible with blocks.vsh) */

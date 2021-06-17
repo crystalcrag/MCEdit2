@@ -462,7 +462,6 @@ void mceditWorld(void)
 			case SDL_VIDEORESIZE:
 				mcedit.width  = event.resize.w;
 				mcedit.height = event.resize.h;
-				renderResize(event.resize.w, event.resize.h);
 				SIT_ProcessResize(event.resize.w, event.resize.h);
 				break;
 			case SDL_QUIT:

@@ -18,7 +18,6 @@
 #define ITEMSCALE      1.3
 
 Bool renderInitStatic(int width, int height, APTR sitRoot);
-void renderResize(int width, int height);
 Map  renderInitWorld(STRPTR path, int renderDist);
 void renderWorld();
 void renderSetViewMat(vec4 pos, vec4 lookat, float * yawPitch);

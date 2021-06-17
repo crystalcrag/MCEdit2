@@ -68,6 +68,8 @@ int  createGLSLProgramCond(const char * vertexShader, const char * fragmentShade
 int  checkOpenGLError(const char * name);
 void setShaderValue(int prog, const char * field, int args, float * array);
 
+#define bitfieldExtract(num, start, length)    ((num >> start) & ((1 << length)-1))
+
 /* Q'n'D JSON parser */
 typedef Bool (*JSONParseCb_t)(const char * file, STRPTR * keys, int line);
 Bool   jsonParse(const char * file, JSONParseCb_t cb);

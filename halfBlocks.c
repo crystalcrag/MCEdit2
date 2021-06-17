@@ -288,7 +288,7 @@ void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DAT
 				else break;
 			}
 
-			if (write->end - out < VERTEX_DATA_SIZE)
+			if (write->end - out < VERTEX_INT_SIZE)
 			{
 				write->cur = out;
 				write->flush(write);

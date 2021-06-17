@@ -292,6 +292,9 @@ static int renderGetSize(SIT_Widget w, APTR cd, APTR ud)
 	float * size = cd;
 	render.width  = size[0];
 	render.height = size[1];
+	render.scale = render.width / (3 * 182.) * ITEMSCALE;
+	render.inventory->update ++;
+
 	/* aspect ratio (needed by particle.gsh) */
 	shading[1] = render.width / (float) render.height;
 	matPerspective(render.matPerspective, DEF_FOV, shading[1], NEAR_PLANE, 1000);
@@ -544,15 +547,6 @@ void renderDebugBlock(void)
 	else
 		debugBlockVertex(render.level, &render.selection);
 	#endif
-}
-
-/* screen size changed */
-void renderResize(int width, int height)
-{
-	render.width  = width;
-	render.height = height;
-	render.scale = render.width / (3 * 182.) * ITEMSCALE;
-	render.inventory->update ++;
 }
 
 void renderResetViewport(void)
