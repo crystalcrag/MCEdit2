@@ -1030,6 +1030,7 @@ PFNGLUNIFORM2FVPROC glad_glUniform2fv;
 PFNGLDISABLEVERTEXATTRIBARRAYPROC glad_glDisableVertexAttribArray;
 PFNGLDELETEBUFFERSPROC glad_glDeleteBuffers;
 PFNGLDELETEVERTEXARRAYSPROC glad_glDeleteVertexArrays;
+PFNGLMAPBUFFERRANGEPROC glad_glMapBufferRange;
 
 PFNGLBINDTEXTUREPROC glad_glBindTexture;
 PFNGLSTENCILMASKPROC glad_glStencilMask;
@@ -1189,6 +1190,7 @@ int gladLoadGL(void)
 		 && (glad_glGetTexImage        = load(name = "glGetTexImage"))
 		 && (glad_glBindImageTexture   = load(name = "glBindImageTexture"))
 		 && (glad_glTexBuffer          = load(name = "glTexBuffer"))
+		 && (glad_glMapBufferRange     = load(name = "glMapBufferRange"))
 		 && (glad_glGetUniformBlockIndex     = load(name = "glGetUniformBlockIndex"))
 		 && (glad_glUniformBlockBinding      = load(name = "glUniformBlockBinding"))
 		 && (glad_glEnableVertexAttribArray  = load(name = "glEnableVertexAttribArray"))

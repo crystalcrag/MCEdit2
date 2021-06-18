@@ -1,6 +1,9 @@
 =========== Week 24 ===========
+Thu June 17:
+	* last bugs due to vertex data changes seem fixed.
+
 Wed June 16:
-	* avoid interpolation AO on hypothenuse of triangles.
+	* avoid interpolating AO on hypothenuse of triangles.
 	* chunk updates reworked when updates happened near boundaries.
 
 Tue June 15:

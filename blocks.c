@@ -530,19 +530,16 @@ DATA16 blockParseModel(float * values, int count, DATA16 buffer)
 			if (inv)
 			{
 				/* invert normals */
-				uint8_t buffer[BYTES_PER_VERTEX];
-				/* triangles for faces (vertex index): from 0, 1, 2, 3, <p> to 0, 2, 1, 3, 2, 0 */
-				memcpy(p,      p - 10, BYTES_PER_VERTEX);
-				memcpy(p + 5,  p - 20, BYTES_PER_VERTEX);
-				memcpy(buffer, p - 10, BYTES_PER_VERTEX);
-				memcpy(p - 10, p - 15, BYTES_PER_VERTEX);
-				memcpy(p - 15, buffer, BYTES_PER_VERTEX);
+				uint8_t buffer[BYTES_PER_VERTEX*2];
+				/* triangles for faces (vertex index): from 0, 1, 2, 3, <p> to 3, 2, 1, 0, 2, 0 */
+				memcpy(buffer, p - 20, 2*BYTES_PER_VERTEX); /* save 0-1 */
+				memcpy(p - 20, p - 5,  BYTES_PER_VERTEX);   /* 3 -> 0 */
+				memcpy(p - 15, p - 10, BYTES_PER_VERTEX);   /* 2 -> 1 */
+				memcpy(p - 5,  buffer, BYTES_PER_VERTEX);
+				memcpy(p - 10, buffer+10, BYTES_PER_VERTEX);
 			}
-			else
-			{
-				memcpy(p,   p - 20, BYTES_PER_VERTEX);
-				memcpy(p+5, p - 10, BYTES_PER_VERTEX);
-			}
+			memcpy(p,   p - 20, BYTES_PER_VERTEX);
+			memcpy(p+5, p - 10, BYTES_PER_VERTEX);
 			p += INT_PER_VERTEX*2;
 		}
 		/* marks the beginning of a new primitive (only needed by bounding box) */

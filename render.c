@@ -842,8 +842,6 @@ void renderItems(Item items, int count, float scale)
 	if (ext) renderDrawExtInv(items, scale, count);
 }
 
-#define QUAD_SIZE       (VERTEX_DATA_SIZE)
-
 static int compare(const void * item1, const void * item2)
 {
 	return * (DATA32) item2 - * (DATA32) item1;
@@ -861,9 +859,8 @@ static inline void renderSortVertex(GPUBank bank, ChunkData cd)
 //	fprintf(stderr, "sorting %d quads\n", cd->glAlpha / QUAD_SIZE);
 
 	GPUMem mem = bank->usedList + cd->glSlot;
-	DATA16 vtx;
-	DATA32 src1, src2, dist;
-	int    count = cd->glAlpha / QUAD_SIZE, i;
+	DATA32 vtx, src1, src2, dist;
+	int    count = cd->glAlpha / VERTEX_DATA_SIZE, i;
 
 	/* pre-compute distance of vertices: they are not that cheap to compute */
 	dist = count <= 512 ? alloca(count * 8) : malloc(count * 8);
@@ -872,32 +869,27 @@ static inline void renderSortVertex(GPUBank bank, ChunkData cd)
 	float Y = cd->Y        - render.camera[1];
 
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, bank->vboTerrain);
-	DATA8 vertex = glMapBuffer(GL_ELEMENT_ARRAY_BUFFER, GL_READ_WRITE);
-
 	/* glSize == size of all vertices (in bytes), glAlpha == amount of alpha vertices (at the end) */
-	vertex += mem->offset + (cd->glSize - cd->glAlpha);
+	DATA32 vertex = glMapBufferRange(GL_ELEMENT_ARRAY_BUFFER, mem->offset + (cd->glSize - cd->glAlpha), cd->glAlpha, GL_MAP_READ_BIT | GL_MAP_WRITE_BIT);
 
-	for (vtx = (DATA16) vertex, src2 = dist, i = 0; i < count; i ++, src2 += 2, vtx += QUAD_SIZE/2)
+	for (vtx = vertex, src2 = dist, i = 0; i < count; i ++, src2 += 2, vtx += VERTEX_INT_SIZE)
 	{
-		#define VTX(x)     ((vtx[x] - ORIGINVTX) * (1./BASEVTX))
-		#define IPV        INT_PER_VERTEX
-		float dx = VTX(0);
-		float dy = (VTX(1) + VTX(2*IPV+1)) * 0.5;
-		float dz = VTX(2);
+		#define VTX(x)     ((x) - ORIGINVTX) * (1./BASEVTX)
+		uint16_t X1 = vtx[0];
+		uint16_t Y1 = vtx[0] >> 16;
+		uint16_t Z1 = vtx[1];
 
-		/* use triangle center for sorting */
-		switch (GET_NORMAL(vtx)) {
-		case SIDE_NORTH:
-		case SIDE_SOUTH: dx = (dx + VTX(2*IPV)) * 0.5; break;
-		default:         dx = (dx + VTX(2*IPV)) * 0.5; // no break;
-		case SIDE_WEST:
-		case SIDE_EAST:  dz = (dz + VTX(2*IPV+2)) * 0.5; break;
-		}
+		float dx = VTX((X1 + bitfieldExtract(vtx[1], 16, 14) - MIDVTX +
+		                X1 + bitfieldExtract(vtx[3],  0, 14) - MIDVTX) >> 1);
+		float dy = VTX((Y1 + bitfieldExtract(vtx[2],  0, 14) - MIDVTX +
+		                Y1 + bitfieldExtract(vtx[3], 14, 14) - MIDVTX) >> 1);
+		float dz = VTX((Z1 + bitfieldExtract(vtx[2], 14, 14) - MIDVTX +
+		                Z1 + bitfieldExtract(vtx[4],  0, 14) - MIDVTX) >> 1);
+
 		dx += X; dy += Y; dz += Z;
 		/* qosrt() doesn't want float return value, so convert to fixed point */
 		src2[0] = (dx*dx + dy*dy + dz*dz) * 1024;
 		src2[1] = i;
-		#undef IPV
 		#undef VTX
 	}
 
@@ -909,22 +901,22 @@ static inline void renderSortVertex(GPUBank bank, ChunkData cd)
 	{
 		if (src1[1] != i)
 		{
-			uint8_t  tmpbuf[QUAD_SIZE];
+			uint8_t  tmpbuf[VERTEX_DATA_SIZE];
 			uint16_t loc;
-			DATA16   cur, tmp;
+			DATA32   cur, tmp;
 
 			/* need to be moved */
-			memcpy(tmpbuf, cur = (DATA16) (vertex + i * QUAD_SIZE), QUAD_SIZE);
-			memcpy(cur, tmp = (DATA16) (vertex + src1[1] * QUAD_SIZE), QUAD_SIZE);
+			memcpy(tmpbuf, cur = vertex + i * VERTEX_INT_SIZE, VERTEX_DATA_SIZE);
+			memcpy(cur, tmp = vertex + src1[1] * VERTEX_INT_SIZE, VERTEX_DATA_SIZE);
 			for (loc = src1[1] * 2 + 1, cur = tmp; dist[loc] != i; cur = tmp)
 			{
 				uint16_t pos = dist[loc];
-				memcpy(cur, tmp = (DATA16) (vertex + pos * QUAD_SIZE), QUAD_SIZE);
+				memcpy(cur, tmp = vertex + pos * VERTEX_INT_SIZE, VERTEX_DATA_SIZE);
 				dist[loc] = loc >> 1;
 				loc = pos * 2 + 1;
 			}
 			dist[loc] = loc >> 1;
-			memcpy(cur, tmpbuf, QUAD_SIZE);
+			memcpy(cur, tmpbuf, VERTEX_DATA_SIZE);
 		}
 	}
 	if (count > 512)
@@ -932,7 +924,7 @@ static inline void renderSortVertex(GPUBank bank, ChunkData cd)
 
 	#if 0
 	puts("=========================");
-	for (i = 0, vtx = (DATA16) vertex; i < count; i ++, vtx += QUAD_SIZE/2)
+	for (i = 0, vtx = (DATA16) vertex; i < count; i ++, vtx += VERTEX_INT_SIZE)
 	{
 		static STRPTR colors[] = {"WHITE","ORANGE","MAGENTA","LBLUE","YELLOW","LIME","PINK","DGRAY","GRAY","CYAN","PURPLE","BLUE","BROWN","GREEN","RED","BLACK","???"};
 		int V = (GET_VCOORD(vtx) >> 4)-33;
@@ -1029,7 +1021,6 @@ static void renderPrepVisibleChunks(Map map)
 					loc[2] = chunk->Z;
 					alphaIndex --;
 
-					#if 0
 					/* check if we need to sort vertex: this is costly but should not be done very often */
 					if ((fabsf(render.yaw - cd->yaw) > M_PI_4 && fabsf(render.yaw - cd->yaw - 2*M_PI) > M_PI_4) ||
 					     fabsf(render.pitch - cd->pitch) > M_PI_4 ||
@@ -1037,7 +1028,6 @@ static void renderPrepVisibleChunks(Map map)
 					{
 						renderSortVertex(bank, cd);
 					}
-					#endif
 				}
 			}
 		}

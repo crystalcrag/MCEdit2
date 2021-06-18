@@ -58,112 +58,54 @@ void main(void)
 	if ((ocsNorm[0] & (1 << 12)) > 0)
 		normal = 4;
 
-	/* first vertex */
+	float shade;
 	float globalShade = normal < 6 ? shading[normal].x : 1;
-	float shade = globalShade;
+	uint  order = (ocsNorm[0] & 0xff) == 16 || (ocsNorm[0] & 0xff) == 1 ? 0x1302 : 0x3210;
 
-	if (! ((ocsNorm[0] & 0xff) == 16 || (ocsNorm[0] & 0xff) == 1))
+	rswire = normal == 7 ? 1 : 0;
+
+	while (order > 0)
 	{
-		gl_Position = MVP * vec4(vertex1[0], 1);
-		skyLight    = float(bitfieldExtract(skyBlockLight[0], 28, 4)) / 15;
-		blockLight  = float(bitfieldExtract(skyBlockLight[0], 24, 4)) / 15;
-		/* ambient occlusion */
-		shadeOCS    = getOCSValue(bitfieldExtract(ocsNorm[0], 6, 2), skyLight, blockLight, normal, shade);
-		tc          = keepX ? vec2(texCoord[0].x, texCoord[0].w) :
-							  vec2(texCoord[0].y, texCoord[0].z) ;
-		rswire      = normal == 7 ? 1 : 0;
+		shade = globalShade;
+		switch (order & 3) {
+		case 0: /* first vertex */
+			gl_Position = MVP * vec4(vertex1[0], 1);
+			skyLight    = float(bitfieldExtract(skyBlockLight[0], 28, 4)) / 15;
+			blockLight  = float(bitfieldExtract(skyBlockLight[0], 24, 4)) / 15;
+			/* ambient occlusion */
+			shadeOCS    = getOCSValue(bitfieldExtract(ocsNorm[0], 6, 2), skyLight, blockLight, normal, shade);
+			tc          = keepX ? vec2(texCoord[0].x, texCoord[0].w) :
+								  vec2(texCoord[0].y, texCoord[0].z) ;
+			break;
+
+		case 1: /* second vertex */
+			gl_Position = MVP * vec4(vertex2[0], 1);
+			skyLight    = float(bitfieldExtract(skyBlockLight[0], 4, 4)) / 15;
+			blockLight  = float(bitfieldExtract(skyBlockLight[0], 0, 4)) / 15;
+			shadeOCS    = getOCSValue(bitfieldExtract(ocsNorm[0], 0, 2), skyLight, blockLight, normal, shade);
+			tc          = vec2(texCoord[0].x, texCoord[0].z);
+			break;
+			
+		case 2: /* third vertex */
+			gl_Position = MVP * vec4(vertex3[0], 1);
+			skyLight    = float(bitfieldExtract(skyBlockLight[0], 20, 4)) / 15;
+			blockLight  = float(bitfieldExtract(skyBlockLight[0], 16, 4)) / 15;
+			shadeOCS    = getOCSValue(bitfieldExtract(ocsNorm[0], 4, 2), skyLight, blockLight, normal, shade);
+			tc          = vec2(texCoord[0].y, texCoord[0].w);
+			break;
+
+		case 3: /* fourth vertex */
+			gl_Position = MVP * vec4(vertex3[0] + (vertex2[0] - vertex1[0]), 1);
+			skyLight    = float(bitfieldExtract(skyBlockLight[0], 12, 4)) / 15;
+			blockLight  = float(bitfieldExtract(skyBlockLight[0], 8,  4)) / 15;
+			shadeOCS    = getOCSValue(bitfieldExtract(ocsNorm[0], 2, 2), skyLight, blockLight, normal, shade);
+			tc          = keepX ? vec2(texCoord[0].y, texCoord[0].z) :
+								  vec2(texCoord[0].x, texCoord[0].w) ;
+		}
 		skyLight   *= shade;
 		blockLight *= shade;
-
 		EmitVertex();
-
-		/* second vertex */
-		gl_Position = MVP * vec4(vertex2[0], 1);
-		shade       = globalShade;
-		skyLight    = float(bitfieldExtract(skyBlockLight[0], 4, 4)) / 15;
-		blockLight  = float(bitfieldExtract(skyBlockLight[0], 0, 4)) / 15;
-		shadeOCS    = getOCSValue(bitfieldExtract(ocsNorm[0], 0, 2), skyLight, blockLight, normal, shade);
-		tc          = vec2(texCoord[0].x, texCoord[0].z);
-		skyLight   *= shade;
-		blockLight *= shade;
-
-		EmitVertex();
-
-		/* third vertex */
-		gl_Position = MVP * vec4(vertex3[0], 1);
-		shade       = globalShade;
-		skyLight    = float(bitfieldExtract(skyBlockLight[0], 20, 4)) / 15;
-		blockLight  = float(bitfieldExtract(skyBlockLight[0], 16, 4)) / 15;
-		shadeOCS    = getOCSValue(bitfieldExtract(ocsNorm[0], 4, 2), skyLight, blockLight, normal, shade);
-		tc          = vec2(texCoord[0].y, texCoord[0].w);
-		skyLight   *= shade;
-		blockLight *= shade;
-
-		EmitVertex();
-
-		/* fourth vertex */
-		gl_Position = MVP * vec4(vertex3[0] + (vertex2[0] - vertex1[0]), 1);
-		shade       = globalShade;
-		skyLight    = float(bitfieldExtract(skyBlockLight[0], 12, 4)) / 15;
-		blockLight  = float(bitfieldExtract(skyBlockLight[0], 8,  4)) / 15;
-		shadeOCS    = getOCSValue(bitfieldExtract(ocsNorm[0], 2, 2), skyLight, blockLight, normal, shade);
-		tc          = keepX ? vec2(texCoord[0].y, texCoord[0].z) :
-							  vec2(texCoord[0].x, texCoord[0].w) ;
-		skyLight   *= shade;
-		blockLight *= shade;
+		order >>= 4;
 	}
-	else /* rotate vertices by 90 deg: 2 - 0 - 3 - 1 */
-	{
-		/* third vertex */
-		gl_Position = MVP * vec4(vertex3[0], 1);
-		skyLight    = float(bitfieldExtract(skyBlockLight[0], 20, 4)) / 15;
-		blockLight  = float(bitfieldExtract(skyBlockLight[0], 16, 4)) / 15;
-		shadeOCS    = getOCSValue(bitfieldExtract(ocsNorm[0], 4, 2), skyLight, blockLight, normal, shade);
-		tc          = vec2(texCoord[0].y, texCoord[0].w);
-		skyLight   *= shade;
-		blockLight *= shade;
-
-		EmitVertex();
-
-		/* first vertex */
-		gl_Position = MVP * vec4(vertex1[0], 1);
-		shade       = globalShade;
-		skyLight    = float(bitfieldExtract(skyBlockLight[0], 28, 4)) / 15;
-		blockLight  = float(bitfieldExtract(skyBlockLight[0], 24, 4)) / 15;
-		/* ambient occlusion */
-		shadeOCS    = getOCSValue(bitfieldExtract(ocsNorm[0], 6, 2), skyLight, blockLight, normal, shade);
-		tc          = keepX ? vec2(texCoord[0].x, texCoord[0].w) :
-							  vec2(texCoord[0].y, texCoord[0].z) ;
-		rswire      = normal == 7 ? 1 : 0;
-		skyLight   *= shade;
-		blockLight *= shade;
-
-		EmitVertex();
-
-		/* fourth vertex */
-		gl_Position = MVP * vec4(vertex3[0] + (vertex2[0] - vertex1[0]), 1);
-		shade       = globalShade;
-		skyLight    = float(bitfieldExtract(skyBlockLight[0], 12, 4)) / 15;
-		blockLight  = float(bitfieldExtract(skyBlockLight[0], 8,  4)) / 15;
-		shadeOCS    = getOCSValue(bitfieldExtract(ocsNorm[0], 2, 2), skyLight, blockLight, normal, shade);
-		tc          = keepX ? vec2(texCoord[0].y, texCoord[0].z) :
-							  vec2(texCoord[0].x, texCoord[0].w) ;
-		skyLight   *= shade;
-		blockLight *= shade;
-
-		EmitVertex();
-
-		/* second vertex */
-		gl_Position = MVP * vec4(vertex2[0], 1);
-		shade       = globalShade;
-		skyLight    = float(bitfieldExtract(skyBlockLight[0], 4, 4)) / 15;
-		blockLight  = float(bitfieldExtract(skyBlockLight[0], 0, 4)) / 15;
-		shadeOCS    = getOCSValue(bitfieldExtract(ocsNorm[0], 0, 2), skyLight, blockLight, normal, shade);
-		tc          = vec2(texCoord[0].x, texCoord[0].z);
-		skyLight   *= shade;
-		blockLight *= shade;
-	}
-	EmitVertex();
-
 	EndPrimitive();
 }
