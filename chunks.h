@@ -43,7 +43,7 @@ struct ChunkData_t                     /* one sub-chunk of 16x16x16 blocks */
 	Chunk     chunk;                   /* bidirectional link */
 	uint16_t  Y;                       /* vertical pos in blocks */
 
-	uint8_t   pendingDel;
+	uint8_t   cdflags;                 /* solid face of chunk (cave culling) */
 	uint8_t   slot;                    /* used by ChunkFake */
 
 	DATA8     blockIds;                /* 16*16*16 = XZY ordered, note: point directly to NBT struct (4096 bytes) */
@@ -86,7 +86,7 @@ struct Chunk_t                         /* an entire column of 16x16 blocks */
 
 extern int16_t chunkNeighbor[];        /* where neighbors of a chunk based on Chunk->neighbor+direction value */
 
-enum /* flags for Chunk_t.flags */
+enum /* flags for Chunk.cflags */
 {
 	CFLAG_GOTDATA    = 0x01,           /* data has been retrieved */
 	CFLAG_HASMESH    = 0x02,           /* mesh generated and pushed to GPU */
@@ -94,6 +94,11 @@ enum /* flags for Chunk_t.flags */
 	CFLAG_HASENTITY  = 0x08,           /* entity transfered in active list */
 	CFLAG_MARKMODIF  = 0x10,           /* mark for modif at the NBT level */
 	CFLAG_ETTLIGHT   = 0x20,           /* update entity light for this chunk */
+};
+
+enum /* flags for ChunkData.cdflags */
+{
+	CDFLAG_PENDINGDEL = 0x80           /* chunk is empty: can be deleted */
 };
 
 enum /* NBT update tag */

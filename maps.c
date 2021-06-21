@@ -699,8 +699,6 @@ void mapGenerateMesh(Map map)
 			}
 		}
 
-//		fprintf(stderr, "generating mesh for chunk %d, %d\n", list->X, list->Z);
-
 		/* second: push data to the GPU (only the first chunk) */
 		for (i = 0, j = list->maxy; j > 0; j --, i ++)
 		{
@@ -711,7 +709,7 @@ void mapGenerateMesh(Map map)
 				chunkUpdate(list, map->air, i);
 				renderFinishMesh(False);
 				particlesChunkUpdate(map, cd);
-				if (cd->pendingDel)
+				if (cd->cdflags == CDFLAG_PENDINGDEL)
 				{
 					/* link within chunk has already been removed in chunkUpdate() */
 					free(cd);
@@ -726,9 +724,6 @@ void mapGenerateMesh(Map map)
 
 		if ((list->cflags & CFLAG_HASENTITY) == 0)
 			chunkExpandEntities(list);
-
-//		if (map->genList.lh_Head == NULL)
-//			mapShowChunks(map);
 
 		/* we are in the main rendering loop: don't hog the CPU for too long */
 		#ifndef SLOW_CHUNK_LOAD
@@ -896,9 +891,9 @@ Bool mapSetRenderDist(Map map, int maxDist)
 			mapRedoGenList(map);
 			for (chunks = HEAD(map->genList); chunks; genlist ++, NEXT(chunks));
 		}
-		if (map->genList.lh_Head == NULL)
-			mapShowChunks(map);
-		fprintf(stderr, "chunk free = %d, genlist = %d, maxDist = %d\n", freed, genlist, map->maxDist);
+		//if (map->genList.lh_Head == NULL)
+		//	mapShowChunks(map);
+		//fprintf(stderr, "chunk free = %d, genlist = %d, maxDist = %d\n", freed, genlist, map->maxDist);
 		return True;
 	}
 
@@ -1652,6 +1647,60 @@ void mapViewFrustum(Map map, mat4 mvp, vec4 camera)
 		}
 		else prev = &cur->visible, renderAddToBank(cur);
 	}
+
+	#if 0
+	/* map->firstVisible contains list of visible chunk: perform cave culling on these */
+	cur = map->firstVisible;
+	if (cur)
+	{
+		/* first chunk will always be visible no matter what */
+		renderAddToBank(cur);
+		for (cur->cdflags &= ~1, cur = cur->visible; cur; cur = cur->visible)
+		{
+			#define OPP(side)       1 | (1 << (side+1))
+			static uint8_t opposite[] = {OPP(SIDE_NORTH), OPP(SIDE_WEST), OPP(SIDE_SOUTH), OPP(SIDE_EAST), OPP(SIDE_BOTTOM), OPP(SIDE_TOP)};
+			#undef OPP
+
+			/* sides we need to check visibility of neighbors */
+			ChunkData cd;
+			Chunk     neighbor;
+			uint8_t   side, Y;
+
+			Y        = cur->Y >> 4;
+			chunk    = cur->chunk;
+			side     = chunk->X + 8 < camera[VX] ? SIDE_EAST :  SIDE_WEST;
+			neighbor = chunk + chunkNeighbor[chunk->neighbor + (1 << side)];
+			cd       = neighbor->layer[Y];
+			if (cd && (cd->cdflags & opposite[side]))
+			{
+				/* solid face on the neighbor closer to camera: check north/south then */
+				side     = chunk->Z + 8 < camera[VZ] ? SIDE_SOUTH : SIDE_NORTH;
+				neighbor = chunk + chunkNeighbor[chunk->neighbor + (1 << side)];
+				cd       = neighbor->layer[Y];
+
+				if (cd && (cd->cdflags & opposite[side]))
+				{
+					/* finally check top or bottom */
+					if (cur->Y + 8 < camera[VY])
+						cd = Y+1 < chunk->maxy ? neighbor->layer[Y+1] : NULL, side = SIDE_TOP;
+					else
+						cd = Y > 0 ? neighbor->layer[Y-1] : NULL, side = SIDE_BOTTOM;
+
+					if (cd && cd->cdflags & opposite[side])
+					{
+						/* all visible faces are surrounded by opaque chunks: mark this one as hidden */
+						cur->cdflags |= 1;
+						renderAddToBank(cur);
+						continue;
+					}
+				}
+			}
+			/* one face still potentially visible */
+			cur->cdflags &= ~1;
+			renderAddToBank(cur);
+		}
+	}
+	#endif
 
 	renderAllocCmdBuffer();
 }

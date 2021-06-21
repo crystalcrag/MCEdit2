@@ -33,6 +33,8 @@ static void chunkFillData(Chunk chunk, int y, int offset)
 
 	chunk->layer[y] = cd;
 
+//	cd->blockIds[8+8*16+256*8] = 0;
+
 	#if 0
 	memset(cd->blockIds, 0, 4096);
 	memset(cd->blockIds + DATA_OFFSET, 0, 2048);
@@ -719,7 +721,7 @@ uint8_t cubeIndices[6*4] = { /* face (quad) of cube: S, E, N, W, T, B */
 	9, 0, 3, 6,    6, 3, 15, 18,     18, 15, 12, 21,     21, 12, 0, 9,    21, 9, 6, 18,      0, 12, 15, 3
 /*  3, 0, 1, 2,    2, 1,  5,  6,      6,  5,  4,  7,      7,  4, 0, 3,     7, 3, 2,  6,      0,  4,  5, 1 */
 };
-uint8_t skyBlockOffset[] = {
+uint8_t skyBlockOffset[] = { /* where to get skylight to shade a vertex of a cube: grab max of 4 values per vertex */
 	15, 16, 24, 25,    6,  7, 15, 16,    7,  8, 16, 17,    16, 17, 25, 26,
 	14, 17, 23, 26,    5,  8, 14, 17,    2,  5, 11, 14,    11, 14, 20, 23,
 	10, 11, 19, 20,    1,  2, 10, 11,    0,  1,  9, 10,     9, 10, 18, 19,
@@ -727,7 +729,7 @@ uint8_t skyBlockOffset[] = {
 	18, 19, 21, 22,   21, 22, 24, 25,   22, 23, 25, 26,    19, 20, 22, 23,
 	 3,  4,  6,  7,    0,  1,  3,  4,    1,  2,  4,  5,     4,  5,  7,  8
 };
-uint8_t quadIndices[] = {
+uint8_t quadIndices[] = { /* coord within <vertex> to make a quad from a QUAD block type */
 	 9, 0,  15, 18,       /* QUAD_CROSS */
 	21, 12,  3,  6,       /* QUAD_CROSS (2nd part) */
 	21, 12, 15, 18,       /* QUAD_NORTH */
@@ -769,6 +771,10 @@ int8_t normals[] = { /* normal per face */
 	 0,  1,  0, 0,
 	 0, -1,  0, 0
 };
+
+/* check which face has a hole in it */
+uint8_t slotsY[] = {64,0,0,0,0,0,0,0,0,0,0,0,0,0,0,32};
+uint8_t slotsXZ[256];
 
 #define VTX_1      (BASEVTX + ORIGINVTX)
 #define VTX_0      ORIGINVTX
@@ -835,6 +841,40 @@ static uint8_t xsides[] = { 2, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 1
 static uint8_t zsides[] = { 1,  5,  5,  5,  5,  5,  5,  5,  5,  5,  5,  5,  5,  5,  5,  4};
 static uint8_t ysides[] = {16, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 32};
 
+/* these tables are used to list neighbor chunks, if a block is updated at a boundary (383 bytes) */
+uint8_t updateChunk[] = {
+	0, 43, 1, 71, 3, 43, 26, 112, 5, 96, 88, 71, 60, 43, 26, 0, 8, 169, 164, 153,
+	148, 140, 129, 0, 107, 96, 88, 71, 60, 43, 26, 226, 17, 223, 220, 213, 210,
+	205, 198, 0, 195, 188, 183, 71, 176, 43, 26, 0, 174, 169, 164, 153, 148, 140,
+	129, 112, 107, 96, 88, 71, 60, 43, 26, 0,
+};
+
+uint8_t updateLength[] = {
+	0, 1, 1, 3, 1, 2, 3, 5, 1, 3, 2, 5, 3, 5, 5, 8, 1, 3, 3, 7, 3, 5, 7, 165, 3, 7,
+	5, 11, 7, 11, 11, 17, 1, 3, 3, 7, 3, 5, 7, 133, 3, 7, 5, 101, 7, 69, 37, 8, 2,
+	5, 5, 11, 5, 8, 11, 17, 5, 11, 8, 17, 11, 17, 17, 26,
+};
+
+uint16_t updateMore[] = {
+	2313, 1542, 1542, 1542, 1548, 1539
+};
+
+uint8_t updateChunks[243] = { /* bitfield S, E, N, W, T, B */
+	 1,  2,  3,  4,  6,  8,  9, 12, 16, 17, 18, 19, 20, 22, 24, 25, 28, 32, 33, 34,
+	35, 36, 38, 40, 41, 44,  2,  4,  6,  8, 12, 16, 18, 20, 22, 24, 28, 32, 34, 36,
+	38, 40, 44,  1,  4,  8,  9, 12, 16, 17, 20, 24, 25, 28, 32, 33, 36, 40, 41, 44,
+	 4,  8, 12, 16, 20, 24, 28, 32, 36, 40, 44,  1,  2,  3,  8,  9, 16, 17, 18, 19,
+	24, 25, 32, 33, 34, 35, 40, 41,  2,  8, 16, 18, 24, 32, 34, 40,  1,  8,  9, 16,
+	17, 24, 25, 32, 33, 40, 41,  8, 16, 24, 32, 40,  1,  2,  3,  4,  6, 16, 17, 18,
+	19, 20, 22, 32, 33, 34, 35, 36, 38,  2,  4,  6, 16, 18, 20, 22, 32, 34, 36, 38,
+	 1,  4, 16, 17, 20, 32, 33, 36,  4, 16, 20, 32, 36,  1,  2,  3, 16, 17, 18, 19,
+	32, 33, 34, 35,  2, 16, 18, 32, 34,  1, 16, 17, 32, 33, 16, 32,  4,  8, 12, 32,
+	36, 40, 44,  2,  8, 32, 34, 40,  1,  8,  9, 32, 33, 40, 41,  8, 32, 40,  2,  4,
+	 6, 32, 34, 36, 38,  1,  4, 32, 33, 36,  4, 32, 36,  1,  2,  3, 32, 33, 34, 35,
+	 2, 32, 34,  1, 32, 33,  1,  2,  3,  4,  6,  8,  9, 12, 16, 17, 18, 19, 20, 22,
+	24, 25, 28,
+};
+
 /* yep, more look-up table init */
 void chunkInitStatic(void)
 {
@@ -886,6 +926,14 @@ void chunkInitStatic(void)
 		}
 	}
 	occlusionSides[13] = 0; /* center block */
+
+	for (pos = 0; pos < 256; pos ++)
+	{
+		x = pos & 15;
+		z = pos >> 4;
+		slotsXZ[pos] = (x == 0 ? 1 << (SIDE_WEST+1)  : x == 15 ? 1 << (SIDE_EAST+1)  : 0) |
+		               (z == 0 ? 1 << (SIDE_NORTH+1) : z == 15 ? 1 << (SIDE_SOUTH+1) : 0);
+	}
 }
 
 #if 0
@@ -937,6 +985,8 @@ static void chunkGenQuad(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 static void chunkGenCust(ChunkData neighbors[], WriteBuffer opaque, BlockState b, int pos);
 static void chunkGenCube(ChunkData neighbors[], WriteBuffer opaque, BlockState b, int pos);
 
+#define CD_SETHOLE(cd, pos)      cd->cdflags &= ~(slotsXZ[pos & 0xff] | slotsY[pos >> 8])
+
 /*
  * transform chunk data into something useful for the vertex shader (blocks.vsh)
  * this is the "meshing" function for our world
@@ -963,8 +1013,9 @@ void chunkUpdate(Chunk c, ChunkData empty, int layer)
 	/* default sorting for alpha quads */
 	neighbors[6]->yaw = 3.14926535 * 1.5;
 	neighbors[6]->pitch = 0;
+	neighbors[6]->cdflags = 126;
 
-//	if (c->X == -208 && neighbors[6]->Y == 64 && c->Z == -48)
+//	if (c->X == 208 && neighbors[6]->Y == 112 && c->Z == 1120)
 //		breakPoint = 1;
 
 	for (pos = air = 0; pos < 16*16*16; pos ++)
@@ -987,22 +1038,27 @@ void chunkUpdate(Chunk c, ChunkData empty, int layer)
 
 		switch (state->type) {
 		case QUAD:
+			CD_SETHOLE(neighbors[6], pos);
 			chunkGenQuad(neighbors, &opaque, state, pos);
 			break;
 		case CUST:
 			if (state->custModel)
 			{
+				CD_SETHOLE(neighbors[6], pos);
 				chunkGenCust(neighbors, STATEFLAG(state, ALPHATEX) ? &alpha : &opaque, state, pos);
 				/* SOLIDOUTER: custom block with ambient occlusion */
 				if (state->special != BLOCK_SOLIDOUTER)
 					break;
 			}
 			/* else no break; */
-		case SOLID:
 		case TRANS:
+			CD_SETHOLE(neighbors[6], pos);
+			// no break;
+		case SOLID:
 			chunkGenCube(neighbors, STATEFLAG(state, ALPHATEX) ? &alpha : &opaque, state, pos);
 			break;
 		default:
+			CD_SETHOLE(neighbors[6], pos);
 			if (state->id == 0) air ++;
 		}
 	}
@@ -1021,7 +1077,7 @@ void chunkUpdate(Chunk c, ChunkData empty, int layer)
 			c->layer[cur->Y >> 4] = NULL;
 			c->maxy --;
 			/* cannot delete it now, but will be done after VBO has been cleared */
-			cur->pendingDel = True;
+			cur->cdflags = CDFLAG_PENDINGDEL;
 			NBT_MarkForUpdate(&c->nbt, c->secOffset, CHUNK_NBT_SECTION);
 			return;
 		}
@@ -1604,30 +1660,11 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 					static uint8_t lessAmbient[] = {0, 1, 1, 1};
 					ocs = lessAmbient[ocs];
 					/* reduce Y by 0.2 unit */
-					out[0] -= (BASEVTX/8) << 16;
+					out[0] -= (BASEVTX/32) << 16;
 				}
 				out[5] |= ocs << k*2;
 			}
 		}
-
-		#if 0
-		/* convert into triangles */
-		if ((p[-16] & 0xc0) || (p[-6] & 0xc0))
-		{
-			/*
-			 * change triangle orientation to prevent ambient occlusion from being interpolated
-			 * on the hypothenuse of the triangle
-			 */
-			memmove(p-3*IPV, p-4*IPV, BYTES_PER_VERTEX*4);
-			memcpy(p-4*IPV,  p,       BYTES_PER_VERTEX);
-			memcpy(p+IPV,    p-2*IPV, BYTES_PER_VERTEX);
-		}
-		else
-		{
-			memcpy(p,     p - 4*IPV, BYTES_PER_VERTEX);
-			memcpy(p+IPV, p - 2*IPV, BYTES_PER_VERTEX);
-		}
-		#endif
 		buffer->cur = out + VERTEX_INT_SIZE;
 	}
 }

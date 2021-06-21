@@ -13,7 +13,7 @@
 #define INTERFACE           "interface/"
 #define SKYDIR              "skydome/"
 #define SHADERDIR           "shaders/"
-#define EPSILON             0.001
+#define EPSILON             0.001f
 
 typedef uint16_t *          DATA16;
 typedef uint32_t *          DATA32;

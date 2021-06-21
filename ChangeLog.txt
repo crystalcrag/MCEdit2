@@ -1,4 +1,10 @@
 =========== Week 24 ===========
+Sun June 19:
+	* reimplemented collision detection/correction using swept AABB sliding algorithm.
+
+Fri June 17:
+	* tediously implement cave culling debug chunk :-/
+
 Thu June 17:
 	* last bugs due to vertex data changes seem fixed.
 

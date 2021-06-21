@@ -181,7 +181,7 @@ void playerMove(Player p, Map map)
 		p->pos[VZ] += p->sinh * s;
 		#endif
 	}
-	#if 0
+	#if 1
 	if (p->pmode <= MODE_CREATIVE)
 	{
 		/* bounding box of voxels will constraint movement in these modes */

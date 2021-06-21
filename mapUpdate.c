@@ -28,42 +28,14 @@ int8_t relx[] = {0,  1,  0, -1, 0,  0};
 int8_t rely[] = {0,  0,  0,  0, 1, -1};
 int8_t relz[] = {1,  0, -1,  0, 0,  0};
 int8_t opp[]  = {2,  3,  0,  1, 5,  4};
-uint8_t slotsXZ[] = {8,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2};
-uint8_t slotsY[] = {64,0,0,0,0,0,0,0,0,0,0,0,0,0,0,32};
 
-/* these tables are used to list neighbor chunks, if a block is updated at a boundary (383 bytes) */
-static uint8_t updateChunk[] = {
-	0, 43, 1, 71, 3, 43, 26, 112, 5, 96, 88, 71, 60, 43, 26, 0, 8, 169, 164, 153,
-	148, 140, 129, 0, 107, 96, 88, 71, 60, 43, 26, 226, 17, 223, 220, 213, 210,
-	205, 198, 0, 195, 188, 183, 71, 176, 43, 26, 0, 174, 169, 164, 153, 148, 140,
-	129, 112, 107, 96, 88, 71, 60, 43, 26, 0,
-};
 
-static uint8_t updateLength[] = {
-	0, 1, 1, 3, 1, 2, 3, 5, 1, 3, 2, 5, 3, 5, 5, 8, 1, 3, 3, 7, 3, 5, 7, 165, 3, 7,
-	5, 11, 7, 11, 11, 17, 1, 3, 3, 7, 3, 5, 7, 133, 3, 7, 5, 101, 7, 69, 37, 8, 2,
-	5, 5, 11, 5, 8, 11, 17, 5, 11, 8, 17, 11, 17, 17, 26,
-};
-
-static uint16_t updateMore[] = {
-	2313, 1542, 1542, 1542, 1548, 1539
-};
-
-static uint8_t updateChunks[243] = { /* bitfield S, E, N, W, T, B */
-	 1,  2,  3,  4,  6,  8,  9, 12, 16, 17, 18, 19, 20, 22, 24, 25, 28, 32, 33, 34,
-	35, 36, 38, 40, 41, 44,  2,  4,  6,  8, 12, 16, 18, 20, 22, 24, 28, 32, 34, 36,
-	38, 40, 44,  1,  4,  8,  9, 12, 16, 17, 20, 24, 25, 28, 32, 33, 36, 40, 41, 44,
-	 4,  8, 12, 16, 20, 24, 28, 32, 36, 40, 44,  1,  2,  3,  8,  9, 16, 17, 18, 19,
-	24, 25, 32, 33, 34, 35, 40, 41,  2,  8, 16, 18, 24, 32, 34, 40,  1,  8,  9, 16,
-	17, 24, 25, 32, 33, 40, 41,  8, 16, 24, 32, 40,  1,  2,  3,  4,  6, 16, 17, 18,
-	19, 20, 22, 32, 33, 34, 35, 36, 38,  2,  4,  6, 16, 18, 20, 22, 32, 34, 36, 38,
-	 1,  4, 16, 17, 20, 32, 33, 36,  4, 16, 20, 32, 36,  1,  2,  3, 16, 17, 18, 19,
-	32, 33, 34, 35,  2, 16, 18, 32, 34,  1, 16, 17, 32, 33, 16, 32,  4,  8, 12, 32,
-	36, 40, 44,  2,  8, 32, 34, 40,  1,  8,  9, 32, 33, 40, 41,  8, 32, 40,  2,  4,
-	 6, 32, 34, 36, 38,  1,  4, 32, 33, 36,  4, 32, 36,  1,  2,  3, 32, 33, 34, 35,
-	 2, 32, 34,  1, 32, 33,  1,  2,  3,  4,  6,  8,  9, 12, 16, 17, 18, 19, 20, 22,
-	24, 25, 28,
-};
+extern uint8_t  slotsXZ[]; /* from chunks.c */
+extern uint8_t  slotsY[];
+extern uint8_t  updateChunk[];
+extern uint8_t  updateLength[];
+extern uint16_t updateMore[];
+extern uint8_t  updateChunks[];
 
 /* track iteratively blocks that needs change for blocklight/skylight */
 static struct MapUpdate_t track;
@@ -243,7 +215,7 @@ void mapUpdateTable(BlockIter iter, int val, int table)
 		iter->ref->cflags |= CFLAG_ETTLIGHT;
 
 	/* track which side it is near to (we might have to update nearby chunk too) */
-	cd->slot |= slotsXZ[iter->z] | (slotsXZ[iter->x] << 1) | slotsY[iter->y];
+	cd->slot |= slotsXZ[(iter->z<<4) | iter->x] | slotsY[iter->y];
 }
 
 static uint8_t mapGetSky(BlockIter iter)
@@ -1368,7 +1340,7 @@ void mapUpdateMesh(Map map)
 		chunkUpdate(cd->chunk, map->air, cd->Y >> 4);
 		renderFinishMesh(True);
 		particlesChunkUpdate(map, cd);
-		if (cd->pendingDel)
+		if (cd->cdflags == CDFLAG_PENDINGDEL)
 			/* link within chunk has already been removed in chunkUpdate() */
 			free(cd);
 		else

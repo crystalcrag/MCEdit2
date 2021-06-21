@@ -133,7 +133,7 @@ static struct
 	GLuint vbo;
 	GLuint vboLoc;
 	GLuint vboMDAI;
-	int    size, count;
+	int    size, count, solid;
 	int    X, Z;
 
 }	debugChunk;
@@ -146,19 +146,19 @@ void debugInit(void)
 	glGenVertexArrays(1, &debugChunk.vao);
 	glBindVertexArray(debugChunk.vao);
 	glBindBuffer(GL_ARRAY_BUFFER, debugChunk.vbo);
-	glBufferData(GL_ARRAY_BUFFER, 16 * 4 * 4 * BYTES_PER_VERTEX, NULL, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, (16 * 4 * 4 + 5 * 6) * BYTES_PER_VERTEX, NULL, GL_STATIC_DRAW);
 	glVertexAttribIPointer(0, 3, GL_UNSIGNED_SHORT, BYTES_PER_VERTEX, 0);
 	glEnableVertexAttribArray(0);
 	glVertexAttribIPointer(1, 2, GL_UNSIGNED_SHORT, BYTES_PER_VERTEX, (void *) 6);
 	glEnableVertexAttribArray(1);
 	glBindBuffer(GL_ARRAY_BUFFER, debugChunk.vboLoc);
-	glBufferData(GL_ARRAY_BUFFER, 12 * CHUNK_LIMIT, NULL, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, 12 * (7 * CHUNK_LIMIT), NULL, GL_STATIC_DRAW);
 	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, 0);
 	glEnableVertexAttribArray(2);
 	glVertexAttribDivisor(2, 1);
 	glBindVertexArray(0);
 	glBindBuffer(GL_ARRAY_BUFFER, debugChunk.vboMDAI);
-	glBufferData(GL_ARRAY_BUFFER, 16 * CHUNK_LIMIT, NULL, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, 16 * (7 * CHUNK_LIMIT), NULL, GL_STATIC_DRAW);
 	debugChunk.X = debugChunk.Z = 1 << 30;
 	debugChunk.size = 16 * 4 * 4;
 
@@ -201,6 +201,28 @@ void debugInit(void)
 			p += INT_PER_VERTEX;
 		}
 	}
+	/* vertex array for showing which face is solid (cave culling debug) */
+	for (i = 0; i < 5*4; i += 4)
+	{
+		extern uint8_t texCoord[];
+
+		for (j = 0; j < 4; j ++, p += INT_PER_VERTEX)
+		{
+			DATA8 coord = vertex + cubeIndices[i+j];
+			int   U = 16 * (texCoord[j*2] + 31);
+			int   V = 16 * (texCoord[j*2+1] + 14);
+			if (U == 512) U = 511;
+			p[0] = VERTEX(coord[0] * 16);
+			p[1] = VERTEX(coord[1] * 16);
+			p[2] = VERTEX(coord[2] * 16);
+			SET_UVCOORD(p, U, V);
+			p[4] |= (i<<1) | (0xf0 << 8);
+		}
+		memcpy(p,    p - 20,  BYTES_PER_VERTEX);
+		memcpy(p + 5,p - 10,  BYTES_PER_VERTEX);
+		p += 2 * INT_PER_VERTEX;
+	}
+
 	glUnmapBuffer(GL_ARRAY_BUFFER);
 }
 
@@ -209,29 +231,50 @@ void debugShowChunkBoundary(Chunk cur)
 	if (cur->X != debugChunk.X || cur->Z != debugChunk.Z)
 	{
 		int     max = cur->maxy;
-		MDAICmd cmd;
+		MDAICmd cmd, solid;
 		float * loc;
-		int     i;
+		float * loc2;
+		int     i, j, count;
+		uint8_t flags;
 
 		debugChunk.X = cur->X;
 		debugChunk.Z = cur->Z;
-		debugChunk.count = max;
 		glBindBuffer(GL_ARRAY_BUFFER, debugChunk.vboLoc);
 		glBindBuffer(GL_DRAW_INDIRECT_BUFFER, debugChunk.vboMDAI);
 		loc = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
 		cmd = glMapBuffer(GL_DRAW_INDIRECT_BUFFER, GL_WRITE_ONLY);
+		solid = cmd + max;
+		loc2  = loc + max * 3;
 
-		for (i = 0; i < max; cmd ++, loc += 3, i ++)
+		for (i = count = 0; i < max; i ++)
 		{
 			cmd->count = debugChunk.size;
 			cmd->instanceCount = 1;
 			cmd->first = 0;
 			cmd->baseInstance = i; /* needed by glVertexAttribDivisor() */
+			cmd ++;
 
 			loc[0] = cur->X;
 			loc[1] = i*16;
 			loc[2] = cur->Z;
+			loc += 3;
+
+			for (flags = cur->layer[i]->cdflags >> 1, j = 0; j < 5; flags >>= 1, j ++)
+			{
+				if ((flags & 1) == 0) continue;
+				solid->count = 6;
+				solid->instanceCount = 1;
+				solid->first = debugChunk.size + j * 6;
+				solid->baseInstance = max+count;
+				loc2[0] = cur->X;
+				loc2[1] = i*16;
+				loc2[2] = cur->Z;
+				loc2 += 3; solid ++;
+				count ++;
+			}
 		}
+		debugChunk.count = max;
+		debugChunk.solid = count;
 		glUnmapBuffer(GL_ARRAY_BUFFER);
 		glUnmapBuffer(GL_DRAW_INDIRECT_BUFFER);
 	}
@@ -239,6 +282,11 @@ void debugShowChunkBoundary(Chunk cur)
 	glBindVertexArray(debugChunk.vao);
 	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, debugChunk.vboMDAI);
 	glMultiDrawArraysIndirect(GL_LINES, 0, debugChunk.count, 0);
+
+	glDisable(GL_CULL_FACE);
+	glDepthMask(GL_FALSE);
+	glMultiDrawArraysIndirect(GL_TRIANGLES, (void *) (debugChunk.count * 16), debugChunk.solid, 0);
+	glEnable(GL_CULL_FACE);
 }
 
 static void nvgMultiLineText(NVGcontext * vg, float x, float y, STRPTR start, STRPTR end)

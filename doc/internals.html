@@ -41,7 +41,6 @@
 
 <a class="sub1" href="#entities"><span>Entities</span></a>
   <a class="sub2" href="#structure"><span>Data structure</span></a>
-  <a class="sub2" href="#collision"><span>Collision correction</span></a>
 </div>
 
 <div id="content">
@@ -1164,43 +1163,6 @@ there are a lot of moving parts, with lots of datatypes:
   in one bank.
 </ul>
 
-<h3 id="collision"><span>Collision correction</span></h3>
-
-<p>Collision detection in this engine is entirely done by checking if <b>axis-aligned boxes</b> are
-intersecting. It sounds simple, yet this part turned out to have <b>a lot</b> of edge cases, and took
-many attempts to fine tune. This section will document most of the caveats to be aware, if you ever want
-to improve that part.
-
-<p>Detecting a collision is extremely trivial with AABox, the main problem is actually <b>correcting
-the trajectory</b>, to cancel the collision. The problem is actually quite easy to formally define:
-<b>find the smallest vector</b> to move the entity out of all the collision intersections.
-
-<p>The usual technique you can find online will usually <b>break down at some point</b> because you
-cannot correct the collision by looking at one intersection at a time: you need to analyze them as a
-whole. This section will document the strategies used in this engine, since once again, the source code
-will more than likely not be obvious at first sight.
-
-<p>To simplify the explanation, we'll limit the problem on the XZ plane (ie: 2D).
-
-<p>If there were only one bounding box at a time to process, it would be just a matter of
-moving the entity's position along the smallest axis of the intersection box (in the opposite direction
-where the entity was moving): because this is the axis that will cause the minimum amount of change.
-
-<p>Sadly this technique will quickly break down when multiple bounding boxes are involved. Consider
-the simple case of an entity <b>sliding against a solid wall</b>:
-<div class="photo">
-  <img src="images/wall_collision.png">
 </div>
-
-<p>You can already see what will happen in this case, if you look at one intersection at a time: the
-intersection box on the right is the smallest on the Z axis, and will therefore push the entity on that
-axis (which is what we would expect). The intersection on the left though, has X as its smallest axis,
-which will push the entity also on the X axis. In other word: <b>the entity will get stuck between the edges
-of voxels when sliding against a surface</b>.
-
-<p>/* ... */
-
-</div>
-
 </body>
 </html>

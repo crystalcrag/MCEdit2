@@ -978,6 +978,7 @@ static void renderPrepVisibleChunks(Map map)
 		for (cd = map->firstVisible; cd; cd = cd->visible)
 		{
 			if (cd->glBank != bank) continue; /* XXX sort by bank in frustum culling */
+//			if (cd->cdflags & 1) continue; /* cave culling */
 
 			Chunk  chunk = cd->chunk;
 			GPUMem mem   = bank->usedList + cd->glSlot;
@@ -1081,18 +1082,27 @@ void renderFrustum(Bool snapshot)
 	static int vaoFrustum;
 	static int vboFrustum;
 	static int vboFrustumLoc;
+	static int vboFrustumMDAI;
 	static int vboCount;
 
 	Map map = render.level;
 
 	if (vaoFrustum == 0)
 	{
+		static uint8_t edges[] = {
+			0, 1,   1, 5,   5, 4,   4, 0,
+			3, 2,   2, 6,   6, 7,   7, 3,
+			0, 3,   1, 2,   5, 6,   4, 7,
+		};
+
 		glGenVertexArrays(1, &vaoFrustum);
 		glGenBuffers(1, &vboFrustum);
 		glGenBuffers(1, &vboFrustumLoc);
+		glGenBuffers(1, &vboFrustumMDAI);
 
 		glBindVertexArray(vaoFrustum);
 		glBindBuffer(GL_ARRAY_BUFFER, vboFrustum);
+		glBufferData(GL_ARRAY_BUFFER, 48 * BYTES_PER_VERTEX, NULL, GL_STATIC_DRAW);
 		glVertexAttribIPointer(0, 3, GL_UNSIGNED_SHORT, BYTES_PER_VERTEX, 0);
 		glEnableVertexAttribArray(0);
 		glVertexAttribIPointer(1, 2, GL_UNSIGNED_SHORT, BYTES_PER_VERTEX, (void *) 6);
@@ -1101,23 +1111,9 @@ void renderFrustum(Bool snapshot)
 		glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, 0);
 		glEnableVertexAttribArray(2);
 		glVertexAttribDivisor(2, 1);
-	}
-	if (snapshot)
-	{
-		static uint8_t edges[] = {
-			0, 1,   1, 5,   5, 4,   4, 0,
-			3, 2,   2, 6,   6, 7,   7, 3,
-			0, 3,   1, 2,   5, 6,   4, 7,
-		};
 
-		ChunkData cd;
-		DATA16    vtx;
-		int       nb;
-
-		for (cd = map->firstVisible, nb = 0; cd; cd = cd->visible, nb ++);
 		glBindBuffer(GL_ARRAY_BUFFER, vboFrustum);
-		glBufferData(GL_ARRAY_BUFFER, 24 * BYTES_PER_VERTEX, NULL, GL_STATIC_DRAW);
-		vtx = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
+		DATA16 vtx = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
 		int i;
 		for (i = 0; i < DIM(edges); i ++, vtx += INT_PER_VERTEX)
 		{
@@ -1128,24 +1124,66 @@ void renderFrustum(Bool snapshot)
 			SET_UVCOORD(vtx, 31*16+8, 8);
 			vtx[4] |= 0xff << 8;
 		}
+
+		for (i = 0; i < DIM(edges); i ++, vtx += INT_PER_VERTEX)
+		{
+			#define GAP      (BASEVTX/32)
+			DATA8 p = &vertex[edges[i] * 3];
+			vtx[0] = p[0] ? VERTEX(16) - GAP : VERTEX(0) + GAP;
+			vtx[1] = p[1] ? VERTEX(16) - GAP : VERTEX(0) + GAP;
+			vtx[2] = p[2] ? VERTEX(16) - GAP : VERTEX(0) + GAP;
+			SET_UVCOORD(vtx, 13*16+8, 7*16+8);
+			vtx[4] |= 0xff << 8;
+			#undef GAP
+		}
+
 		glUnmapBuffer(GL_ARRAY_BUFFER);
-		glBindBuffer(GL_DRAW_INDIRECT_BUFFER, vboFrustumLoc);
-		glBufferData(GL_DRAW_INDIRECT_BUFFER, nb * 12, NULL, GL_STATIC_DRAW);
-		float * loc = glMapBuffer(GL_DRAW_INDIRECT_BUFFER, GL_WRITE_ONLY);
-		for (cd = map->firstVisible, vboCount = 0; cd; cd = cd->visible, loc += 3, vboCount ++)
+	}
+	if (snapshot)
+	{
+		ChunkData cd;
+		int       nb, cull = 0;
+
+		for (cd = map->firstVisible, nb = 0; cd; nb += cd->cdflags & 1 ? 2 : 1, cd = cd->visible);
+
+		/* so much boilerplate, could they not simplify this crap? */
+		glBindBuffer(GL_ARRAY_BUFFER, vboFrustumLoc);
+		glBindBuffer(GL_DRAW_INDIRECT_BUFFER, vboFrustumMDAI);
+		glBufferData(GL_ARRAY_BUFFER, nb * 12, NULL, GL_STATIC_DRAW);
+		glBufferData(GL_DRAW_INDIRECT_BUFFER, nb * 16, NULL, GL_STATIC_DRAW);
+		float * loc = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
+		MDAICmd cmd = glMapBuffer(GL_DRAW_INDIRECT_BUFFER, GL_WRITE_ONLY);
+		for (cd = map->firstVisible, vboCount = 0; cd; cd = cd->visible, loc += 3, vboCount ++, cmd ++)
 		{
 			Chunk chunk = cd->chunk;
+			cmd->first = 0;
+			cmd->count = 24;
+			cmd->baseInstance = vboCount;
+			cmd->instanceCount = 1;
 			loc[0] = chunk->X;
 			loc[1] = cd->Y;
 			loc[2] = chunk->Z;
+			if (cd->cdflags & 1)
+			{
+				loc += 3, vboCount ++, cmd ++;
+				memcpy(cmd, cmd - 1, 16);
+				memcpy(loc, loc - 3, 12);
+				cmd->first = 24;
+				cull ++;
+			}
 		}
+		glUnmapBuffer(GL_ARRAY_BUFFER);
 		glUnmapBuffer(GL_DRAW_INDIRECT_BUFFER);
-		glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
+		glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+		fprintf(stderr, "vboCount = %d, culled = %d\n", vboCount - cull, cull);
 	}
 	if (vboCount > 0)
 	{
+		glUseProgram(render.shaderItems);
 		glBindVertexArray(vaoFrustum);
-		glDrawArraysInstanced(GL_LINES, 0, 24, vboCount);
+		glBindBuffer(GL_DRAW_INDIRECT_BUFFER, vboFrustumMDAI);
+		glMultiDrawArraysIndirect(GL_LINES, 0, vboCount, 0);
 	}
 }
 
@@ -1399,6 +1437,7 @@ static void renderFlush(WriteBuffer buffer)
 	}
 	else list = renderAllocMeshBuf(buffer->alpha ? &alphaBanks : &meshBanks);
 
+	buffer->mesh = list;
 	buffer->cur = buffer->start = list->buffer;
 	buffer->end = list->buffer + (MAX_MESH_CHUNK / 4);
 }
@@ -1750,7 +1789,7 @@ void renderDebugBank(void)
 		GPUMem mem;
 		int    i, total;
 
-		for (mem = bank->usedList, i = bank->nbItem; i > 0; i --, mem ++)
+		for (mem = bank->usedList, i = bank->nbItem, total = 0; i > 0; i --, mem ++)
 			if (mem->size > 0) total += mem->size;
 
 		fprintf(stderr, "bank: mem = %d/%dK, items: %d/%d, vtxSize: %d, mem: %d bytes, avg = %d\n", bank->memUsed>>10, bank->memAvail>>10,
