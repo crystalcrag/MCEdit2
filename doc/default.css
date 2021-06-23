@@ -127,18 +127,22 @@ usrcls  { background-color: crimson; border-radius: 1em; padding: 0 0.5em; font-
 
 bits { display: block; margin: 20px 0 40px 80px }
 brow { display: block; margin-bottom: 1.5em }
+brow hdr { font-weight: bold; width: 40px; display: inline-block }
 bitpart em { color: blue }
 bitpart { display: inline-block; border-bottom: 2px solid black; text-align: center; position: relative }
 bitpart::before { content: ""; height: 10px; border-left: 2px solid black; left: 0; bottom: 0; position: absolute }
 bitpart::after { content: attr(bit); left: -0.5em; bottom: -1.2em; position: absolute; color: gray }
 bitpart.sz0  { width: 2px; color: transparent }
 bitpart.sz1  { width: 15px }
+bitpart.sz2  { width: 30px }
 bitpart.sz3  { width: 45px }
 bitpart.sz4  { width: 60px }
+bitpart.sz7  { width: 105px }
 bitpart.sz8  { width: 120px }
 bitpart.sz9  { width: 135px }
 bitpart.sz10 { width: 150px }
 bitpart.sz12 { width: 180px }
+bitpart.sz14 { width: 210px }
 bitpart.sz16 { width: 240px }
 
 table.skewed { transform: skewx(-35deg); transform-origin: 0 100%; margin-bottom: 5px; box-shadow: 18px 15px rgba(0,0,0,0.1) }

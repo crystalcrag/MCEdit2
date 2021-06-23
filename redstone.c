@@ -13,10 +13,6 @@
 #include "blocks.h"
 #include "redstone.h"
 
-/* from mapUpdate.c */
-extern int8_t xoff[], yoff[], zoff[];
-extern int8_t relx[], rely[], relz[], opp[];
-
 extern struct BlockSides_t blockSides;
 
 /* do we need to update signal because of these block */

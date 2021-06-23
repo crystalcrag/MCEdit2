@@ -71,7 +71,6 @@ void playerScrollInventory(Player, int dir);
 #ifdef MCMAPS_H
 void playerTeleport(Player, Map, vec4 pos);
 void playerMove(Player, Map);
-void playerStickToGround(Player, Map);
 #endif
 
 struct Player_t

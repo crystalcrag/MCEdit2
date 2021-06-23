@@ -7,12 +7,13 @@
 #include <string.h>
 #include <stdio.h>
 #include <malloc.h>
+#include "maps.h"
 #include "blocks.h"
 
 #define BITS(bit1, bit2, bit3, bit4, bit5, bit6, bit7, bit8) \
 	(bit1 | (bit2<<1) | (bit3<<2) | (bit4<<3) | (bit5<<4) | (bit6<<5) | (bit7<<6) | (bit8<<7))
 
-/* some pre-defined models */
+/* some pre-defined models (ordered XZY) */
 static uint8_t modelsSize2[] = {
 	BITS(1, 1, 1, 1, 0, 0, 0, 0), /* bottom slab */
 	BITS(0, 0, 0, 0, 1, 1, 1, 1), /* top slab */
@@ -104,6 +105,7 @@ static Bool isVisible(DATA16 blockIds, DATA8 pos, int dir, int size)
 /* connected stairs model */
 static DATA8 halfBlockGetConnectedModel(BlockState b, DATA16 blockIds)
 {
+	/* only need the 4 surrounding blocks (S, E, N, w) */
 	#define ANDOR(and, or)      ((((~and)&15)<<4) | or)
 	static uint8_t connection[] = {
 		14, 3, ANDOR(8,0), 14, 2, ANDOR(2,0), 12, 2, ANDOR(0,4), 12, 3, ANDOR(0,1),
@@ -159,7 +161,7 @@ DATA8 halfBlockGetModel(BlockState b, int size, DATA16 blockIds)
 		case BLOCK_STAIRS: return halfBlockGetConnectedModel(b, blockIds);
 		default: return NULL;
 		}
-	case 8:
+	case 8: /* TODO */
 		break;
 	}
 	return NULL;
@@ -199,6 +201,7 @@ void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DAT
 			j = 1;
 			k = *model++;
 		}
+		/* empty == 255, sub-voxel == 0 */
 		*face = (k & j) ? 0 : 255;
 	}
 
@@ -209,7 +212,7 @@ void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DAT
 	for (face = faces, out = write->cur, i = total, memset(pos, 0, sizeof pos); i > 0; i --, face ++)
 	{
 		uint8_t flags = *face, sides;
-		if ((flags & 63) >= 63) continue;
+		if ((flags & 63) >= 63) continue; /* empty sub-voxel */
 
 		k = face - faces;
 		if (size == 2)
@@ -369,3 +372,81 @@ void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DAT
 	}
 	write->cur = out;
 }
+
+/*
+ * generate accurate bounding box from half-slab/stairs/chiseled blocks
+ */
+void halfBlockGetBBox(DATA16 blockIds, VTXBBox array, int max)
+{
+	uint8_t visited[8];
+	uint8_t pos[4];
+	int     total, size, i, j, k;
+
+	/* XXX for now only take care of stairs */
+	memset(visited, 0, sizeof visited);
+	size  = 2;
+	total = size * size * size;
+	array->cont = 0;
+
+	DATA8 model = halfBlockGetModel(blockGetById(blockIds[13]), 2, blockIds);
+	DATA8 faces = alloca(total + size);
+	DATA8 zero  = faces + total;
+	DATA8 face;
+	VTXBBox bbox;
+
+	/* expand binary field (ordered XZY, like chunks) */
+	for (i = 0, j = 1, k = *model++, face = faces, memset(zero, 0, size); i < total; i ++, j <<= 1, face ++)
+	{
+		if (j > 128)
+		{
+			j = 1;
+			k = *model++;
+		}
+		*face = (k & j) ? 0 : 255;
+	}
+
+	/* build VTXBBox list */
+	for (face = faces, bbox = array, memset(pos, 0, sizeof pos), k = 0; k < total && array->cont < max; k ++, face ++)
+	{
+		uint8_t flags = *face;
+		uint8_t rect[4];
+		if (flags) continue; /* empty or visited sub-voxel */
+
+		/* XXX x, y, z are still alias to pos[0], pos[1], pos[2] :-/ */
+		if (size == 2)
+		{
+			x = k&1;
+			z = (k>>1) & 1;
+			y = k>>2;
+		}
+		else x = k&7, z = (k>>3) & 7, y = k>>6;
+
+		/* try to expand in 3 directions: X first */
+		bbox->pt1[VX] = VERTEX(x);
+		bbox->pt1[VY] = VERTEX(y);
+		bbox->pt1[VZ] = VERTEX(z);
+		DATA8 p;
+		for (rect[VX] = 1, p = face + 1, x ++; x < size && *p == 0; *p++ = 255, rect[VX] ++, x ++);
+		/* then Z */
+		for (rect[VZ] = 1, p = face + size, z ++; z < size && memcmp(p, zero, rect[VX]) == 0; memset(p, 255, rect[VX]), p += size, rect[VZ] ++, z ++);
+		/* then Y */
+		for (j = size * size, p = face + j, y ++; y < size; p += j, z ++)
+		{
+			uint8_t m;
+			for (m = rect[VZ]; m > 0 && memcmp(p, zero, rect[VX]) == 0; m --, p += size);
+			if (m == 0)
+			{
+				for (m = rect[VZ], p = face + j; m > 0; memset(p, 255, rect[VX]), m --, p += size);
+			}
+			else break;
+ 		}
+
+		/* generate new bbox */
+		bbox->pt2[VX] = VERTEX(x);
+		bbox->pt2[VY] = VERTEX(y);
+		bbox->pt2[VZ] = VERTEX(z);
+		bbox ++;
+		array->cont ++;
+	}
+}
+

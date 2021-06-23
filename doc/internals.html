@@ -41,6 +41,7 @@
 
 <a class="sub1" href="#entities"><span>Entities</span></a>
   <a class="sub2" href="#structure"><span>Data structure</span></a>
+  <a class="sub2" href="#collision"><span>Collision correction</span></a>
 </div>
 
 <div id="content">
@@ -142,7 +143,7 @@ A grid means they share a lot of vertices: if we know that one corner of a chunk
 we can automatically add the 7 others chunks that share this vertex.
 
 <p>In other words by testing only one vertex, we can potentially add up to 8 chunks to the list of visible
-objects. Which means  on average, we will have to <b>test one point per chunk</b>. <em>That is extremely 
+objects. Which means  on average, we will have to <b>test one point per chunk</b>. <em>That is reasonably 
 cheap</em>.
 
 <p>Testing if a vertex is part of a frustum is actually very easy: we can use the MVP matrix (the exact
@@ -431,24 +432,30 @@ fake chunk.
 <p>There is one last step that is done at the same time: cave culling, or removing chunks that are completely
 hidden by nearer chunks. A good primer on how this algorithm works can be read from the original
 <a href="https://tomcc.github.io/2014/08/31/visibility-1.html">author</a> that developped it for Minecraft MCPE.
-The version implemented in this engine is <b>way simpler</b> than that. At the cost of (slightly) more
-chunks being drawn.
 
-<p>The basic principle behind this implementation of the cave culling is this: <b>a cube viewed using
-a perspective projection matrix has at most 3 faces visible</b>. If we can somewhat "prove" that those
-faces are hidden, we can then discard the entire chunk from the visible list.
+<h4 id="cavecullv1"><span>First attempt</span></h3>
 
-<p>First, we need to know which face is visible according to player position and orientation. This can
-easily done using a vector dot product between vector that goes from camera to one of the vertices of
-the face (any vertex will do) and the normal of the face: if that number is negative, the face is hidden.
+<p>In the linked blog post, it was mentionned that they first tried to remove chunks that are completely
+surrounded by opaque chunks (ie: where the outer face is completely made up of opaque quad). Unsurprisingly,
+the results were disappointing: it only culled about 1% of total chunks.
 
-<p>Then, for the faces that are potentially visible, we can check if the face they are connected to is
-completely opaque. If that's the case, there are no way the user will be able to see that face. If all
+<p>A simpler approach were attempted for this engine, because computing the visibility graph is actuatlly
+not that cheap (although with that information, <b>you can cull a lot of chunks</b>).
+
+<p>The basic idea behind the first implementation was that <b>a cube viewed using a perspective projection
+matrix has at most 3 faces visible</b>. If we can somewhat "prove" that those faces are hidden, we can
+then discard the entire chunk from the visible list. For this, we can check if the face they are connected
+to is completely opaque. If that's the case, there are no way the user will be able to see that face. If all
 the visible faces are obscured, the entire chunk can be omitted.
 
-<p>This simple trick works relatively well for caves, where there are usually lots of solid blocks all
-around. It is not as advanced as the algorithm described above, but given how cheap it is, it is a
-trivial optimization to do.
+<p>Sadly, the results for this method were also disappointing: it culled about 10% of the chunk in the
+view frustum. Caves leaves too many holes in chunks that a solid face is too rare to track.
+
+<p>This section is just a remimder to not waste any time with this technique.
+
+<h4 id="cavecullv2"><span>Second attempt</span></h3>
+
+<p>/* ... */
 
 <h2 id="blocks">Block API</h2>
 
@@ -788,7 +795,7 @@ some might have been wrapped. The first number is a bit field encoding quite a f
   activated will have no triangles generated for them at all.
   <li><tt>bit6</tt>: normals are inverted: ie: if south face is active, it should use normal for the
   north face.
-  <li><tt>bit7</tt>: texture should be applied using a cube map. Texture will coordinates refer to a
+  <li><tt>bit7</tt>: texture should be applied using a cube map. Texture coordinates refer to a
   tile in the main texture file, but should be reduced according to the face size/position.
   <li><tt>bit8</tt>: if set, it means there are more primitives following this one.
   <li><tt>bit9~10</tt>: model needs to be rotated by 90 degrees increment CCW (ie: trigonometric rotation).
@@ -1009,7 +1016,7 @@ the CPU.
 
 <h4 id="vtxbuffers">Vertex buffers</h4>
 
-<p>The code is located in <tt>render.c:renderStoreArrays()</tt> and <tt>render.c:renderFreeArray</tt>,
+<p>The code is located in <tt>render.c:renderStoreArrays()</tt> and <tt>render.c:renderFreeArray()</tt>,
 and their sole purpose is to behave like a custom <tt>malloc()</tt> and <tt>free()</tt>. The only
 difference is that the actual memory is owned by the GPU.
 
@@ -1040,8 +1047,9 @@ set to 1 (ie: only grab one vertex data per instance). It simply contains the po
 the triangles of that <tt>ChunkData</tt>.
 
 <p>There is one particular parameter that is critical to track though: it is the number of commands
-that will be issued in a single <tt>glMultiDrawArraysIndirect()</tt> call (<tt>vtxSize</tt>), knowing
-that if a chunk has opaque and translucent fragment, that will increase that number by 2.
+that will be issued in a single <tt>glMultiDrawArraysIndirect()</tt> call (<tt>vtxSize</tt>). Keep in
+mind that opaque and translucent meshes will be stored in the same buffer commands: therefore if a
+chunk has both an opaque and an alpha mesh, that number will be increased by 2.
 
 <p>Knowing the total number of draw commands is critical in setting up the <tt>glMultiDrawArraysIndirect()</tt>
 command buffer, particularly the <tt>baseInstance</tt> field. Translucent chunk commands need to be
@@ -1055,55 +1063,109 @@ appear where they should.
 <p>This section will describe how vertex data are stored on the GPU. Being the central piece of any
 voxel engine, this part had a decent amount of thoughts put into it (and quite a few refactoring).
 
-<p>Terrain meshes <b>only need quads to be rendered</b> (not necessarily axis aligned), and since there are a
-lot of them you'll want to store them efficiently: a typical <prod>Minecraft</prod> world with 16 chunks
-loaded surrounding the player (that is an area of 32x32 chunks) usually contains around 2,000,000 quads
-(not all of them will be rendered at once), or 16M vertices.
+<p>Terrain meshes <b>only need quads to be rendered</b> (not necessarily axis aligned), and since there
+are a lot of them you might want to store them efficiently: a typical <prod>Minecraft</prod> world with
+16 chunks loaded surrounding the player (that is an area of 32x32 chunks) usually contains around 2,000,000
+quads (not all of them will be rendered at once), or 8M vertices (12M using newer OpenGL API, because
+<tt>GL_QUAD</tt> was deprecated).
 
 <p>If you were to store the vertex data (coordinates, texture UV and some meta data) as floats, that
 would required about 400 Mb of data. While even a GPU from 2010 can easily handle this kind of load,
 reducing the amount of data means we could push the render distance way farther than this.
 
-<p>This engine manage use compress each quad down to 24 bytes (stored as 6 32bit unsigned integer),
+<p>This engine manage to compress each quad down to 28 bytes (stored as 7 32bit unsigned integer),
 that means viewing a world on a far render distnace (16 chunks) usually requires about 50Mb of memory
-on the GPU side: that's actually not very much.
+on the GPU side: that's actually not very much. The vertex data is processed as <tt>GL_POINTS</tt>,
+and split into <tt>GL_TRIANGLE_STRIP</tt> in a geometry shader.
 
-<p>The format of each quad is as follows (stored in VBO as 6 <tt class="t">uint32_t</tt>):
+<p>The format of each quad is as follows (stored in VBO as 7 <tt class="t">uint32_t</tt>):
 
 <bits>
-  <brow><bitpart class="sz8" bit="32">8: <em>Z1</em></bitpart><bitpart class="sz12" bit="24">12: <em>Y1</em></bitpart><bitpart class="sz12" bit="12">12: <em>X1</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
+  <brow><hdr>0: </hdr><bitpart class="sz16" bit="32">16: <em>Y1</em></bitpart><bitpart class="sz16" bit="16">16: <em>X1</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
 
-  <brow><bitpart class="sz4" bit="32">4: <em>Z2</em></bitpart><bitpart class="sz12" bit="28">12: <em>Y2</em></bitpart><bitpart class="sz12" bit="16">12: <em>X2</em></bitpart><bitpart class="sz4" bit="4">4: <em>Z1</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
+  <brow><hdr>1: </hdr><bitpart class="sz2" bit="32">2</bitpart><bitpart class="sz14" bit="30">14: <em>DX2</em></bitpart><bitpart class="sz16" bit="16">16: <em>Z1</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
 
-  <brow><bitpart class="sz12" bit="32">12: <em>Y3</em></bitpart><bitpart class="sz12" bit="20">12: <em>X3</em></bitpart><bitpart class="sz8" bit="8">8: <em>Z2</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
+  <brow><hdr>2: </hdr><bitpart class="sz4" bit="32">4</bitpart><bitpart class="sz14" bit="28">14: <em>DZ2</em></bitpart><bitpart class="sz14" bit="14">14: <em>DY2</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
 
-  <brow><bitpart class="sz1">&nbsp;</bitpart><bitpart class="sz10" bit="31">10: <em>V</em></bitpart><bitpart class="sz9" bit="21">9: <em>U</em></bitpart><bitpart class="sz12" bit="12">12: <em>Z3</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
+  <brow><hdr>3: </hdr><bitpart class="sz4" bit="32">4: <em>V</em></bitpart><bitpart class="sz14" bit="28">14: <em>DY3</em></bitpart><bitpart class="sz14" bit="14">14: <em>DX3</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
 
-  <brow><bitpart class="sz8" bit="32">8: <em>Vsz</em></bitpart><bitpart class="sz8" bit="24">8: <em>Usz</em></bitpart><bitpart class="sz3" bit="16"><em>?</em></bitpart><bitpart class="sz1"><em>A</em></bitpart><bitpart class="sz1"><em>Y</em></bitpart><bitpart class="sz3" bit="11">3: <em>N</em></bitpart><bitpart class="sz8" bit="8">8: <em>OCS</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
+  <brow><hdr>4: </hdr><bitpart class="sz9" bit="32">9: <em>V</em></bitpart><bitpart class="sz9" bit="23">9: <em>U</em></bitpart><bitpart class="sz14" bit="14">14: <em>DZ3</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
 
-  <brow><bitpart class="sz8" bit="32">8: <em>Sky/Block</em></bitpart><bitpart class="sz8" bit="24">8: <em>Sky/Block</em></bitpart><bitpart class="sz8" bit="16">8: <em>Sky/Block</em></bitpart><bitpart class="sz8" bit="8">8: <em>Sky/Block</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
+  <brow><hdr>5: </hdr><bitpart class="sz8" bit="32">8: <em>Vsz</em></bitpart><bitpart class="sz8" bit="24">8: <em>Usz</em></bitpart><bitpart class="sz3" bit="16">3</bitpart><bitpart class="sz1"><em>A</em></bitpart><bitpart class="sz1"><em>X</em></bitpart><bitpart class="sz3" bit="11">3: <em>N</em></bitpart><bitpart class="sz8" bit="8">8: <em>OCS</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
+
+  <brow><hdr>6: </hdr><bitpart class="sz8" bit="32">8: <em>Sky/Block</em></bitpart><bitpart class="sz8" bit="24">8: <em>Sky/Block</em></bitpart><bitpart class="sz8" bit="16">8: <em>Sky/Block</em></bitpart><bitpart class="sz8" bit="8">8: <em>Sky/Block</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
 </bits>
 
-<p>Where each field has the following meaning:
+<p>As of writing this, there are still some space left in the data: 9bits to be precise. It would have
+been possible to only use 26 bytes per quad, but using 28 allows the GPU/CPU to access the data as
+32bit integers, which is a bit faster than accessing them as 16bit integers.
+
+<p>Each field has the following meaning:
 <ul>
   <li><tt>X<sub>i</sub></tt>, <tt>Y<sub>i</sub></tt>, <tt>Z<sub>i</sub></tt>: to represent a <tt>QUAD</tt>, you need
   at least 3 coordinates. <tt>QUAD</tt> are not necessarily axis aligned, otherwise you could get away
-  with only 2.
-  <p>The coordinates are encoded as a fixed point number on 12bits that can encode the values between
-  -0.5 and 16.5. Some models slightly exceed their voxel space, and as such can also exceed a chunk
-  bounding box.
-  
-  <p>With that in mind the each voxel cube is therefore divided in 4096 / 17 = 240.941, which, in
-  practice is rounded down to 240. Therefore the convert from fixed to floating point, the formula is:
-  <pre>vec3 position = (fixed - 120) * (1 / 240.)</pre>
+  with only 2 points.
+  <p>The coordinates are encoded as a fixed point number on 16bits. Because some models slightly exceed
+  their voxel space, and as such can also exceed a chunk bounding box. Therefore, the minimum range of
+  coordinates should be between -0.5 and 16.5, but to make computation easier, the range of values is
+  between -8 and 24.
 
-  <p>That also means the models within a voxel have a precision of 0.004, which is not that much, but
-  as far as <prod>Minecraft 1.12</prod> is concerned, that actually enough.
+  <p>Each voxel cube is therefore divided in 65536 / 32 = 2048 parts, which is largely enough
+  to accomodate all the models that are not a full block from <prod>Minecraft</prod> 1.12. To convert
+  from fixed to floating point, the formula is: <pre>vec3 position = (fixed - 16384) * (1 / 2048.)</pre>
 
-  <li><tt>U</tt>, <tt>V</tt>: coodinates of the top left corner of the texture to use for this <tt>QUAD</tt>.
+  <p>Sadly, there is not enough space to store the 3 needed coordinates as 16bits fixed point: 3bits
+  are missing. That's why the 2<sup>nd</sup> and 3<sup>rd</sup> points are stored as relative to the
+  first vertex. Since models (for terrain) should never exceed a voxel unit, you know that each coordinates
+  are at most at +/- 2048 units apart on each axis, which 12 bits (including sign). We add 2 more bits
+  of precision for a bit of safety, and that's why the last 2 points uses 14bits of precision per axis.
+
+  <li><tt>U</tt>, <tt>V</tt>: coordinates of the <b>top left corner</b> of the texture to use for this <tt>QUAD</tt>
+  (vertex V2, see below). <tt>V</tt> coordinate is split into 2 because there wasn't enough space left on
+  the 4<sup>th</sup> word.
+
+  <li><tt>Usz</tt>, <tt>Vsz</tt>: 2nd coordinate. These numbers are relative to <tt>U</tt> and <tt>V</tt>
+  respectively, minus 128. This correspond to the texture coordinate for vertex V3 (see below). ie:
+  <pre>vec2 texV3 = vec2(U + Usz - 128, V + vsz - 128);</pre>
+
+  <li><tt>X</tt>: knowing the texture coordinate of 2 vertices is not enough to fully find all the
+  coordinates of the 2 remaining vertices. At this point there are 2 possibilities: keep U or V coordinate
+  for V2 and V1. This is the purpose of this bit: if set to one, keep X for V1.
+
+  <li><tt>OCS</tt>: ambient occlusion value for 4 vertices, each value being encoded on 2bits.
+  <li><tt>N</tt>: normal of the face, encoded as <tt>0</tt>: south, <tt>1</tt>: east, <tt>2</tt>: north,
+  <tt>3</tt>: west, <tt>4</tt>:top, <tt>5</tt>: bottom, <tt>6</tt>: recompute from vertices. The vast
+  majority of quads are axis-aligned, and therefore unnecessary to recompute the normal. Those that are
+  not will have their normal recomputed and shading per face adjusted accordingly.
+
+  <li><tt>Sky</tt> / <tt>Block</tt>: a direct dump of the NBT tables <tt>Skylight</tt> and <tt>BlockLight</tt>.
+  Obviously used for lighting purpose: 1 value per vertex, same order as OCS/texure U, V.
 </ul>
 
-<p>/* ... */
+<p>In the geometry shader, this is the information that will be sent to the fragment shader:
+<div class="photo">
+  <img src="images/quad.png">
+</div>
+
+<p>However, this vertex format is <b>not easy to work with</b>: it involves a lot of tedious bit shifting
+and code logic to extract all the information about a quad. The mesh of objects have to be analyzed for
+generating bounding box and face visibility for example. That's why, this engine uses another <b>vertex data</b>
+format. It is actually used by everything, but terrain information: custom block models, inventory models,
+entities models, bounding boxes, ...
+
+<bits>
+  <brow><hdr>0: </hdr><bitpart class="sz16" bit="16">16: <em>X</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
+  <brow><hdr>1: </hdr><bitpart class="sz16" bit="16">16: <em>Y</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
+  <brow><hdr>2: </hdr><bitpart class="sz16" bit="16">16: <em>Z</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
+  <brow><hdr>3: </hdr><bitpart class="sz7" bit="16">7: <em>Vhi</em></bitpart><bitpart class="sz9" bit="9">9: <em>U</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
+  <brow><hdr>4: </hdr><bitpart class="sz8" bit="16">8: <em>Sky/Block</em></bitpart><bitpart class="sz2" bit="8"><em><small>ocs</small></em></bitpart><bitpart class="sz3" bit="6">3: <em>N</em></bitpart><bitpart class="sz3" bit="3"><em>Vlo</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
+</bits>
+
+<p>Although this is only 10 bytes (5 <tt class="t">uint16_t</tt>), this only encodes a single vertex.
+You need 6 of these to form a quad, that is 60 bytes per <tt>GL_QUAD</tt>. At some point in time, the
+terrain data was also based on this vertex data. Given how tedious it was to adapt all the rendering
+code to the 28 bytes per quad version, it was decided to keep the compressed data for terrain only.
+
 
 <h2 id="nbt2">NBT API</h2>
 
@@ -1111,11 +1173,10 @@ on the GPU side: that's actually not very much.
 a tree of arbitrary data types. The main problem that this API was trying to solve is to keep 
 everything related to an NBT tree as close as possible in memory, to benefit from cache locality.
 
-<p>This is actually the main difference between this API and most other libraries you can find elsewhere:
-this API <b>strongly</b> favor read over write access. The rationale for this choice being that most
-chunks in a map will never be modified at all, and for those that will, most of time it is simply a
-matter of overwriting some tables (<tt>BlockLight</tt>, <tt>Blocks</tt>, <tt>Data</tt>, ...). Therefore
-optimizing read access was the main goal for this API.
+<p>This is actually the main focus of this API: it <b>strongly</b> favors read over write access. The
+rationale for this choice being that most chunks in a map will never be modified at all, and for those
+that will, most of time it is simply a matter of overwriting some tables (<tt>BlockLight</tt>,
+<tt>Blocks</tt>, <tt>Data</tt>, ...).
 
 <p>/* ... */
 
@@ -1163,6 +1224,15 @@ there are a lot of moving parts, with lots of datatypes:
   in one bank.
 </ul>
 
+<h3 id="collision"><span>Collision detection/correction</span></h3>
+
+<p>Collision detection is implemention using a swept AABB algorithm and correction is done through sliding
+adjustment.
+
+<p>/* ... */
+
+
 </div>
+
 </body>
 </html>

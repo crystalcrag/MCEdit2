@@ -18,8 +18,6 @@
 #include "entities.h"
 
 extern double curTime;                 /* from main.c */
-extern int8_t relx[], rely[], relz[];  /* from mapUpdate.c */
-extern int8_t xoff[], yoff[], zoff[], opp[];
 extern struct BlockSides_t blockSides; /* from blocks.c */
 static struct UpdatePrivate_t updates;
 

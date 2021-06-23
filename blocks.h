@@ -42,6 +42,7 @@ void    blockGetEmitterLocation(int blockId, float offset[5]);
 
 void    halfBlockGenMesh(WriteBuffer, DATA8 model, int size /* 2 or 8 */, DATA8 xyz, DATA8 tex, DATA16 blockIds, DATA8 skyBlock);
 DATA8   halfBlockGetModel(BlockState, int size /* 1, 2 or 8 */, DATA16 blockIds);
+void    halfBlockGetBBox(DATA16 blockIds, VTXBBox array, int max);
 void    halfBlockInit(void);
 
 struct Block_t             /* per id information */

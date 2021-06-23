@@ -113,6 +113,10 @@ void mapInitIter(Map, BlockIter, vec4 pos, Bool autoAlloc);
 void mapInitIterOffset(BlockIter, ChunkData, int offset);
 void mapIter(BlockIter iter, int dx, int dy, int dz);
 
+/* enumerate sequentially blocks S, E, N, W, T, B using mapIter() */
+extern int8_t relx[], rely[], relz[];
+extern int8_t xoff[], yoff[], zoff[], opp[];
+
 /* private stuff below that point */
 struct ChunkFake_t
 {

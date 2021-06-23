@@ -292,34 +292,53 @@ VTXBBox mapGetBBox(BlockIter iterator, int * count, int * cnxFlags)
 	if (block->bboxPlayer == BBOX_NONE)
 		return NULL;
 
-	if (block->special == BLOCK_DOOR)
-	{
-		struct BlockIter_t iter = *iterator;
-		int top;
-		if (id & 8)
+	*cnxFlags = 0xffff;
+	switch (block->special) {
+	case BLOCK_DOOR:
 		{
-			/* top part: get bottom */
-			top = id;
-			mapIter(&iter, 0, -1, 0);
-			id = getBlockId(&iter);
+			struct BlockIter_t iter = *iterator;
+			int top;
+			if (id & 8)
+			{
+				/* top part: get bottom */
+				top = id;
+				mapIter(&iter, 0, -1, 0);
+				id = getBlockId(&iter);
+			}
+			else
+			{
+				mapIter(&iter, 0, 1, 0);
+				top = getBlockId(&iter);
+			}
+			top = (id&3) | ((top&1) << 2);
+			if (id & 4) top = openDoorDataToModel[top];
+			id = (id & ~15) | top;
 		}
-		else
+		break;
+	case BLOCK_STAIRS:
 		{
-			mapIter(&iter, 0, 1, 0);
-			top = getBlockId(&iter);
+			static struct VTXBBox_t bboxes[4];
+			struct BlockIter_t iter = *iterator;
+			uint16_t neighbors[7];
+			uint8_t  i;
+			neighbors[3] = getBlockId(&iter);
+			for (i = 0; i < 4; i ++)
+			{
+				static uint8_t offset[] = {6, 4, 0, 2};
+				mapIter(&iter, xoff[i], 0, zoff[i]);
+				neighbors[offset[i]] = getBlockId(&iter);
+			}
+			halfBlockGetBBox(neighbors - 10, bboxes, DIM(bboxes));
+			*count = bboxes->cont;
+			return bboxes;
 		}
-		top = (id&3) | ((top&1) << 2);
-		if (id & 4) top = openDoorDataToModel[top];
-		id = (id & ~15) | top;
-	}
-	if (block->special == BLOCK_CHEST  ||
-		block->special == BLOCK_FENCE  ||
-		block->special == BLOCK_FENCE2 ||
-		block->special == BLOCK_GLASS)
-	{
+		break;
+	case BLOCK_CHEST:
+	case BLOCK_FENCE:
+	case BLOCK_FENCE2:
+	case BLOCK_GLASS:
 		*cnxFlags = mapGetConnect(iterator->cd, iterator->offset, blockGetById(id));
 	}
-	else *cnxFlags = 0xffff;
 
 	VTXBBox box = blockGetBBox(blockGetById(id));
 	if (box)

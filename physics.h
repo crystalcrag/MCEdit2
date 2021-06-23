@@ -9,7 +9,7 @@
 
 #include "maps.h"
 
-void physicsCheckCollision(Map map, vec4 start, vec4 end, VTXBBox bbox);
+void physicsCheckCollision(Map map, vec4 start, vec4 end, VTXBBox bbox, float autoClimb);
 Bool physicsCheckOnGround(Map map, vec4 start, VTXBBox bbox);
 
 

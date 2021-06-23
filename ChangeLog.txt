@@ -1,8 +1,16 @@
+=========== Week 25 ===========
+Tue June 22:
+	* half-block bbox collision done.
+
+Mon June 21:
+	* added auto-climb.
+	* started stairs bbox (about time :-/).
+
 =========== Week 24 ===========
-Sun June 19:
+Sun June 20:
 	* reimplemented collision detection/correction using swept AABB sliding algorithm.
 
-Fri June 17:
+Fri June 18:
 	* tediously implement cave culling debug chunk :-/
 
 Thu June 17:
@@ -25,7 +33,7 @@ Sun June 13:
 	* CUST mostly working, patching remaining broken features.
 
 Fri June 11:
-	* CUST refactoringc continued.
+	* CUST refactoring continued.
 
 Thu June 10:
 	* started CUST refactoring.

@@ -185,7 +185,7 @@ void playerMove(Player p, Map map)
 	if (p->pmode <= MODE_CREATIVE)
 	{
 		/* bounding box of voxels will constraint movement in these modes */
-		physicsCheckCollision(map, orig_pos, p->pos, entityGetBBox(ENTITY_PLAYER));
+		physicsCheckCollision(map, orig_pos, p->pos, entityGetBBox(ENTITY_PLAYER), 0.5);
 	}
 	#endif
 	vecSub(orig_pos, p->pos, orig_pos);
@@ -196,26 +196,10 @@ void playerTeleport(Player p, Map map, vec4 pos)
 {
 	vec4 diff;
 	if (p->pmode <= MODE_CREATIVE)
-		physicsCheckCollision(map, p->pos, pos, entityGetBBox(ENTITY_PLAYER));
+		physicsCheckCollision(map, p->pos, pos, entityGetBBox(ENTITY_PLAYER), 0);
 	vecSub(diff, pos, p->pos);
 	vecAdd(p->lookat, p->lookat, diff);
 	memcpy(p->pos, pos, 12);
-}
-
-void playerStickToGround(Player p, Map map)
-{
-	struct BlockIter_t iter;
-	fprintf(stderr, "pos = %g, %g, Y: %g", p->pos[VX], p->pos[VZ], p->pos[VY]);
-	mapInitIter(map, &iter, p->pos, False);
-	while (iter.blockIds[iter.offset] == 0)
-		mapIter(&iter, 0, -1, 0);
-
-	float diff = iter.yabs + 1 - p->pos[VY];
-	p->pos[VY] = iter.yabs + 1;
-	p->lookat[VY] += diff;
-	int ground = physicsCheckOnGround(map, p->pos, entityGetBBox(ENTITY_PLAYER));
-
-	fprintf(stderr, " - new Y: %g, onground: %d\n", p->pos[VY], ground);
 }
 
 /*
