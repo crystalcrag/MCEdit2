@@ -38,6 +38,9 @@ enum /* possible values for PickBuf.state */
 #define INFO_INV_DURATION     3
 #define INFO_INV_FADEOUT      2
 #define PLAYER_HEIGHT         1.6
+#define GRAVITY               1       /* m/sec^2 or blocks/sec^2 */
+#define PLAYER_MAXVELOCITY    10      /* m/sec or blocks/sec */
+#define PLAYER_JUMP_STRENGTH  -0.2    /* inverted fall */
 
 struct Inventory_t
 {
@@ -81,11 +84,14 @@ struct Player_t
 	float   cosh, sinh;
 	float   cosv, sinv;
 	float   speed;
+	float   fallVelocity;
+	uint8_t fly;
 	uint8_t onground;
-	uint8_t slower;
 	uint8_t keyvec;
 	uint8_t pmode;
 	int     tick;
+	NBTFile levelDat;
+	int     playerBranch;
 	InvBuf  inventory;
 };
 
@@ -103,7 +109,9 @@ enum /* possible values for keyvec */
 	PLAYER_STRAFE_LEFT  = 0x04,
 	PLAYER_STRAFE_RIGHT = 0x08,
 	PLAYER_MOVE_FORWARD = 0x10,
-	PLAYER_MOVE_BACK    = 0x20
+	PLAYER_MOVE_BACK    = 0x20,
+	PLAYER_JUMP         = 0x40,
+	PLAYER_FALL         = 0x80
 };
 
 #endif

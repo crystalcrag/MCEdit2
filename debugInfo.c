@@ -86,7 +86,7 @@ void debugBlockVertex(Map map, SelBlock * select)
 
 			for (i = mem->size, p = buffer; i > 0; i -= VERTEX_DATA_SIZE, p += VERTEX_INT_SIZE)
 			{
-				#define FROMVERTEX(x)       (((x) - ORIGINVTX) >> 11)
+				#define FROMVERTEX(x)       (((x) - ORIGINVTX) >> 10)
 				/* need to decode vertex buffer */
 				uint16_t V1[] = {p[0], p[0] >> 16, p[1]};
 				uint16_t V2[] = {
@@ -107,18 +107,21 @@ void debugBlockVertex(Map map, SelBlock * select)
 				if (V2[1] > V3[1]) swap(V2[1], V3[1]);
 				if (V2[2] > V3[2]) swap(V2[2], V3[2]);
 
-				if (xyz[0] <= V2[0] && V3[0] <= xyz[0]+1 &&
-				    xyz[1] <= V2[1] && V3[1] <= xyz[1]+1 &&
-				    xyz[2] <= V2[2] && V3[2] <= xyz[2]+1)
+				if (xyz[0]*2 <= V2[0] && V3[0] <= xyz[0]*2+2 &&
+				    xyz[1]*2 <= V2[1] && V3[1] <= xyz[1]*2+2 &&
+				    xyz[2]*2 <= V2[2] && V3[2] <= xyz[2]*2+2)
 				{
 					uint16_t U = bitfieldExtract(p[4], 14, 9);
 					uint16_t V = bitfieldExtract(p[4], 23, 9) | (bitfieldExtract(p[3], 28, 1) << 9);
-					fprintf(stderr, "VERTEX: %d,%d,%d - NORM: %d (%c) - uv: %d,%d - OCS: %d/%d/%d/%d (%d) - LIGHT: %d/%d/%d/%d, SKY: %d/%d/%d/%d\n",
-						FROMVERTEX(V1[0]), FROMVERTEX(V1[1]), FROMVERTEX(V1[2]), side, "SENWTB"[side], U, V, p[5]&3, (p[5]>>2)&3, (p[5]>>4)&3, (p[5]>>6)&3, p[5] & 255,
+					fprintf(stderr, "VERTEX1: %.1f %.1f %.1f - NORM: %d (%c) - uv: %d,%d - OCS: %d/%d/%d/%d (%d)\n",
+						V2[0]*0.5, V2[1]*0.5, V2[2]*0.5, side, "SENWTB"[side],
+						U, V, p[5]&3, (p[5]>>2)&3, (p[5]>>4)&3, (p[5]>>6)&3, p[5] & 255
+					);
+					fprintf(stderr, "VERTEX2: %.1f %.1f %.1f - LIGHT: %d/%d/%d/%d, SKY: %d/%d/%d/%d\n",
+						V3[0]*0.5, V3[1]*0.5, V3[2]*0.5,
 						bitfieldExtract(p[6], 0, 4), bitfieldExtract(p[6],  8, 4), bitfieldExtract(p[6], 16, 4), bitfieldExtract(p[6], 24, 4),
 						bitfieldExtract(p[6], 4, 4), bitfieldExtract(p[6], 12, 4), bitfieldExtract(p[6], 20, 4), bitfieldExtract(p[6], 28, 4)
 					);
-					break;
 				}
 			}
 			free(buffer);

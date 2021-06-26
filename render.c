@@ -596,18 +596,20 @@ void renderShowBlockInfo(Bool show, int what)
 	if (show)
 	{
 		render.debugInfo |= what;
-		if (what != DEBUG_BLOCK) return;
-		if (! render.blockInfo)
+		if (what & DEBUG_BLOCK)
 		{
-			render.blockInfo = SIT_CreateWidget("blockinfo", SIT_TOOLTIP, render.sitRoot,
-				SIT_ToolTipAnchor, SITV_TooltipFollowMouse,
-				SIT_DelayTime,     3600000,
-				SIT_DisplayTime,   100000,
-				NULL
-			);
-			SIT_AddCallback(render.blockInfo, SITE_OnFinalize, clearRef, NULL);
+			if (! render.blockInfo)
+			{
+				render.blockInfo = SIT_CreateWidget("blockinfo", SIT_TOOLTIP, render.sitRoot,
+					SIT_ToolTipAnchor, SITV_TooltipFollowMouse,
+					SIT_DelayTime,     3600000,
+					SIT_DisplayTime,   100000,
+					NULL
+				);
+				SIT_AddCallback(render.blockInfo, SITE_OnFinalize, clearRef, NULL);
+			}
+			SIT_SetValues(render.blockInfo, SIT_Visible, True, SIT_DisplayTime, SITV_ResetTime, NULL);
 		}
-		SIT_SetValues(render.blockInfo, SIT_Visible, True, SIT_DisplayTime, SITV_ResetTime, NULL);
 	}
 	else
 	{

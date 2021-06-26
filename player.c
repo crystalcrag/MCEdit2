@@ -15,23 +15,25 @@
 #include "SIT.h"
 
 static float sensitivity = 1/1000.;
-extern double curTime; /* from main.c */
 
 void playerInit(Player p, NBTFile levelDat)
 {
 	float rotation[2];
-	int player = NBT_FindNode(levelDat, 0, "Player");
+	int player = p->playerBranch = NBT_FindNode(levelDat, 0, "Player");
 
 	memset(p, 0, sizeof *p);
 
 	NBT_ToFloat(levelDat, NBT_FindNode(levelDat, player, "Pos"), p->pos, 3);
 	NBT_ToFloat(levelDat, NBT_FindNode(levelDat, player, "Rotation"), rotation, 2);
 
-	p->pos[VT] = p->lookat[VT] = 1;
-	p->sinh    = -1;
-	p->cosv    = 1;
-	p->speed   = 6; /* blocks per second */
-	p->pmode   = NBT_ToInt(levelDat, NBT_FindNode(levelDat, player, "playerGameType"), MODE_SURVIVAL);
+	p->pos[VT]  = p->lookat[VT] = 1;
+	p->sinh     = -1;
+	p->cosv     = 1;
+	p->speed    = 6; /* blocks per second */
+	p->onground = NBT_ToInt(levelDat, NBT_FindNode(levelDat, player, "OnGround"), 1);
+	p->pmode    = NBT_ToInt(levelDat, NBT_FindNode(levelDat, player, "playerGameType"), MODE_SURVIVAL);
+	p->levelDat = levelDat;
+	p->fly      = ! p->onground;
 
 	/*
 	 * rotation[] comes from level.dat: they are not trigonometric angles:
@@ -69,7 +71,8 @@ void playerSaveLocation(Player p, NBTFile levelDat)
 
 	NBT_SetFloat(levelDat, NBT_FindNode(levelDat, player, "Pos"), p->pos, 3);
 	NBT_SetFloat(levelDat, NBT_FindNode(levelDat, player, "Rotation"), rotation, 2);
-	NBT_SetFloat(levelDat, NBT_FindNode(levelDat, player, "SelectedItemSlot"), &select, 1);
+	NBT_SetFloat(levelDat, NBT_FindNode(levelDat, player, "SelectedItemSlot"), &select, 1); select = p->onground;
+	NBT_SetFloat(levelDat, NBT_FindNode(levelDat, player, "OnGround"), &select, 1);
 }
 
 void playerSensitivity(float s)
@@ -81,6 +84,8 @@ void playerSensitivity(float s)
 #define RIGHT     'f'
 #define FORWARD   'e'
 #define BACKWARD  'd'
+#define JUMP      SITK_Space
+#define FLYDOWN   SITK_LShift
 
 /* set keyvec state according to key press/released */
 Bool playerProcessKey(Player p, int key, int mod)
@@ -90,18 +95,44 @@ Bool playerProcessKey(Player p, int key, int mod)
 		return False;
 	if ((mod & SITK_FlagUp) == 0)
 	{
-		p->slower = (mod & SITK_FlagShift) > 0;
+		static int lastTick;
+		//p->slower = (mod & SITK_FlagShift) > 0;
 		switch (key) {
 		case FORWARD:  p->keyvec &= ~PLAYER_MOVE_BACK;    p->keyvec |= PLAYER_MOVE_FORWARD; break;
 		case BACKWARD: p->keyvec &= ~PLAYER_MOVE_FORWARD; p->keyvec |= PLAYER_MOVE_BACK; break;
 		case LEFT:     p->keyvec &= ~PLAYER_STRAFE_RIGHT; p->keyvec |= PLAYER_STRAFE_LEFT; break;
 		case RIGHT:    p->keyvec &= ~PLAYER_STRAFE_LEFT;  p->keyvec |= PLAYER_STRAFE_RIGHT; break;
-		case 'q':      p->keyvec &= ~PLAYER_DOWN;         p->keyvec |= PLAYER_UP; break;
-		case 'z':      p->keyvec &= ~PLAYER_UP;           p->keyvec |= PLAYER_DOWN; break;
+		case FLYDOWN:  p->keyvec &= ~PLAYER_UP;           p->keyvec |= PLAYER_DOWN; break;
 		case '1': case '2': case '3': case '4': case '5':
 		case '6': case '7': case '8': case '9':
 			playerScrollInventory(p, (key - '1') - p->inventory.selected);
 			return True;
+		case JUMP:
+			if ((int) curTime - lastTick < 250)
+			{
+				p->fly ^= 1;
+				if (p->fly)
+				{
+					p->keyvec &= ~ PLAYER_FALL;
+					p->fallVelocity = 0;
+				}
+				else p->keyvec |= PLAYER_FALL;
+				//fprintf(stderr, "toggle flying: %d\n", p->fly);
+			}
+			lastTick = curTime;
+			if (p->fly)
+			{
+				p->keyvec &= ~PLAYER_DOWN;
+				p->keyvec |= PLAYER_UP;
+			}
+			else if (p->onground) /* initiate a jump */
+			{
+				/* well, a jump is a backward fall */
+				p->keyvec |= PLAYER_FALL | PLAYER_JUMP;
+				p->fallVelocity = PLAYER_JUMP_STRENGTH;
+				p->onground = 0;
+			}
+			break;
 		default: return False;
 		}
 		if (p->tick == 0)
@@ -114,14 +145,14 @@ Bool playerProcessKey(Player p, int key, int mod)
 		case BACKWARD: p->keyvec &= ~PLAYER_MOVE_BACK; break;
 		case LEFT:     p->keyvec &= ~PLAYER_STRAFE_LEFT; break;
 		case RIGHT:    p->keyvec &= ~PLAYER_STRAFE_RIGHT; break;
-		case 'q':      p->keyvec &= ~PLAYER_UP; break;
-		case 'z':      p->keyvec &= ~PLAYER_DOWN; break;
+		case JUMP:     p->keyvec &= ~(PLAYER_UP | PLAYER_JUMP); break;
+		case FLYDOWN:  p->keyvec &= ~PLAYER_DOWN; break;
 		default:       return False;
 		}
 		if (p->keyvec == 0)
 			p->tick = 0;
 	}
-	/* return if the key was processed or not */
+	/* return whether or not the key was processed or not */
 	return True;
 }
 
@@ -156,7 +187,7 @@ void playerMove(Player p, Map map)
 	vec4  orig_pos;
 
 	memcpy(orig_pos, p->pos, 16);
-	if (p->slower) speed *= 0.25;
+//	if (p->slower) speed *= 0.25;
 	if (p->keyvec & (PLAYER_UP|PLAYER_DOWN))
 	{
 		p->pos[VY] += p->keyvec & PLAYER_UP ? speed : -speed;
@@ -164,30 +195,54 @@ void playerMove(Player p, Map map)
 	if (p->keyvec & (PLAYER_STRAFE_LEFT|PLAYER_STRAFE_RIGHT))
 	{
 		float s = p->keyvec & PLAYER_STRAFE_RIGHT ? speed : -speed;
+		if (p->keyvec & PLAYER_FALL) s *= 0.5;
 		p->pos[VX] += - p->sinh * s; // cos(angleh+90) == - sin(angleh)
 		p->pos[VZ] +=   p->cosh * s; // sin(angleh+90) ==   cos(angleh)
 	}
 	if (p->keyvec & (PLAYER_MOVE_FORWARD|PLAYER_MOVE_BACK))
 	{
 		float s = p->keyvec & PLAYER_MOVE_FORWARD ? speed : -speed;
-		#if 0
-		/* follow direction pointed by camera */
-		p->pos[VY] += p->sinv * s;
-		p->pos[VX] += p->cosh * s * p->cosv;
-		p->pos[VZ] += p->sinh * s * p->cosv;
-		#else
+		if (p->keyvec & PLAYER_FALL) s *= 0.5;
 		/* only move on the XZ plane */
 		p->pos[VX] += p->cosh * s;
 		p->pos[VZ] += p->sinh * s;
-		#endif
 	}
-	#if 1
+	if (p->keyvec & PLAYER_FALL)
+	{
+		p->pos[VY] -= p->fallVelocity;
+		p->fallVelocity += (GRAVITY/1000.) * diff;
+		//fprintf(stderr, "velocity = %g\n", p->fallVelocity);
+		if (p->fallVelocity > PLAYER_MAXVELOCITY)
+			p->fallVelocity = PLAYER_MAXVELOCITY;
+	}
 	if (p->pmode <= MODE_CREATIVE)
 	{
 		/* bounding box of voxels will constraint movement in these modes */
 		physicsCheckCollision(map, orig_pos, p->pos, entityGetBBox(ENTITY_PLAYER), 0.5);
 	}
-	#endif
+	diff = p->onground;
+	p->onground = physicsCheckOnGround(map, p->pos, entityGetBBox(ENTITY_PLAYER));
+	if (diff != p->onground)
+	{
+		if (diff == 0)
+		{
+			/* cancel fall */
+			p->fallVelocity = 0;
+			p->keyvec &= ~PLAYER_FALL;
+			p->fly = 0;
+			if (p->keyvec & PLAYER_JUMP)
+			{
+				/* start a new jump as soon as we hit the ground */
+				p->keyvec |= PLAYER_FALL | PLAYER_JUMP;
+				p->fallVelocity = PLAYER_JUMP_STRENGTH;
+				p->onground = 0;
+			}
+		}
+		else /* not on ground: init fall */
+			p->keyvec |= PLAYER_FALL;
+
+		//fprintf(stderr, "onground: %d\n", p->onground);
+	}
 	vecSub(orig_pos, p->pos, orig_pos);
 	vecAdd(p->lookat, p->lookat, orig_pos);
 }
@@ -195,8 +250,6 @@ void playerMove(Player p, Map map)
 void playerTeleport(Player p, Map map, vec4 pos)
 {
 	vec4 diff;
-	if (p->pmode <= MODE_CREATIVE)
-		physicsCheckCollision(map, p->pos, pos, entityGetBBox(ENTITY_PLAYER), 0);
 	vecSub(diff, pos, p->pos);
 	vecAdd(p->lookat, p->lookat, diff);
 	memcpy(p->pos, pos, 12);

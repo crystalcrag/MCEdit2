@@ -1,4 +1,10 @@
 =========== Week 25 ===========
+Fri June 25:
+	* entity physics refined: jump, fall, fly.
+
+Wed June 23:
+	* auto-climb refined: forbid if space is not enough.
+
 Tue June 22:
 	* half-block bbox collision done.
 

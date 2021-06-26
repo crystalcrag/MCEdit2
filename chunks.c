@@ -1015,7 +1015,7 @@ void chunkUpdate(Chunk c, ChunkData empty, int layer)
 	neighbors[6]->pitch = 0;
 	neighbors[6]->cdflags = 126;
 
-//	if (c->X == 208 && neighbors[6]->Y == 112 && c->Z == 1120)
+//	if (c->X == -224 && neighbors[6]->Y == 64 && c->Z == -48)
 //		breakPoint = 1;
 
 	for (pos = air = 0; pos < 16*16*16; pos ++)
@@ -1029,7 +1029,7 @@ void chunkUpdate(Chunk c, ChunkData empty, int layer)
 		block = blocks[pos];
 		state = blockGetByIdData(block, data);
 
-//		if (breakPoint && pos == 846)
+//		if (breakPoint && pos == 45)
 //			breakPoint = 2;
 
 		if (blockIds[block].particle)

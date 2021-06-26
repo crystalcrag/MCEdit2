@@ -100,10 +100,10 @@ void mapInitIter(Map map, BlockIter iter, vec4 pos, Bool autoAlloc)
 	}
 	iter->ref  = ref;
 	iter->cd   = cd = layer < CHUNK_LIMIT ? ref->layer[layer] : NULL;
-	iter->x    = floorf(pos[0]) - ref->X;
-	iter->z    = floorf(pos[2]) - ref->Z;
 	iter->y    = y & 15;
 	iter->yabs = y;
+	iter->x    = floorf(pos[0]) - ref->X;
+	iter->z    = floorf(pos[2]) - ref->Z;
 
 	iter->alloc    = autoAlloc;
 	iter->offset   = CHUNK_BLOCK_POS(iter->x, iter->z, y&15);
@@ -1151,8 +1151,7 @@ static int mapUpdateIfPowered(Map map, BlockIter iterator, int oldId, int blockI
 		/* very similar to gence gate actually */
 		return mapUpdateGate(iterator, blockId, init);
 	case RSPOWERRAILS:
-		mapUpdatePowerRails(map, iterator);
-		break;
+		return mapUpdatePowerRails(map, iterator);
 	case RSLAMP:
 		if (redstoneIsPowered(*iterator, RSSAMEBLOCK, POW_NORMAL))
 			return ID(RSLAMP+1, 0);
@@ -1410,7 +1409,7 @@ void mapUpdatePush(Map map, vec4 pos, int blockId)
 			/* air blocks have lower priority */
 			if (blockId > 0)
 				update->blockId = blockId;
-			fprintf(stderr,"reusing block update %p:%d\n", iter.cd, iter.offset);
+			fprintf(stderr, "reusing block update %p:%d\n", iter.cd, iter.offset);
 			return;
 		}
 		i --;
@@ -1424,7 +1423,7 @@ void mapUpdatePush(Map map, vec4 pos, int blockId)
 void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 {
 	struct BlockIter_t iter;
-	uint8_t silent = blockUpdate & UPDATE_SILENT;
+	uint8_t silent = blockUpdate & UPDATE_SILENT; /* no particles */
 	uint8_t doLight = (blockUpdate & UPDATE_KEEPLIGHT) == 0;
 
 	mapInitIter(map, &iter, pos, blockId > 0);
@@ -1472,11 +1471,12 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 	if (doLight)
 	{
 		/* update skyLight */
-		uint8_t newSkyOpac = blockGetSkyOpacity(blockId>>4, 0);
-		uint8_t oldSkyOpac = blockGetSkyOpacity(oldId>>4, 0);
-		if (newSkyOpac != oldSkyOpac)
+		uint8_t opac   = blockGetSkyOpacity(blockId>>4, 0);
+		uint8_t oldSky = mapGetSky(&iter);
+		uint8_t newSky = oldSky - opac;
+		if (newSky != oldSky || opac != blockGetSkyOpacity(oldId>>4, 0))
 		{
-			if (newSkyOpac > 0)
+			if (blockGetSkyOpacity(blockId>>4, 0) > 0)
 				mapUpdateSkyLightBlock(&iter);
 			else
 				mapUpdateSkyLightUnblock(&iter);
@@ -1566,7 +1566,7 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 }
 
 /* high level function: dispatch to specialized module */
-void mapActivate(Map map, vec4 pos)
+Bool mapActivate(Map map, vec4 pos)
 {
 	struct BlockIter_t iter;
 
@@ -1584,5 +1584,9 @@ void mapActivate(Map map, vec4 pos)
 	block = mapActivateBlock(&iter, pos, block);
 
 	if (block > 0)
+	{
 		mapUpdate(map, pos, block, NULL, True);
+		return True;
+	}
+	return False;
 }

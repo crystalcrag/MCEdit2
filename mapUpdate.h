@@ -11,13 +11,13 @@
 
 void mapUpdate(Map, vec4 pos, int blockId, DATA8 tile, int blockUpdate);
 void mapUpdateBlock(Map, vec4 pos, int blockId, int oldBlockId, DATA8 tile);
-void mapUpdatePowerRails(Map, BlockIter);
 void mapUpdateDeleteRails(Map, BlockIter, int blockId);
+int  mapUpdatePowerRails(Map, BlockIter);
 int  mapUpdateGate(BlockIter, int id, Bool init);
 int  mapUpdateDoor(BlockIter, int blockId, Bool init);
 int  mapUpdatePiston(Map, BlockIter, int blockId, Bool init);
 void mapUpdateTable(BlockIter, int val, int table);
-void mapActivate(Map, vec4 pos);
+Bool mapActivate(Map, vec4 pos);
 int  mapActivateBlock(BlockIter, vec4 pos, int blockId);
 void mapUpdateMesh(Map);
 void mapUpdateFlush(Map);

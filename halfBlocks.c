@@ -184,8 +184,8 @@ void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DAT
 	faces = alloca(total + size * 3); i = size - 1;
 	texSz = size == 2 ? 3 : 1;
 	memset(xsides = faces + total, 10, size); xsides[0] =  2; xsides[i] =  8;
-	memset(ysides = xsides + size,  5, size); ysides[0] = 16; ysides[i] = 32;
-	memset(zsides = ysides + size, 48, size); zsides[0] =  1; zsides[i] =  4;
+	memset(ysides = xsides + size, 48, size); ysides[0] = 16; ysides[i] = 32;
+	memset(zsides = ysides + size,  5, size); zsides[0] =  1; zsides[i] =  4;
 	offset[0] = size;
 	offset[1] = 1;
 	offset[2] = -size;
@@ -212,7 +212,7 @@ void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DAT
 	for (face = faces, out = write->cur, i = total, memset(pos, 0, sizeof pos); i > 0; i --, face ++)
 	{
 		uint8_t flags = *face, sides;
-		if ((flags & 63) >= 63) continue; /* empty sub-voxel */
+		if ((flags & 63) == 63) continue; /* empty (or done) sub-voxel */
 
 		k = face - faces;
 		if (size == 2)
@@ -250,7 +250,7 @@ void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DAT
 				/* advance one sub-block */
 				face2 += offset[dirU];
 				/* not an empty cube */
-				if (*face2 == 255) break;
+				if (*face2 & mask) break;
 				/* but must be empty in the normal direction */
 				cur[k] ++;
 				if ((sides & mask) ? face2[offset[j]] < 255 : !isVisible(blockIds, cur, j, size)) break;
@@ -275,7 +275,7 @@ void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DAT
 				for (length = rect[k], face3 = face2; length > 0; length --, face3 += offset[dirU])
 				{
 					/* not an empty cube */
-					if (*face3 == 255) break;
+					if (*face3 & mask) break;
 					/* but must be empty in the normal direction */
 					if ((sides & mask) ? face3[offset[j]] < 255 : !isVisible(blockIds, cur, j, size)) break;
 					cur[k] ++;
@@ -412,7 +412,7 @@ void halfBlockGetBBox(DATA16 blockIds, VTXBBox array, int max)
 		uint8_t rect[4];
 		if (flags) continue; /* empty or visited sub-voxel */
 
-		/* XXX x, y, z are still alias to pos[0], pos[1], pos[2] :-/ */
+		/* x, y, z are still alias to pos[0], pos[1], pos[2] :-/ */
 		if (size == 2)
 		{
 			x = k&1;

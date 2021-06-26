@@ -22,9 +22,7 @@
 #include "mapUpdate.h"
 #include "glad.h"
 
-struct EntitiesPrivate_t entities;
-extern double curTime; /* from main.c */
-
+static struct EntitiesPrivate_t entities;
 static void hashAlloc(int);
 static int  entityAddModel(int, CustModel);
 

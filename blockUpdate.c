@@ -17,7 +17,6 @@
 #include "redstone.h"
 #include "entities.h"
 
-extern double curTime;                 /* from main.c */
 extern struct BlockSides_t blockSides; /* from blocks.c */
 static struct UpdatePrivate_t updates;
 
@@ -237,8 +236,8 @@ void mapUpdateBlock(Map map, vec4 pos, int blockId, int oldBlockId, DATA8 tile)
 				struct BlockIter_t iter;
 				mapInitIter(map, &iter, pos, False);
 				blockId = getBlockId(&iter);
-				mapUpdateRailsChain(map, iter, blockId, 0, 0);
-				mapUpdateRailsChain(map, iter, blockId, 4, 0);
+				mapUpdateRailsChain(map, iter, blockId, 0, blockId & 8);
+				mapUpdateRailsChain(map, iter, blockId, 4, blockId & 8);
 			}
 			break;
 		}
@@ -430,7 +429,7 @@ static void mapUpdateRailsChain(Map map, struct BlockIter_t iter, int id, int of
 }
 
 /* power near a power rails has changed, update everything connected */
-void mapUpdatePowerRails(Map map, BlockIter iterator)
+int mapUpdatePowerRails(Map map, BlockIter iterator)
 {
 	struct BlockIter_t iter = *iterator;
 
@@ -439,10 +438,11 @@ void mapUpdatePowerRails(Map map, BlockIter iterator)
 
 	if ((id & 15) < 8)
 	{
-		if (i == 6) return;
+		if (i == 6) return ID(RSPOWERRAILS, 0);
 		/* rails not powered, but has a power source nearby: update neighbor */
 		mapUpdateRailsChain(map, *iterator, id, 0, 8);
 		mapUpdateRailsChain(map, *iterator, id, 4, 8);
+		return ID(RSPOWERRAILS, 8);
 	}
 	else if (i == 6)
 	{
@@ -450,6 +450,7 @@ void mapUpdatePowerRails(Map map, BlockIter iterator)
 		mapUpdateRailsChain(map, *iterator, id, 0, 0);
 		mapUpdateRailsChain(map, *iterator, id, 4, 0);
 	}
+	return ID(RSPOWERRAILS, 0);
 }
 
 void mapUpdateDeleteRails(Map map, BlockIter iterator, int blockId)
@@ -921,6 +922,7 @@ void updateAdd(BlockIter iter, int blockId, int nbTick)
 		iter->ref->X + (iter->offset & 15), iter->yabs, iter->ref->Z + ((iter->offset >> 4) & 15), blockId >> 4, blockId & 15, updates.count);
 }
 
+/* usually redstone devices (repeater, torch) update surrounding blocks after a delay */
 void updateTick(Map map)
 {
 	int i, time = curTime, count;

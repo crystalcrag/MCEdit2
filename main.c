@@ -79,50 +79,62 @@ static void prefsSave(void)
 #endif
 
 
-static int SDLKtoSIT[] = {
-	SDLK_HOME,      SITK_Home,
-	SDLK_END,       SITK_End,
-	SDLK_PAGEUP,    SITK_PrevPage,
-	SDLK_PAGEDOWN,  SITK_NextPage,
-	SDLK_UP,        SITK_Up,
-	SDLK_DOWN,      SITK_Down,
-	SDLK_LEFT,      SITK_Left,
-	SDLK_RIGHT,     SITK_Right,
-	SDLK_LSHIFT,    SITK_LShift,
-	SDLK_RSHIFT,    SITK_RShift,
-	SDLK_LAST,      SITK_LAlt,
-	SDLK_RALT,      SITK_RAlt,
-	SDLK_LCTRL,     SITK_LCtrl,
-	SDLK_RCTRL,     SITK_RCtrl,
-	SDLK_LSUPER,    SITK_LCommand,
-	SDLK_RSUPER,    SITK_RCommand,
-	SDLK_MENU,      SITK_AppCommand,
-	SDLK_RETURN,    SITK_Return,
-	SDLK_CAPSLOCK,  SITK_Caps,
-	SDLK_INSERT,    SITK_Insert,
-	SDLK_DELETE,    SITK_Delete,
-	SDLK_NUMLOCK,   SITK_NumLock,
-	SDLK_PRINT,     SITK_Impr,
-	SDLK_F1,        SITK_F1,
-	SDLK_F2,        SITK_F2,
-	SDLK_F3,        SITK_F3,
-	SDLK_F4,        SITK_F4,
-	SDLK_F5,        SITK_F5,
-	SDLK_F6,        SITK_F6,
-	SDLK_F7,        SITK_F7,
-	SDLK_F8,        SITK_F8,
-	SDLK_F9,        SITK_F9,
-	SDLK_F10,       SITK_F10,
-	SDLK_F11,       SITK_F11,
-	SDLK_F12,       SITK_F12,
-	SDLK_F13,       SITK_F13,
-	SDLK_F14,       SITK_F14,
-	SDLK_F15,       SITK_F15,
-	SDLK_BACKSPACE, SITK_BackSpace,
-	SDLK_ESCAPE,    SITK_Escape,
-	SDLK_SPACE,     SITK_Space,
-	SDLK_HELP,      SITK_Help,
-};
+static int SDLKtoSIT(int key)
+{
+	static int mSDLKtoSIT[] = {
+		SDLK_HOME,      SITK_Home,
+		SDLK_END,       SITK_End,
+		SDLK_PAGEUP,    SITK_PrevPage,
+		SDLK_PAGEDOWN,  SITK_NextPage,
+		SDLK_UP,        SITK_Up,
+		SDLK_DOWN,      SITK_Down,
+		SDLK_LEFT,      SITK_Left,
+		SDLK_RIGHT,     SITK_Right,
+		SDLK_LSHIFT,    SITK_LShift,
+		SDLK_RSHIFT,    SITK_RShift,
+		SDLK_LAST,      SITK_LAlt,
+		SDLK_RALT,      SITK_RAlt,
+		SDLK_LCTRL,     SITK_LCtrl,
+		SDLK_RCTRL,     SITK_RCtrl,
+		SDLK_LSUPER,    SITK_LCommand,
+		SDLK_RSUPER,    SITK_RCommand,
+		SDLK_MENU,      SITK_AppCommand,
+		SDLK_RETURN,    SITK_Return,
+		SDLK_CAPSLOCK,  SITK_Caps,
+		SDLK_INSERT,    SITK_Insert,
+		SDLK_DELETE,    SITK_Delete,
+		SDLK_NUMLOCK,   SITK_NumLock,
+		SDLK_PRINT,     SITK_Impr,
+		SDLK_F1,        SITK_F1,
+		SDLK_F2,        SITK_F2,
+		SDLK_F3,        SITK_F3,
+		SDLK_F4,        SITK_F4,
+		SDLK_F5,        SITK_F5,
+		SDLK_F6,        SITK_F6,
+		SDLK_F7,        SITK_F7,
+		SDLK_F8,        SITK_F8,
+		SDLK_F9,        SITK_F9,
+		SDLK_F10,       SITK_F10,
+		SDLK_F11,       SITK_F11,
+		SDLK_F12,       SITK_F12,
+		SDLK_F13,       SITK_F13,
+		SDLK_F14,       SITK_F14,
+		SDLK_F15,       SITK_F15,
+		SDLK_BACKSPACE, SITK_BackSpace,
+		SDLK_ESCAPE,    SITK_Escape,
+		SDLK_SPACE,     SITK_Space,
+		SDLK_HELP,      SITK_Help,
+	};
+	int * sdlk;
+	if (32 < key && key < 123)
+		return key;
+	for (sdlk = mSDLKtoSIT; sdlk < EOT(mSDLKtoSIT); sdlk += 2)
+	{
+		if (sdlk[0] == key)
+			return sdlk[1];
+	}
+	return 0;
+}
 
 static int SDLMtoSIT(int mod)
 {
@@ -292,15 +304,13 @@ void mceditWorld(void)
 	{
 		while (SDL_PollEvent(&event))
 		{
+			int key;
 			switch (event.type) {
 			case SDL_KEYDOWN:
 				switch (event.key.keysym.sym) {
 				case SDLK_LALT:
-					renderShowBlockInfo(True, DEBUG_BLOCK);
-					break;
-				case SDLK_LSHIFT:
 					mcedit.forceSel = 1;
-					renderShowBlockInfo(True, DEBUG_SELECTION);
+					renderShowBlockInfo(True, DEBUG_BLOCK|DEBUG_SELECTION);
 					break;
 				#ifdef DEBUG
 				case SDLK_BACKSPACE:
@@ -352,9 +362,6 @@ void mceditWorld(void)
 						mcedit.maxDist --;
 					}
 					break;
-				case SDLK_SPACE:
-					mceditDoAction(ACTION_ACTIVATE);
-					break;
 				case SDLK_i:
 					FramePauseUnpause(True);
 					mceditUIOverlay(MCUI_OVERLAY_BLOCK);
@@ -362,19 +369,17 @@ void mceditWorld(void)
 					mcedit.player.inventory.update ++;
 					break;
 				default:
-					if (! playerProcessKey(&mcedit.player, event.key.keysym.sym, SDLMtoSIT(event.key.keysym.mod)))
+					key = SDLKtoSIT(event.key.keysym.sym);
+					if (! playerProcessKey(&mcedit.player, key, SDLMtoSIT(event.key.keysym.mod)))
 						goto forwardKeyPress;
 				}
 				break;
 			case SDL_KEYUP:
 				switch (event.key.keysym.sym) {
 				case SDLK_LALT:
-					renderShowBlockInfo(False, DEBUG_BLOCK);
-					break;
-				case SDLK_LSHIFT:
 					mcedit.forceSel = 0;
-					renderShowBlockInfo(False, DEBUG_SELECTION);
-					goto forwardKeyPress;
+					renderShowBlockInfo(False, DEBUG_BLOCK|DEBUG_SELECTION);
+					break;
 				case SDLK_F5: sunMove &= ~1; break;
 				case SDLK_F6: sunMove &= ~2; break;
 				case 't': /* throw item */
@@ -382,19 +387,12 @@ void mceditWorld(void)
 					playerUpdateNBT(&mcedit.player, &mcedit.level->levelDat);
 					break;
 				default:
-					if (! playerProcessKey(&mcedit.player, event.key.keysym.sym, SITK_FlagUp))
+					key = SDLKtoSIT(event.key.keysym.sym);
+					if (! playerProcessKey(&mcedit.player, key, SITK_FlagUp))
 					{
-						int * sdlk;
 						forwardKeyPress:
-						for (sdlk = SDLKtoSIT; sdlk < EOT(SDLKtoSIT); sdlk += 2)
-						{
-							if (sdlk[0] == event.key.keysym.sym) {
-								SIT_ProcessKey(sdlk[1], SDLMtoSIT(event.key.keysym.mod), event.type == SDL_KEYDOWN);
-								break;
-							}
-						}
-						if (32 < event.key.keysym.sym && event.key.keysym.sym < 123)
-							SIT_ProcessChar(event.key.keysym.sym, SDLMtoSIT(event.key.keysym.mod));
+						if (key > 0 && SIT_ProcessKey(key, SDLMtoSIT(event.key.keysym.mod), event.type == SDL_KEYDOWN))
+							break;
 					}
 				}
 				break;
@@ -419,9 +417,10 @@ void mceditWorld(void)
 			case SDL_MOUSEBUTTONDOWN:
 				switch (event.button.button) {
 				case SDL_BUTTON_LEFT:
-					mceditDoAction(ACTION_PLACEBLOCK);
+					mceditPlaceBlock();
 					break;
 				case SDL_BUTTON_RIGHT:
+					mceditActivate();
 					/* ignore any pending mouse move */
 					SDL_GetMouseState(&mcedit.mouseX, &mcedit.mouseY);
 					ignore = 2;
@@ -492,8 +491,8 @@ void mceditWorld(void)
 		if (sunMove) skydomeMoveSun(sunMove);
 		curTime = FrameGetTime();
 		renderWorld();
-		updateTick(mcedit.level);
 		entityAnimate(mcedit.level);
+		updateTick(mcedit.level);
 		SIT_RenderNodes(curTime);
 		SDL_GL_SwapBuffers();
 		FrameWaitNext();
@@ -501,7 +500,7 @@ void mceditWorld(void)
 }
 
 /* left click */
-void mceditDoAction(int action)
+void mceditPlaceBlock(void)
 {
 	vec4 pos;
 	int  block, id;
@@ -510,42 +509,48 @@ void mceditDoAction(int action)
 	MapExtraData sel = renderGetSelectedBlock(pos, &block);
 	if (sel == NULL) return;
 
-	switch (action) {
-	case ACTION_PLACEBLOCK:
-		item = &mcedit.player.inventory.items[mcedit.player.inventory.selected];
-		id   = mcedit.forceSel ? 0 : item->id;
-		/* use of an item: check if it creates a block instead */
-		if (id >= ID(256, 0))
+	item = &mcedit.player.inventory.items[mcedit.player.inventory.selected];
+	id   = mcedit.forceSel ? 0 : item->id;
+	/* use of an item: check if it creates a block instead */
+	if (id >= ID(256, 0))
+	{
+		ItemDesc desc = itemGetById(id);
+		if (desc->refBlock)
 		{
-			ItemDesc desc = itemGetById(id);
-			if (desc->refBlock)
-			{
-				if (blockIds[desc->refBlock].special == BLOCK_SIGN)
-					id = block;
-				else
-					id = block = (desc->refBlock << 4) | (block & 15);
-			}
+			if (blockIds[desc->refBlock].special == BLOCK_SIGN)
+				id = block;
+			else
+				id = block = (desc->refBlock << 4) | (block & 15);
 		}
-		if (id < ID(256, 0))
-		{
-			DATA8 tile = item->extra;
-			if (id == 0) block = 0;
-			if (! tile) tile = blockCreateTileEntity(block, pos, NULL);
-			else        tile = NBT_Copy(tile);
-			/* bed need extra data :-/ */
-			block &= 0xfff;
-
-			/*
-			 * udpdate the map and all the tables associated, will also trigger cascading updates
-			 * if needed
-			 */
-			mapUpdate(mcedit.level, pos, block, tile, True);
-			renderAddModif();
-		}
-		break;
-	case ACTION_ACTIVATE:
-		mapActivate(mcedit.level, pos);
 	}
+	if (id < ID(256, 0))
+	{
+		DATA8 tile = item->extra;
+		if (id == 0) block = 0;
+		if (! tile) tile = blockCreateTileEntity(block, pos, NULL);
+		else        tile = NBT_Copy(tile);
+		/* bed need extra data :-/ */
+		block &= 0xfff;
+
+		/*
+		 * udpdate the map and all the tables associated, will also trigger cascading updates
+		 * if needed
+		 */
+		mapUpdate(mcedit.level, pos, block, tile, True);
+		renderAddModif();
+	}
+}
+
+/* right click */
+Bool mceditActivate(void)
+{
+	vec4 pos;
+	int  block;
+
+	MapExtraData sel = renderGetSelectedBlock(pos, &block);
+	if (sel == NULL) return False;
+
+	return mapActivate(mcedit.level, pos);
 }
 
 /*
@@ -653,6 +658,7 @@ void mceditUIOverlay(int type)
 	{
 		while (SDL_PollEvent(&event))
 		{
+			int key;
 			switch (event.type) {
 			case SDL_KEYDOWN:
 				switch (event.key.keysym.sym) {
@@ -663,19 +669,12 @@ void mceditUIOverlay(int type)
 				}
 				// no break;
 			case SDL_KEYUP:
-				{
-					int * sdlk;
-					for (sdlk = SDLKtoSIT; sdlk < EOT(SDLKtoSIT); sdlk += 2)
-					{
-						if (sdlk[0] == event.key.keysym.sym) {
-							SIT_ProcessKey(sdlk[1], SDLMtoSIT(event.key.keysym.mod), event.type == SDL_KEYDOWN);
-							goto break_loop;
-						}
-					}
-				}
+				key = SDLKtoSIT(event.key.keysym.sym);
+				if (key > 0 && SIT_ProcessKey(key, SDLMtoSIT(event.key.keysym.mod), event.type == SDL_KEYDOWN))
+					break;
+
 				if (event.key.keysym.unicode > 0)
 					SIT_ProcessChar(event.key.keysym.unicode, SDLMtoSIT(event.key.keysym.mod));
-			break_loop:
 				break;
 			case SDL_MOUSEBUTTONDOWN:
 				SIT_ProcessClick(event.button.x, event.button.y, event.button.button-1, 1);
@@ -767,7 +766,6 @@ void mceditSideView(void)
 	uint8_t   capture = 0;
 	uint8_t   info    = 0;
 	int       mx, my;
-	int *     sdlk;
 
 	FramePauseUnpause(True);
 	debugSetPos(mcedit.app, &mcedit.exit);
@@ -797,8 +795,7 @@ void mceditSideView(void)
 				case SDLK_EQUALS:
 				case SDLK_PLUS:  debugRotateView(1); break;
 				case SDLK_b:     debugToggleInfo(DEBUG_LIGHT); break;
-				default:
-					goto forwardKeyPress;
+				default:         goto forwardKeyPress;
 				}
 				refresh = 1;
 				break;
@@ -811,13 +808,9 @@ void mceditSideView(void)
 					break;
 				default:
 					forwardKeyPress:
-					for (sdlk = SDLKtoSIT; sdlk < EOT(SDLKtoSIT); sdlk += 2)
-					{
-						if (sdlk[0] == event.key.keysym.sym) {
-							SIT_ProcessKey(sdlk[1], SDLMtoSIT(event.key.keysym.mod), event.type == SDL_KEYDOWN);
-							break;
-						}
-					}
+					mx = SDLKtoSIT(event.key.keysym.sym);
+					if (mx > 0 && SIT_ProcessKey(mx, SDLMtoSIT(event.key.keysym.mod), event.type == SDL_KEYDOWN))
+						break;
 					if (event.key.keysym.unicode > 0)
 						SIT_ProcessChar(event.key.keysym.unicode, SDLMtoSIT(event.key.keysym.mod));
 				}

@@ -13,22 +13,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include "entities.h"
+#include "physics.h"
 
-static Bool intersectBBox(BlockIter iter, VTXBBox bbox, float minMax[6], float inter[6], float rel[3])
-{
-	float  pt[3] = {iter->ref->X + iter->x - rel[0], iter->yabs - rel[1], iter->ref->Z + iter->z - rel[2]};
-	int8_t i;
-
-	for (i = 0; i < 3; i ++)
-	{
-		float boxmin = (bbox->pt1[i] - ORIGINVTX) * (1./BASEVTX) + pt[i];
-		float boxmax = (bbox->pt2[i] - ORIGINVTX) * (1./BASEVTX) + pt[i];
-
-		inter[i]   = boxmin > minMax[i]   ? boxmin : minMax[i];
-		inter[3+i] = boxmax < minMax[3+i] ? boxmax : minMax[3+i];
-	}
-	return inter[VX] < inter[VX+3] && inter[VY] < inter[VY+3] && inter[VZ] < inter[VZ+3];
-}
 
 float physicsSweptAABB(float bboxStart[6], vec4 dir, float block[6], DATA8 normal)
 {
@@ -138,9 +124,9 @@ void physicsCheckCollision(Map map, vec4 start, vec4 end, VTXBBox bbox, float au
 							bboxFloat[3+m] = (blockBBox->pt2[m] - ORIGINVTX) * (1./BASEVTX) + rel[m];
 						}
 						/* bounding box not intersecting broad rect: ignore bbox */
-						if (bboxFloat[VX] > broad[VX+3] || bboxFloat[VX+3] < broad[VX] ||
-						    bboxFloat[VY] > broad[VY+3] || bboxFloat[VY+3] < broad[VY] ||
-						    bboxFloat[VZ] > broad[VZ+3] || bboxFloat[VZ+3] < broad[VZ])
+						if (bboxFloat[VX] >= broad[VX+3] || bboxFloat[VX+3] <= broad[VX] ||
+						    bboxFloat[VY] >= broad[VY+3] || bboxFloat[VY+3] <= broad[VY] ||
+						    bboxFloat[VZ] >= broad[VZ+3] || bboxFloat[VZ+3] <= broad[VZ])
 						    continue;
 						dist = physicsSweptAABB(minMax, dir, bboxFloat, &axis);
 						if (dist < 1 && elevation < bboxFloat[VY+3])
@@ -163,17 +149,10 @@ void physicsCheckCollision(Map map, vec4 start, vec4 end, VTXBBox bbox, float au
 		mapIter(&iter, -dx, 1, -dz);
 	}
 
-	/* check if we can auto-climb the collision */
-	if (dir[VY] == 0 && autoClimb > 0 && elevation > minMax[VY] && elevation - minMax[VY] - EPSILON <= autoClimb)
-	{
-		end[VY] += elevation - minMax[VY];
-		physicsCheckCollision(map, start, end, bbox, 0);
-		return;
-	}
-
 	/* next: analyze what we gathered and try to find the minimum distance to avoid boxes collided */
 	if (shortestDist < 1)
 	{
+		uint8_t check = 0;
 		end[VX] = start[VX] + (broad[VX] = dir[VX] * shortestDist);
 		end[VY] = start[VY] + (broad[VY] = dir[VY] * shortestDist);
 		end[VZ] = start[VZ] + (broad[VZ] = dir[VZ] * shortestDist);
@@ -182,19 +161,51 @@ void physicsCheckCollision(Map map, vec4 start, vec4 end, VTXBBox bbox, float au
 		dir[VX] -= broad[VX];
 		dir[VY] -= broad[VY];
 		dir[VZ] -= broad[VZ];
+
+		/* check if we can auto-climb the collision */
+		if (dir[VY] == 0 && autoClimb > 0 && elevation > minMax[VY] && elevation - minMax[VY] - EPSILON <= autoClimb)
+		{
+			broad[VY+3] = end[VY];
+			end[VY] += elevation - minMax[VY];
+			broad[VX+3] = end[curAxis];
+			check = 1;
+			autoClimb = 0;
+		}
 		/* axis we collided with, we can't go further in this direction */
-		dir[curAxis] = 0;
+		else dir[curAxis] = 0;
 
 		/* repeat this on the velocity left */
 		if (fabsf(dir[VX]) > EPSILON ||
 		    fabsf(dir[VY]) > EPSILON ||
 		    fabsf(dir[VZ]) > EPSILON)
 		{
-			memcpy(start, end, 12);
-			vecAdd(end, start, dir);
-			physicsCheckCollision(map, start, end, bbox, autoClimb);
+			/* <end> now becomes new start */
+			memcpy(minMax, end, 12);
+			vecAdd(end, minMax, dir);
+			physicsCheckCollision(map, minMax, end, bbox, autoClimb);
+			if (check && broad[VX+3] == end[curAxis])
+			{
+				/* failed to auto-climb: cancel movement */
+				end[VY] = broad[VY+3];
+			}
 		}
 	}
+}
+
+static Bool intersectBBox(BlockIter iter, VTXBBox bbox, float minMax[6], float inter[6])
+{
+	float  pt[3] = {iter->ref->X + iter->x, iter->yabs, iter->ref->Z + iter->z};
+	int8_t i;
+
+	for (i = 0; i < 3; i ++)
+	{
+		float boxmin = (bbox->pt1[i] - ORIGINVTX) * (1./BASEVTX) + pt[i];
+		float boxmax = (bbox->pt2[i] - ORIGINVTX) * (1./BASEVTX) + pt[i];
+
+		inter[i]   = boxmin > minMax[i]   ? boxmin : minMax[i];
+		inter[3+i] = boxmax < minMax[3+i] ? boxmax : minMax[3+i];
+	}
+	return inter[VX] < inter[VX+3] && inter[VY] < inter[VY+3] && inter[VZ] < inter[VZ+3];
 }
 
 Bool physicsCheckOnGround(Map map, vec4 start, VTXBBox bbox)
@@ -205,12 +216,14 @@ Bool physicsCheckOnGround(Map map, vec4 start, VTXBBox bbox)
 
 	for (i = 0; i < 3; i ++)
 	{
-		minMax[i]   = (bbox->pt1[i] - ORIGINVTX) * (1./BASEVTX) + start[i] - 2*EPSILON;
-		minMax[3+i] = (bbox->pt2[i] - ORIGINVTX) * (1./BASEVTX) + start[i] - 2*EPSILON;
+		minMax[i]   = (bbox->pt1[i] - ORIGINVTX) * (1./BASEVTX) + start[i];
+		minMax[3+i] = (bbox->pt2[i] - ORIGINVTX) * (1./BASEVTX) + start[i];
 	}
 
 	int8_t dx = (int) minMax[VX+3] - (int) minMax[VX];
 	int8_t dz = (int) minMax[VZ+3] - (int) minMax[VZ];
+
+	minMax[VY] -= 2*EPSILON;
 
 	mapInitIter(map, &iter, minMax, False);
 	for (i = 0; ; )
@@ -218,12 +231,14 @@ Bool physicsCheckOnGround(Map map, vec4 start, VTXBBox bbox)
 		for (j = 0; ; )
 		{
 			int count, cnxFlags;
-			VTXBBox bbox = mapGetBBox(&iter, &count, &cnxFlags);
-			if (bbox)
+			VTXBBox blockBBox = mapGetBBox(&iter, &count, &cnxFlags);
+			for (; count > 0; count --, blockBBox ++)
 			{
 				float inter[6];
+				uint8_t idx = blockBBox->flags & 0x7f;
+				if (idx > 0 && (cnxFlags & (1 << (idx - 1))) == 0) continue;
 
-				if (bbox && intersectBBox(&iter, bbox, minMax, inter, start) && inter[4] > EPSILON)
+				if (intersectBBox(&iter, blockBBox, minMax, inter) && inter[4] > EPSILON)
 					return True;
 			}
 			j ++;
@@ -232,7 +247,7 @@ Bool physicsCheckOnGround(Map map, vec4 start, VTXBBox bbox)
 		}
 		i ++;
 		if (i > dz) break;
-		mapIter(&iter, 1-dx, 0, 1);
+		mapIter(&iter, -dx, 0, 1);
 	}
 	return False;
 }

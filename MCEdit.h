@@ -40,13 +40,8 @@ void mceditWorld(void);        /* gameloop for WORLD */
 void mceditUIOverlay(int);     /* display an interface on top of editor */
 void mceditSideView(void);     /* gameloop for SIDEVIEW */
 void mceditWorldSelct(void);   /* world selection */
-void mceditDoAction(int);
-
-enum
-{
-	ACTION_PLACEBLOCK,
-	ACTION_ACTIVATE
-};
+Bool mceditActivate(void);     /* toggle state of some blocks (door, button, lever, repeater, ...) */
+void mceditPlaceBlock(void);
 
 enum /* possible value for parameter mceditUIOverlay() */
 {

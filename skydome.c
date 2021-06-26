@@ -15,7 +15,6 @@
 #include "render.h"
 
 static struct SkyDome_t skydome;
-extern double curTime;
 
 static void skydomeGetSunPos(vec4 pos)
 {
