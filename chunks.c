@@ -985,8 +985,6 @@ static void chunkGenQuad(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 static void chunkGenCust(ChunkData neighbors[], WriteBuffer opaque, BlockState b, int pos);
 static void chunkGenCube(ChunkData neighbors[], WriteBuffer opaque, BlockState b, int pos);
 
-#define CD_SETHOLE(cd, pos)      cd->cdflags &= ~(slotsXZ[pos & 0xff] | slotsY[pos >> 8])
-
 /*
  * transform chunk data into something useful for the vertex shader (blocks.vsh)
  * this is the "meshing" function for our world
@@ -1013,7 +1011,6 @@ void chunkUpdate(Chunk c, ChunkData empty, int layer)
 	/* default sorting for alpha quads */
 	neighbors[6]->yaw = 3.14926535 * 1.5;
 	neighbors[6]->pitch = 0;
-	neighbors[6]->cdflags = 126;
 
 //	if (c->X == -224 && neighbors[6]->Y == 64 && c->Z == -48)
 //		breakPoint = 1;
@@ -1038,13 +1035,11 @@ void chunkUpdate(Chunk c, ChunkData empty, int layer)
 
 		switch (state->type) {
 		case QUAD:
-			CD_SETHOLE(neighbors[6], pos);
 			chunkGenQuad(neighbors, &opaque, state, pos);
 			break;
 		case CUST:
 			if (state->custModel)
 			{
-				CD_SETHOLE(neighbors[6], pos);
 				chunkGenCust(neighbors, STATEFLAG(state, ALPHATEX) ? &alpha : &opaque, state, pos);
 				/* SOLIDOUTER: custom block with ambient occlusion */
 				if (state->special != BLOCK_SOLIDOUTER)
@@ -1052,13 +1047,11 @@ void chunkUpdate(Chunk c, ChunkData empty, int layer)
 			}
 			/* else no break; */
 		case TRANS:
-			CD_SETHOLE(neighbors[6], pos);
 			// no break;
 		case SOLID:
 			chunkGenCube(neighbors, STATEFLAG(state, ALPHATEX) ? &alpha : &opaque, state, pos);
 			break;
 		default:
-			CD_SETHOLE(neighbors[6], pos);
 			if (state->id == 0) air ++;
 		}
 	}

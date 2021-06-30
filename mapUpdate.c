@@ -1574,6 +1574,7 @@ Bool mapActivate(Map map, vec4 pos)
 	track.list  = &track.modif;
 
 	mapInitIter(map, &iter, pos, False);
+	if (! iter.blockIds) return False;
 
 	int block = iter.blockIds[iter.offset] << 4;
 	int data  = iter.blockIds[DATA_OFFSET + (iter.offset >> 1)];

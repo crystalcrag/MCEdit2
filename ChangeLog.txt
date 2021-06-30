@@ -1,4 +1,15 @@
+=========== Week 26 ===========
+Mon June 29:
+	* cave culling reimplemented in 2d.
+	* entity movement refined, momentum still need some work.
+
+Mon June 28:
+	* 134th rewrite of entity movement using angular momentum.
+
 =========== Week 25 ===========
+Sun June 27:
+	* entity movement redone.
+
 Fri June 25:
 	* entity physics refined: jump, fall, fly.
 

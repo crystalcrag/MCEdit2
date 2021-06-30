@@ -64,7 +64,7 @@ float physicsSweptAABB(float bboxStart[6], vec4 dir, float block[6], DATA8 norma
 }
 
 /* try to move bounding box <bbox> from <start> to <end>, changing end if movement is blocked */
-void physicsCheckCollision(Map map, vec4 start, vec4 end, VTXBBox bbox, float autoClimb)
+int physicsCheckCollision(Map map, vec4 start, vec4 end, VTXBBox bbox, float autoClimb)
 {
 	struct BlockIter_t iter;
 	float   minMax[6];
@@ -72,6 +72,7 @@ void physicsCheckCollision(Map map, vec4 start, vec4 end, VTXBBox bbox, float au
 	float   dir[3];
 	float   shortestDist;
 	uint8_t curAxis;
+	int     ret;
 	int8_t  i, j, k;
 
 	for (i = 0; i < 3; i ++)
@@ -93,6 +94,7 @@ void physicsCheckCollision(Map map, vec4 start, vec4 end, VTXBBox bbox, float au
 	vecAdd(minMax,   minMax,   start);
 	vecAdd(minMax+3, minMax+3, start);
 	elevation = 0;
+	ret = 0;
 
 	/* first: find the closest box intersected */
 	mapInitIter(map, &iter, broad, False);
@@ -172,7 +174,7 @@ void physicsCheckCollision(Map map, vec4 start, vec4 end, VTXBBox bbox, float au
 			autoClimb = 0;
 		}
 		/* axis we collided with, we can't go further in this direction */
-		else dir[curAxis] = 0;
+		else dir[curAxis] = 0, ret = 1 << curAxis;
 
 		/* repeat this on the velocity left */
 		if (fabsf(dir[VX]) > EPSILON ||
@@ -182,14 +184,19 @@ void physicsCheckCollision(Map map, vec4 start, vec4 end, VTXBBox bbox, float au
 			/* <end> now becomes new start */
 			memcpy(minMax, end, 12);
 			vecAdd(end, minMax, dir);
-			physicsCheckCollision(map, minMax, end, bbox, autoClimb);
-			if (check && broad[VX+3] == end[curAxis])
+			ret |= physicsCheckCollision(map, minMax, end, bbox, autoClimb);
+			if (check)
 			{
-				/* failed to auto-climb: cancel movement */
-				end[VY] = broad[VY+3];
+				if (broad[VX+3] == end[curAxis])
+				{
+					/* failed to auto-climb: cancel movement */
+					end[VY] = broad[VY+3];
+				}
+				else ret |= 2;
 			}
 		}
 	}
+	return ret;
 }
 
 static Bool intersectBBox(BlockIter iter, VTXBBox bbox, float minMax[6], float inter[6])

@@ -234,11 +234,9 @@ void debugShowChunkBoundary(Chunk cur)
 	if (cur->X != debugChunk.X || cur->Z != debugChunk.Z)
 	{
 		int     max = cur->maxy;
-		MDAICmd cmd, solid;
+		MDAICmd cmd;
 		float * loc;
-		float * loc2;
-		int     i, j, count;
-		uint8_t flags;
+		int     i, count;
 
 		debugChunk.X = cur->X;
 		debugChunk.Z = cur->Z;
@@ -246,8 +244,6 @@ void debugShowChunkBoundary(Chunk cur)
 		glBindBuffer(GL_DRAW_INDIRECT_BUFFER, debugChunk.vboMDAI);
 		loc = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
 		cmd = glMapBuffer(GL_DRAW_INDIRECT_BUFFER, GL_WRITE_ONLY);
-		solid = cmd + max;
-		loc2  = loc + max * 3;
 
 		for (i = count = 0; i < max; i ++)
 		{
@@ -261,20 +257,6 @@ void debugShowChunkBoundary(Chunk cur)
 			loc[1] = i*16;
 			loc[2] = cur->Z;
 			loc += 3;
-
-			for (flags = cur->layer[i]->cdflags >> 1, j = 0; j < 5; flags >>= 1, j ++)
-			{
-				if ((flags & 1) == 0) continue;
-				solid->count = 6;
-				solid->instanceCount = 1;
-				solid->first = debugChunk.size + j * 6;
-				solid->baseInstance = max+count;
-				loc2[0] = cur->X;
-				loc2[1] = i*16;
-				loc2[2] = cur->Z;
-				loc2 += 3; solid ++;
-				count ++;
-			}
 		}
 		debugChunk.count = max;
 		debugChunk.solid = count;

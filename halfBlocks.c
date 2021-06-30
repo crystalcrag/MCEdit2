@@ -430,7 +430,7 @@ void halfBlockGetBBox(DATA16 blockIds, VTXBBox array, int max)
 		/* then Z */
 		for (rect[VZ] = 1, p = face + size, z ++; z < size && memcmp(p, zero, rect[VX]) == 0; memset(p, 255, rect[VX]), p += size, rect[VZ] ++, z ++);
 		/* then Y */
-		for (j = size * size, p = face + j, y ++; y < size; p += j, z ++)
+		for (j = size * size, p = face + j, y ++; y < size; p += j, y ++)
 		{
 			uint8_t m;
 			for (m = rect[VZ]; m > 0 && memcmp(p, zero, rect[VX]) == 0; m --, p += size);

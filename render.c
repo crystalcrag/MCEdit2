@@ -980,7 +980,6 @@ static void renderPrepVisibleChunks(Map map)
 		for (cd = map->firstVisible; cd; cd = cd->visible)
 		{
 			if (cd->glBank != bank) continue; /* XXX sort by bank in frustum culling */
-//			if (cd->cdflags & 1) continue; /* cave culling */
 
 			Chunk  chunk = cd->chunk;
 			GPUMem mem   = bank->usedList + cd->glSlot;
@@ -1144,9 +1143,9 @@ void renderFrustum(Bool snapshot)
 	if (snapshot)
 	{
 		ChunkData cd;
-		int       nb, cull = 0;
+		int       nb;
 
-		for (cd = map->firstVisible, nb = 0; cd; nb += cd->cdflags & 1 ? 2 : 1, cd = cd->visible);
+		for (cd = map->firstVisible, nb = 0; cd; nb ++, cd = cd->visible);
 
 		/* so much boilerplate, could they not simplify this crap? */
 		glBindBuffer(GL_ARRAY_BUFFER, vboFrustumLoc);
@@ -1165,20 +1164,10 @@ void renderFrustum(Bool snapshot)
 			loc[0] = chunk->X;
 			loc[1] = cd->Y;
 			loc[2] = chunk->Z;
-			if (cd->cdflags & 1)
-			{
-				loc += 3, vboCount ++, cmd ++;
-				memcpy(cmd, cmd - 1, 16);
-				memcpy(loc, loc - 3, 12);
-				cmd->first = 24;
-				cull ++;
-			}
 		}
 		glUnmapBuffer(GL_ARRAY_BUFFER);
 		glUnmapBuffer(GL_DRAW_INDIRECT_BUFFER);
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-		fprintf(stderr, "vboCount = %d, culled = %d\n", vboCount - cull, cull);
 	}
 	if (vboCount > 0)
 	{

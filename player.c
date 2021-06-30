@@ -14,6 +14,13 @@
 #include "entities.h"
 #include "SIT.h"
 
+#define JUMP_STRENGTH          0.3
+#define MAX_SPEED              4.317
+#define FLY_SPEED             10.000
+#define FALL_SPEED             8.0
+#define MAX_FALL              10.000
+#define BASE_ACCEL            32.0
+
 static float sensitivity = 1/1000.;
 
 void playerInit(Player p, NBTFile levelDat)
@@ -27,9 +34,6 @@ void playerInit(Player p, NBTFile levelDat)
 	NBT_ToFloat(levelDat, NBT_FindNode(levelDat, player, "Rotation"), rotation, 2);
 
 	p->pos[VT]  = p->lookat[VT] = 1;
-	p->sinh     = -1;
-	p->cosv     = 1;
-	p->speed    = 6; /* blocks per second */
 	p->onground = NBT_ToInt(levelDat, NBT_FindNode(levelDat, player, "OnGround"), 1);
 	p->pmode    = NBT_ToInt(levelDat, NBT_FindNode(levelDat, player, "playerGameType"), MODE_SURVIVAL);
 	p->levelDat = levelDat;
@@ -43,11 +47,12 @@ void playerInit(Player p, NBTFile levelDat)
 	p->angleh = fmod((rotation[0] + 90) * (M_PI / 180), 2*M_PI);
 	p->anglev = - rotation[1] * (2*M_PI / 360);
 	if (p->angleh < 0) p->angleh += 2*M_PI;
+	p->angleHCur = p->angleh;
 
-	float cv = p->cosv = cosf(p->anglev);
-	p->lookat[VX] = p->pos[VX] + 8 * (p->cosh = cosf(p->angleh)) * cv;
-	p->lookat[VZ] = p->pos[VZ] + 8 * (p->sinh = sinf(p->angleh)) * cv;
-	p->lookat[VY] = p->pos[VY] + 8 * (p->sinv = sinf(p->anglev));
+	float cv = cosf(p->anglev);
+	p->lookat[VX] = p->pos[VX] + 8 * cosf(p->angleh) * cv;
+	p->lookat[VZ] = p->pos[VZ] + 8 * sinf(p->angleh) * cv;
+	p->lookat[VY] = p->pos[VY] + 8 * sinf(p->anglev);
 
 	/* get inventory content */
 	int offset = NBT_FindNode(levelDat, player, "Inventory");
@@ -87,22 +92,50 @@ void playerSensitivity(float s)
 #define JUMP      SITK_Space
 #define FLYDOWN   SITK_LShift
 
+static void playerSetDir(Player p)
+{
+	float angle = p->angleh;
+	switch (p->keyvec & 15) {
+	case PLAYER_MOVE_FORWARD: break;
+	case PLAYER_MOVE_BACK:    angle += M_PI; break;
+	case PLAYER_STRAFE_LEFT:  angle -= M_PI_2; break;
+	case PLAYER_STRAFE_RIGHT: angle += M_PI_2; break;
+	case PLAYER_MOVE_FORWARD |
+	     PLAYER_STRAFE_LEFT:  angle -= M_PI_4; break;
+	case PLAYER_MOVE_BACK |
+	     PLAYER_STRAFE_LEFT:  angle -= M_PI_2 + M_PI_4; break;
+	case PLAYER_MOVE_FORWARD |
+	     PLAYER_STRAFE_RIGHT: angle += M_PI_4; break;
+	case PLAYER_MOVE_BACK |
+	     PLAYER_STRAFE_RIGHT: angle += M_PI_2 + M_PI_4; break;
+	default:
+		if (p->velocity != 0)
+			p->keyvec |= PLAYER_STOPPING;
+		return;
+	}
+	if (angle < 0)      angle += 2*M_PI; else
+	if (angle > 2*M_PI) angle -= 2*M_PI;
+
+	p->angleHDir = angle;
+}
+
 /* set keyvec state according to key press/released */
 Bool playerProcessKey(Player p, int key, int mod)
 {
 	/* do not hi-jack keypress that involve Ctrl or Alt qualifier */
 	if (mod & (SITK_FlagCtrl | SITK_FlagAlt))
 		return False;
+	uint8_t keyvec = p->keyvec & 15;
 	if ((mod & SITK_FlagUp) == 0)
 	{
 		static int lastTick;
 		//p->slower = (mod & SITK_FlagShift) > 0;
 		switch (key) {
-		case FORWARD:  p->keyvec &= ~PLAYER_MOVE_BACK;    p->keyvec |= PLAYER_MOVE_FORWARD; break;
-		case BACKWARD: p->keyvec &= ~PLAYER_MOVE_FORWARD; p->keyvec |= PLAYER_MOVE_BACK; break;
-		case LEFT:     p->keyvec &= ~PLAYER_STRAFE_RIGHT; p->keyvec |= PLAYER_STRAFE_LEFT; break;
-		case RIGHT:    p->keyvec &= ~PLAYER_STRAFE_LEFT;  p->keyvec |= PLAYER_STRAFE_RIGHT; break;
-		case FLYDOWN:  p->keyvec &= ~PLAYER_UP;           p->keyvec |= PLAYER_DOWN; break;
+		case FORWARD:  p->keyvec &= ~(PLAYER_STOPPING|PLAYER_MOVE_BACK);    p->keyvec |= PLAYER_MOVE_FORWARD; break;
+		case BACKWARD: p->keyvec &= ~(PLAYER_STOPPING|PLAYER_MOVE_FORWARD); p->keyvec |= PLAYER_MOVE_BACK; break;
+		case LEFT:     p->keyvec &= ~(PLAYER_STOPPING|PLAYER_STRAFE_RIGHT); p->keyvec |= PLAYER_STRAFE_LEFT; break;
+		case RIGHT:    p->keyvec &= ~(PLAYER_STOPPING|PLAYER_STRAFE_LEFT);  p->keyvec |= PLAYER_STRAFE_RIGHT; break;
+		case FLYDOWN:  p->keyvec &= ~PLAYER_UP;                             p->keyvec |= PLAYER_DOWN; break;
 		case '1': case '2': case '3': case '4': case '5':
 		case '6': case '7': case '8': case '9':
 			playerScrollInventory(p, (key - '1') - p->inventory.selected);
@@ -114,7 +147,7 @@ Bool playerProcessKey(Player p, int key, int mod)
 				if (p->fly)
 				{
 					p->keyvec &= ~ PLAYER_FALL;
-					p->fallVelocity = 0;
+					p->velocityY = 0;
 				}
 				else p->keyvec |= PLAYER_FALL;
 				//fprintf(stderr, "toggle flying: %d\n", p->fly);
@@ -127,16 +160,13 @@ Bool playerProcessKey(Player p, int key, int mod)
 			}
 			else if (p->onground) /* initiate a jump */
 			{
-				/* well, a jump is a backward fall */
 				p->keyvec |= PLAYER_FALL | PLAYER_JUMP;
-				p->fallVelocity = PLAYER_JUMP_STRENGTH;
+				p->velocityY = -JUMP_STRENGTH;
 				p->onground = 0;
 			}
 			break;
 		default: return False;
 		}
-		if (p->tick == 0)
-			p->tick = curTime;
 	}
 	else /* released */
 	{
@@ -149,9 +179,11 @@ Bool playerProcessKey(Player p, int key, int mod)
 		case FLYDOWN:  p->keyvec &= ~PLAYER_DOWN; break;
 		default:       return False;
 		}
-		if (p->keyvec == 0)
-			p->tick = 0;
 	}
+	if (keyvec == 0)
+		p->tick = curTime;
+	if (keyvec != (p->keyvec & 15))
+		playerSetDir(p);
 	/* return whether or not the key was processed or not */
 	return True;
 }
@@ -168,57 +200,140 @@ void playerLookAt(Player p, int dx, int dy)
 	if (pitch >  M_PI_2-EPSILON) pitch =  M_PI_2-EPSILON;
 	p->angleh = yaw;
 	p->anglev = pitch;
-	float cv = p->cosv = cosf(pitch);
-	p->lookat[VX] = p->pos[VX] + 8 * (p->cosh = cosf(yaw)) * cv;
-	p->lookat[VZ] = p->pos[VZ] + 8 * (p->sinh = sinf(yaw)) * cv;
-	p->lookat[VY] = p->pos[VY] + 8 * (p->sinv = sinf(pitch));
-//	fprintf(stderr, "angleh = %g, anglev = %g, lookat = %g,%g,%g\n", p->angleh, p->anglev * 180 / M_PI,
-//		p->lookat[VX], p->lookat[VY], p->lookat[VZ]);
+	float cv = cosf(pitch);
+	p->lookat[VX] = p->pos[VX] + 8 * cosf(yaw) * cv;
+	p->lookat[VZ] = p->pos[VZ] + 8 * sinf(yaw) * cv;
+	p->lookat[VY] = p->pos[VY] + 8 * sinf(pitch);
+	if ((p->keyvec & PLAYER_STOPPING) == 0)
+		playerSetDir(p);
+}
+
+void playerAdjustVelocity(Player p, float delta)
+{
+	float a = p->angleHCur;
+	float d = p->angleHDir;
+	float v = a - d;
+	Bool  stop = p->keyvec & PLAYER_STOPPING;
+	Bool  add = v < 0;
+
+	if (fabsf(v) > M_PI)
+	{
+		if (v < 0) v += 2*M_PI, d += 2*M_PI;
+		else       v -= 2*M_PI, d -= 2*M_PI;
+		add = ! add;
+	}
+
+	delta *= BASE_ACCEL;
+	if (p->onground == 0 && ! p->fly) delta *= 0.15;
+	if (fabsf(v) > M_PI_2)
+	{
+		/* opposite direction: reduce velocity to zero first */
+		v = p->velocity;
+		if (v < 0)
+		{
+			v += delta;
+			if (v > 0) v = 0;
+		}
+		else
+		{
+			v -= delta;
+			if (v < 0) v = 0;
+		}
+		p->velocity = v;
+		if (v != 0) return;
+		else delta = M_PI, stop = True;
+	}
+	if (add)
+	{
+		a += delta;
+		if (a > d) a = d;
+	}
+	else
+	{
+		a -= delta;
+		if (a < d) a = d;
+	}
+	if (a > 2*M_PI) a -= 2*M_PI;
+	if (a < 0)      a += 2*M_PI;
+	p->angleHCur = a;
+	p->cosh = cosf(a);
+	p->sinh = sinf(a);
+	v = p->velocity;
+	if (stop)
+	{
+		v -= delta;
+		if (v < 0) v = 0, p->keyvec &= ~PLAYER_STOPPING;
+	}
+	else
+	{
+		v += delta;
+		a = p->fly ? FLY_SPEED : MAX_SPEED;
+		if (v > a) v = a;
+	}
+	p->velocity = v;
 }
 
 void playerMove(Player p, Map map)
 {
-	int diff = (int) curTime - p->tick;
+	float diff = curTime - p->tick;
+	int   keyvec = p->keyvec;
 	if (diff == 0) return;
 	if (diff > 100) diff = 100; /* lots of lag :-/ */
+	diff *= 1/1000.;
 	p->tick = curTime;
-
-	float speed = p->speed * diff * 0.001;
-	vec4  orig_pos;
+	vec4 orig_pos;
 
 	memcpy(orig_pos, p->pos, 16);
 //	if (p->slower) speed *= 0.25;
-	if (p->keyvec & (PLAYER_UP|PLAYER_DOWN))
+	if (keyvec & (PLAYER_UP|PLAYER_DOWN))
 	{
-		p->pos[VY] += p->keyvec & PLAYER_UP ? speed : -speed;
+		p->pos[VY] += p->keyvec & PLAYER_UP ? FALL_SPEED*diff : -FALL_SPEED*diff;
 	}
-	if (p->keyvec & (PLAYER_STRAFE_LEFT|PLAYER_STRAFE_RIGHT))
+	if (keyvec & (PLAYER_STRAFE_LEFT|PLAYER_STRAFE_RIGHT|PLAYER_MOVE_FORWARD|PLAYER_MOVE_BACK|PLAYER_STOPPING))
 	{
-		float s = p->keyvec & PLAYER_STRAFE_RIGHT ? speed : -speed;
-		if (p->keyvec & PLAYER_FALL) s *= 0.5;
-		p->pos[VX] += - p->sinh * s; // cos(angleh+90) == - sin(angleh)
-		p->pos[VZ] +=   p->cosh * s; // sin(angleh+90) ==   cos(angleh)
+		p->pos[VX] += p->velocity * p->cosh * diff;
+		p->pos[VZ] += p->velocity * p->sinh * diff;
+
+		playerAdjustVelocity(p, diff);
+
+//		fprintf(stderr, "%c v = %.3f, %d -> %d\n", p->keyvec & PLAYER_STOPPING ? '-' : ' ', p->velocity, (int) (p->angleHCur * 180 / M_PI),
+//			(int) (p->angleHDir * 180 / M_PI));
 	}
-	if (p->keyvec & (PLAYER_MOVE_FORWARD|PLAYER_MOVE_BACK))
+	if (keyvec & PLAYER_FALL)
 	{
-		float s = p->keyvec & PLAYER_MOVE_FORWARD ? speed : -speed;
-		if (p->keyvec & PLAYER_FALL) s *= 0.5;
-		/* only move on the XZ plane */
-		p->pos[VX] += p->cosh * s;
-		p->pos[VZ] += p->sinh * s;
-	}
-	if (p->keyvec & PLAYER_FALL)
-	{
-		p->pos[VY] -= p->fallVelocity;
-		p->fallVelocity += (GRAVITY/1000.) * diff;
+		p->pos[VY] -= p->velocityY;
+		p->velocityY += diff;
 		//fprintf(stderr, "velocity = %g\n", p->fallVelocity);
-		if (p->fallVelocity > PLAYER_MAXVELOCITY)
-			p->fallVelocity = PLAYER_MAXVELOCITY;
+		if (p->velocityY > MAX_FALL)
+			p->velocityY = MAX_FALL;
+	}
+	if (keyvec & PLAYER_CLIMB)
+	{
+		p->velocityY += 2*diff;
+		p->pos[VY] += p->velocityY;
+		if (p->pos[VY] > p->targetY)
+		{
+			fprintf(stderr, "climb done (%g / %g)\n", p->pos[VY], p->targetY);
+			p->pos[VY] = p->targetY, p->keyvec &= ~ PLAYER_CLIMB;
+			p->velocityY = 0;
+		}
 	}
 	if (p->pmode <= MODE_CREATIVE)
 	{
 		/* bounding box of voxels will constraint movement in these modes */
-		physicsCheckCollision(map, orig_pos, p->pos, entityGetBBox(ENTITY_PLAYER), 0.5);
+		int collision = physicsCheckCollision(map, orig_pos, p->pos, entityGetBBox(ENTITY_PLAYER), 0.5);
+		if (collision & 2)
+		{
+			/* auto-climb */
+			p->targetY = p->pos[VY];
+			p->pos[VY] = orig_pos[VY];
+			p->keyvec |= PLAYER_CLIMB;
+			fprintf(stderr, "climbing to %g (from %g)\n", p->targetY, p->pos[VY]);
+		}
+	#if 0
+		if (collision & 1) p->velocity[VX] = 0;
+		if (collision & 4) p->velocity[VZ] = 0;
+	#endif
 	}
 	diff = p->onground;
 	p->onground = physicsCheckOnGround(map, p->pos, entityGetBBox(ENTITY_PLAYER));
@@ -227,19 +342,22 @@ void playerMove(Player p, Map map)
 		if (diff == 0)
 		{
 			/* cancel fall */
-			p->fallVelocity = 0;
+			p->velocityY = 0;
 			p->keyvec &= ~PLAYER_FALL;
 			p->fly = 0;
-			if (p->keyvec & PLAYER_JUMP)
+			if (keyvec & PLAYER_JUMP)
 			{
 				/* start a new jump as soon as we hit the ground */
 				p->keyvec |= PLAYER_FALL | PLAYER_JUMP;
-				p->fallVelocity = PLAYER_JUMP_STRENGTH;
+				p->velocityY = -JUMP_STRENGTH;
 				p->onground = 0;
 			}
 		}
 		else /* not on ground: init fall */
+		{
+			p->keyvec &= ~ PLAYER_CLIMB;
 			p->keyvec |= PLAYER_FALL;
+		}
 
 		//fprintf(stderr, "onground: %d\n", p->onground);
 	}

@@ -38,9 +38,6 @@ enum /* possible values for PickBuf.state */
 #define INFO_INV_DURATION     3
 #define INFO_INV_FADEOUT      2
 #define PLAYER_HEIGHT         1.6
-#define GRAVITY               1       /* m/sec^2 or blocks/sec^2 */
-#define PLAYER_MAXVELOCITY    10      /* m/sec or blocks/sec */
-#define PLAYER_JUMP_STRENGTH  -0.2    /* inverted fall */
 
 struct Inventory_t
 {
@@ -78,21 +75,23 @@ void playerMove(Player, Map);
 
 struct Player_t
 {
-	vec4    pos;
-	vec4    lookat;
-	float   angleh, anglev; /* radians */
-	float   cosh, sinh;
-	float   cosv, sinv;
-	float   speed;
-	float   fallVelocity;
-	uint8_t fly;
-	uint8_t onground;
-	uint8_t keyvec;
-	uint8_t pmode;
-	int     tick;
-	NBTFile levelDat;
-	int     playerBranch;
-	InvBuf  inventory;
+	vec4     pos;
+	vec4     lookat;
+	float    angleh, anglev; /* radians */
+	float    angleHCur;
+	float    angleHDir;
+	float    cosh, sinh;
+	float    velocity;
+	float    velocityY;
+	float    targetY;
+	uint8_t  fly;
+	uint8_t  onground;
+	uint8_t  pmode;
+	uint16_t keyvec;
+	int      tick;
+	NBTFile  levelDat;
+	int      playerBranch;
+	InvBuf   inventory;
 };
 
 enum /* possible values for mode */
@@ -104,14 +103,16 @@ enum /* possible values for mode */
 
 enum /* possible values for keyvec */
 {
-	PLAYER_UP           = 0x01,
-	PLAYER_DOWN         = 0x02,
-	PLAYER_STRAFE_LEFT  = 0x04,
-	PLAYER_STRAFE_RIGHT = 0x08,
-	PLAYER_MOVE_FORWARD = 0x10,
-	PLAYER_MOVE_BACK    = 0x20,
-	PLAYER_JUMP         = 0x40,
-	PLAYER_FALL         = 0x80
+	PLAYER_STRAFE_LEFT  = 0x0001,
+	PLAYER_STRAFE_RIGHT = 0x0002,
+	PLAYER_MOVE_FORWARD = 0x0004,
+	PLAYER_MOVE_BACK    = 0x0008,
+	PLAYER_UP           = 0x0010,
+	PLAYER_DOWN         = 0x0020,
+	PLAYER_JUMP         = 0x0040,
+	PLAYER_FALL         = 0x0080,
+	PLAYER_CLIMB        = 0x0100,
+	PLAYER_STOPPING     = 0x0200
 };
 
 #endif
