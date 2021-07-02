@@ -875,6 +875,26 @@ uint8_t updateChunks[243] = { /* bitfield S, E, N, W, T, B */
 	24, 25, 28,
 };
 
+/*
+ * cave culling tables: see internals.html to know how these tables work
+ */
+
+/* given a S,E,N,W,T,B bitfield, will give what face connections we can reach */
+uint16_t faceCnx[] = {
+0, 0, 0, 1, 0, 2, 32, 35, 0, 4, 64, 69, 512, 518, 608, 615, 0, 8, 128, 137, 1024,
+1034, 1184, 1195, 4096, 4108, 4288, 4301, 5632, 5646, 5856, 5871, 0, 16, 256, 273,
+2048, 2066, 2336, 2355, 8192, 8212, 8512, 8533, 10752, 10774, 11104, 11127, 16384,
+16408, 16768, 16793, 19456, 19482, 19872, 19899, 28672, 28700, 29120, 29149, 32256,
+32286, 32736, 32767
+};
+
+/* given two faces (encoded as bitfield S,E,N,W,T,B), return connection bitfield */
+uint16_t hasCnx[] = {
+0, 0, 0, 1, 0, 2, 32, 0, 0, 4, 64, 0, 512, 0, 0, 0, 0, 8, 128, 0, 1024, 0, 0, 0,
+4096, 0, 0, 0, 0, 0, 0, 0, 0, 16, 256, 0, 2048, 0, 0, 0, 8192, 0, 0, 0, 0, 0, 0,
+0, 16384, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+};
+
 /* yep, more look-up table init */
 void chunkInitStatic(void)
 {
@@ -984,6 +1004,7 @@ extern int breakPoint;
 static void chunkGenQuad(ChunkData neighbors[], WriteBuffer buffer, BlockState b, int pos);
 static void chunkGenCust(ChunkData neighbors[], WriteBuffer opaque, BlockState b, int pos);
 static void chunkGenCube(ChunkData neighbors[], WriteBuffer opaque, BlockState b, int pos);
+int mapUpdateGetCnxGraph(ChunkData, int start, DATA8 visited);
 
 /*
  * transform chunk data into something useful for the vertex shader (blocks.vsh)
@@ -991,11 +1012,13 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer opaque, BlockState b
  */
 void chunkUpdate(Chunk c, ChunkData empty, int layer)
 {
+	static uint8_t visited[512];
 	struct WriteBuffer_t alpha, opaque;
 	ChunkData neighbors[7];    /* S, E, N, W, T, B, current */
+	ChunkData cur;
 	int i, pos, air;
 
-	renderInitBuffer(neighbors[6] = c->layer[layer], &opaque, &alpha);
+	renderInitBuffer(neighbors[6] = cur = c->layer[layer], &opaque, &alpha);
 
 	/* 6 surrounding chunks (+center) */
 	neighbors[5] = layer > 0 ? c->layer[layer-1] : NULL;
@@ -1005,14 +1028,16 @@ void chunkUpdate(Chunk c, ChunkData empty, int layer)
 		neighbors[i] = (c + chunkNeighbor[c->neighbor + (1<<i)])->layer[layer];
 		if (neighbors[i] == NULL) neighbors[i] = empty;
 	}
-	if (neighbors[6]->emitters)
-		neighbors[6]->emitters[0] = 0;
+	if (cur->emitters)
+		cur->emitters[0] = 0;
 
 	/* default sorting for alpha quads */
-	neighbors[6]->yaw = 3.14926535 * 1.5;
-	neighbors[6]->pitch = 0;
+	cur->yaw = 3.14926535 * 1.5;
+	cur->pitch = 0;
 
-//	if (c->X == -224 && neighbors[6]->Y == 64 && c->Z == -48)
+	memset(visited, 0, sizeof visited);
+
+//	if (c->X == -224 && cur->Y == 64 && c->Z == -48)
 //		breakPoint = 1;
 
 	for (pos = air = 0; pos < 16*16*16; pos ++)
@@ -1020,7 +1045,7 @@ void chunkUpdate(Chunk c, ChunkData empty, int layer)
 		BlockState state;
 		uint8_t    data;
 		uint8_t    block;
-		DATA8      blocks = neighbors[6]->blockIds;
+		DATA8      blocks = cur->blockIds;
 
 		data  = blocks[DATA_OFFSET + (pos >> 1)]; if (pos & 1) data >>= 4; else data &= 15;
 		block = blocks[pos];
@@ -1029,9 +1054,13 @@ void chunkUpdate(Chunk c, ChunkData empty, int layer)
 //		if (breakPoint && pos == 45)
 //			breakPoint = 2;
 
+		/* 3d flood fill for cave culling */
+		if (state->type != SOLID && (slotsXZ[pos & 0xff] || slotsY[pos >> 8]))
+			cur->cnxGraph |= mapUpdateGetCnxGraph(cur, pos, visited);
+
 		if (blockIds[block].particle)
 			if (block != 55 || data > 0) // XXX needs to be declared in blockTable.js :-/
-				chunkAddEmitters(neighbors[6], pos, blockIds[block].particle - 1);
+				chunkAddEmitters(cur, pos, blockIds[block].particle - 1);
 
 		switch (state->type) {
 		case QUAD:
@@ -1059,8 +1088,6 @@ void chunkUpdate(Chunk c, ChunkData empty, int layer)
 	/* entire sub-chunk is composed of air: check if we can get rid of it */
 	if (air == 4096)
 	{
-		ChunkData cur = neighbors[6];
-
 		/* block light must be all 0 and skylight be all 15 */
 		if (memcmp(cur->blockIds + BLOCKLIGHT_OFFSET, empty->blockIds + BLOCKLIGHT_OFFSET, 2048) == 0 &&
 			memcmp(cur->blockIds + SKYLIGHT_OFFSET,   empty->blockIds + SKYLIGHT_OFFSET,   2048) == 0 &&
@@ -1070,7 +1097,7 @@ void chunkUpdate(Chunk c, ChunkData empty, int layer)
 			c->layer[cur->Y >> 4] = NULL;
 			c->maxy --;
 			/* cannot delete it now, but will be done after VBO has been cleared */
-			cur->cdflags = CDFLAG_PENDINGDEL;
+			cur->pendingDel = True;
 			NBT_MarkForUpdate(&c->nbt, c->secOffset, CHUNK_NBT_SECTION);
 			return;
 		}

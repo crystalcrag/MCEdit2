@@ -1320,6 +1320,54 @@ static void mapUpdateListChunk(Map map)
 }
 
 /*
+ * flood-fill for getting face connection, used by cave culling.
+ * should belongs to chunks.c, but we need the resizable ring-buffer for this.
+ */
+int mapUpdateGetCnxGraph(ChunkData cd, int start, DATA8 visited)
+{
+	static uint8_t mask[] = {0x80, 0x40, 0x20, 0x10, 0x08, 0x04, 0x02, 0x01};
+
+	return 0;
+
+	mapUpdateInitTrack(track);
+	trackAdd(start & 15, start >> 8, (start >> 4) & 15);
+	DATA8 blocks = cd->blockIds;
+	int cnx = 0;
+
+	while (track.usage > 0)
+	{
+		int8_t * XYZ = track.coord + track.pos;
+		uint8_t  i, x, y, z;
+
+		track.pos += 3;
+		track.usage -= 3;
+		if (track.pos == track.max) track.pos = 0;
+
+		for (i = 0; i < 6; i ++)
+		{
+			x = XYZ[0] + relx[i];
+			y = XYZ[1] + rely[i];
+			z = XYZ[2] + relz[i];
+
+			/* clipping (not 100% portable, but who cares?) */
+			if (x >= 16 || y >= 16 || z >= 16) continue;
+			int   pos = CHUNK_BLOCK_POS(x, z, y);
+			Block b = blockIds + blocks[pos];
+			/* only cares about fully opaque blocks */
+			if (b->type == SOLID && b->special != BLOCK_HALF && b->special != BLOCK_STAIRS &&
+				(visited[pos>>3] & mask[pos&7]) == 0)
+			{
+				trackAdd(x, y, z);
+				visited[pos>>3] |= mask[pos&7];
+				//cnx |= slotsXZ[pos &
+			}
+		}
+	}
+
+	return cnx;
+}
+
+/*
  * generic block update function: dispatch to various other functions of this module.
  */
 
@@ -1339,7 +1387,7 @@ void mapUpdateMesh(Map map)
 		chunkUpdate(cd->chunk, map->air, cd->Y >> 4);
 		renderFinishMesh(True);
 		particlesChunkUpdate(map, cd);
-		if (cd->cdflags == CDFLAG_PENDINGDEL)
+		if (cd->pendingDel)
 			/* link within chunk has already been removed in chunkUpdate() */
 			free(cd);
 		else

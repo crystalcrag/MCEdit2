@@ -469,7 +469,7 @@ Bool mapPointToBlock(Map map, vec4 camera, float * yawPitch, vec4 dir, vec4 ret,
 					{
 						data->side = i;
 						data->entity = entityRaycast(map->center, dir, camera, inter, ret);
-						return data->entity == 0;
+						return True;
 					}
 
 					memcpy(pos, inter, sizeof pos);
@@ -496,7 +496,7 @@ Bool mapPointToBlock(Map map, vec4 camera, float * yawPitch, vec4 dir, vec4 ret,
 							goto break_all;
 						}
 						data->entity = entityRaycast(map->center, dir, camera, inter, ret);
-						return data->entity == 0;
+						return True;
 					}
 					goto break_all;
 				}
@@ -515,7 +515,7 @@ Bool mapPointToBlock(Map map, vec4 camera, float * yawPitch, vec4 dir, vec4 ret,
 			break;
 	}
 	data->entity = entityRaycast(map->center, dir, camera, NULL, ret);
-	return data->entity == 0;
+	return data->entity > 0;
 }
 
 /* DEBUG */
@@ -728,7 +728,7 @@ void mapGenerateMesh(Map map)
 				chunkUpdate(list, map->air, i);
 				renderFinishMesh(False);
 				particlesChunkUpdate(map, cd);
-				if (cd->cdflags == CDFLAG_PENDINGDEL)
+				if (cd->pendingDel)
 				{
 					/* link within chunk has already been removed in chunkUpdate() */
 					free(cd);

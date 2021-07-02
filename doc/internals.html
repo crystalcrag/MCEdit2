@@ -449,13 +449,26 @@ to is completely opaque. If that's the case, there are no way the user will be a
 the visible faces are obscured, the entire chunk can be omitted.
 
 <p>Sadly, the results for this method were also disappointing: it culled about 10% of the chunk in the
-view frustum. Caves leaves too many holes in chunks that a solid face is too rare to track.
+view frustum. Caves leave too many holes in chunks, which means finding an entire solid face is quite
+rare in practice.
 
 <p>This section is just a remimder to not waste any time with this technique.
 
 <h4 id="cavecullv2"><span>Second attempt</span></h3>
 
+<p>Second attempt was based on the algorithm described in the link above: compute visibility graph of
+connected chunks, and traverse that graph while attempting to mimic a raycasting traversal of that graph.
+
+<p>Computing the visibility graph is not that hard: in this engine it is implmented in
+<tt>mapUpdate.c:calcConnectedGraph()</tt>. It uses a 3D flood fill, using a ring buffer (to simulate
+recursion) and bit-vector to manage which voxel has been visited. We don't even have to scan all the
+voxels in a chunk: we only need to know which face can be reached, starting from a given face: the flood
+fill only have to start at the edge of a chunk. I.e: if there is a hidden hole in the middle of a chunk,
+we don't have to scan that part.
+
 <p>/* ... */
+
+
 
 <h2 id="blocks">Block API</h2>
 
@@ -1117,7 +1130,7 @@ been possible to only use 26 bytes per quad, but using 28 allows the GPU/CPU to 
   <p>Sadly, there is not enough space to store the 3 needed coordinates as 16bits fixed point: 3bits
   are missing. That's why the 2<sup>nd</sup> and 3<sup>rd</sup> points are stored as relative to the
   first vertex. Since models (for terrain) should never exceed a voxel unit, you know that each coordinates
-  are at most at +/- 2048 units apart on each axis, which 12 bits (including sign). We add 2 more bits
+  are at most at +/- 2048 units apart on each axis, which is 12 bits (including sign). We add 2 more bits
   of precision for a bit of safety, and that's why the last 2 points uses 14bits of precision per axis.
 
   <li><tt>U</tt>, <tt>V</tt>: coordinates of the <b>top left corner</b> of the texture to use for this <tt>QUAD</tt>
@@ -1126,7 +1139,7 @@ been possible to only use 26 bytes per quad, but using 28 allows the GPU/CPU to 
 
   <li><tt>Usz</tt>, <tt>Vsz</tt>: 2nd coordinate. These numbers are relative to <tt>U</tt> and <tt>V</tt>
   respectively, minus 128. This correspond to the texture coordinate for vertex V3 (see below). ie:
-  <pre>vec2 texV3 = vec2(U + Usz - 128, V + vsz - 128);</pre>
+  <pre>vec2 texV3 = vec2(U + Usz - 128, V + Vsz - 128);</pre>
 
   <li><tt>X</tt>: knowing the texture coordinate of 2 vertices is not enough to fully find all the
   coordinates of the 2 remaining vertices. At this point there are 2 possibilities: keep U or V coordinate
@@ -1146,6 +1159,8 @@ been possible to only use 26 bytes per quad, but using 28 allows the GPU/CPU to 
 <div class="photo">
   <img src="images/quad.png">
 </div>
+
+<p>2 <tt>QUADS</tt> will be constructed out of the 4 vertices: V1 - V2 - V3 and V3 - V2 - V4.
 
 <p>However, this vertex format is <b>not easy to work with</b>: it involves a lot of tedious bit shifting
 and code logic to extract all the information about a quad. The mesh of objects have to be analyzed for
@@ -1176,7 +1191,9 @@ everything related to an NBT tree as close as possible in memory, to benefit fro
 <p>This is actually the main focus of this API: it <b>strongly</b> favors read over write access. The
 rationale for this choice being that most chunks in a map will never be modified at all, and for those
 that will, most of time it is simply a matter of overwriting some tables (<tt>BlockLight</tt>,
-<tt>Blocks</tt>, <tt>Data</tt>, ...).
+<tt>Blocks</tt>, <tt>Data</tt>, ...). There are a few lists (<tt>TileEntites</tt>, <tt>Entities</tt>,
+<tt>TileTicks</tt>, ...) where the content can change significantly, and this is where this API will
+a bit more tedious to use than other APIs.
 
 <p>/* ... */
 

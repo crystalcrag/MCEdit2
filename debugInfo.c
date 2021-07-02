@@ -267,11 +267,6 @@ void debugShowChunkBoundary(Chunk cur)
 	glBindVertexArray(debugChunk.vao);
 	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, debugChunk.vboMDAI);
 	glMultiDrawArraysIndirect(GL_LINES, 0, debugChunk.count, 0);
-
-	glDisable(GL_CULL_FACE);
-	glDepthMask(GL_FALSE);
-	glMultiDrawArraysIndirect(GL_TRIANGLES, (void *) (debugChunk.count * 16), debugChunk.solid, 0);
-	glEnable(GL_CULL_FACE);
 }
 
 static void nvgMultiLineText(NVGcontext * vg, float x, float y, STRPTR start, STRPTR end)

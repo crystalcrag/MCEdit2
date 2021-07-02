@@ -78,10 +78,8 @@ struct Player_t
 	vec4     pos;
 	vec4     lookat;
 	float    angleh, anglev; /* radians */
-	float    angleHCur;
-	float    angleHDir;
-	float    cosh, sinh;
-	float    velocity;
+	float    velocity[3];
+	float    dir[3];
 	float    velocityY;
 	float    targetY;
 	uint8_t  fly;

@@ -1,5 +1,12 @@
 =========== Week 26 ===========
-Mon June 29:
+Thu July 1:
+	* reowrk entity movement, seems ok for now.
+	* started cave culling v2.
+
+wed June 30:
+	* rework momentum again, seems better, but still need some tweaks.
+
+Tue June 29:
 	* cave culling reimplemented in 2d.
 	* entity movement refined, momentum still need some work.
 

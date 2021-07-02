@@ -105,7 +105,7 @@ enum                               /* bitfield for SelBlock.sel */
 	SEL_CURRENT   = 1,
 	SEL_FIRST     = 2,
 	SEL_SECOND    = 4,
-	SEL_NOCURRENT = 8
+	SEL_NOCURRENT = 8              /* cannot place block */
 };
 
 struct Message_t
