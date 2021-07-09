@@ -159,7 +159,7 @@ struct RenderWorld_t
 	uint8_t   debug;               /* 1 if debug info is displayed */
 	uint8_t   debugInfo;
 	uint8_t   direction;           /* player facing direction: 0:south, 1:east, 2:north, 3:west */
-	uint8_t   terrain;
+	uint8_t   setFrustum;
 	int       debugFont;           /* font id from nanovg (init by SITGL) */
 	int       debugTotalTri;       /* triangle count being drawn */
 	int       mouseX, mouseY;
@@ -186,7 +186,7 @@ struct MeshBuffer_t                /* temporary buffer used to collect data from
 /* debug info */
 void debugBlockVertex(Map, SelBlock *);
 void debugInit(void);
-void debugShowChunkBoundary(Chunk cur);
+void debugShowChunkBoundary(Chunk cur, int Y);
 void debugCoord(APTR vg, vec4 camera, int total);
 void debugPoint(vec4 pos);
 void debugLine(vec4 p1, vec4 p2);

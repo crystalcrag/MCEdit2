@@ -215,7 +215,7 @@ void mapUpdateTable(BlockIter iter, int val, int table)
 		iter->ref->cflags |= CFLAG_ETTLIGHT;
 
 	/* track which side it is near to (we might have to update nearby chunk too) */
-	cd->slot |= slotsXZ[(iter->z<<4) | iter->x] | slotsY[iter->y];
+	cd->slot |= (slotsXZ[(iter->z<<4) | iter->x] | slotsY[iter->y]) << 1;
 }
 
 static uint8_t mapGetSky(BlockIter iter)
@@ -1326,13 +1326,13 @@ static void mapUpdateListChunk(Map map)
 int mapUpdateGetCnxGraph(ChunkData cd, int start, DATA8 visited)
 {
 	static uint8_t mask[] = {0x80, 0x40, 0x20, 0x10, 0x08, 0x04, 0x02, 0x01};
-
-	return 0;
+	extern uint16_t faceCnx[]; /* from chunks.c */
 
 	mapUpdateInitTrack(track);
 	trackAdd(start & 15, start >> 8, (start >> 4) & 15);
 	DATA8 blocks = cd->blockIds;
-	int cnx = 0;
+	int init = slotsXZ[start&0xff] | slotsY[start>>8];
+	int cnx = faceCnx[init];
 
 	while (track.usage > 0)
 	{
@@ -1353,13 +1353,14 @@ int mapUpdateGetCnxGraph(ChunkData cd, int start, DATA8 visited)
 			if (x >= 16 || y >= 16 || z >= 16) continue;
 			int   pos = CHUNK_BLOCK_POS(x, z, y);
 			Block b = blockIds + blocks[pos];
-			/* only cares about fully opaque blocks */
-			if (b->type == SOLID && b->special != BLOCK_HALF && b->special != BLOCK_STAIRS &&
+			/* only fully opaque blocks will stop flood */
+			if (! blockIsFullySollid(b) &&
 				(visited[pos>>3] & mask[pos&7]) == 0)
 			{
 				trackAdd(x, y, z);
 				visited[pos>>3] |= mask[pos&7];
-				//cnx |= slotsXZ[pos &
+				init |= slotsXZ[pos&0xff] | slotsY[pos>>8];
+				cnx |= faceCnx[init];
 			}
 		}
 	}
@@ -1543,7 +1544,7 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 		/* not in update list: add it now */
 		iter.cd->slot = 1;
 		if (blockIds[(blockId == 0 ? oldId : blockId) >> 4].type != QUAD)
-			iter.cd->slot |= slotsXZ[iter.z] | (slotsXZ[iter.x] << 1) | slotsY[iter.y];
+			iter.cd->slot |= (slotsXZ[(iter.z<<4)|iter.x] | slotsY[iter.y]) << 1;
 		*track.list = iter.cd;
 		track.list = &iter.cd->update;
 	}

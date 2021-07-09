@@ -28,8 +28,9 @@ h4:before { counter-increment: h4; content: counter(h2) "." counter(h3) "." coun
 #abstract { font-size: 1.3em; font-style: italic; border-top: 1px solid black; border-bottom: 1px solid black; margin: 120px 40px; text-shadow: 2px 2px rgba(0,0,0,0.1) }
 #auth { text-align: center; margin-bottom: 200px }
 dt { border-bottom: 2px groove #ccc; font-weight: bold; padding: 2px 0; margin-left: 40px; margin-top: 10px; page-break-after: avoid }
-pre { margin: 20px 50px; border: 5px solid rgba(0,0,0,0.3); border-width: 1px 1px 1px 5px; background: rgba(255,255,255,0.3);
-	padding: 10px 20px; font-family: monospace; tab-size: 4 }
+pre > ul, .pre ul { margin-left: 0 }
+pre, .pre { margin: 20px 50px; border: 5px solid rgba(0,0,0,0.3); border-width: 1px 1px 1px 5px; background: rgba(255,255,255,0.3);
+	padding: 10px 20px; tab-size: 4 }
 tt { font-weight: bold }
 table pre { margin: 0 }
 #content h2:first-child { page-break-before: auto }
@@ -43,6 +44,7 @@ hr { width: 40% }
 dd ol { margin-left: 60px }
 dd ol > li { margin-bottom: 5px }
 ul p, ol p, table p { margin-left: 0 }
+ul ul { margin-left: 0; margin-top: 10px }
 img { vertical-align: middle }
 blockquote { margin-left: 60px; font-style: italic; border-left: 10px solid #ccc; padding-left: 5px }
 table.selfref, ul, ol { margin-left: 40px }
@@ -108,7 +110,6 @@ p.warning { font-family: sans-serif; font-weight: bold; color: red; font-size: 0
 .listview caption.small { border: 0 }
 .listview caption.small::after { content: ""; width: 50%; display: block; border-bottom: 2px solid black; margin: 2px auto }
 .listview ul { margin-left: 0 }
-.listview thead td { background-color: black; color: white; text-align: center }
 .listview.BC2 tbody td:nth-child(n+2) { text-align: center }
 .listview.pad td { padding: 3px 8px }
 
@@ -148,8 +149,11 @@ bitpart.sz16 { width: 240px }
 table.skewed { transform: skewx(-35deg); transform-origin: 0 100%; margin-bottom: 5px; box-shadow: 18px 15px rgba(0,0,0,0.1) }
 table.skewed td { border-width: 2px; padding: 5px; width: 30px; text-align: center; font-family: monospace }
 table { border-collapse: collapse }
-table thead td { background-color: black; color: white }
+table thead td, table th { background-color: black; color: white; text-align: center }
 table td { border: 1px solid black; padding: 3px }
+table td.XXX { background: linear-gradient(to bottom right, transparent, transparent 50%, red 50%, red 51%, transparent 51%),
+                           linear-gradient(to bottom left, transparent, transparent 50%, red 50%, red 51%, transparent 51%); }
+table.hspace td { min-width: 1.5em; text-align: center }
 .c  { color:#2222AA }
 .i  { color:#54AAAA }
 .d  { color:#A600F7 }

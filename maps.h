@@ -57,7 +57,6 @@ struct Frustum_t                   /* frustum culling static tables (see doc/int
 	int8_t *  spiral;
 	int8_t *  lazy;
 	uint16_t  lazyCount;
-	uint8_t   firstFree[256];
 	float *   mvp;                 /* model-view-projection matrix (4x4) */
 };
 
@@ -85,7 +84,6 @@ struct BlockIter_t                 /* iterate over nearby blocks */
 	DATA8     blockIds;            /* blockIds table within ChunkData or NULL if sub-chunk is missing */
 };
 
-void    mapInitStatic(void);
 Map     mapInitFromPath(STRPTR path, int renderDist);
 void    mapGenerateMesh(Map);
 int     mapGetBlockId(Map, vec4 pos, MapExtraData canBeNULL);

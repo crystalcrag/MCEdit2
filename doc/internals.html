@@ -168,28 +168,21 @@ as a pointer type) contain all the data (block IDs, sky light, block light, meta
 
 <h3 id="firstvers"><span>First version (pseudo-code)</span></h3>
 
-<p>So, a first version for this algorithm would be (here in pseudo-code):
-
-<pre><span class="c">/* Naive frustum culling */</span>
-<span class="o">&lt;visible&gt;</span> as <span class="t">List</span> := empty
-<span class="o">&lt;visible&gt;</span>.add(chunk where player is)
-
-<span class="k">For</span> i := 1 to <span class="o">&lt;visible&gt;</span>.Count
-   <span class="o">&lt;chunk&gt;</span> as <span class="t">ChunkData</span> := <span class="o">&lt;visible&gt;</span>[i]
-   <span class="o">&lt;chunk&gt;</span>.visited := true
-   <span class="k">For</span> j := 1 to 8
-   <dim>|</dim>  <span class="o">&lt;vertex&gt;</span> as <span class="t">vec4</span> := corner j of <span class="o">&lt;chunk&gt;</span>
-   <dim>|</dim>  <span class="k">If</span> <span class="o">&lt;vertex&gt;</span> is in frustum <span class="k">Then</span>
-   <dim>|  |</dim>  <span class="k">For</span> k := 1 to 8
-   <dim>|  |  |</dim>  <span class="o">&lt;neighbor&gt;</span> as <span class="t">ChunkData</span> := k<sup>th</sup> chunk sharing <span class="o">&lt;vertex&gt;</span>
-   <dim>|  |  |</dim>  <span class="k">If</span> Not <span class="o">&lt;neighbor&gt;</span>.visited then
-   <dim>|  |  |  |</dim>  <span class="o">&lt;visible&gt;</span>.add(<span class="o">&lt;neighbor&gt;</span>)
-   <dim>|  |  |</dim>  <span class="k">End if</span>
-   <dim>|  |</dim>  <span class="k">End for</span>
-   <dim>|</dim>  <span class="k">End if</span>
-   <span class="k">End for</span>
-<span class="k">End for</span>
-</pre>
+<p>So, a first version for this algorithm would be:
+<div class="pre">
+<ul>
+  <li>Have a list of visible chunk.
+  <li>Initially, add the chunk where the player in that list.
+  <li>For each chunk in that list:
+    <ul>
+	  <li>For each of the 8 corners of the chunk:
+	    <ul>
+		  <li>Check if corner is in frustum.
+		  <li>If yes, add 8 connected chunks to the end of the list (if the chunk has not already been added yet).
+		</ul>
+	</ul>
+</ul>
+</div>
 
 <p>That algorithm seems pretty simple, but lacks <b>a lot</b> of house-keeping required to achieve our
 goal of one vertex checked per chunk.
@@ -235,24 +228,35 @@ between 0 and 26, and therefore can be encoded as a bitfield in a 32bit integer.
 (axis is the same as the figure on the right):
 
 <table class="skewed">
-<tr><td>18<td>19<td>20
-<tr><td>21<td>22<td>23
-<tr><td>24<td>25<td>26
+<tr><td>25<td>15<td>23
+<tr><td>17<td>5<td>12
+<tr><td>21<td>9<td>19
 </table>
 
 <table class="skewed">
-<tr><td>9<td>10<td>11
-<tr><td>12<td><span class="o">13</span><td>14
-<tr><td>15<td>16<td>17
+<tr><td>14<td>3<td>11
+<tr><td>4<td><span class="o">0</span><td>2
+<tr><td>8<td>1<td>7
 </table>
 
 <table class="skewed">
-<tr><td>0<td>1<td>2
-<tr><td>3<td>4<td>5
-<tr><td>6<td>7<td>8
+<tr><td>26<td>16<td>24
+<tr><td>18<td>6<td>13
+<tr><td>22<td>10<td>20
 </table>
 
-<p><tt>13</tt> is therefore the chunk we are currently in. For example, if we checked that vertex
+<p>The way chunks are ordered is you start with the center (numbered 0), then you assign an incremental
+number using the order <tt>S,E,N,W,T,B</tt>, if the chunk at this location doesn't have a number assigned
+to it yet. Repeat that process with the next ID (1, 2, 3, ...), until all chunks have been assigned.
+
+<p>This way, when scanning neighbor chunks for 1 to 27, the first one will be the center, the 6 following
+will be the one immediately connected to this center chunk (ie: 1 chunk away from center, by moving only
+<tt>S,E,N,W,T,B</tt>). The next 12 will be the chunks connected to the 6 previous (therefore 2 chunks
+away from the center). The last 8 will be 3 chunks away from center. This order will be important when
+dealing with <b>cave culling</b>.
+
+<p>/* ... */
+<tt>13</tt> is therefore the chunk we are currently in. For example, if we checked that vertex
 <tt>0</tt> of a chunk is within the frustum, we know we can also add chunks <tt>0</tt>, <tt>1</tt>, <tt>3</tt>,
 <tt>4</tt>, <tt>9</tt>, <tt>10</tt> and <tt>12</tt>. Chunk 13 is not included, because at this point
 we already know that the center chunk is part of the frustum. Encoded as bitfield, with the n<sup>th</sup>
@@ -442,11 +446,9 @@ the results were disappointing: it only culled about 1% of total chunks.
 <p>A simpler approach were attempted for this engine, because computing the visibility graph is actuatlly
 not that cheap (although with that information, <b>you can cull a lot of chunks</b>).
 
-<p>The basic idea behind the first implementation was that <b>a cube viewed using a perspective projection
-matrix has at most 3 faces visible</b>. If we can somewhat "prove" that those faces are hidden, we can
-then discard the entire chunk from the visible list. For this, we can check if the face they are connected
-to is completely opaque. If that's the case, there are no way the user will be able to see that face. If all
-the visible faces are obscured, the entire chunk can be omitted.
+<p>The slight improvement idea was to realize that <b>a cube viewed using a perspective projection
+matrix has at most 3 faces visible</b>. Instead of checking all 6 faces, we only need to check at most 3.
+Checking if a face is fully opaque is very simple and super cheap to compute.
 
 <p>Sadly, the results for this method were also disappointing: it culled about 10% of the chunk in the
 view frustum. Caves leave too many holes in chunks, which means finding an entire solid face is quite
@@ -458,13 +460,43 @@ rare in practice.
 
 <p>Second attempt was based on the algorithm described in the link above: compute visibility graph of
 connected chunks, and traverse that graph while attempting to mimic a raycasting traversal of that graph.
+The traversal was changed quite a bit though: the one used in <prod>Minecraft</prod> is a bit too aggressive,
+and tend to discard chunks that are clearly visible (which has been improved starting from v1.17).
 
-<p>Computing the visibility graph is not that hard: in this engine it is implmented in
-<tt>mapUpdate.c:calcConnectedGraph()</tt>. It uses a 3D flood fill, using a ring buffer (to simulate
-recursion) and bit-vector to manage which voxel has been visited. We don't even have to scan all the
-voxels in a chunk: we only need to know which face can be reached, starting from a given face: the flood
-fill only have to start at the edge of a chunk. I.e: if there is a hidden hole in the middle of a chunk,
-we don't have to scan that part.
+<h5 id="cnxgraph"><span>Computing visibility graph</span></h3>
+
+<p>Computing the visibility graph is not that hard: in this engine it is implemented in
+<tt>mapUpdate.c</tt>: <tt>mapUpdateGetCnxGraph()</tt>. It uses a 3D flood fill (as described in the blog
+post), using a ring buffer (to simulate recursion) and bit-vector to manage which voxel has been visited.
+
+<p>A simpification was done though: we only start the scan at the edge of the chunk: because we only
+need to know which faces can be reached from a given face. Knowing there is a hidden hole in the middle
+of a chunk, is an information we don't care at all. That means if the outer layer of the chunk is
+completely solid, the flood fill should be rather cheap to compute (and rather expensive if the chunk
+is mostly air).
+
+<p>The visibility of faces is <b>stored in a bitfield</b>. Since there are 6 faces, there are <b>15</b>
+possible connections:
+
+<table class="hspace">
+  <thead><tr><td><small>to &#x25ba;<br>from &#x25bc;</small><td><tt>S</tt><td><tt>E</tt><td><tt>N</tt><td><tt>W</tt><td><tt>T</tt><td><tt>B</tt>
+  <tbody><tr><th><tt>S</tt><td class="XXX"><td>1<td>2<td>3<td>4<td>5
+         <tr><th><tt>E</tt><td>1<td class="XXX"><td>6<td>7<td>8<td>9
+         <tr><th><tt>N</tt><td>2<td>6<td class="XXX"><td>10<td>11<td>12
+         <tr><th><tt>W</tt><td>3<td>7<td>10<td class="XXX"><td>13<td>14
+         <tr><th><tt>T</tt><td>4<td>8<td>11<td>13<td class="XXX"><td>15
+         <tr><th><tt>B</tt><td>5<td>9<td>12<td>14<td>15<td class="XXX">
+</table>
+
+<p>This table shows the connection bit used to encode all the connections there are in a sub-chunk.
+The connections are stored in <tt>ChunkData.cnxGraph</tt>: it is a bitfield (<tt>1 &lt;&lt; connectID-1</tt>)
+that indicates which face has a visible path to another face. If there are no paths, that means the
+face is blocking the visibility of a chunk.
+
+<h5 id="cnxgraph"><span>Graph traversal</span></h3>
+
+<p>This is the part that difers significantly from the blog post: it uses a more conservative approach,
+which results in more chunks being drawn, but should not leave any unfilled hole in the world.
 
 <p>/* ... */
 

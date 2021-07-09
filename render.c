@@ -335,7 +335,6 @@ Bool renderInitStatic(int width, int height, APTR sitRoot)
 	/* allocate some vbo to display chunk boundary */
 	debugInit();
 	/* init all the static tables */
-	mapInitStatic();
 	chunkInitStatic();
 	halfBlockInit();
 	// playerInitPickup(&render.pickup);
@@ -574,7 +573,7 @@ void renderSetViewMat(vec4 pos, vec4 lookat, float * yawPitch)
 	glBindBuffer(GL_UNIFORM_BUFFER, render.uboShader);
 	glBufferSubData(GL_UNIFORM_BUFFER, UBO_CAMERA_OFFFSET, sizeof (vec4), render.camera);
 
-	mapViewFrustum(render.level, render.matMVP, render.camera);
+	render.setFrustum = 1;
 	render.yaw = yawPitch[0];
 	render.pitch = yawPitch[1];
 	render.direction = 1; /* east */
@@ -1145,7 +1144,8 @@ void renderFrustum(Bool snapshot)
 		ChunkData cd;
 		int       nb;
 
-		for (cd = map->firstVisible, nb = 0; cd; nb ++, cd = cd->visible);
+		for (cd = map->firstVisible, nb = 0; cd; nb ++, cd = cd->visible)
+			if (cd->comingFrom == 0) nb ++;
 
 		/* so much boilerplate, could they not simplify this crap? */
 		glBindBuffer(GL_ARRAY_BUFFER, vboFrustumLoc);
@@ -1164,6 +1164,14 @@ void renderFrustum(Bool snapshot)
 			loc[0] = chunk->X;
 			loc[1] = cd->Y;
 			loc[2] = chunk->Z;
+			if (cd->comingFrom == 0 && cd != map->firstVisible)
+			{
+				loc += 3, vboCount ++, cmd ++;
+				memcpy(cmd, cmd-1, 16);
+				memcpy(loc, loc-3, 12);
+				cmd->first = 24;
+				cmd->baseInstance = vboCount;
+			}
 		}
 		glUnmapBuffer(GL_ARRAY_BUFFER);
 		glUnmapBuffer(GL_DRAW_INDIRECT_BUFFER);
@@ -1183,6 +1191,13 @@ void renderFrustum(Bool snapshot)
  */
 void renderWorld(void)
 {
+	if (render.setFrustum)
+	{
+		/* do it as late as possible */
+		mapViewFrustum(render.level, render.matMVP, render.camera);
+		render.setFrustum = 0;
+	}
+
 	/* generate mesh we didn't have time to do before */
 	if (render.level->genList.lh_Head)
 	{
@@ -1262,7 +1277,7 @@ void renderWorld(void)
 	/* show limit of chunk boundary where player is */
 	if (render.debug & RENDER_DEBUG_CURCHUNK)
 	{
-		debugShowChunkBoundary(render.level->center);
+		debugShowChunkBoundary(render.level->center, CPOS(render.camera[VY]));
 	}
 	if (render.debug & RENDER_DEBUG_FRUSTUM)
 	{

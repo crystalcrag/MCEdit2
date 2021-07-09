@@ -279,6 +279,7 @@ enum                       /* common redstone devices */
 #define blockGetById(id)          (blockStates + blockStateIndex[id])
 #define ID(id, data)              (((id) << 4) | (data))
 #define SIDE_NONE                 0
+#define blockIsFullySollid(state) (state->type == SOLID && state->special != BLOCK_HALF && state->special != BLOCK_STAIRS)
 
 #define MAXSKY        15   /* maximum values for SkyLight table */
 #define MAXLIGHT      15   /* maximum value for light emitter */
@@ -418,7 +419,7 @@ extern struct Block_t        blockIds[];
 extern struct BlockState_t * blockStates;
 extern uint16_t              blockStateIndex[];
 
-extern uint8_t vertex[]; /* from chunks.c */
+extern uint8_t vertex[];
 extern uint8_t cubeIndices[];
 extern int8_t  normals[];
 

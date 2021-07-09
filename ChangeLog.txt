@@ -1,6 +1,16 @@
+=========== Week 27 ===========
+Thu July 8:
+	* early version of cave culling seems somewhat working.
+
+Mon July 5:
+	* cave culling continued.
+
 =========== Week 26 ===========
+Fri July 2:
+	* cave culling continued.
+
 Thu July 1:
-	* reowrk entity movement, seems ok for now.
+	* rework entity movement, seems ok for now.
 	* started cave culling v2.
 
 wed June 30:

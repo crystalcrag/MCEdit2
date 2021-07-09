@@ -19,69 +19,21 @@
 
 //#define SLOW_CHUNK_LOAD   /* load 1 chunk (entire column) per second */
 
-static struct Frustum_t frustum;
+static struct Frustum_t frustum = {
+	.neighbors = {
+		0x04054058, 0x0101284c, 0x00440552, 0x001024c6, 0x0202c038, 0x0080982c, 0x00220332, 0x000812a6,
+	},
+
+	.chunkOffsets = {
+		0, 1, 2, 4, 8, 16, 32, 3, 9, 17, 33, 6, 18, 34, 12, 20, 36, 24, 40, 19, 35, 25, 41, 22, 38, 28, 44,
+	},
+};
 
 /* given a direction encodded as bitfield (S, E, N, W), return offset of where that chunk is */
 int16_t chunkNeighbor[16*9];
 
 extern uint8_t openDoorDataToModel[];
-
-
-/*
- * frustum culling static tables : this part is explained in a separate document: doc/internals.html
- */
-void mapInitStatic(void)
-{
-	static uint8_t boxPts[] = {
-		/* coords X, Z, Y */
-		0, 0, 0,
-		1, 0, 0,
-		0, 1, 0,
-		1, 1, 0,
-		0, 0, 1,
-		1, 0, 1,
-		0, 1, 1,
-		1, 1, 1,
-	};
-	int   i, j, k;
-	DATA8 ptr;
-
-	/* 8 corners of the box */
-	for (i = 0, ptr = boxPts; i < 8; i ++, ptr += 3)
-	{
-		/* 7 boxes sharing that vertex (excluding the one we are in: 0,0,0) */
-		for (j = 1; j < 8; j ++)
-		{
-			int8_t xoff = (j&1);
-			int8_t zoff = (j&2)>>1;
-			int8_t yoff = (j&4)>>2;
-
-			if (ptr[0] == 0) xoff = -xoff;
-			if (ptr[2] == 0) yoff = -yoff;
-			if (ptr[1] == 0) zoff = -zoff;
-
-			/* offset of neighbor chunk (-1, 0 or 1) */
-			frustum.neighbors[i] |= 1 << ((xoff+1) + (zoff+1)*3 + (yoff+1)*9);
-		}
-	}
-
-	for (i = 0; i < 27; i ++)
-	{
-		if (i == 13) continue; /* center, don't care */
-		static uint8_t dirs[] = {8, 0, 2, 4, 0, 1, 32, 0, 16};
-		int8_t x = i%3;
-		int8_t z = (i/3)%3;
-		int8_t y = i/9;
-		frustum.chunkOffsets[i] = dirs[x] | dirs[z+3] | dirs[y+6];
-	}
-
-	/* firstFree[] table will tell for a given integer [0,255] which rightmost bit is set to 0 */
-	for (i = 0; i < 256; i ++)
-	{
-		for (j = i, k = 0; j&1; k ++, j >>= 1);
-		frustum.firstFree[i] = k;
-	}
-}
+extern uint8_t firstFree[];
 
 int mapFirstFree(DATA32 usage, int count)
 {
@@ -89,18 +41,18 @@ int mapFirstFree(DATA32 usage, int count)
 	for (i = count, base = 0; i > 0; i --, usage ++, base += 32)
 	{
 		uint32_t bits = *usage;
-		int slot = frustum.firstFree[bits & 0xff];
+		int slot = firstFree[bits & 0xff];
 		if (slot == 8)
 		{
 			bits >>= 8;
-			slot += frustum.firstFree[bits & 0xff];
+			slot += firstFree[bits & 0xff];
 			if (slot == 16)
 			{
 				bits >>= 8;
-				slot += frustum.firstFree[bits & 0xff];
+				slot += firstFree[bits & 0xff];
 				if (slot == 24)
 				{
-					slot += frustum.firstFree[bits >> 8];
+					slot += firstFree[bits >> 8];
 					if (slot == 32) continue;
 				}
 			}
@@ -1306,17 +1258,17 @@ static ChunkData mapAllocFakeChunk(Map map)
 	}
 
 	usage = cf->usage;
-	slot = frustum.firstFree[usage & 0xff];
+	slot = firstFree[usage & 0xff];
 	if (slot == 8)
 	{
 		usage >>= 8;
-		slot += frustum.firstFree[usage & 0xff];
+		slot += firstFree[usage & 0xff];
 		if (slot == 16)
 		{
 			usage >>= 8;
-			slot += frustum.firstFree[usage & 0xff];
+			slot += firstFree[usage & 0xff];
 			if (slot == 24)
-				slot += frustum.firstFree[usage >> 8];
+				slot += firstFree[usage >> 8];
 		}
 	}
 
@@ -1324,6 +1276,7 @@ static ChunkData mapAllocFakeChunk(Map map)
 	memset(cd, 0, FAKE_CHUNK_SIZE);
 	cd->slot   = slot+1;
 	cf->usage |= 1<<slot;
+	cd->cnxGraph = 0xffff;
 
 	mapPrintUsage(cf, 1);
 
@@ -1468,6 +1421,71 @@ static ChunkData mapAddToVisibleList(Map map, Chunk from, int direction, int lay
 	return NULL;
 }
 
+static Bool mapCullCave(ChunkData cur, vec4 camera, Chunk ref)
+{
+	uint8_t side, i, oppSide;
+	Chunk   chunk = cur->chunk;
+	int     X = chunk->X;
+	int     Z = chunk->Z;
+
+	int rel[] = {X - ref->X, Z - ref->Z};
+
+	if (X == 208 && Z == 992 && cur->Y == 80)
+		puts("here");
+
+	/* try to get back to a known location from <cur> */
+	for (i = 0; i < 3; i ++)
+	{
+		static int8_t TB[] = {0, 0, 0, 0, -1, 1};
+		ChunkData neighbor;
+
+		switch (i) {
+		case 0: /* N/S */
+			if (Z + 16 - camera[VZ] < 0) side = 1, oppSide = 2;
+			else if (camera[VZ] - Z < 0) side = 4, oppSide = 0;
+			else continue;
+			break;
+		case 1: /* E/W */
+			if (X + 16 - camera[VX] < 0) side = 2, oppSide = 3;
+			else if (camera[VX] - X < 0) side = 8, oppSide = 1;
+			else continue;
+			break;
+		case 2: /* T/B */
+			if (cur->Y + 16 - camera[VY] < 0) side = 0, oppSide = 5;
+			else if (camera[VY] - cur->Y < 0) side = 0, oppSide = 4;
+			else continue;
+		}
+
+		chunk    = cur->chunk + chunkNeighbor[cur->chunk->neighbor + side];
+		neighbor = chunk->layer[(cur->Y >> 4) + TB[oppSide]];
+
+		if (neighbor && neighbor->comingFrom > 0 /* can be visited */ && neighbor->slot == 0 /* non-fake chunk */ && neighbor->glBank /* non-empty chunk */)
+		{
+			static uint8_t opp[] = {4,  8,  1,  2, 16,  32};
+			extern uint16_t hasCnx[]; /* from chunks.c */
+			if (neighbor->comingFrom == 255)
+			{
+				/* starting pos: multiple paths possible */
+				static uint16_t canGoTo[] = { /* S, E, N, W, T, B */
+					1+2+4+8+16, 1+32+64+128+256, 2+32+512+1024+2048, 4+64+512+4096+8192,
+					8+128+1024+4096+16384, 16+256+2048+8192+16384
+				};
+				if (neighbor->cnxGraph & canGoTo[oppSide])
+				{
+					cur->comingFrom = 1 << oppSide;
+					return True;
+				}
+			}
+			else if (neighbor->cnxGraph & hasCnx[opp[oppSide] | neighbor->comingFrom])
+			{
+				cur->comingFrom = 1 << oppSide;
+				return True;
+			}
+		}
+	}
+	return False;
+}
+
 void mapViewFrustum(Map map, mat4 mvp, vec4 camera)
 {
 	ChunkData * prev;
@@ -1578,6 +1596,7 @@ void mapViewFrustum(Map map, mat4 mvp, vec4 camera)
 	prev = &map->firstVisible;
 	frame = ++ map->frame;
 	cur->visible = NULL;
+	cur->comingFrom = 255;
 	chunk->chunkFrame = frame;
 	memset(chunk->outflags, UNVISITED, sizeof chunk->outflags);
 	chunk->cdIndex = 255;
@@ -1619,15 +1638,15 @@ void mapViewFrustum(Map map, mat4 mvp, vec4 camera)
 		{
 			static uint8_t faces[] = {
 				/* numbers reference boxPts, order is S, E, N, W, T, B */
-				0, 1, 4, 5,
-				1, 3, 5, 7,
 				3, 2, 7, 6,
+				1, 3, 5, 7,
+				0, 1, 4, 5,
 				2, 0, 6, 4,
 				4, 5, 6, 7,
 				0, 1, 2, 3
 			};
 			DATA8 p;
-			for (i = 0, p = faces; i < sizeof faces/4; i ++, p += 4)
+			for (i = 1, p = faces; i <= sizeof faces/4; i ++, p += 4)
 			{
 				/* check if an entire face crosses a plane */
 				uint8_t sector1 = outflags[p[0]];
@@ -1643,8 +1662,7 @@ void mapViewFrustum(Map map, mat4 mvp, vec4 camera)
 				     popcount(sector1 ^ sector3) >= 2))
 				{
 					/* face crosses a plane: add chunk connected to it to the visible list */
-					static uint8_t faceDir[] = {10, 14, 16, 12, 22, 4};
-					ChunkData cd = mapAddToVisibleList(map, chunk, faceDir[i], center[1], frame);
+					ChunkData cd = mapAddToVisibleList(map, chunk, i, center[1], frame);
 					if (cd)
 					{
 						#ifdef FRUSTUM_DEBUG
@@ -1665,6 +1683,11 @@ void mapViewFrustum(Map map, mat4 mvp, vec4 camera)
 			*prev = cur->visible;
 		}
 		else prev = &cur->visible, renderAddToBank(cur);
+	}
+
+	for (cur = map->firstVisible; cur; cur = cur->visible)
+	{
+		mapCullCave(cur, camera, map->firstVisible->chunk);
 	}
 
 	renderAllocCmdBuffer();

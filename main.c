@@ -255,8 +255,8 @@ int main(int nb, char * argv[])
 		return 1;
 	}
 
-//	mcedit.level = renderInitWorld("TestMesh", mcedit.maxDist);
-	mcedit.level = renderInitWorld("World1_12", mcedit.maxDist);
+	mcedit.level = renderInitWorld("TestMesh", mcedit.maxDist);
+//	mcedit.level = renderInitWorld("World1_12", mcedit.maxDist);
 	mcedit.state = GAMELOOP_WORLD;
 
 	if (mcedit.level == NULL)
@@ -329,7 +329,7 @@ void mceditWorld(void)
 					takeScreenshot();
 					break;
 				case SDLK_F3:
-					if (event.key.keysym.mod & KMOD_SHIFT)
+					if (event.key.keysym.mod & KMOD_CTRL)
 					{
 						renderFrustum(True);
 						renderToggleDebug(RENDER_DEBUG_FRUSTUM);
@@ -345,7 +345,7 @@ void mceditWorld(void)
 					break;
 				case SDLK_F7:
 					breakPoint = ! breakPoint;
-					renderDebugBank();
+					//renderDebugBank();
 					break;
 				case SDLK_EQUALS:
 				case SDLK_PLUS:

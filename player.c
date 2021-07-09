@@ -19,7 +19,8 @@
 #define FLY_SPEED             10.000
 #define FALL_SPEED             8.0
 #define MAX_FALL              10.000
-#define BASE_ACCEL            16.0
+#define BASE_ACCEL            24.0
+//#define COLLISION
 
 static float sensitivity = 1/1000.;
 
@@ -228,7 +229,7 @@ void playerAdjustVelocity(Player p, float delta)
 		{
 			if (p->onground == 0) max *= 0.15;
 		}
-		else if (p->keyvec & PLAYER_STOPPING) max *= 0.5;
+		else if (p->keyvec & PLAYER_STOPPING) max *= 0.75;
 		for (i = VX; i <= VZ; i += 2)
 		{
 			float d = diff[i] * max;
@@ -293,6 +294,7 @@ void playerMove(Player p, Map map)
 			p->velocityY = 0;
 		}
 	}
+	#ifdef COLLISION
 	if (p->pmode <= MODE_CREATIVE)
 	{
 		/* bounding box of voxels will constraint movement in these modes */
@@ -332,6 +334,7 @@ void playerMove(Player p, Map map)
 
 		//fprintf(stderr, "onground: %d\n", p->onground);
 	}
+	#endif
 	vecSub(orig_pos, p->pos, orig_pos);
 	vecAdd(p->lookat, p->lookat, orig_pos);
 }

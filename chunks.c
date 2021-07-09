@@ -773,7 +773,7 @@ int8_t normals[] = { /* normal per face */
 };
 
 /* check which face has a hole in it */
-uint8_t slotsY[] = {64,0,0,0,0,0,0,0,0,0,0,0,0,0,0,32};
+uint8_t slotsY[] = {1<<SIDE_BOTTOM,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1<<SIDE_TOP};
 uint8_t slotsXZ[256];
 
 #define VTX_1      (BASEVTX + ORIGINVTX)
@@ -820,21 +820,6 @@ static int occlusionIfCorner[] = {
 static int occlusionForSlab[] = { /* indexed by face id: S,E,N,W,T,B */
 	1<<16, 1<<14, 1<<10, 1<<12, 1<<22, 1<<4
 };
-
-#if 0 /* XXX FACEVEC not good: need 33 bits, only 32 available */
-#define FACE(x,v1,v2)                       ((x-1) | (v1<<4) | (v2<<7))
-#define FACEVEC(x,y,z,v1,v2,v3,v4,v5,v6)    (FACE(x,v1,v2) | (FACE(y,v3,v4) << 10) | (FACE(z,v5,v6)<<20))
-static uint32_t lineDefOCS[] = {
-	FACEVEC(16,25,26,6,2,5,1,4,0), FACEVEC(16, 7, 8,5,1,6,2,7,3), FACEVEC( 8, 9,18,6,2,7,3,4,0), FACEVEC(26,27,18,5,1,4,0,7,3), // S
-	FACEVEC(24,27,18,0,1,4,5,7,6), FACEVEC(18, 9, 6,4,5,7,6,3,2), FACEVEC( 3, 6,12,3,2,7,6,0,1), FACEVEC(12,21,24,3,2,0,1,7,6), // E
-	FACEVEC(20,21,12,1,5,0,4,3,7), FACEVEC( 2, 3,12,2,6,3,7,0,4), FACEVEC( 1, 2,10,2,6,3,7,0,4), FACEVEC(10,19,20,2,6,1,5,0,4), // N
-	FACEVEC(10,19,22,2,3,1,0,5,4), FACEVEC( 1, 4,10,2,3,6,7,1,0), FACEVEC( 4, 7,16,2,3,6,7,5,4), FACEVEC(16,25,22,6,7,5,4,1,0), // W
-	FACEVEC(19,20,22,1,2,0,3,5,6), FACEVEC(22,25,26,1,2,5,6,4,7), FACEVEC(24,26,27,0,3,5,6,4,7), FACEVEC(20,21,24,1,2,0,3,4,7), // T
-	FACEVEC( 2, 3, 6,2,1,3,0,7,4), FACEVEC( 6, 8, 9,3,0,6,5,7,4), FACEVEC( 4, 7, 8,2,1,6,5,7,4), FACEVEC( 1, 2, 4,2,1,3,0,6,5), // B
-};
-#undef FACEVEC
-#undef FACE
-#endif
 
 /* indicates whether we can find the neighbor block in the current chunk (sides&1)>0 or in the neighbor (sides&1)==0 */
 static uint8_t xsides[] = { 2, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,  8};
@@ -895,6 +880,9 @@ uint16_t hasCnx[] = {
 0, 16384, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 };
 
+/* this table will tell for a given integer [0,255] which rightmost bit is set to 0 (i.e: simple allocator) */
+uint8_t firstFree[256];
+
 /* yep, more look-up table init */
 void chunkInitStatic(void)
 {
@@ -951,8 +939,15 @@ void chunkInitStatic(void)
 	{
 		x = pos & 15;
 		z = pos >> 4;
-		slotsXZ[pos] = (x == 0 ? 1 << (SIDE_WEST+1)  : x == 15 ? 1 << (SIDE_EAST+1)  : 0) |
-		               (z == 0 ? 1 << (SIDE_NORTH+1) : z == 15 ? 1 << (SIDE_SOUTH+1) : 0);
+		slotsXZ[pos] = (x == 0 ? 1 << SIDE_WEST  : x == 15 ? 1 << SIDE_EAST  : 0) |
+		               (z == 0 ? 1 << SIDE_NORTH : z == 15 ? 1 << SIDE_SOUTH : 0);
+	}
+
+	for (pos = 0; pos < 256; pos ++)
+	{
+		int j, k;
+		for (j = pos, k = 0; j&1; k ++, j >>= 1);
+		firstFree[pos] = k;
 	}
 }
 
@@ -1055,7 +1050,7 @@ void chunkUpdate(Chunk c, ChunkData empty, int layer)
 //			breakPoint = 2;
 
 		/* 3d flood fill for cave culling */
-		if (state->type != SOLID && (slotsXZ[pos & 0xff] || slotsY[pos >> 8]))
+		if (! blockIsFullySollid(state) && (slotsXZ[pos & 0xff] || slotsY[pos >> 8]))
 			cur->cnxGraph |= mapUpdateGetCnxGraph(cur, pos, visited);
 
 		if (blockIds[block].particle)

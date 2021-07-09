@@ -136,8 +136,8 @@ static struct
 	GLuint vbo;
 	GLuint vboLoc;
 	GLuint vboMDAI;
-	int    size, count, solid;
-	int    X, Z;
+	int    size, count, graph;
+	int    X, Z, Y;
 
 }	debugChunk;
 
@@ -149,19 +149,19 @@ void debugInit(void)
 	glGenVertexArrays(1, &debugChunk.vao);
 	glBindVertexArray(debugChunk.vao);
 	glBindBuffer(GL_ARRAY_BUFFER, debugChunk.vbo);
-	glBufferData(GL_ARRAY_BUFFER, (16 * 4 * 4 + 5 * 6) * BYTES_PER_VERTEX, NULL, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, (16 * 4 * 4 + 15 * 6) * BYTES_PER_VERTEX, NULL, GL_STATIC_DRAW);
 	glVertexAttribIPointer(0, 3, GL_UNSIGNED_SHORT, BYTES_PER_VERTEX, 0);
 	glEnableVertexAttribArray(0);
 	glVertexAttribIPointer(1, 2, GL_UNSIGNED_SHORT, BYTES_PER_VERTEX, (void *) 6);
 	glEnableVertexAttribArray(1);
 	glBindBuffer(GL_ARRAY_BUFFER, debugChunk.vboLoc);
-	glBufferData(GL_ARRAY_BUFFER, 12 * (7 * CHUNK_LIMIT), NULL, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, 12 * CHUNK_LIMIT, NULL, GL_STATIC_DRAW);
 	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, 0);
 	glEnableVertexAttribArray(2);
 	glVertexAttribDivisor(2, 1);
 	glBindVertexArray(0);
 	glBindBuffer(GL_ARRAY_BUFFER, debugChunk.vboMDAI);
-	glBufferData(GL_ARRAY_BUFFER, 16 * (7 * CHUNK_LIMIT), NULL, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, 16 * CHUNK_LIMIT, NULL, GL_STATIC_DRAW);
 	debugChunk.X = debugChunk.Z = 1 << 30;
 	debugChunk.size = 16 * 4 * 4;
 
@@ -204,39 +204,66 @@ void debugInit(void)
 			p += INT_PER_VERTEX;
 		}
 	}
-	/* vertex array for showing which face is solid (cave culling debug) */
-	for (i = 0; i < 5*4; i += 4)
-	{
-		extern uint8_t texCoord[];
-
-		for (j = 0; j < 4; j ++, p += INT_PER_VERTEX)
-		{
-			DATA8 coord = vertex + cubeIndices[i+j];
-			int   U = 16 * (texCoord[j*2] + 31);
-			int   V = 16 * (texCoord[j*2+1] + 14);
-			if (U == 512) U = 511;
-			p[0] = VERTEX(coord[0] * 16);
-			p[1] = VERTEX(coord[1] * 16);
-			p[2] = VERTEX(coord[2] * 16);
-			SET_UVCOORD(p, U, V);
-			p[4] |= (i<<1) | (0xf0 << 8);
-		}
-		memcpy(p,    p - 20,  BYTES_PER_VERTEX);
-		memcpy(p + 5,p - 10,  BYTES_PER_VERTEX);
-		p += 2 * INT_PER_VERTEX;
-	}
 
 	glUnmapBuffer(GL_ARRAY_BUFFER);
 }
 
-void debugShowChunkBoundary(Chunk cur)
+#define SVERTEX(x)     (VERTEX(x))
+#define EVERTEX(x)     (VERTEX(x))
+
+/* damn, is it tedious... */
+static void debugBuildCnxGraph(int cnxGraph)
+{
+	static uint16_t graph[] = {
+		 VERTEX(8),  SVERTEX(8),  VERTEX(16),     VERTEX(16), EVERTEX(8),   VERTEX(8),  2,      /* S-E */
+		SVERTEX(8),   VERTEX(8),  VERTEX(16),    EVERTEX(8),   VERTEX(8),   VERTEX(0),  1,      /* S-N */
+		 VERTEX(8),  SVERTEX(8),  VERTEX(16),     VERTEX(0),  EVERTEX(8),   VERTEX(8),  2,      /* S-W */
+		SVERTEX(8),   VERTEX(8),  VERTEX(16),    EVERTEX(8),   VERTEX(16),  VERTEX(8),  1,      /* S-T */
+		SVERTEX(8),   VERTEX(8),  VERTEX(16),    EVERTEX(8),   VERTEX(0),   VERTEX(8),  1,      /* S-B */
+		 VERTEX(16), SVERTEX(8),  VERTEX(8),      VERTEX(8),  EVERTEX(8),   VERTEX(0),  2,      /* E-N */
+		 VERTEX(16), SVERTEX(8),  VERTEX(8),      VERTEX(0),  EVERTEX(8),   VERTEX(8),  2,      /* E-W */
+		 VERTEX(16),  VERTEX(8), SVERTEX(8),      VERTEX(8),   VERTEX(16), EVERTEX(8),  4,      /* E-T */
+		 VERTEX(16),  VERTEX(8), SVERTEX(8),      VERTEX(8),   VERTEX(0),  EVERTEX(8),  4,      /* E-B */
+		 VERTEX(8),  SVERTEX(8),  VERTEX(0),      VERTEX(0),  EVERTEX(8),   VERTEX(8),  2,      /* N-W */
+		SVERTEX(8),   VERTEX(8),  VERTEX(0),     EVERTEX(8),   VERTEX(16),  VERTEX(8),  1,      /* N-T */
+		SVERTEX(8),   VERTEX(8),  VERTEX(0),     EVERTEX(8),   VERTEX(0),   VERTEX(8),  1,      /* N-B */
+		 VERTEX(0),   VERTEX(8), SVERTEX(8),      VERTEX(8),   VERTEX(16), EVERTEX(8),  4,      /* W-T */
+		 VERTEX(0),   VERTEX(8), SVERTEX(8),      VERTEX(8),   VERTEX(0),  EVERTEX(8),  4,      /* W-B */
+		SVERTEX(8),   VERTEX(0), SVERTEX(8),     EVERTEX(8),   VERTEX(16), EVERTEX(8),  5,      /* T-B */
+	};
+
+	#define P3    13*16+8+(7<<10)
+	#define P4    0xff00|(6<<3)
+	DATA16 p, s;
+	int    i;
+
+	debugChunk.graph = 0;
+
+	glBindBuffer(GL_ARRAY_BUFFER, debugChunk.vbo);
+	p = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
+	p += 16 * 4 * 4 * INT_PER_VERTEX;
+	for (i = 0, s = graph; cnxGraph > 0; cnxGraph >>= 1, i ++, s += 7)
+	{
+		if ((cnxGraph & 1) == 0) continue;
+		memcpy(p,   s,   6); p[3] = P3; p[4] = P4;
+		memcpy(p+5, s+3, 6); p[8] = P3; p[9] = P4;
+		p += 10;
+		debugChunk.graph += 2;
+	}
+	glUnmapBuffer(GL_ARRAY_BUFFER);
+
+	#undef P3
+	#undef P4
+}
+
+void debugShowChunkBoundary(Chunk cur, int Y)
 {
 	if (cur->X != debugChunk.X || cur->Z != debugChunk.Z)
 	{
 		int     max = cur->maxy;
 		MDAICmd cmd;
 		float * loc;
-		int     i, count;
+		int     i;
 
 		debugChunk.X = cur->X;
 		debugChunk.Z = cur->Z;
@@ -245,7 +272,7 @@ void debugShowChunkBoundary(Chunk cur)
 		loc = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
 		cmd = glMapBuffer(GL_DRAW_INDIRECT_BUFFER, GL_WRITE_ONLY);
 
-		for (i = count = 0; i < max; i ++)
+		for (i = 0; i < max; i ++)
 		{
 			cmd->count = debugChunk.size;
 			cmd->instanceCount = 1;
@@ -259,9 +286,45 @@ void debugShowChunkBoundary(Chunk cur)
 			loc += 3;
 		}
 		debugChunk.count = max;
-		debugChunk.solid = count;
 		glUnmapBuffer(GL_ARRAY_BUFFER);
 		glUnmapBuffer(GL_DRAW_INDIRECT_BUFFER);
+		goto initCnxGraph;
+	}
+	else if (Y != debugChunk.Y)
+	{
+		if (debugChunk.graph > 0)
+			debugChunk.count --, debugChunk.graph = 0;
+
+		initCnxGraph:
+		if (Y < cur->maxy)
+		{
+			debugBuildCnxGraph(cur->layer[Y]->cnxGraph);
+			debugChunk.Y = Y;
+
+			if (debugChunk.graph > 0)
+			{
+				glBindBuffer(GL_ARRAY_BUFFER, debugChunk.vboLoc);
+				glBindBuffer(GL_DRAW_INDIRECT_BUFFER, debugChunk.vboMDAI);
+				float * loc = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
+				MDAICmd cmd = glMapBuffer(GL_DRAW_INDIRECT_BUFFER, GL_WRITE_ONLY);
+
+				cmd += debugChunk.count;
+				loc += debugChunk.count * 3;
+
+				cmd->count = debugChunk.graph;
+				cmd->instanceCount = 1;
+				cmd->first = 16*4*4;
+				cmd->baseInstance = debugChunk.count; /* needed by glVertexAttribDivisor() */
+
+				loc[0] = cur->X;
+				loc[1] = Y*16;
+				loc[2] = cur->Z;
+				debugChunk.count ++;
+
+				glUnmapBuffer(GL_ARRAY_BUFFER);
+				glUnmapBuffer(GL_DRAW_INDIRECT_BUFFER);
+			}
+		}
 	}
 	glUseProgram(render.shaderItems);
 	glBindVertexArray(debugChunk.vao);
@@ -285,13 +348,15 @@ static void nvgMultiLineText(NVGcontext * vg, float x, float y, STRPTR start, ST
 void debugCoord(APTR vg, vec4 camera, int total)
 {
 	TEXT message[256];
-	int  len = sprintf(message, "XYZ: %.2f, %.2f, %.2f (feet)", camera[0], camera[1] - PLAYER_HEIGHT, camera[2]);
-	int  vis;
-	ChunkData cd;
+	int  len = sprintf(message, "XYZ: %.2f, %.2f, %.2f (eyes)", camera[0], camera[1] - PLAYER_HEIGHT, camera[2]);
+	int  vis, culled;
+	ChunkData cd = render.level->firstVisible;
 
+	len += sprintf(message + len, "\nChunk: %d, %d, %d (cnxGraph: 0x%x)", CPOS(camera[0]) << 4, CPOS(camera[1]) << 4, CPOS(camera[2]) << 4, cd->cnxGraph);
 	len += sprintf(message + len, "\nTriangles: %d", total);
-	for (cd = render.level->firstVisible, vis = 0; cd; vis ++, cd = cd->visible);
-	len += sprintf(message + len, "\nChunks: %d/%d", vis, render.level->GPUchunk);
+	for (cd = render.level->firstVisible, vis = 0, culled = 0; cd; vis ++, cd = cd->visible)
+		if (cd->comingFrom == 0) culled ++;
+	len += sprintf(message + len, "\nChunks: %d/%d (culled: %d)", vis, render.level->GPUchunk, culled);
 
 	nvgFontSize(vg, FONTSIZE);
 	nvgTextAlign(vg, NVG_ALIGN_TOP);

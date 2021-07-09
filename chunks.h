@@ -44,10 +44,10 @@ struct ChunkData_t                     /* one sub-chunk of 16x16x16 blocks */
 	uint16_t  Y;                       /* vertical pos in blocks */
 	uint16_t  cnxGraph;                /* face graph connection (cave culling) */
 
-	uint8_t   pendingDel;
-	uint8_t   slot;                    /* used by ChunkFake */
-	uint8_t   padding1;
-	uint8_t   padding2;
+	uint8_t   pendingDel;              /* 0 or 1 if need to be deleted */
+	uint8_t   slot;                    /* used by ChunkFake (0 ~ 31) */
+	uint8_t   comingFrom;              /* cave culling (face id 0 ~ 5) */
+	uint8_t   unused;
 
 	DATA8     blockIds;                /* 16*16*16 = XZY ordered, note: point directly to NBT struct (4096 bytes) */
 //	DATA8     addId;                   /* 4bits (2048 bytes) */
