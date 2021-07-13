@@ -29,6 +29,10 @@ static int8_t railsNeigbors[] = { /* find the potential 2 neighbors of a rail ba
 	0, 1, 1, SIDE_SOUTH,   0, 0,-1, SIDE_NORTH,      /* ASCS */
 };
 
+/* minecraft update order is S, E, W, N; <neighbors> is ordered S, E, N, W */
+static uint8_t mcNextOrder[] = {1, 3, 4, 2};
+
+
 static void mapSetData(Map map, vec4 pos, int data)
 {
 	struct BlockIter_t iter;
@@ -36,6 +40,7 @@ static void mapSetData(Map map, vec4 pos, int data)
 	DATA8 p = iter.blockIds + DATA_OFFSET + (iter.offset >> 1);
 	uint8_t cur = p[0];
 
+	//fprintf(stderr, "setting data at %g,%g,%g to %d\n", pos[0], pos[1], pos[2], data);
 	if (iter.offset & 1) p[0] = (cur & 0x0f) | (data << 4);
 	else                 p[0] = (cur & 0xf0) | data;
 }
@@ -48,13 +53,7 @@ static void mapGetNeigbors(Map map, vec4 pos, DATA16 neighbors, int max)
 	for (i = 0; i < max; i ++)
 	{
 		mapIter(&iter, xoff[i], yoff[i], zoff[i]);
-		if (iter.cd)
-		{
-			int block = iter.blockIds[iter.offset];
-			int data  = iter.blockIds[DATA_OFFSET + (iter.offset >> 1)];
-			neighbors[i] = (block << 4) | (iter.offset & 1 ? data >> 4 : data & 15);
-		}
-		else neighbors[i] = 0;
+		neighbors[i] = iter.cd ? getBlockId(&iter) : 0;
 	}
 }
 
@@ -94,6 +93,7 @@ static int mapGetRailNeighbors(Map map, DATA16 neighbors, vec4 pos)
 	return flags;
 }
 
+/* convert a S,E,N,W bitfield (flags) into block data for rails (powered or normal) */
 static int mapGetRailData(int blockId, int flags)
 {
 	static uint8_t curvedTo[] = {0, 0, 0, 6, 0, 0, 9, 0, 0, 7, 0, 0, 8};
@@ -127,7 +127,7 @@ static int mapGetRailData(int blockId, int flags)
 
 #define RAILORIENT(blockId)    ((blockId >> 4) == RSRAILS ? blockId & 15 : blockId & 7)
 
-static void mapUpdateRails(Map map, vec4 pos, int blockId, DATA16 nbors)
+static void mapUpdateNearbyRails(Map map, vec4 pos, int blockId, DATA16 nbors)
 {
 	uint16_t neighbors[4];
 	int      flags, i, data;
@@ -136,7 +136,7 @@ static void mapUpdateRails(Map map, vec4 pos, int blockId, DATA16 nbors)
 	flags = mapGetRailNeighbors(map, neighbors, pos);
 
 	/* check if neighbors can be updated too */
-	for (i = data = 0; i < 4; i ++)
+	for (i = data = 0; i < 4; i = mcNextOrder[i])
 	{
 		uint16_t id;
 		int8_t * normal;
@@ -164,7 +164,7 @@ static void mapUpdateRails(Map map, vec4 pos, int blockId, DATA16 nbors)
 		mapGetNeigbors(map, loc, nbors2, 4);
 		flags2 = mapGetRailNeighbors(map, nbors2, loc) & ~15;
 		cnx = connect[RAILORIENT(id)];
-		for (j = 0; j < 4; j ++)
+		for (j = 0; j < 4; j = mcNextOrder[j])
 		{
 			uint16_t n = nbors2[j], flag = 1 << j;
 			if ((cnx & flag) == 0 || flag == opposite[i] || blockIds[n>>4].special != BLOCK_RAILS) continue;
@@ -229,8 +229,8 @@ void mapUpdateBlock(Map map, vec4 pos, int blockId, int oldBlockId, DATA8 tile)
 			}
 			break;
 		case BLOCK_RAILS:
-			mapGetNeigbors(map, pos, neighbors, 6);
-			mapUpdateRails(map, pos, blockId, neighbors);
+			mapGetNeigbors(map, pos, neighbors, 4);
+			mapUpdateNearbyRails(map, pos, blockId, neighbors);
 			if ((blockId >> 4) == RSPOWERRAILS)
 			{
 				struct BlockIter_t iter;
@@ -429,7 +429,7 @@ static void mapUpdateRailsChain(Map map, struct BlockIter_t iter, int id, int of
 }
 
 /* power near a power rails has changed, update everything connected */
-int mapUpdatePowerRails(Map map, BlockIter iterator)
+int mapUpdatePowerRails(Map map, int blockId, BlockIter iterator)
 {
 	struct BlockIter_t iter = *iterator;
 
@@ -438,11 +438,11 @@ int mapUpdatePowerRails(Map map, BlockIter iterator)
 
 	if ((id & 15) < 8)
 	{
-		if (i == 6) return ID(RSPOWERRAILS, 0);
+		if (i == 6) return blockId & ~8;
 		/* rails not powered, but has a power source nearby: update neighbor */
 		mapUpdateRailsChain(map, *iterator, id, 0, 8);
 		mapUpdateRailsChain(map, *iterator, id, 4, 8);
-		return ID(RSPOWERRAILS, 8);
+		return blockId | 8;
 	}
 	else if (i == 6)
 	{
@@ -450,15 +450,50 @@ int mapUpdatePowerRails(Map map, BlockIter iterator)
 		mapUpdateRailsChain(map, *iterator, id, 0, 0);
 		mapUpdateRailsChain(map, *iterator, id, 4, 0);
 	}
-	return ID(RSPOWERRAILS, 0);
+	return blockId & ~8;
 }
 
+/* powered rail deleted: adjust nearby rails */
 void mapUpdateDeleteRails(Map map, BlockIter iterator, int blockId)
 {
 	/* will be cleared properly later */
 	iterator->blockIds[iterator->offset] = 0;
 	mapUpdateRailsChain(map, *iterator, blockId, 0, 0);
 	mapUpdateRailsChain(map, *iterator, blockId, 4, 0);
+}
+
+/* power level near rail has changed: check if we need to update the rail direction */
+int mapUpdateRails(Map map, int blockId, BlockIter iterator)
+{
+	int id = getBlockId(iterator), i;
+
+	/* rail needs to be curved */
+	if ((id& 15) < 4) return blockId;
+
+	for (i = 0; i < 6 && ! redstoneIsPowered(*iterator, i, POW_NORMAL); i ++);
+
+	struct BlockIter_t iter = *iterator;
+	uint8_t  powered = i < 6;
+	uint8_t  flags;
+	for (i = 0, flags = 0; i < 4; i ++)
+	{
+		mapIter(&iter, xoff[i], yoff[i], zoff[i]);
+		if (iter.cd && blockIds[iter.blockIds[iter.offset]].special == BLOCK_RAILS)
+			flags |= 1 << i;
+	}
+	if (popcount(flags) == 3)
+	{
+		/* needs to be exactly 3 possible ways */
+		switch (flags) {
+		case 14: flags = powered ? 8 : 9; break; /* E,N,W */
+		case 13: flags = powered ? 8 : 7; break; /* S,N,W */
+		case 11: flags = powered ? 7 : 6; break; /* S,E,W */
+		case  7: flags = powered ? 9 : 6;        /* S,E,N */
+		}
+		blockId = (blockId & ~0xf) | flags;
+	}
+
+	return blockId;
 }
 
 /* power near fence gate/trapdoor/dropper/dispenser has changed */
@@ -542,6 +577,14 @@ static Bool mapUpdateAddPistonExt(Map map, struct BlockIter_t iter, int blockId,
 	int XYZ[] = {(int) pos[0] & 15, pos[1], (int) pos[2] & 15};
 
 	DATA8 tile = chunkGetTileEntity(ref, XYZ);
+
+	if (! tile)
+	{
+		ext = opp[ext];
+		mapIter(&iter, relx[ext], rely[ext], relz[ext]);
+		int XYZ2[] = {iter.x, iter.yabs, iter.z};
+		tile = chunkGetTileEntity(ref, XYZ2);
+	}
 
 	if (! tile)
 	{
@@ -630,7 +673,7 @@ void mapUpdateToBlock36(Map map, RSWire list, int count, int dir, BlockIter iter
 		mapIter(&iter, off[0], off[1], off[2]);
 		uint8_t block = iter.blockIds[iter.offset];
 		if (block != RSPISTONEXT && block != RSPISTONHEAD)
-			fprintf(stderr, "adding block 36 at %g,%g,%g\n", dst[0], dst[1], dst[2]),
+			//fprintf(stderr, "adding block 36 at %g,%g,%g\n", dst[0], dst[1], dst[2]),
 			mapUpdate(map, dst, ID(RSPISTONEXT, 0), NULL, UPDATE_KEEPLIGHT);
 	}
 }

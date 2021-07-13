@@ -1,6 +1,23 @@
+=========== Week 28 ===========
+Mon July 12:
+	* rail auto-orient bug fixes.
+
 =========== Week 27 ===========
+Sun July 11:
+	* slight chunk meshing optimization.
+	* rail rsupdate started.
+
+Sat July 10:
+	* half slab/stairs: AO refactoring mostly done.
+
+Fri July 9:
+	* half slab/stairs: AO refactoring continued.
+
 Thu July 8:
-	* early version of cave culling seems somewhat working.
+	* half slab/stairs: lightning and AO refactoring.
+
+Wed July 7:
+	* early version of cave culling seems to be working.
 
 Mon July 5:
 	* cave culling continued.

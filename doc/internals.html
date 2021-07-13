@@ -228,35 +228,24 @@ between 0 and 26, and therefore can be encoded as a bitfield in a 32bit integer.
 (axis is the same as the figure on the right):
 
 <table class="skewed">
-<tr><td>25<td>15<td>23
-<tr><td>17<td>5<td>12
-<tr><td>21<td>9<td>19
+<tr><td>18<td>19<td>20
+<tr><td>21<td>22<td>23
+<tr><td>24<td>25<td>26
 </table>
 
 <table class="skewed">
-<tr><td>14<td>3<td>11
-<tr><td>4<td><span class="o">0</span><td>2
-<tr><td>8<td>1<td>7
+<tr><td>9<td>10<td>11
+<tr><td>12<td><span class="o">13</span><td>14
+<tr><td>15<td>16<td>17
 </table>
 
 <table class="skewed">
-<tr><td>26<td>16<td>24
-<tr><td>18<td>6<td>13
-<tr><td>22<td>10<td>20
+<tr><td>0<td>1<td>2
+<tr><td>3<td>4<td>5
+<tr><td>6<td>7<td>8
 </table>
 
-<p>The way chunks are ordered is you start with the center (numbered 0), then you assign an incremental
-number using the order <tt>S,E,N,W,T,B</tt>, if the chunk at this location doesn't have a number assigned
-to it yet. Repeat that process with the next ID (1, 2, 3, ...), until all chunks have been assigned.
-
-<p>This way, when scanning neighbor chunks for 1 to 27, the first one will be the center, the 6 following
-will be the one immediately connected to this center chunk (ie: 1 chunk away from center, by moving only
-<tt>S,E,N,W,T,B</tt>). The next 12 will be the chunks connected to the 6 previous (therefore 2 chunks
-away from the center). The last 8 will be 3 chunks away from center. This order will be important when
-dealing with <b>cave culling</b>.
-
-<p>/* ... */
-<tt>13</tt> is therefore the chunk we are currently in. For example, if we checked that vertex
+<p><tt>13</tt> is therefore the chunk we are currently in. For example, if we checked that vertex
 <tt>0</tt> of a chunk is within the frustum, we know we can also add chunks <tt>0</tt>, <tt>1</tt>, <tt>3</tt>,
 <tt>4</tt>, <tt>9</tt>, <tt>10</tt> and <tt>12</tt>. Chunk 13 is not included, because at this point
 we already know that the center chunk is part of the frustum. Encoded as bitfield, with the n<sup>th</sup>
@@ -291,9 +280,8 @@ has been scanned.
 <h3 id="edgecase" style="clear: both"><span>Edge cases</span></h3>
 
 <p>This first version easily <b>covers around 90% to 99%</b> of the chunks we need to enumerate, but
-it can miss some especially around the corners of frustum. For the corners of the far plane it is
-usually not that much of a big deal, but for the corners of the near plane, this is not acceptable.
-This first version also breaks down when the FOV gets too small. Consider the following frustum:
+it can miss some especially around the corners of frustum. This version also breaks down when the FOV
+gets too small. Consider the following frustum:
 
 <div class="image">
   <img src="images/fov10deg.png">
@@ -433,9 +421,10 @@ fake chunk.
 
 <h3 id="cavecull"><span>Cave culling</span></h3>
 
-<p>There is one last step that is done at the same time: cave culling, or removing chunks that are completely
-hidden by nearer chunks. A good primer on how this algorithm works can be read from the original
-<a href="https://tomcc.github.io/2014/08/31/visibility-1.html">author</a> that developped it for Minecraft MCPE.
+<p>There is one last step that is done at (almost) the same time: cave culling, or removing chunks that
+are completely hidden by nearer chunks. A good primer on how this algorithm works can be read from the
+original <a href="https://tomcc.github.io/2014/08/31/visibility-1.html">author</a> that developped it
+for Minecraft MCPE.
 
 <h4 id="cavecullv1"><span>First attempt</span></h3>
 
@@ -461,7 +450,8 @@ rare in practice.
 <p>Second attempt was based on the algorithm described in the link above: compute visibility graph of
 connected chunks, and traverse that graph while attempting to mimic a raycasting traversal of that graph.
 The traversal was changed quite a bit though: the one used in <prod>Minecraft</prod> is a bit too aggressive,
-and tend to discard chunks that are clearly visible (which has been improved starting from v1.17).
+and tend to discard chunks that are clearly visible (as of v1.17 the results are a lot better since it
+was introduced in 1.8).
 
 <h5 id="cnxgraph"><span>Computing visibility graph</span></h3>
 
@@ -498,8 +488,23 @@ face is blocking the visibility of a chunk.
 <p>This is the part that difers significantly from the blog post: it uses a more conservative approach,
 which results in more chunks being drawn, but should not leave any unfilled hole in the world.
 
-<p>/* ... */
+<p>This is <b>done after the chunks have been culled from the frustum</b>. In MCPE, it was done before.
+In this engine, it is not feasible because a given chunk can add up to 26 others. Graph traversal only
+works with connected chunks (<tt>S, E, N, W, T, B</tt>). While technically, it is not impossible to
+make it work, and have indeed been tried, in practice it adds way too much complexity compared to current
+implementation (another advice to know waste time with this idea).
 
+<p>The way it is done, is actually pretty simple: since frustum culling orders chunks from near to far,
+we then scan the chunks from beginning to the end of that list. From a given chunks, we check if there
+is a path within the visibility graph that can reach a previously visible chunk.
+
+<p>We also use the fact that a cube in 3d space only have, at most, 3 visible faces. Going through
+hidden faces will add a significant amount of hidden chunks. Visibility of a face is done by computing
+the dot product between the face normal and the vector from camera to one point of the face.
+
+<p>This method is not as aggressive as current version of <prod>Minecraft</prod>, but can still easily
+cull 50% of chunks when above ground, and nearly 90% when underground. Still, way better than the first
+version.
 
 
 <h2 id="blocks">Block API</h2>

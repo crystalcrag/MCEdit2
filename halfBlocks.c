@@ -47,6 +47,15 @@ static uint8_t modelsSize2[] = {
 	BITS(1, 1, 1, 0, 1, 1, 1, 1),
 };
 
+static uint8_t ocsOffsets[] = { /* S, E, N, W, T, B:  3 * 4 coord per face */
+	15,25,24,  15, 7, 6,  17, 7, 8,  25,17,26,
+	23,17,26,  17, 5, 8,  11, 5, 2,  23,11,20,
+	19,11,20,  11, 1, 2,   9, 1, 0,  19, 9,18,
+	21, 9,18,   9, 3, 0,  15, 3, 6,  21,15,24,
+	21,19,18,  25,21,24,  23,25,26,  23,19,20,
+	 7, 3, 6,   3, 1, 0,   5, 1, 2,   7, 5, 8,
+};
+
 /* auto-generated from modelsSize2[] */
 static uint8_t modelsSize0[DIM(modelsSize2)];
 
@@ -75,6 +84,13 @@ void halfBlockInit(void)
 			if (faces[j] == 4) model |= 1 << j;
 		modelsSize0[i] = model;
 	}
+
+	for (i = 0; i < DIM(ocsOffsets); i ++)
+	{
+		/* easier to deal with */
+		j = ocsOffsets[i];
+		ocsOffsets[i] = (j % 3) + ((j / 9)<<4) + ((j / 3) % 3 << 2);
+	}
 }
 
 static Bool isVisible(DATA16 blockIds, DATA8 pos, int dir, int size)
@@ -87,14 +103,13 @@ static Bool isVisible(DATA16 blockIds, DATA8 pos, int dir, int size)
 	if (b->type == SOLID)
 	{
 		static int offsets[] = {0, 0, -2, -1, 2, 1, -4, 4, -56, -8, 56, 8, -448, 448};
-		static int mask[]    = {1, 2, 4, 8, 16, 32, 64, 128};
 		uint8_t model = 0;
 		switch (b->special) {
 		case BLOCK_HALF:   model = modelsSize2[(b->id&15) > 7]; goto case_common;
 		case BLOCK_STAIRS: model = modelsSize2[(b->id&7)  + 2];
 		case_common:
 			id = pos[0] + size * (pos[2] + pos[3] * size) + offsets[dir+size];
-			return (&model)[id>>3] & mask[id&7];
+			return (&model)[id>>3] & (1 << (id&7));
 		default:
 			return False;
 		}
@@ -146,25 +161,82 @@ static DATA8 halfBlockGetConnectedModel(BlockState b, DATA16 blockIds)
 
 DATA8 halfBlockGetModel(BlockState b, int size, DATA16 blockIds)
 {
+	static uint8_t fullySolid = 0xff;
 	switch (size) {
 	case 0:
 	case 1:
 		switch (b->special) {
 		case BLOCK_HALF:   return &modelsSize0[(b->id&15) > 7];
 		case BLOCK_STAIRS: return &modelsSize0[(b->id&7)  + 2];
-		default: return NULL;
+		default: return b->type == SOLID ? &fullySolid : NULL;
 		}
 		break;
 	case 2:
 		switch (b->special) {
 		case BLOCK_HALF:   return &modelsSize2[(b->id&15) > 7];
 		case BLOCK_STAIRS: return halfBlockGetConnectedModel(b, blockIds);
-		default: return NULL;
+		default: return b->type == SOLID ? &fullySolid : NULL;
 		}
 	case 8: /* TODO */
 		break;
 	}
 	return NULL;
+}
+
+static int halfBlockGetOCS(DATA16 blockIds, DATA8 model, int size, uint8_t pos[3], uint8_t maxrect[3], int norm)
+{
+	DATA8   idx = cubeIndices + norm * 4;
+	DATA8   ocs = ocsOffsets + norm * 12;
+	int     ret = 0;
+	uint8_t rect[3], i, j, shift;
+
+	j = size-1;
+	shift = size == 2 ? 1 : 3;
+	rect[0] = (i = maxrect[0]-1) > j ? j : i;
+	rect[1] = (i = maxrect[1]-1) > j ? j : i;
+	rect[2] = (i = maxrect[2]-1) > j ? j : i;
+
+	//fprintf(stderr, "%d: %d, %d, %d - %d, %d, %d\n", norm, pos[0], pos[1], pos[2], rect[0], rect[1], rect[2]);
+
+	for (i = 0; i < 4; i ++, idx ++)
+	{
+		DATA8  vtx = vertex + idx[0];
+		/* these numbers will be between 0 and <size>-1 == sub-voxel coordinate */
+		int8_t x = pos[0] + (vtx[0] * rect[0]);
+		int8_t y = pos[1] + (vtx[1] * rect[1]);
+		int8_t z = pos[2] + (vtx[2] * rect[2]);
+		int8_t vtxocs;
+
+		// fprintf(stderr, "%d: %d, %d, %d\n", norm, x, y, z);
+
+		for (j = 0, vtxocs = 0; j < 3; j ++, ocs ++)
+		{
+			uint8_t xzy = *ocs;
+			/* these value can range from -1 to <size> */
+			int8_t  xc = x + (xzy & 3) - 1;
+			int8_t  zc = z + ((xzy >> 2) & 3) - 1;
+			int8_t  yc = y + (xzy >> 4) - 1;
+
+			uint8_t off = ((xc + size) >> shift) + ((yc + size) >> shift) * 9 + ((zc + size) >> shift) * 3;
+
+			DATA8 blockModel = off == 13 ? model : halfBlockGetModel(blockGetById(blockIds[off]), size, NULL);
+
+			off = size == 2 ? 1 : 7;
+			off = ((size + xc) & off) | (((size + zc) & off) << shift) | (((size + yc) & off) << (shift+1));
+//			if (norm == 4)
+//				fprintf(stderr, "norm: %d: vtx: %d: ocs: %d, off: %d (%d, %d, %d)\n", norm, i, xzy, off, xc, yc, zc);
+			if (blockModel && blockModel[0] & (1<<off))
+				vtxocs |= 1<<j;
+		}
+		switch (vtxocs&3) {
+		case 3: vtxocs = 2; break;
+		case 2:
+		case 1: vtxocs = 1; break;
+		default: vtxocs = (vtxocs & 4 ? 1 : 0);
+		}
+		ret |= vtxocs << (i<<1);
+	}
+	return ret;
 }
 
 /*
@@ -204,6 +276,7 @@ void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DAT
 		/* empty == 255, sub-voxel == 0 */
 		*face = (k & j) ? 0 : 255;
 	}
+	model -= i >> 3;
 
 	/* do the meshing */
 	#define x    pos[0]
@@ -227,7 +300,7 @@ void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DAT
 		/* scan missing face on this sub-block */
 		for (j = 0; j < 6; j ++)
 		{
-			int8_t rect[3], mask = 1 << j;
+			uint8_t rect[3], mask = 1 << j;
 			/* already processed? */
 			if (flags & mask) continue;
 
@@ -347,7 +420,7 @@ void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DAT
 				/* tex size and normal */
 				base = vtx[coordU[j]] << texSz; Usz = (UV[0] << 4) + (invUV[j] == 1 ? 16 - base : base);
 				base = vtx[coordV[j]] << texSz; Vsz = (UV[1] << 4) + (invUV[j] != 2 ? 16 - base : base);
-				out[5] = ((Usz + 128 - U) << 16) | ((Vsz + 128 - V) << 24) | (j << 8);
+				out[5] = ((Usz + 128 - U) << 16) | ((Vsz + 128 - V) << 24) | (j << 8) | halfBlockGetOCS(blockIds, model, size, pos, rect, j);
 				out[6] = 0;
 
 				/* skylight, blocklight, ocs */
@@ -374,7 +447,7 @@ void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DAT
 }
 
 /*
- * generate accurate bounding box from half-slab/stairs/chiseled blocks
+ * generate accurate bounding box from half-blocks
  */
 void halfBlockGetBBox(DATA16 blockIds, VTXBBox array, int max)
 {
@@ -382,7 +455,7 @@ void halfBlockGetBBox(DATA16 blockIds, VTXBBox array, int max)
 	uint8_t pos[4];
 	int     total, size, i, j, k;
 
-	/* XXX for now only take care of stairs */
+	/* XXX for now only take care of stairs/slabs */
 	memset(visited, 0, sizeof visited);
 	size  = 2;
 	total = size * size * size;

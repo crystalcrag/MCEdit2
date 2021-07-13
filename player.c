@@ -14,13 +14,12 @@
 #include "entities.h"
 #include "SIT.h"
 
-#define JUMP_STRENGTH          0.3
+#define JUMP_STRENGTH          0.25
 #define MAX_SPEED              4.317
 #define FLY_SPEED             10.000
-#define FALL_SPEED             8.0
+#define FALL_SPEED            10.0
 #define MAX_FALL              10.000
 #define BASE_ACCEL            24.0
-//#define COLLISION
 
 static float sensitivity = 1/1000.;
 
@@ -77,7 +76,8 @@ void playerSaveLocation(Player p, NBTFile levelDat)
 	NBT_SetFloat(levelDat, NBT_FindNode(levelDat, player, "Pos"), p->pos, 3);
 	NBT_SetFloat(levelDat, NBT_FindNode(levelDat, player, "Rotation"), rotation, 2);
 	NBT_SetFloat(levelDat, NBT_FindNode(levelDat, player, "SelectedItemSlot"), &select, 1); select = p->onground;
-	NBT_SetFloat(levelDat, NBT_FindNode(levelDat, player, "OnGround"), &select, 1);
+	NBT_SetFloat(levelDat, NBT_FindNode(levelDat, player, "OnGround"), &select, 1); select = p->pmode;
+	NBT_SetFloat(levelDat, NBT_FindNode(levelDat, player, "playerGameType"), &select, 1);
 }
 
 void playerSensitivity(float s)
@@ -140,7 +140,7 @@ Bool playerProcessKey(Player p, int key, int mod)
 			playerScrollInventory(p, (key - '1') - p->inventory.selected);
 			return True;
 		case JUMP:
-			if ((int) curTime - lastTick < 250)
+			if ((int) curTime - lastTick < 250 && p->pmode <= MODE_CREATIVE)
 			{
 				p->fly ^= 1;
 				if (p->fly)
@@ -156,7 +156,7 @@ Bool playerProcessKey(Player p, int key, int mod)
 				p->keyvec &= ~PLAYER_DOWN;
 				p->keyvec |= PLAYER_UP;
 			}
-			else if (p->onground) /* initiate a jump */
+			else if (p->onground && p->pmode <= MODE_CREATIVE) /* initiate a jump */
 			{
 				p->keyvec |= PLAYER_FALL | PLAYER_JUMP;
 				p->velocityY = -JUMP_STRENGTH;
@@ -294,7 +294,6 @@ void playerMove(Player p, Map map)
 			p->velocityY = 0;
 		}
 	}
-	#ifdef COLLISION
 	if (p->pmode <= MODE_CREATIVE)
 	{
 		/* bounding box of voxels will constraint movement in these modes */
@@ -307,34 +306,33 @@ void playerMove(Player p, Map map)
 			p->keyvec |= PLAYER_CLIMB;
 			//fprintf(stderr, "climbing to %g (from %g)\n", p->targetY, p->pos[VY]);
 		}
-	}
-	diff = p->onground;
-	p->onground = physicsCheckOnGround(map, p->pos, entityGetBBox(ENTITY_PLAYER));
-	if (diff != p->onground)
-	{
-		if (diff == 0)
+		diff = p->onground;
+		p->onground = physicsCheckOnGround(map, p->pos, entityGetBBox(ENTITY_PLAYER));
+		if (diff != p->onground)
 		{
-			/* cancel fall */
-			p->velocityY = 0;
-			p->keyvec &= ~PLAYER_FALL;
-			p->fly = 0;
-			if (keyvec & PLAYER_JUMP)
+			if (diff == 0)
 			{
-				/* start a new jump as soon as we hit the ground */
-				p->keyvec |= PLAYER_FALL | PLAYER_JUMP;
-				p->velocityY = -JUMP_STRENGTH;
-				p->onground = 0;
+				/* cancel fall */
+				p->velocityY = 0;
+				p->keyvec &= ~PLAYER_FALL;
+				p->fly = 0;
+				if (keyvec & PLAYER_JUMP)
+				{
+					/* start a new jump as soon as we hit the ground */
+					p->keyvec |= PLAYER_FALL | PLAYER_JUMP;
+					p->velocityY = -JUMP_STRENGTH;
+					p->onground = 0;
+				}
 			}
-		}
-		else /* not on ground: init fall */
-		{
-			p->keyvec &= ~ PLAYER_CLIMB;
-			p->keyvec |= PLAYER_FALL;
-		}
+			else /* not on ground: init fall */
+			{
+				p->keyvec &= ~ PLAYER_CLIMB;
+				p->keyvec |= PLAYER_FALL;
+			}
 
-		//fprintf(stderr, "onground: %d\n", p->onground);
+			//fprintf(stderr, "onground: %d\n", p->onground);
+		}
 	}
-	#endif
 	vecSub(orig_pos, p->pos, orig_pos);
 	vecAdd(p->lookat, p->lookat, orig_pos);
 }
@@ -345,6 +343,26 @@ void playerTeleport(Player p, Map map, vec4 pos)
 	vecSub(diff, pos, p->pos);
 	vecAdd(p->lookat, p->lookat, diff);
 	memcpy(p->pos, pos, 12);
+}
+
+void playerSetMode(Player p, Map map, int mode)
+{
+	p->pmode = mode;
+	switch (mode) {
+	case MODE_SURVIVAL:
+		p->onground = physicsCheckOnGround(map, p->pos, entityGetBBox(ENTITY_PLAYER));
+		p->fly = 0;
+		if (! p->onground)
+			p->keyvec |= PLAYER_FALL;
+		break;
+	case MODE_CREATIVE:
+		p->onground = physicsCheckOnGround(map, p->pos, entityGetBBox(ENTITY_PLAYER));
+		p->fly = !p->onground;
+		break;
+	case MODE_SPECTATOR:
+		p->fly = 1;
+		p->onground = 0;
+	}
 }
 
 /*

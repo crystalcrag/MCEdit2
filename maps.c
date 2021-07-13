@@ -20,13 +20,8 @@
 //#define SLOW_CHUNK_LOAD   /* load 1 chunk (entire column) per second */
 
 static struct Frustum_t frustum = {
-	.neighbors = {
-		0x04054058, 0x0101284c, 0x00440552, 0x001024c6, 0x0202c038, 0x0080982c, 0x00220332, 0x000812a6,
-	},
-
-	.chunkOffsets = {
-		0, 1, 2, 4, 8, 16, 32, 3, 9, 17, 33, 6, 18, 34, 12, 20, 36, 24, 40, 19, 35, 25, 41, 22, 38, 28, 44,
-	},
+	.neighbors    = {0x0000161b, 0x00004c36, 0x000190d8, 0x000341b0, 0x006c1600, 0x00d84c00, 0x03619000, 0x06c34000},
+	.chunkOffsets = {44,36,38,40,32,34,41,33,35,12,4,6,8,0,2,9,1,3,28,20,22,24,16,18,25,17,19},
 };
 
 /* given a direction encodded as bitfield (S, E, N, W), return offset of where that chunk is */
@@ -680,7 +675,7 @@ void mapGenerateMesh(Map map)
 				chunkUpdate(list, map->air, i);
 				renderFinishMesh(False);
 				particlesChunkUpdate(map, cd);
-				if (cd->pendingDel)
+				if (cd->cdFlags == CDFLAG_PENDINGDEL)
 				{
 					/* link within chunk has already been removed in chunkUpdate() */
 					free(cd);
@@ -1421,17 +1416,15 @@ static ChunkData mapAddToVisibleList(Map map, Chunk from, int direction, int lay
 	return NULL;
 }
 
-static Bool mapCullCave(ChunkData cur, vec4 camera, Chunk ref)
+static Bool mapCullCave(ChunkData cur, vec4 camera)
 {
 	uint8_t side, i, oppSide;
 	Chunk   chunk = cur->chunk;
 	int     X = chunk->X;
 	int     Z = chunk->Z;
 
-	int rel[] = {X - ref->X, Z - ref->Z};
-
-	if (X == 208 && Z == 992 && cur->Y == 80)
-		puts("here");
+//	if (X == 208 && Z == 992 && cur->Y == 80)
+//		puts("here");
 
 	/* try to get back to a known location from <cur> */
 	for (i = 0; i < 3; i ++)
@@ -1608,9 +1601,6 @@ void mapViewFrustum(Map map, mat4 mvp, vec4 camera)
 		Chunk   chunk;
 		int     i, neighbors;
 
-//		if (cur->chunk->X == -160 && cur->chunk->Z == -32)
-//			puts("here");
-
 		/* 1st pass: check if chunk corners are in frustum */
 		chunk     = cur->chunk;
 		center[1] = cur->Y >> 4;
@@ -1638,15 +1628,15 @@ void mapViewFrustum(Map map, mat4 mvp, vec4 camera)
 		{
 			static uint8_t faces[] = {
 				/* numbers reference boxPts, order is S, E, N, W, T, B */
-				3, 2, 7, 6,
-				1, 3, 5, 7,
 				0, 1, 4, 5,
+				1, 3, 5, 7,
+				3, 2, 7, 6,
 				2, 0, 6, 4,
 				4, 5, 6, 7,
 				0, 1, 2, 3
 			};
 			DATA8 p;
-			for (i = 1, p = faces; i <= sizeof faces/4; i ++, p += 4)
+			for (i = 0, p = faces; i < sizeof faces/4; i ++, p += 4)
 			{
 				/* check if an entire face crosses a plane */
 				uint8_t sector1 = outflags[p[0]];
@@ -1662,7 +1652,8 @@ void mapViewFrustum(Map map, mat4 mvp, vec4 camera)
 				     popcount(sector1 ^ sector3) >= 2))
 				{
 					/* face crosses a plane: add chunk connected to it to the visible list */
-					ChunkData cd = mapAddToVisibleList(map, chunk, i, center[1], frame);
+					static uint8_t faceDir[] = {10, 14, 16, 12, 22, 4};
+					ChunkData cd = mapAddToVisibleList(map, chunk, faceDir[i], center[1], frame);
 					if (cd)
 					{
 						#ifdef FRUSTUM_DEBUG
@@ -1686,9 +1677,7 @@ void mapViewFrustum(Map map, mat4 mvp, vec4 camera)
 	}
 
 	for (cur = map->firstVisible; cur; cur = cur->visible)
-	{
-		mapCullCave(cur, camera, map->firstVisible->chunk);
-	}
+		mapCullCave(cur, camera);
 
 	renderAllocCmdBuffer();
 }

@@ -36,6 +36,7 @@ extern uint8_t  updateChunk[];
 extern uint8_t  updateLength[];
 extern uint16_t updateMore[];
 extern uint8_t  updateChunks[];
+extern uint8_t  mask8bit[];
 
 /* track iteratively blocks that needs change for blocklight/skylight */
 static struct MapUpdate_t track;
@@ -99,7 +100,7 @@ void mapInitIter(Map map, BlockIter iter, vec4 pos, Bool autoAlloc)
 		return;
 	}
 	iter->ref  = ref;
-	iter->cd   = cd = layer < CHUNK_LIMIT ? ref->layer[layer] : NULL;
+	iter->cd   = cd = 0 <= layer && layer < CHUNK_LIMIT ? ref->layer[layer] : NULL;
 	iter->y    = y & 15;
 	iter->yabs = y;
 	iter->x    = floorf(pos[0]) - ref->X;
@@ -109,7 +110,7 @@ void mapInitIter(Map map, BlockIter iter, vec4 pos, Bool autoAlloc)
 	iter->offset   = CHUNK_BLOCK_POS(iter->x, iter->z, y&15);
 	iter->blockIds = cd ? cd->blockIds : NULL;
 
-	if (autoAlloc && cd == NULL && layer <= CHUNK_LIMIT)
+	if (autoAlloc && cd == NULL && 0 <= layer && layer < CHUNK_LIMIT)
 	{
 		iter->cd = cd = chunkCreateEmpty(ref, layer);
 		iter->blockIds = cd->blockIds;
@@ -213,6 +214,9 @@ void mapUpdateTable(BlockIter iter, int val, int table)
 	if (table == SKYLIGHT_OFFSET || table == BLOCKLIGHT_OFFSET)
 		/* entity light in this chunk needs to be updated */
 		iter->ref->cflags |= CFLAG_ETTLIGHT;
+
+//	if (table == DATA_OFFSET)
+//		fprintf(stderr, "setting data %d, %d, %d to %d\n", iter->ref->X + iter->x, iter->yabs, iter->ref->Z + iter->z, val);
 
 	/* track which side it is near to (we might have to update nearby chunk too) */
 	cd->slot |= (slotsXZ[(iter->z<<4) | iter->x] | slotsY[iter->y]) << 1;
@@ -401,11 +405,18 @@ static void mapUpdateSkyLightBlock(BlockIter iterator)
 
 			level = mapGetSky(&neighbor);
 
-			if (level - (i>=4) >= sky && max < level)
+			if (level >= sky && max < level)
 			{
 				max = level;
 				if (max == MAXSKY) break;
 			}
+		}
+		if (max == MAXSKY)
+		{
+			mapIter(&neighbor, 0, 2, 0);
+			if (mapGetSky(&neighbor) == MAXSKY)
+				/* MAXSKY just above: not a local maximum then */
+				goto skip;
 		}
 		neighbor = initial;
 		if (max > 0)
@@ -1151,7 +1162,9 @@ static int mapUpdateIfPowered(Map map, BlockIter iterator, int oldId, int blockI
 		/* very similar to gence gate actually */
 		return mapUpdateGate(iterator, blockId, init);
 	case RSPOWERRAILS:
-		return mapUpdatePowerRails(map, iterator);
+		return mapUpdatePowerRails(map, blockId, iterator);
+	case RSRAILS:
+		return init ? blockId : mapUpdateRails(map, blockId, iterator);
 	case RSLAMP:
 		if (redstoneIsPowered(*iterator, RSSAMEBLOCK, POW_NORMAL))
 			return ID(RSLAMP+1, 0);
@@ -1260,20 +1273,10 @@ static void mapUpdateListChunk(Map map)
 
 	for (cd = track.modif; cd; cd = next)
 	{
-		ChunkData nbor;
-		int       slots = cd->slot >> 1;
-		uint8_t   pos   = updateChunk[slots];
-		uint8_t   len   = updateLength[slots];
-		uint16_t  more  = 0;
-		int       layer = cd->Y >> 4;
-		Chunk     c     = cd->chunk;
-
+		Chunk c = cd->chunk;
 		*first = cd;
 		first = &cd->update;
 		next = *first;
-		if (len > 31)
-			more = updateMore[len >> 5], len &= 31;
-
 		if ((c->cflags & CFLAG_NEEDSAVE) == 0)
 		{
 			*save = c;
@@ -1287,29 +1290,43 @@ static void mapUpdateListChunk(Map map)
 			c->cflags &= ~CFLAG_ETTLIGHT;
 		}
 
-		while (len > 0)
+		if (cd->cdFlags & CDFLAG_UPDATENEARBY)
 		{
-			int   sides = updateChunks[pos];
-			Chunk chunk = c + chunkNeighbor[c->neighbor + (sides & 15)];
-			if (sides & 16) /* top */
+			ChunkData nbor;
+			int       slots = cd->slot >> 1;
+			uint8_t   pos   = updateChunk[slots];
+			uint8_t   len   = updateLength[slots];
+			uint16_t  more  = 0;
+			int       layer = cd->Y >> 4;
+
+			cd->cdFlags &= ~CDFLAG_UPDATENEARBY;
+			if (len > 31)
+				more = updateMore[len >> 5], len &= 31;
+
+			while (len > 0)
 			{
-				nbor = layer + 1 < chunk->maxy ? chunk->layer[layer+1] : NULL;
+				int   sides = updateChunks[pos];
+				Chunk chunk = c + chunkNeighbor[c->neighbor + (sides & 15)];
+				if (sides & 16) /* top */
+				{
+					nbor = layer + 1 < chunk->maxy ? chunk->layer[layer+1] : NULL;
+				}
+				else if (sides & 32) /* bottom */
+				{
+					nbor = layer > 0 ? chunk->layer[layer-1] : NULL;
+				}
+				else nbor = chunk->layer[layer];
+				if (nbor && nbor->slot == 0)
+				{
+					*first = nbor;
+					first = &nbor->update;
+					nbor->slot = 1;
+				}
+				len --; pos ++;
+				if (len == 0)
+					/* sequence was broken in 2 */
+					len = more >> 8, pos += more & 255, more = 0;
 			}
-			else if (sides & 32) /* bottom */
-			{
-				nbor = layer > 0 ? chunk->layer[layer-1] : NULL;
-			}
-			else nbor = chunk->layer[layer];
-			if (nbor && nbor->slot == 0)
-			{
-				*first = nbor;
-				first = &nbor->update;
-				nbor->slot = 1;
-			}
-			len --; pos ++;
-			if (len == 0)
-				/* sequence was broken in 2 */
-				len = more >> 8, pos += more & 255, more = 0;
 		}
 	}
 
@@ -1325,7 +1342,6 @@ static void mapUpdateListChunk(Map map)
  */
 int mapUpdateGetCnxGraph(ChunkData cd, int start, DATA8 visited)
 {
-	static uint8_t mask[] = {0x80, 0x40, 0x20, 0x10, 0x08, 0x04, 0x02, 0x01};
 	extern uint16_t faceCnx[]; /* from chunks.c */
 
 	mapUpdateInitTrack(track);
@@ -1355,10 +1371,10 @@ int mapUpdateGetCnxGraph(ChunkData cd, int start, DATA8 visited)
 			Block b = blockIds + blocks[pos];
 			/* only fully opaque blocks will stop flood */
 			if (! blockIsFullySollid(b) &&
-				(visited[pos>>3] & mask[pos&7]) == 0)
+				(visited[pos>>3] & mask8bit[pos&7]) == 0)
 			{
 				trackAdd(x, y, z);
-				visited[pos>>3] |= mask[pos&7];
+				visited[pos>>3] |= mask8bit[pos&7];
 				init |= slotsXZ[pos&0xff] | slotsY[pos>>8];
 				cnx |= faceCnx[init];
 			}
@@ -1375,28 +1391,34 @@ int mapUpdateGetCnxGraph(ChunkData cd, int start, DATA8 visited)
 void mapUpdateMesh(Map map)
 {
 	ChunkData cd, next;
-	track.pos = 0;
 
 	/* list of sub-chunks that we need to update their mesh */
 	mapUpdateListChunk(map);
+	#ifdef DEBUG
+	int count = 0;
+	#endif
 
 	for (cd = map->dirty; cd; cd = next)
 	{
 		cd->slot = 0;
 		next = cd->update;
-		//fprintf(stderr, "updating chunk %d, %d, %d\n", cd->chunk->X, cd->Y, cd->chunk->Z);
+		fprintf(stderr, "updating chunk %d, %d, %d%s\n", cd->chunk->X, cd->Y, cd->chunk->Z, cd->cdFlags & CDFLAG_UPDATENEARBY ? " [NEARBY]" : "");
 		chunkUpdate(cd->chunk, map->air, cd->Y >> 4);
 		renderFinishMesh(True);
 		particlesChunkUpdate(map, cd);
-		if (cd->pendingDel)
+		if (cd->cdFlags == CDFLAG_PENDINGDEL)
 			/* link within chunk has already been removed in chunkUpdate() */
 			free(cd);
 		else
 			cd->update = NULL;
-		track.pos ++;
+		#ifdef DEBUG
+		count ++;
+		#endif
 	}
 	map->dirty = NULL;
-	fprintf(stderr, "%d chunk updated, max: %d, usage: %d\n", track.pos, track.max, track.maxUsage);
+	#ifdef DEBUG
+	fprintf(stderr, "%d chunk updated, max: %d, usage: %d\n", count, track.max, track.maxUsage);
+	#endif
 }
 
 /* async update: NBT tables need to be up to date before we can apply these changes */
@@ -1485,15 +1507,17 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 
 	if (iter.blockIds == NULL)
 	{
-		if (blockId == 0) return;
-		/* XXX else create new chunk */
+		/* try to build above or below build limit */
+		/* if (blockId == 0) */ return;
 	}
-	//fprintf(stderr, "setting block %g, %g, %g to %d:%d\n", pos[0], pos[1], pos[2], blockId >> 4, blockId & 15);
 
 	int oldId = iter.blockIds[iter.offset] << 4;
 	int XYZ[] = {iter.x, iter.yabs, iter.z};
 	DATA8 data = iter.blockIds + DATA_OFFSET + (iter.offset >> 1);
 	Block b = &blockIds[blockId >> 4];
+
+	if (b->updateNearby || (oldId > 0 && blockIds[oldId >> 4].updateNearby))
+		iter.cd->cdFlags |= CDFLAG_UPDATENEARBY;
 
 	if (iter.offset & 1) oldId |= *data >> 4;
 	else                 oldId |= *data & 15;
@@ -1513,6 +1537,7 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 	}
 
 	/* update blockId/metaData tables */
+	fprintf(stderr, "setting block %g, %g, %g to %d:%d\n", pos[0], pos[1], pos[2], blockId >> 4, blockId & 15);
 	iter.blockIds[iter.offset] = blockId >> 4;
 	if (iter.offset & 1) *data = (*data & 0x0f) | ((blockId & 0xf) << 4);
 	else                 *data = (*data & 0xf0) | (blockId & 0xf);

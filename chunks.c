@@ -798,7 +798,7 @@ static int16_t blockOffset2[64];
 
 #define IDS(id1,id2)   (1<<id1)|(1<<id2)
 #define IDC(id)        (1<<id)
-static int occlusionIfNeighbor[] = { /* indexed by cube indices */
+static int occlusionIfNeighbor[] = { /* indexed by cube indices: 4 vertex per face (s,E,N,W,T,B) */
 	IDS(15,25),  IDS(15, 7),  IDS(17, 7),  IDS(25,17),
 	IDS(23,17),  IDS(17, 5),  IDS(11, 5),  IDS(23,11),
 	IDS(19,11),  IDS(11, 1),  IDS( 9, 1),  IDS(19,9),
@@ -816,10 +816,6 @@ static int occlusionIfCorner[] = {
 };
 #undef IDC
 #undef IDS
-
-static int occlusionForSlab[] = { /* indexed by face id: S,E,N,W,T,B */
-	1<<16, 1<<14, 1<<10, 1<<12, 1<<22, 1<<4
-};
 
 /* indicates whether we can find the neighbor block in the current chunk (sides&1)>0 or in the neighbor (sides&1)==0 */
 static uint8_t xsides[] = { 2, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,  8};
@@ -882,6 +878,8 @@ uint16_t hasCnx[] = {
 
 /* this table will tell for a given integer [0,255] which rightmost bit is set to 0 (i.e: simple allocator) */
 uint8_t firstFree[256];
+
+uint8_t mask8bit[] = {0x80, 0x40, 0x20, 0x10, 0x08, 0x04, 0x02, 0x01};
 
 /* yep, more look-up table init */
 void chunkInitStatic(void)
@@ -951,32 +949,6 @@ void chunkInitStatic(void)
 	}
 }
 
-#if 0
-static uint8_t chunkBlockOcclusion(DATA16 blockIds, uint32_t lineDef)
-{
-	int i;
-	for (i = 0; i < 3; i ++, lineDef >>= 10)
-	{
-		uint16_t id = blockIds[lineDef&31];
-		Block b = blockGetByIdData(id>>4, id&15);
-		if (b->special == BLOCK_STAIRS || b->special == BLOCK_HALF)
-		{
-			static uint8_t flags[] = {4, 8, 128, 64, 1, 2, 32, 16};
-			uint8_t model = *halfBlockGetModel(b, 2, NULL);
-			id = 0;
-			if (model & flags[(lineDef>>4) & 3]) id += 0x80;
-			if (model & flags[(lineDef>>7) & 3]) id += 0x40;
-			return id;
-		}
-		else if (b->type == SOLID)
-		{
-			return 0xc0;
-		}
-	}
-	return 0;
-}
-#endif
-
 static void chunkAddEmitters(ChunkData cd, int pos, int type)
 {
 	DATA16 list = cd->emitters;
@@ -1032,7 +1004,7 @@ void chunkUpdate(Chunk c, ChunkData empty, int layer)
 
 	memset(visited, 0, sizeof visited);
 
-//	if (c->X == -224 && cur->Y == 64 && c->Z == -48)
+//	if (c->X == -208 && cur->Y == 32 && c->Z == -48)
 //		breakPoint = 1;
 
 	for (pos = air = 0; pos < 16*16*16; pos ++)
@@ -1046,11 +1018,11 @@ void chunkUpdate(Chunk c, ChunkData empty, int layer)
 		block = blocks[pos];
 		state = blockGetByIdData(block, data);
 
-//		if (breakPoint && pos == 45)
+//		if (breakPoint && pos == 4084)
 //			breakPoint = 2;
 
 		/* 3d flood fill for cave culling */
-		if (! blockIsFullySollid(state) && (slotsXZ[pos & 0xff] || slotsY[pos >> 8]))
+		if (! blockIsFullySollid(state) && (slotsXZ[pos & 0xff] || slotsY[pos >> 8]) && (visited[pos>>3] & mask8bit[pos&7]) == 0)
 			cur->cnxGraph |= mapUpdateGetCnxGraph(cur, pos, visited);
 
 		if (blockIds[block].particle)
@@ -1092,7 +1064,7 @@ void chunkUpdate(Chunk c, ChunkData empty, int layer)
 			c->layer[cur->Y >> 4] = NULL;
 			c->maxy --;
 			/* cannot delete it now, but will be done after VBO has been cleared */
-			cur->pendingDel = True;
+			cur->cdFlags = CDFLAG_PENDINGDEL;
 			NBT_MarkForUpdate(&c->nbt, c->secOffset, CHUNK_NBT_SECTION);
 			return;
 		}
@@ -1550,6 +1522,7 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 			for (k = occlusion = 0; k < DIM(occlusionNeighbors); k ++)
 			{
 				BlockState t;
+				ChunkData  cd;
 				uint8_t    ocs = occlusionSides[k] & ~sides;
 				int        off = pos;
 				int        id;
@@ -1560,7 +1533,7 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 					Chunk sub = c + chunkNeighbor[c->neighbor + (ocs&15)];
 					int   lay = Y + subChunkOff[ocs];
 					if (lay < 0 || lay >= CHUNK_LIMIT) continue;
-					ChunkData cd = sub->layer[lay];
+					cd = sub->layer[lay];
 					if (! cd) { skyBlock[k] = 15<<4; continue; }
 					/* translate pos into new chunk */
 					off += blockOffset[ocs] + blockOffset2[occlusionSides[k] & sides];
@@ -1573,6 +1546,7 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 				}
 				else
 				{
+					cd   = neighbors[6];
 					off += occlusionNeighbors[k];
 					data = blocks[BLOCKLIGHT_OFFSET + (off >> 1)]; skyBlock[k]  = off & 1 ? data >> 4 : data & 0xf;
 					data = blocks[SKYLIGHT_OFFSET   + (off >> 1)]; skyBlock[k] |= off & 1 ? data & 0xf0 : data << 4;
@@ -1583,9 +1557,19 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 				blockIds3x3[k] = t->id;
 				if (t->type == SOLID || (t->type == CUST && t->special == BLOCK_SOLIDOUTER))
 				{
-					occlusion |= 1<<k;
-					if (t->special == BLOCK_HALF)
+					if (t->special == BLOCK_HALF || t->special == BLOCK_STAIRS)
+					{
+						struct BlockIter_t iter;
+						/* slab and stairs have 0 skylight and blocklight: pick the one above */
+						mapInitIterOffset(&iter, cd, off);
+						mapIter(&iter, 0, 1, 0);
+						skyBlock[k] = mapGetSkyBlockLight(&iter);
+						data = skyBlock[k] >> 4;
+						if (data > 0 && data < MAXSKY) skyBlock[k] -= 0x10;
+						if ((skyBlock[k] & 0x0f) > 0)  skyBlock[k] -= 0x01;
 						slab |= 1<<k;
+					}
+					else occlusion |= 1<<k;
 				}
 			}
 			/* CUST with no model: don't apply ambient occlusion, like CUST model will */
@@ -1663,7 +1647,7 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 				}
 				out[6] |= (skyval | blockval) << (k << 3);
 
-				switch (popcount((occlusion & occlusionIfNeighbor[i+k]) | (slab & occlusionForSlab[i>>2]))) {
+				switch (popcount((occlusion & occlusionIfNeighbor[i+k]))) {
 				case 2: ocs = 3; break;
 				case 1: ocs = 1; break;
 				default: ocs = occlusion & occlusionIfCorner[i+k] ? 1 : 0;

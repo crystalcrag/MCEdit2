@@ -1,0 +1,189 @@
+22,25c22
+< static struct Frustum_t frustum = {
+< 	.neighbors    = {0x0000161b, 0x00004c36, 0x000190d8, 0x000341b0, 0x006c1600, 0x00d84c00, 0x03619000, 0x06c34000},
+< 	.chunkOffsets = {44,36,38,40,32,34,41,33,35,12,4,6,8,0,2,9,1,3,28,20,22,24,16,18,25,17,19},
+< };
+---
+> static struct Frustum_t frustum;
+31c28,84
+< extern uint8_t firstFree[];
+---
+> 
+> 
+> /*
+>  * frustum culling static tables : this part is explained in a separate document: doc/internals.html
+>  */
+> void mapInitStatic(void)
+> {
+> 	static uint8_t boxPts[] = {
+> 		/* coords X, Z, Y */
+> 		0, 0, 0,
+> 		1, 0, 0,
+> 		0, 1, 0,
+> 		1, 1, 0,
+> 		0, 0, 1,
+> 		1, 0, 1,
+> 		0, 1, 1,
+> 		1, 1, 1,
+> 	};
+> 	int   i, j, k;
+> 	DATA8 ptr;
+> 
+> 	/* 8 corners of the box */
+> 	for (i = 0, ptr = boxPts; i < 8; i ++, ptr += 3)
+> 	{
+> 		/* 7 boxes sharing that vertex (excluding the one we are in: 0,0,0) */
+> 		for (j = 1; j < 8; j ++)
+> 		{
+> 			int8_t xoff = (j&1);
+> 			int8_t zoff = (j&2)>>1;
+> 			int8_t yoff = (j&4)>>2;
+> 
+> 			if (ptr[0] == 0) xoff = -xoff;
+> 			if (ptr[2] == 0) yoff = -yoff;
+> 			if (ptr[1] == 0) zoff = -zoff;
+> 
+> 			/* offset of neighbor chunk (-1, 0 or 1) */
+> 			frustum.neighbors[i] |= 1 << ((xoff+1) + (zoff+1)*3 + (yoff+1)*9);
+> 		}
+> 	}
+> 
+> 	for (i = 0; i < 27; i ++)
+> 	{
+> 		if (i == 13) continue; /* center, don't care */
+> 		static uint8_t dirs[] = {8, 0, 2, 4, 0, 1, 32, 0, 16};
+> 		int8_t x = i%3;
+> 		int8_t z = (i/3)%3;
+> 		int8_t y = i/9;
+> 		frustum.chunkOffsets[i] = dirs[x] | dirs[z+3] | dirs[y+6];
+> 	}
+> 
+> 	/* firstFree[] table will tell for a given integer [0,255] which rightmost bit is set to 0 */
+> 	for (i = 0; i < 256; i ++)
+> 	{
+> 		for (j = i, k = 0; j&1; k ++, j >>= 1);
+> 		frustum.firstFree[i] = k;
+> 	}
+> }
+39c92
+< 		int slot = firstFree[bits & 0xff];
+---
+> 		int slot = frustum.firstFree[bits & 0xff];
+43c96
+< 			slot += firstFree[bits & 0xff];
+---
+> 			slot += frustum.firstFree[bits & 0xff];
+47c100
+< 				slot += firstFree[bits & 0xff];
+---
+> 				slot += frustum.firstFree[bits & 0xff];
+50c103
+< 					slot += firstFree[bits >> 8];
+---
+> 					slot += frustum.firstFree[bits >> 8];
+678c731
+< 				if (cd->cdFlags == CDFLAG_PENDINGDEL)
+---
+> 				if (cd->pendingDel)
+1256c1309
+< 	slot = firstFree[usage & 0xff];
+---
+> 	slot = frustum.firstFree[usage & 0xff];
+1260c1313
+< 		slot += firstFree[usage & 0xff];
+---
+> 		slot += frustum.firstFree[usage & 0xff];
+1264c1317
+< 			slot += firstFree[usage & 0xff];
+---
+> 			slot += frustum.firstFree[usage & 0xff];
+1266c1319
+< 				slot += firstFree[usage >> 8];
+---
+> 				slot += frustum.firstFree[usage >> 8];
+1274d1326
+< 	cd->cnxGraph = 0xffff;
+1419,1481d1470
+< static Bool mapCullCave(ChunkData cur, vec4 camera)
+< {
+< 	uint8_t side, i, oppSide;
+< 	Chunk   chunk = cur->chunk;
+< 	int     X = chunk->X;
+< 	int     Z = chunk->Z;
+< 
+< //	if (X == 208 && Z == 992 && cur->Y == 80)
+< //		puts("here");
+< 
+< 	/* try to get back to a known location from <cur> */
+< 	for (i = 0; i < 3; i ++)
+< 	{
+< 		static int8_t TB[] = {0, 0, 0, 0, -1, 1};
+< 		ChunkData neighbor;
+< 
+< 		switch (i) {
+< 		case 0: /* N/S */
+< 			if (Z + 16 - camera[VZ] < 0) side = 1, oppSide = 2;
+< 			else if (camera[VZ] - Z < 0) side = 4, oppSide = 0;
+< 			else continue;
+< 			break;
+< 		case 1: /* E/W */
+< 			if (X + 16 - camera[VX] < 0) side = 2, oppSide = 3;
+< 			else if (camera[VX] - X < 0) side = 8, oppSide = 1;
+< 			else continue;
+< 			break;
+< 		case 2: /* T/B */
+< 			if (cur->Y + 16 - camera[VY] < 0) side = 0, oppSide = 5;
+< 			else if (camera[VY] - cur->Y < 0) side = 0, oppSide = 4;
+< 			else continue;
+< 		}
+< 
+< 		chunk    = cur->chunk + chunkNeighbor[cur->chunk->neighbor + side];
+< 		neighbor = chunk->layer[(cur->Y >> 4) + TB[oppSide]];
+< 
+< 		if (neighbor && neighbor->comingFrom > 0 /* can be visited */ && neighbor->slot == 0 /* non-fake chunk */ && neighbor->glBank /* non-empty chunk */)
+< 		{
+< 			static uint8_t opp[] = {4,  8,  1,  2, 16,  32};
+< 			extern uint16_t hasCnx[]; /* from chunks.c */
+< 			if (neighbor->comingFrom == 255)
+< 			{
+< 				/* starting pos: multiple paths possible */
+< 				static uint16_t canGoTo[] = { /* S, E, N, W, T, B */
+< 					1+2+4+8+16, 1+32+64+128+256, 2+32+512+1024+2048, 4+64+512+4096+8192,
+< 					8+128+1024+4096+16384, 16+256+2048+8192+16384
+< 				};
+< 				if (neighbor->cnxGraph & canGoTo[oppSide])
+< 				{
+< 					cur->comingFrom = 1 << oppSide;
+< 					return True;
+< 				}
+< 			}
+< 			else if (neighbor->cnxGraph & hasCnx[opp[oppSide] | neighbor->comingFrom])
+< 			{
+< 				cur->comingFrom = 1 << oppSide;
+< 				return True;
+< 			}
+< 		}
+< 	}
+< 	return False;
+< }
+< 
+1592d1580
+< 	cur->comingFrom = 255;
+1603a1592,1594
+> //		if (cur->chunk->X == -160 && cur->chunk->Z == -32)
+> //			puts("here");
+> 
+1631,1632d1621
+< 				3, 2, 7, 6,
+< 				1, 3, 5, 7,
+1633a1623,1624
+> 				1, 3, 5, 7,
+> 				3, 2, 7, 6,
+1639c1630
+< 			for (i = 1, p = faces; i <= sizeof faces/4; i ++, p += 4)
+---
+> 			for (i = 0, p = faces; i < sizeof faces/4; i ++, p += 4)
+1679,1681d1669
+< 	for (cur = map->firstVisible; cur; cur = cur->visible)
+< 		mapCullCave(cur, camera);
+< 

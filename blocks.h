@@ -73,6 +73,7 @@ struct Block_t             /* per id information */
 
 	uint8_t  gravity;      /* block affected by gravity */
 	uint8_t  pushable;     /* can be pushed by piston or /retracted by sticky piston */
+	uint8_t  updateNearby; /* 6 nearby blocks can be changed if block is placed/deleted (chunk meshing optimization if not) */
 
 	STRPTR   name;         /* description as displayed to user */
 	STRPTR   tech;         /* technical name as stored in NBT */
@@ -136,6 +137,16 @@ struct WriteBuffer_t
 	APTR   mesh;
 	int    alpha;
 	void (*flush)(WriteBuffer);
+};
+
+enum                       /* values for Block.type */
+{
+	INVIS,                 /* nothing to render (air, block 36...) */
+	SOLID,                 /* competely opaque: can hide inner blocks */
+	TRANS,                 /* alpha is either 0 or 255 (can be rendered with OPAQUE, but do not hide inner) */
+	QUAD,                  /* block that are 2 quads crossing (flowers, crops, ...) */
+	LIKID,                 /* lava and water XXX need to be removed */
+	CUST                   /* arbitrary triangles: need special models/processing */
 };
 
 enum                       /* values for Block_t.special */
@@ -290,16 +301,6 @@ enum                       /* values for Block.bbox */
 	BBOX_AUTO,             /* SOLID, TRANS and QUAD = auto box */
 	BBOX_MAX,              /* CUST: union of all boxes = max box */
 	BBOX_FULL              /* CUST: keep all boxes from custom model = full box */
-};
-
-enum                       /* values for Block.type */
-{
-	INVIS,                 /* nothing to render (air, block 36...) */
-	SOLID,                 /* competely opaque: can hide inner blocks */
-	TRANS,                 /* alpha is either 0 or 255 (can be rendered with OPAQUE, but do not hide inner) */
-	QUAD,                  /* block that are 2 quads crossing (flowers, crops, ...) */
-	LIKID,                 /* lava and water XXX need to be removed */
-	CUST                   /* arbitrary triangles: need special models/processing */
 };
 
 enum                       /* flags for Block.inventory (render type) */

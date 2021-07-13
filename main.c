@@ -149,7 +149,7 @@ static int mceditSaveChanges(SIT_Widget w, APTR cd, APTR ud)
 {
 	if (! mapSaveAll(mcedit.level))
 		SIT_Log(SIT_ERROR, "Fail to save changes: %s\n", GetError());
-	if (mcedit.player.pmode == MODE_CREATIVE)
+	if (mcedit.player.pmode >= MODE_CREATIVE)
 	{
 		playerSaveLocation(&mcedit.player, &mcedit.level->levelDat);
 		mapSaveLevelDat(mcedit.level);
@@ -338,7 +338,7 @@ void mceditWorld(void)
 					break;
 				case SDLK_F5: sunMove |= 1; break;
 				case SDLK_F6: sunMove |= 2; break;
-				case SDLK_F8: mcedit.player.pmode = mcedit.player.pmode == MODE_CREATIVE ? MODE_SPECTATOR : MODE_CREATIVE; break;
+				case SDLK_F8: playerSetMode(&mcedit.player, mcedit.level, mcedit.player.pmode == MODE_CREATIVE ? MODE_SPECTATOR : MODE_CREATIVE); break;
 				case SDLK_F10: // DEBUG
 					playerSaveLocation(&mcedit.player, &mcedit.level->levelDat);
 					mapSaveLevelDat(mcedit.level);

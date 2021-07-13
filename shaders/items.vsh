@@ -26,6 +26,7 @@ layout (binding=0) uniform sampler2D blockTex;
 out vec2 tc;
 out float skyLight;
 out float blockLight;
+flat out int rswire;
 
 void main(void)
 {
@@ -46,6 +47,7 @@ void main(void)
 	if (normal < 6)
 		shade = shading[normal].x / 15;
 
+	rswire     = normal == 7 ? 1 : 0;
 	tc         = vec2(U * 0.001953125, V * 0.0009765625);
 	skyLight   = float(bitfieldExtract(info.y, 12, 4)) * shade;
 	blockLight = float(bitfieldExtract(info.y,  8, 4)) * shade;

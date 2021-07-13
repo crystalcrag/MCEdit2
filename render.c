@@ -146,7 +146,7 @@ static void renderSelection(void)
 		int blockId = blockAdjustOrient(id, &info, render.selection.extra.inter);
 		if (info.keepPos) offset = normals + 5;
 
-		#if 1
+		#if 0
 		static int oldBlock;
 		if (oldBlock != blockId)
 			fprintf(stderr, "blockId = %d:%d, side = %d, dir = %d\n", (blockId>>4) & 255, blockId & 15, info.side, info.direction), oldBlock = blockId;

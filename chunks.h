@@ -44,7 +44,7 @@ struct ChunkData_t                     /* one sub-chunk of 16x16x16 blocks */
 	uint16_t  Y;                       /* vertical pos in blocks */
 	uint16_t  cnxGraph;                /* face graph connection (cave culling) */
 
-	uint8_t   pendingDel;              /* 0 or 1 if need to be deleted */
+	uint8_t   cdFlags;                 /* 0 or 1 if need to be deleted */
 	uint8_t   slot;                    /* used by ChunkFake (0 ~ 31) */
 	uint8_t   comingFrom;              /* cave culling (face id 0 ~ 5) */
 	uint8_t   unused;
@@ -99,9 +99,10 @@ enum /* flags for Chunk.cflags */
 	CFLAG_ETTLIGHT   = 0x20,           /* update entity light for this chunk */
 };
 
-enum /* flags for ChunkData.cdflags */
+enum /* flags for ChunkData.cdFlags */
 {
-	CDFLAG_PENDINGDEL = 0x80           /* chunk is empty: can be deleted */
+	CDFLAG_PENDINGDEL   = 0x01,        /* chunk is empty: can be deleted */
+	CDFLAG_UPDATENEARBY = 0x02         /* chunk changed: update nearby chunks if necessary */
 };
 
 enum /* NBT update tag */

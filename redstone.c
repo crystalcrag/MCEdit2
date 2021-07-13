@@ -258,7 +258,7 @@ int redstoneConnectTo(struct BlockIter_t iter, RSWire connectTo)
 				id = getBlockId(&iter);
 				cnx.blockId = id >> 4;
 				cnx.data = id & 15;
-				if (redstoneIsConnected(&cnx, id, i))
+				if (blockIds[cnx.blockId].rsupdate & RSUPDATE_RECV)
 					*list ++ = cnx;
 			}
 		}
@@ -473,7 +473,7 @@ static int redstoneIsWirePowering(BlockIter iter, int side)
 	return POW_NONE;
 }
 
-/* is the block pointer by <iter> powered by any redstone signal from <side>: returns enum POW_* */
+/* is the block pointed by <iter> powered by any redstone signal from <side>: returns enum POW_* */
 int redstoneIsPowered(struct BlockIter_t iter, int side, int minPower)
 {
 	Block b;
@@ -493,6 +493,11 @@ int redstoneIsPowered(struct BlockIter_t iter, int side, int minPower)
 		return minPower < POW_STRONG ? (i & 15) > 0 : POW_NONE;
 	case RSREPEATER_ON:
 		if (side == RSSAMEBLOCK || blockSides.repeater[i&3] == side) return POW_STRONG;
+		break;
+	default:
+		/* buttons or lever */
+		if (b->orientHint == ORIENT_LEVER && (i & 15) > 8)
+			return POW_STRONG;
 	}
 
 	if (b->type != SOLID)

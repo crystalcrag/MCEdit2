@@ -625,7 +625,9 @@ static int mcuiCancelDrag(SIT_Widget w, APTR cd, APTR ud)
 	return 1;
 }
 
-/* creation of interface for player inventory editor */
+/*
+ * creative inventory editor
+ */
 void mcuiCreateInventory(Inventory player)
 {
 	static TEXT tip[] = "Exchange row with toolbar";
@@ -643,7 +645,7 @@ void mcuiCreateInventory(Inventory player)
 	);
 
 	SIT_CreateWidgets(diag,
-		"<tab name=items left=FORM right=FORM top=FORM bottom=FORM tabSpace=4 tabStr=", "\t\t\t\t\t", ">"
+		"<tab name=items left=FORM right=FORM top=FORM bottom=FORM tabSpace=4 tabActive=", mcui.curTab, "tabStr=", "\t\t\t\t\t", ">"
 		" <label name=searchtxt title='Search:'>"
 		" <editbox name=search left=WIDGET,searchtxt,0.5em right=FORM>"
 		" <canvas composited=1 name=inv.inv left=FORM top=WIDGET,search,0.5em/>"
@@ -667,7 +669,7 @@ void mcuiCreateInventory(Inventory player)
 	int i;
 	for (i = 0; i < 6; i ++)
 	{
-		/* tab icons:           build     deco       redstone       crops          rails      search/all */
+		/* tab icons:           build     deco        redstone       crops          rails      search/all */
 		static int blockId[] = {ID(45,0), ID(175,15), ITEMID(331,0), ITEMID(260,0), ID(27, 0), ITEMID(345,0)};
 		SIT_Widget w = SIT_TabGetNth(tab, i);
 
@@ -686,7 +688,7 @@ void mcuiCreateInventory(Inventory player)
 
 	SIT_GetValues(diag, SIT_UserData, &mcui.allItems, NULL);
 	mcinv.items   = mcui.allItems;
-	mcinv.itemsNb = itemGetInventoryByCat(mcui.allItems, BUILD);
+	mcinv.itemsNb = itemGetInventoryByCat(mcui.allItems, mcui.curTab+1);
 	selfinv.items = player->items + MAXCOLINV;
 	toolbar.items = player->items;
 
