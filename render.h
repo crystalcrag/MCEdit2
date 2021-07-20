@@ -12,7 +12,7 @@
 #include "utils.h"
 
 #define NEAR_PLANE     0.1
-#define DEF_FOV        70
+#define DEF_FOV        80
 #define FONTSIZE       30
 #define FONTSIZE_MSG   20
 #define ITEMSCALE      1.3

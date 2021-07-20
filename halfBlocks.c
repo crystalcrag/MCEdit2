@@ -55,13 +55,14 @@ static uint8_t ocsOffsets[] = { /* S, E, N, W, T, B:  3 * 4 coord per face */
 	21,19,18,  25,21,24,  23,25,26,  23,19,20,
 	 7, 3, 6,   3, 1, 0,   5, 1, 2,   7, 5, 8,
 };
+static uint8_t blockIndexToXYZ[] = { /* convert block index [0-26] to separate X, Y, Z offset [-1, 1] */
+	/* bitfield: 2bits per coord, ordered XZY */
+	0,1,2,4,5,6,8,9,10,16,17,18,20,21,22,24,25,26,32,33,34,36,37,38,40,41,42
+};
 
 /* auto-generated from modelsSize2[] */
 static uint8_t modelsSize0[DIM(modelsSize2)];
 
-static uint8_t dirs[] = {1, 4, 0, 4, 1, 4, 0, 4, 1, 0, 1, 0}; /* dir in <j> index */
-static uint8_t axis[] = {2, 0, 0, 0, 1};
-static uint8_t dir0[] = {2, 0, 2, 0, 1, 1}; /* index in pos/rect */
 extern uint8_t skyBlockOffset[];
 
 void halfBlockInit(void)
@@ -89,6 +90,7 @@ void halfBlockInit(void)
 	{
 		/* easier to deal with */
 		j = ocsOffsets[i];
+		/* store offset as XZY bitfield on 2 bits each (ie:mod 4, instead of mod 3) */
 		ocsOffsets[i] = (j % 3) + ((j / 9)<<4) + ((j / 3) % 3 << 2);
 	}
 }
@@ -183,49 +185,49 @@ DATA8 halfBlockGetModel(BlockState b, int size, DATA16 blockIds)
 	return NULL;
 }
 
-static int halfBlockGetOCS(DATA16 blockIds, DATA8 model, int size, uint8_t pos[3], uint8_t maxrect[3], int norm)
+static DATA16 halfBlockRelocCenter(int center, DATA16 blockIds, DATA16 buffer)
 {
-	DATA8   idx = cubeIndices + norm * 4;
-	DATA8   ocs = ocsOffsets + norm * 12;
-	int     ret = 0;
-	uint8_t rect[3], i, j, shift;
+	static int8_t NWES[] = {0, -1, -1, 0, 1, 0, 0, 1};
+	int8_t i, x, z, y;
 
-	j = size-1;
-	shift = size == 2 ? 1 : 3;
-	rect[0] = (i = maxrect[0]-1) > j ? j : i;
-	rect[1] = (i = maxrect[1]-1) > j ? j : i;
-	rect[2] = (i = maxrect[2]-1) > j ? j : i;
-
-	//fprintf(stderr, "%d: %d, %d, %d - %d, %d, %d\n", norm, pos[0], pos[1], pos[2], rect[0], rect[1], rect[2]);
-
-	for (i = 0; i < 4; i ++, idx ++)
+	x = (center % 3);
+	z = (center / 3) % 3;
+	y = (center / 9) * 9;
+	for (i = 0; i < 8; i += 2)
 	{
-		DATA8  vtx = vertex + idx[0];
-		/* these numbers will be between 0 and <size>-1 == sub-voxel coordinate */
-		int8_t x = pos[0] + (vtx[0] * rect[0]);
-		int8_t y = pos[1] + (vtx[1] * rect[1]);
-		int8_t z = pos[2] + (vtx[2] * rect[2]);
+		int8_t x2 = x + NWES[i];
+		int8_t z2 = z + NWES[i+1];
+		buffer[i] = x2 < 0 || x2 > 2 || z2 < 0 || z2 > 2 ? 0 : blockIds[x2+z2*3+y];
+	}
+
+	/* looks dangerous, but first 10 items are not read */
+	return buffer - 10;
+}
+
+/* compute ambient occlusion for half slab (only one quad here) */
+static void halfBlockGetOCS(DATA16 blockIds, DATA8 ocsval, DATA8 model, uint8_t pos[3], int norm)
+{
+	DATA8   ocs = ocsOffsets + norm * 12;
+	uint8_t i, j;
+
+	for (i = 0; i < 4; i ++)
+	{
 		int8_t vtxocs;
-
-		// fprintf(stderr, "%d: %d, %d, %d\n", norm, x, y, z);
-
 		for (j = 0, vtxocs = 0; j < 3; j ++, ocs ++)
 		{
+			uint16_t buffer[7];
 			uint8_t xzy = *ocs;
 			/* these value can range from -1 to <size> */
-			int8_t  xc = x + (xzy & 3) - 1;
-			int8_t  zc = z + ((xzy >> 2) & 3) - 1;
-			int8_t  yc = y + (xzy >> 4) - 1;
+			int8_t  xc = pos[0] + (xzy & 3) - 1;
+			int8_t  zc = pos[2] + ((xzy >> 2) & 3) - 1;
+			int8_t  yc = pos[1] + (xzy >> 4) - 1;
 
-			uint8_t off = ((xc + size) >> shift) + ((yc + size) >> shift) * 9 + ((zc + size) >> shift) * 3;
+			uint8_t off = ((xc + 2) >> 1) + ((yc + 2) >> 1) * 9 + ((zc + 2) >> 1) * 3;
 
-			DATA8 blockModel = off == 13 ? model : halfBlockGetModel(blockGetById(blockIds[off]), size, NULL);
+			DATA8 blockModel = off == 13 ? model : halfBlockGetModel(blockGetById(blockIds[off]), 2, halfBlockRelocCenter(off, blockIds, buffer));
 
-			off = size == 2 ? 1 : 7;
-			off = ((size + xc) & off) | (((size + zc) & off) << shift) | (((size + yc) & off) << (shift+1));
-//			if (norm == 4)
-//				fprintf(stderr, "norm: %d: vtx: %d: ocs: %d, off: %d (%d, %d, %d)\n", norm, i, xzy, off, xc, yc, zc);
-			if (blockModel && blockModel[0] & (1<<off))
+			off = ((2 + xc) & 1) | (((2 + zc) & 1) << 1) | (((2 + yc) & 1) << 2);
+			if (blockModel && (blockModel[0] & (1<<off)))
 				vtxocs |= 1<<j;
 		}
 		switch (vtxocs&3) {
@@ -234,55 +236,56 @@ static int halfBlockGetOCS(DATA16 blockIds, DATA8 model, int size, uint8_t pos[3
 		case 1: vtxocs = 1; break;
 		default: vtxocs = (vtxocs & 4 ? 1 : 0);
 		}
-		ret |= vtxocs << (i<<1);
+		ocsval[i] = vtxocs;
 	}
-	return ret;
+}
+
+static int halfBlockSkyOffset(DATA8 vtx, int vertex, int xyz)
+{
+	uint8_t pos[4];
+	switch (vertex) {
+	case 0: memcpy(pos, vtx+4, 4); break;
+	case 1: pos[0] = vtx[8]  + vtx[4] - vtx[0];
+	        pos[1] = vtx[9]  + vtx[5] - vtx[1];
+	        pos[2] = vtx[10] + vtx[6] - vtx[2]; break;
+	case 2: memcpy(pos, vtx+8, 4); break;
+	case 3: memcpy(pos, vtx, 4);
+	}
+
+	pos[0] += 2 + (xyz&3) - 1;
+	pos[1] += 2 + (xyz>>4) - 1;
+	pos[2] += 2 + ((xyz>>2)&3) - 1;
+
+	return (pos[1]>>1) + (pos[2]>>1) * 3 + (pos[1]>>1) * 9;
 }
 
 /*
  * Main function to convert a detail block metadata into a triangle mesh:
  * contrary to chunk meshing, we try harder to make triangles as big as possible.
  */
-void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DATA8 xyz, DATA8 tex, DATA16 blockIds, DATA8 skyBlock)
+void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DATA8 xyz, DATA8 tex, DATA16 blockIds, DATA8 skyBlock, int genSides)
 {
-	int16_t offset[6];
+	static uint8_t xsides[] = { 2, 8};
+	static uint8_t ysides[] = {16,32};
+	static uint8_t zsides[] = { 1, 4};
+	static int8_t  offset[] = {2,1,-2,-1,4,-4};
+
+	uint8_t faces[8];
 	uint8_t pos[4];
 	DATA32  out;
-	DATA8   xsides, ysides, zsides;
-	DATA8   faces, face;
-	int     total, i, j, k, texSz;
-
-	total = size * size * size;
-	faces = alloca(total + size * 3); i = size - 1;
-	texSz = size == 2 ? 3 : 1;
-	memset(xsides = faces + total, 10, size); xsides[0] =  2; xsides[i] =  8;
-	memset(ysides = xsides + size, 48, size); ysides[0] = 16; ysides[i] = 32;
-	memset(zsides = ysides + size,  5, size); zsides[0] =  1; zsides[i] =  4;
-	offset[0] = size;
-	offset[1] = 1;
-	offset[2] = -size;
-	offset[3] = -1;
-	offset[4] = size*size;
-	offset[5] = - offset[4];
+	DATA8   face;
+	int     i, j, k;
 
 	/* expand binary field (ordered XZY, like chunks) */
-	for (i = 0, j = 1, k = *model++, face = faces; i < total; i ++, j <<= 1, face ++)
-	{
-		if (j > 128)
-		{
-			j = 1;
-			k = *model++;
-		}
-		/* empty == 255, sub-voxel == 0 */
-		*face = (k & j) ? 0 : 255;
-	}
-	model -= i >> 3;
+	genSides ^= 63;
+	for (i = 0, j = 1, k = model[0], face = faces; i < 8; i ++, *face++ = (k & j) ? genSides : 255, j <<= 1);
 
 	/* do the meshing */
-	#define x    pos[0]
-	#define y    pos[1]
-	#define z    pos[2]
-	for (face = faces, out = write->cur, i = total, memset(pos, 0, sizeof pos); i > 0; i --, face ++)
+	#define x      pos[0]
+	#define y      pos[1]
+	#define z      pos[2]
+	#define texSz  3
+	for (face = faces, out = write->cur, i = 8, memset(pos, 0, sizeof pos); i > 0; i --, face ++)
 	{
 		uint8_t flags = *face, sides;
 		if ((flags & 63) == 63) continue; /* empty (or done) sub-voxel */
@@ -300,7 +303,11 @@ void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DAT
 		/* scan missing face on this sub-block */
 		for (j = 0; j < 6; j ++)
 		{
-			uint8_t rect[3], mask = 1 << j;
+			static uint8_t dir0[]  = {2, 0, 2, 0, 1, 1}; /* index in pos/rect */
+			static uint8_t dirs[]  = {1, 4, 0, 4, 1, 4, 0, 4, 1, 0, 1, 0}; /* pair of U, V dir (S,E,N,W,T,B) */
+			static uint8_t axis[]  = {2, 0, 0, 0, 1};
+			static uint8_t invUV[] = {0, 1, 1, 0, 2, 0};
+			uint8_t rect[4], mask = 1 << j;
 			/* already processed? */
 			if (flags & mask) continue;
 
@@ -308,60 +315,91 @@ void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DAT
 			if ((sides & mask) ? face[offset[j]] < 255 : !isVisible(blockIds, pos, j, size)) { *face |= mask; continue; }
 
 			/* check if we can expand in one of 2 directions */
-			rect[0] = rect[1] = rect[2] = 1;
+			memset(rect, 1, 4);
 			rect[dir0[j]] = 0;
 
-			/* expand in first direction */
+			/* try to expand initial rect */
 			uint8_t cur[4];
-			memcpy(cur, pos, sizeof cur);
-			int dirU = dirs[j*2], coord = pos[k = axis[dirU]] + 1;
-			DATA8 face2 = face;
-			for (;;)
+			uint8_t ocs[16];
+			int8_t  faceOff[3];
+			uint8_t dirU  = dirs[j*2];
+			uint8_t dirV  = dirs[j*2+1];
+			uint8_t axisU = axis[dirU];
+			uint8_t axisV = axis[dirV];
+			uint8_t rev   = invUV[j];
+			DATA8   face2;
+
+			static uint8_t dummyVal[] = {255,254,253,252, 251,250,249,248, 247,246,245,244};
+			faceOff[0] = faceOff[2] = offset[dirU];
+			faceOff[1] = offset[dirV] - faceOff[0];
+			memcpy(cur, pos, 4);
+			memcpy(ocs+4, dummyVal, sizeof ocs-4);
+			halfBlockGetOCS(blockIds, ocs, model, cur, j);
+
+			for (k = 0, face2 = face; k < 3; k ++)
 			{
-				/* we are not at the edge of direction <dirU> */
-				if (coord == size) break;
-				/* advance one sub-block */
-				face2 += offset[dirU];
-				/* not an empty cube */
-				if (*face2 & mask) break;
-				/* but must be empty in the normal direction */
-				cur[k] ++;
-				if ((sides & mask) ? face2[offset[j]] < 255 : !isVisible(blockIds, cur, j, size)) break;
-				*face2 |= mask;
-				rect[k] ++;
-				coord ++;
+				static int8_t subVoxel[] = {1,-1,1,0,1,0};
+				cur[axisU] += subVoxel[k];
+				cur[axisV] += subVoxel[k+3];
+				face2 += faceOff[k];
+				if (cur[axisU] == 2 || cur[axisV] == 2 || (*face2 & mask)) continue;
+				if ((sides & mask) ? face2[offset[j]] < 255 : !isVisible(blockIds, cur, j, 2)) break;
+				halfBlockGetOCS(blockIds, ocs + 4 + (k<<2), model, cur, j);
 			}
 
-			/* expand in second direction */
-			int dirV = dirs[j*2+1], k2 = axis[dirV];
-			coord = pos[k2] + 1;
-			face2 = face;
-			memcpy(cur, pos, sizeof cur);
-			for (;;)
+			uint16_t ocsval = 0;
+			if (ocs[4] < 16 && ocs[8] < 16 && ocs[12] < 16)
 			{
-				DATA8 face3;
-				int length;
-				if (coord == size) break;
-				/* advance one sub-block */
-				face2 += offset[dirV];
-				cur[k2] ++;
-				for (length = rect[k], face3 = face2; length > 0; length --, face3 += offset[dirU])
+				/* 2x2: use a detailed ocs map */
+				static uint8_t merge[] = {
+					 8, 11, 15,  9, 10, 14, 1,  2, 6,
+					12, 15, 11, 13, 14, 10, 5,  6, 2,
+					 0,  3,  7,  1,  2,  6, 9, 10, 14,
+				};
+				face2 = merge + rev * 9;
+				for (ocsval = FLAG_OCS_EXTEND, k = 0; k < 9; k ++)
 				{
-					/* not an empty cube */
-					if (*face3 & mask) break;
-					/* but must be empty in the normal direction */
-					if ((sides & mask) ? face3[offset[j]] < 255 : !isVisible(blockIds, cur, j, size)) break;
-					cur[k] ++;
+					uint8_t val = ocs[face2[k]];
+					if (val > 0 && val < 16) ocsval |= 1 << k;
 				}
-				if (length == 0)
+				rect[axisU] = 2;
+				rect[axisV] = 2;
+				face2 = face + faceOff[0]; face2[0] |= mask;
+				face2 += faceOff[1];       face2[0] |= mask;
+				face2 += faceOff[2];       face2[0] |= mask;
+			}
+			else /* 2x1, 1x2 or 1x1 */
+			{
+				/* tables used to merge quads according to OCS values */
+				static uint8_t ocsIdxU[] = {
+					2, 6, 3, 7, /* S,W,B */
+					0, 4, 1, 5, /* N,E */
+					2, 6, 3, 7, /* T */
+				};
+				static uint8_t ocsIdxV[] = {
+					0, 8, 3, 11, /* S,W,B */
+					0, 8, 3, 11, /* N,E */
+					1, 9, 2, 10, /* T */
+				};
+				/* merge quads according to OCS values */
+				if (ocs[4] < 16)
 				{
-					/* mark the line as visited */
-					for (length = rect[k], face3 = face2; length > 0; length --, *face3 |= mask, face3 += offset[dirU]);
-					cur[k] -= rect[k];
-					rect[k2] ++;
-					coord ++;
+					/* 2x1 */
+					DATA8 p = ocsIdxU + rev * 4;
+					ocs[p[0]] = ocs[p[1]];
+					ocs[p[2]] = ocs[p[3]];
+					rect[axisU] = 2;
+					face[faceOff[0]] |= mask;
 				}
-				else break;
+				else if (ocs[8] < 16) /* 1x2 */
+				{
+					DATA8 p = ocsIdxV + rev * 4;
+					ocs[p[0]] = ocs[p[1]];
+					ocs[p[2]] = ocs[p[3]];
+					rect[axisV] = 2;
+					face[offset[dirV]] |= mask;
+				}
+				ocsval = ocs[0] | (ocs[1] << 2) | (ocs[2] << 4) | (ocs[3] << 6);
 			}
 
 			if (write->end - out < VERTEX_INT_SIZE)
@@ -383,58 +421,63 @@ void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DAT
 			{
 				static uint8_t coordU[] = {0, 2, 0, 2, 0, 0};
 				static uint8_t coordV[] = {1, 1, 1, 1, 2, 2};
-				static uint8_t invUV[]  = {0, 1, 1, 0, 2, 0};
 				uint16_t X1, Y1, Z1, U, V, Usz, Vsz;
-				uint8_t  vtx[4];
-				#define  base     vtx[4]
+				#define  base     ocs[7]
+				#define  vtx      (ocs+4)
 
 				face2 = cubeIndices + j * 4;
 				DATA8 idx = vertex + face2[3];
 				/* first vertex */
-				X1 = VERTEX(pos[0] + (idx[0] * rect[0]) + xyz[0]);
-				Y1 = VERTEX(pos[1] + (idx[1] * rect[1]) + xyz[1]);
-				Z1 = VERTEX(pos[2] + (idx[2] * rect[2]) + xyz[2]);
+				vtx[0] = pos[0] + idx[0] * rect[0];
+				vtx[1] = pos[1] + idx[1] * rect[1];
+				vtx[2] = pos[2] + idx[2] * rect[2];
+				X1 = VERTEX(vtx[0] + xyz[0]);
+				Y1 = VERTEX(vtx[1] + xyz[1]);
+				Z1 = VERTEX(vtx[2] + xyz[2]);
 				out[0] = X1 | (Y1 << 16);
 
 				/* second vertex */
 				idx = vertex + face2[0];
-				vtx[0] = pos[0] + (idx[0] * rect[0]);
-				vtx[1] = pos[1] + (idx[1] * rect[1]);
-				vtx[2] = pos[2] + (idx[2] * rect[2]);
-				out[1] = Z1 | (RELDX(vtx[0] + xyz[0]) << 16);
-				out[2] = RELDY(vtx[1] + xyz[1]) | (RELDZ(vtx[2] + xyz[2]) << 14);
+				vtx[4] = pos[0] + (idx[0] * rect[0]);
+				vtx[5] = pos[1] + (idx[1] * rect[1]);
+				vtx[6] = pos[2] + (idx[2] * rect[2]);
+				out[1] = Z1 | (RELDX(vtx[4] + xyz[0]) << 16);
+				out[2] = RELDY(vtx[5] + xyz[1]) | (RELDZ(vtx[6] + xyz[2]) << 14);
 
 				/* UV coord */
-				base = vtx[coordU[j]] << texSz; U = (UV[0] << 4) + (invUV[j] == 1 ? 16 - base : base);
-				base = vtx[coordV[j]] << texSz; V = (UV[1] << 4) + (invUV[j] != 2 ? 16 - base : base);
+				base = vtx[4+coordU[j]] << texSz; U = (UV[0] << 4) + (invUV[j] == 1 ? 16 - base : base);
+				base = vtx[4+coordV[j]] << texSz; V = (UV[1] << 4) + (invUV[j] != 2 ? 16 - base : base);
 
 				/* third vertex */
 				idx = vertex + face2[2];
-				vtx[0] = pos[0] + (idx[0] * rect[0]);
-				vtx[1] = pos[1] + (idx[1] * rect[1]);
-				vtx[2] = pos[2] + (idx[2] * rect[2]);
+				vtx[8]  = pos[0] + (idx[0] * rect[0]);
+				vtx[9]  = pos[1] + (idx[1] * rect[1]);
+				vtx[10] = pos[2] + (idx[2] * rect[2]);
 
-				out[3] = RELDX(vtx[0] + xyz[0]) | (RELDY(vtx[1] + xyz[1]) << 14) | ((V & 512) << 19);
-				out[4] = RELDZ(vtx[2] + xyz[2]) | (U << 14) | (V << 23);
+				out[3] = RELDX(vtx[8]  + xyz[0]) | (RELDY(vtx[9] + xyz[1]) << 14) | ((V & 512) << 19);
+				out[4] = RELDZ(vtx[10] + xyz[2]) | (U << 14) | (V << 23);
 
 				/* tex size and normal */
-				base = vtx[coordU[j]] << texSz; Usz = (UV[0] << 4) + (invUV[j] == 1 ? 16 - base : base);
-				base = vtx[coordV[j]] << texSz; Vsz = (UV[1] << 4) + (invUV[j] != 2 ? 16 - base : base);
-				out[5] = ((Usz + 128 - U) << 16) | ((Vsz + 128 - V) << 24) | (j << 8) | halfBlockGetOCS(blockIds, model, size, pos, rect, j);
+				base = vtx[8+coordU[j]] << texSz; Usz = (UV[0] << 4) + (invUV[j] == 1 ? 16 - base : base);
+				base = vtx[8+coordV[j]] << texSz; Vsz = (UV[1] << 4) + (invUV[j] != 2 ? 16 - base : base);
+				out[5] = ((Usz + 128 - U) << 16) | ((Vsz + 128 - V) << 24) | (j << 9) | ocsval;
 				out[6] = 0;
 
-				/* skylight, blocklight, ocs */
-				for (k = 0; k < 4; k ++)
+				//if (texCoord[j] == texCoord[j + 6]) out[5] |= FLAG_TEX_KEEPX;
+
+				/* skylight, blocklight */
+				for (k = 0, face2 = skyBlockOffset + j * 16; k < 4; k ++)
 				{
-					uint8_t off = j * 16 + k * 4;
 					uint8_t max, l, skyval;
-					for (l = skyval = max = 0; l < 4; l ++, off ++)
+					for (l = skyval = max = 0; l < 4; l ++, face2 ++)
 					{
-						uint8_t  skyvtx = skyBlock[skyBlockOffset[off]];
+						uint8_t  skyvtx = skyBlock[face2[0]];
+						//uint8_t  skyvtx = skyBlock[halfBlockSkyOffset(vtx, k, blockIndexToXYZ[face2[0]])];
 						uint16_t light  = skyvtx & 15;
 						skyvtx &= 0xf0;
 						/* max for block light */
 						if (max < light) max = light;
+						/* minimum if != 0 */
 						if (skyvtx > 0 && (skyval > skyvtx || skyval == 0)) skyval = skyvtx;
 					}
 					out[6] |= (skyval | max) << (k << 3);

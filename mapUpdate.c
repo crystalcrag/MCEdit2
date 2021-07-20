@@ -411,6 +411,8 @@ static void mapUpdateSkyLightBlock(BlockIter iterator)
 				if (max == MAXSKY) break;
 			}
 		}
+		#if 0
+		/* what was that fix for? */
 		if (max == MAXSKY)
 		{
 			mapIter(&neighbor, 0, 2, 0);
@@ -418,6 +420,7 @@ static void mapUpdateSkyLightBlock(BlockIter iterator)
 				/* MAXSKY just above: not a local maximum then */
 				goto skip;
 		}
+		#endif
 		neighbor = initial;
 		if (max > 0)
 		{
@@ -1369,7 +1372,7 @@ int mapUpdateGetCnxGraph(ChunkData cd, int start, DATA8 visited)
 			if (x >= 16 || y >= 16 || z >= 16) continue;
 			int   pos = CHUNK_BLOCK_POS(x, z, y);
 			Block b = blockIds + blocks[pos];
-			/* only fully opaque blocks will stop flood */
+			/* only fully opaque blocks will stop flood: we could be more precise, but not worth the time spent */
 			if (! blockIsFullySollid(b) &&
 				(visited[pos>>3] & mask8bit[pos&7]) == 0)
 			{

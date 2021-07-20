@@ -29,7 +29,7 @@ static void printShaderLog(GLuint shader, const char * path)
 	{
 		char * log = alloca(len);
 		glGetShaderInfoLog(shader, len, &written, log);
-		SIT_Log(SIT_ERROR, "%s: error comiling shader:\n%s\n", path, log);
+		SIT_Log(SIT_ERROR, "%s: error compiling shader:\n%s\n", path, log);
 	}
 }
 

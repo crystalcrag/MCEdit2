@@ -798,7 +798,7 @@ static int16_t blockOffset2[64];
 
 #define IDS(id1,id2)   (1<<id1)|(1<<id2)
 #define IDC(id)        (1<<id)
-static int occlusionIfNeighbor[] = { /* indexed by cube indices: 4 vertex per face (s,E,N,W,T,B) */
+static int occlusionIfNeighbor[] = { /* indexed by cube indices: 4 vertex per face (S,E,N,W,T,B) */
 	IDS(15,25),  IDS(15, 7),  IDS(17, 7),  IDS(25,17),
 	IDS(23,17),  IDS(17, 5),  IDS(11, 5),  IDS(23,11),
 	IDS(19,11),  IDS(11, 1),  IDS( 9, 1),  IDS(19,9),
@@ -816,6 +816,19 @@ static int occlusionIfCorner[] = {
 };
 #undef IDC
 #undef IDS
+
+/* slab will produce slightly dimmer occlusion */
+#define SLABLOC(id0,id1,id2,id3,id4,id5,id6,id7,id8) \
+	((1<<id0) | (1<<id1) | (1<<id2) | (1<<id3) | (1<<id4) | (1<<id5) | (1<<id6) | (1<<id7) | (1<<id8))
+static uint32_t occlusionIfSlab[] = {
+	SLABLOC( 6, 7, 8,15,16,17,24,25,26),
+	SLABLOC( 2, 5, 8,11,14,17,20,23,26),
+	SLABLOC( 0, 1, 2, 9,10,11,18,19,20),
+	SLABLOC( 0, 3, 6, 9,12,15,18,21,24),
+	SLABLOC(18,19,20,21,22,23,24,25,26),
+	SLABLOC( 0, 1, 2, 3, 4, 5, 6, 7, 8),
+};
+#undef SLABLOC
 
 /* indicates whether we can find the neighbor block in the current chunk (sides&1)>0 or in the neighbor (sides&1)==0 */
 static uint8_t xsides[] = { 2, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,  8};
@@ -1004,7 +1017,7 @@ void chunkUpdate(Chunk c, ChunkData empty, int layer)
 
 	memset(visited, 0, sizeof visited);
 
-//	if (c->X == -208 && cur->Y == 32 && c->Z == -48)
+//	if (c->X == 192 && cur->Y == 96 && c->Z == 976)
 //		breakPoint = 1;
 
 	for (pos = air = 0; pos < 16*16*16; pos ++)
@@ -1018,7 +1031,7 @@ void chunkUpdate(Chunk c, ChunkData empty, int layer)
 		block = blocks[pos];
 		state = blockGetByIdData(block, data);
 
-//		if (breakPoint && pos == 4084)
+//		if (breakPoint && pos == 2662)
 //			breakPoint = 2;
 
 		/* 3d flood fill for cave culling */
@@ -1160,10 +1173,10 @@ static void chunkGenQuad(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 
 			/* tex size, norm and ocs: none */
 			out[5] = (((texCoord[j+4] + tex[0]) * 16 + 128 - U) << 16) |
-					 (((texCoord[j+5] + tex[1]) * 16 + 128 - V) << 24) | (norm << 8);
+					 (((texCoord[j+5] + tex[1]) * 16 + 128 - V) << 24) | (norm << 9);
 
-			if (texCoord[j] == texCoord[j + 6]) out[5] |= 1 << 11;
-			if (side >= QUAD_ASCE)              out[5] |= 1 << 12;
+			if (texCoord[j] == texCoord[j + 6]) out[5] |= FLAG_TEX_KEEPX;
+			if (side >= QUAD_ASCE)              out[5] |= FLAG_NORM_UP;
 			/* skylight/blocklight: uniform on all vertices */
 			out[6] = light | (light << 8) | (light << 16) | (light << 24);
 
@@ -1403,12 +1416,12 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 		out[3] = RELX(coord[0]+x) | (RELY(coord[1]+y) << 14) | ((V & 512) << 19);
 		out[4] = RELZ(coord[2]+z) | (U << 14) | (V << 23);
 		out[5] = ((GET_UCOORD(coord) + 128 - U) << 16) |
-		         ((GET_VCOORD(coord) + 128 - V) << 24) | (GET_NORMAL(model) << 8);
+		         ((GET_VCOORD(coord) + 128 - V) << 24) | (GET_NORMAL(model) << 9);
 		out[6] = light | (light << 8) | (light << 16) | (light << 24);
 		coord  = model + INT_PER_VERTEX * 3;
 
 		/* flip tex */
-		if (U == GET_UCOORD(coord)) out[5] |= 1<<11;
+		if (U == GET_UCOORD(coord)) out[5] |= FLAG_TEX_KEEPX;
 
 		if (STATEFLAG(b, CNXTEX))
 		{
@@ -1598,9 +1611,18 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 		if (b->special == BLOCK_HALF || b->special == BLOCK_STAIRS)
 		{
 			uint8_t pos[3] = {x<<1, y<<1, z<<1};
-			halfBlockGenMesh(buffer, halfBlockGetModel(b, 2, blockIds3x3), 2, pos, &b->nzU, blockIds3x3, skyBlock);
+			//fprintf(stderr, "meshing %s at pos %d, %d, %d\n", b->name, x, y, z);
+			halfBlockGenMesh(buffer, halfBlockGetModel(b, 2, blockIds3x3), 2, pos, &b->nzU, blockIds3x3, skyBlock, 63);
 			break;
 		}
+		#if 1
+		if (occlusionIfSlab[i>>2] & slab)
+		{
+			uint8_t pos[3] = {x<<1, y<<1, z<<1};
+			halfBlockGenMesh(buffer, halfBlockGetModel(b, 2, blockIds3x3), 2, pos, &b->nzU, blockIds3x3, skyBlock, 1 << (i>>2));
+			continue;
+		}
+		#endif
 
 		if (BUF_LESS_THAN(buffer, VERTEX_DATA_SIZE))
 			buffer->flush(buffer);
@@ -1626,11 +1648,11 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 			out[3] = RELDX(coord[0]+x) | (RELDY(coord[1]+y) << 14) | ((texV & 512) << 19);
 			out[4] = RELDZ(coord[2]+z) | (texU << 14) | (texV << 23);
 			out[5] = (((texCoord[j+4] + tex[0]) * 16 + 128 - texU) << 16) |
-			         (((texCoord[j+5] + tex[1]) * 16 + 128 - texV) << 24) | (i << 6);
+			         (((texCoord[j+5] + tex[1]) * 16 + 128 - texV) << 24) | (i << 7);
 			out[6] = 0;
 
 			/* flip tex */
-			if (texCoord[j] == texCoord[j + 6]) out[5] |= 1<<11;
+			if (texCoord[j] == texCoord[j + 6]) out[5] |= FLAG_TEX_KEEPX;
 
 			/* sky/block light values: 2*4bits per vertex = 4 bytes needed, ambient occlusion: 2bits per vertex = 1 byte needed */
 			for (k = 0; k < 4; k ++)
@@ -1643,6 +1665,7 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 					skyvtx &= 0xf0;
 					/* max for block light */
 					if (blockval < light) blockval = light;
+					/* minimum if != 0 */
 					if (skyvtx > 0 && (skyval > skyvtx || skyval == 0)) skyval = skyvtx;
 				}
 				out[6] |= (skyval | blockval) << (k << 3);

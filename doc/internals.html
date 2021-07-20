@@ -29,13 +29,13 @@
   <a class="sub2" href="#statedesc"><span>State description</span></a>
   <a class="sub2" href="#blockmodel"><span>Block models</span></a>
 
-<a class="sub1" href="#mesh"><span>Mesh generation</span></a>
-
 <a class="sub1" href="#opengl"><span>Advanced OpenGL</a>
   <a class="sub2" href="#translucency"><span>Alpha transparency</span></a>
   <a class="sub2" href="#gpubanks"><span>Managing chunks on the GPU</span></a>
     <a class="sub3" href="#vtxbuffers"><span>Vertex buffers</span></a>
     <a class="sub3" href="#vtxdata"><span>Vertex data</span></a>
+
+<a class="sub1" href="#mesh"><span>Mesh generation</span></a>
 
 <a class="sub1" href="#nbt2"><span>NBT API</a>
 
@@ -171,8 +171,8 @@ as a pointer type) contain all the data (block IDs, sky light, block light, meta
 <p>So, a first version for this algorithm would be:
 <div class="pre">
 <ul>
-  <li>Have a list of visible chunk.
-  <li>Initially, add the chunk where the player in that list.
+  <li>Start with a empty list of visible chunk.
+  <li>Add the chunk where the player in that list.
   <li>For each chunk in that list:
     <ul>
 	  <li>For each of the 8 corners of the chunk:
@@ -435,15 +435,15 @@ the results were disappointing: it only culled about 1% of total chunks.
 <p>A simpler approach were attempted for this engine, because computing the visibility graph is actuatlly
 not that cheap (although with that information, <b>you can cull a lot of chunks</b>).
 
-<p>The slight improvement idea was to realize that <b>a cube viewed using a perspective projection
+<p>The slight improvement was to realize that <b>a cube viewed using a perspective projection
 matrix has at most 3 faces visible</b>. Instead of checking all 6 faces, we only need to check at most 3.
 Checking if a face is fully opaque is very simple and super cheap to compute.
 
-<p>Sadly, the results for this method were also disappointing: it culled about 10% of the chunk in the
+<p>Sadly, the results for this method were also disappointing: it culled about 10% of the chunks in the
 view frustum. Caves leave too many holes in chunks, which means finding an entire solid face is quite
 rare in practice.
 
-<p>This section is just a remimder to not waste any time with this technique.
+<p>This section is just a remimder to not waste any time with any of these techniques.
 
 <h4 id="cavecullv2"><span>Second attempt</span></h3>
 
@@ -458,11 +458,13 @@ was introduced in 1.8).
 <p>Computing the visibility graph is not that hard: in this engine it is implemented in
 <tt>mapUpdate.c</tt>: <tt>mapUpdateGetCnxGraph()</tt>. It uses a 3D flood fill (as described in the blog
 post), using a ring buffer (to simulate recursion) and bit-vector to manage which voxel has been visited.
+This sounds way more complicated than it really is: there is about 40 lines of code for this function
+(comments included).
 
 <p>A simpification was done though: we only start the scan at the edge of the chunk: because we only
 need to know which faces can be reached from a given face. Knowing there is a hidden hole in the middle
 of a chunk, is an information we don't care at all. That means if the outer layer of the chunk is
-completely solid, the flood fill should be rather cheap to compute (and rather expensive if the chunk
+completely solid, the flood fill should be rather cheap to compute (and kind of expensive if the chunk
 is mostly air).
 
 <p>The visibility of faces is <b>stored in a bitfield</b>. Since there are 6 faces, there are <b>15</b>
@@ -495,16 +497,16 @@ make it work, and have indeed been tried, in practice it adds way too much compl
 implementation (another advice to know waste time with this idea).
 
 <p>The way it is done, is actually pretty simple: since frustum culling orders chunks from near to far,
-we then scan the chunks from beginning to the end of that list. From a given chunks, we check if there
+we then scan the chunks from beginning to the end of that list. From a given chunk, we check if there
 is a path within the visibility graph that can reach a previously visible chunk.
 
 <p>We also use the fact that a cube in 3d space only have, at most, 3 visible faces. Going through
 hidden faces will add a significant amount of hidden chunks. Visibility of a face is done by computing
 the dot product between the face normal and the vector from camera to one point of the face.
 
-<p>This method is not as aggressive as current version of <prod>Minecraft</prod>, but can still easily
-cull 50% of chunks when above ground, and nearly 90% when underground. Still, way better than the first
-version.
+<p>This method is not as aggressive as the current version of <prod>Minecraft</prod>: it is far from
+simulating a raycasting traversal, but can still easily cull 50% of chunks when above ground, and nearly
+90% when underground. Still, way better than the first version.
 
 
 <h2 id="blocks">Block API</h2>
@@ -873,14 +875,9 @@ some might have been wrapped. The first number is a bit field encoding quite a f
 the texture to use for the faces defined for this box. There are 4 numbers per face. The number of
 faces is the number of bits activated in the first number (ie: <tt>popcount((int) model[0] & 63) * 4</tt>).
 
-<p>/* ... */
-
-<h2 id="mesh">Mesh generation</h2>
-
-<p>Another part that makes <b>heavy</b> use of cryptic static tables.
-
-<p>/* ... */
-
+<p>Each number must encode a <tt>UV</tt> coordinate as two integers. <tt>U</tt> can vary from 0 to 512,
+and <tt>V</tt> from 0 to 1024. <tt>U</tt> can therefore address 513 numbers, thus the formula for each
+number is <tt>U + V * 513</tt>.
 
 
 <h2 id="opengl">Advanced OpenGL</h2>
@@ -1141,7 +1138,7 @@ and split into <tt>GL_TRIANGLE_STRIP</tt> in a geometry shader.
 
   <brow><hdr>4: </hdr><bitpart class="sz9" bit="32">9: <em>V</em></bitpart><bitpart class="sz9" bit="23">9: <em>U</em></bitpart><bitpart class="sz14" bit="14">14: <em>DZ3</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
 
-  <brow><hdr>5: </hdr><bitpart class="sz8" bit="32">8: <em>Vsz</em></bitpart><bitpart class="sz8" bit="24">8: <em>Usz</em></bitpart><bitpart class="sz3" bit="16">3</bitpart><bitpart class="sz1"><em>A</em></bitpart><bitpart class="sz1"><em>X</em></bitpart><bitpart class="sz3" bit="11">3: <em>N</em></bitpart><bitpart class="sz8" bit="8">8: <em>OCS</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
+  <brow><hdr>5: </hdr><bitpart class="sz8" bit="32">8: <em>Vsz</em></bitpart><bitpart class="sz8" bit="24">8: <em>Usz</em></bitpart><bitpart class="sz2" bit="16"><em>O</em></bitpart><bitpart class="sz1"><em>A</em></bitpart><bitpart class="sz1"><em>X</em></bitpart><bitpart class="sz3" bit="12">3: <em>N</em></bitpart><bitpart class="sz9" bit="9">9: <em>OCS</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
 
   <brow><hdr>6: </hdr><bitpart class="sz8" bit="32">8: <em>Sky/Block</em></bitpart><bitpart class="sz8" bit="24">8: <em>Sky/Block</em></bitpart><bitpart class="sz8" bit="16">8: <em>Sky/Block</em></bitpart><bitpart class="sz8" bit="8">8: <em>Sky/Block</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
 </bits>
@@ -1197,11 +1194,24 @@ been possible to only use 26 bytes per quad, but using 28 allows the GPU/CPU to 
   <img src="images/quad.png">
 </div>
 
-<p>2 <tt>QUADS</tt> will be constructed out of the 4 vertices: V1 - V2 - V3 and V3 - V2 - V4.
+<p>2 <tt>QUADS</tt> will be constructed out of the 4 vertices: V1 - V2 - V3 and V3 - V2 - V4. Then,
+each face will be decomposed like this:
+
+<div class="photo">
+  <img src="images/quad_face.png">
+</div>
+
+<p>This shows how each face is constructed from the cube vertices. <b>The arrow inside</b> the face
+shows how the OCS/Sky/Block values are extracted: from least significant bits to most significant,
+with start of arrow = first item, arrow end = last item, 4 values in total. <b>The axis</b> shows
+where the 0, 0, 0 coordinates are (if the cube were to be rendered at 0, 0, 0) and where they
+increase with positive values.
+
+<hr>
 
 <p>However, this vertex format is <b>not easy to work with</b>: it involves a lot of tedious bit shifting
 and code logic to extract all the information about a quad. The mesh of objects have to be analyzed for
-generating bounding box and face visibility for example. That's why, this engine uses another <b>vertex data</b>
+generating bounding box and face visibility for example. That's why this engine uses another <b>vertex data</b>
 format. It is actually used by everything, but terrain information: custom block models, inventory models,
 entities models, bounding boxes, ...
 
@@ -1217,6 +1227,14 @@ entities models, bounding boxes, ...
 You need 6 of these to form a quad, that is 60 bytes per <tt>GL_QUAD</tt>. At some point in time, the
 terrain data was also based on this vertex data. Given how tedious it was to adapt all the rendering
 code to the 28 bytes per quad version, it was decided to keep the compressed data for terrain only.
+
+<h2 id="mesh">Mesh generation</h2>
+
+<p>Another part that makes <tt>HEAVY</tt> use of cryptic static tables. Being the central part of a
+voxel engine, this is pretty much what you have to expect for any non-trivial engine.
+
+<p>/* ... */
+
 
 
 <h2 id="nbt2">NBT API</h2>

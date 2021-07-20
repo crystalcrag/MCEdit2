@@ -44,10 +44,6 @@ void main(void)
 	if (V == 1023) V = 1024;
 	if (U == 511)  U = 512;
 
-	#define ORIGINVTX     15360
-	#define BASEVTX       0.00048828125
-	#define MIDVTX        4
-
 	vertex1 = vec3(
 		(float(bitfieldExtract(position.x,  0, 16)) - ORIGINVTX) * BASEVTX + offsets.x,
 		(float(bitfieldExtract(position.x, 16, 16)) - ORIGINVTX) * BASEVTX + offsets.y,

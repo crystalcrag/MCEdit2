@@ -2553,9 +2553,10 @@ static int blockConvertVertex(DATA32 source, DATA32 end, DATA16 dest, int max)
 		uint16_t V2  = bitfieldExtract(source[5], 24, 8);
 		uint16_t U1  = bitfieldExtract(source[4], 14, 9);
 		uint16_t V1  = bitfieldExtract(source[4], 23, 9) | (bitfieldExtract(source[3], 28, 1) << 9);
-		uint8_t  Xeq = bitfieldExtract(source[5], 11, 1);
-		uint16_t rem = (source[5] & (7 << 3)) | 0xf000;
+		uint8_t  Xeq = bitfieldExtract(source[5], 12, 1);
+		uint16_t rem = bitfieldExtract(source[5],  9, 3) << 3;
 
+		rem |= 0xf000; /* sky/block light */
 		U2 = U1 + U2 - 128;
 		V2 = V1 + V2 - 128;
 		dest[0] = source[0];
@@ -2592,7 +2593,7 @@ static int blockConvertVertex(DATA32 source, DATA32 end, DATA16 dest, int max)
 
 static int blockModelStairs(DATA16 buffer, int blockId)
 {
-	uint32_t temp[VERTEX_INT_SIZE * 20];
+	uint32_t temp[VERTEX_INT_SIZE * 30];
 	uint16_t blockIds3x3[27];
 	uint8_t  pos[] = {0, 0, 0};
 
@@ -2602,7 +2603,7 @@ static int blockModelStairs(DATA16 buffer, int blockId)
 	BlockState b = blockGetById(blockId);
 	memset(blockIds3x3, 0, sizeof blockIds3x3);
 	blockIds3x3[13] = blockId;
-	halfBlockGenMesh(&write, halfBlockGetModel(b, 2, blockIds3x3), 2, pos, &b->nzU, blockIds3x3, (DATA8) blockIds3x3);
+	halfBlockGenMesh(&write, halfBlockGetModel(b, 2, blockIds3x3), 2, pos, &b->nzU, blockIds3x3, (DATA8) blockIds3x3, 63);
 
 	return blockConvertVertex(temp, write.cur, buffer, 300);
 }

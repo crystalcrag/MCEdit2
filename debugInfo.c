@@ -99,7 +99,7 @@ void debugBlockVertex(Map map, SelBlock * select)
 					FROMVERTEX(V1[1] + bitfieldExtract(p[3], 14, 14) - MIDVTX),
 					FROMVERTEX(V1[2] + bitfieldExtract(p[4],  0, 14) - MIDVTX)
 				};
-				uint8_t side = bitfieldExtract(p[5], 8, 3);
+				uint8_t side = bitfieldExtract(p[5], 9, 3);
 
 				/* only the side being pointed at */
 				if (side != select->extra.side) continue; /* too verbose otherwise */
@@ -113,11 +113,20 @@ void debugBlockVertex(Map map, SelBlock * select)
 				{
 					uint16_t U = bitfieldExtract(p[4], 14, 9);
 					uint16_t V = bitfieldExtract(p[4], 23, 9) | (bitfieldExtract(p[3], 28, 1) << 9);
-					fprintf(stderr, "VERTEX1: %.1f %.1f %.1f - NORM: %d (%c) - uv: %d,%d - OCS: %d/%d/%d/%d (%d)\n",
-						V2[0]*0.5, V2[1]*0.5, V2[2]*0.5, side, "SENWTB"[side],
-						U, V, p[5]&3, (p[5]>>2)&3, (p[5]>>4)&3, (p[5]>>6)&3, p[5] & 255
+					fprintf(stderr, "VERTEX2: %.1f %.1f %.1f - NORM: %d (%c) - uv: %d,%d - OCS: ",
+						V2[0]*0.5, V2[1]*0.5, V2[2]*0.5, side, "SENWTB"[side], U, V
 					);
-					fprintf(stderr, "VERTEX2: %.1f %.1f %.1f - LIGHT: %d/%d/%d/%d, SKY: %d/%d/%d/%d\n",
+					if (p[5] & FLAG_OCS_EXTEND)
+					{
+						TEXT buffer[20];
+						int  j;
+						strcpy(buffer, " - - / - - / - - ");
+						for (j = 0; j < 9; j ++)
+							buffer[j*2] = p[5] & (1 << j) ? '1' : '0';
+						fprintf(stderr, "%s\n", buffer);
+					}
+					else fprintf(stderr, "%d/%d/%d/%d (%d)\n", p[5]&3, (p[5]>>2)&3, (p[5]>>4)&3, (p[5]>>6)&3, p[5] & 255);
+					fprintf(stderr, "VERTEX3: %.1f %.1f %.1f - LIGHT: %d/%d/%d/%d, SKY: %d/%d/%d/%d\n",
 						V3[0]*0.5, V3[1]*0.5, V3[2]*0.5,
 						bitfieldExtract(p[6], 0, 4), bitfieldExtract(p[6],  8, 4), bitfieldExtract(p[6], 16, 4), bitfieldExtract(p[6], 24, 4),
 						bitfieldExtract(p[6], 4, 4), bitfieldExtract(p[6], 12, 4), bitfieldExtract(p[6], 20, 4), bitfieldExtract(p[6], 28, 4)

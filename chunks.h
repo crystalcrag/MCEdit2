@@ -112,6 +112,11 @@ enum /* NBT update tag */
 	CHUNK_NBT_ENTITES,
 };
 
+/* chunk vertex data */
+#define FLAG_TEX_KEEPX                 (1 << 12)
+#define FLAG_NORM_UP                   (1 << 13)
+#define FLAG_OCS_EXTEND                (1 << 14)
+
 #ifdef CHUNK_IMPL                      /* private stuff below */
 
 #define STATIC_HASH(hash, min, max)    (min <= (DATA8) hash && (DATA8) hash < max)

@@ -1,4 +1,23 @@
+=========== Week 29 ===========
+Mon July 19:
+	* occlusion for half-slab partially handled in shaders: seems better, but need some fixes.
+
 =========== Week 28 ===========
+Sun July 18:
+	* AO for half-slab still not good: trying a baked texture approach :-/
+
+Sat July 17:
+	* half-slab meshing and AO refactoring continued.
+
+Fri July 16:
+	* half-slab meshing and AO refactoring continued.
+
+Thu July 15:
+	* half-slab meshing and AO refactoring.
+
+Tue July 13:
+	* more half slab AO refinement.
+
 Mon July 12:
 	* rail auto-orient bug fixes.
 
