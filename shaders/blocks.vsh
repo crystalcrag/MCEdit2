@@ -31,7 +31,8 @@ out vec3 vertex2;
 out vec3 vertex3;
 out vec4 texCoord;
 out uint skyBlockLight;
-out uint ocsNorm;
+out uint ocsField;
+out uint normFlags;
 
 void main(void)
 {
@@ -39,7 +40,7 @@ void main(void)
 	uint Usz = bitfieldExtract(info.y, 16, 8);
 	uint Vsz = bitfieldExtract(info.y, 24, 8);
 	uint U   = bitfieldExtract(info.x, 14, 9);
-	uint V   = bitfieldExtract(info.x, 23, 9) | (bitfieldExtract(position.w, 28, 1) << 9);
+	uint V   = bitfieldExtract(info.x, 23, 9) | (bitfieldExtract(position.y, 30, 1) << 9);
 
 	if (V == 1023) V = 1024;
 	if (U == 511)  U = 512;
@@ -67,5 +68,6 @@ void main(void)
 		float(V) * 0.0009765625, float(V + Vsz - 128) * 0.0009765625
 	);
 	skyBlockLight = info.z;
-	ocsNorm = bitfieldExtract(info.y, 0, 16);
+	ocsField = bitfieldExtract(info.y, 0, 9) | (bitfieldExtract(position.w, 28, 4) << 9) | (bitfieldExtract(position.z, 28, 4) << 13);
+	normFlags = bitfieldExtract(info.y, 9, 7);
 }

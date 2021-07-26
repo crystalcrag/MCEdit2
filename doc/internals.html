@@ -77,7 +77,8 @@ north). Y is elevation.
 <p>Meshes of various objects use a counter-clockwise (CCW) orientation to check if they are front-facing.
 
 <p>Coordinates are relative to player (ie: if you want an object close to camera, coordinates must
-be close to player position, not 0,0,0). <span class="n">XXX</span> That's not good actually :-/
+be close to player position, not 0,0,0). <span class="n">XXX</span> That's not good actually: coords
+are stored in floats, loss of precision will be problematic.
 
 
 <h3 id="faceorder"><span>Face enumeration order</span></h3>
@@ -423,12 +424,12 @@ fake chunk.
 
 <p>There is one last step that is done at (almost) the same time: cave culling, or removing chunks that
 are completely hidden by nearer chunks. A good primer on how this algorithm works can be read from the
-original <a href="https://tomcc.github.io/2014/08/31/visibility-1.html">author</a> that developped it
+original <a href="https://tomcc.github.io/2014/08/31/visibility-1.html">author</a> that developed it
 for Minecraft MCPE.
 
 <h4 id="cavecullv1"><span>First attempt</span></h3>
 
-<p>In the linked blog post, it was mentionned that they first tried to remove chunks that are completely
+<p>In the linked blog post, it was mentioned that they first tried to remove chunks that are completely
 surrounded by opaque chunks (ie: where the outer face is completely made up of opaque quad). Unsurprisingly,
 the results were disappointing: it only culled about 1% of total chunks.
 
@@ -461,7 +462,7 @@ post), using a ring buffer (to simulate recursion) and bit-vector to manage whic
 This sounds way more complicated than it really is: there is about 40 lines of code for this function
 (comments included).
 
-<p>A simpification was done though: we only start the scan at the edge of the chunk: because we only
+<p>A simplification was done though: we only start the scan at the edge of the chunk: because we only
 need to know which faces can be reached from a given face. Knowing there is a hidden hole in the middle
 of a chunk, is an information we don't care at all. That means if the outer layer of the chunk is
 completely solid, the flood fill should be rather cheap to compute (and kind of expensive if the chunk
@@ -487,14 +488,14 @@ face is blocking the visibility of a chunk.
 
 <h5 id="cnxgraph"><span>Graph traversal</span></h3>
 
-<p>This is the part that difers significantly from the blog post: it uses a more conservative approach,
+<p>This is the part that differs significantly from the blog post: it uses a more conservative approach,
 which results in more chunks being drawn, but should not leave any unfilled hole in the world.
 
 <p>This is <b>done after the chunks have been culled from the frustum</b>. In MCPE, it was done before.
 In this engine, it is not feasible because a given chunk can add up to 26 others. Graph traversal only
 works with connected chunks (<tt>S, E, N, W, T, B</tt>). While technically, it is not impossible to
 make it work, and have indeed been tried, in practice it adds way too much complexity compared to current
-implementation (another advice to know waste time with this idea).
+implementation (another advice to not waste any time with this idea).
 
 <p>The way it is done, is actually pretty simple: since frustum culling orders chunks from near to far,
 we then scan the chunks from beginning to the end of that list. From a given chunk, we check if there
@@ -546,7 +547,7 @@ possible properties:
   <li><tt>type</tt>: how the block will be rendered in the world. This field will constraint what is
   expected for state description. <b>This is a very important field</b>, you can choose one value among:
   <ul>
-    <li><tt>INVIS</tt>: invisible. No mesh vill be generated for these (typical use case: AIR).
+    <li><tt>INVIS</tt>: invisible. No mesh will be generated for these (typical use case: AIR).
     <li><tt>SOLID</tt>: a full 1x1x1 voxel cube. This engine is optimized to display these. They are
 	cheap to process, cheap to render and cheap to define: just specify the texture of the 6 sides of
 	the cube and that pretty much all there is to it.
@@ -573,7 +574,7 @@ possible properties:
 	inventory items have been highlighted with a green background.
     <li><tt>ITEM2D</tt>: each states will be represented as flat 2d texture (taken from state description).
 	In the screenshot below, they have a gray background.
-    <li><tt>MODEL</tt>: wil use a custom model for their inventory. The model will be viewed at an angle
+    <li><tt>MODEL</tt>: will use a custom model for their inventory. The model will be viewed at an angle
 	using a orthographic projection (not a perspective one). You can provide a custom model to be used
 	only in inventories, or you can reuse the ones defined in the state description. In the screenshot
 	below, those items have been highlighted with a red background.
@@ -582,7 +583,7 @@ possible properties:
     <img src="images/inventory.png">
   </div>
   <li><tt>invstate</tt>: sometimes, you don't want to have one inventory item per state, but only one
-  (typcial use case: blocks that have an orientation). If this field is present, it must contain the
+  (typical use case: blocks that have an orientation). If this field is present, it must contain the
   state id (between 0 and 15) to use when displaying this item in inventories.
   <li><tt>cat</tt>: the creative menu is split into tabs. This field let you choose which one it will
   be in. If not specified, the item will appear in the "all" category (the tab with the compass, in the
@@ -627,16 +628,16 @@ possible properties:
 	<li><tt>NOCONNECT</tt>: don't generate connected info. Typical use case: fence gates. They connect
 	with fences, and therefore have the FENCE flag, but don't have optional parts like fences.
   </ul>
-  <li><tt>bbox</tt>: how the block can be targetted with the mouse. Enumeration value, with the following
+  <li><tt>bbox</tt>: how the block can be targeted with the mouse. Enumeration value, with the following
   choices:
   <ul>
-    <li><tt>NONE</tt>: this block cannot be targetted by user.
+    <li><tt>NONE</tt>: this block cannot be targeted by user.
     <li><tt>AUTO</tt>: this mode will be automatically set for block type <tt>SOLID</tt>, <tt>TRANS</tt>
 	and <tt>QUAD</tt>. Therefore, you can omit the <tt>bbox</tt> field for these types.
     <li><tt>MAX</tt>: this type is intended for <tt>CUST</tt> block type: <tt>MAX</tt> will compute
 	the maximum axis-aligned box that covers the entire model.
     <li><tt>FULL</tt>: another mode for <tt>CUST</tt> block type: each individual part of a custom model
-	will be used to check if the block is targetted. This type of collision test is very precise, but
+	will be used to check if the block is targeted. This type of collision test is very precise, but
 	of course a bit more expensive to check.
   </ul>
 
@@ -646,13 +647,13 @@ possible properties:
 
   <li><tt>orient</tt>: if block placement is orientation dependent, you can specify with this field
   how individual state description can be automatically chosen based on player orientation and/or block
-  targetted:
+  targeted:
   <ul>
     <li><tt>LOG</tt>: 3 possible orientation: E/W, N/S, or up right.
     <li><tt>FULL</tt>: 6 possible orientation: south, east, north, west, top, bottom.
     <li><tt>BED</tt>: 4 possible orientation, composed of 2 blocks.
     <li><tt>SLAB</tt>: 2 orientation: lower half, upper half.
-    <li><tt>TORCH</tt>: 5 orientation: sticked to wall or up right.
+    <li><tt>TORCH</tt>: 5 orientation: stick to wall or up right.
     <li><tt>STAIRS</tt>: 8 orientation.
     <li><tt>SENW</tt>: 4 orientation (typical: chest, furnace).
     <li><tt>SWNE</tt>: 4 orientation but different state description (typical: repeaters, comparators).
@@ -692,8 +693,8 @@ possible properties:
   </ul>  
 
   <li><tt>placement</tt>: constraint the block has to satisfy to be placed in the world. If those
-  constraint were to be invalidated due to nearby update, the block will be automaticall deleted.
-  The field should be a string, described a list of contraints spearated by commas. Each constraint
+  constraint were to be invalidated due to nearby update, the block will be automatically deleted.
+  The field should be a string, described a list of constraints separated by commas. Each constraint
   can use the following keyword:
   <ul>
     <li><tt>ground</tt>: any type of solid flat ground.
@@ -733,7 +734,7 @@ possible properties:
 
 <h3 id="statedesc"><span>State description</span></h3>
 
-<p>An object declaraction is recognized as a state declaration if it is contains a <tt>state</tt> property
+<p>An object declaration is recognized as a state declaration if it is contains a <tt>state</tt> property
 with an integer assigned to it. Beside this property, you can also use these ones:
 <ul>
   <li><tt>state</tt>: an integer between 0 and 15 that will be stored in <tt>Sections/Data</tt> table in a chunk.
@@ -769,7 +770,7 @@ with an integer assigned to it. Beside this property, you can also use these one
   tile coordinates: integers between 0 and 31 that will point to a texture tile in the file <a href="../resources/terrain.png">terrain.png</a>.
   That way the coordinates will work no matter what resolution the file is, the default tile set is 16x16px,
   but you can use whatever size you want (tiles needs to be square though). Although allowed, it is
-  stongly discouraged to use a size that is not a power of 2, due to mipmapping (texture will "bleed"
+  strongly discouraged to use a size that is not a power of 2, due to mipmapping (texture will "bleed"
   at the edge of tiles).
 
   <p>This field is expecting an array of integers. The number of coordinates will depend on the type of the block:
@@ -809,8 +810,8 @@ with an integer assigned to it. Beside this property, you can also use these one
   Remember, that the type of inventory item specified in the block will be applied to all state description.
   The typical use case is to prevent some states from appearing in the inventory (ie: <tt>NONE</tt>).
 
-  <li><tt>model</tt>: an array of floatting point numbers. This field is absolutely not intended to
-  edited manually. The format wil be described <a href="#blockmodel">below</a>, but even with this
+  <li><tt>model</tt>: an array of floating point numbers. This field is absolutely not intended to
+  edited manually. The format will be described <a href="#blockmodel">below</a>, but even with this
   description, you'll have a hard time filling this field manually.
   <p>Instead, an external tool is almost required: <tt>TileFinder</tt>. You'll notice that all models
   are declared on their own lines (there no JSON tokens mix in those lines, besides what's required
@@ -863,7 +864,7 @@ some might have been wrapped. The first number is a bit field encoding quite a f
 <p>After that, numbers are a bit more straightforward:
 <ul>
   <li><b>3 floats</b>: size of the box, in 1/16 units (ie: 16 = a full voxel), specified in X, Y, Z order.
-  Can be fractionnal if needed. Model can have size of up to <tt>112x112x112</tt> (7 voxels). Although,
+  Can be fractional if needed. Model can have size of up to <tt>112x112x112</tt> (7 voxels). Although,
   due to frustum culling, it is advised to keep them below 16x16x16 (1 voxel).
   <li><b>3 floats</b>: translation to apply, also in 1/16 unit, that will be applied to the X, Y, Z axis.
   <li><b>3 floats</b>: rotation in degrees, CCW (trigonometric rotation) on the X, Y, Z axis.
@@ -927,7 +928,7 @@ framebuffer of <tt>1920x1080px</tt>):
   per fragment + 4 bytes for head of linked list) times <tt>60</tt> (frame per second) = a little bit
   under 4 Gb / second. That is going to saturate the memory bandwidth of all but high-end configuration.
   <li>To add insult to injury, if you were to sort those quads using the CPU, it would be just a few
-  hundreeds <b>of bytes</b> to move around each second.
+  hundreds <b>of bytes</b> to move around each second.
 </ul>
 
 <p>In conclusion: <b>for a voxel engine, it is not advised to rely on this technique alone</b>.
@@ -1070,7 +1071,7 @@ difference is that the actual memory is owned by the GPU.
 <p>To achieve this, there are 2 main datatypes:
 <ul>
   <li><tt>GPUBank</tt>: this is the datatype used to manage an entire segment. Segments cannot be
-  reallocated (or at least, it is not advised to do it), therefore to alloc more memory, we'll have
+  reallocated (or at least, it is not advised to do it), therefore to allocate more memory, we'll have
   to create more of these segments. OpenGL draw commands can only deal with one primary segment (or
   VBO) at a time (VAO can deal with multiple VBO source, but they are processed in parallel, here
   we would need a serial access). Therefore to draw the geometry of a scene, we'll need at least as
@@ -1121,7 +1122,7 @@ would required about 400 Mb of data. While even a GPU from 2010 can easily handl
 reducing the amount of data means we could push the render distance way farther than this.
 
 <p>This engine manage to compress each quad down to 28 bytes (stored as 7 32bit unsigned integer),
-that means viewing a world on a far render distnace (16 chunks) usually requires about 50Mb of memory
+that means viewing a world on a far render distance (16 chunks) usually requires about 50Mb of memory
 on the GPU side: that's actually not very much. The vertex data is processed as <tt>GL_POINTS</tt>,
 and split into <tt>GL_TRIANGLE_STRIP</tt> in a geometry shader.
 
@@ -1130,15 +1131,15 @@ and split into <tt>GL_TRIANGLE_STRIP</tt> in a geometry shader.
 <bits>
   <brow><hdr>0: </hdr><bitpart class="sz16" bit="32">16: <em>Y1</em></bitpart><bitpart class="sz16" bit="16">16: <em>X1</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
 
-  <brow><hdr>1: </hdr><bitpart class="sz2" bit="32">2</bitpart><bitpart class="sz14" bit="30">14: <em>DX2</em></bitpart><bitpart class="sz16" bit="16">16: <em>Z1</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
+  <brow><hdr>1: </hdr><bitpart class="sz2" bit="32"><em>Vhi</em></bitpart><bitpart class="sz14" bit="30">14: <em>DX2</em></bitpart><bitpart class="sz16" bit="16">16: <em>Z1</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
 
   <brow><hdr>2: </hdr><bitpart class="sz4" bit="32">4</bitpart><bitpart class="sz14" bit="28">14: <em>DZ2</em></bitpart><bitpart class="sz14" bit="14">14: <em>DY2</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
 
-  <brow><hdr>3: </hdr><bitpart class="sz4" bit="32">4: <em>V</em></bitpart><bitpart class="sz14" bit="28">14: <em>DY3</em></bitpart><bitpart class="sz14" bit="14">14: <em>DX3</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
+  <brow><hdr>3: </hdr><bitpart class="sz4" bit="32">4</bitpart><bitpart class="sz14" bit="28">14: <em>DY3</em></bitpart><bitpart class="sz14" bit="14">14: <em>DX3</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
 
-  <brow><hdr>4: </hdr><bitpart class="sz9" bit="32">9: <em>V</em></bitpart><bitpart class="sz9" bit="23">9: <em>U</em></bitpart><bitpart class="sz14" bit="14">14: <em>DZ3</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
+  <brow><hdr>4: </hdr><bitpart class="sz9" bit="32">9: <em>Vlo</em></bitpart><bitpart class="sz9" bit="23">9: <em>U</em></bitpart><bitpart class="sz14" bit="14">14: <em>DZ3</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
 
-  <brow><hdr>5: </hdr><bitpart class="sz8" bit="32">8: <em>Vsz</em></bitpart><bitpart class="sz8" bit="24">8: <em>Usz</em></bitpart><bitpart class="sz2" bit="16"><em>O</em></bitpart><bitpart class="sz1"><em>A</em></bitpart><bitpart class="sz1"><em>X</em></bitpart><bitpart class="sz3" bit="12">3: <em>N</em></bitpart><bitpart class="sz9" bit="9">9: <em>OCS</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
+  <brow><hdr>5: </hdr><bitpart class="sz8" bit="32">8: <em>Vsz</em></bitpart><bitpart class="sz8" bit="24">8: <em>Usz</em></bitpart><bitpart class="sz2" bit="16">&nbsp;</bitpart><bitpart class="sz1"><em>A</em></bitpart><bitpart class="sz1"><em>X</em></bitpart><bitpart class="sz3" bit="12">3: <em>N</em></bitpart><bitpart class="sz9" bit="9">9: <em>OCS</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
 
   <brow><hdr>6: </hdr><bitpart class="sz8" bit="32">8: <em>Sky/Block</em></bitpart><bitpart class="sz8" bit="24">8: <em>Sky/Block</em></bitpart><bitpart class="sz8" bit="16">8: <em>Sky/Block</em></bitpart><bitpart class="sz8" bit="8">8: <em>Sky/Block</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
 </bits>
@@ -1239,7 +1240,7 @@ voxel engine, this is pretty much what you have to expect for any non-trivial en
 
 <h2 id="nbt2">NBT API</h2>
 
-<p>NBT API in this engine does not exactly follow a tradionnal API you might expect for manipulating
+<p>NBT API in this engine does not exactly follow a traditional API you might expect for manipulating
 a tree of arbitrary data types. The main problem that this API was trying to solve is to keep 
 everything related to an NBT tree as close as possible in memory, to benefit from cache locality.
 
@@ -1273,7 +1274,7 @@ there are a lot of moving parts, with lots of datatypes:
   <li><tt>struct EntityBank_t</tt> : hold model data that will be used to render entities: we'll use
   one model per entity, so that they can be drawn in a single call to <tt>glMultiDrawArraysIndirect()</tt>.
 
-  <p>This API will beed a command buffer (vboMDAI) and a per instance info (vboLoc). This list will
+  <p>This API will need a command buffer (vboMDAI) and a per instance info (vboLoc). This list will
   be rebuild with minimal changes whenever a entity is added or removed, which means a few more boilerplate
   tables to track usage (most notable one being <tt>mdaiUsage</tt>).
 
@@ -1298,7 +1299,7 @@ there are a lot of moving parts, with lots of datatypes:
 
 <h3 id="collision"><span>Collision detection/correction</span></h3>
 
-<p>Collision detection is implemention using a swept AABB algorithm and correction is done through sliding
+<p>Collision detection is implemented using a swept AABB algorithm and correction is done through sliding
 adjustment.
 
 <p>/* ... */

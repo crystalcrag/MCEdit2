@@ -1,4 +1,10 @@
 =========== Week 29 ===========
+Sun July 25:
+	* unified half-block and full-block AO.
+
+Sat July 24 ~ Tue 20:
+	* moar AO tweaks for half-blocks.
+
 Mon July 19:
 	* occlusion for half-slab partially handled in shaders: seems better, but need some fixes.
 

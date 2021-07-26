@@ -1017,8 +1017,8 @@ void chunkUpdate(Chunk c, ChunkData empty, int layer)
 
 	memset(visited, 0, sizeof visited);
 
-//	if (c->X == 192 && cur->Y == 96 && c->Z == 976)
-//		breakPoint = 1;
+	if (c->X == 192 && cur->Y == 96 && c->Z == 976)
+		breakPoint = 1;
 
 	for (pos = air = 0; pos < 16*16*16; pos ++)
 	{
@@ -1031,8 +1031,8 @@ void chunkUpdate(Chunk c, ChunkData empty, int layer)
 		block = blocks[pos];
 		state = blockGetByIdData(block, data);
 
-//		if (breakPoint && pos == 2662)
-//			breakPoint = 2;
+		if (breakPoint && pos == 2600)
+			breakPoint = 2;
 
 		/* 3d flood fill for cave culling */
 		if (! blockIsFullySollid(state) && (slotsXZ[pos & 0xff] || slotsY[pos >> 8]) && (visited[pos>>3] & mask8bit[pos&7]) == 0)
@@ -1165,10 +1165,10 @@ static void chunkGenQuad(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 			/* second and third vertex */
 			coord  = vertex + quadIndices[side*4+indices[1]];
 			out[0] = X1 | (Y1 << 16);
-			out[1] = Z1 | (RELDX(coord[0] + x) << 16);
+			out[1] = Z1 | (RELDX(coord[0] + x) << 16) | ((V & 512) << 21);
 			out[2] = RELDY(coord[1] + y) | (RELDZ(coord[2] + z) << 14);
 			coord  = vertex + quadIndices[side*4+indices[2]];
-			out[3] = RELDX(coord[0] + x) | (RELDY(coord[1] + y) << 14) | ((V & 512) << 19);
+			out[3] = RELDX(coord[0] + x) | (RELDY(coord[1] + y) << 14);
 			out[4] = RELDZ(coord[2] + z) | (U << 14) | (V << 23);
 
 			/* tex size, norm and ocs: none */
@@ -1410,10 +1410,10 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 
 		coord  = model;
 		out[0] = X1 | (Y1 << 16);
-		out[1] = Z1 | (RELX(coord[0]+x) << 16);
+		out[1] = Z1 | (RELX(coord[0]+x) << 16) | ((V & 512) << 21);
 		out[2] = RELY(coord[1]+y) | (RELZ(coord[2]+z) << 14);
 		coord  = model + INT_PER_VERTEX * 2;
-		out[3] = RELX(coord[0]+x) | (RELY(coord[1]+y) << 14) | ((V & 512) << 19);
+		out[3] = RELX(coord[0]+x) | (RELY(coord[1]+y) << 14);
 		out[4] = RELZ(coord[2]+z) | (U << 14) | (V << 23);
 		out[5] = ((GET_UCOORD(coord) + 128 - U) << 16) |
 		         ((GET_VCOORD(coord) + 128 - V) << 24) | (GET_NORMAL(model) << 9);
@@ -1619,8 +1619,12 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 		if (occlusionIfSlab[i>>2] & slab)
 		{
 			uint8_t pos[3] = {x<<1, y<<1, z<<1};
-			halfBlockGenMesh(buffer, halfBlockGetModel(b, 2, blockIds3x3), 2, pos, &b->nzU, blockIds3x3, skyBlock, 1 << (i>>2));
-			continue;
+			DATA8 model = halfBlockGetModel(b, 2, blockIds3x3);
+			if (model)
+			{
+				halfBlockGenMesh(buffer, model, 2, pos, &b->nzU, blockIds3x3, skyBlock, 1 << (i>>2));
+				continue;
+			}
 		}
 		#endif
 
@@ -1642,10 +1646,10 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 			/* write one quad */
 			coord  = vertex + cubeIndices[i];
 			out[0] = X1 | (Y1 << 16);
-			out[1] = Z1 | (RELDX(coord[0]+x) << 16);
+			out[1] = Z1 | (RELDX(coord[0]+x) << 16) | ((texV & 512) << 21);
 			out[2] = RELDY(coord[1]+y) | (RELDZ(coord[2]+z) << 14);
 			coord  = vertex + cubeIndices[i+2];
-			out[3] = RELDX(coord[0]+x) | (RELDY(coord[1]+y) << 14) | ((texV & 512) << 19);
+			out[3] = RELDX(coord[0]+x) | (RELDY(coord[1]+y) << 14);
 			out[4] = RELDZ(coord[2]+z) | (texU << 14) | (texV << 23);
 			out[5] = (((texCoord[j+4] + tex[0]) * 16 + 128 - texU) << 16) |
 			         (((texCoord[j+5] + tex[1]) * 16 + 128 - texV) << 24) | (i << 7);
