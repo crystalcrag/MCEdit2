@@ -1389,12 +1389,12 @@ int blockInvModelCube(DATA16 ret, BlockState b, DATA8 texCoord)
 			{
 				/* half-slab model */
 				ret[1] = (ret[1]-ORIGINVTX) / 2 + ORIGINVTX;
-				if (i < 4) texV = tex[1] * 8 + V * 16;
+				if (i < 4) texV = tex[1] * 8 + V * 16 + 8;
 				if ((b->id & 15) > 7)
 				{
 					/* top slab */
 					ret[1] += BASEVTX/2;
-					if (i < 4) texV += 8;
+					if (i < 4) texV -= 8;
 				}
 			}
 			if (texU == 512)  texU = 511;

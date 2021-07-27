@@ -5,11 +5,9 @@
  */ 
 
 html { font-family: Georgia, serif; margin: 0; padding: 0; font-size: 1.2vw }
-body { counter-reset: h2; padding-left: 18%; padding-top: 40px; background: url("images/bg.jpg") fixed; background-size: 100% 100%; margin: 0 }
+body { counter-reset: h2; padding-left: 20%; padding-top: 40px; background: url("images/bg.jpg") fixed; background-size: 100% 100%; margin: 0 }
 div#content { width: 80%; margin: 0 auto; padding: 60px 10px 60px; border: 32px solid #eee; border-width: 46px 43px 45px 32px;
               border-image: url(images/Book_and_Quill.png) 46 43 45 32 fill stretch round; box-shadow: 0 0 10px black inset, 0 0 10px black }
-:nth-page(1) p { margin: 80px 0 }
-:nth-page(n+2) body { padding-top: 10px }
 p { text-align: justify; margin-left: 40px; margin-right: 10px }
 dd { margin-left: 40px; text-align: justify }
 dt { margin-left: 40px; page-break-after: avoid }
@@ -85,7 +83,7 @@ cap { font-size: 0.9em }
 a { color: brown }
 prod { font-style: italic; color: blue; font-weight: bold }
 note { background-color: yellow }
-#toc { position: fixed; top: 0; left: 0; width: 18%; bottom: 0; overflow: auto; color: white; border-right: 2px solid rgba(255,255,255,0.2);
+#toc { position: fixed; top: 0; left: 0; width: 20%; bottom: 0; overflow: auto; color: white; border-right: 2px solid rgba(255,255,255,0.2);
 	 background: linear-gradient(to right, rgba(0,0,0,0.3), rgba(0,0,0,0.7)), url(images/dirt.png); background-size: 100% 100%, 64px 64px;
 	 padding: 20px; box-sizing: border-box; counter-reset: tocH2 }
 table td { vertical-align: baseline }

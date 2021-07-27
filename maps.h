@@ -41,7 +41,6 @@ struct Map_t
 	ListHead  genList;             /* chunks to process */
 	Chunk     genLast;
 	char      path[MAX_PATHLEN];   /* path to level.dat */
-	ChunkData air;                 /* missing ChunkData will use this */
 	ChunkData dirty;               /* sub-chunks that needs mesh regeneration */
 	ChunkData firstVisible;        /* list of visible chunks according to the MVP matrix */
 	Chunk     needSave;            /* linked list of chunk that have been modified */

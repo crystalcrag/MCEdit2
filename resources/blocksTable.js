@@ -492,7 +492,7 @@
 		{state: 6, name: "+nether brick",       tex: [0,14, 0,14, 0,14, 0,14, 0,14, 0,14]},
 		{state: 7, name: "+quartz",             tex: [9,13, 9,13, 9,13, 9,13, 9,13, 9,13]},
 		{state: 8, name: "Slab (top,_stone)",   tex: [5, 0, 5, 0, 5, 0, 5, 0, 6, 0, 6, 0], inv: NONE},
-		{state: 9, name: "-sandstone",          tex: [0,11, 0,11, 0,11, 0,11, 0,11, 0,11], inv: NONE},
+		{state: 9, name: "-sandstone",          tex: [0,12, 0,12, 0,12, 0,12, 0,11, 0,13], inv: NONE},
 		{state:10, name: "-wooden",             tex: [4, 0, 4, 0, 4, 0, 4, 0, 4, 0, 4, 0], inv: NONE},
 		{state:11, name: "-cobblestone",        tex: [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1], inv: NONE},
 		{state:12, name: "-brick",              tex: [7, 0, 7, 0, 7, 0, 7, 0, 7, 0, 7, 0], inv: NONE},
@@ -3234,6 +3234,10 @@
 		{state:13, name: "+green",      tex: [ 8,22, 8,22, 8,22, 8,22, 8,22, 8,22]},
 		{state:14, name: "+red",        tex: [ 4,22, 4,22, 4,22, 4,22, 4,22, 4,22]},
 		{state:15, name: "+black",      tex: [ 0,22, 0,22, 0,22, 0,22, 0,22, 0,22]},
+
+	/* dummy block for debug */
+	{id: 253, name: "White Block", type: SOLID, inv: CUBE, cat: BUILD},
+		{state: 0, name: "-", tex: [18,20,18,20,18,20,18,20,18,20,18,20]},
 
 	/* hack to handle collision box of door :-/ */
 	{id: 255, type: INVIS, name: "Door top", bbox: NONE, special: DOOR_TOP},

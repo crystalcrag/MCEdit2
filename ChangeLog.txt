@@ -1,6 +1,12 @@
+=========== Week 30 ===========
+Mon July 26:
+	* half-slab preview had their V texture coordinate inverted.
+	* skylight did not updated when blocked.
+	* slight AO fixes.
+
 =========== Week 29 ===========
 Sun July 25:
-	* unified half-block and full-block AO.
+	* unified half-block and full-block AO, seems ok for now.
 
 Sat July 24 ~ Tue 20:
 	* moar AO tweaks for half-blocks.

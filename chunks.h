@@ -88,6 +88,7 @@ struct Chunk_t                         /* an entire column of 16x16 blocks */
 #define chunkFrame     nbt.alloc       /* this is field is not used after NBT has been read */
 
 extern int16_t chunkNeighbor[];        /* where neighbors of a chunk based on Chunk->neighbor+direction value */
+extern ChunkData chunkAir;             /* chunk entirely made of air, skylight = 15, blocklight = 0 */
 
 enum /* flags for Chunk.cflags */
 {

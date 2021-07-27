@@ -1017,7 +1017,7 @@ void chunkUpdate(Chunk c, ChunkData empty, int layer)
 
 	memset(visited, 0, sizeof visited);
 
-	if (c->X == 192 && cur->Y == 96 && c->Z == 976)
+	if (c->X == 192 && cur->Y == 96 && c->Z == 960)
 		breakPoint = 1;
 
 	for (pos = air = 0; pos < 16*16*16; pos ++)
@@ -1031,7 +1031,7 @@ void chunkUpdate(Chunk c, ChunkData empty, int layer)
 		block = blocks[pos];
 		state = blockGetByIdData(block, data);
 
-		if (breakPoint && pos == 2600)
+		if (breakPoint && pos == 3804)
 			breakPoint = 2;
 
 		/* 3d flood fill for cave culling */

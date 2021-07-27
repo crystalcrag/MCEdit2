@@ -315,7 +315,6 @@ void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DAT
 	#define x      pos[0]
 	#define y      pos[1]
 	#define z      pos[2]
-	#define texSz  3
 	for (face = faces, out = write->cur, i = 8, memset(pos, 0, sizeof pos); i > 0; i --, face ++)
 	{
 		uint8_t flags = *face, sides;
@@ -426,6 +425,7 @@ void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DAT
 					ocs[p[2]] = ocs[p[3]];
 					rect[axisU] = 2;
 					face[faceOff[0]] |= mask;
+					ocsext = 1;
 				}
 				else if (ocs[8] < 16) /* 1x2 */
 				{
@@ -434,7 +434,9 @@ void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DAT
 					ocs[p[2]] = ocs[p[3]];
 					rect[axisV] = 2;
 					face[offset[dirV]] |= mask;
+					ocsext = 2;
 				}
+				else ocsext = 3;
 				ocsval = ocs[0] | (ocs[1] << 2) | (ocs[2] << 4) | (ocs[3] << 6);
 			}
 
@@ -457,9 +459,9 @@ void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DAT
 			{
 				static uint8_t coordU[] = {0, 2, 0, 2, 0, 0};
 				static uint8_t coordV[] = {1, 1, 1, 1, 2, 2};
-				uint16_t X1, Y1, Z1, U, V, Usz, Vsz;
-				#define  base     ocs[7]
-				#define  vtx      (ocs+4)
+				uint16_t X1, Y1, Z1, U, V, Usz, Vsz, base;
+				#define vtx      (ocs+4)
+				#define texSz    3
 
 				face2 = cubeIndices + j * 4;
 				DATA8 idx = vertex + face2[3];
@@ -479,8 +481,8 @@ void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DAT
 				vtx[6] = pos[2] + (idx[2] * rect[2]);
 
 				/* UV coord */
-				base = vtx[4+coordU[j]] << texSz; U = (UV[0] << 4) + (invUV[j] == 1 ? 16 - base : base);
-				base = vtx[4+coordV[j]] << texSz; V = (UV[1] << 4) + (invUV[j] != 2 ? 16 - base : base);
+				base = vtx[4+coordU[j]] << texSz; U = (UV[0] << 4) + (rev == 1 ? 16 - base : base);
+				base = vtx[4+coordV[j]] << texSz; V = (UV[1] << 4) + (rev != 2 ? 16 - base : base);
 
 				out[1] = Z1 | (RELDX(vtx[4] + xyz[0]) << 16) | ((V & 512) << 21);
 				out[2] = RELDY(vtx[5] + xyz[1]) | (RELDZ(vtx[6] + xyz[2]) << 14) | ((ocsext & 0xf0) << 24);
@@ -495,8 +497,8 @@ void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DAT
 				out[4] = RELDZ(vtx[10] + xyz[2]) | (U << 14) | (V << 23);
 
 				/* tex size and normal */
-				base = vtx[8+coordU[j]] << texSz; Usz = (UV[0] << 4) + (invUV[j] == 1 ? 16 - base : base);
-				base = vtx[8+coordV[j]] << texSz; Vsz = (UV[1] << 4) + (invUV[j] != 2 ? 16 - base : base);
+				base = vtx[8+coordU[j]] << texSz; Usz = (UV[0] << 4) + (rev == 1 ? 16 - base : base);
+				base = vtx[8+coordV[j]] << texSz; Vsz = (UV[1] << 4) + (rev != 2 ? 16 - base : base);
 				out[5] = ((Usz + 128 - U) << 16) | ((Vsz + 128 - V) << 24) | (j << 9) | ocsval;
 				out[6] = 0;
 

@@ -110,9 +110,12 @@ void mapInitIter(Map map, BlockIter iter, vec4 pos, Bool autoAlloc)
 	iter->offset   = CHUNK_BLOCK_POS(iter->x, iter->z, y&15);
 	iter->blockIds = cd ? cd->blockIds : NULL;
 
-	if (autoAlloc && cd == NULL && 0 <= layer && layer < CHUNK_LIMIT)
+	if (cd == NULL)
 	{
-		iter->cd = cd = chunkCreateEmpty(ref, layer);
+		if (autoAlloc && 0 <= layer && layer < CHUNK_LIMIT)
+			iter->cd = cd = chunkCreateEmpty(ref, layer);
+		else /* iterator around a block in mapUpdate.c/blockUpdate.c might go one block above or below */
+			iter->cd = cd = chunkAir;
 		iter->blockIds = cd->blockIds;
 	}
 }
@@ -179,10 +182,13 @@ void mapIter(BlockIter iter, int dx, int dy, int dz)
 	/* iterate over y axis */
 	ChunkData cd = (iter->yabs>>4) < CHUNK_LIMIT ? ref->layer[iter->yabs>>4] : NULL;
 
-	if (cd == NULL && iter->alloc)
+	if (cd == NULL)
 	{
 		/* XXX check if above or below build limit */
-		cd = chunkCreateEmpty(ref, iter->yabs>>4);
+		if (iter->alloc)
+			cd = chunkCreateEmpty(ref, iter->yabs>>4);
+		else
+			cd = chunkAir;
 	}
 
 	iter->ref = ref;
@@ -404,6 +410,7 @@ static void mapUpdateSkyLightBlock(BlockIter iterator)
 			mapIter(&neighbor, xoff[i], yoff[i], zoff[i]);
 
 			level = mapGetSky(&neighbor);
+			if (i >= 4) level --;
 
 			if (level >= sky && max < level)
 			{
@@ -1406,7 +1413,7 @@ void mapUpdateMesh(Map map)
 		cd->slot = 0;
 		next = cd->update;
 		fprintf(stderr, "updating chunk %d, %d, %d%s\n", cd->chunk->X, cd->Y, cd->chunk->Z, cd->cdFlags & CDFLAG_UPDATENEARBY ? " [NEARBY]" : "");
-		chunkUpdate(cd->chunk, map->air, cd->Y >> 4);
+		chunkUpdate(cd->chunk, chunkAir, cd->Y >> 4);
 		renderFinishMesh(True);
 		particlesChunkUpdate(map, cd);
 		if (cd->cdFlags == CDFLAG_PENDINGDEL)

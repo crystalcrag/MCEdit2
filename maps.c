@@ -25,7 +25,8 @@ static struct Frustum_t frustum = {
 };
 
 /* given a direction encodded as bitfield (S, E, N, W), return offset of where that chunk is */
-int16_t chunkNeighbor[16*9];
+int16_t   chunkNeighbor[16*9];
+ChunkData chunkAir;
 
 extern uint8_t openDoorDataToModel[];
 extern uint8_t firstFree[];
@@ -672,7 +673,7 @@ void mapGenerateMesh(Map map)
 			if (cd)
 			{
 				/* this is the function that will convert chunk into triangles */
-				chunkUpdate(list, map->air, i);
+				chunkUpdate(list, chunkAir, i);
 				renderFinishMesh(False);
 				particlesChunkUpdate(map, cd);
 				if (cd->cdFlags == CDFLAG_PENDINGDEL)
@@ -873,16 +874,15 @@ Bool mapSetRenderDist(Map map, int maxDist)
 /* before world is loaded, check that the map has a few chunks in it */
 Map mapInitFromPath(STRPTR path, int renderDist)
 {
-	Map map = calloc(sizeof *map + sizeof *map->air + MIN_SECTION_MEM, 1);
+	Map map = calloc(sizeof *map + sizeof *chunkAir + MIN_SECTION_MEM, 1);
 
 	if (map)
 	{
-		ChunkData air = (ChunkData) (map + 1);
+		ChunkData air = chunkAir = (ChunkData) (map + 1);
 		map->maxDist = renderDist * 2 + 1;
 		map->mapArea = renderDist * 2 + 5;
 		map->mapSize = map->mapArea * map->mapArea;
 		map->mapZ    = map->mapX = renderDist + 2;
-		map->air     = air;
 
 		/* all tables but skyLight will be 0 */
 		air->blockIds = (DATA8) (air+1);
