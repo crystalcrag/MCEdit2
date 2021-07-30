@@ -721,6 +721,12 @@ uint8_t cubeIndices[6*4] = { /* face (quad) of cube: S, E, N, W, T, B */
 	9, 0, 3, 6,    6, 3, 15, 18,     18, 15, 12, 21,     21, 12, 0, 9,    21, 9, 6, 18,      0, 12, 15, 3
 /*  3, 0, 1, 2,    2, 1,  5,  6,      6,  5,  4,  7,      7,  4, 0, 3,     7, 3, 2,  6,      0,  4,  5, 1 */
 };
+uint8_t texCoord[] = { /* tex coord for each face: each line is a rotation, indexed by (Block.rotate&3)*8 */
+	0,0,    0,1,    1,1,    1,0,
+	0,1,    1,1,    1,0,    0,0,
+	1,1,    1,0,    0,0,    0,1,
+	1,0,    0,0,    0,1,    1,1,
+};
 uint8_t skyBlockOffset[] = { /* where to get skylight to shade a vertex of a cube: grab max of 4 values per vertex */
 	15, 16, 24, 25,    6,  7, 15, 16,    7,  8, 16, 17,    16, 17, 25, 26,
 	14, 17, 23, 26,    5,  8, 14, 17,    2,  5, 11, 14,    11, 14, 20, 23,
@@ -750,12 +756,6 @@ uint8_t openDoorDataToModel[] = {
 	5, 6, 7, 4, 3, 0, 1, 2
 };
 
-uint8_t texCoord[] = { /* tex coord for each face: each line is a rotation, indexed by (Block.rotate&3)*8 */
-	0,0,    0,1,    1,1,    1,0,
-	0,1,    1,1,    1,0,    0,0,
-	1,1,    1,0,    0,0,    0,1,
-	1,0,    0,0,    0,1,    1,1,
-};
 static int offsets[] = { /* neighbors: S, E, N, W, T, B */
 	16, 1, -16, -1, 256, -256
 };
@@ -1017,8 +1017,8 @@ void chunkUpdate(Chunk c, ChunkData empty, int layer)
 
 	memset(visited, 0, sizeof visited);
 
-	if (c->X == 192 && cur->Y == 96 && c->Z == 960)
-		breakPoint = 1;
+//	if (c->X == 192 && cur->Y == 96 && c->Z == 976)
+//		breakPoint = 1;
 
 	for (pos = air = 0; pos < 16*16*16; pos ++)
 	{
@@ -1029,13 +1029,13 @@ void chunkUpdate(Chunk c, ChunkData empty, int layer)
 
 		data  = blocks[DATA_OFFSET + (pos >> 1)]; if (pos & 1) data >>= 4; else data &= 15;
 		block = blocks[pos];
-		state = blockGetByIdData(block, data);
+		state = blockGetById(ID(block, data));
 
-		if (breakPoint && pos == 3804)
-			breakPoint = 2;
+//		if (breakPoint && pos == 2868)
+//			breakPoint = 2;
 
 		/* 3d flood fill for cave culling */
-		if (! blockIsFullySollid(state) && (slotsXZ[pos & 0xff] || slotsY[pos >> 8]) && (visited[pos>>3] & mask8bit[pos&7]) == 0)
+		if (! blockIsFullySolid(state) && (slotsXZ[pos & 0xff] || slotsY[pos >> 8]) && (visited[pos>>3] & mask8bit[pos&7]) == 0)
 			cur->cnxGraph |= mapUpdateGetCnxGraph(cur, pos, visited);
 
 		if (blockIds[block].particle)
@@ -1372,7 +1372,7 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 	/* vertex and light info still need to be adjusted */
 	for (count = model[-1]; count > 0; count -= 6, model += 6 * INT_PER_VERTEX)
 	{
-		uint8_t faceId = (model[4] >> 8) & 31;
+		uint8_t faceId = (model[4] >> FACEIDSHIFT) & 31;
 		if (faceId > 0 && (connect & (1 << (faceId-1))) == 0)
 		{
 			/* discard vertex */

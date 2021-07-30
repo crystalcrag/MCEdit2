@@ -567,6 +567,9 @@ static void mapUpdateRestoreSky(BlockIter iterator)
 	uint8_t sky = mapGetSky(&iter);
 	if (0 < sky && sky < MAXSKY) sky --;
 	mapUpdateTable(iterator, sky, SKYLIGHT_OFFSET);
+	DATA32 height = &iter.ref->heightMap[CHUNK_BLOCK_POS(iter.x, iter.z, 0)];
+	if (sky == MAXSKY && height[0] == iter.yabs)
+		height[0] --;
 }
 
 /*
@@ -1380,7 +1383,7 @@ int mapUpdateGetCnxGraph(ChunkData cd, int start, DATA8 visited)
 			int   pos = CHUNK_BLOCK_POS(x, z, y);
 			Block b = blockIds + blocks[pos];
 			/* only fully opaque blocks will stop flood: we could be more precise, but not worth the time spent */
-			if (! blockIsFullySollid(b) &&
+			if (! blockIsFullySolid(b) &&
 				(visited[pos>>3] & mask8bit[pos&7]) == 0)
 			{
 				trackAdd(x, y, z);
@@ -1412,7 +1415,7 @@ void mapUpdateMesh(Map map)
 	{
 		cd->slot = 0;
 		next = cd->update;
-		fprintf(stderr, "updating chunk %d, %d, %d%s\n", cd->chunk->X, cd->Y, cd->chunk->Z, cd->cdFlags & CDFLAG_UPDATENEARBY ? " [NEARBY]" : "");
+		//fprintf(stderr, "updating chunk %d, %d, %d%s\n", cd->chunk->X, cd->Y, cd->chunk->Z, cd->cdFlags & CDFLAG_UPDATENEARBY ? " [NEARBY]" : "");
 		chunkUpdate(cd->chunk, chunkAir, cd->Y >> 4);
 		renderFinishMesh(True);
 		particlesChunkUpdate(map, cd);
@@ -1547,7 +1550,7 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 	}
 
 	/* update blockId/metaData tables */
-	fprintf(stderr, "setting block %g, %g, %g to %d:%d\n", pos[0], pos[1], pos[2], blockId >> 4, blockId & 15);
+	//fprintf(stderr, "setting block %g, %g, %g to %d:%d\n", pos[0], pos[1], pos[2], blockId >> 4, blockId & 15);
 	iter.blockIds[iter.offset] = blockId >> 4;
 	if (iter.offset & 1) *data = (*data & 0x0f) | ((blockId & 0xf) << 4);
 	else                 *data = (*data & 0xf0) | (blockId & 0xf);

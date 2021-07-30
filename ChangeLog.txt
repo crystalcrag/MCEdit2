@@ -1,4 +1,13 @@
 =========== Week 30 ===========
+Thu July 29:
+	* slight fixes when moving blocks with piston.
+
+Wed July 28:
+	* started movable tile entity.
+
+Tue July 27:
+	* final fixes for half-block AO and meshing, hopefully.
+
 Mon July 26:
 	* half-slab preview had their V texture coordinate inverted.
 	* skylight did not updated when blocked.
@@ -35,7 +44,7 @@ Mon July 12:
 
 =========== Week 27 ===========
 Sun July 11:
-	* slight chunk meshing optimization.
+	* slight chunk meshing optimization (don't update nearby chunks if block doesn't have connected models).
 	* rail rsupdate started.
 
 Sat July 10:

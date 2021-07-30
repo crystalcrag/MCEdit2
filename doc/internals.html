@@ -1203,7 +1203,7 @@ very much. Each field has the following meaning:
 <p>Two triangles will be constructed out of the 4 vertices: V1 - V2 - V3 and V3 - V2 - V4. Then,
 each face will be decomposed like this:
 
-<div class="photo">
+<div class="photo" id="quadface">
   <img src="images/quad_face.png">
 </div>
 
@@ -1247,17 +1247,17 @@ their pros and cons</b>:
 <ol>
   <li><tt>SOLID</tt>: these are the <b>bread and butter of a voxel engine</b>: a block that occupies the full
   space of a voxel. It can have arbitrary textures on all 6 sides, hidden faces can be culled easily and
-  efficiently, and have a precise lightning model (including skylight, blocklight and ambient occlusion).
+  efficiently, and have a precise lighting model (including skylight, blocklight and ambient occlusion).
 
-  <p>The <b>native "resolution"</b> of this engine is actually half a voxel: i.e.: a full voxel that
+  <p>The <b>native "resolution"</b> of this engine is actually "half" a voxel: i.e.: a full voxel that
   has been split in half on the X, Y and Z axis. Which means a full voxel is made of 8 sub-voxels
   (i.e: you can, for example, render all kind of slabs with this: vertical, horizontal, 2x1, ...).
 
   <p>A typical map is usually composed of 80% of these blocks, therefore they require quite a bit of
-  work (thus, will need a lot of look-up tables).
+  work (thus, will need <b>a lot</b> of look-up tables).
 
   <li><tt>CUST</tt>: voxels that can have an <b>arbirary shape</b> and have a much greater precision than half-blocks.
-  The major drawback with these is that their <b>lightning model is greatly simplified</b>: for example, they
+  The major drawback with these is that their <b>lighting model is greatly simplified</b>: for example, they
   don't generate any ambient occlusion. Also the same skylight and blocklight is applied to the entire
   model: if you were to generate a floor out of these with a block light nearby, you would be able to
   see that the transition between light values is not smooth at all (and have that <prod>Minecraft</prod>
@@ -1266,16 +1266,16 @@ their pros and cons</b>:
   <p>Hidden face culling is still performed aggressively on these: a full voxel model will therefore
   be culled the same way as a <tt>SOLID</tt> block.
 
-  <p>This type includes blocks like fences, glass panes, pistons, torch, chest, doors, ...
+  <p>This type includes blocks like fences, glass panes, pistons, torches, chests, doors, ...
   
   <p>Note: this type of blocks also includes what is known as "chiseled" blocks: slab and detailed blocks
   (X, Y, Z split by 8).
 
   <li><tt>QUAD</tt>: this is a <b>very simple voxel to process</b>: only a handful of combination exists
   and all of them are trivial to process compared to the previous two. The typical use case for these
-  are flowers, crops, grass and rails.
+  are flowers, crops, grass, rails...
 
-  <p>Like <tt>CUST</tt>, they use a simplified lightning model: single skylight/blocklight value for
+  <p>Like <tt>CUST</tt>, they use a simplified lighting model: single skylight/blocklight value for
   the entire model, and no ambient occlusion. Technically, they could be handled as <tt>CUST</tt>, but
   specifying a custom model each time they are needed is way too tedious.
 </ol>
@@ -1283,14 +1283,50 @@ their pros and cons</b>:
 <p>Note: keep in mind that all blocks must be aligned inside the voxel grid. Technically, it is possible
 to generate triangles at arbirary position, but the voxel manipulation functions won't be able to handle
 it. To place a model at a truly arbitrary position, you need to use entities: this will be covered in the
-next section.
+next section (and have their own pros and cons).
 
 <h3 id="meshsolid"><span><tt>SOLID</tt> voxel</span></h3>
 
-<p>These blocks requires, by far, the most amount of work. Therefore, be ready to for some heavy use
-of look-up tables.
+<p>These blocks requires quite a bit of work to be converted into meshes. First, keep
+<a href="#quadface">this picture</a> in mind, its information will be used <b>extensively</b>
+in the entire meshing phase.
 
-<p>/* ... */
+<p>Converting a full solid voxel into a pseudo quad (technically a <tt>GL_POINT</tt>, that will be transformed
+into 2 triangles in the geometry shader to a form a <tt>GL_QUAD</tt>), you need just a couple of look-up tables:
+
+<pre style="font-size: 0.8em"><span class="t">uint8_t</span> vertex[<v>3</v>*<v>8</v>] = { <span class="c">/* 8 vertices of a 1x1x1 cube */</span>
+    <v>0</v>,<v>0</v>,<v>1</v>,  <v>1</v>,<v>0</v>,<v>1</v>,  <v>1</v>,<v>1</v>,<v>1</v>,  <v>0</v>,<v>1</v>,<v>1</v>,
+    <v>0</v>,<v>0</v>,<v>0</v>,  <v>1</v>,<v>0</v>,<v>0</v>,  <v>1</v>,<v>1</v>,<v>0</v>,  <v>0</v>,<v>1</v>,<v>0</v>,
+};
+<span class="t">uint8_t</span> cubeIndices[<v>6</v>*<v>4</v>] = { <span class="c">/* face (quad) of cube: S, E, N, W, T, B */</span>
+    <v>9</v>, <v>0</v>, <v>3</v>, <v>6</v>,    <v>6</v>, <v>3</v>, <v>15</v>, <v>18</v>,     <v>18</v>, <v>15</v>, <v>12</v>, <v>21</v>,     <v>21</v>, <v>12</v>, <v>0</v>, <v>9</v>,    <v>21</v>, <v>9</v>, <v>6</v>, <v>18</v>,      <v>0</v>, <v>12</v>, <v>15</v>, <v>3</v>
+<span class="c">/*  3, 0, 1, 2,    2, 1,  5,  6,      6,  5,  4,  7,      7,  4, 0, 3,     7, 3, 2,  6,      0,  4,  5, 1 */</span>
+};
+<span class="t">uint8_t</span> texCoord[] = { <span class="c">/* tex coord for each face: each line is a rotation, indexed by (Block.rotate&amp;3)*8 */</span>
+    <v>0</v>,<v>0</v>,    <v>0</v>,<v>1</v>,    <v>1</v>,<v>1</v>,    <v>1</v>,<v>0</v>,
+    <v>0</v>,<v>1</v>,    <v>1</v>,<v>1</v>,    <v>1</v>,<v>0</v>,    <v>0</v>,<v>0</v>,
+    <v>1</v>,<v>1</v>,    <v>1</v>,<v>0</v>,    <v>0</v>,<v>0</v>,    <v>0</v>,<v>1</v>,
+    <v>1</v>,<v>0</v>,    <v>0</v>,<v>0</v>,    <v>0</v>,<v>1</v>,    <v>1</v>,<v>1</v>,
+};
+</pre>
+
+<p>It is as simple as it gets: <tt>vertex</tt> refers to the coordinates in world space (if the cube were
+to be rendered at 0,0,0) or each corner, then to get the 4 coordinates of a given face <tt>cubeIndices</tt>
+are indices within <tt>vertex[]</tt> array. The indices are pre-multiplied by 3, to avoid doing it in
+the <b>many places</b> they are needed. The order/orientation is described in <a href="#quadface">this
+picture</a>.
+
+<p>In case you are wondering, the vertices and face order have no particular meaning nor does them
+enable special tricks. All of this was chosen kind of arbitrarily very early in the development and
+turn out to be OK: neither particularly good, nor bad.
+
+<p>Keep in mind that coordinates for the mesh will be relative to the sub-chunk origin (a 16x16x16
+chunk of terrain). In the vertex shader, each sub-chunk will receive a <tt>vec3</tt> offset that
+will be addded to every vertex.
+
+<p><b>The order in which vertices of a face are enumerated</b> has a meaning though: it is done so that
+all the remaining information (texture coordinates, lighting, ambient occlusion) can be applied the
+same way on all faces.
 
 <h3 id="meshcust"><span><tt>CUST</tt> voxel</span></h3>
 
@@ -1305,9 +1341,11 @@ everything related to an NBT tree as close as possible in memory, to benefit fro
 <p>This is actually the main focus of this API: it <b>strongly</b> favors read over write access. The
 rationale for this choice being that most chunks in a map will never be modified at all, and for those
 that will, most of time it is simply a matter of overwriting some tables (<tt>BlockLight</tt>,
-<tt>Blocks</tt>, <tt>Data</tt>, ...). There are a few lists (<tt>TileEntites</tt>, <tt>Entities</tt>,
-<tt>TileTicks</tt>, ...) where the content can change significantly, and this is where this API will
-a bit more tedious to use than other APIs.
+<tt>Blocks</tt>, <tt>Data</tt>, ...).
+
+<p>There are a few lists (<tt>TileEntites</tt>, <tt>Entities</tt>, <tt>TileTicks</tt>, ...) where the
+content can change significantly, and this is where this API will a bit more tedious to use than other
+APIs.
 
 <p>/* ... */
 

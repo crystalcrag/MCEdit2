@@ -1,5 +1,7 @@
 /*
  * blocks.gsh : convert GL_POINT from blocks.vsh into GL_QUAD.
+ *
+ * check doc/internals.html for vertex format: abandon all hope without reading this first.
  */
 #version 430 core
 

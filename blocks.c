@@ -901,7 +901,7 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 		value = jsonValue(keys, "particle");
 		block.particle = FindInList("BITS,SMOKE,NETHER", value, 0) + 1;
 
-		/* chunk meshing optization: mark block will *automatically* update nearby blocks */
+		/* chunk meshing optization: mark block that will *automatically* update nearby blocks */
 		switch (block.type) {
 		case CUST:
 			switch (block.special&31) {
@@ -1441,13 +1441,14 @@ static int blockInvModelQuad(DATA16 ret, DATA8 UV)
 }
 
 /* need to remove custom faceId and set light level to max */
-static int blockInvCopyFromModel(DATA16 ret, DATA16 model, int faceId)
+int blockInvCopyFromModel(DATA16 ret, DATA16 model, int connect)
 {
 	int count, vtx;
 
 	for (count = model[-1], vtx = 0; count > 0; count --, model += INT_PER_VERTEX)
 	{
-		if ((faceId & (1 << (model[4] >> FACEIDSHIFT))) == 0) continue;
+		uint8_t faceId = (model[4] >> FACEIDSHIFT) & 31;
+		if (faceId > 0 && (connect & (1 << (faceId-1))) == 0) continue;
 		memcpy(ret, model, BYTES_PER_VERTEX);
 		ret[4] = (ret[4] & 0xff) | (0xf0 << 8);
 		vtx ++; ret += INT_PER_VERTEX;
@@ -1455,12 +1456,14 @@ static int blockInvCopyFromModel(DATA16 ret, DATA16 model, int faceId)
 	return vtx;
 }
 
-static int blockInvCountVertex(DATA16 model, int faceId)
+int blockInvCountVertex(DATA16 model, int connect)
 {
 	int count, vtx;
 	for (count = model[-1], vtx = 0; count > 0; count --, model += INT_PER_VERTEX)
-		if (faceId & (1 << (model[4] >> FACEIDSHIFT))) vtx ++;
-
+	{
+		uint8_t faceId = (model[4] >> FACEIDSHIFT) & 31;
+		if (faceId == 0 || (connect & (1 << (faceId-1)))) vtx ++;
+	}
 	return vtx;
 }
 
@@ -1531,12 +1534,12 @@ void blockParseInventory(int vbo)
 		case MODL:
 			b = &blockIds[state->id>>4];
 			if (b->orientHint == ORIENT_BED && b->model)
-				total = blockInvCopyFromModel(vertex, b->model, 1 << (state->id & 15));
+				total = blockInvCopyFromModel(vertex, b->model, 1 << ((state->id & 15)-1));
 			else if (b->special == BLOCK_WALL)
-				total = blockInvCopyFromModel(vertex, state->custModel, 1+4+16+32+64);
+				total = blockInvCopyFromModel(vertex, state->custModel, 2+8+16+32);
 			else if (b->special == BLOCK_CHEST)
 				/* don't want double chest models */
-				total = blockInvCopyFromModel(vertex, state->custModel, 2);
+				total = blockInvCopyFromModel(vertex, state->custModel, 1);
 			else if (b->model)
 				total = blockInvCopyFromModel(vertex, b->model, ALLFACEIDS);
 			else if (state->custModel)
@@ -2536,7 +2539,7 @@ static int blockModelBed(DATA16 buffer, int blockId)
 	BlockState b = blockGetById(blockId & 0xfff);
 
 	/* blockId >> 12 == color from 0 to 15, faceId varies from 1 to 16 */
-	return blockInvCopyFromModel(buffer, b->custModel, 2 << (blockId >> 12));
+	return blockInvCopyFromModel(buffer, b->custModel, 1 << (blockId >> 12));
 }
 
 /* convert between terrain vertex to model vertetx */
@@ -2552,7 +2555,7 @@ static int blockConvertVertex(DATA32 source, DATA32 end, DATA16 dest, int max)
 		uint16_t U2  = bitfieldExtract(source[5], 16, 8);
 		uint16_t V2  = bitfieldExtract(source[5], 24, 8);
 		uint16_t U1  = bitfieldExtract(source[4], 14, 9);
-		uint16_t V1  = bitfieldExtract(source[4], 23, 9) | (bitfieldExtract(source[3], 28, 1) << 9);
+		uint16_t V1  = bitfieldExtract(source[4], 23, 9) | (bitfieldExtract(source[1], 30, 1) << 9);
 		uint8_t  Xeq = bitfieldExtract(source[5], 12, 1);
 		uint16_t rem = bitfieldExtract(source[5],  9, 3) << 3;
 
@@ -2633,7 +2636,7 @@ int blockGenModel(int vbo, int blockId)
 			switch (SPECIALSTATE(b)) {
 			case BLOCK_GLASS:
 				/* only grab center piece */
-				vtx = blockInvCopyFromModel(buffer, b->custModel, 63 << 13);
+				vtx = blockInvCopyFromModel(buffer, b->custModel, 63 << 12);
 				break;
 			case BLOCK_BED:
 				/* only grab one color */
@@ -2641,14 +2644,14 @@ int blockGenModel(int vbo, int blockId)
 				break;
 			case BLOCK_RSWIRE:
 				/* grab center */
-				vtx = blockInvCopyFromModel(buffer, b->custModel, 1 << 9);
+				vtx = blockInvCopyFromModel(buffer, b->custModel, 1 << 8);
 				break;
 			case BLOCK_FENCE:
 				/* only center piece */
-				vtx = blockInvCopyFromModel(buffer, b->custModel, 1);
+				vtx = blockInvCopyFromModel(buffer, b->custModel, 0);
 				break;
 			case BLOCK_CHEST:
-				vtx = blockInvCopyFromModel(buffer, b->custModel, 2);
+				vtx = blockInvCopyFromModel(buffer, b->custModel, 1);
 				break;
 			case BLOCK_SOLIDOUTER:
 				vtx = blockInvCopyFromModel(buffer, b->custModel, ALLFACEIDS);
@@ -2940,7 +2943,7 @@ int blockGetConnect4(DATA8 neighbors, int type)
 	/* neighbors need to be ordered S, E, N, W */
 	for (i = 1; i < 16; i <<= 1, neighbors += 2)
 	{
-		BlockState n = blockGetByIdData(neighbors[0], neighbors[1]);
+		BlockState n = blockGetById(ID(neighbors[0], neighbors[1]));
 		if (n->special == BLOCK_STAIRS)
 		{
 			if (stairsOrient[n->id&7] == i)
@@ -3027,7 +3030,7 @@ int blockGetConnect(BlockState b, DATA8 neighbors)
 		/* if not connected to exactly 2 walls, drawn a bigger center piece */
 		if ((ret != 5 && ret != 10) || neighbors[26] > 0)
 			ret |= 16;
-		n = blockGetByIdData(neighbors[8], neighbors[9]);
+		n = blockGetById(ID(neighbors[8], neighbors[9]));
 		if (n->type == SOLID)
 			ret |= 32; /* do some face culling */
 		break;
@@ -3035,12 +3038,12 @@ int blockGetConnect(BlockState b, DATA8 neighbors)
 		/* middle: bit4~7 */
 		middle = blockGetConnect4(neighbors+10, type);
 		/* bottom: bit0~3 */
-		n = blockGetByIdData(neighbors[8], neighbors[9]);
+		n = blockGetById(ID(neighbors[8], neighbors[9]));
 		ret = (n->special == type ? blockGetConnect4(neighbors, type) ^ 15 : 15) & middle;
 		/* bottom center piece cap */
 		if (n->special != type) ret |= 1<<17;
 		/* top: bit8~11 */
-		n = blockGetByIdData(neighbors[26], neighbors[27]);
+		n = blockGetById(ID(neighbors[26], neighbors[27]));
 		ret |= ((n->special == type ? blockGetConnect4(neighbors+18, type) ^ 15 : 15) & middle) << 8;
 		ret |= middle << 4;
 		/* top center piece cap */

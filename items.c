@@ -359,7 +359,7 @@ int itemGetInventoryByCat(Item buffer, int cat)
 	Item item = buffer;
 
 	/* scan block states */
-	for (state = blockGetByIdData(1, 0); state->id < ID(255,0); state ++)
+	for (state = blockGetById(ID(1, 0)); state->id < ID(255,0); state ++)
 	{
 		uint8_t bcat = state->inventory & CATFLAGS;
 		if (cat > 0 ? bcat != cat : bcat == 0)

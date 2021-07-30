@@ -255,8 +255,8 @@ int main(int nb, char * argv[])
 		return 1;
 	}
 
-//	mcedit.level = renderInitWorld("TestMesh", mcedit.maxDist);
-	mcedit.level = renderInitWorld("World1_12", mcedit.maxDist);
+	mcedit.level = renderInitWorld("TestMesh", mcedit.maxDist);
+//	mcedit.level = renderInitWorld("World1_12", mcedit.maxDist);
 	mcedit.state = GAMELOOP_WORLD;
 
 	if (mcedit.level == NULL)

@@ -568,7 +568,7 @@ static Bool mapUpdateAddPistonExt(Map map, struct BlockIter_t iter, int blockId,
 	vec4    src = {iter.x + iter.ref->X, iter.yabs, iter.z + iter.ref->Z};
 	Chunk   ref = iter.ref;
 
-	/* XXX not sure where this tile entity for moving head is stored: use position it is now */
+	/* XXX not sure where this tile entity for moving head is stored: use position it is now (instead of its final position) */
 	mapIter(&iter, relx[ext], rely[ext], relz[ext]);
 	vec4 dest = {iter.x + iter.ref->X, iter.yabs, iter.z + iter.ref->Z};
 
@@ -604,8 +604,9 @@ static Bool mapUpdateAddPistonExt(Map map, struct BlockIter_t iter, int blockId,
 			TAG_Int,    "facing",    blockId & 7,
 			TAG_Double, "progress",  0.0,
 			TAG_Int,    "source",    1,
-			TAG_End
+			TAG_Compound_End
 		);
+		fprintf(stderr, "adding piston extension at %g,%g,%g\n", pos[0], pos[1], pos[2]);
 		chunkAddTileEntity(ref, XYZ, ret.mem);
 		tile = ret.mem;
 	}
@@ -650,31 +651,51 @@ void mapUpdateToBlock36(Map map, RSWire list, int count, int dir, BlockIter iter
 
 		/* place tile entity of block 36 into source block (like piston head) */
 		NBTFile_t tile = {.page = 127};
+		int       cnx  = 0;
 		TEXT      itemId[128];
 		STRPTR    blockName;
 		itemGetTechName(ID(RSPISTONEXT, 0), itemId, sizeof itemId);
 		blockName = strchr(itemId, 0) + 1;
 		itemGetTechName(list->blockId << 4, blockName, sizeof itemId - (blockName - itemId));
 
+		switch (blockIds[list->blockId].special) {
+		case BLOCK_FENCE:
+		case BLOCK_FENCE2:
+		case BLOCK_GLASS:
+		case BLOCK_WALL:
+			/* try to keep the model somewhat close to what it was in block form */
+			cnx = mapGetConnect(iter.cd, iter.offset, blockGetById(ID(list->blockId, list->data)));
+			break;
+		case BLOCK_CHEST:
+			/* only want single block chest */
+			cnx = 1;
+		}
+		/* back to start */
+		mapIter(&iter, 1, 0, 0);
+
 		NBT_Add(&tile,
 			TAG_String, "id",        itemId,
 			TAG_String, "blockId",   blockName,
 			TAG_Int,    "blockData", list->data,
+			TAG_Int,    "blockCnx",  cnx,
 			TAG_Int,    "x",         (int) src[VX],
 			TAG_Int,    "y",         (int) src[VY],
 			TAG_Int,    "z",         (int) src[VZ],
-			TAG_End
+			TAG_Compound_End
 		);
 		mapUpdate(map, src, ID(RSPISTONEXT, 0), tile.mem, UPDATE_KEEPLIGHT);
+		fprintf(stderr, "adding block 36 (from %s) at %g,%g,%g\n", blockName, src[0], src[1], src[2]);
 
 		entityUpdateOrCreate(iter.ref, src, (list->blockId << 4) | list->data, dst, 1, tile.mem);
 
 		/* also replace destination block */
+		#if 0
 		mapIter(&iter, off[0], off[1], off[2]);
 		uint8_t block = iter.blockIds[iter.offset];
 		if (block != RSPISTONEXT && block != RSPISTONHEAD)
-			//fprintf(stderr, "adding block 36 at %g,%g,%g\n", dst[0], dst[1], dst[2]),
+			fprintf(stderr, "adding extra block 36 (from %s) at %g,%g,%g\n", blockName, dst[0], dst[1], dst[2]),
 			mapUpdate(map, dst, ID(RSPISTONEXT, 0), NULL, UPDATE_KEEPLIGHT);
+		#endif
 	}
 }
 

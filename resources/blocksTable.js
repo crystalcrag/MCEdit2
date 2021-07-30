@@ -565,7 +565,7 @@
 		{state: 6, name: "+top, south",    tex: [4, 0, 4, 0, 4, 0, 4, 0, 4, 0, 4, 0]},
 		{state: 7, name: "+top, north",    tex: [4, 0, 4, 0, 4, 0, 4, 0, 4, 0, 4, 0]},
 
-	{id: 54, name: "Chest", type: CUST, special: CHEST, inv: MODEL, bbox: FULL, invState: 3, cat: DECO, tile: 1, orient: SENW, pushable: NO},
+	{id: 54, name: "Chest", type: CUST, special: CHEST, inv: MODEL, bbox: FULL, invState: 3, cat: DECO, tile: 1, orient: SENW},
 		{state: 0, tex: [17, 3,17, 3,18, 3,17, 3], model: [
 			319+BHDR_INCFACEID,14,14,14,1,0,1,0,0,0,0,0,0,24896,33104,33120,24912,24896,33104,33120,24912,24912,33120,33136,24928,24896,
 				33104,33120,24912,24880,33088,33104,24896,24880,33088,33104,24896,

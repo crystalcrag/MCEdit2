@@ -24,7 +24,7 @@
 
 static struct EntitiesPrivate_t entities;
 static void hashAlloc(int);
-static int  entityAddModel(int, CustModel);
+static int  entityAddModel(int blockId, int cnx, CustModel);
 
 static struct VTXBBox_t entitiesBBox[] = {
 	{  BOX(1.0, 1.0, 1.0), .sides = 63, .aabox = 1},  /* ENTITY_UNKNOWN */
@@ -60,6 +60,7 @@ static VTXBBox entityAllocBBox(void)
 	return bbox;
 }
 
+/* pre-create some entities from entities.js */
 static Bool entityCreateModel(const char * file, STRPTR * keys, int lineNum)
 {
 	STRPTR id, name, model;
@@ -103,7 +104,7 @@ static Bool entityCreateModel(const char * file, STRPTR * keys, int lineNum)
 		cust.model[index] = val;
 	}
 
-	entityAddModel(modelId, &cust);
+	entityAddModel(modelId, 0, &cust);
 
 	return True;
 }
@@ -113,7 +114,7 @@ Bool entityInitStatic(void)
 	/* pre-alloc some entities */
 	hashAlloc(ENTITY_BATCH);
 	/* already add model for unknown entity */
-	entityAddModel(0, NULL);
+	entityAddModel(0, 0, NULL);
 
 	/* parse entity description models */
 	if (! jsonParse(RESDIR "entities.js", entityCreateModel))
@@ -124,7 +125,7 @@ Bool entityInitStatic(void)
 }
 
 /*
- * quick and dirty hash table to associated entity id with bank+vbo
+ * quick and dirty hash table to associate entity id with bank+vbo
  */
 #define EOL     0xffff
 
@@ -211,7 +212,7 @@ static void hashInsert(int id, int VBObank)
 extern int blockInvModelCube(DATA16 ret, BlockState b, DATA8 texCoord);
 
 /* get vertex count for entity id */
-static int entityModelCount(int id)
+static int entityModelCount(int id, int cnx)
 {
 	if (id < ID(256, 0))
 	{
@@ -223,16 +224,20 @@ static int entityModelCount(int id)
 		case TRANS: return 36;
 		case CUST:
 			if (b->custModel == NULL) return 36; /* assume cube, if no model */
-			id = b->custModel[-1];
-			if (b->special == BLOCK_SOLIDOUTER)
-				id += 36;
+			if (cnx == 0)
+			{
+				id = b->custModel[-1];
+				if (b->special == BLOCK_SOLIDOUTER)
+					id += 36;
+			}
+			else id = blockInvCountVertex(b->custModel, cnx);
 			return id;
 		}
 	}
 	return 0;
 }
 
-static int entityGenModel(EntityBank bank, int id, CustModel cust)
+static int entityGenModel(EntityBank bank, int id, int cnx, CustModel cust)
 {
 	glBindBuffer(GL_ARRAY_BUFFER, bank->vboModel);
 	DATA16  buffer = glMapBuffer(GL_ARRAY_BUFFER, GL_READ_WRITE);
@@ -247,10 +252,10 @@ static int entityGenModel(EntityBank bank, int id, CustModel cust)
 		BlockState b = blockGetById(id);
 		if (id == 0)
 		{
+			/* used by unknown entity */
 			static struct BlockState_t unknownEntity = {
 				0, CUBE, 0, NULL, 31,13,31,13,31,13,31,13,31,13,31,13
 			};
-			/* used by unknwon entity */
 			count = blockInvModelCube(buffer, &unknownEntity, texCoord);
 			bbox  = entityAllocBBox();
 			blockCenterModel(buffer, count, 0, 0, bbox);
@@ -264,8 +269,16 @@ static int entityGenModel(EntityBank bank, int id, CustModel cust)
 		case CUST:
 			if (b->custModel)
 			{
-				count = b->custModel[-1];
-				memcpy(buffer, b->custModel, count * BYTES_PER_VERTEX);
+				if (cnx > 0)
+				{
+					/* filter some parts out */
+					count = blockInvCopyFromModel(buffer, b->custModel, cnx);
+				}
+				else /* grab entire model */
+				{
+					count = b->custModel[-1];
+					memcpy(buffer, b->custModel, count * BYTES_PER_VERTEX);
+				}
 				bbox  = blockGetBBox(b);
 				if (b->special == BLOCK_SOLIDOUTER)
 					count += blockInvModelCube(buffer + count * INT_PER_VERTEX, b, texCoord);
@@ -311,14 +324,14 @@ static int entityGenModel(EntityBank bank, int id, CustModel cust)
 	return max;
 }
 
-static int entityAddModel(int id, CustModel cust)
+static int entityAddModel(int id, int cnx, CustModel cust)
 {
 	EntityBank bank;
-	int modelId = hashSearch(id);
+	int modelId = hashSearch(id | (cnx << 16));
 	if (modelId > 0) return modelId;
 
 	/* not yet in cache, add it on the fly */
-	int count = cust ? blockCountModelVertex(cust->model, cust->vertex) : entityModelCount(id);
+	int count = cust ? blockCountModelVertex(cust->model, cust->vertex) : entityModelCount(id, cnx);
 	if (count == 0) return ENTITY_UNKNOWN;
 
 	/* check for a free place */
@@ -364,7 +377,7 @@ static int entityAddModel(int id, CustModel cust)
 	}
 
 	/* check if it has already been generated */
-	return entityGenModel(bank, id, cust);
+	return entityGenModel(bank, id, cnx, cust);
 }
 
 static Entity entityAlloc(uint16_t * entityLoc)
@@ -393,15 +406,14 @@ static Entity entityAlloc(uint16_t * entityLoc)
 static int entityGetModelId(Entity entity)
 {
 	STRPTR id = entity->name;
+	NBTFile_t nbt = {.mem = entity->tile};
 
 	/* block pushed by piston */
 	if (entity->blockId > 0)
-		return entityAddModel(entity->blockId, NULL);
+		return entityAddModel(entity->blockId, NBT_ToInt(&nbt, NBT_FindNode(&nbt, 0, "blockCnx"), 0), NULL);
 
 	if (strncmp(id, "minecraft:", 10) == 0)
 		id += 10;
-
-	NBTFile_t nbt = {.mem = entity->tile};
 
 	if (strcmp(id, "falling_block") == 0)
 	{
@@ -419,7 +431,7 @@ static int entityGetModelId(Entity entity)
 			}
 		}
 		if (block)
-			return entityAddModel(entity->blockId = itemGetByName(block, False) | data, NULL);
+			return entityAddModel(entity->blockId = itemGetByName(block, False) | data, 0, NULL);
 	}
 	else if (strcmp(id, "painting") == 0)
 	{
@@ -875,6 +887,7 @@ void entityAnimate(Map map)
 		updateFinished(map, NULL, NULL);
 }
 
+/* block entity */
 void entityUpdateOrCreate(Chunk c, vec4 pos, int blockId, vec4 dest, int ticks, DATA8 tile)
 {
 	EntityAnim anim;

@@ -59,7 +59,7 @@ int mapFirstFree(DATA32 usage, int count)
 	return -1;
 }
 
-/* debug */
+#ifdef DEBUG
 void printCoord(STRPTR hdr, BlockIter iter)
 {
 	int y = iter->offset;
@@ -72,22 +72,20 @@ void printCoord(STRPTR hdr, BlockIter iter)
 	else
 		fprintf(stderr, "%s: %d, %d, %d\n", hdr, iter->ref->X + x, iter->yabs, iter->ref->Z + z);
 }
+#endif
 
-static int mapGetConnect(ChunkData cd, int offset, BlockState b)
+int mapGetConnect(ChunkData cd, int offset, BlockState b)
 {
-	static int8_t XZoff[] = {
-		0, 1, 1, -1, -1, -1, -1, 1
-	};
 	struct BlockIter_t iter;
 	uint8_t neighbors[10];
+	uint8_t i;
 	DATA8   n;
-	int     i;
 
 	mapInitIterOffset(&iter, cd, offset);
 
-	for (i = 0, n = neighbors; i < DIM(XZoff); i += 2, n += 2)
+	for (i = 0, n = neighbors; i < 4; i ++, n += 2)
 	{
-		mapIter(&iter, XZoff[i], 0, XZoff[i+1]);
+		mapIter(&iter, xoff[i], 0, zoff[i]);
 		n[0] = iter.blockIds[iter.offset];
 		n[1] = iter.blockIds[DATA_OFFSET + (iter.offset >> 1)];
 		if (iter.offset & 1) n[1] >>= 4;
@@ -1416,6 +1414,7 @@ static ChunkData mapAddToVisibleList(Map map, Chunk from, int direction, int lay
 	return NULL;
 }
 
+/* cave culling based on visibility graph traversal */
 static Bool mapCullCave(ChunkData cur, vec4 camera)
 {
 	uint8_t side, i, oppSide;
@@ -1432,6 +1431,7 @@ static Bool mapCullCave(ChunkData cur, vec4 camera)
 		static int8_t TB[] = {0, 0, 0, 0, -1, 1};
 		ChunkData neighbor;
 
+		/* check which face is visible based on (somplified) dot product between face normal and camera */
 		switch (i) {
 		case 0: /* N/S */
 			if (Z + 16 - camera[VZ] < 0) side = 1, oppSide = 2;

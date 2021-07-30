@@ -1,20 +1,10 @@
-#version 430 core
-
 /*
  * vertex shader for drawing opaque and transparent blocks only.
  *
- * position and info encode the following values:
- * - position.x
- * - position.y
- * - position.z : position relative to offsets + (position.xyz - 1024) / 2048.
- * - info.x[bit0  -  8] : U tex coord (0 - 511)
- * - info.x[bit9  - 15] : V tex coord (7bits, hi part).
- * - info.y[bit0  -  2] : V tex coord (3bits, lo part).
- * - info.y[bit3  -  5] : side (3bits, normal vector): 0 = south, 1 = east, 2 : north, 3 = west, 4 = top, 5 = bottom, 6 = don't care
- * - info.y[bit6  -  7] : ambient occlusion
- * - info.y[bit8  - 11] : block light value
- * - info.y[bit12 - 15] : sky light value
+ * check doc/internals.html for vertex format: abandon all hope without reading this first.
  */
+#version 430 core
+
 layout (location=0) in uvec4 position;
 layout (location=1) in uvec3 info;
 layout (location=2) in vec3  offsets;

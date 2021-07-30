@@ -291,7 +291,7 @@ int redstonePushedByPiston(struct BlockIter_t iter, RSWire list)
 	uint8_t flags = 0;
 	uint8_t inCheck = 0;
 
-	/* onyl check blocks from these directions when checking for slime blocks */
+	/* only check blocks from these directions when checking for slime blocks */
 	switch (blockId & 7) {
 	case 0: case 1: flags = 31; break;
 	case 2: case 3: flags = 63 - 5; break;
@@ -301,7 +301,7 @@ int redstonePushedByPiston(struct BlockIter_t iter, RSWire list)
 	if (blockId & 8)
 		/* extended: skip piston head */
 		x += dx, y += dy, z += dz;
-	else
+	else /* piston is about to expand */
 		expand = -1, list += MAXPUSH-1;
 
 	mapIter(&iter, x, y, z);

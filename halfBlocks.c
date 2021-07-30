@@ -65,6 +65,27 @@ static uint8_t ocs2x2[] = {
 	1, 2, 0, 3
 };
 
+/* convert block index [0-26] to separate X, Y, Z offset [-1, 1] */
+static uint8_t blockIndexToXYZ[] = {
+	/* bitfield: 2bits per coord (0 => -1, 1 => 0, 2 => +1), ordered XZY */
+	0,1,2,4,5,6,8,9,10,16,17,18,20,21,22,24,25,26,32,33,34,36,37,38,40,41,42
+};
+
+/* pairs of U, V dir (S,E,N,W,T,B) */
+static uint8_t UVdirs[] = {1, 4, 0, 4, 1, 4, 0, 4, 1, 0, 1, 0};
+
+static uint16_t vtxAdjust[] = {
+	#define ADJUST(pt0U,pt0V, pt1U,pt1V, pt2U,pt2V, pt3U,pt3V)      pt0U|(pt0V<<2)|(pt1U<<4)|(pt1V<<6)|(pt2U<<8)|(pt2V<<10)|(pt3U<<12)|(pt3V<<14)
+	#define OK    3
+	ADJUST(VY,OK, OK,OK, VX,OK, VX,VY),
+	ADJUST(VZ,VY, VZ,OK, OK,OK, VY,OK),
+	ADJUST(VX,VY, VX,OK, OK,OK, VY,OK),
+	ADJUST(VY,OK, OK,OK, VZ,OK, VZ,VY),
+	ADJUST(OK,OK, VZ,OK, VX,VZ, VX,OK),
+	ADJUST(VZ,OK, OK,OK, VX,OK, VX,VZ)
+	#undef OK
+};
+
 /* auto-generated from modelsSize2[] */
 static uint8_t modelsSize0[DIM(modelsSize2)];
 
@@ -108,30 +129,6 @@ void halfBlockInit(void)
 		/* store offset as XZY bitfield on 2 bits each (ie:mod 4, instead of mod 3) */
 		ocsOffsets[i] = (j % 3) + ((j / 9)<<4) + ((j / 3) % 3 << 2);
 	}
-}
-
-static Bool isVisible(DATA16 blockIds, DATA8 pos, int dir, int size)
-{
-	static uint8_t off[] = {16, 14, 10, 12, 22, 4};
-	int id = blockIds[off[dir]];
-
-	BlockState b = blockGetByIdData(id >> 4, id & 15);
-
-	if (b->type == SOLID)
-	{
-		static int offsets[] = {0, 0, -2, -1, 2, 1, -4, 4, -56, -8, 56, 8, -448, 448};
-		uint8_t model = 0;
-		switch (b->special) {
-		case BLOCK_HALF:   model = modelsSize2[(b->id&15) > 7]; goto case_common;
-		case BLOCK_STAIRS: model = modelsSize2[(b->id&7)  + 2];
-		case_common:
-			id = pos[0] + size * (pos[2] + pos[1] * size) + offsets[dir+size];
-			return ((&model)[id>>3] & (1 << (id&7))) == 0;
-		default:
-			return False;
-		}
-	}
-	return True;
 }
 
 /* connected stairs model */
@@ -286,6 +283,47 @@ static uint32_t halfBlockGetOCS(DATA16 blockIds, DATA8 ocsval, uint8_t pos[3], i
 	return occlusion;
 }
 
+static int halfBlockSkyOffset(DATA8 vtx, int vertex, int xyz, int adjust)
+{
+	uint8_t pos[4];
+	switch (vertex) {
+	case 0: memcpy(pos, vtx+4, 4); break;
+	case 1: pos[0] = vtx[8]  + vtx[4] - vtx[0];
+	        pos[1] = vtx[9]  + vtx[5] - vtx[1];
+	        pos[2] = vtx[10] + vtx[6] - vtx[2];
+	        pos[3] = 0; break;
+	case 2: memcpy(pos, vtx+8, 4); break;
+	case 3: memcpy(pos, vtx, 4);
+	}
+
+	pos[0] += 2 + (xyz&3) - 1;
+	pos[1] += 2 + (xyz>>4) - 1;
+	pos[2] += 2 + ((xyz>>2)&3) - 1;
+
+	pos[adjust&3] --;
+	pos[adjust>>2] --;
+
+	return (pos[0]>>1) + (pos[2]>>1) * 3 + (pos[1]>>1) * 9;
+}
+
+static Bool isVisible(DATA16 blockIds, ModelCache models, DATA8 pos, int dir)
+{
+	static int offsets[] = {-2, -1, 2, 1, -4, 4};
+	static uint8_t blockIndex[] = {16, 14, 10, 12, 22, 4};
+	uint8_t off = blockIndex[dir];
+
+	if ((models->set & (1 << off)) == 0)
+	{
+		uint16_t buffer[7];
+		DATA8 model2x2 = halfBlockGetModel(blockGetById(blockIds[off]), 2, halfBlockRelocCenter(off, blockIds, buffer));
+		models->set |= 1<<off;
+		models->cache[off] = model2x2 ? model2x2[0] : 0;
+	}
+
+	uint8_t bit = 1 << ((pos[0] + 2 * (pos[2] + pos[1] * 2) + offsets[dir]) & 7);
+	return (models->cache[off] & bit) == 0;
+}
+
 /*
  * Main function to convert a detail block metadata into a triangle mesh:
  * contrary to chunk meshing, we try harder to make triangles as big as possible.
@@ -334,7 +372,6 @@ void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DAT
 		for (j = 0; j < 6; j ++)
 		{
 			static uint8_t dir0[]  = {2, 0, 2, 0, 1, 1}; /* index in pos/rect */
-			static uint8_t dirs[]  = {1, 4, 0, 4, 1, 4, 0, 4, 1, 0, 1, 0}; /* pair of U, V dir (S,E,N,W,T,B) */
 			static uint8_t axis[]  = {2, 0, 0, 0, 1};
 			static uint8_t invUV[] = {0, 1, 1, 0, 2, 0};
 			uint8_t rect[4], mask = 1 << j;
@@ -342,7 +379,7 @@ void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DAT
 			if (flags & mask) continue;
 
 			/* is face visible (empty space in neighbor block) */
-			if ((sides & mask) ? face[offset[j]] < 255 : !isVisible(blockIds, pos, j, size)) { *face |= mask; continue; }
+			if ((sides & mask) ? face[offset[j]] < 255 : !isVisible(blockIds, &models, pos, j)) { *face |= mask; continue; }
 
 			/* check if we can expand in one of 2 directions */
 			memset(rect, 1, 4);
@@ -353,8 +390,8 @@ void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DAT
 			uint8_t  ocs[16];
 			uint32_t occlusion;
 			int8_t   faceOff[3];
-			uint8_t  dirU  = dirs[j*2];
-			uint8_t  dirV  = dirs[j*2+1];
+			uint8_t  dirU  = UVdirs[j*2];
+			uint8_t  dirV  = UVdirs[j*2+1];
 			uint8_t  axisU = axis[dirU];
 			uint8_t  axisV = axis[dirV];
 			uint8_t  rev   = invUV[j];
@@ -374,7 +411,7 @@ void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DAT
 				cur[axisV] += subVoxel[k+3];
 				face2 += faceOff[k];
 				if (cur[axisU] == 2 || cur[axisV] == 2 || (*face2 & mask)) continue;
-				if ((sides & mask) ? face2[offset[j]] < 255 : !isVisible(blockIds, cur, j, 2)) continue;
+				if ((sides & mask) ? face2[offset[j]] < 255 : !isVisible(blockIds, &models, cur, j)) continue;
 				occlusion |= halfBlockGetOCS(blockIds, ocs + 4 + (k<<2), cur, j, k+1, &models);
 			}
 
@@ -508,9 +545,11 @@ void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DAT
 				for (k = 0, face2 = skyBlockOffset + j * 16; k < 4; k ++)
 				{
 					uint8_t max, l, skyval;
+					uint8_t adjust = (vtxAdjust[j] >> k*4) & 15;
 					for (l = skyval = max = 0; l < 4; l ++, face2 ++)
 					{
-						uint8_t  skyvtx = skyBlock[face2[0]];
+						//uint8_t  skyvtx = skyBlock[face2[0]];
+						uint8_t  skyvtx = skyBlock[halfBlockSkyOffset(vtx, k, blockIndexToXYZ[face2[0]], adjust)];
 						uint16_t light  = skyvtx & 15;
 						skyvtx &= 0xf0;
 						/* max for block light */

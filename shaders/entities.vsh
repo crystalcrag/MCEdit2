@@ -21,9 +21,9 @@ flat out int   isSelected;
 void main(void)
 {
 	vec3 pos = vec3(
-		float(position.x - 15360) * 0.00048828125 /* 1/2048. */,
-		float(position.y - 15360) * 0.00048828125,
-		float(position.z - 15360) * 0.00048828125
+		float(position.x - ORIGINVTX) * BASEVTX,
+		float(position.y - ORIGINVTX) * BASEVTX,
+		float(position.z - ORIGINVTX) * BASEVTX
 	);
 
 	if (rotation.x > 0.001)

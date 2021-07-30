@@ -53,10 +53,11 @@ void main(void)
 
 		if ((ocsmap & 256) > 0)
 		{
+			/* half-block ocs: a bit more expensive to process: need to compute contribution from 4 sides */
 			#define CORNERSET(pt1, pt2)         (ocsset & ((1 << (pt1*2-2)) | (1 << (pt2*2-2)))) == ((1 << (pt1*2-2)) | (1 << (pt2*2-2)))
 			#define CORNERUNSET(pt1, pt2, pt3)  (ocsset & ((1 << (pt1*2-2)) | (1 << (pt2*2-2)) | (1 << (pt3*2-2)))) != (1 << (pt1*2-2))
 			uint ocsset = (ocsmap | ((ocsmap & 0xaa) >> 1)) & 0x55;
-			/* half-block ocs: a bit more expensive to process: need to compute contribution from 4 sides */
+			/* doc/internals.html or get lost */
 			shade = clamp(CORNERSET(1, 4) ?
 				mix(mix(pt1, 0, (extend & 2)   > 0 ? dy : dy*2),
 				    mix(pt4, 0, (extend & 128) > 0 ? dy : dy*2), dx) : CORNERUNSET(1, 2, 4) ? 0 :

@@ -91,6 +91,7 @@ Bool    mapMoveCenter(Map, vec4 old, vec4 pos);
 Bool    mapSetRenderDist(Map, int maxDist);
 Bool    mapSaveAll(Map);
 Bool    mapSaveLevelDat(Map);
+int     mapGetConnect(ChunkData cd, int offset, BlockState b);
 int     mapConnectChest(Map, MapExtraData sel, MapExtraData ret);
 NBTHdr  mapLocateItems(MapExtraData);
 void    mapDecodeItems(Item item, int count, NBTHdr nbtItems);
