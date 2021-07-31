@@ -76,23 +76,23 @@ ChunkData chunkCreateEmpty(Chunk c, int y)
 	return cd;
 }
 
-#define chunkHashSize(count)     ((count) * sizeof (struct EntityEntry_t) + sizeof (struct EntityHash_t))
+#define chunkHashSize(count)     ((count) * sizeof (struct TileEntityEntry_t) + sizeof (struct TileEntityHash_t))
 #define EOF_MARKER               0xffff
 
 /* keep entities in a hash table */
-static DATA8 chunkInsertTileEntity(EntityHash hash, EntityEntry ent)
+static DATA8 chunkInsertTileEntity(TileEntityHash hash, TileEntityEntry ent)
 {
-	EntityEntry old;
-	EntityEntry free;
-	EntityEntry dest = (EntityEntry) (hash + 1);
-	int         slot = ent->xzy % hash->max;
+	TileEntityEntry old;
+	TileEntityEntry free;
+	TileEntityEntry dest = (TileEntityEntry) (hash + 1);
+	int             slot = ent->xzy % hash->max;
 
 	for (old = NULL, free = dest + slot; free->data && free->xzy != ent->xzy; )
 	{
 		old = free;
 		if (free->next == EOF_MARKER)
 		{
-			EntityEntry eof = dest + hash->max;
+			TileEntityEntry eof = dest + hash->max;
 			do {
 				free ++;
 				if (free == eof) free = dest;
@@ -108,17 +108,17 @@ static DATA8 chunkInsertTileEntity(EntityHash hash, EntityEntry ent)
 	return prev;
 }
 
-static EntityHash chunkCreateTileEntityHash(Chunk c, int count)
+static TileEntityHash chunkCreateTileEntityHash(Chunk c, int count)
 {
-	EntityHash hash;
+	TileEntityHash hash;
 	int nb = roundToUpperPrime(count);
 	int size = chunkHashSize(nb);
 
 	if (size < c->nbt.max - c->nbt.usage)
 	{
 		/* alloc at end of NBT: use all available space */
-		nb = roundToLowerPrime((c->nbt.max - c->nbt.usage - sizeof *hash) / sizeof (struct EntityEntry_t));
-		hash = (EntityHash) (c->nbt.mem + c->nbt.usage);
+		nb = roundToLowerPrime((c->nbt.max - c->nbt.usage - sizeof *hash) / sizeof (struct TileEntityEntry_t));
+		hash = (TileEntityHash) (c->nbt.mem + c->nbt.usage);
 		size = chunkHashSize(nb);
 		memset(hash, 0, size);
 	}
@@ -137,9 +137,9 @@ static EntityHash chunkCreateTileEntityHash(Chunk c, int count)
  */
 Bool chunkAddTileEntity(Chunk c, int * XYZ, DATA8 mem)
 {
-	struct EntityEntry_t entry = {.data = mem};
+	struct TileEntityEntry_t entry = {.data = mem};
 
-	EntityHash hash = c->tileEntities;
+	TileEntityHash hash = c->tileEntities;
 
 	if (hash == NULL)
 		/* create on the fly */
@@ -148,13 +148,13 @@ Bool chunkAddTileEntity(Chunk c, int * XYZ, DATA8 mem)
 	int count = hash->count + 1;
 
 	/* encode pos in 3 bytes */
-	entry.xzy = (XYZ[1]<<16) | (XYZ[0] << 4) | XYZ[2];
+	entry.xzy = TILE_ENTITY_ID(XYZ);
 
 	if (count == hash->max)
 	{
 		/* table is full: need to be enlarged */
-		EntityHash reloc;
-		EntityEntry ent;
+		TileEntityHash reloc;
+		TileEntityEntry ent;
 		int i;
 
 		count = roundToUpperPrime(hash->count);
@@ -166,7 +166,7 @@ Bool chunkAddTileEntity(Chunk c, int * XYZ, DATA8 mem)
 		reloc->count = i = count - 1;
 
 		/* relocate entries */
-		for (ent = (EntityEntry) (hash + 1); i > 0; i --, ent ++)
+		for (ent = (TileEntityEntry) (hash + 1); i > 0; i --, ent ++)
 		{
 			if (ent->data && chunkInsertTileEntity(reloc, ent))
 				reloc->count --; /* hmm, duplicate tile entity in NBT: not good */
@@ -260,10 +260,10 @@ void chunkExpandEntities(Chunk c)
 DATA8 chunkGetTileEntity(Chunk c, int * XYZ)
 {
 	if (! c->tileEntities) return NULL;
-	EntityHash  hash = c->tileEntities;
-	EntityEntry base = (EntityEntry) (hash + 1);
-	uint32_t    xzy  = (XYZ[1] << 16) | (XYZ[0] << 4) | XYZ[2];
-	EntityEntry ent  = base + xzy % hash->max;
+	TileEntityHash  hash = c->tileEntities;
+	TileEntityEntry base = (TileEntityEntry) (hash + 1);
+	uint32_t        xzy  = TILE_ENTITY_ID(XYZ);
+	TileEntityEntry ent  = base + xzy % hash->max;
 
 	if (ent->data == NULL) return NULL;
 	while (ent->xzy != xzy)
@@ -275,14 +275,14 @@ DATA8 chunkGetTileEntity(Chunk c, int * XYZ)
 }
 
 /* tile entity has been deleted: remove ref from hash */
-DATA8 chunkDeleteTileEntity(Chunk c, int * XYZ)
+DATA8 chunkDeleteTileEntity(Chunk c, int * XYZ, Bool extract)
 {
 	if (! c->tileEntities) return False;
-	EntityHash  hash = c->tileEntities;
-	EntityEntry base = (EntityEntry) (hash + 1);
-	uint32_t    xzy  = (XYZ[1] << 16) | (XYZ[0] << 4) | XYZ[2];
-	EntityEntry ent  = base + xzy % hash->max;
-	DATA8       data = ent->data;
+	TileEntityHash  hash = c->tileEntities;
+	TileEntityEntry base = (TileEntityEntry) (hash + 1);
+	uint32_t        xzy  = TILE_ENTITY_ID(XYZ);
+	TileEntityEntry ent  = base + xzy % hash->max;
+	DATA8           data = ent->data;
 
 	if (data == NULL) return False;
 	while (ent->xzy != xzy)
@@ -292,24 +292,29 @@ DATA8 chunkDeleteTileEntity(Chunk c, int * XYZ)
 	}
 	if (ent->prev != EOF_MARKER)
 	{
-		EntityEntry prev = base + ent->prev;
+		TileEntityEntry prev = base + ent->prev;
 		prev->next = ent->next;
 		if (ent->next != EOF_MARKER)
 		{
-			EntityEntry next = base + ent->next;
+			TileEntityEntry next = base + ent->next;
 			next->prev = ent->prev;
 		}
 	}
 	else if (ent->next != EOF_MARKER)
 	{
 		/* removing first link in the chain: need to move next item here */
-		EntityEntry next = base + ent->next;
+		TileEntityEntry next = base + ent->next;
 		memmove(ent, base, sizeof *ent);
 		ent->prev = EOF_MARKER;
 		ent = next;
 	}
 	fprintf(stderr, "deleting tile entity at %d, %d, %d\n", c->X + XYZ[0], XYZ[1], c->Z + XYZ[2]);
-	if (! (c->nbt.mem <= data && data < c->nbt.mem + c->nbt.usage))
+	if (extract)
+	{
+		if (c->nbt.mem <= data && data < c->nbt.mem + c->nbt.usage)
+			data = NBT_Copy(data);
+	}
+	else if (! (c->nbt.mem <= data && data < c->nbt.mem + c->nbt.usage))
 		free(data);
 	hash->count --;
 	ent->data = NULL;
@@ -505,8 +510,8 @@ static int chunkAllocSpace(FILE * in, int pages)
 static int chunkSaveExtra(int tag, APTR cbparam, NBTFile nbt)
 {
 	ChunkData cd;
-	EntityHash hash;
-	EntityEntry ent;
+	TileEntityHash hash;
+	TileEntityEntry ent;
 	Chunk chunk = cbparam;
 	int i;
 
@@ -543,7 +548,7 @@ static int chunkSaveExtra(int tag, APTR cbparam, NBTFile nbt)
 		}
 
 		/* this will certainly change the order of tile entities each time it is saved :-/ */
-		for (i = hash->save - 1, ent = (EntityEntry) (hash + 1) + i; i < hash->max; i ++, ent ++)
+		for (i = hash->save - 1, ent = (TileEntityEntry) (hash + 1) + i; i < hash->max; i ++, ent ++)
 		{
 			if (ent->data == NULL) continue;
 			NBTIter_t iter;
@@ -616,7 +621,7 @@ Bool chunkSave(Chunk chunk, const char * path)
 
 			fprintf(stderr, "saving chunk %d, %d\n", chunk->X, chunk->Z);
 			if (chunk->tileEntities)
-				((EntityHash)chunk->tileEntities)->save = 0;
+				((TileEntityHash)chunk->tileEntities)->save = 0;
 			chunk->cdIndex = 0;
 
 			chunkOffset = BE24(offset) << 12;
@@ -1695,9 +1700,9 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 	}
 }
 
-static void chunkFreeHash(EntityHash hash, DATA8 min, DATA8 max)
+static void chunkFreeHash(TileEntityHash hash, DATA8 min, DATA8 max)
 {
-	EntityEntry ent = (EntityEntry) (hash + 1);
+	TileEntityEntry ent = (TileEntityEntry) (hash + 1);
 	int i;
 
 	for (i = hash->max; i > 0; i --, ent ++)
@@ -1725,7 +1730,7 @@ int chunkFree(Chunk c)
 	}
 	if (c->tileEntities)
 	{
-		chunkFreeHash((EntityHash) c->tileEntities, c->nbt.mem, c->nbt.mem + c->nbt.usage);
+		chunkFreeHash((TileEntityHash) c->tileEntities, c->nbt.mem, c->nbt.mem + c->nbt.usage);
 		c->tileEntities = NULL;
 	}
 	if (c->cflags & CFLAG_HASENTITY)

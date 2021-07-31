@@ -152,16 +152,15 @@ table td { border: 1px solid black; padding: 3px }
 table td.XXX { background: linear-gradient(to bottom right, transparent, transparent 50%, red 50%, red 51%, transparent 51%),
                            linear-gradient(to bottom left, transparent, transparent 50%, red 50%, red 51%, transparent 51%); }
 table.hspace td { min-width: 1.5em; text-align: center }
-.c  { color:#2222AA }
-.i  { color:#54AAAA }
-.d  { color:#A600F7 }
-v,
-.o  { color:#FF00FF }
-.s  { color:#7700FF }
-.t  { color:#146A31; font-weight:bold }
-.k  { color:#A62828; font-weight:bold }
-.e  { color:#FFFFFF; background-color:#FF3333 }
-.n  { color:black;   background-color:#FFFF00 }
-.h  { font-weight: bold }
+.c   { color:#2222AA }
+.i   { color:#54AAAA }
+.d   { color:#A600F7 }
+v,.o { color:#FF00FF }
+.s   { color:#7700FF }
+.t   { color:#146A31; font-weight:bold }
+.k   { color:#A62828; font-weight:bold }
+.e   { color:#FFFFFF; background-color:#FF3333 }
+.n   { color:black;   background-color:#FFFF00 }
+.h   { font-weight: bold }
 
 .shortcut { background-color: white; font-family: monospace; padding: 0px 3px; border-radius: 5px; border: 1px outset #860 }

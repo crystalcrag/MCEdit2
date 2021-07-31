@@ -218,8 +218,11 @@ void mapUpdateTable(BlockIter iter, int val, int table)
 		track.list = &cd->update;
 	}
 	if (table == SKYLIGHT_OFFSET || table == BLOCKLIGHT_OFFSET)
+	{
 		/* entity light in this chunk needs to be updated */
+		iter->cd->cdFlags |= CDFLAG_UPDATENEARBY;
 		iter->ref->cflags |= CFLAG_ETTLIGHT;
+	}
 
 //	if (table == DATA_OFFSET)
 //		fprintf(stderr, "setting data %d, %d, %d to %d\n", iter->ref->X + iter->x, iter->yabs, iter->ref->Z + iter->z, val);
@@ -307,7 +310,7 @@ static void trackAdd(int x, int y, int z)
 }
 
 /* will prevent use of recursion (mapUpdate) */
-static void trackAddUpdate(BlockIter iter, int blockId)
+static void trackAddUpdate(BlockIter iter, int blockId, DATA8 tile)
 {
 	int max = (track.updateCount+127) & ~127;
 	if (max == track.updateCount)
@@ -328,6 +331,7 @@ static void trackAddUpdate(BlockIter iter, int blockId)
 	update->cd = iter->cd;
 	update->offset = iter->offset;
 	update->blockId = blockId;
+	update->tile = tile;
 
 	//fprintf(stderr, "adding update at %d,%d,%d\n", iter->ref->X + iter->x, iter->yabs, iter->ref->Z + iter->z);
 }
@@ -810,7 +814,7 @@ static void mapUpdateBlockLight(Map map, BlockIter iter, int oldId, int newId)
 		}
 		else if (opac == 0 || light == 0)
 		{
-			/* what does this do already? */
+			/* XXX what does this do already? */
 			struct BlockIter_t neighbor = *iter;
 			neighbor.alloc = False;
 			for (i = 0; i < 6; i ++)
@@ -843,7 +847,7 @@ static void mapUpdateAddRSUpdate(BlockIter iterator, RSWire cnx)
 //	printCoord("checking update at", &iter);
 	Block b = &blockIds[iter.blockIds[iter.offset]];
 	if (b->rsupdate & RSUPDATE_RECV)
-		trackAddUpdate(&iter, 0xffff);
+		trackAddUpdate(&iter, 0xffff, NULL);
 
 	/* only check the where the update is, if power is weak */
 	if (cnx->pow != POW_WEAK && cnx->signal == RSUPDATE)
@@ -862,7 +866,7 @@ static void mapUpdateAddRSUpdate(BlockIter iterator, RSWire cnx)
 				if (i > 4 || blockSides.repeater[id&3] != opp[i]) continue;
 			}
 			if (b->rsupdate & RSUPDATE_RECV)
-				trackAddUpdate(&iter, 0xffff);
+				trackAddUpdate(&iter, 0xffff, NULL);
 		}
 	}
 }
@@ -1045,7 +1049,7 @@ void mapUpdateDeleteSignal(BlockIter iterator, int blockId)
 	}
 }
 
-static int mapUpdateIfPowered(Map map, BlockIter iterator, int oldId, int blockId, Bool init);
+static int mapUpdateIfPowered(Map map, BlockIter iterator, int oldId, int blockId, Bool init, DATA8 * tile);
 
 /* redstone power level has been updated in a block, check nearby what updates it will trigger */
 static void mapUpdateChangeRedstone(Map map, BlockIter iterator, int side, RSWire dir)
@@ -1079,7 +1083,7 @@ static void mapUpdateChangeRedstone(Map map, BlockIter iterator, int side, RSWir
 		int blockId = getBlockId(&iter);
 		if (blockIds[blockId>>4].rsupdate)
 		{
-			int newId = mapUpdateIfPowered(map, &iter, blockId, blockId, False);
+			int newId = mapUpdateIfPowered(map, &iter, blockId, blockId, False, NULL);
 			if (newId != blockId)
 			{
 				vec4 pos = {iter.ref->X + iter.x, iter.yabs, iter.ref->Z + iter.z};
@@ -1159,7 +1163,7 @@ static void mapUpdateConnected(Map map, BlockIter iterator, int blockId)
 }
 
 /* check if a block is powered nearby, change current block to active state then */
-static int mapUpdateIfPowered(Map map, BlockIter iterator, int oldId, int blockId, Bool init)
+static int mapUpdateIfPowered(Map map, BlockIter iterator, int oldId, int blockId, Bool init, DATA8 * tile)
 {
 	Block b = &blockIds[blockId >> 4];
 
@@ -1169,7 +1173,7 @@ static int mapUpdateIfPowered(Map map, BlockIter iterator, int oldId, int blockI
 		break;
 	case RSSTICKYPISTON:
 	case RSPISTON:
-		return mapUpdatePiston(map, iterator, blockId, init);
+		return mapUpdatePiston(map, iterator, blockId, init, tile);
 	case RSDISPENSER:
 	case RSDROPPER:
 		/* very similar to gence gate actually */
@@ -1457,20 +1461,20 @@ void mapUpdateFlush(Map map)
 				int newId;
 				mapInitIterOffset(&iter, update->cd, update->offset);
 				offset = getBlockId(&iter);
-				newId  = mapUpdateIfPowered(map, &iter, offset, offset, False);
+				newId  = mapUpdateIfPowered(map, &iter, offset, offset, False, NULL);
 				if (offset != newId)
 				{
 					mapUpdate(map, pos, newId, NULL, False);
 				}
 			}
-			else mapUpdate(map, pos, update->blockId, NULL, UPDATE_SILENT);
+			else mapUpdate(map, pos, update->blockId, update->tile, UPDATE_SILENT);
 			i --;
 		}
 	}
 }
 
 /* blocks moved by piston update can't be updated directly, they need to be done at once */
-void mapUpdatePush(Map map, vec4 pos, int blockId)
+void mapUpdatePush(Map map, vec4 pos, int blockId, DATA8 tile)
 {
 	/* otherwise update order will depend on piston push direction: way too annoying */
 	struct BlockIter_t iter;
@@ -1492,13 +1496,16 @@ void mapUpdatePush(Map map, vec4 pos, int blockId)
 		{
 			/* air blocks have lower priority */
 			if (blockId > 0)
+			{
 				update->blockId = blockId;
-			fprintf(stderr, "reusing block update %p:%d\n", iter.cd, iter.offset);
+				update->tile = tile;
+			}
+			//fprintf(stderr, "reusing block update %p:%d\n", iter.cd, iter.offset);
 			return;
 		}
 		i --;
 	}
-	trackAddUpdate(&iter, blockId);
+	trackAddUpdate(&iter, blockId, tile);
 }
 
 /*
@@ -1546,7 +1553,7 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 	if (b->rsupdate)
 	{
 		/* change block based on power level: will prevent unnecessary updates */
-		blockId = mapUpdateIfPowered(map, &iter, oldId, blockId, True);
+		blockId = mapUpdateIfPowered(map, &iter, oldId, blockId, True, &tile);
 	}
 
 	/* update blockId/metaData tables */
@@ -1607,7 +1614,7 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 	}
 
 	/* block replaced: check if there is a tile entity to delete */
-	DATA8 oldTile = chunkDeleteTileEntity(iter.ref, XYZ);
+	DATA8 oldTile = chunkDeleteTileEntity(iter.ref, XYZ, False);
 	if (oldTile)
 	{
 		if (blockIds[oldId >> 4].special == BLOCK_SIGN)

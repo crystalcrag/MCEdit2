@@ -44,7 +44,7 @@ void main(void)
 		const float intensity[] = float[4](0, 0.2, 0.35, 0.5);
 		float dx = (tc.x - texOrigin.x) * 32; if (dx < 0) dx = -dx;
 		float dy = (tc.y - texOrigin.y) * 64; if (dy < 0) dy = -dy;
-		float ocsval = (normal == 4 ? 1.3 : 1) * (skyLight * 0.5 + 0.5);
+		float ocsval = (normal == 4 ? 1.3 : 1) * (skyLight * 0.8 + 0.2);
 		float pt1 = intensity[bitfieldExtract(ocsmap, 0, 2)] * ocsval;
 		float pt2 = intensity[bitfieldExtract(ocsmap, 2, 2)] * ocsval;
 		float pt3 = intensity[bitfieldExtract(ocsmap, 4, 2)] * ocsval;

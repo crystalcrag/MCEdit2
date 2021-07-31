@@ -92,7 +92,8 @@ struct NBTHdr_t
 #define TAG_Compound         10
 #define TAG_Int_Array        11
 #define TAG_Raw_Data         12   /* NBT_Add() only */
-#define TAG_Compound_End     13   /* NBT_Add() only */
+#define TAG_Raw_Ptr          13   /* NBT_Add() only */
+#define TAG_Compound_End     14   /* NBT_Add() only */
 #define	TAG_List_Byte        (TAG_List | (TAG_Byte << 4))
 #define	TAG_List_Short       (TAG_List | (TAG_Short << 4))
 #define	TAG_List_Int         (TAG_List | (TAG_Int << 4))

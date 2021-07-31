@@ -1322,11 +1322,19 @@ turn out to be OK: neither particularly good, nor bad.
 
 <p>Keep in mind that coordinates for the mesh will be relative to the sub-chunk origin (a 16x16x16
 chunk of terrain). In the vertex shader, each sub-chunk will receive a <tt>vec3</tt> offset that
-will be addded to every vertex.
+will be added to every vertices.
 
 <p><b>The order in which vertices of a face are enumerated</b> has a meaning though: it is done so that
 all the remaining information (texture coordinates, lighting, ambient occlusion) can be applied the
 same way on all faces.
+
+<p>The <tt>texCoord</tt> array encodes 4 different rotations of a texture:
+
+<div class="image">
+  <img src="images/tex-rotate.png">
+</div>
+
+<p>You cannot mirror a texture though, for this you'll need to a <tt>CUST</tt> voxel.
 
 <h3 id="meshcust"><span><tt>CUST</tt> voxel</span></h3>
 

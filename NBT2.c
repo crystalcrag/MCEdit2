@@ -444,6 +444,12 @@ Bool NBT_Add(NBTFile nbt, ...)
 			break;
 		case TAG_Compound:
 			nbt->alloc = 4;
+			break;
+		case TAG_Raw_Ptr:
+			/* tile entity pushed by pistons */
+			name = va_arg(args, APTR);
+			mem = NBT_AddBytes(nbt, sizeof name);
+			memcpy(mem, &name, sizeof name);
 		}
 		HDR(nbt, off)->size += nbt->alloc;
 	}

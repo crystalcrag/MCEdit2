@@ -29,7 +29,7 @@ void      chunkUpdate(Chunk update, ChunkData air, int layer);
 int       chunkFree(Chunk);
 ChunkData chunkCreateEmpty(Chunk, int layer);
 DATA8     chunkGetTileEntity(Chunk, int * XYZ);
-DATA8     chunkDeleteTileEntity(Chunk, int * XYZ);
+DATA8     chunkDeleteTileEntity(Chunk, int * XYZ, Bool extract);
 Bool      chunkAddTileEntity(Chunk, int * XYZ, DATA8 mem);
 Bool      chunkUpdateNBT(Chunk, int blockOffset, NBTFile nbt);
 void      chunkUpdateTilePosition(Chunk, int * XYZ, DATA8 tile);
@@ -120,12 +120,12 @@ enum /* NBT update tag */
 #ifdef CHUNK_IMPL                      /* private stuff below */
 
 #define STATIC_HASH(hash, min, max)    (min <= (DATA8) hash && (DATA8) hash < max)
+#define TILE_ENTITY_ID(XYZ)            ((XYZ[1] << 8) | (XYZ[0] << 4) | XYZ[2])
 
-/* XXX this is for tile entities, not entities */
-typedef struct EntityHash_t *          EntityHash;
-typedef struct EntityEntry_t *         EntityEntry;
+typedef struct TileEntityHash_t *      TileEntityHash;
+typedef struct TileEntityEntry_t *     TileEntityEntry;
 
-struct EntityEntry_t
+struct TileEntityEntry_t
 {
 	uint32_t xzy;
 	uint16_t prev;
@@ -133,7 +133,7 @@ struct EntityEntry_t
 	DATA8    data;
 };
 
-struct EntityHash_t
+struct TileEntityHash_t
 {
 	uint32_t count;
 	uint32_t max;
