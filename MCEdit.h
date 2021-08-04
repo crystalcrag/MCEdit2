@@ -26,6 +26,7 @@ struct GameState_t
 	int      exit;             /* managed by SITGL */
 	int      maxDist;          /* render distance in chunks */
 	uint8_t  forceSel;         /* don't display inventory item */
+	uint8_t  selection;        /* selection state: &1: first block selected, &2: second */
 	TEXT     capture[128];     /* screenshot directory */
 };
 
@@ -46,7 +47,8 @@ void mceditPlaceBlock(void);
 enum /* possible value for parameter mceditUIOverlay() */
 {
 	MCUI_OVERLAY_BLOCK,
-	MCUI_OVERLAY_GOTO
+	MCUI_OVERLAY_GOTO,
+	MCUI_OVERLAY_ANALYZE
 };
 
 /* ID string */

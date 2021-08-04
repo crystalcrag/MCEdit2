@@ -14,6 +14,7 @@
 #include "nanovg.h"
 #include "SIT.h"
 #include "interface.h"
+#include "selection.h"
 #include "render.h"
 #include "player.h"
 #include "sign.h"
@@ -812,10 +813,11 @@ void mcuiEditChestInventory(Inventory player, Item items, int count)
 
 static int mcuiSaveSign(SIT_Widget w, APTR cd, APTR ud)
 {
-	STRPTR msg;
-	SIT_GetValues(ud, SIT_Title, &msg, NULL);
-	signSetText(mcui.signChunk, mcui.signPos, msg);
-	*mcui.exitCode = 1;
+	int    len = SIT_TextGetWithSoftline(ud, NULL, 0);
+	STRPTR buffer = alloca(len);
+	SIT_TextGetWithSoftline(ud, buffer, len);
+	signSetText(mcui.signChunk, mcui.signPos, buffer);
+	*mcui.exitCode = 2;
 	SIT_CloseDialog(w);
 	return 1;
 }
@@ -930,3 +932,64 @@ void mcuiGoto(SIT_Widget parent, vec4 pos)
 	SIT_ManageWidget(diag);
 }
 
+/*
+ * show a summary about all the blocks in the selection
+ */
+void mcuiAnalyze(SIT_Widget parent, Map map)
+{
+	SIT_Widget diag = SIT_CreateWidget("analyze.bg", SIT_DIALOG, parent,
+		SIT_DialogStyles, SITV_Plain | SITV_Modal | SITV_Movable,
+		NULL
+	);
+
+	SIT_CreateWidgets(diag,
+		"<label name=total>"
+		"<listbox name=list columnNames='Count\tName\tID' width=20em height=15em top=WIDGET,total,1em>"
+		"<button name=ok title=Ok top=WIDGET,list,1em right=FORM buttonType=", SITV_CancelButton, ">"
+		"<button name=save title='Save to file...' right=WIDGET,ok,0.5em top=OPPOSITE,ok>"
+	);
+
+	int  dx, dy, dz, i, j;
+	vec  points = selectionGetPoints();
+	vec4 pos = {
+		fminf(points[VX], points[VX+4]),
+		fminf(points[VY], points[VY+4]),
+		fminf(points[VZ], points[VZ+4])
+	};
+	dx = fabsf(points[VX] - points[VX+4]) + 1;
+	dy = fabsf(points[VY] - points[VY+4]) + 1;
+	dz = fabsf(points[VZ] - points[VZ+4]) + 1;
+
+	int * statistics = calloc(blockGetTotalStates(), sizeof (int));
+	struct BlockIter_t iter;
+	for (mapInitIter(map, &iter, pos, False); dy > 0; dy --)
+	{
+		for (j = 0; j < dz; j ++, mapIter(&iter, -dx, 0, 1))
+		{
+			for (i = 0; i < dx; i ++, mapIter(&iter, 1, 0, 0))
+			{
+				BlockState b = blockGetById(getBlockId(&iter));
+				if (b->inventory == 0) continue;
+				statistics[b - blockStates] ++;
+			}
+		}
+		mapIter(&iter, -dx, 1, -dz);
+	}
+
+	SIT_Widget w = SIT_GetById(diag, "list");
+	for (i = dx = 0, j = blockGetTotalStates(); i < j; i ++)
+	{
+		if (statistics[i] == 0) continue;
+		dx += statistics[i];
+		TEXT count[16];
+		TEXT id[16];
+		BlockState b = blockStates + i;
+		sprintf(count, "%d", statistics[i]);
+		sprintf(id, "%d:%d", b->id >> 4, b->id & 15);
+		SIT_ListInsertItem(w, -1, NULL, count, b->name, id);
+	}
+	free(statistics);
+	SIT_SetValues(SIT_GetById(diag, "total"), SIT_Title|XfMt, "Non air block selected: %d", dx, NULL);
+
+	SIT_ManageWidget(diag);
+}

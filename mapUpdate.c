@@ -347,7 +347,7 @@ static void mapUpdateSkyLightBlock(BlockIter iterator)
 {
 	struct BlockIter_t iter = *iterator;
 	int8_t max, level, old, sky;
-	int    i;
+	int    i, height;
 
 	sky = mapGetSky(iterator) - blockGetSkyOpacity(iter.blockIds[iter.offset], 0);
 	mapUpdateInitTrack(track);
@@ -355,30 +355,31 @@ static void mapUpdateSkyLightBlock(BlockIter iterator)
 	track.unique = 1;
 
 	i = CHUNK_BLOCK_POS(iter.x, iter.z, 0);
-	if (iter.ref->heightMap[i] < iter.yabs+1)
+	height = iter.ref->heightMap[i];
+	if (height < iter.yabs+1)
 	{
 		/* block is higher than heightmap (or at the same level) */
-		int j, max;
+		int j;
 		sky = mapGetSky(&iter) - blockGetSkyOpacity(iter.blockIds[iter.offset], 0);
 		/* block is not blocking sky (ie: glass) */
 		if (sky == MAXSKY) return;
 		if (sky < 0) sky = 0;
 		mapUpdateTable(&iter, sky, SKYLIGHT_OFFSET);
 		/* block is set at a higher position */
-		for (j = iter.yabs - (sky == 0), max = iter.ref->heightMap[i]; j >= max; j --)
+		for (j = iter.yabs - (sky == 0); j >= height; j --)
 		{
 			trackAdd(MAXSKY | (4<<5), j - iter.yabs, 0);
 		}
 		iter.ref->heightMap[i] = iter.yabs + 1;
 	}
-	else
+	else /* block is lower or equal to heightmap */
 	{
 		mapIter(&iter, 0, -1, 0);
 		if (blockGetSkyOpacity(iter.blockIds[iter.offset], 0) < MAXSKY)
 			trackAdd(MAXSKY | (4<<5), -1, 0);
 
 		mapIter(&iter, 0, 2, 0);
-		if (blockGetSkyOpacity(iter.blockIds[iter.offset], 0) < MAXSKY)
+		if (iter.yabs < height && blockGetSkyOpacity(iter.blockIds[iter.offset], 0) < MAXSKY)
 			trackAdd(MAXSKY | (5<<5), 1, 0);
 
 		mapIter(&iter, 0, -1, 0);
@@ -422,16 +423,6 @@ static void mapUpdateSkyLightBlock(BlockIter iterator)
 				if (max == MAXSKY) break;
 			}
 		}
-		#if 0
-		/* what was that fix for? */
-		if (max == MAXSKY)
-		{
-			mapIter(&neighbor, 0, 2, 0);
-			if (mapGetSky(&neighbor) == MAXSKY)
-				/* MAXSKY just above: not a local maximum then */
-				goto skip;
-		}
-		#endif
 		neighbor = initial;
 		if (max > 0)
 		{
@@ -1621,7 +1612,7 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 			/* remove off-screen bitmap */
 			signDel(oldTile);
 
-		if ((iter.ref->cflags & CFLAG_MARKMODIF) == 0)
+		if ((iter.ref->cflags & CFLAG_REBUILDTE) == 0)
 			chunkMarkForUpdate(iter.ref);
 	}
 
@@ -1630,7 +1621,7 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 		/* update position */
 		chunkUpdateTilePosition(iter.ref, XYZ, tile);
 		chunkAddTileEntity(iter.ref, XYZ, tile);
-		if ((iter.ref->cflags & CFLAG_MARKMODIF) == 0)
+		if ((iter.ref->cflags & CFLAG_REBUILDTE) == 0)
 			chunkMarkForUpdate(iter.ref);
 	}
 

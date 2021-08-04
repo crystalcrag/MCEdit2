@@ -13,13 +13,13 @@
 #include <stdlib.h>
 #include <math.h>
 #include <stdio.h>
-#include "blocks.h"
 #include "render.h"
 #include "items.h"
 #include "particles.h"
 #include "sign.h"
 #include "skydome.h"
 #include "entities.h"
+#include "selection.h"
 #include "nanovg.h"
 #include "SIT.h"
 
@@ -139,12 +139,11 @@ static void renderSelection(void)
 		/* show a preview of what is going to be placed if left-clicked */
 		BlockState b = blockGetById(render.selection.extra.blockId);
 		if ((b->inventory & CATFLAGS) == DECO && b->type == QUAD)
-		{
-			offset = normals + 5;
-		}
-		else offset = normals + render.selection.extra.side * 4;
+			offset = normals + 5; /* 0,0,0 */
+		else
+			offset = normals + render.selection.extra.side * 4;
 		int blockId = blockAdjustOrient(id, &info, render.selection.extra.inter);
-		if (info.keepPos) offset = normals + 5;
+		if (info.keepPos) offset = normals + 5; /* 0,0,0 */
 
 		#if 0
 		static int oldBlock;
@@ -179,8 +178,9 @@ static void renderSelection(void)
 
 		glDrawArrays(GL_LINES, vtx, wire);
 	}
-	else /* highlight bounding box instead */
+	else if (render.selection.extra.entity == 0) /* highlight bounding box instead */
 	{
+		static int locOffset;
 		vec4 loc;
 		highlight_bbox:
 		loc[0] = render.selection.current[0];
@@ -190,17 +190,19 @@ static void renderSelection(void)
 		glUseProgram(render.selection.shader);
 		glBindBuffer(GL_UNIFORM_BUFFER, render.uboShader);
 
+		if (locOffset == 0)
+			locOffset = glGetUniformLocation(render.selection.shader, "info");
+
 		/* draw block bounding box */
 		BlockState b   = blockGetById(render.selection.extra.blockId);
 		VTXBBox    box = blockGetBBoxForVertex(b); if (! box) return;
-		int        off = 0;
 		int        flg = render.selection.extra.cnxFlags;
+		int        off = 0;
 		int        count;
 
 		if (render.selection.extra.special == BLOCK_DOOR_TOP) loc[VY] --;
-		loc[3] = 1 + 4;
-		setShaderValue(render.selection.shader, "info", 4, loc);
-
+		loc[3] = 1;
+		glProgramUniform4fv(render.selection.shader, locOffset, 1, loc);
 		glBindVertexArray(render.vaoBBox);
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, render.vboBBoxIdx);
 		glFrontFace(GL_CCW);
@@ -210,7 +212,7 @@ static void renderSelection(void)
 		/* rearrange element array on the fly: performance does not really matter here */
 		if (lastId != b->id || lastFlag != flg)
 		{
-			count = lastCount = blockGenVertexBBox(b, box, flg, &render.vboBBoxVTX);
+			count = lastCount = blockGenVertexBBox(b, box, flg, &render.vboBBoxVTX, ID(31,0), 0);
 			lastId = b->id;
 			lastFlag = flg;
 			//fprintf(stderr, "block = %s, cnx = %d\n", b->name, flg);
@@ -221,8 +223,8 @@ static void renderSelection(void)
 		glDepthMask(GL_FALSE);
 		glDrawElements(GL_TRIANGLES, count & 0xffff, GL_UNSIGNED_SHORT, 0);
 
-		loc[3] -= 4;
-		setShaderValue(render.selection.shader, "info", 4, loc);
+		loc[3] = 0;
+		glProgramUniform4fv(render.selection.shader, locOffset, 1, loc);
 
 		/* edge highlight */
 		off += (count & 0xffff) * 2;
@@ -230,17 +232,48 @@ static void renderSelection(void)
 		glDrawElements(GL_LINES, count, GL_UNSIGNED_SHORT, (APTR) off);
 
 		/* hidden part of selection box */
-		loc[3] += 8;
-		setShaderValue(render.selection.shader, "info", 4, loc);
+		loc[3] = 2;
+		glProgramUniform4fv(render.selection.shader, locOffset, 1, loc);
 		glDepthFunc(GL_GEQUAL);
 		glDrawElements(GL_LINES, count, GL_UNSIGNED_SHORT, (APTR) off);
 
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-
 		glDepthFunc(GL_LEQUAL);
+
+		if (render.selection.sel & (SEL_FIRST|SEL_SECOND))
+			selectionRender();
+
 		glDepthMask(GL_TRUE);
 	}
 	glBindVertexArray(0);
+}
+
+/* left click in off-hand mode: add selection point */
+int renderSetSelectionPoint(Bool set)
+{
+	if (! set)
+	{
+		render.selection.sel &= ~(SEL_FIRST|SEL_SECOND);
+		render.inventory->offhand &= ~2;
+		selectionClear();
+		return 0;
+	}
+	if ((render.selection.sel & SEL_CURRENT) == 0)
+		/* need a block being pointed at */
+		return 0;
+
+	if ((render.selection.sel & SEL_FIRST) == 0)
+	{
+		selectionSet(render.selection.current, 0);
+		render.selection.sel |= SEL_FIRST;
+		render.inventory->offhand |= 2;
+	}
+	else
+	{
+		selectionSet(render.selection.current, 1);
+		render.selection.sel |= SEL_SECOND;
+	}
+	return (render.selection.sel>>1) & 3;
 }
 
 /* from mouse pos mx, my: pickup block pointed at this location using ray casting */
@@ -349,6 +382,7 @@ Bool renderInitStatic(int width, int height, APTR sitRoot)
 	blockParseBoundingBox();
 	blockParseInventory(render.vboInventory);
 	particlesInit(render.vboParticles);
+	selectionInitStatic(render.selection.shader);
 	if (! entityInitStatic())
 		return False;
 
@@ -395,15 +429,18 @@ Bool renderInitStatic(int width, int height, APTR sitRoot)
 	glGenBuffers(2, &render.vboBBoxVTX);
 	glBindBuffer(GL_ARRAY_BUFFER, render.vboBBoxVTX);
 	/* 8 vertices per bbox, 12 bytes per vertex (3 floats), 20 max bounding box */
-	glBufferData(GL_ARRAY_BUFFER, 8 * 12 * 20, NULL, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, 8 * 20 * 20, NULL, GL_STATIC_DRAW);
 	glBindBuffer(GL_ARRAY_BUFFER, render.vboBBoxIdx);
 	/* indirect buffer: 36 for faces, 24 for lines, 2 bytes per index, 20 sets max */
 	glBufferData(GL_ARRAY_BUFFER, (24 + 36) * 2 * 20, NULL, GL_STATIC_DRAW);
 
 	glBindVertexArray(render.vaoBBox);
 	glBindBuffer(GL_ARRAY_BUFFER, render.vboBBoxVTX);
-	glVertexAttribIPointer(0, 3, GL_UNSIGNED_SHORT, 0, 0);
+	/* 3 for vertex, 2 for tex coord */
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 20, 0);
 	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 20, (APTR) 12);
+	glEnableVertexAttribArray(1);
 	glBindVertexArray(0);
 
 
@@ -749,7 +786,7 @@ static void renderInventoryItems(float scale)
 			if (item->id > ID(256, 0))
 			{
 				ItemDesc desc = itemGetById(item->id);
-				size = blockInvGetModelSize(desc->glInvId);
+				size = desc ? blockInvGetModelSize(desc->glInvId) : 0;
 			}
 			else
 			{
@@ -818,8 +855,7 @@ void renderItems(Item items, int count, float scale)
 		else
 		{
 			ItemDesc desc = itemGetById(item->id);
-			if (desc == NULL)
-				desc = itemGetById(ITEM_INVALID_ID);
+			if (desc == NULL) continue;
 			glInvId = desc->glInvId;
 		}
 		glInvId = blockInvGetModelSize(glInvId);
@@ -856,8 +892,6 @@ static inline void renderSortVertex(GPUBank bank, ChunkData cd)
 {
 	cd->yaw = render.yaw;
 	cd->pitch = render.pitch;
-
-//	fprintf(stderr, "sorting %d quads\n", cd->glAlpha / QUAD_SIZE);
 
 	GPUMem mem = bank->usedList + cd->glSlot;
 	DATA32 vtx, src1, src2, dist;
@@ -922,18 +956,6 @@ static inline void renderSortVertex(GPUBank bank, ChunkData cd)
 	}
 	if (count > 512)
 		free(dist);
-
-	#if 0
-	puts("=========================");
-	for (i = 0, vtx = (DATA16) vertex; i < count; i ++, vtx += VERTEX_INT_SIZE)
-	{
-		static STRPTR colors[] = {"WHITE","ORANGE","MAGENTA","LBLUE","YELLOW","LIME","PINK","DGRAY","GRAY","CYAN","PURPLE","BLUE","BROWN","GREEN","RED","BLACK","???"};
-		int V = (GET_VCOORD(vtx) >> 4)-33;
-		if (V < 0 || V > 16) V = 16;
-
-		fprintf(stderr, "face: %c, dist: %u, color: %s\n", "SENWTB"[GET_NORMAL(vtx)], dist[i*2], colors[V]);
-	}
-	#endif
 
 	glUnmapBuffer(GL_ELEMENT_ARRAY_BUFFER);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
@@ -1052,7 +1074,7 @@ static void renderText(NVGcontext * vg, int x, int y, STRPTR text, float a)
 
 
 /* show tooltip near mouse cursor containing some info on the block selected */
-void renderBlockInfo(SelBlock * sel)
+void renderBlockInfo(SelBlock_t * sel)
 {
 	static vec4 pos;
 
@@ -1323,14 +1345,20 @@ void renderWorld(void)
 	nvgTranslate(vg, render.width / (2 * scale) - 182 / 2, render.height / scale - 22);
 	nvgBeginPath(vg);
 	nvgRect(vg, 0, 0, 182, 22);
-	nvgFillPaint(vg, nvgImagePattern(render.nvgCtx, 0, 0, 230, 24, 0, render.inventory->texture, 1));
+	nvgFillPaint(vg, nvgImagePattern(render.nvgCtx, 0, 0, 253, 24, 0, render.inventory->texture, 1));
 	nvgFill(vg);
 
-	int pos = render.inventory->selected * 20 - 1;
+	nvgBeginPath(vg);
+	nvgRect(vg, -26, 0, 22, 22);
+	nvgFillPaint(vg, nvgImagePattern(render.nvgCtx, render.inventory->offhand & 2 ? -208-26-23 : -208-26, 0, 253, 24, 0, render.inventory->texture, 1));
+	nvgFill(vg);
 
+	int pos = render.inventory->offhand & 1 ? -26 : render.inventory->selected * 20 - 1;
+
+	/* selected slot */
 	nvgBeginPath(vg);
 	nvgRect(vg, pos, -1, 24, 24);
-	nvgFillPaint(vg, nvgImagePattern(vg, pos - 183, -1, 230, 24, 0, render.inventory->texture, 1));
+	nvgFillPaint(vg, nvgImagePattern(vg, pos - 183, -1, 253, 24, 0, render.inventory->texture, 1));
 	nvgFill(vg);
 	nvgRestore(vg);
 

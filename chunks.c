@@ -383,7 +383,7 @@ Bool chunkLoad(Chunk chunk, const char * path, int x, int z)
 void chunkMarkForUpdate(Chunk c)
 {
 	NBT_MarkForUpdate(&c->nbt, c->teOffset < 0 ? NBT_FindNode(&c->nbt, 0, "Level") : c->teOffset, CHUNK_NBT_TILEENTITES);
-	c->cflags |= CFLAG_MARKMODIF;
+	c->cflags |= CFLAG_REBUILDTE;
 }
 
 /* insert <nbt> fragment at the location of tile entity pointed by <blockOffset> (ie: coord of tile entity within chunk) */
@@ -416,9 +416,8 @@ Bool chunkUpdateNBT(Chunk c, int blockOffset, NBTFile nbt)
 	}
 
 	/* we will need to modify NBT structure when saving this chunk */
-	if ((c->cflags & CFLAG_MARKMODIF) == 0)
+	if ((c->cflags & CFLAG_REBUILDTE) == 0)
 		chunkMarkForUpdate(c);
-	c->cflags |= CFLAG_NEEDSAVE;
 
 	/* add or update pointer in hash */
 	return chunkAddTileEntity(c, XYZ, nbt->mem);

@@ -30,6 +30,7 @@ void renderAddModif(void);
 void renderAllSaved(void);
 void renderFrustum(Bool snapshot);
 void renderResetViewport(void);
+int  renderSetSelectionPoint(Bool set);
 int  renderGetTerrain(int size[2]);
 MapExtraData renderGetSelectedBlock(vec4 pos, int * blockModel);
 
@@ -83,21 +84,19 @@ void renderItems(Item items, int count, float scale);
 
 
 typedef struct MeshBuffer_t *      MeshBuffer;
-typedef struct SelBlock_t          SelBlock;
-typedef struct MapExtraData_t      ExtraBuf;
-typedef struct Message_t           MsgBuf;
+typedef struct SelBlock_t          SelBlock_t;
+typedef struct MapExtraData_t      Extra_t;
+typedef struct Message_t           Message_t;
 
 struct SelBlock_t
 {
-	GLuint   shader;               /* compiled shader */
-	vec4     current;              /* cursor pointing to this block */
-	vec4     first;                /* first block selected */
-	vec4     second;
-	vec4     blockPos;             /* recommended block position */
-	int      sel;                  /* which block is valid: &1 = current, &2 = first, &4 = second */
-	int      blockId;              /* block to show preview of */
-	int      blockVtx;             /* nb of vertex for glDrawArrays() */
-	ExtraBuf extra;
+	GLuint  shader;                /* compiled shader */
+	vec4    current;               /* cursor pointing to this block */
+	vec4    blockPos;              /* recommended block position */
+	int     sel;                   /* which block is valid: &1 = current, &2 = first, &4 = second */
+	int     blockId;               /* block to show preview of */
+	int     blockVtx;              /* nb of vertex for glDrawArrays() */
+	Extra_t extra;
 };
 
 enum                               /* bitfield for SelBlock.sel */
@@ -117,62 +116,62 @@ struct Message_t
 
 struct RenderWorld_t
 {
-	int       width, height;       /* glViewport */
-	Map       level;               /* map being rendered */
-	mat4      matModel;            /* MVP mat */
-	mat4      matPerspective;
-	mat4      matMVP;              /* model-view-projection combined matrix */
-	mat4      matInvMVP;           /* inverse of matMVP (raypicking and frustum culling will need this) */
-	mat4      matInventoryItem;    /* ortho matrix for rendering blocks in inventory */
-	vec4      lightPos;
-	vec4      curLightPos;
-	vec4      camera;              /* player pos */
-	GLuint    shaderBlocks;        /* compiled shaders */
-	GLuint    shaderParticles;
-	GLuint    shaderItems;
-	GLuint    vaoInventory;        /* vao to draw inventory object */
-	GLuint    vaoBBox;
-	GLuint    vaoPreview;
-	GLuint    vaoParticles;
-	GLuint    vboBBoxVTX;          /* bounding box models buffer */
-	GLuint    vboBBoxIdx;
-	GLuint    uboShader;
-	GLuint    texBlock;            /* main texture */
-	GLuint    vboInventoryMDAI;    /* same for inventory rendering */
-	GLuint    vboInventoryLoc;
-	GLuint    vboPreview;
-	GLuint    vboPreviewLoc;
-	GLuint    vboInventory;        /* block model for rendering inventory */
-	GLuint    vboParticles;
-	int       custMDAIsize;        /* vboCustMDAI size in draw calls */
-	int       custBlocks;          /* nb of custom block models to render */
-	DATA16    instanceLoc;         /* instance location in instanceCount, indexed by glObjectId */
-	DATA16    instanceCount;       /* instance count */
-	DATA16    instanceIds;         /* instance id to draw count times (glObjectId)  */
-	int       instanceSize;        /* size in bytes of both arrays */
-	float *   custLoc;             /* vertex attrib divisor 1 array for cust models */
-	int       custMax;             /* custLoc[] array capacity (in attributes = 4 floats) */
-	APTR      nvgCtx;              /* nanovg context */
-	int       compass;             /* image id from nanovg */
-	float     yaw, pitch;
-	float     scale;
-	uint8_t   debug;               /* 1 if debug info is displayed */
-	uint8_t   debugInfo;
-	uint8_t   direction;           /* player facing direction: 0:south, 1:east, 2:north, 3:west */
-	uint8_t   setFrustum;
-	int       debugFont;           /* font id from nanovg (init by SITGL) */
-	int       debugTotalTri;       /* triangle count being drawn */
-	int       mouseX, mouseY;
-	SelBlock  selection;
-	Inventory inventory;
-	int       nvgTerrain;          /* texture for blocks as a NVG image */
-	int       invCache;
-	int       invCount;
-	int       invExt;
-	int       modifCount;
-	MsgBuf    message;             /* message at bottom of screen */
-	APTR      blockInfo;
-	APTR      sitRoot;
+	int        width, height;      /* glViewport */
+	Map        level;              /* map being rendered */
+	mat4       matModel;           /* MVP mat */
+	mat4       matPerspective;
+	mat4       matMVP;             /* model-view-projection combined matrix */
+	mat4       matInvMVP;          /* inverse of matMVP (raypicking and frustum culling will need this) */
+	mat4       matInventoryItem;   /* ortho matrix for rendering blocks in inventory */
+	vec4       lightPos;
+	vec4       curLightPos;
+	vec4       camera;             /* player pos */
+	GLuint     shaderBlocks;       /* compiled shaders */
+	GLuint     shaderParticles;
+	GLuint     shaderItems;
+	GLuint     vaoInventory;       /* vao to draw inventory object */
+	GLuint     vaoBBox;
+	GLuint     vaoPreview;
+	GLuint     vaoParticles;
+	GLuint     vboBBoxVTX;         /* bounding box models buffer */
+	GLuint     vboBBoxIdx;
+	GLuint     uboShader;
+	GLuint     texBlock;           /* main texture */
+	GLuint     vboInventoryMDAI;   /* same for inventory rendering */
+	GLuint     vboInventoryLoc;
+	GLuint     vboPreview;
+	GLuint     vboPreviewLoc;
+	GLuint     vboInventory;       /* block model for rendering inventory */
+	GLuint     vboParticles;
+	int        custMDAIsize;       /* vboCustMDAI size in draw calls */
+	int        custBlocks;         /* nb of custom block models to render */
+	DATA16     instanceLoc;        /* instance location in instanceCount, indexed by glObjectId */
+	DATA16     instanceCount;      /* instance count */
+	DATA16     instanceIds;        /* instance id to draw count times (glObjectId)  */
+	int        instanceSize;       /* size in bytes of both arrays */
+	float *    custLoc;            /* vertex attrib divisor 1 array for cust models */
+	int        custMax;            /* custLoc[] array capacity (in attributes = 4 floats) */
+	APTR       nvgCtx;             /* nanovg context */
+	int        compass;            /* image id from nanovg */
+	float      yaw, pitch;
+	float      scale;
+	uint8_t    debug;              /* 1 if debug info is displayed */
+	uint8_t    debugInfo;
+	uint8_t    direction;          /* player facing direction: 0:south, 1:east, 2:north, 3:west */
+	uint8_t    setFrustum;
+	int        debugFont;          /* font id from nanovg (init by SITGL) */
+	int        debugTotalTri;      /* triangle count being drawn */
+	int        mouseX, mouseY;
+	SelBlock_t selection;
+	Inventory  inventory;
+	int        nvgTerrain;         /* texture for blocks as a NVG image */
+	int        invCache;
+	int        invCount;
+	int        invExt;
+	int        modifCount;
+	Message_t  message;            /* message at bottom of screen */
+	APTR       blockInfo;
+	APTR       sitRoot;
 };
 
 struct MeshBuffer_t                /* temporary buffer used to collect data from chunkUpdate() */
@@ -184,7 +183,7 @@ struct MeshBuffer_t                /* temporary buffer used to collect data from
 };
 
 /* debug info */
-void debugBlockVertex(Map, SelBlock *);
+void debugBlockVertex(Map, SelBlock_t *);
 void debugInit(void);
 void debugShowChunkBoundary(Chunk cur, int Y);
 void debugCoord(APTR vg, vec4 camera, int total);

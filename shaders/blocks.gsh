@@ -23,7 +23,7 @@ in vec3 offsets[];
 out vec2 tc;
 out float skyLight;
 out float blockLight;
-flat out int  rswire;
+flat out uint rswire;
 flat out vec2 texOrigin;
 flat out uint ocsmap;
 flat out int  normal;
@@ -40,7 +40,7 @@ void main(void)
 
 	/* shading per face (OCS is done in fragment shader) */
 	float shade = normal < 6 ? shading[normal].x / 15 : 1/15.;
-	rswire = normal == 7 ? 1 : 0;
+	rswire = normal == 7 ? (skyBlockLight[0] & 15) + 1 : 0;
 	texOrigin = vec2(texCoord[0].x, texCoord[0].z);
 	ocsmap = ocsField[0];
 

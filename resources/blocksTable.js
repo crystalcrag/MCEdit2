@@ -2909,13 +2909,13 @@
 		{state: 0, name: "-", tex: [18,18,18,18,18,18,18,18,18,18,18,18]},
 
 	{id: 207, name: "Beetroot", type: QUAD, pushable: DROPITEM},
-		{state: 0, name: "-(age_0)",  tex: [2, 29], quad: [CROSS]},
-		{state: 1, name: "-1",        tex: [3, 29], quad: [CROSS]},
-		{state: 2, name: "-2",        tex: [4, 29], quad: [CROSS]},
-		{state: 3, name: "-3",        tex: [5, 29], quad: [CROSS]},
+		{state: 0, name: "-(age_0)",  tex: [19, 6], quad: [CROSS]},
+		{state: 1, name: "-1",        tex: [20, 6], quad: [CROSS]},
+		{state: 2, name: "-2",        tex: [21, 6], quad: [CROSS]},
+		{state: 3, name: "-3",        tex: [22, 6], quad: [CROSS]},
 
 	{id: 208, name: "Path block", type: SOLID, inv: CUBE, cat: DECO, tech: "grass_path"},
-		{state: 0, tex: [1,29, 1,29, 1,29, 1,29, 0,29, 2, 0]},
+		{state: 0, tex: [18,12,18,12,18,12,18,12,18,11, 2, 0]},
 
 	{id: 209, name: "End gateway", type: SOLID, pushable: NO}, 
 		{state: 0, tex: [16,15,16,15,16,15,16,15,16,15,16,15]},
@@ -3238,9 +3238,9 @@
 		{state:14, name: "+red",        tex: [ 4,22, 4,22, 4,22, 4,22, 4,22, 4,22]},
 		{state:15, name: "+black",      tex: [ 0,22, 0,22, 0,22, 0,22, 0,22, 0,22]},
 
-	/* dummy block for debug */
+	/* dummy block for debug
 	{id: 253, name: "White Block", type: SOLID, inv: CUBE, cat: BUILD},
-		{state: 0, name: "-", tex: [18,20,18,20,18,20,18,20,18,20,18,20]},
+		{state: 0, name: "-", tex: [18,20,18,20,18,20,18,20,18,20,18,20]}, */
 
 	/* hack to handle collision box of door :-/ */
 	{id: 255, type: INVIS, name: "Door top", bbox: NONE, special: DOOR_TOP},

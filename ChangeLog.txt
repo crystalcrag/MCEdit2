@@ -1,4 +1,19 @@
+=========== Week 31 ===========
+Tue Aug 3:
+	* extended selection working.
+	* started analyze command.
+
+Mon Aug 2:
+	* extended selection continued.
+
 =========== Week 30 ===========
+Sun Aug 1:
+	* standing sign editing was FUBAR.
+	* extended selection continued.
+
+Sat July 31:
+	* started extended selection.
+
 Fri July 30:
 	* added pushable tile entities.
 

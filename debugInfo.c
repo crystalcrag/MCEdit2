@@ -21,7 +21,7 @@ extern struct RenderWorld_t render;
 #define FRUSTUM_DEBUG
 
 /* get info on block being pointed at (dumped on stderr though) */
-void debugBlockVertex(Map map, SelBlock * select)
+void debugBlockVertex(Map map, SelBlock_t * select)
 {
 	if (select->sel & 1)
 	{
@@ -399,7 +399,7 @@ static struct
 	int        slice;
 	int        minXZ, maxXZ;
 	int        pos[3], orig[3], top[3];
-	SelBlock   sel;
+	SelBlock_t sel;
 
 }	debug;
 
@@ -798,7 +798,7 @@ void debugScrollView(int dx, int dy)
 
 void debugBlock(int x, int y)
 {
-	void renderBlockInfo(SelBlock * sel);
+	void renderBlockInfo(SelBlock_t * sel);
 
 	debug.mX = x;
 	debug.mY = y;

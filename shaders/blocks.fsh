@@ -10,10 +10,10 @@ out vec4 color;
 in  vec2 tc;
 in  float skyLight;
 in  float blockLight;
-flat in int rswire;
+flat in uint rswire;
 flat in vec2 texOrigin;
 flat in uint ocsmap;
-flat in int normal;
+flat in int  normal;
 
 /*
  * Main texture for blocks
@@ -31,7 +31,7 @@ void main(void)
 	if (rswire >= 1)
 	{
 		/* use color from terrain to shade wire: coord are located at tile 31x3.5 to 32x3.5 */
-		color *= texture(blockTex, vec2(0.96875 + float(rswire-1) * 0.03125, 0.0556640625));
+		color *= texture(blockTex, vec2(0.96875 + float(rswire-1) * 0.001953125, 0.0556640625));
 		return;
 	}
 

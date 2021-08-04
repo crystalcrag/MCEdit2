@@ -35,7 +35,7 @@ static uint8_t biomeDepend[] = {
 	16,12, 5,12, 4,12,15, 8
 };
 
-static uint8_t bboxIndices[] = {
+uint8_t bboxIndices[] = {
 	/* triangles for filling: ordered S, E, N, W, T, B */
 	3, 0, 1,    2, 3, 1,
 	2, 1, 5,    6, 2, 5,
@@ -1818,57 +1818,73 @@ static int blockBBoxFuse(BlockState b, VTXBBox list, int cnxFlags, DATA16 buffer
 }
 
 /* fill vertex buffers for selection shader */
-int blockGenVertexBBox(BlockState b, VTXBBox box, int flag, int * vbo)
+int blockGenVertexBBox(BlockState b, VTXBBox box, int flag, int * vbo, int texCoord, int offsets)
 {
 	glBindBuffer(GL_ARRAY_BUFFER, vbo[0]);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vbo[1]);
-	DATA16 vertex = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
+	vec    vertex = glMapBuffer(GL_ARRAY_BUFFER, GL_READ_WRITE);
 	DATA16 index  = glMapBuffer(GL_ELEMENT_ARRAY_BUFFER, GL_WRITE_ONLY);
 
-	enum { PT1X, PT1Y, PT1Z, PT2X, PT2Y, PT2Z };
+	enum { PT1X, PT1Y, PT1Z, PT2X, PT2Y, PT2Z, PTU, PTV };
+	/* 8 vertices of a VTXBBox */
 	static uint8_t vtx[] = {
-		PT1X, PT1Y, PT2Z,
-		PT2X, PT1Y, PT2Z,
-		PT2X, PT2Y, PT2Z,
-		PT1X, PT2Y, PT2Z,
+		PT1X, PT1Y, PT2Z, PTU, PTV,
+		PT2X, PT1Y, PT2Z, PTU, PTV,
+		PT2X, PT2Y, PT2Z, PTU, PTV,
+		PT1X, PT2Y, PT2Z, PTU, PTV,
 
-		PT1X, PT1Y, PT1Z,
-		PT2X, PT1Y, PT1Z,
-		PT2X, PT2Y, PT1Z,
-		PT1X, PT2Y, PT1Z,
+		PT1X, PT1Y, PT1Z, PTU, PTV,
+		PT2X, PT1Y, PT1Z, PTU, PTV,
+		PT2X, PT2Y, PT1Z, PTU, PTV,
+		PT1X, PT2Y, PT1Z, PTU, PTV,
 	};
 	int idx;
+	float U = ((texCoord >> 4) * 16 + 8) / 512.;
+	float V = ((texCoord & 15) * 16 + 8) / 1024.;
+
+	index  += offsets & 0xffff; offsets >>= 16;
+	vertex += offsets;
+	offsets /= 5;
 
 	if (box->aabox == 0 && b->custModel && blockIds[b->id>>4].bbox == BBOX_FULL)
 	{
 		/* generate vertex data from custom model */
-		int    i, j;
-		DATA16 p = b->custModel;
+		int    i, j, k;
+		DATA16 p = b->custModel, v, lines;
 		int    count = p[-1];
-		DATA8  vtxindex = alloca(count);
-		DATA16 v, lines;
+		DATA8  vtxIndex = alloca(count);
+		vec    vtxData;
 
 		/* first gather vertex */
-		for (i = 0, v = vertex; count > 0; count --, p += INT_PER_VERTEX, i ++)
+		for (i = k = 0, v = (DATA16) vertex; count > 0; count --, p += INT_PER_VERTEX, i ++)
 		{
 			DATA16 check;
 			/* check for unique vertices */
-			for (check = vertex, j = 0; check != v && memcmp(check, p, 6); check += 3, j ++);
-			if (check == v) memcpy(v, p, 6), v += 3;
-			vtxindex[i] = j;
+			for (check = (DATA16) vertex, j = 0; check != v && memcmp(check, p, 6); check += 10, j ++);
+			if (check == v) memcpy(v, p, 6), v += 10, k ++;
+			vtxIndex[i] = j;
 		}
 
-		/* generate actual vertex data */
-		for (p = b->custModel, count = p[-1], idx = 0, lines = index + count; count > 0; count -= 6, vtxindex += 6, p += INT_PER_VERTEX * 6)
+		/* convert to float */
+		for (i = k, vtxData = vertex; i > 0; i --, vtxData += 5)
 		{
-			/* analyze one face at a time */
-			static uint8_t indices[] = {0, 1, 2, 5, 6, 7, 10, 11, 12}; /* only need 3 points */
-			int16_t offsets[3];
-			float   pts[9];
+			v = (DATA16) vtxData;
+			vtxData[2] = (v[2] - ORIGINVTX) * (1. / BASEVTX);
+			vtxData[1] = (v[1] - ORIGINVTX) * (1. / BASEVTX);
+			vtxData[0] = (v[0] - ORIGINVTX) * (1. / BASEVTX);
+			vtxData[3] = U;
+			vtxData[4] = V;
+		}
 
-			/* convert 3 pts to float */
-			for (j = 0; j < DIM(pts); j ++)
-				pts[j] = (p[indices[j]] - ORIGINVTX) * (1. / BASEVTX);
+		/* adjust vertex data and fill indices buffer */
+		for (p = b->custModel, count = p[-1], idx = 0, lines = index + count; count > 0; count -= 6, vtxIndex += 6, p += INT_PER_VERTEX * 6)
+		{
+			float shift[3], pts[9];
+
+			/* analyze one face at a time: only need 3 points */
+			memcpy(pts,   vertex + vtxIndex[0] * 4, 12);
+			memcpy(pts+3, vertex + vtxIndex[1] * 4, 12);
+			memcpy(pts+6, vertex + vtxIndex[2] * 4, 12);
 
 			pts[3] -= pts[0];   pts[6] -= pts[0];
 			pts[4] -= pts[1];   pts[7] -= pts[1];
@@ -1877,23 +1893,23 @@ int blockGenVertexBBox(BlockState b, VTXBBox box, int flag, int * vbo)
 			/* get normal vector */
 			vecCrossProduct(pts, pts+3, pts+6);
 			vecNormalize(pts, pts);
-			offsets[0] = pts[0] * (0.01 * BASEVTX);
-			offsets[1] = pts[1] * (0.01 * BASEVTX);
-			offsets[2] = pts[2] * (0.01 * BASEVTX);
+			shift[0] = pts[0] * 0.01;
+			shift[1] = pts[1] * 0.01;
+			shift[2] = pts[2] * 0.01;
 
 			/* shift vertex by normal */
 			for (j = 0; j < 4; j ++, lines += 2)
 			{
-				int k = vtxindex[j];
-				v = vertex + k * 3;
-				v[0] += offsets[0];
-				v[1] += offsets[1];
-				v[2] += offsets[2];
-				index[j] = lines[0] = k;
-				lines[1] = vtxindex[(j+1) & 3];
+				k = vtxIndex[j];
+				vtxData = vertex + k * 5;
+				vtxData[0] += shift[0];
+				vtxData[1] += shift[1];
+				vtxData[2] += shift[2];
+				index[j] = lines[0] = k + offsets;
+				lines[1] = vtxIndex[(j+1) & 3] + offsets;
 			}
-			index[4] = vtxindex[4];
-			index[5] = vtxindex[5];
+			index[4] = vtxIndex[4] + offsets;
+			index[5] = vtxIndex[5] + offsets;
 			idx += 6 | (8 << 16);
 			index += 6;
 		}
@@ -1909,8 +1925,13 @@ int blockGenVertexBBox(BlockState b, VTXBBox box, int flag, int * vbo)
 			idx = box->flags & 0x7f;
 			if (idx > 0 && (flag & (1 << (idx - 1))) == 0) continue;
 			for (j = 0; j < DIM(vtx); j ++)
-				vertex[j] = box->pt1[vtx[j]];
-
+			{
+				switch (vtx[j]) {
+				case PTU: vertex[j] = U; break;
+				case PTV: vertex[j] = V; break;
+				default:  vertex[j] = (box->pt1[vtx[j]] - ORIGINVTX) * (1. / BASEVTX);
+				}
+			}
 			boxes |= 1 << i;
 			vertex += DIM(vtx);
 		}
@@ -1918,7 +1939,7 @@ int blockGenVertexBBox(BlockState b, VTXBBox box, int flag, int * vbo)
 		if ((list->flags & BHDR_FUSED) == 0)
 		{
 			/* 2nd: indices for face using glDrawElements */
-			for (box = list, i = box->cont, off = idx = 0; i > 0; i --, box ++)
+			for (box = list, i = box->cont, off = offsets, idx = 0; i > 0; i --, box ++)
 			{
 				if ((boxes & (1<<i)) == 0) continue;
 				for (j = 0; j < 36; index ++, j ++)
@@ -1927,7 +1948,7 @@ int blockGenVertexBBox(BlockState b, VTXBBox box, int flag, int * vbo)
 				idx += 36;
 			}
 			/* 3rd: indices for lines */
-			for (box = list, i = box->cont, off = 0; i > 0; i --, box ++)
+			for (box = list, i = box->cont, off = offsets; i > 0; i --, box ++)
 			{
 				if ((boxes & (1<<i)) == 0) continue;
 				for (j = 0; j < 24; index ++, j ++)
@@ -2320,12 +2341,6 @@ int blockAdjustOrient(int blockId, BlockOrient info, vec4 inter)
 		if ((blockId & 15) >= 12) return blockId;
 		return blockId + orientLOG[side];
 	case ORIENT_SLAB:
-		if ((blockId >> 4) == (info->pointToId >> 4))
-		{
-			/* use double slab instead */
-			info->keepPos = 1;
-			return (blockId - 16) & ~8;
-		}
 		return blockId + (info->topHalf ? 8 : 0);
 	case ORIENT_STAIRS:
 		if (side >= 4) side = opposite[info->direction];
@@ -3072,4 +3087,9 @@ DATA8 blockGetDurability(float dura)
 		return blocks.duraColors;
 
 	return blocks.duraColors + ((int) (blocks.duraMax * dura) << 2);
+}
+
+int blockGetTotalStates(void)
+{
+	return blocks.totalStates;
 }

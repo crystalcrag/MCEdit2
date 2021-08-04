@@ -779,7 +779,7 @@ int entityRaycast(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos)
 				if (best)
 				{
 					entitySetSelection(best);
-					return curId;
+					return curId+1;
 				}
 				if (entities.selected > 0)
 					entitySetSelection(NULL);

@@ -89,6 +89,7 @@ void playerSensitivity(float s)
 #define RIGHT     'f'
 #define FORWARD   'e'
 #define BACKWARD  'd'
+#define OFFHAND   'g'
 #define JUMP      SITK_Space
 #define FLYDOWN   SITK_LShift
 
@@ -135,6 +136,7 @@ Bool playerProcessKey(Player p, int key, int mod)
 		case LEFT:     p->keyvec &= ~(PLAYER_STOPPING|PLAYER_STRAFE_RIGHT); p->keyvec |= PLAYER_STRAFE_LEFT; break;
 		case RIGHT:    p->keyvec &= ~(PLAYER_STOPPING|PLAYER_STRAFE_LEFT);  p->keyvec |= PLAYER_STRAFE_RIGHT; break;
 		case FLYDOWN:  p->keyvec &= ~PLAYER_UP;                             p->keyvec |= PLAYER_DOWN; break;
+		case OFFHAND:  p->inventory.offhand ^= 1; break;
 		case '1': case '2': case '3': case '4': case '5':
 		case '6': case '7': case '8': case '9':
 			playerScrollInventory(p, (key - '1') - p->inventory.selected);
@@ -443,7 +445,7 @@ void playerAddInventory(Player p, int blockId, DATA8 tileEntity)
 
 void playerScrollInventory(Player p, int dir)
 {
-	if (dir == 0) return;
+	if (dir == 0 || p->inventory.offhand) return;
 	int pos = p->inventory.selected + dir;
 	if (pos < 0) pos = MAXCOLINV - 1;
 	if (pos >= MAXCOLINV) pos = 0;

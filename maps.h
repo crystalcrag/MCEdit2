@@ -103,6 +103,7 @@ Chunk   mapGetChunk(Map, vec4 pos);
 VTXBBox mapGetBBox(BlockIter iterator, int * count, int * cnxFlags);
 int     getBlockId(BlockIter iter);
 uint8_t mapGetSkyBlockLight(BlockIter iter);
+void    mapAddToSaveList(Map map, Chunk chunk);
 void    printCoord(STRPTR hdr, BlockIter);
 
 /*

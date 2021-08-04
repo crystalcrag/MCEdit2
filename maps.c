@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <string.h>
+#include <malloc.h>
 #include <math.h>
 #include "maps.h"
 #include "render.h"
@@ -265,8 +266,8 @@ VTXBBox mapGetBBox(BlockIter iterator, int * count, int * cnxFlags)
 		{
 			static struct VTXBBox_t bboxes[4];
 			struct BlockIter_t iter = *iterator;
-			uint16_t neighbors[7];
-			uint8_t  i;
+			DATA16  neighbors = alloca(14);  /* this trick will circumvent -Warray-bound :-/ */
+			uint8_t i;
 			neighbors[3] = getBlockId(&iter);
 			for (i = 0; i < 4; i ++)
 			{
@@ -274,6 +275,7 @@ VTXBBox mapGetBBox(BlockIter iterator, int * count, int * cnxFlags)
 				mapIter(&iter, xoff[i], 0, zoff[i]);
 				neighbors[offset[i]] = getBlockId(&iter);
 			}
+			/* first 10 items are not accessed */
 			halfBlockGetBBox(neighbors - 10, bboxes, DIM(bboxes));
 			*count = bboxes->cont;
 			return bboxes;
@@ -957,6 +959,18 @@ Bool mapSaveLevelDat(Map map)
 
 	/* make a copy of level.dat first */
 	return FileCopy(path, copy, True) && NBT_Save(&map->levelDat, path, NULL, 0) > 0;
+}
+
+/* add the chunk to the pending list of chunks to be saved */
+void mapAddToSaveList(Map map, Chunk chunk)
+{
+	if ((chunk->cflags & CFLAG_NEEDSAVE) == 0)
+	{
+		/* must not be added twice */
+		chunk->cflags |= CFLAG_NEEDSAVE;
+		chunk->save = map->needSave;
+		map->needSave = chunk;
+	}
 }
 
 /* save chunks that have been mark as modified */

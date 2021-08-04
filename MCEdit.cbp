@@ -101,6 +101,9 @@
 		<Unit filename="render.c">
 			<Option compilerVar="CC" />
 		</Unit>
+		<Unit filename="selection.c">
+			<Option compilerVar="CC" />
+		</Unit>
 		<Unit filename="sign.c">
 			<Option compilerVar="CC" />
 		</Unit>

@@ -167,6 +167,25 @@ static int mceditGoto(SIT_Widget w, APTR cd, APTR ud)
 	return 1;
 }
 
+/* show statistics about selection */
+static int mceditAnalyze(SIT_Widget w, APTR cd, APTR ud)
+{
+	if (mcedit.selection == 3)
+	{
+		FramePauseUnpause(True);
+		mceditUIOverlay(MCUI_OVERLAY_ANALYZE);
+		FramePauseUnpause(False);
+	}
+	return 1;
+}
+
+static int mceditClearSelection(SIT_Widget w, APTR cd, APTR ud)
+{
+	renderSetSelectionPoint(False);
+	mcedit.selection = 0;
+	return 1;
+}
+
 /* enable auto-repeat for text widget */
 static int mceditTrackFocus(SIT_Widget w, APTR cd, APTR ud)
 {
@@ -232,8 +251,9 @@ int main(int nb, char * argv[])
 		{SITK_FlagCapture + SITK_FlagAlt + SITK_F4, SITE_OnClose, NULL},
 		{SITK_FlagCapture + SITK_Escape,            SITE_OnClose, NULL},
 		{SITK_FlagCapture + SITK_FlagCtrl + 's',    SITE_OnActivate, NULL, mceditSaveChanges},
-		{                   SITK_FlagCtrl + 'a',    SITE_OnActivate, "about"},
 		{                   SITK_FlagCtrl + 'g',    SITE_OnActivate, NULL, mceditGoto},
+		{                   SITK_FlagCtrl + 'a',    SITE_OnActivate, NULL, mceditAnalyze},
+		{                   SITK_FlagCtrl + 'd',    SITE_OnActivate, NULL, mceditClearSelection},
 		{0}
 	};
 
@@ -255,8 +275,8 @@ int main(int nb, char * argv[])
 		return 1;
 	}
 
-	mcedit.level = renderInitWorld("TestMesh", mcedit.maxDist);
-//	mcedit.level = renderInitWorld("World1_12", mcedit.maxDist);
+//	mcedit.level = renderInitWorld("TestMesh", mcedit.maxDist);
+	mcedit.level = renderInitWorld("World1_12", mcedit.maxDist);
 	mcedit.state = GAMELOOP_WORLD;
 
 	if (mcedit.level == NULL)
@@ -506,6 +526,12 @@ void mceditPlaceBlock(void)
 	int  block, id;
 	Item item;
 
+	if (mcedit.player.inventory.offhand)
+	{
+		mcedit.selection = renderSetSelectionPoint(True);
+		return;
+	}
+
 	MapExtraData sel = renderGetSelectedBlock(pos, &block);
 	if (sel == NULL) return;
 
@@ -525,6 +551,14 @@ void mceditPlaceBlock(void)
 	}
 	if (id < ID(256, 0))
 	{
+		/* 2 slabs in same block try to convert them in 1 double-slab */
+		if (blockIds[block>>4].special == BLOCK_HALF)
+		{
+			int curId = mapGetBlockId(mcedit.level, pos, NULL);
+			if ((curId & ~8) == (block & ~8) && (curId & 8) != (block & 8))
+				/* can be combined */
+				block = (block-16) & ~8;
+		}
 		DATA8 tile = item->extra;
 		if (id == 0) block = 0;
 		if (! tile) tile = blockCreateTileEntity(block, pos, NULL);
@@ -650,6 +684,10 @@ void mceditUIOverlay(int type)
 	case MCUI_OVERLAY_GOTO:
 		memcpy(pos, mcedit.player.pos, sizeof pos);
 		mcuiGoto(mcedit.app, pos);
+		break;
+
+	case MCUI_OVERLAY_ANALYZE:
+		mcuiAnalyze(mcedit.app, mcedit.level);
 	}
 
 	SDL_EnableUNICODE(1);
@@ -714,7 +752,6 @@ void mceditUIOverlay(int type)
 		FrameWaitNext();
 	}
 	/* loop exit = user hit Esc key */
-	mcedit.exit = 0;
 
 	/* check if there was any modifications */
 	if (type == MCUI_OVERLAY_BLOCK)
@@ -733,6 +770,13 @@ void mceditUIOverlay(int type)
 		if (chest.mem)
 		{
 			chunkUpdateNBT(sel->chunk, sel->offset + (sel->cd->Y<<8), &chest);
+			mapAddToSaveList(mcedit.level, sel->chunk);
+			renderAddModif();
+		}
+		if (mcedit.exit == 2)
+		{
+			/* sign changed */
+			mapAddToSaveList(mcedit.level, sel->chunk);
 			renderAddModif();
 		}
 
@@ -749,6 +793,7 @@ void mceditUIOverlay(int type)
 		playerTeleport(&mcedit.player, mcedit.level, pos);
 		renderSetViewMat(mcedit.player.pos, mcedit.player.lookat, &mcedit.player.angleh);
 	}
+	mcedit.exit = 0;
 
 	exit:
 	SIT_Nuke(SITV_NukeCtrl);

@@ -98,9 +98,6 @@ void skydomeRender(void)
 	float time = curTime * 0.000005;
 	setShaderValue(skydome.shader, "time", 1, &time);
 
-	/* always centered at player location
-	glBufferSubData(GL_UNIFORM_BUFFER, UBO_MVMATRIX_OFFSET, sizeof (mat4), skydome.location);*/
-
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, skydome.vboIndices);
 	glDrawElements(GL_TRIANGLES, skydome.indices, GL_UNSIGNED_SHORT, 0);
 }

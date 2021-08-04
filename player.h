@@ -42,7 +42,10 @@ enum /* possible values for PickBuf.state */
 struct Inventory_t
 {
 	int     selected;
-	int     hover;
+	union {
+		int hover;
+		int offhand;
+	};
 	int     texture;
 	ItemBuf items[MAXCOLINV * 4 + 5];
 	int     x, y, update;

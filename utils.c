@@ -465,10 +465,10 @@ Bool jsonParse(const char * file, JSONParseCb_t cb)
 }
 
 /* text must point to the first character (following the first double-quote) */
-int jsonParseString(DATA8 text)
+int jsonParseString(DATA8 dst, DATA8 src, int max)
 {
 	DATA8 s, d;
-	for (s = d = text; *s && *s != '\"'; s ++, d ++)
+	for (s = src, d = dst; *s && *s != '\"' && max > 0; s ++, d ++, max --)
 	{
 		if (*s == '\\')
 		{
@@ -501,8 +501,9 @@ int jsonParseString(DATA8 text)
 		}
 		else *d = *s;
 	}
-	*d = 0;
-	return d - text;
+	if (max > 0) *d = 0;
+	else d[-1] = 0;
+	return d - dst;
 }
 
 

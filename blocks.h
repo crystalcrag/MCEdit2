@@ -25,7 +25,7 @@ int     blockGetConnect(BlockState, DATA8 neighbors);
 VTXBBox blockGetBBox(BlockState);
 VTXBBox blockGetBBoxForVertex(BlockState);
 int     blockGetConnect4(DATA8 neighbors, int type);
-int     blockGenVertexBBox(BlockState b, VTXBBox box, int flag, int * vbo);
+int     blockGenVertexBBox(BlockState b, VTXBBox box, int flag, int * vbo, int texCoord, int offsets);
 int     blockInvGetModelSize(int id);
 Bool    blockGetBoundsForFace(VTXBBox, int face, vec4 V0, vec4 V1, vec4 offset, int cnxFlags);
 Bool    blockIsSolidSide(int blockId, int side);
@@ -41,6 +41,7 @@ DATA16  blockParseModel(float * values, int count, DATA16 buffer);
 void    blockGetEmitterLocation(int blockId, float offset[5]);
 int     blockInvCountVertex(DATA16 model, int faceId);
 int     blockInvCopyFromModel(DATA16 ret, DATA16 model, int faceId);
+int     blockGetTotalStates(void);
 
 void    halfBlockGenMesh(WriteBuffer, DATA8 model, int size /* 2 or 8 */, DATA8 xyz, DATA8 tex, DATA16 blockIds, DATA8 skyBlock, int genSides);
 DATA8   halfBlockGetModel(BlockState, int size /* 1, 2 or 8 */, DATA16 blockIds);
@@ -97,7 +98,7 @@ struct BlockState_t              /* information per block state (32bytes) */
 
 	uint16_t rotate;             /* rotation to apply to tex coord */
 	uint8_t  special;            /* BLOCK_* */
-	uint8_t  inventory;
+	uint8_t  inventory;          /* (Block_t.category << 4) | Block_t.inventory (0 if NONE) */
 
 	DATA16   custModel;
 	uint16_t invId;              /* vbo slot for inventory */

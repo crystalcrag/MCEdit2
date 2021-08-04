@@ -74,7 +74,7 @@ void setShaderValue(int prog, const char * field, int args, float * array);
 typedef Bool (*JSONParseCb_t)(const char * file, STRPTR * keys, int line);
 Bool   jsonParse(const char * file, JSONParseCb_t cb);
 STRPTR jsonValue(STRPTR * keys, STRPTR key);
-int    jsonParseString(DATA8);
+int    jsonParseString(DATA8 dst, DATA8 src, int max);
 
 /* res can point to A or B */
 void matTranspose(mat4 A);

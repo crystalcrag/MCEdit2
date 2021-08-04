@@ -76,6 +76,10 @@ Bool signInitStatic(NVGCTX vg, int font)
 	return True;
 }
 
+/* where writable texture face is located in terrain.png (tile coord) */
+#define SIGN_TEX_X      15
+#define SIGN_TEX_Y      2
+
 /* get the vertices where the text will be drawn on */
 void signFillVertex(int blockId, float pt[6], int uv[4])
 {
@@ -84,19 +88,18 @@ void signFillVertex(int blockId, float pt[6], int uv[4])
 	if (b->custModel)
 	{
 		DATA16 vertex = b->custModel;
-		int    count, first = 1;
+		int    count;
 
-		/* get coord of face where X|Z > Y */
+		/* grab the vertex and exact uv tex of face that has a UV that are within SIGN_TEX_XY */
 		for (count = vertex[-1]; count > 0; count -= 6, vertex += 6 * INT_PER_VERTEX)
 		{
-			int dx = vertex[0] - vertex[10]; if (dx < 0) dx = -dx;
-			int dy = vertex[1] - vertex[11]; if (dy < 0) dy = -dy;
-			int dz = vertex[2] - vertex[12]; if (dz < 0) dz = -dz;
+			int U1 = GET_UCOORD(vertex);
+			int V1 = GET_VCOORD(vertex);
 
-			if ((dx > dz && dx > dy) || (dz > dx && dz > dy))
+			if (SIGN_TEX_X*16 <= U1 && U1 <= SIGN_TEX_X*16+16 &&
+			    SIGN_TEX_Y*16 <= V1 && V1 <= SIGN_TEX_Y*16+16)
 			{
 				int i;
-				if (first) { first = 0; continue; }
 				/* somewhat hack: take the first face */
 				if (pt)
 				{
@@ -120,18 +123,16 @@ void signFillVertex(int blockId, float pt[6], int uv[4])
 }
 
 /* text is stored in JSON, really ?! */
-static DATA8 signParseText(STRPTR json, DATA8 length)
+static int signParseText(STRPTR dest, int max, STRPTR json)
 {
 	/* do it quick'n dirty */
 	STRPTR text = strstr(json, "\"text\":");
 	if (text && text[7] == '\"')
 	{
 		/* it's not like NBT allow storing arbitrary datatypes like JSON does */
-		*length = jsonParseString(text + 8);
-		return text + 8;
+		return jsonParseString(dest, text + 8, max);
 	}
-	*length = 0;
-	return json;
+	return 0;
 }
 
 /* convert sign text into a user-editable string for a multi-line text edit */
@@ -148,13 +149,10 @@ void signGetText(vec4 pos, DATA8 text, int max)
 		{
 			for (j = 0; j < 4; j ++)
 			{
-				DATA8 msg  = sign->tile + sign->text[j];
-				int   len  = sign->length[j];
-				char  save = msg[len];
-				msg[len] = 0;
-				nb = StrCat(text, max, nb, msg);
-				nb = StrCat(text, max, nb, "\n");
-				msg[len] = save;
+				if (sign->text[j] > 0)
+					nb += signParseText(text + nb, max - nb, sign->tile + sign->text[j]);
+				if (nb < max)
+					text[nb] = '\n', nb ++;
 			}
 			/* remove unnecessary newlines at the end */
 			while (nb > 0 && text[nb-1] == '\n') nb --;
@@ -181,7 +179,7 @@ static void signParseEntity(SignText sign)
 			{
 				int id = iter.name[4] - '1';
 				if (0 <= id && id <= 3)
-					sign->text[id] = signParseText(NBT_Payload(&nbt, i), sign->length + id) - nbt.mem;
+					sign->text[id] = (DATA8) NBT_Payload(&nbt, i) - nbt.mem;
 			}
 			break;
 		case 'x': case 'X': sign->XYZ[0] = NBT_ToInt(&nbt, i, 0); break;
@@ -225,8 +223,8 @@ static void signUpdateBank(SignText sign)
 	int i;
 	for (i = 0; i < 4; i ++, y += SIGN_HEIGHT / 4)
 	{
-		DATA8 text = sign->tile + sign->text[i];
-		int   len  = sign->length[i];
+		TEXT text[128];
+		int  len = signParseText(text, sizeof text, sign->tile + sign->text[i]);
 
 		if (len > 0)
 		{

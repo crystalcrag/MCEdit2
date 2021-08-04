@@ -229,7 +229,8 @@ static uint32_t halfBlockGetOCS(DATA16 blockIds, DATA8 ocsval, uint8_t pos[3], i
 		uint8_t vtxocs;
 		for (j = 0, vtxocs = 0; j < 3; j ++, ocs ++)
 		{
-			uint16_t buffer[7];
+			/* hmm, we are doing unconventionnal memory access: this trick will circumvent -Warray-bound :-/ */
+			DATA16 buffer = alloca(14);
 			uint8_t xzy = *ocs;
 			/* these value can range from -1 to <size> */
 			int8_t  xc = pos[0] + (xzy & 3) - 1;
@@ -314,7 +315,7 @@ static Bool isVisible(DATA16 blockIds, ModelCache models, DATA8 pos, int dir)
 
 	if ((models->set & (1 << off)) == 0)
 	{
-		uint16_t buffer[7];
+		DATA16 buffer = alloca(14);
 		DATA8 model2x2 = halfBlockGetModel(blockGetById(blockIds[off]), 2, halfBlockRelocCenter(off, blockIds, buffer));
 		models->set |= 1<<off;
 		models->cache[off] = model2x2 ? model2x2[0] : 0;

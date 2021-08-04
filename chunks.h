@@ -92,12 +92,12 @@ extern ChunkData chunkAir;             /* chunk entirely made of air, skylight =
 
 enum /* flags for Chunk.cflags */
 {
-	CFLAG_GOTDATA    = 0x01,           /* data has been retrieved */
-	CFLAG_HASMESH    = 0x02,           /* mesh generated and pushed to GPU */
-	CFLAG_NEEDSAVE   = 0x04,           /* modifications need to be saved on disk */
-	CFLAG_HASENTITY  = 0x08,           /* entity transfered in active list */
-	CFLAG_MARKMODIF  = 0x10,           /* mark for modif at the NBT level */
-	CFLAG_ETTLIGHT   = 0x20,           /* update entity light for this chunk */
+	CFLAG_GOTDATA   = 0x01,            /* data has been retrieved */
+	CFLAG_HASMESH   = 0x02,            /* mesh generated and pushed to GPU */
+	CFLAG_NEEDSAVE  = 0x04,            /* modifications need to be saved on disk */
+	CFLAG_HASENTITY = 0x08,            /* entity transfered in active list */
+	CFLAG_REBUILDTE = 0x10,            /* mark TileEntity list as needing to be rebuilt */
+	CFLAG_ETTLIGHT  = 0x20,            /* update entity light for this chunk */
 };
 
 enum /* flags for ChunkData.cdFlags */

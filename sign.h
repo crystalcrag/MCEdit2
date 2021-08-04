@@ -44,8 +44,7 @@ struct SignText_t
 	DATA8    tile;                 /* raw ptr to tile entity */
 	int16_t  next;                 /* linked list for signs of a chunk */
 	int16_t  bank;                 /* first 8bits: index of bank in signs.banks, next: [0-127] slot in bank, or -1 */
-	uint16_t text[4];              /* offset in tile where to find text */
-	uint8_t  length[4];            /* number of bytes (do not modify tile) */
+	uint16_t text[4];              /* offset in tile entity where to find text */
 	float    pt1[3];               /* coord of quad in world space */
 	float    pt2[3];
 };
