@@ -85,14 +85,6 @@ void playerSensitivity(float s)
 	sensitivity = 1/s;
 }
 
-#define LEFT      's'
-#define RIGHT     'f'
-#define FORWARD   'e'
-#define BACKWARD  'd'
-#define OFFHAND   'g'
-#define JUMP      SITK_Space
-#define FLYDOWN   SITK_LShift
-
 static void playerSetDir(Player p)
 {
 	float angle = p->angleh;

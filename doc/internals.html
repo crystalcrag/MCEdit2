@@ -38,6 +38,11 @@
 
 <a class="sub1" href="#mesh"><span>Mesh generation</span></a>
   <a class="sub2" href="#meshsolid"><span><tt>SOLID</tt> voxel</span></a>
+    <a class="sub3" href="#vtxtex"><span>Coordinates</span></a>
+    <a class="sub3" href="#skyblock"><span>Lighting</span></a>
+    <a class="sub3" href="#cnxtex"><span>Connected textures</span></h4>
+	<a class="sub3" href="#meshhalf"><span>Half-block</span></a>
+    <a class="sub3" href="#ocs"><span>Occlusion</span></a>
   <a class="sub2" href="#meshcust"><span><tt>CUST</tt> voxel</span></a>
 
 <a class="sub1" href="#nbt2"><span>NBT API</a>
@@ -231,7 +236,7 @@ chunks you can have from those 8 corners is 27.
 between 0 and 26, and therefore can be encoded as a bitfield in a 32bit integer. The order is shown below
 (axis is the same as the figure on the right):
 
-<table class="skewed">
+<table class="skewed" id="cube3x3">
 <tr><td>18<td>19<td>20
 <tr><td>21<td>22<td>23
 <tr><td>24<td>25<td>26
@@ -1239,7 +1244,7 @@ code to the 28 bytes per quad version, it was decided to keep the compressed dat
 
 <p>Welcome to <b>look-up table hell</b>.
 
-<p>Being the central part of any 3d engine, this is pretty much what you have to expect for something
+<p>Being the central part of any 3d engine, this is pretty much what you have to expect for anything
 that is non-trivial.
 
 <p>This engine supports 3 major types of voxel elements that can be converted into meshes. Each <b>have
@@ -1292,6 +1297,8 @@ next section (and have their own pros and cons).
 <a href="#quadface">this picture</a> in mind, its information will be used <b>extensively</b>
 in the entire meshing phase.
 
+<h4 id="vtxtex"><span>Vertex and texture coordinates</span></h4>
+
 <p>Converting a full solid voxel into a pseudo quad (technically a <tt>GL_POINT</tt>, that will be transformed
 into 2 triangles in the geometry shader to a form a <tt>GL_QUAD</tt>), you need just a couple of look-up tables:
 
@@ -1312,14 +1319,14 @@ into 2 triangles in the geometry shader to a form a <tt>GL_QUAD</tt>), you need 
 </pre>
 
 <p>It is as simple as it gets: <tt>vertex</tt> refers to the coordinates in world space (if the cube were
-to be rendered at 0,0,0) or each corner, then to get the 4 coordinates of a given face <tt>cubeIndices</tt>
+to be rendered at 0,0,0) of each corner, then to get the 4 coordinates of a given face <tt>cubeIndices</tt>
 are indices within <tt>vertex[]</tt> array. The indices are pre-multiplied by 3, to avoid doing it in
-the <b>many places</b> they are needed. The order/orientation is described in <a href="#quadface">this
+the <b>many places</b> this array is used. The order/orientation is described in <a href="#quadface">this
 picture</a>.
 
 <p>In case you are wondering, the vertices and face order have no particular meaning nor does them
 enable special tricks. All of this was chosen kind of arbitrarily very early in the development and
-turn out to be OK: neither particularly good, nor bad.
+turned out to be OK: neither particularly good, nor bad.
 
 <p>Keep in mind that coordinates for the mesh will be relative to the sub-chunk origin (a 16x16x16
 chunk of terrain). In the vertex shader, each sub-chunk will receive a <tt>vec3</tt> offset that
@@ -1335,7 +1342,75 @@ same way on all faces.
   <img src="images/tex-rotate.png">
 </div>
 
-<p>You cannot mirror a texture though, for this you'll need to a <tt>CUST</tt> voxel.
+<p>Since there is 6 faces and you need 2 bits to encode each rotation, the <tt>BlockState_t.rotate</tt>
+field contains 12bits of information. You cannot mirror a texture though, for this you'll need to a <tt>CUST</tt> voxel.
+
+<h4 id="skyblock"><span>Block and sky light</span></h4>
+
+<p>Each of the 24 vertices of a cube can have an independant block and sky light value, so that values
+can be smoothly interpolated across a face. Each vertex will depend on 4 sky/block light: the 4 voxels
+that share the vertex in the direction of the face normal. This is the purpose of the <tt>skyBlockOffset[]</tt>
+table (it contains too many numbers to be displayed here).
+
+<p>Each number in this table refers to a voxel, that is using the same coordinate system than the one
+used in the <a jref="#cube3x3">frustum culling</a>:
+
+<p><img src="images/quad_face.png" style="width: 66%; float: right">
+
+<table class="skewed">
+<tr><td>18<td>19<td>20
+<tr><td>21<td>22<td>23
+<tr><td>24<td>25<td>26
+</table>
+
+<table class="skewed">
+<tr><td>9<td>10<td>11
+<tr><td>12<td><span class="o">13</span><td>14
+<tr><td>15<td>16<td>17
+</table>
+
+<table class="skewed">
+<tr><td>0<td>1<td>2
+<tr><td>3<td>4<td>5
+<tr><td>6<td>7<td>8
+</table>
+
+<p>Whenever a <tt>SOLID</tt> block has at least one face visible, we extract the 26 surrounding voxels:
+block ID and data value (in the array <tt>blockIds3x3[]</tt>) as well as block light and sky light
+(in the array <tt>skyBlock[]</tt>). Each of these two arrays have 27 elements, ordered like in the table
+above.
+
+<p><tt>skyBlockOffset[]</tt> then encodes the 4 values we need per vertex: 4 vertex per face, that means
+16 values per face, 96 items in total. For block light, we take the maximum among the 4 values, for
+skylight we take the minimum if the value is not 0.
+
+<p>For example, the south face has the values <tt class="o">15</tt>, <tt class="o">16</tt>, <tt class="o">24</tt>,
+<tt class="o">25</tt> for the first vertex. If you look at the face order schema, the first vertex of
+the south face is vertex 3 (arrow inside the square shows the order). There are 8 voxels that share
+this vertex, but we only take the 4 that are in the direction of the face's normal (otherwise there
+are too many).
+
+<h4 id="cnxtex"><span>Connected textures</span></h4>
+
+<p>Connected texture only applies to full block. More complex models like glass pane uses a different
+approach (and will be described in the <tt>CUST</tt> section).
+
+<p>For full blocks, the base model of its texture will be used to generate all the variations. Since
+there are 4 sides, there are 16 possible combinations. As of writing this, this is done by removing
+a one pixel line from a given side. These are generated in <tt>blocks.c:blockPostProcessTexture()</tt>.
+This is for example, what it looks like for the glass texture:
+
+<div class="photo">
+  <img src="images/cnxtex.png" style="background-color: black;border: 5px solid black">
+</div>
+
+<p>To know which texture to use, you just need to set a bitfield if the block on top (bit1), right (bit2),
+bottom (bit3) or left (bit4) "connects" with the current voxel. By default, U texture coordinate is
+set to 0, therefore, you just have to shift it by <tt>bitfield * 16</tt> to simulate a connection.
+
+<h4 id="meshhalf"><span>Half-block</span></h4>
+
+<h4 id="ocs"><span>Ambient occlusion</span></h4>
 
 <h3 id="meshcust"><span><tt>CUST</tt> voxel</span></h3>
 

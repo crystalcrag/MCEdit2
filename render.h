@@ -155,23 +155,23 @@ struct RenderWorld_t
 	int        compass;            /* image id from nanovg */
 	float      yaw, pitch;
 	float      scale;
-	uint8_t    debug;              /* 1 if debug info is displayed */
-	uint8_t    debugInfo;
+	uint8_t    debug;              /* 1 if debug info is displayed (chunk boundaries) */
+	uint8_t    debugInfo;          /* tooltip over block highligted */
 	uint8_t    direction;          /* player facing direction: 0:south, 1:east, 2:north, 3:west */
-	uint8_t    setFrustum;
+	uint8_t    setFrustum;         /* recompute chunk visible list */
 	int        debugFont;          /* font id from nanovg (init by SITGL) */
 	int        debugTotalTri;      /* triangle count being drawn */
 	int        mouseX, mouseY;
-	SelBlock_t selection;
-	Inventory  inventory;
+	SelBlock_t selection;          /* extra information about block highlighted */
+	Inventory  inventory;          /* player inventory (to render inventory bar) */
 	int        nvgTerrain;         /* texture for blocks as a NVG image */
 	int        invCache;
 	int        invCount;
 	int        invExt;
-	int        modifCount;
+	int        modifCount;         /* displayed at bottom of screen */
 	Message_t  message;            /* message at bottom of screen */
-	APTR       blockInfo;
-	APTR       sitRoot;
+	APTR       blockInfo;          /* SIT_TOOLTIP */
+	APTR       sitRoot;            /* SIT_APP */
 };
 
 struct MeshBuffer_t                /* temporary buffer used to collect data from chunkUpdate() */

@@ -264,13 +264,13 @@ int renderSetSelectionPoint(Bool set)
 
 	if ((render.selection.sel & SEL_FIRST) == 0)
 	{
-		selectionSet(render.selection.current, 0);
+		selectionSet(render.sitRoot, render.scale, render.selection.current, 0);
 		render.selection.sel |= SEL_FIRST;
 		render.inventory->offhand |= 2;
 	}
 	else
 	{
-		selectionSet(render.selection.current, 1);
+		selectionSet(render.sitRoot, render.scale, render.selection.current, 1);
 		render.selection.sel |= SEL_SECOND;
 	}
 	return (render.selection.sel>>1) & 3;
@@ -382,7 +382,7 @@ Bool renderInitStatic(int width, int height, APTR sitRoot)
 	blockParseBoundingBox();
 	blockParseInventory(render.vboInventory);
 	particlesInit(render.vboParticles);
-	selectionInitStatic(render.selection.shader);
+	selectionInitStatic(render.selection.shader, &render.direction);
 	if (! entityInitStatic())
 		return False;
 
@@ -622,7 +622,6 @@ void renderSetViewMat(vec4 pos, vec4 lookat, float * yawPitch)
 /* tooltip is about to be deleted, clear reference */
 static int clearRef(SIT_Widget w, APTR cd, APTR ud)
 {
-	fprintf(stderr, "tooltip destroyed\n");
 	render.blockInfo = NULL;
 	return 1;
 }
@@ -638,7 +637,7 @@ void renderShowBlockInfo(Bool show, int what)
 			{
 				render.blockInfo = SIT_CreateWidget("blockinfo", SIT_TOOLTIP, render.sitRoot,
 					SIT_ToolTipAnchor, SITV_TooltipFollowMouse,
-					SIT_DelayTime,     3600000,
+					SIT_DelayTime,     SITV_TooltipManualTrigger,
 					SIT_DisplayTime,   100000,
 					NULL
 				);

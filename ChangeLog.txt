@@ -1,4 +1,24 @@
+=========== Week 32 ===========
+Mon Aug 9:
+	* 
+
 =========== Week 31 ===========
+Sun Aug 8:
+	* SITGL custom cursor shape: not worth it, but it's done :-/
+	* ability to nudge selection (at last).
+
+Sat Aug 7:
+	* SITGL geometry debug.
+
+Fri Aug 6:
+	* SITGL inline styles tweaks (removed from global list).
+
+Thu Aug 5:
+	* SITGL fixes.
+
+Wed Aug 4:
+	* analyze command finished.
+
 Tue Aug 3:
 	* extended selection working.
 	* started analyze command.

@@ -22,6 +22,7 @@
 #include "mapUpdate.h"
 #include "interface.h"
 #include "entities.h"
+#include "selection.h"
 #include "SIT.h"
 
 GameState_t mcedit;
@@ -337,18 +338,22 @@ void mceditWorld(void)
 					paused = ! paused;
 					FramePauseUnpause(paused);
 					break;
+				case SDLK_F1:
+					renderDebugBlock();
+					break;
+				case SDLK_F7:
+					breakPoint = ! breakPoint;
+					//renderDebugBank();
+					break;
 				#endif
 				case SDLK_TAB:
 					mcedit.state = GAMELOOP_SIDEVIEW;
 					mcedit.exit = 2;
 					break;
-				case SDLK_F1:
-					renderDebugBlock();
-					break;
 				case SDLK_F2:
 					takeScreenshot();
 					break;
-				case SDLK_F3:
+				case SDLK_F3: // DEBUG
 					if (event.key.keysym.mod & KMOD_CTRL)
 					{
 						renderFrustum(True);
@@ -362,10 +367,6 @@ void mceditWorld(void)
 				case SDLK_F10: // DEBUG
 					playerSaveLocation(&mcedit.player, &mcedit.level->levelDat);
 					mapSaveLevelDat(mcedit.level);
-					break;
-				case SDLK_F7:
-					breakPoint = ! breakPoint;
-					//renderDebugBank();
 					break;
 				case SDLK_EQUALS:
 				case SDLK_PLUS:
@@ -390,6 +391,8 @@ void mceditWorld(void)
 					break;
 				default:
 					key = SDLKtoSIT(event.key.keysym.sym);
+					if (selectionProcessKey(key, SDLMtoSIT(event.key.keysym.mod)))
+						break;
 					if (! playerProcessKey(&mcedit.player, key, SDLMtoSIT(event.key.keysym.mod)))
 						goto forwardKeyPress;
 				}
@@ -417,6 +420,7 @@ void mceditWorld(void)
 				}
 				break;
 			case SDL_MOUSEMOTION:
+				SIT_ProcessMouseMove(event.motion.x, event.motion.y);
 				switch (ignore) {
 				case 1: ignore = 0; // no break;
 				case 2: break;
@@ -435,6 +439,8 @@ void mceditWorld(void)
 				}
 				break;
 			case SDL_MOUSEBUTTONDOWN:
+				if (SIT_ProcessClick(event.button.x, event.button.y, event.button.button-1, 1))
+					break;
 				switch (event.button.button) {
 				case SDL_BUTTON_LEFT:
 					mceditPlaceBlock();
@@ -466,6 +472,8 @@ void mceditWorld(void)
 				}
 				break;
 			case SDL_MOUSEBUTTONUP:
+				if (SIT_ProcessClick(event.button.x, event.button.y, event.button.button-1, 0))
+					break;
 				if (event.button.button == SDL_BUTTON_RIGHT)
 				{
 					SDL_WM_GrabInput(SDL_GRAB_OFF);
@@ -792,6 +800,10 @@ void mceditUIOverlay(int type)
 	{
 		playerTeleport(&mcedit.player, mcedit.level, pos);
 		renderSetViewMat(mcedit.player.pos, mcedit.player.lookat, &mcedit.player.angleh);
+	}
+	else if (type == MCUI_OVERLAY_ANALYZE)
+	{
+		mcedit.player.inventory.update ++;
 	}
 	mcedit.exit = 0;
 

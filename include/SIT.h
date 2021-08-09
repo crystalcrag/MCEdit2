@@ -44,6 +44,7 @@ typedef struct SIT_OnMouse_t     SIT_OnMouse;    /* OnClick, OnMouseMove */
 typedef struct SIT_OnSort_t      SIT_OnSort;     /* OnSortItem */
 typedef struct SIT_OnPaint_t     SIT_OnPaint;    /* OnPaint */
 typedef struct SIT_OnVal_t       SIT_OnVal;      /* OnSetOrGet */
+typedef struct SIT_OnChange_t    SIT_OnChange;   /* OnChange on root widget */
 typedef struct SIT_OnCellPaint_t SIT_OnCellPaint;
 
 /* generic callback prototype for events */
@@ -123,6 +124,8 @@ DLLIMP int        SIT_InitDrag(SIT_CallProc);
 DLLIMP Bool       SIT_ParseCSSColor(STRPTR cssColor, uint8_t ret[4]);
 DLLIMP Bool       SIT_GetCSSValue(SIT_Widget, STRPTR property, APTR mem);
 DLLIMP float      SIT_EmToReal(SIT_Widget, uint32_t val);
+DLLIMP void       SIT_ExtractDialog(SIT_Widget);
+DLLIMP void       SIT_InsertDialog(SIT_Widget);
 
 DLLIMP Bool       SIT_ListSetCell(SIT_Widget, int row, int col, APTR rowTag, int align, STRPTR text);
 DLLIMP Bool       SIT_ListSetColumn(SIT_Widget, int col, int width, int align, STRPTR label);
@@ -532,10 +535,19 @@ enum /* event type (SIT_AddCallback) */
 	SITE_OnSortItem,     // SIT_OnSort *
 	SITE_OnSetOrGet,     // SIT_OnVal *
 	SITE_OnGeometrySet,  // int [3]
-	SITE_OnDropFiles,    // STRPTR * (null-terminated)
-	SITE_OnMouseOut,     // NULL
+	SITE_OnDropFiles,    // STRPTR * (array is null-terminated)
+	SITE_OnMouseOut,     // SIT_Widet
 	SITE_LastEvent,
 	SITE_OnClickMove     // SIT_OnMouse *  (register cb both for OnClick and OnMouseMove) */
+};
+
+struct SIT_OnChange_t
+{
+	enum
+	{
+		SIT_CHANGE_CURSOR
+	}   type;
+	int arg;
 };
 
 struct SIT_OnKey_t
@@ -597,6 +609,7 @@ struct SIT_OnCellPaint_t
 	uint8_t fgColor[4];
 	uint8_t bgColor[4];
 	int     rowColumn; /* 0 based */
+	float   LTWH[4];
 };
 
 struct SIT_OnVal_t

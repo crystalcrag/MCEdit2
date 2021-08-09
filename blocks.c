@@ -1313,7 +1313,7 @@ void blockParseConnectedTexture(void)
 		/* extra flags are not needed at the block level anymore */
 		b->special &= 31;
 
-		/* gather connected txture info (texture will be generated in blockPostProcessTexture) */
+		/* gather connected texture info (texture will be generated in blockPostProcessTexture) */
 		while ((state->id >> 4) == b->id)
 		{
 			state->rotate |= CNXTEX;

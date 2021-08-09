@@ -54,7 +54,9 @@ void mcuiTakeSnapshot(SIT_Widget app, int width, int height)
 	mcui.width = width;
 	mcui.height = height;
 
-	SIT_SetValues(app, SIT_Style|XfMt, "background: id(%d)", mcui.nvgImage, NULL);
+	TEXT style[32];
+	sprintf(style, "background: id(%d)", mcui.nvgImage);
+	SIT_SetValues(app, SIT_Style|XfMt, style, NULL);
 }
 
 /*
@@ -86,7 +88,7 @@ static int mcuiInventoryRender(SIT_Widget w, APTR cd, APTR ud)
 			}
 			SIT_SetValues(inv->cell, SIT_X, x2, SIT_Y, y2, SIT_Width, sz, SIT_Height, sz, NULL);
 			SIT_RenderNode(inv->cell);
-			/* grab of item to render */
+			/* grab item to render */
 			if (max > 0)
 			{
 				if (item->id > 0)
@@ -442,6 +444,7 @@ static int mcuiGrabItemCoord(SIT_Widget w, APTR cd, APTR ud)
 
 	SIT_GetValues(w, SIT_UserData, &blockId, SIT_Padding, padding, NULL);
 
+	/* note: itemRender is set to 0 before rendering loop starts */
 	item = mcui.items + mcui.itemRender ++;
 	item->x = paint->x + padding[0]/2;
 	item->y = mcui.height - (paint->y + padding[1]/2) - mcui.itemSz;
@@ -659,7 +662,7 @@ void mcuiCreateInventory(Inventory player)
 		" <button name=exch3.exch top=WIDGET,exch2 right=FORM tooltip=", tip, "maxWidth=exch2 height=", mcui.cellSz, ">"
 		" <button name=del.exch   top=OPPOSITE,tb right=FORM title=X tooltip='Clear inventory' maxWidth=exch3 height=", mcui.cellSz, ">"
 		"</tab>"
-		"<tooltip name=info delayTime=3600000 displayTime=10000 toolTipAnchor=", SITV_TooltipFollowMouse, ">"
+		"<tooltip name=info delayTime=", SITV_TooltipManualTrigger, " displayTime=10000 toolTipAnchor=", SITV_TooltipFollowMouse, ">"
 	);
 
 	SIT_SetAttributes(diag, "<searchtxt top=MIDDLE,search><inv right=WIDGET,scroll,0.2em>");
@@ -781,7 +784,7 @@ void mcuiEditChestInventory(Inventory player, Item items, int count)
 		"<label name=msg2 title='Player inventory:' top=WIDGET,inv,0.3em>"
 		"<canvas composited=1 name=player.inv top=WIDGET,msg2,0.3em/>"
 		"<canvas composited=1 name=tb.inv left=FORM top=WIDGET,player,0.5em/>"
-		"<tooltip name=info delayTime=3600000 displayTime=10000 toolTipAnchor=", SITV_TooltipFollowMouse, ">"
+		"<tooltip name=info delayTime=", SITV_TooltipManualTrigger, "displayTime=10000 toolTipAnchor=", SITV_TooltipFollowMouse, ">"
 	);
 
 	mcui.toolTip = SIT_GetById(diag, "info");
@@ -935,6 +938,64 @@ void mcuiGoto(SIT_Widget parent, vec4 pos)
 /*
  * show a summary about all the blocks in the selection
  */
+static int mcuiCopyAnalyze(SIT_Widget w, APTR cd, APTR ud)
+{
+	STRPTR bytes = malloc(256);
+	int    max   = 256;
+	int    i, nb, usage;
+
+	SIT_GetValues(ud, SIT_ItemCount, &nb, NULL);
+	usage = sprintf(bytes, "Number,Type,ID\n");
+	for (i = 0; i < nb; i ++)
+	{
+		STRPTR count = SIT_ListGetCellText(ud, 1, i);
+		STRPTR name  = SIT_ListGetCellText(ud, 2, i);
+		STRPTR id    = SIT_ListGetCellText(ud, 3, i);
+
+		int len = strlen(count) + strlen(name) + strlen(id) + 4;
+
+		if (usage + len > max)
+		{
+			max = (usage + len + 255) & ~255;
+			bytes = realloc(bytes, max);
+		}
+		usage += sprintf(bytes + usage, "%s,%s,%s\n", count, name, id);
+	}
+	SIT_CopyToClipboard(bytes, usage);
+	free(bytes);
+
+	return 1;
+}
+
+/* only grab items to render */
+static int mcuiGrabItem(SIT_Widget w, APTR cd, APTR ud)
+{
+	SIT_OnCellPaint * ocp = cd;
+
+	if ((ocp->rowColumn & 0xff) > 0) return 1;
+
+	if (mcui.itemSz == 0)
+		mcui.itemSz = ocp->LTWH[3] - 2;
+
+	/* note: itemRender is set to 0 before rendering loop starts */
+	Item item = mcui.items + mcui.itemRender ++;
+	APTR rowTag;
+
+	SIT_GetValues(w, SIT_RowTag(ocp->rowColumn>>8), &rowTag, NULL);
+
+	item->x = ocp->LTWH[0];
+	item->y = mcui.height - ocp->LTWH[1] - ocp->LTWH[3] + 1;
+	item->id = (int) rowTag;
+	item->count = 1;
+	return 1;
+}
+
+static int mcuiExitWnd(SIT_Widget w, APTR cd, APTR ud)
+{
+	SIT_Exit(1);
+	return 1;
+}
+
 void mcuiAnalyze(SIT_Widget parent, Map map)
 {
 	SIT_Widget diag = SIT_CreateWidget("analyze.bg", SIT_DIALOG, parent,
@@ -942,12 +1003,17 @@ void mcuiAnalyze(SIT_Widget parent, Map map)
 		NULL
 	);
 
+	mcui.itemSz = 0;
 	SIT_CreateWidgets(diag,
 		"<label name=total>"
-		"<listbox name=list columnNames='Count\tName\tID' width=20em height=15em top=WIDGET,total,1em>"
-		"<button name=ok title=Ok top=WIDGET,list,1em right=FORM buttonType=", SITV_CancelButton, ">"
-		"<button name=save title='Save to file...' right=WIDGET,ok,0.5em top=OPPOSITE,ok>"
+		"<listbox name=list columnNames='\xC2\xA0\xC2\xA0\xC2\xA0\xC2\xA0\tCount\tName\tID' width=20em height=15em top=WIDGET,total,0.5em"
+		" composited=1 cellPaint=", mcuiGrabItem, ">"
+		"<button name=ok title=Ok top=WIDGET,list,1em right=FORM>"
+		"<button name=save title='Copy to clipboard' right=WIDGET,ok,0.5em top=OPPOSITE,ok>"
 	);
+	SIT_Widget w = SIT_GetById(diag, "list");
+	SIT_AddCallback(SIT_GetById(diag, "ok"),   SITE_OnActivate, mcuiExitWnd, NULL);
+	SIT_AddCallback(SIT_GetById(diag, "save"), SITE_OnActivate, mcuiCopyAnalyze, w);
 
 	int  dx, dy, dz, i, j;
 	vec  points = selectionGetPoints();
@@ -973,10 +1039,9 @@ void mcuiAnalyze(SIT_Widget parent, Map map)
 				statistics[b - blockStates] ++;
 			}
 		}
-		mapIter(&iter, -dx, 1, -dz);
+		mapIter(&iter, 0, 1, -dz);
 	}
 
-	SIT_Widget w = SIT_GetById(diag, "list");
 	for (i = dx = 0, j = blockGetTotalStates(); i < j; i ++)
 	{
 		if (statistics[i] == 0) continue;
@@ -986,10 +1051,13 @@ void mcuiAnalyze(SIT_Widget parent, Map map)
 		BlockState b = blockStates + i;
 		sprintf(count, "%d", statistics[i]);
 		sprintf(id, "%d:%d", b->id >> 4, b->id & 15);
-		SIT_ListInsertItem(w, -1, NULL, count, b->name, id);
+		SIT_ListInsertItem(w, -1, (APTR) (int) b->id, "", count, b->name, id);
 	}
 	free(statistics);
-	SIT_SetValues(SIT_GetById(diag, "total"), SIT_Title|XfMt, "Non air block selected: %d", dx, NULL);
+	SIT_ListReorgColumns(w, "**-*");
+	dz *= (int) (fabsf(points[VX] - points[VX+4]) + 1) *
+	      (int) (fabsf(points[VY] - points[VY+4]) + 1);
+	SIT_SetValues(SIT_GetById(diag, "total"), SIT_Title|XfMt, "Non air block selected: <b>%d</b><br>Blocks in volume: <b>%d</b>", dx, dz, NULL);
 
 	SIT_ManageWidget(diag);
 }

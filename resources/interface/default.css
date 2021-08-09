@@ -1,5 +1,4 @@
 html { color: white; font-size: 1.5vw }
-
 dialog { border-radius: 15px; box-shadow: 0 0 20px black; border-bottom: 2px solid rgba(#000,0.3); background: url(wool.png);
          background-size: 32px 32px; padding: 1.2em 6px 5px 6px }
 dialog title { text-shadow: 0 2px rgba(#000,0.5); text-align: center }
@@ -9,10 +8,13 @@ dialog close { font-weight: bold; color: #d44; text-shadow: 2px 2px 2px black, -
 dialog close:hover { color: red }
 dialog close:hover:active { color: red; text-shadow: 2px 2px 2px #ccc, -1px -1px 2px black }
 
-form.bg { padding: 0.5em; background-color: rgba(white, 0.5); border: 0.2em solid black;
+form.bg { padding: 0.5em; background-color: #c5c5c5; border: 0.2em outset #c5c5c5; color: #444;
 		  border-radius: 0.5em; box-shadow: 0 0 20px rgba(black, 0.5) }
-form.bg table { border: 2px solid black; background: rgba(black, 0.7); }
-form.bg table th { background: linear-gradient(to bottom, #87cb85, #6da46b); padding: 0.2em; border: 1px solid black }
+form.bg editbox { color: white; background-color: #8b8b8b; border: 2px inset #c5c5c5 }
+form.bg table { border: 2px inset #c5c5c5; background: #8b8b8b; color: white }
+form.bg table th { padding: 0.2em; background-color: #c5c5c5; border: 2px outset #c5c5c5; color: #222 }
+form.bg table td { padding: 0.2em; text-shadow: 2px 2px #3f3f3f }
+form.bg table td:checked { background-color: #23ba1f; color: selfore }
 
 #header { background: linear-gradient(to right, rgba(#000,0.5), transparent 50%, rgba(#000,0.5)), url("dirt.png"); padding: 30px;
           background-size: 100% 100%, 64px 64px; border-bottom: 5px solid rgba(0,0,0,0.5) }
@@ -22,6 +24,15 @@ form.bg table th { background: linear-gradient(to bottom, #87cb85, #6da46b); pad
 
 #worlds { background: linear-gradient(to right, rgba(#000,0.3), rgba(#000,0.5) 20%, rgba(#000,0.3) 80%, rgba(#000,0.5)), url("dirt.png");
 		  box-shadow: black 0 0 20px inset; background-size: 100% 100%, 64px 64px; padding: 20px 6%; color: #ccc }
+
+#selection { background: rgba(black, 0.5); font-size: 0.8em; padding: 0.5em; border-radius: 0.5em }
+#selection button { padding: 0.2em 0.5em; box-shadow: none; border: 0; outline: 0; text-transform: none; text-shadow: none }
+#selection #whole { background: white; color: black; }
+#selection #first { background: yellow; color: black; }
+#selection #second { background: blue; color: white; }
+#selection #whole:active  { background: rgba(black,0.2), white }
+#selection #first:active  { background: rgba(black,0.2), yellow }
+#selection #second:active { background: rgba(black,0.2), blue }
 
 button { padding: 8px 20px 4px; border-radius: 4px; background: linear-gradient(to bottom, #87cb85, #6da46b); font-weight: bold;
 		 text-shadow: 0 2px rgba(#000,0.5); border: 2px solid #547e53; color: white;
@@ -97,7 +108,7 @@ tab #del.exch { background: rgba(red, 0.1); text-align: center; vertical-align: 
 tab #del.exch:active { background: red }
 
 .inv { background-color: #8b8b8b }
-.inv td { border: 0.1em inset #ccc }
+.inv #td { border: 0.1em inset #ccc }
 #container { padding: 5px; color: #444; background-color: #c6c6c6; border: 0.2em outset #c6c6c6; border-radius: 0.3em }
 
 #worlds { border-spacing: auto 20px }
