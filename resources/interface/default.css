@@ -43,7 +43,7 @@ button.right  { border-radius: 0 6px 6px 0 }
 
 button:active { background: linear-gradient(to bottom, #416240, #2a3f29); border-width: 0; padding: 10px 22px 6px; box-shadow: 0 0 4px black inset; color: #ccc }
 
-button.left:active, button.center:active, button.right:active { text-shadow: 0 0 10px #b4ecff, 0 0 10px #b4ecff; color: #e0f7ff }
+button.left:active, button.center:active, button.right:active { color: #e0f7ff }
 
 button:disabled { background: linear-gradient(to bottom, rgba(#555,0.5), rgba(#444,0.5)); border: 0; color: #aaa;
 				  box-shadow: 0 0 4px black inset }
@@ -62,6 +62,7 @@ editbox spin.up:active { background: url(mask:arrowup.png) 50% 50% no-repeat, li
 editbox spin.down:active { background: url(mask:arrowdown.png) 50% 50% no-repeat, linear-gradient(to bottom, #416240, #2a3f29); color: #ccc }
 
 checkbox, radio { border-radius: 0.3em }
+.bg checkbox box, .bg radio box { background-color: #8b8b8b; border: 2px inset #c5c5c5 }
 checkbox box { padding: 0.4em; border: 2px solid #87cb85; background-color: black; border-radius: 0.15em; vertical-align: middle }
 checkbox:checked box { background: #6da46b url(mask:checkmark.png) no-repeat 50% 50%; background-size: 80% 80%; color: white }
 radio:kbdfocus, checkbox:kbdfocus { outline: 2px solid blue 0.2em }
@@ -100,7 +101,6 @@ tab pane { border-radius: 0.3em 0.3em 0 0; text-shadow: none; background-color: 
 tab pane:active { background-color: #c6c6c6; border-color: #c6c6c6; border-width: 0.2em; padding: 5px 7px }
 tab pane img { width: 20px }
 tab editbox { background-color: #8b8b8b; border: 0.1em inset #ccc; padding: 2px 4px; -caret-color: #ddd; color: white; text-shadow: 2px 2px #3f3f3f }
-tab vscroll { border: 0.1em inset #ccc; background-color: #8b8b8b }
 tab .exch { border: 0.1em inset #ccc; background: url(mask:arrowdown.png) no-repeat 50% 70%, url(mask:arrowup.png) no-repeat 50% 30%;
             background-size: 70% 20%, 70% 20%; color: #888; border-radius: 0; outline: none; padding: 0; box-shadow: 0 0 3px #222 inset }
 tab .exch:active { border: 0.1em inset #ccc; background-color: transparent, #8b8b8b; padding: 0; color: white; box-shadow: 0 0 3px #222 inset }
@@ -108,7 +108,7 @@ tab #del.exch { background: rgba(red, 0.1); text-align: center; vertical-align: 
 tab #del.exch:active { background: red }
 
 .inv { background-color: #8b8b8b }
-.inv #td { border: 0.1em inset #ccc }
+vscroll.inv, .inv #td { border: 0.1em inset #ccc }
 #container { padding: 5px; color: #444; background-color: #c6c6c6; border: 0.2em outset #c6c6c6; border-radius: 0.3em }
 
 #worlds { border-spacing: auto 20px }

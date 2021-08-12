@@ -262,40 +262,66 @@ int renderSetSelectionPoint(Bool set)
 		/* need a block being pointed at */
 		return 0;
 
-	if ((render.selection.sel & SEL_FIRST) == 0)
+	if ((render.inventory->offhand & 2) == 0)
 	{
 		selectionSet(render.sitRoot, render.scale, render.selection.current, 0);
 		render.selection.sel |= SEL_FIRST;
-		render.inventory->offhand |= 2;
 	}
 	else
 	{
 		selectionSet(render.sitRoot, render.scale, render.selection.current, 1);
 		render.selection.sel |= SEL_SECOND;
 	}
-	return (render.selection.sel>>1) & 3;
+	int ret = (render.selection.sel>>1) & 3;
+	if (ret != 3) render.inventory->offhand ^= 2;
+	return ret;
 }
 
 /* from mouse pos mx, my: pickup block pointed at this location using ray casting */
 void renderPointToBlock(int mx, int my)
 {
 	if (mx < 0) mx = render.mouseX, my = render.mouseY;
-	/* this method has been ripped off from: https://stackoverflow.com/questions/2093096/implementing-ray-picking */
-	vec4 clip = {mx * 2. / render.width - 1, 1 - my * 2. / render.height, 0, 1};
-	vec4 dir;
 
-	matMultByVec(dir, render.matInvMVP, clip);
+	/* hovering offhand slot: show tooltip */
+	vec4 dir = {render.inventory->x - 26 * render.scale, render.height - 22 * render.scale, 22 * render.scale};
 
-	dir[VX] = dir[VX] / dir[VT] - render.camera[VX];
-	dir[VY] = dir[VY] / dir[VT] - render.camera[VY];
-	dir[VZ] = dir[VZ] / dir[VT] - render.camera[VZ];
-
-	/* XXX why is the yaw/pitch ray picking off compared to a MVP matrix ??? */
-	//if (mapPointToBlock(render.level, render.camera, &render.yaw, NULL, render.selection.current, &render.selection.extra))
-	if (mapPointToBlock(render.level, render.camera, NULL, dir, render.selection.current, &render.selection.extra))
-		render.selection.sel |= SEL_CURRENT;
-	else
+	if (dir[VX] <= mx && mx <= dir[VX] + dir[2] && my > dir[VY])
+	{
 		render.selection.sel &= ~(SEL_CURRENT | SEL_NOCURRENT);
+		render.selection.sel |= SEL_OFFHAND;
+		render.inventory->offhand |= 4;
+		renderShowBlockInfo(True, DEBUG_BLOCK);
+		SIT_SetValues(render.blockInfo, SIT_Title,
+			"Switch to extended selection <b>(shortcut: G)</b><br>"
+			"Click to select which point to set/change <b>(shortcut: 0)</b>.",
+			NULL
+		);
+		return;
+	}
+	else
+	{
+		if (render.selection.sel & SEL_OFFHAND)
+		{
+			renderShowBlockInfo(False, DEBUG_BLOCK);
+			render.inventory->offhand &= ~4;
+		}
+
+		/* this method has been ripped off from: https://stackoverflow.com/questions/2093096/implementing-ray-picking */
+		vec4 clip = {mx * 2. / render.width - 1, 1 - my * 2. / render.height, 0, 1};
+
+		matMultByVec(dir, render.matInvMVP, clip);
+
+		dir[VX] = dir[VX] / dir[VT] - render.camera[VX];
+		dir[VY] = dir[VY] / dir[VT] - render.camera[VY];
+		dir[VZ] = dir[VZ] / dir[VT] - render.camera[VZ];
+
+		/* XXX why is the yaw/pitch ray picking off compared to a MVP matrix ??? */
+		//if (mapPointToBlock(render.level, render.camera, &render.yaw, NULL, render.selection.current, &render.selection.extra))
+		if (mapPointToBlock(render.level, render.camera, NULL, dir, render.selection.current, &render.selection.extra))
+			render.selection.sel |= SEL_CURRENT;
+		else
+			render.selection.sel &= ~(SEL_CURRENT | SEL_NOCURRENT);
+	}
 
 	render.mouseX = mx;
 	render.mouseY = my;
@@ -1436,6 +1462,24 @@ int renderGetTerrain(int size[2])
 {
 	if (size) size[0] = 512, size[1] = 1024;
 	return render.nvgTerrain;
+}
+
+/* SIT_Nuke is about to be called */
+void renderSaveRestoreState(Bool save)
+{
+	static SIT_Widget wnd;
+	if (save)
+	{
+		/* this will avoid recreaating everything and is pretty cheap trick */
+		wnd = SIT_GetById(render.sitRoot, "selection");
+		if (wnd)
+			SIT_ExtractDialog(wnd);
+	}
+	else
+	{
+		if (wnd)
+			SIT_InsertDialog(wnd);
+	}
 }
 
 /*

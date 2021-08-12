@@ -32,17 +32,17 @@ STRPTR   itemGetTechName(int id, STRPTR out, int max);
 void     itemDecodeEnchants(DATA8 nbt, STRPTR title, int max);
 int      itemGetInventoryByCat(Item buffer, int cat);
 
-struct Item_t
+struct Item_t              /* for rendering */
 {
-	uint16_t id;
-	uint16_t uses;
-	uint16_t count;
-	uint16_t x, y;
-	uint16_t slot;
-	DATA8    extra;
+	uint16_t id;           /* item or block id + metadata */
+	uint16_t uses;         /* display durability bar */
+	uint16_t count;        /* stack count */
+	uint16_t x, y;         /* position on screen (relative to bottom left) */
+	uint16_t slot;         /* inventory slot XXX not sure */
+	DATA8    extra;        /* NBT fragment */
 };
 
-struct ItemDesc_t
+struct ItemDesc_t          /* from itemTable.js */
 {
 	int      id;           /* item id (>256) */
 	STRPTR   name;         /* human readable name */
@@ -62,7 +62,7 @@ struct ItemDesc_t
 #ifdef ITEMS_IMPL
 typedef struct ItemHash_t *    ItemHash;
 
-struct ItemHash_t
+struct ItemHash_t          /* easy access of items by name */
 {
 	uint32_t crc;
 	uint16_t next;
@@ -70,7 +70,7 @@ struct ItemHash_t
 };
 
 
-struct ItemsState_t
+struct ItemsState_t        /* global structure */
 {
 	ItemDesc table;
 	ItemHash hashByName;

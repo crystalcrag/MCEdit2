@@ -20,6 +20,7 @@
 
 struct Block_t        blockIds[256];
 struct BlockState_t * blockStates;
+struct BlockState_t * blockLast;
 struct BlockPrivate_t blocks;
 static BlockVertex    blockVertex;
 static BlockVertex    stringPool;
@@ -1257,6 +1258,7 @@ void blockParseConnectedTexture(void)
 	DATA8 cnx;
 	int   i;
 	int   row = 32;
+	blockLast = blockStates + blocks.totalStates;
 	for (b = blockIds; b < EOT(blockIds); b ++)
 	{
 		/* while we are scanning blocks, also pre-parse block placement constaints */
@@ -1476,7 +1478,7 @@ void blockParseInventory(int vbo)
 	int        i, j, vtx, total;
 
 	/* first: count vertex needed for inventory models */
-	for (state = blockStates, i = blocks.totalStates, total = 0; i > 0; i --, state ++)
+	for (state = blockStates, total = 0; state < blockLast; state ++)
 	{
 		int vtx;
 		switch (state->inventory & MODELFLAGS) {
@@ -1522,7 +1524,7 @@ void blockParseInventory(int vbo)
 	// fprintf(stderr, "inventory = %d vertex, total = %d\n", total, blocks.totalInv);
 
 	/* generate mesh: will use the same shader than block models */
-	for (state = blockStates, i = blocks.totalStates, vtx = 0, j = 0; i > 0; i --, state ++)
+	for (state = blockStates, vtx = 0, j = 0; state < blockLast; state ++)
 	{
 		switch (state->inventory & MODELFLAGS) {
 		case CUBE:
@@ -1971,7 +1973,7 @@ void blockParseBoundingBox(void)
 	/* count the vertex/bbox data we'll need */
 	BlockState state;
 	int        bbox, i, j;
-	for (i = blocks.totalStates, state = blockStates, bbox = 0; i > 0; i --, state ++)
+	for (state = blockStates, bbox = 0; state < blockLast; state ++)
 	{
 		DATA16 p;
 		Block  b = blockIds + (state->id >> 4);
@@ -2012,7 +2014,7 @@ void blockParseBoundingBox(void)
 	}
 
 	/* second: generate model bounding boxes and assign to state bboxId */
-	for (i = blocks.totalStates, state = blockStates; i > 0; i --, state ++)
+	for (state = blockStates; state < blockLast; state ++)
 	{
 		Block b = blockIds + (state->id >> 4);
 		switch (b->bbox) {
@@ -2799,7 +2801,7 @@ void blockPostProcessTexture(DATA8 * data, int * width, int * height, int bpp)
 
 	/* mark blocks that will require a 2nd pass rendering */
 	BlockState state;
-	for (state = blockStates, i = blocks.totalStates; i > 0; i --, state ++)
+	for (state = blockStates; state < blockLast; state ++)
 	{
 		if (state->type == QUAD) continue;
 		/* unlikely that only one side is translucent */
@@ -3087,9 +3089,4 @@ DATA8 blockGetDurability(float dura)
 		return blocks.duraColors;
 
 	return blocks.duraColors + ((int) (blocks.duraMax * dura) << 2);
-}
-
-int blockGetTotalStates(void)
-{
-	return blocks.totalStates;
 }

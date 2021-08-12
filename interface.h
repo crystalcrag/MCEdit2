@@ -20,6 +20,7 @@ void mcuiGoto(SIT_Widget parent, vec4 pos);
 void mcuiInitDrawItems(void);
 void mcuiDrawItems(void);
 void mcuiAnalyze(SIT_Widget app, Map map);
+void mcuiReplace(SIT_Widget parent);
 
 #ifdef MCUI_IMPL
 

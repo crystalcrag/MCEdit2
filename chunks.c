@@ -763,7 +763,7 @@ uint8_t openDoorDataToModel[] = {
 static int offsets[] = { /* neighbors: S, E, N, W, T, B */
 	16, 1, -16, -1, 256, -256
 };
-static int8_t offsetConnected[] = { /* T, E, B, W */
+static int8_t offsetConnected[] = { /* S, E, N, W, T, B (4 coords per face) */
 	9+13, 1+13, -9+13, -1+13,     9+13, -3+13, -9+13,  3+13,    9+13, -1+13, -9+13,  1+13,
 	9+13, 3+13, -9+13, -3+13,    -3+13,  1+13,  3+13, -1+13,    3+13,  1+13, -3+13, -1+13
 };

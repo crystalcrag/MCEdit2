@@ -129,6 +129,7 @@ Bool playerProcessKey(Player p, int key, int mod)
 		case RIGHT:    p->keyvec &= ~(PLAYER_STOPPING|PLAYER_STRAFE_LEFT);  p->keyvec |= PLAYER_STRAFE_RIGHT; break;
 		case FLYDOWN:  p->keyvec &= ~PLAYER_UP;                             p->keyvec |= PLAYER_DOWN; break;
 		case OFFHAND:  p->inventory.offhand ^= 1; break;
+		case '0':      p->inventory.offhand ^= 2; break;
 		case '1': case '2': case '3': case '4': case '5':
 		case '6': case '7': case '8': case '9':
 			playerScrollInventory(p, (key - '1') - p->inventory.selected);

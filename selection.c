@@ -97,6 +97,17 @@ static void selectionSetRect(void)
 	}
 	/* lines around the edges */
 	glUnmapBuffer(GL_ARRAY_BUFFER);
+
+	if (selection.nudgeSize)
+	{
+		TEXT size[32];
+		sprintf(size, "%dW x %dL x %dH",
+			(int) fabsf(selection.firstPt[VX] - selection.secondPt[VX]) + 1,
+			(int) fabsf(selection.firstPt[VZ] - selection.secondPt[VZ]) + 1,
+			(int) fabsf(selection.firstPt[VY] - selection.secondPt[VY]) + 1
+		);
+		SIT_SetValues(selection.nudgeSize, SIT_Title, size, NULL);
+	}
 }
 
 
@@ -154,24 +165,28 @@ void selectionSet(APTR sitRoot, float scale, vec4 pos, int point)
 
 	if (selection.hasPoint == 3)
 	{
-		selectionSetRect();
-
-		SIT_Widget diag = selection.nudgeDiag = SIT_CreateWidget("selection", SIT_DIALOG, sitRoot,
-			SIT_DialogStyles,  SITV_Plain,
-			SIT_Bottom,        SITV_AttachForm, NULL, (int) (24 * scale),
-			SIT_TopAttachment, SITV_AttachNone,
-			NULL
-		);
-		SIT_CreateWidgets(diag,
-			"<button name=whole title=Nudge left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, ">"
-			"<label name=size title='8W x 5L x 3H' top=WIDGET,whole,0.3em left=FORM right=FORM style='text-align: center; color: white'>"
-			"<button name=first title=Nudge top=WIDGET,size,0.3em>"
-			"<button name=second title=Nudge top=OPPOSITE,first left=WIDGET,first,0.5em>"
-		);
-		SIT_AddCallback(SIT_GetById(diag, "whole"),  SITE_OnClick, selectionNudge, (APTR) 3);
-		SIT_AddCallback(SIT_GetById(diag, "first"),  SITE_OnClick, selectionNudge, (APTR) 1);
-		SIT_AddCallback(SIT_GetById(diag, "second"), SITE_OnClick, selectionNudge, (APTR) 2);
-		SIT_ManageWidget(diag);
+		if (selection.nudgeDiag == NULL)
+		{
+			SIT_Widget diag = selection.nudgeDiag = SIT_CreateWidget("selection", SIT_DIALOG, sitRoot,
+				SIT_DialogStyles,  SITV_Plain,
+				SIT_Bottom,        SITV_AttachForm, NULL, (int) (24 * scale),
+				SIT_TopAttachment, SITV_AttachNone,
+				NULL
+			);
+			SIT_CreateWidgets(diag,
+				"<button name=whole title=Nudge left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, ">"
+				"<label name=size top=WIDGET,whole,0.3em left=FORM right=FORM style='text-align: center; color: white'>"
+				"<button name=first title=Nudge top=WIDGET,size,0.3em>"
+				"<button name=second title=Nudge top=OPPOSITE,first left=WIDGET,first,0.5em>"
+			);
+			selection.nudgeSize = SIT_GetById(diag, "size");
+			SIT_AddCallback(SIT_GetById(diag, "whole"),  SITE_OnClick, selectionNudge, (APTR) 3);
+			SIT_AddCallback(SIT_GetById(diag, "first"),  SITE_OnClick, selectionNudge, (APTR) 1);
+			SIT_AddCallback(SIT_GetById(diag, "second"), SITE_OnClick, selectionNudge, (APTR) 2);
+			selectionSetRect();
+			SIT_ManageWidget(diag);
+		}
+		else selectionSetRect();
 	}
 }
 
@@ -181,6 +196,7 @@ void selectionClear(void)
 	{
 		SIT_CloseDialog(selection.nudgeDiag);
 		selection.nudgeDiag = NULL;
+		selection.nudgeSize = NULL;
 	}
 	selection.hasPoint = 0;
 }
@@ -222,11 +238,12 @@ void selectionRender(void)
 		glBindVertexArray(selection.vao);
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, selection.vboIndex);
 
-		selectionDrawPoint(selection.firstPt, 0);
-		if (selection.hasPoint & 2)
-		{
-			selectionDrawPoint(selection.secondPt, 1);
-			selectionDrawPoint(selection.regionPt, 2);
+		switch (selection.hasPoint & 3) {
+		case 1: selectionDrawPoint(selection.firstPt,  0); break;
+		case 2: selectionDrawPoint(selection.secondPt, 1); break;
+		case 3: selectionDrawPoint(selection.firstPt,  0);
+		        selectionDrawPoint(selection.secondPt, 1);
+		        selectionDrawPoint(selection.regionPt, 2);
 		}
 
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);

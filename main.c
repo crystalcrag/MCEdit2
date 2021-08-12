@@ -169,12 +169,15 @@ static int mceditGoto(SIT_Widget w, APTR cd, APTR ud)
 }
 
 /* show statistics about selection */
-static int mceditAnalyze(SIT_Widget w, APTR cd, APTR ud)
+static int mceditCommands(SIT_Widget w, APTR cd, APTR ud)
 {
 	if (mcedit.selection == 3)
 	{
 		FramePauseUnpause(True);
-		mceditUIOverlay(MCUI_OVERLAY_ANALYZE);
+		switch ((int) cd & 0xff) {
+		case 'a': mceditUIOverlay(MCUI_OVERLAY_ANALYZE); break;
+		case 'r': mceditUIOverlay(MCUI_OVERLAY_REPLACE); break;
+		}
 		FramePauseUnpause(False);
 	}
 	return 1;
@@ -252,9 +255,11 @@ int main(int nb, char * argv[])
 		{SITK_FlagCapture + SITK_FlagAlt + SITK_F4, SITE_OnClose, NULL},
 		{SITK_FlagCapture + SITK_Escape,            SITE_OnClose, NULL},
 		{SITK_FlagCapture + SITK_FlagCtrl + 's',    SITE_OnActivate, NULL, mceditSaveChanges},
-		{                   SITK_FlagCtrl + 'g',    SITE_OnActivate, NULL, mceditGoto},
-		{                   SITK_FlagCtrl + 'a',    SITE_OnActivate, NULL, mceditAnalyze},
-		{                   SITK_FlagCtrl + 'd',    SITE_OnActivate, NULL, mceditClearSelection},
+
+		{SITK_FlagCtrl + 'g', SITE_OnActivate, NULL, mceditGoto},
+		{SITK_FlagCtrl + 'a', SITE_OnActivate, NULL, mceditCommands},
+		{SITK_FlagCtrl + 'd', SITE_OnActivate, NULL, mceditClearSelection},
+		{SITK_FlagCtrl + 'r', SITE_OnActivate, NULL, mceditCommands},
 		{0}
 	};
 
@@ -534,8 +539,18 @@ void mceditPlaceBlock(void)
 	int  block, id;
 	Item item;
 
-	if (mcedit.player.inventory.offhand)
+	if (mcedit.player.inventory.offhand & 4)
 	{
+		/* hovering off-hand slot */
+		if (mcedit.player.inventory.offhand & 1)
+			mcedit.player.inventory.offhand ^= 2;
+		else
+			mcedit.player.inventory.offhand |= 1;
+		return;
+	}
+	if (mcedit.player.inventory.offhand & 1)
+	{
+		/* off-hand slot selected: set selection point */
 		mcedit.selection = renderSetSelectionPoint(True);
 		return;
 	}
@@ -610,11 +625,13 @@ void mceditUIOverlay(int type)
 
 	SIT_SetValues(mcedit.app, SIT_RefreshMode, SITV_RefreshAsNeeded, NULL);
 	mcuiTakeSnapshot(mcedit.app, mcedit.width, mcedit.height);
+	renderSaveRestoreState(True);
 
 	MapExtraData sel = NULL;
 	itemCount = 0;
 	switch (type) {
 	case MCUI_OVERLAY_BLOCK:
+		/* show list of blocks to edit player's inventory */
 		memcpy(oldPlayerInv, mcedit.player.inventory.items, sizeof oldPlayerInv);
 		sel = renderGetSelectedBlock(pos, NULL);
 
@@ -696,6 +713,10 @@ void mceditUIOverlay(int type)
 
 	case MCUI_OVERLAY_ANALYZE:
 		mcuiAnalyze(mcedit.app, mcedit.level);
+		break;
+
+	case MCUI_OVERLAY_REPLACE:
+		mcuiReplace(mcedit.app);
 	}
 
 	SDL_EnableUNICODE(1);
@@ -801,7 +822,8 @@ void mceditUIOverlay(int type)
 		playerTeleport(&mcedit.player, mcedit.level, pos);
 		renderSetViewMat(mcedit.player.pos, mcedit.player.lookat, &mcedit.player.angleh);
 	}
-	else if (type == MCUI_OVERLAY_ANALYZE)
+	else if (type == MCUI_OVERLAY_ANALYZE ||
+	         type == MCUI_OVERLAY_REPLACE)
 	{
 		mcedit.player.inventory.update ++;
 	}
@@ -811,6 +833,7 @@ void mceditUIOverlay(int type)
 	SIT_Nuke(SITV_NukeCtrl);
 	SIT_SetValues(mcedit.app, SIT_RefreshMode, SITV_RefreshAlways, NULL);
 	SDL_EnableUNICODE(0);
+	renderSaveRestoreState(False);
 }
 
 /*
@@ -825,6 +848,7 @@ void mceditSideView(void)
 	int       mx, my;
 
 	FramePauseUnpause(True);
+	renderSaveRestoreState(True);
 	debugSetPos(mcedit.app, &mcedit.exit);
 	debugWorld();
 	mx = my = 0;
@@ -936,6 +960,7 @@ void mceditSideView(void)
 	mcedit.state = GAMELOOP_WORLD;
 	SIT_Nuke(SITV_NukeCtrl);
 	FramePauseUnpause(False);
+	renderSaveRestoreState(False);
 }
 
 #ifdef	WIN32

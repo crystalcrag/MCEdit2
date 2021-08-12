@@ -30,6 +30,7 @@ void renderAddModif(void);
 void renderAllSaved(void);
 void renderFrustum(Bool snapshot);
 void renderResetViewport(void);
+void renderSaveRestoreState(Bool save);
 int  renderSetSelectionPoint(Bool set);
 int  renderGetTerrain(int size[2]);
 MapExtraData renderGetSelectedBlock(vec4 pos, int * blockModel);
@@ -104,7 +105,8 @@ enum                               /* bitfield for SelBlock.sel */
 	SEL_CURRENT   = 1,
 	SEL_FIRST     = 2,
 	SEL_SECOND    = 4,
-	SEL_NOCURRENT = 8              /* cannot place block */
+	SEL_NOCURRENT = 8,             /* cannot place block */
+	SEL_OFFHAND   = 16
 };
 
 struct Message_t

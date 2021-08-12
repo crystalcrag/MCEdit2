@@ -1,6 +1,12 @@
 =========== Week 32 ===========
+Wed Aug 11:
+	* fill/replace interface mostly done.
+
+Tue Aug 10:
+	* started fill/replace interface.
+
 Mon Aug 9:
-	* 
+	* extended selection refined: can be activated with mouse.
 
 =========== Week 31 ===========
 Sun Aug 8:

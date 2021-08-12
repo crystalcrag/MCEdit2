@@ -41,7 +41,6 @@ DATA16  blockParseModel(float * values, int count, DATA16 buffer);
 void    blockGetEmitterLocation(int blockId, float offset[5]);
 int     blockInvCountVertex(DATA16 model, int faceId);
 int     blockInvCopyFromModel(DATA16 ret, DATA16 model, int faceId);
-int     blockGetTotalStates(void);
 
 void    halfBlockGenMesh(WriteBuffer, DATA8 model, int size /* 2 or 8 */, DATA8 xyz, DATA8 tex, DATA16 blockIds, DATA8 skyBlock, int genSides);
 DATA8   halfBlockGetModel(BlockState, int size /* 1, 2 or 8 */, DATA16 blockIds);
@@ -423,6 +422,7 @@ struct BlockVertex_t       /* store custom block model vertex data (needed by ch
 
 extern struct Block_t            blockIds[];
 extern struct BlockState_t *     blockStates;
+extern struct BlockState_t *     blockLast;
 extern uint16_t                  blockStateIndex[];
 
 extern uint8_t vertex[];

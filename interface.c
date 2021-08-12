@@ -346,16 +346,17 @@ static int mcuiInventoryMouse(SIT_Widget w, APTR cd, APTR ud)
 			}
 			/* else no break */
 		case SITOM_ButtonLeft:
-			/* pick an item */
 			if (msg->flags & SITK_FlagShift)
 			{
 				if (mcui.cb)
 				{
+					/* transfer item to other inventory usually */
 					if (mcui.cb(w, inv, (APTR) cellx))
 						SIT_ForceRefresh();
 				}
 				else if (inv->groupId)
 				{
+					/* clear slot */
 					memset(inv->items + cellx, 0, sizeof (struct Item_t));
 					SIT_ForceRefresh();
 				}
@@ -409,6 +410,7 @@ static int mcuiInventoryMouse(SIT_Widget w, APTR cd, APTR ud)
 			}
 			else if (cellx < inv->itemsNb)
 			{
+				/* pick an item */
 				mcui.drag = inv->items[cellx];
 				if (mcui.drag.id == 0) break;
 				if (inv->groupId) memset(inv->items + cellx, 0, sizeof (struct Item_t));
@@ -519,6 +521,7 @@ char * strcasestr(const char * hayStack, const char * needle)
 	if (length > max)
 		return NULL;
 
+	/* not the most optimized function ever, but on the other hand it doesn't have to be */
 	for (max -= length-1; max > 0; max --, hayStack ++)
 		if  (strncasecmp(hayStack, needle, length) == 0) return (char *) hayStack;
 
@@ -653,7 +656,7 @@ void mcuiCreateInventory(Inventory player)
 		" <label name=searchtxt title='Search:'>"
 		" <editbox name=search left=WIDGET,searchtxt,0.5em right=FORM>"
 		" <canvas composited=1 name=inv.inv left=FORM top=WIDGET,search,0.5em/>"
-		" <scrollbar width=1.2em name=scroll wheelMult=1 top=OPPOSITE,inv,0 bottom=OPPOSITE,inv,0 right=FORM>"
+		" <scrollbar width=1.2em name=scroll.inv wheelMult=1 top=OPPOSITE,inv,0 bottom=OPPOSITE,inv,0 right=FORM>"
 		" <label name=msg title='Player inventory:' top=WIDGET,inv,0.3em>"
 		" <canvas composited=1 name=player.inv top=WIDGET,msg,0.3em/>"
 		" <canvas composited=1 name=tb.inv left=FORM top=WIDGET,player,0.5em/>"
@@ -944,6 +947,7 @@ static int mcuiCopyAnalyze(SIT_Widget w, APTR cd, APTR ud)
 	int    max   = 256;
 	int    i, nb, usage;
 
+	/* copy info into clipboard */
 	SIT_GetValues(ud, SIT_ItemCount, &nb, NULL);
 	usage = sprintf(bytes, "Number,Type,ID\n");
 	for (i = 0; i < nb; i ++)
@@ -1026,7 +1030,7 @@ void mcuiAnalyze(SIT_Widget parent, Map map)
 	dy = fabsf(points[VY] - points[VY+4]) + 1;
 	dz = fabsf(points[VZ] - points[VZ+4]) + 1;
 
-	int * statistics = calloc(blockGetTotalStates(), sizeof (int));
+	int * statistics = calloc(blockLast - blockStates, sizeof (int));
 	struct BlockIter_t iter;
 	for (mapInitIter(map, &iter, pos, False); dy > 0; dy --)
 	{
@@ -1042,7 +1046,7 @@ void mcuiAnalyze(SIT_Widget parent, Map map)
 		mapIter(&iter, 0, 1, -dz);
 	}
 
-	for (i = dx = 0, j = blockGetTotalStates(); i < j; i ++)
+	for (i = dx = 0, j = blockLast - blockStates; i < j; i ++)
 	{
 		if (statistics[i] == 0) continue;
 		dx += statistics[i];
@@ -1058,6 +1062,111 @@ void mcuiAnalyze(SIT_Widget parent, Map map)
 	dz *= (int) (fabsf(points[VX] - points[VX+4]) + 1) *
 	      (int) (fabsf(points[VY] - points[VY+4]) + 1);
 	SIT_SetValues(SIT_GetById(diag, "total"), SIT_Title|XfMt, "Non air block selected: <b>%d</b><br>Blocks in volume: <b>%d</b>", dx, dz, NULL);
+
+	SIT_ManageWidget(diag);
+}
+
+/*
+ * fill/replace selection with one block
+ */
+
+/* SITE_OnChange on search: not exactly the same as mcuiFilterItems: don't want items here */
+static int mcuiFilterBlocks(SIT_Widget w, APTR cd, APTR ud)
+{
+	MCInventory inv   = ud;
+	BlockState  state = blockGetById(ID(1,0));
+	Item        items = inv->items;
+	STRPTR      match = cd;
+
+	if (match[0] == 0)
+		match = NULL;
+
+	for ( ; state < blockLast; state ++)
+	{
+		if ((state->inventory & MODELFLAGS) == 0) continue;
+		if (state->special == BLOCK_BED) continue;
+		if (match && strcasestr(state->name, match) == NULL) continue;
+		items->id = state->id;
+		items ++;
+	}
+
+	inv->itemsNb = items - inv->items;
+	mcuiResetScrollbar(inv);
+
+	return 1;
+}
+
+void mcuiReplace(SIT_Widget parent)
+{
+	static struct MCInventory_t mcinv   = {.invRow = 6, .invCol = MAXCOLINV};
+	static struct MCInventory_t fillinv = {.invRow = 1, .invCol = 1, .groupId = 1, .itemsNb = 1};
+	static struct MCInventory_t replace = {.invRow = 1, .invCol = 1, .groupId = 2, .itemsNb = 1};
+	static struct Item_t fillReplace[2];
+
+	/* same scale than player toolbar... */
+	mcui.cellSz = roundf(mcui.width * 17 * ITEMSCALE / (3 * 182.));
+
+	SIT_Widget diag = SIT_CreateWidget("fillblock.bg", SIT_DIALOG + SIT_EXTRA((blockLast - blockStates) * sizeof (ItemBuf)), parent,
+		SIT_DialogStyles, SITV_Plain | SITV_Modal | SITV_Movable,
+		NULL
+	);
+
+	SIT_CreateWidgets(diag,
+		"<label name=searchtxt title='Search:'>"
+		"<editbox name=search left=WIDGET,searchtxt,0.5em right=FORM>"
+		"<canvas composited=1 name=inv.inv left=FORM top=WIDGET,search,0.5em/>"
+		"<scrollbar width=1.2em name=scroll.inv wheelMult=1 top=OPPOSITE,inv,0 bottom=OPPOSITE,inv,0 right=FORM>"
+		"<label name=msg title='Fill:'>"
+		"<canvas composited=1 name=fill.inv left=WIDGET,msg,0.5em top=WIDGET,inv,0.5em/>"
+		"<button name=doreplace title='Replace by:' buttonType=", SITV_CheckBox, "left=WIDGET,fill,0.5em top=MIDDLE,fill>"
+		"<canvas composited=1 name=replace.inv left=WIDGET,doreplace,0.5em top=WIDGET,inv,0.5em/>"
+		"<button name=side1 title=Top buttonType=", SITV_RadioButton, "checkState=1 left=WIDGET,replace,0.5em top=MIDDLE,fill>"
+		"<button name=side0 title=Bottom buttonType=", SITV_RadioButton, "left=WIDGET,side1,0.5em top=MIDDLE,fill>"
+		"<button name=similar title='Replace similar blocks (strairs, slabs)' buttonType=", SITV_CheckBox, "left=OPPOSITE,doreplace top=WIDGET,fill,0.5em>"
+		"<button name=cancel title=Cancel right=FORM top=WIDGET,similar,1em>"
+		"<button name=ok title=Fill top=OPPOSITE,cancel right=WIDGET,cancel,0.5em>"
+		"<tooltip name=info delayTime=", SITV_TooltipManualTrigger, "displayTime=10000 toolTipAnchor=", SITV_TooltipFollowMouse, ">"
+	);
+	SIT_SetAttributes(diag, "<searchtxt top=MIDDLE,search><inv right=WIDGET,scroll,0.2em><msg top=MIDDLE,fill>");
+
+	SIT_AddCallback(SIT_GetById(diag, "cancel"), SITE_OnActivate, mcuiExitWnd, NULL);
+
+	BlockState state;
+	SIT_GetValues(diag, SIT_UserData, &mcui.allItems, NULL);
+	for (state = blockGetById(ID(1, 0)), mcinv.itemsNb = 0; state < blockLast; state ++)
+	{
+		if ((state->inventory & MODELFLAGS) == 0) continue;
+		if (state->special == BLOCK_BED) continue;
+		Item item = mcui.allItems + mcinv.itemsNb;
+		item->id = state->id;
+		item->count = 1;
+		item->uses = 0;
+		mcinv.itemsNb ++;
+	}
+
+	mcui.scroll = SIT_GetById(diag, "scroll");
+	mcui.toolTip = SIT_GetById(diag, "info");
+	mcui.selCount = 0;
+	mcui.groupCount = 0;
+	mcui.cb = NULL;
+
+	mcinv.items   = mcui.allItems;
+	fillinv.items = fillReplace;
+	replace.items = fillReplace + 1;
+
+	mcuiInitInventory(SIT_GetById(diag, "inv"),     &mcinv);
+	mcuiInitInventory(SIT_GetById(diag, "fill"),    &fillinv);
+	mcuiInitInventory(SIT_GetById(diag, "replace"), &replace);
+
+	mcuiResetScrollbar(&mcinv);
+
+	SIT_GetValues(mcinv.cell, SIT_Padding, mcui.padding, NULL);
+	mcui.itemSz = mcui.cellSz - mcui.padding[0] - mcui.padding[2];
+
+	SIT_Widget search = SIT_GetById(diag, "search");
+	SIT_AddCallback(search,      SITE_OnChange, mcuiFilterBlocks, &mcinv);
+	SIT_AddCallback(mcui.scroll, SITE_OnScroll, mcuiSetTop, &mcinv);
+	SIT_SetFocus(search);
 
 	SIT_ManageWidget(diag);
 }

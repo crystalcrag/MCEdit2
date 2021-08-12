@@ -30,6 +30,7 @@ struct Selection_t
 	vec4  regionPt;
 	vec4  regionSize;
 	APTR  nudgeDiag;      /* SIT_DIALOG */
+	APTR  nudgeSize;      /* SIT_LABEL */
 	DATA8 direction;      /* from render.c: used by selection nudge */
 };
 

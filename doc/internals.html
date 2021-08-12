@@ -1396,17 +1396,21 @@ are too many).
 approach (and will be described in the <tt>CUST</tt> section).
 
 <p>For full blocks, the base model of its texture will be used to generate all the variations. Since
-there are 4 sides, there are 16 possible combinations. As of writing this, this is done by removing
+there are 4 sides, it means there are 16 possible combinations. As of writing this, this is done by removing
 a one pixel line from a given side. These are generated in <tt>blocks.c:blockPostProcessTexture()</tt>.
 This is for example, what it looks like for the glass texture:
 
 <div class="photo">
-  <img src="images/cnxtex.png" style="background-color: black;border: 5px solid black">
+  <img src="images/cnxtex.png" style="background-color: black; border: 5px solid black; width: 512px">
 </div>
 
 <p>To know which texture to use, you just need to set a bitfield if the block on top (bit1), right (bit2),
 bottom (bit3) or left (bit4) "connects" with the current voxel. By default, U texture coordinate is
 set to 0, therefore, you just have to shift it by <tt>bitfield * 16</tt> to simulate a connection.
+
+<p>Left, right, top and bottom are relative to a face, therefore a new look-up table is needed:
+<tt>offsetConnected[]</tt>. It encodes the 4 blocks to look for connection in the <tt>blockIds3x3[]</tt>
+table (24 elements in total). Each group of 4 elements is of course ordered top, right, bottom and left.
 
 <h4 id="meshhalf"><span>Half-block</span></h4>
 

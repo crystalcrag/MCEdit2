@@ -503,12 +503,9 @@
 	{id: 45, name: "Clay bricks", type: SOLID, inv: CUBE, cat: BUILD, tech: "brick_block"},
 		{state: 0, tex: [7, 0, 7, 0, 7, 0, 7, 0, 7, 0, 7, 0]},
 
-	{id: 46, name: "TNT", type: SOLID, inv: CUBE, cat: REDSTONE, rsupdate: RECEIVE},
+	{id: 46, name: "TNT", type: SOLID, inv: CUBE, invState: 0, cat: REDSTONE, rsupdate: RECEIVE},
 		{state: 0, name: "-",       tex: [8, 0, 8, 0, 8, 0, 8, 0, 9, 0,10, 0]},
 		{state: 1, name: "+primed", tex: [8, 0, 8, 0, 8, 0, 8, 0, 9, 0,10, 0]},
-		{state: 2, name: "-",       tex: [8, 0, 8, 0, 8, 0, 8, 0, 9, 0,10, 0,  1]},
-		{state: 3, name: "-",       tex: [8, 0, 8, 0, 8, 0, 8, 0, 9, 0,10, 0,  2]},
-		{state: 4, name: "-",       tex: [8, 0, 8, 0, 8, 0, 8, 0, 9, 0,10, 0,  3]},
 
 	{id: 47, name: "Bookshelf", type: SOLID, inv: CUBE, cat: DECO},
 		{state: 0, tex: [3, 2, 3, 2, 3, 2, 3, 2, 4, 0, 4, 0]},

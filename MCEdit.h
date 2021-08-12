@@ -48,7 +48,8 @@ enum /* possible value for parameter mceditUIOverlay() */
 {
 	MCUI_OVERLAY_BLOCK,
 	MCUI_OVERLAY_GOTO,
-	MCUI_OVERLAY_ANALYZE
+	MCUI_OVERLAY_ANALYZE,
+	MCUI_OVERLAY_REPLACE
 };
 
 /* ID string */
