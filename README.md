@@ -13,8 +13,6 @@ As of now, only Windows is supported, even though there are no major road blocks
 
 # Supported features
 
-*Note*: not everything in this list is currently implemented, but this is what is planned.
-
 * **Voxel editing**: remove/add block one by one or affect whole region at once. Most of the 252 block types of Minecraft 1.12 are implemented.
 * **Sub-block precision**: can generate voxel of less than one full block (ie: vertical/horizontal slab), works like the chisel tool of TerraFirmaCraft.
 * **Dynamic lighting**: SkyLight and BlockLight tables update according to block properties (absortion and emission).

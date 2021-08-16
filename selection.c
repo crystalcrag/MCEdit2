@@ -10,14 +10,19 @@
 #include <stdlib.h>
 #include <math.h>
 #include <stdio.h>
-#include "blocks.h"
+#include <malloc.h>
 #include "selection.h"
+#include "mapUpdate.h"
 #include "player.h"
 #include "SIT.h"
 
 struct Selection_t selection;
 extern uint8_t bboxIndices[]; /* from blocks.c */
 extern uint8_t texCoord[];
+
+/*
+ * selection render / nudge
+ */
 
 /* init VBO and VAO */
 void selectionInitStatic(int shader, DATA8 direction)
@@ -250,3 +255,302 @@ void selectionRender(void)
 		glEnable(GL_DEPTH_TEST);
 	}
 }
+
+/*
+ * selection manipulation : fill / replace
+ */
+static struct
+{
+	DATA32 progress;
+	Map    map;
+	int    blockId;
+	int    side;
+	int    facing;
+	int    replId;
+	int    similar;
+	char   cancel;
+	Mutex  wait;
+}	selectionAsync;
+
+/* thread to process fill command */
+void selectionProcessFill(void * unused)
+{
+	struct BlockIter_t iter;
+	Map  map;
+	vec4 pos;
+	int  dx, dy, dz, z, x, blockId;
+	pos[VX] = MIN(selection.firstPt[VX], selection.secondPt[VX]);
+	pos[VY] = MIN(selection.firstPt[VY], selection.secondPt[VY]);
+	pos[VZ] = MIN(selection.firstPt[VZ], selection.secondPt[VZ]);
+	dx = selection.regionSize[VX];
+	dy = selection.regionSize[VY];
+	dz = selection.regionSize[VZ];
+
+	map = selectionAsync.map;
+	blockId = selectionAsync.blockId;
+	mapInitIter(map, &iter, pos, blockId > 0);
+
+	/* updated in the order XZY (first to last) */
+	mapUpdateInit(&iter);
+
+	/* lock the mutex for main thread to know when we are finished here */
+	MutexEnter(selectionAsync.wait);
+
+	Block b = &blockIds[blockId>>4];
+
+	if ((b->special == BLOCK_HALF || b->special == BLOCK_STAIRS) && selectionAsync.side > 0)
+		blockId |= 8;
+
+	switch (b->orientHint) {
+	case ORIENT_LOG:
+		if (dy == 1)
+		{
+			if (dz == 1 && dx > 1) blockId |= 4; /* E/W beam */
+			if (dx == 1 && dz > 1) blockId |= 8; /* N/S */
+		}
+		/* else upward beam */
+		break;
+	case ORIENT_SE: /* rails */
+		if (dy == 1)
+		{
+			if (dz == 1 && dx > 1) blockId |= 1; /* E/W */
+			/* else N/S is 0 */
+		}
+		break;
+	case ORIENT_SENW: /* ladder, furnace, jack-o-lantern ... */
+		{
+			static uint8_t dir2data[] = {2, 4, 3, 5};
+			blockId |= dir2data[selectionAsync.facing];
+		}
+		break;
+	case ORIENT_SWNE:
+		break;
+	}
+
+	if (dy == 1 && dx > 2 && dz > 2 && b->special == BLOCK_STAIRS)
+	{
+		/* only build build the outline of a rectangle with this block (typical use case: roof) */
+		blockId |= 2;
+		for (x = dx; x > 0; x--, mapIter(&iter, 1, 0, 0))
+			mapUpdate(map, NULL, blockId, NULL, UPDATE_SILENT);
+
+		blockId |= 3;
+		mapIter(&iter, -dx, 0, dz-1);
+		for (x = dx; x > 0; x--, mapIter(&iter, 1, 0, 0))
+			mapUpdate(map, NULL, blockId, NULL, UPDATE_SILENT);
+
+		blockId &= ~3;
+		mapIter(&iter, -dx, 0, -dz+2);
+		for (z = dz-2; z > 0; z--, mapIter(&iter, 0, 0, 1))
+			mapUpdate(map, NULL, blockId, NULL, UPDATE_SILENT);
+
+		blockId |= 1;
+		mapIter(&iter, dx-1, 0, -dz+2);
+		for (z = dz-2; z > 0; z--, mapIter(&iter, 0, 0, 1))
+			mapUpdate(map, NULL, blockId, NULL, UPDATE_SILENT);
+	}
+	else while (dy > 0)
+	{
+		for (z = dz; z > 0; z --, mapIter(&iter, -dx, 0, 1))
+		{
+			for (x = dx; x > 0; x --, mapIter(&iter, 1, 0, 0))
+				mapUpdate(map, NULL, blockId, NULL, UPDATE_SILENT);
+
+			/* emergency exit */
+			if (selectionAsync.cancel) goto break_all;
+			selectionAsync.progress[0] += dx;
+		}
+		mapIter(&iter, 0, 1, -dz);
+		dy --;
+	}
+	/* note: mapUpdateEnd() will regen mesh, must no be called from here */
+	break_all:
+	MutexLeave(selectionAsync.wait);
+}
+
+/* this only starts selection processing */
+int selectionFill(Map map, DATA32 progress, int blockId, int side, int direction)
+{
+	selectionAsync.progress = progress;
+	selectionAsync.blockId  = blockId;
+	selectionAsync.side     = side;
+	selectionAsync.facing   = direction;
+	selectionAsync.map      = map;
+	selectionAsync.cancel   = 0;
+
+	/* wait for thread to finish */
+	if (! selectionAsync.wait)
+		selectionAsync.wait = MutexCreate();
+
+	/* have to be careful with thread: don't call any opengl or SITGL function in them */
+	ThreadCreate(selectionProcessFill, NULL);
+
+	return (int) selection.regionSize[VX] *
+	       (int) selection.regionSize[VY] *
+	       (int) selection.regionSize[VZ];
+}
+
+extern char * strcasestr(const char * hayStack, const char * needle);
+
+/* find block, stairs and slab variant of block <blockId> */
+static void selectionFindVariant(int variant[3], int blockId)
+{
+	/* try not to rely too much on hardcoded id: not perfect, but better than look-up tables */
+	BlockState state = blockGetById(blockId);
+	/* note: techName is only meaningful at block level, we need BlockState */
+
+	/* indentify material */
+	STRPTR material = STRDUPA(state->name);
+	STRPTR match = strrchr(material, '(');
+	uint8_t flags;
+
+	if (match == NULL)
+	{
+		int len = strlen(material);
+		match = material;
+		if (len > 6 && strcasecmp(material + len - 6, " Block") == 0)
+			material[len-6] = 0;
+		if (len > 7 && strcasecmp(material + len - 7, " Stairs") == 0)
+			material[len-7] = 0;
+		if (len > 5 && strcasecmp(material + len - 5, " Slab") == 0)
+			material[len-5] = 0;
+	}
+	else
+	{
+		match ++;
+		material = strchr(match, ')');
+		if (material) *material = 0;
+	}
+
+	variant[0] = blockId;
+	variant[1] = 0;
+	variant[2] = 0;
+
+	/* scan the table for compatible material */
+	for (state = blockGetById(ID(1,0)), flags = 0; flags != 3 && state < blockLast; state ++)
+	{
+		if (state->special == BLOCK_STAIRS && variant[1] == 0 && strcasestr(state->name, match))
+			variant[1] = state->id, flags |= 1;
+
+		if (state->special == BLOCK_HALF && variant[2] == 0 && strcasestr(state->name, match))
+			variant[2] = state->id, flags |= 2;
+	}
+	fprintf(stderr, "varient of %d:%d = %d:%d (stairs) %d:%d (slab)\n", blockId>>4, blockId&15,
+		variant[1]>>4, variant[1]&15, variant[2]>>4, variant[2]&15);
+}
+
+
+/* thread that will process block replace */
+static void selectionProcessReplace(void * unsued)
+{
+	struct BlockIter_t iter;
+	Map  map;
+	vec4 pos;
+	int  dx, dy, dz, z, x, blockId, replId;
+	int  variant[6];
+	pos[VX] = MIN(selection.firstPt[VX], selection.secondPt[VX]);
+	pos[VY] = MIN(selection.firstPt[VY], selection.secondPt[VY]);
+	pos[VZ] = MIN(selection.firstPt[VZ], selection.secondPt[VZ]);
+	dx = selection.regionSize[VX];
+	dy = selection.regionSize[VY];
+	dz = selection.regionSize[VZ];
+
+	MutexEnter(selectionAsync.wait);
+
+	map = selectionAsync.map;
+	replId = selectionAsync.replId;
+	blockId = selectionAsync.blockId;
+	mapInitIter(map, &iter, pos, blockId > 0);
+	mapUpdateInit(&iter);
+
+	Block b = &blockIds[replId>>4];
+
+	if (selectionAsync.similar)
+	{
+		/* find block, stairs and slab variant of each block type */
+		selectionFindVariant(variant,   blockId);
+		selectionFindVariant(variant+3, replId);
+		variant[1] >>= 4;
+		while (dy > 0)
+		{
+			for (z = dz; z > 0; z --, mapIter(&iter, -dx, 0, 1))
+			{
+				for (x = dx; x > 0; x --, mapIter(&iter, 1, 0, 0))
+				{
+					int srcId = iter.blockIds ? getBlockId(&iter) : 0;
+
+					if (srcId == blockId)
+						/* replace full blocks */
+						mapUpdate(map, NULL, variant[3], NULL, UPDATE_SILENT);
+					else if ((srcId >> 4) == variant[1])
+						/* replace stairs */
+						mapUpdate(map, NULL, variant[4] | (srcId&15), NULL, UPDATE_SILENT);
+					else if ((srcId & ~8) == variant[2])
+						/* replace slabs */
+						mapUpdate(map, NULL, variant[5] | (srcId&8), NULL, UPDATE_SILENT);
+				}
+				/* emergency exit */
+				if (selectionAsync.cancel) goto break_all;
+				selectionAsync.progress[0] += dx;
+			}
+			mapIter(&iter, 0, 1, -dz);
+			dy --;
+		}
+	}
+	else
+	{
+		if ((b->special == BLOCK_HALF || b->special == BLOCK_STAIRS) && selectionAsync.side > 0)
+			replId |= 8;
+
+		while (dy > 0)
+		{
+			for (z = dz; z > 0; z --, mapIter(&iter, -dx, 0, 1))
+			{
+				for (x = dx; x > 0; x --, mapIter(&iter, 1, 0, 0))
+				{
+					int srcId = iter.blockIds ? getBlockId(&iter) : 0;
+
+					if (srcId == blockId)
+						mapUpdate(map, NULL, replId, NULL, UPDATE_SILENT);
+				}
+				if (selectionAsync.cancel) goto break_all;
+				selectionAsync.progress[0] += dx;
+			}
+			mapIter(&iter, 0, 1, -dz);
+			dy --;
+		}
+	}
+	break_all:
+	MutexLeave(selectionAsync.wait);
+}
+
+/* change one type of block with another */
+int selectionReplace(Map map, DATA32 progress, int blockId, int replId, int side, Bool doSimilar)
+{
+	selectionAsync.progress = progress;
+	selectionAsync.blockId  = blockId;
+	selectionAsync.similar  = doSimilar;
+	selectionAsync.replId   = replId;
+	selectionAsync.side     = side;
+	selectionAsync.map      = map;
+	selectionAsync.cancel   = 0;
+
+	/* wait for thread to finish */
+	if (! selectionAsync.wait)
+		selectionAsync.wait = MutexCreate();
+
+	ThreadCreate(selectionProcessReplace, NULL);
+
+	return (int) selection.regionSize[VX] *
+	       (int) selection.regionSize[VY] *
+	       (int) selection.regionSize[VZ];
+}
+
+void selectionCancelOperation(void)
+{
+	selectionAsync.cancel = 1;
+	/* wait for thread to finish */
+	MutexEnter(selectionAsync.wait);
+	MutexLeave(selectionAsync.wait);
+}
+

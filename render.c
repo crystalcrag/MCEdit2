@@ -14,12 +14,11 @@
 #include <math.h>
 #include <stdio.h>
 #include "render.h"
-#include "items.h"
+#include "selection.h"
 #include "particles.h"
 #include "sign.h"
 #include "skydome.h"
 #include "entities.h"
-#include "selection.h"
 #include "nanovg.h"
 #include "SIT.h"
 
@@ -602,7 +601,7 @@ void renderToggleDebug(int what)
 /* print info from VBO */
 void renderDebugBlock(void)
 {
-	/* no stderr in release build anyway */
+	/* no stderr in release build anyway (NBT explorer would be nice though) */
 	#ifdef DEBUG
 	if (render.selection.extra.entity > 0)
 		entityDebug(render.selection.extra.entity);
@@ -1480,6 +1479,11 @@ void renderSaveRestoreState(Bool save)
 		if (wnd)
 			SIT_InsertDialog(wnd);
 	}
+}
+
+int renderGetFacingDirection(void)
+{
+	return render.direction;
 }
 
 /*

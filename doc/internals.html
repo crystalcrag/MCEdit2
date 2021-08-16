@@ -1244,9 +1244,6 @@ code to the 28 bytes per quad version, it was decided to keep the compressed dat
 
 <p>Welcome to <b>look-up table hell</b>.
 
-<p>Being the central part of any 3d engine, this is pretty much what you have to expect for anything
-that is non-trivial.
-
 <p>This engine supports 3 major types of voxel elements that can be converted into meshes. Each <b>have
 their pros and cons</b>:
 
@@ -1413,6 +1410,11 @@ set to 0, therefore, you just have to shift it by <tt>bitfield * 16</tt> to simu
 table (24 elements in total). Each group of 4 elements is of course ordered top, right, bottom and left.
 
 <h4 id="meshhalf"><span>Half-block</span></h4>
+
+<p>Half-block is the native "resolution" of this engine actually. Seems simple enough and might wonder
+what the big deal with these ? Well, you'll have a glimpse of why Mojang has not added (as of writing
+this, in august 2021) vertical slab to <prod>Minecraft</prod>: they introduce <b>a lot</b> of edge cases,
+and it sadly means <b>lots of look-up tables</b>.
 
 <h4 id="ocs"><span>Ambient occlusion</span></h4>
 

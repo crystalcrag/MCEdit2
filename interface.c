@@ -15,6 +15,7 @@
 #include "SIT.h"
 #include "interface.h"
 #include "selection.h"
+#include "mapUpdate.h"
 #include "render.h"
 #include "player.h"
 #include "sign.h"
@@ -103,7 +104,7 @@ static int mcuiInventoryRender(SIT_Widget w, APTR cd, APTR ud)
 			}
 		}
 	}
-	return 1;
+	return 0;
 }
 
 /* show info about block hovered in a tooltip */
@@ -338,7 +339,10 @@ static int mcuiInventoryMouse(SIT_Widget w, APTR cd, APTR ud)
 				mcui.drag = *cur;
 				mcui.drag.count = cnt;
 				if (cur->count == 0)
+				{
 					memset(cur, 0, sizeof *cur);
+					SIT_ApplyCallback(w, 0, SITE_OnChange);
+				}
 				cellx = SIT_InitDrag(mcuiDragItem);
 				mcui.drag.x = cellx & 0xffff;
 				mcui.drag.y = mcui.height - (cellx >> 16) - mcui.itemSz;
@@ -359,6 +363,7 @@ static int mcuiInventoryMouse(SIT_Widget w, APTR cd, APTR ud)
 					/* clear slot */
 					memset(inv->items + cellx, 0, sizeof (struct Item_t));
 					SIT_ForceRefresh();
+					SIT_ApplyCallback(w, 0, SITE_OnChange);
 				}
 				else goto grab_stack;
 			}
@@ -369,6 +374,7 @@ static int mcuiInventoryMouse(SIT_Widget w, APTR cd, APTR ud)
 					/* merge stack if same id */
 					ItemBuf old = inv->items[cellx];
 					inv->items[cellx] = mcui.drag;
+					SIT_ApplyCallback(w, (APTR) (int) mcui.drag.id, SITE_OnChange);
 					if (old.id == mcui.drag.id)
 					{
 						/* but only to stack limit (old.count == leftovers) */
@@ -413,7 +419,11 @@ static int mcuiInventoryMouse(SIT_Widget w, APTR cd, APTR ud)
 				/* pick an item */
 				mcui.drag = inv->items[cellx];
 				if (mcui.drag.id == 0) break;
-				if (inv->groupId) memset(inv->items + cellx, 0, sizeof (struct Item_t));
+				if (inv->groupId)
+				{
+					memset(inv->items + cellx, 0, sizeof (struct Item_t));
+					SIT_ApplyCallback(w, 0, SITE_OnChange);
+				}
 				cellx = SIT_InitDrag(mcuiDragItem);
 				mcui.drag.x = cellx & 0xffff;
 				mcui.drag.y = mcui.height - (cellx >> 16) - mcui.itemSz;
@@ -452,8 +462,7 @@ static int mcuiGrabItemCoord(SIT_Widget w, APTR cd, APTR ud)
 	item->y = mcui.height - (paint->y + padding[1]/2) - mcui.itemSz;
 	item->id = (int) blockId;
 	item->count = 1;
-
-	return 1;
+	return 0;
 }
 
 /* start of a refresh phase */
@@ -1067,8 +1076,39 @@ void mcuiAnalyze(SIT_Widget parent, Map map)
 }
 
 /*
- * fill/replace selection with one block
+ * fill/replace selection with one type of block
  */
+
+static struct
+{
+	SIT_Widget  accept;
+	SIT_Widget  search;
+	SIT_Widget  replace;
+	SIT_Widget  fill;
+	SIT_Widget  similar;
+	SIT_Widget  side0, side1;
+	SIT_Widget  prog;
+	SIT_Action  asyncCheck;
+	MCInventory invFill;
+	MCInventory invRepl;
+	int         doReplace;
+	int         doSimilar;
+	int         side;
+	int         hasSlab;
+	uint32_t    processCurrent;
+	uint32_t    processTotal;
+	double      processStart;
+	uint8_t     canUseSpecial[32];
+}	mcuiRepWnd;
+
+static uint8_t cannotFill[] = {
+	BLOCK_CHEST,        /* need tile entity with neighbor location */
+	BLOCK_DOOR,         /* 2 blocks tall */
+	BLOCK_DOOR_TOP,     /* technical block, shouldn't be available in inventory */
+	BLOCK_TALLFLOWER,   /* 2 blocks tall */
+	BLOCK_SIGN,         /* need tile entity */
+	BLOCK_BED,          /* 2 blocks wide */
+};
 
 /* SITE_OnChange on search: not exactly the same as mcuiFilterItems: don't want items here */
 static int mcuiFilterBlocks(SIT_Widget w, APTR cd, APTR ud)
@@ -1084,7 +1124,7 @@ static int mcuiFilterBlocks(SIT_Widget w, APTR cd, APTR ud)
 	for ( ; state < blockLast; state ++)
 	{
 		if ((state->inventory & MODELFLAGS) == 0) continue;
-		if (state->special == BLOCK_BED) continue;
+		if (mcuiRepWnd.canUseSpecial[state->special & 31] == 0) continue;
 		if (match && strcasestr(state->name, match) == NULL) continue;
 		items->id = state->id;
 		items ++;
@@ -1096,7 +1136,123 @@ static int mcuiFilterBlocks(SIT_Widget w, APTR cd, APTR ud)
 	return 1;
 }
 
-void mcuiReplace(SIT_Widget parent)
+/* timer: called every frame */
+static int mcuiFillCheckProgress(SIT_Widget w, APTR cd, APTR ud)
+{
+	if (mcuiRepWnd.processTotal == mcuiRepWnd.processCurrent)
+	{
+		/* done */
+		mapUpdateEnd(ud);
+		mcuiRepWnd.asyncCheck = NULL;
+		SIT_Exit(1);
+		/* will cancel the timer */
+		return -1;
+	}
+	double curTime = FrameGetTime();
+	if (curTime - mcuiRepWnd.processStart > 250)
+	{
+		/* wait a bit before showing/updating progress bar */
+		SIT_SetValues(mcuiRepWnd.prog, SIT_Visible, True, SIT_ProgressPos, (int)
+			(uint64_t) mcuiRepWnd.processCurrent * 100 / mcuiRepWnd.processTotal, NULL);
+		mcuiRepWnd.processStart = curTime;
+	}
+	return 0;
+}
+
+/* OnActivate on fill button */
+static int mcuiFillBlocks(SIT_Widget w, APTR cd, APTR map)
+{
+	/* these functions will start a thread: processing the entire selection can be long, so don't hang the interface in the meantime */
+	int block = mcuiRepWnd.invFill->items->id;
+	mcuiRepWnd.processCurrent = 0;
+	if (! mcuiRepWnd.doReplace)
+		mcuiRepWnd.processTotal = selectionFill(map, &mcuiRepWnd.processCurrent, block, mcuiRepWnd.side, renderGetFacingDirection());
+	else
+		mcuiRepWnd.processTotal = selectionReplace(map, &mcuiRepWnd.processCurrent, block, mcuiRepWnd.invRepl->items->id, mcuiRepWnd.side, mcuiRepWnd.doSimilar);
+
+	/* better not to click twice on this button */
+	SIT_SetValues(w, SIT_Enabled, False, NULL);
+
+	/* this function will monitor the thread progress */
+	mcuiRepWnd.asyncCheck = SIT_ActionAdd(w, mcuiRepWnd.processStart = curTime, curTime + 1e9, mcuiFillCheckProgress, map);
+
+	return 1;
+}
+
+static void mcuiFillSyncRadioSide(void)
+{
+	int ena = mcuiRepWnd.hasSlab & (mcuiRepWnd.doReplace ? 2 : 1);
+	SIT_SetValues(mcuiRepWnd.side0, SIT_Enabled, ena, NULL);
+	SIT_SetValues(mcuiRepWnd.side1, SIT_Enabled, ena, NULL);
+}
+
+/* activate top/bottom radio buttons */
+static int mcuiCheckForSlab(SIT_Widget w, APTR cd, APTR slot)
+{
+	Block b = &blockIds[(int) cd>>4];
+	int   flag = 1 << (int) slot;
+
+	if (b->special == BLOCK_HALF || b->special == BLOCK_STAIRS)
+		mcuiRepWnd.hasSlab |= flag;
+	else
+		mcuiRepWnd.hasSlab &= ~flag;
+
+	mcuiFillSyncRadioSide();
+	return 1;
+}
+
+/* OnActivate on checkbox replace item */
+static int mcuiFillShowAction(SIT_Widget w, APTR cd, APTR ud)
+{
+	int checked;
+	SIT_GetValues(w, SIT_CheckState, &checked, NULL);
+	SIT_SetValues(mcuiRepWnd.replace, SIT_Enabled, checked, NULL);
+	SIT_SetValues(mcuiRepWnd.similar, SIT_Enabled, checked, NULL);
+	SIT_SetValues(mcuiRepWnd.accept, SIT_Title, checked ? "Replace" : "Fill", NULL);
+	mcuiFillSyncRadioSide();
+	return 0;
+}
+
+/* OnPaint on canvas replace item */
+static int mcuiFillDisabled(SIT_Widget w, APTR cd, APTR ud)
+{
+	SIT_OnPaint * paint = cd;
+	int enabled;
+
+	SIT_GetValues(w, SIT_Enabled, &enabled, NULL);
+	if (enabled == 0)
+	{
+		NVGcontext * vg = paint->nvg;
+		float dist = floorf(paint->fontSize * 0.4);
+		float x1   = paint->x + dist, x2 = paint->x + paint->w - dist;
+		float y1   = paint->y + dist, y2 = paint->y + paint->h - dist;
+		nvgStrokeWidth(vg, dist * 0.6);
+		nvgStrokeColorRGBA8(vg, "\xff\x00\x00\xff");
+		nvgBeginPath(vg);
+		nvgMoveTo(vg, x1, y1); nvgLineTo(vg, x2, y2);
+		nvgMoveTo(vg, x1, y2); nvgLineTo(vg, x2, y1);
+		nvgStroke(vg);
+		return 1;
+	}
+	return 0;
+}
+
+/* stop fill/replace operation */
+static int mcuiFillStop(SIT_Widget w, APTR cd, APTR ud)
+{
+	SIT_Exit(1);
+	if (mcuiRepWnd.asyncCheck)
+	{
+		selectionCancelOperation();
+		SIT_ActionReschedule(mcuiRepWnd.asyncCheck, -1, -1);
+		mcuiRepWnd.asyncCheck = NULL;
+		/* show what's been modified */
+		mapUpdateEnd(ud);
+	}
+	return 1;
+}
+
+void mcuiReplace(SIT_Widget parent, Map map)
 {
 	static struct MCInventory_t mcinv   = {.invRow = 6, .invCol = MAXCOLINV};
 	static struct MCInventory_t fillinv = {.invRow = 1, .invCol = 1, .groupId = 1, .itemsNb = 1};
@@ -1111,6 +1267,11 @@ void mcuiReplace(SIT_Widget parent)
 		NULL
 	);
 
+	int i;
+	memset(mcuiRepWnd.canUseSpecial, 1, sizeof mcuiRepWnd.canUseSpecial);
+	for (i = 0; i < DIM(cannotFill); i ++)
+		mcuiRepWnd.canUseSpecial[cannotFill[i]] = 0;
+
 	SIT_CreateWidgets(diag,
 		"<label name=searchtxt title='Search:'>"
 		"<editbox name=search left=WIDGET,searchtxt,0.5em right=FORM>"
@@ -1118,25 +1279,44 @@ void mcuiReplace(SIT_Widget parent)
 		"<scrollbar width=1.2em name=scroll.inv wheelMult=1 top=OPPOSITE,inv,0 bottom=OPPOSITE,inv,0 right=FORM>"
 		"<label name=msg title='Fill:'>"
 		"<canvas composited=1 name=fill.inv left=WIDGET,msg,0.5em top=WIDGET,inv,0.5em/>"
-		"<button name=doreplace title='Replace by:' buttonType=", SITV_CheckBox, "left=WIDGET,fill,0.5em top=MIDDLE,fill>"
-		"<canvas composited=1 name=replace.inv left=WIDGET,doreplace,0.5em top=WIDGET,inv,0.5em/>"
-		"<button name=side1 title=Top buttonType=", SITV_RadioButton, "checkState=1 left=WIDGET,replace,0.5em top=MIDDLE,fill>"
-		"<button name=side0 title=Bottom buttonType=", SITV_RadioButton, "left=WIDGET,side1,0.5em top=MIDDLE,fill>"
-		"<button name=similar title='Replace similar blocks (strairs, slabs)' buttonType=", SITV_CheckBox, "left=OPPOSITE,doreplace top=WIDGET,fill,0.5em>"
+		"<button name=doreplace title='Replace by:' curValue=", &mcuiRepWnd.doReplace, "buttonType=", SITV_CheckBox, "left=WIDGET,fill,0.5em top=MIDDLE,fill>"
+		"<canvas composited=1 enabled=", mcuiRepWnd.doReplace, "name=replace.inv left=WIDGET,doreplace,0.5em top=WIDGET,inv,0.5em/>"
+		"<button name=side1 radioID=1 enabled=0 title=Top curValue=", &mcuiRepWnd.side, "buttonType=", SITV_RadioButton, "left=WIDGET,replace,0.5em top=MIDDLE,fill>"
+		"<button name=side0 radioID=0 enabled=0 title=Bottom curValue=", &mcuiRepWnd.side, "buttonType=", SITV_RadioButton, "left=WIDGET,side1,0.5em top=MIDDLE,fill>"
+		"<button name=similar enabled=", mcuiRepWnd.doReplace, "curValue=", &mcuiRepWnd.doSimilar, "title='Replace similar blocks (strairs, slabs)'"
+		" buttonType=", SITV_CheckBox, "left=OPPOSITE,doreplace top=WIDGET,fill,0.5em>"
 		"<button name=cancel title=Cancel right=FORM top=WIDGET,similar,1em>"
-		"<button name=ok title=Fill top=OPPOSITE,cancel right=WIDGET,cancel,0.5em>"
+		"<button name=ok title=", mcuiRepWnd.doReplace ? "Replace" : "Fill", "top=OPPOSITE,cancel right=WIDGET,cancel,0.5em>"
+		"<progress name=prog visible=0 title='%d%%' left=FORM right=WIDGET,ok,1em top=MIDDLE,ok>"
 		"<tooltip name=info delayTime=", SITV_TooltipManualTrigger, "displayTime=10000 toolTipAnchor=", SITV_TooltipFollowMouse, ">"
 	);
 	SIT_SetAttributes(diag, "<searchtxt top=MIDDLE,search><inv right=WIDGET,scroll,0.2em><msg top=MIDDLE,fill>");
 
-	SIT_AddCallback(SIT_GetById(diag, "cancel"), SITE_OnActivate, mcuiExitWnd, NULL);
+	mcuiRepWnd.accept  = SIT_GetById(diag, "ok");
+	mcuiRepWnd.search  = SIT_GetById(diag, "search");
+	mcuiRepWnd.replace = SIT_GetById(diag, "replace");
+	mcuiRepWnd.fill    = SIT_GetById(diag, "fill");
+	mcuiRepWnd.similar = SIT_GetById(diag, "similar");
+	mcuiRepWnd.side0   = SIT_GetById(diag, "side0");
+	mcuiRepWnd.side1   = SIT_GetById(diag, "side1");
+	mcuiRepWnd.prog    = SIT_GetById(diag, "prog");
+	mcuiRepWnd.invFill = &fillinv;
+	mcuiRepWnd.invRepl = &replace;
+	mcuiRepWnd.processTotal = 0;
+
+	mcuiFillSyncRadioSide();
+	SIT_AddCallback(SIT_GetById(diag, "cancel"), SITE_OnActivate, mcuiFillStop, map);
+	SIT_AddCallback(SIT_GetById(diag, "doreplace"), SITE_OnActivate, mcuiFillShowAction, NULL);
+	SIT_AddCallback(mcuiRepWnd.accept,  SITE_OnActivate, mcuiFillBlocks, map);
+	SIT_AddCallback(mcuiRepWnd.fill,    SITE_OnChange,   mcuiCheckForSlab, 0);
+	SIT_AddCallback(mcuiRepWnd.replace, SITE_OnChange,   mcuiCheckForSlab, (APTR) 1);
 
 	BlockState state;
 	SIT_GetValues(diag, SIT_UserData, &mcui.allItems, NULL);
 	for (state = blockGetById(ID(1, 0)), mcinv.itemsNb = 0; state < blockLast; state ++)
 	{
 		if ((state->inventory & MODELFLAGS) == 0) continue;
-		if (state->special == BLOCK_BED) continue;
+		if (mcuiRepWnd.canUseSpecial[state->special & 31] == 0) continue;
 		Item item = mcui.allItems + mcinv.itemsNb;
 		item->id = state->id;
 		item->count = 1;
@@ -1154,19 +1334,18 @@ void mcuiReplace(SIT_Widget parent)
 	fillinv.items = fillReplace;
 	replace.items = fillReplace + 1;
 
-	mcuiInitInventory(SIT_GetById(diag, "inv"),     &mcinv);
-	mcuiInitInventory(SIT_GetById(diag, "fill"),    &fillinv);
-	mcuiInitInventory(SIT_GetById(diag, "replace"), &replace);
-
+	mcuiInitInventory(SIT_GetById(diag, "inv"), &mcinv);
+	mcuiInitInventory(mcuiRepWnd.fill,    &fillinv);
+	mcuiInitInventory(mcuiRepWnd.replace, &replace);
 	mcuiResetScrollbar(&mcinv);
+	SIT_AddCallback(mcuiRepWnd.replace, SITE_OnPaint, mcuiFillDisabled, NULL);
 
 	SIT_GetValues(mcinv.cell, SIT_Padding, mcui.padding, NULL);
 	mcui.itemSz = mcui.cellSz - mcui.padding[0] - mcui.padding[2];
 
-	SIT_Widget search = SIT_GetById(diag, "search");
-	SIT_AddCallback(search,      SITE_OnChange, mcuiFilterBlocks, &mcinv);
+	SIT_AddCallback(mcuiRepWnd.search, SITE_OnChange, mcuiFilterBlocks, &mcinv);
 	SIT_AddCallback(mcui.scroll, SITE_OnScroll, mcuiSetTop, &mcinv);
-	SIT_SetFocus(search);
+	SIT_SetFocus(mcuiRepWnd.search);
 
 	SIT_ManageWidget(diag);
 }

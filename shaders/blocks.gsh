@@ -20,11 +20,11 @@ in uint ocsField[];
 in uint normFlags[];
 in vec3 offsets[];
 
-out vec2 tc;
+out vec2  tc;
+out vec2  ocspos;
 out float skyLight;
 out float blockLight;
 flat out uint rswire;
-flat out vec2 texOrigin;
 flat out uint ocsmap;
 flat out int  normal;
 
@@ -40,15 +40,18 @@ void main(void)
 
 	/* shading per face (OCS is done in fragment shader) */
 	float shade = normal < 6 ? shading[normal].x / 15 : 1/15.;
+	float Usz   = (texCoord[0].y - texCoord[0].x) * 32;
+	float Vsz   = (texCoord[0].w - texCoord[0].z) * 64;
+	if (Usz < 0) Usz = -Usz;
+	if (Vsz < 0) Vsz = -Vsz;
 	rswire = normal == 7 ? (skyBlockLight[0] & 15) + 1 : 0;
-	texOrigin = vec2(texCoord[0].x, texCoord[0].z);
 	ocsmap = ocsField[0];
 
 	/* first vertex */
 	gl_Position = MVP * vec4(vertex1[0], 1);
 	skyLight    = float(bitfieldExtract(skyBlockLight[0], 28, 4)) * shade;
 	blockLight  = float(bitfieldExtract(skyBlockLight[0], 24, 4)) * shade;
-	/* ambient occlusion */
+	ocspos      = vec2(Usz, 0);
 	tc          = keepX ? vec2(texCoord[0].x, texCoord[0].w) :
 						  vec2(texCoord[0].y, texCoord[0].z) ;
 	EmitVertex();
@@ -57,6 +60,7 @@ void main(void)
 	gl_Position = MVP * vec4(vertex2[0], 1);
 	skyLight    = float(bitfieldExtract(skyBlockLight[0], 4, 4)) * shade;
 	blockLight  = float(bitfieldExtract(skyBlockLight[0], 0, 4)) * shade;
+	ocspos      = vec2(0, 0);
 	tc          = vec2(texCoord[0].x, texCoord[0].z);
 	EmitVertex();
 			
@@ -64,6 +68,7 @@ void main(void)
 	gl_Position = MVP * vec4(vertex3[0], 1);
 	skyLight    = float(bitfieldExtract(skyBlockLight[0], 20, 4)) * shade;
 	blockLight  = float(bitfieldExtract(skyBlockLight[0], 16, 4)) * shade;
+	ocspos      = vec2(Usz, Vsz);
 	tc          = vec2(texCoord[0].y, texCoord[0].w);
 	EmitVertex();
 
@@ -71,6 +76,7 @@ void main(void)
 	gl_Position = MVP * vec4(vertex3[0] + (vertex2[0] - vertex1[0]), 1);
 	skyLight    = float(bitfieldExtract(skyBlockLight[0], 12, 4)) * shade;
 	blockLight  = float(bitfieldExtract(skyBlockLight[0], 8,  4)) * shade;
+	ocspos      = vec2(0, Vsz);
 	tc          = keepX ? vec2(texCoord[0].y, texCoord[0].z) :
 						  vec2(texCoord[0].x, texCoord[0].w) ;
 	EmitVertex();

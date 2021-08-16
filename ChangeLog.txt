@@ -1,4 +1,19 @@
 =========== Week 32 ===========
+Sun Aug 15:
+	* Replace selection command mostly done: multi-threaded and cancellable.
+
+Sat Aug 14:
+	* Fill selection command mostly done.
+	* AO followed texture orient on full block: not good.
+
+Fri Aug 13:
+	* basic fill selection done.
+
+Thu Aug 12:
+	* SITGL: bg inline were rendered multiple times with text-shadow.
+	* SITGL: priority for callbacks.
+	* more replace interface fine tuning.
+
 Wed Aug 11:
 	* fill/replace interface mostly done.
 
@@ -54,7 +69,7 @@ Tue July 27:
 
 Mon July 26:
 	* half-slab preview had their V texture coordinate inverted.
-	* skylight did not updated when blocked.
+	* skylight was not updated when blocked.
 	* slight AO fixes.
 
 =========== Week 29 ===========

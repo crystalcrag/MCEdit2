@@ -7,12 +7,17 @@
 #ifndef MC_SELECTION_H
 #define MC_SELECTION_H
 
+#include "maps.h"
+
 void selectionInitStatic(int shader, DATA8 direction);
 void selectionSet(APTR sitRoot, float scale, vec4 pos, int point);
 void selectionRender(void);
 void selectionClear(void);
+void selectionCancelOperation(void);
 vec  selectionGetPoints(void);
 Bool selectionProcessKey(int key, int mod);
+int  selectionFill(Map map, DATA32 progress, int blockId, int side, int direction);
+int  selectionReplace(Map map, DATA32 progress, int blockId, int replId, int side, Bool doSimilar);
 
 #ifdef SELECTION_IMPL     /* private stuff below */
 struct Selection_t

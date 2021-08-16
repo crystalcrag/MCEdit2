@@ -134,6 +134,7 @@ DLLIMP int    StrToUpper16(STRPTR str, int len); /* UTF-16 */
 DLLIMP int    StrToLower16(STRPTR str, int len); /* UTF-16 */
 DLLIMP int    StrToLower(STRPTR str, int len);
 DLLIMP int    StrCount(STRPTR list, int chr);
+DLLIMP int    FormatNumber(int num, STRPTR buffer, int max);
 
 /* Encodings.c */
 DLLIMP int    CP2UTF8(DATA8 dest, int cp);
@@ -146,6 +147,7 @@ DLLIMP int    FrameSetFPS(int fps);
 DLLIMP double FrameGetTime(void);
 DLLIMP void   FrameWaitNext(void);
 DLLIMP void   FramePauseUnpause(Bool pause);
+DLLIMP void   FrameSaveRestoreTime(Bool save);
 
 /* Some useful macros */
 #define	IsDef(val)         ((val) && (val)[0])

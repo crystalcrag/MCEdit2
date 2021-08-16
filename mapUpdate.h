@@ -24,11 +24,13 @@ void mapUpdateMesh(Map);
 void mapUpdateFlush(Map);
 void mapUpdatePush(Map, vec4 pos, int blockId, DATA8 tile);
 int  mapUpdateGetCnxGraph(ChunkData, int start, DATA8 visited);
+void mapUpdateInit(BlockIter);
+void mapUpdateEnd(Map);
 
 enum /* extra flags for blockUpdate param from mapUpdate() */
 {
-	UPDATE_SILENT    = 16,
-	UPDATE_KEEPLIGHT = 32,
+	UPDATE_SILENT    = 16,         /* don't generate particles */
+	UPDATE_KEEPLIGHT = 32,         /* don't change block and sky light (blocks will need an update later though) */
 };
 
 /* private stuff below that point */
@@ -47,6 +49,7 @@ struct MapUpdate_t
 	ChunkData   modif;
 	ChunkData * list;
 	BlockUpdate updates;
+	BlockIter   iter;
 	DATA32      updateUsage;
 	int         updateCount;
 	int8_t *    coord;

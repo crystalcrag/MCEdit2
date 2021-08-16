@@ -798,19 +798,25 @@ static void mapUpdateBlockLight(Map map, BlockIter iter, int oldId, int newId)
 	{
 		uint8_t opac = blockIds[newId>>4].opacLight, i;
 		uint8_t light = mapGetLight(iter);
-		if (light == MAXLIGHT || mapUpdateIsLocalMax(*iter, light))
+		if (opac == blockIds[oldId>>4].opacLight)
 		{
-			/* a light has been removed, but light not updated :-/ */
+			/* block replace with same light emittance and same opacity: nothing is changed */
+			return;
+		}
+		else if (light == MAXLIGHT || (light > 0 && mapUpdateIsLocalMax(*iter, light)))
+		{
+			/* a light has been removed */
 			mapUpdateRemLight(iter);
 		}
-		else if (opac == 0 || light == 0)
+		else if (opac > 0 || light == 0)
 		{
-			/* XXX what does this do already? */
+			/* check if this block was blocking propagation of a light source */
 			struct BlockIter_t neighbor = *iter;
 			neighbor.alloc = False;
 			for (i = 0; i < 6; i ++)
 			{
 				mapIter(&neighbor, xoff[i], yoff[i], zoff[i]);
+				/* extremely likely that nearby light source == 0 */
 				if (neighbor.cd && mapGetLight(&neighbor) > 1)
 				{
 					mapUpdateRestoreLight(*iter);
@@ -1500,6 +1506,26 @@ void mapUpdatePush(Map map, vec4 pos, int blockId, DATA8 tile)
 }
 
 /*
+ * group multiple updates
+ */
+void mapUpdateInit(BlockIter iter)
+{
+	track.modif = NULL;
+	track.list  = &track.modif;
+	track.iter  = iter;
+}
+
+void mapUpdateEnd(Map map)
+{
+	if (track.updateCount > 0)
+		mapUpdateFlush(map);
+
+	/* update mesh */
+	mapUpdateMesh(map);
+	renderPointToBlock(-1, -1);
+}
+
+/*
  * main entry point for altering voxel tables and keep them consistent.
  */
 void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
@@ -1508,7 +1534,13 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 	uint8_t silent = blockUpdate & UPDATE_SILENT; /* no particles */
 	uint8_t doLight = (blockUpdate & UPDATE_KEEPLIGHT) == 0;
 
-	mapInitIter(map, &iter, pos, blockId > 0);
+	if (pos == NULL)
+	{
+		/* selection update: this will potentially modify a large number of blocks */
+		iter = *track.iter;
+	}
+	else mapInitIter(map, &iter, pos, blockId > 0);
+
 	blockUpdate &= 15;
 	if (blockUpdate)
 	{
@@ -1558,7 +1590,7 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 		/* update skyLight */
 		uint8_t opac   = blockGetSkyOpacity(blockId>>4, 0);
 		uint8_t oldSky = mapGetSky(&iter);
-		uint8_t newSky = oldSky - opac;
+		uint8_t newSky = oldSky > opac ? oldSky - opac : 0;
 		if (newSky != oldSky || opac != blockGetSkyOpacity(oldId>>4, 0))
 		{
 			if (blockGetSkyOpacity(blockId>>4, 0) > 0)

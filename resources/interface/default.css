@@ -63,6 +63,7 @@ editbox spin.down:active { background: url(mask:arrowdown.png) 50% 50% no-repeat
 
 checkbox, radio { border-radius: 0.3em }
 .bg checkbox box, .bg radio box { background-color: #8b8b8b; border: 2px inset #c5c5c5 }
+.bg checkbox:disabled, .bg radio:disabled { color: #888; text-shadow: 0.1em 0.1em white }
 checkbox box { padding: 0.4em; border: 2px solid #87cb85; background-color: black; border-radius: 0.15em; vertical-align: middle }
 checkbox:checked box { background: #6da46b url(mask:checkmark.png) no-repeat 50% 50%; background-size: 80% 80%; color: white }
 radio:kbdfocus, checkbox:kbdfocus { outline: 2px solid blue 0.2em }
@@ -106,6 +107,9 @@ tab .exch { border: 0.1em inset #ccc; background: url(mask:arrowdown.png) no-rep
 tab .exch:active { border: 0.1em inset #ccc; background-color: transparent, #8b8b8b; padding: 0; color: white; box-shadow: 0 0 3px #222 inset }
 tab #del.exch { background: rgba(red, 0.1); text-align: center; vertical-align: middle; padding-top: 0.2em; text-shadow: none }
 tab #del.exch:active { background: red }
+
+progress { background-color: #8b8b8b; vertical-align: middle; text-align: center; border: 2px inset #bbb; color: white }
+progress bar { background-color: #23ba1f; border: 2px outset #23ba1f; color: white }
 
 .inv { background-color: #8b8b8b }
 vscroll.inv, .inv #td { border: 0.1em inset #ccc }

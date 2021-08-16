@@ -33,6 +33,7 @@ void renderResetViewport(void);
 void renderSaveRestoreState(Bool save);
 int  renderSetSelectionPoint(Bool set);
 int  renderGetTerrain(int size[2]);
+int  renderGetFacingDirection(void);
 MapExtraData renderGetSelectedBlock(vec4 pos, int * blockModel);
 
 

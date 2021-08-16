@@ -17,12 +17,11 @@
 #include "MCEdit.h"
 #include "render.h"
 #include "skydome.h"
-#include "blocks.h"
+#include "selection.h"
 #include "blockUpdate.h"
 #include "mapUpdate.h"
 #include "interface.h"
 #include "entities.h"
-#include "selection.h"
 #include "SIT.h"
 
 GameState_t mcedit;
@@ -162,9 +161,9 @@ static int mceditSaveChanges(SIT_Widget w, APTR cd, APTR ud)
 /* ask player a coordinate to jump to */
 static int mceditGoto(SIT_Widget w, APTR cd, APTR ud)
 {
-	FramePauseUnpause(True);
+	FrameSaveRestoreTime(True);
 	mceditUIOverlay(MCUI_OVERLAY_GOTO);
-	FramePauseUnpause(False);
+	FrameSaveRestoreTime(False);
 	return 1;
 }
 
@@ -173,12 +172,12 @@ static int mceditCommands(SIT_Widget w, APTR cd, APTR ud)
 {
 	if (mcedit.selection == 3)
 	{
-		FramePauseUnpause(True);
+		FrameSaveRestoreTime(True);
 		switch ((int) cd & 0xff) {
 		case 'a': mceditUIOverlay(MCUI_OVERLAY_ANALYZE); break;
 		case 'r': mceditUIOverlay(MCUI_OVERLAY_REPLACE); break;
 		}
-		FramePauseUnpause(False);
+		FrameSaveRestoreTime(False);
 	}
 	return 1;
 }
@@ -252,8 +251,8 @@ int main(int nb, char * argv[])
 	}
 
 	static SIT_Accel accels[] = {
-		{SITK_FlagCapture + SITK_FlagAlt + SITK_F4, SITE_OnClose, NULL},
-		{SITK_FlagCapture + SITK_Escape,            SITE_OnClose, NULL},
+		{SITK_FlagCapture + SITK_FlagAlt + SITK_F4, SITE_OnClose},
+		{SITK_FlagCapture + SITK_Escape,            SITE_OnClose},
 		{SITK_FlagCapture + SITK_FlagCtrl + 's',    SITE_OnActivate, NULL, mceditSaveChanges},
 
 		{SITK_FlagCtrl + 'g', SITE_OnActivate, NULL, mceditGoto},
@@ -389,9 +388,9 @@ void mceditWorld(void)
 					}
 					break;
 				case SDLK_i:
-					FramePauseUnpause(True);
+					FrameSaveRestoreTime(True);
 					mceditUIOverlay(MCUI_OVERLAY_BLOCK);
-					FramePauseUnpause(False);
+					FrameSaveRestoreTime(False);
 					mcedit.player.inventory.update ++;
 					break;
 				default:
@@ -716,7 +715,7 @@ void mceditUIOverlay(int type)
 		break;
 
 	case MCUI_OVERLAY_REPLACE:
-		mcuiReplace(mcedit.app);
+		mcuiReplace(mcedit.app, mcedit.level);
 	}
 
 	SDL_EnableUNICODE(1);
@@ -767,7 +766,7 @@ void mceditUIOverlay(int type)
 
 		/* update and render */
 		mcuiInitDrawItems();
-		switch (SIT_RenderNodes(curTime)) {
+		switch (SIT_RenderNodes(FrameGetTime())) {
 		case SIT_RenderComposite:
 			mcuiDrawItems();
 			SIT_RenderNodes(0);
@@ -847,7 +846,7 @@ void mceditSideView(void)
 	uint8_t   info    = 0;
 	int       mx, my;
 
-	FramePauseUnpause(True);
+	FrameSaveRestoreTime(True);
 	renderSaveRestoreState(True);
 	debugSetPos(mcedit.app, &mcedit.exit);
 	debugWorld();
@@ -959,7 +958,7 @@ void mceditSideView(void)
 	debugLoadSaveState(PREFS_PATH, False);
 	mcedit.state = GAMELOOP_WORLD;
 	SIT_Nuke(SITV_NukeCtrl);
-	FramePauseUnpause(False);
+	FrameSaveRestoreTime(False);
 	renderSaveRestoreState(False);
 }
 

@@ -1562,7 +1562,7 @@
 			16,16,15,16,0,0,0,0,0,0,0,0,0,123376,131584,131600,123392,
 		]},
 
-	{id: 120, name: "End portal frame", type: CUST, bbox: MAX, inv: MODEL, invState: 0, orient: SENW, cat: DECO, tile: 1, pushable: NO},
+	{id: 120, name: "End portal frame", type: CUST, bbox: MAX, inv: MODEL, invState: 0, orient: SWNE, cat: DECO, tile: 1, pushable: NO},
 		{state: 0, name: "+south", tex: [14, 9,14, 9,14, 9,14, 9], model: [
 			63,16,13,16,0,0,0,0,0,0,0,0,0,76164,82833,82849,76180,76164,82833,82849,76180,76164,82833,82849,76180,76164,82833,82849,76180,74112,74096,82304,82320,
 				90528,90544,82336,82320,
@@ -1939,7 +1939,7 @@
 		{state:14, name: "-14", model: [SAME_AS, ID(148, 1)]},
 		{state:15, name: "-15", model: [SAME_AS, ID(148, 1)]},
 
-	{id: 149, name: "Comparator", type: CUST, bbox: MAX, orient: SENW, placement: "ground", rswire: ALLDIR, tech: "unpowered_comparator",
+	{id: 149, name: "Comparator", type: CUST, bbox: MAX, orient: SWNE, placement: "ground", rswire: ALLDIR, tech: "unpowered_comparator",
 		rsupdate: INOUT, tile: 1, pushable: DROPITEM},
 		{state: 0, name: "-(OFF,_north)", tex: [11,11,11,11,11,11,11,11], model: [
 			287,16,2,16,0,0,0,0,0,0,0,0,0,97646,98672,98688,97662,97646,98672,98688,97662,97646,98672,98688,97662,97646,98672,98688,97662,90464,98672,98688,90480,

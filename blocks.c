@@ -196,7 +196,10 @@ static STRPTR blockExpandName(int id, STRPTR base, STRPTR tmpl)
 	name = strchr(buffer, '_');
 	if (name)
 	{
-		*name++ = ' ';
+		if (name[-1] == '(')
+			strcpy(name, name + 1);
+		else
+			*name++ = ' ';
 		RESTART = name - buffer;
 	}
 	#undef BLOCKID
