@@ -394,10 +394,10 @@ enum         /* SIT_ButtonType */
 	SITV_ActionButton,
 	SITV_CancelButton,
 	SITV_DefaultButton,
+	SITV_ToggleButton,
 	SITV_CheckBox,
 	SITV_3StateCB,
-	SITV_RadioButton,
-	SITV_ToggleButton
+	SITV_RadioButton
 };
 
 enum         /* SIT_EditType */

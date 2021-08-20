@@ -452,7 +452,7 @@ Checking if a face is fully opaque is very simple and super cheap to compute.
 view frustum. Caves leave too many holes in chunks, which means finding an entire solid face is quite
 rare in practice.
 
-<p>This section is just a remimder to not waste any time with any of these techniques.
+<p>This section is just a reminder to not waste any time with any of these techniques.
 
 <h4 id="cavecullv2"><span>Second attempt</span></h3>
 
@@ -897,7 +897,7 @@ number is <tt>U + V * 513</tt>.
 
 <p>That part was probably one of the biggest <b>crap shoot to implement</b>. 2 attempts were tried
 (depth peeling and fragment sorting on the GPU), but ultimately were entirely discarded because of
-serious shortcomings in the way they inherently work. Therefore the first 2 sections are a remimder
+serious shortcomings in the way they inherently work. Therefore the first 2 sections are a reminder
 to not waste your time with these techniques.
 
 <h4 id="oit"><span>Fragment sorting on GPU (Order Independent Transparency)</span></h4>
@@ -1147,7 +1147,7 @@ and split into <tt>GL_TRIANGLE_STRIP</tt> in a geometry shader.
 
   <brow><hdr>4: </hdr><bitpart class="sz9" bit="32">9: <em>Vlo</em></bitpart><bitpart class="sz9" bit="23">9: <em>U</em></bitpart><bitpart class="sz14" bit="14">14: <em>DZ3</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
 
-  <brow><hdr>5: </hdr><bitpart class="sz8" bit="32">8: <em>Vsz</em></bitpart><bitpart class="sz8" bit="24">8: <em>Usz</em></bitpart><bitpart class="sz2" bit="16">&nbsp;</bitpart><bitpart class="sz1"><em>A</em></bitpart><bitpart class="sz1"><em>X</em></bitpart><bitpart class="sz3" bit="12">3: <em>N</em></bitpart><bitpart class="sz9" bit="9">9: <em>OCS</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
+  <brow><hdr>5: </hdr><bitpart class="sz8" bit="32">8: <em>Vsz</em></bitpart><bitpart class="sz8" bit="24">8: <em>Usz</em></bitpart><bitpart class="sz3" bit="16">&nbsp;</bitpart><bitpart class="sz1"><em>X</em></bitpart><bitpart class="sz3" bit="12">3: <em>N</em></bitpart><bitpart class="sz9" bit="9">9: <em>OCS</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
 
   <brow><hdr>6: </hdr><bitpart class="sz8" bit="32">8: <em>Sky/Block</em></bitpart><bitpart class="sz8" bit="24">8: <em>Sky/Block</em></bitpart><bitpart class="sz8" bit="16">8: <em>Sky/Block</em></bitpart><bitpart class="sz8" bit="8">8: <em>Sky/Block</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
 </bits>

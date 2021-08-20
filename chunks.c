@@ -754,7 +754,7 @@ uint8_t quadIndices[] = { /* coord within <vertex> to make a quad from a QUAD bl
 };
 
 /* normal vector for given quad type (QUAD_*); note: 6 = none */
-uint8_t quadSides[] = {6, 6, 0, 2, 3, 1, 4, 1, 3, 2, 0};
+uint8_t quadSides[] = {6, 6, 0, 2, 3, 1, 4, 4, 4, 4, 4};
 
 uint8_t openDoorDataToModel[] = {
 	5, 6, 7, 4, 3, 0, 1, 2
@@ -1180,7 +1180,6 @@ static void chunkGenQuad(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 					 (((texCoord[j+5] + tex[1]) * 16 + 128 - V) << 24) | (norm << 9);
 
 			if (texCoord[j] == texCoord[j + 6]) out[5] |= FLAG_TEX_KEEPX;
-			if (side >= QUAD_ASCE)              out[5] |= FLAG_NORM_UP;
 			/* skylight/blocklight: uniform on all vertices */
 			out[6] = light | (light << 8) | (light << 16) | (light << 24);
 
@@ -1196,7 +1195,7 @@ static void chunkGenQuad(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 			else if (norm < 6)
 			{
 				/* offset 1/16 of a block in the direction of their normal */
-				int8_t * normal = normals + (side >= QUAD_ASCE ? 16 : norm * 4);
+				int8_t * normal = normals + norm * 4;
 				out[0] += normal[0] * (BASEVTX/16);
 				out[0] += normal[1] * (BASEVTX/16) << 16;
 				out[1] += normal[2] * (BASEVTX/16);

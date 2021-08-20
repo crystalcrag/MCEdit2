@@ -30,6 +30,7 @@ struct Selection_t
 	int   vboCount;
 	int   hasPoint;       /* &1: first point set, &2: second point set */
 	int   nudgePoint;     /* which point is being held in the nudge window */
+	int   nudgeStep;
 	vec4  firstPt;        /* coord in world space */
 	vec4  secondPt;
 	vec4  regionPt;

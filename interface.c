@@ -107,36 +107,30 @@ static int mcuiInventoryRender(SIT_Widget w, APTR cd, APTR ud)
 	return 0;
 }
 
-/* show info about block hovered in a tooltip */
-static void mcuiRefreshTooltip(MCInventory inv)
+void mcuiSetTooltip(SIT_Widget toolTip, Item item, STRPTR extra)
 {
-	TEXT title[180];
-	int  index = inv->top + inv->curX + inv->curY * inv->invCol;
-	if (index >= inv->itemsNb)
-	{
-		SIT_SetValues(mcui.toolTip, SIT_Visible, False, NULL);
-		return;
-	}
-	Item item = inv->items + index;
+	TEXT   title[256];
+	TEXT   id[16];
+	int    tag = NBT_FindNodeFromStream(item->extra, 0, "/tag.ench");
+	int    index = 0;
 	STRPTR p;
-	title[0] = 0;
-	int tag = NBT_FindNodeFromStream(item->extra, 0, "/tag.ench");
 
+	title[0] = 0;
 	if (tag >= 0)
-		StrCat(title, sizeof title, 0, "<b>");
+		index = StrCat(title, sizeof title, 0, "<b>");
 	if (item->id < ID(256, 0))
 	{
 		BlockState state = blockGetById(item->id);
 		if (state->id > 0)
 		{
-			StrCat(title, sizeof title, 0,
+			index = StrCat(title, sizeof title, index,
 				STATEFLAG(state, TRIMNAME) ? blockIds[item->id >> 4].name : state->name
 			);
 		}
 		else
 		{
 			/* a block that shouldn't be in a inventory :-/ */
-			SIT_SetValues(mcui.toolTip, SIT_Visible, False, NULL);
+			SIT_SetValues(toolTip, SIT_Visible, False, NULL);
 			return;
 		}
 	}
@@ -145,44 +139,61 @@ static void mcuiRefreshTooltip(MCInventory inv)
 		ItemDesc desc = itemGetById(item->id);
 		if (desc == NULL)
 		{
-			SIT_SetValues(mcui.toolTip, SIT_Visible, False, NULL);
+			SIT_SetValues(toolTip, SIT_Visible, False, NULL);
 			return;
 		}
-		StrCat(title, sizeof title, 0, desc->name);
+		index = StrCat(title, sizeof title, index, desc->name);
 	}
 	if (tag >= 0)
-		StrCat(title, sizeof title, 0, "</b>");
+		index = StrCat(title, sizeof title, index, "</b>");
 
 	/* add id */
-	TEXT id[16];
-	p = id + sprintf(id, " (#%04d", item->id >> 4);
-	if (item->id & 15) p += sprintf(p, "/%d", item->id & 15);
-	p += sprintf(p, ")");
-	index = StrCat(title, sizeof title, 0, id);
-
-	/* add enchant if any */
-	if (tag >= 0)
-		itemDecodeEnchants(item->extra + tag, title, sizeof title);
-
-	index = StrCat(title, sizeof title, index, "<br><dim>");
-
-	/* check if item container */
-	int inventory = NBT_FindNodeFromStream(item->extra, 0, "/Items");
-
-	if (inventory >= 0)
+	if ((item->id >> 4) != 255)
 	{
-		inventory = ((NBTHdr)(item->extra + inventory))->count;
-		sprintf(id, "+%d ", inventory);
+		p = id + sprintf(id, " (#%04d", item->id >> 4);
+		if (item->id & 15) p += sprintf(p, "/%d", item->id & 15);
+		p += sprintf(p, ")");
 		index = StrCat(title, sizeof title, index, id);
-		index = StrCat(title, sizeof title, index, inventory > 1 ? "Items" : "Item");
-		index = StrCat(title, sizeof title, index, "<br>");
+
+		/* add enchant if any */
+		if (tag >= 0)
+			itemDecodeEnchants(item->extra + tag, title, sizeof title);
+
+		index = StrCat(title, sizeof title, index, "<br><dim>");
+
+		/* check if item container */
+		int inventory = NBT_FindNodeFromStream(item->extra, 0, "/Items");
+
+		if (inventory >= 0)
+		{
+			inventory = ((NBTHdr)(item->extra + inventory))->count;
+			sprintf(id, "+%d ", inventory);
+			index = StrCat(title, sizeof title, index, id);
+			index = StrCat(title, sizeof title, index, inventory > 1 ? "Items" : "Item");
+			index = StrCat(title, sizeof title, index, "<br>");
+		}
+
+		/* and technical name */
+		itemGetTechName(item->id, title + index, sizeof title - index);
+		index = StrCat(title, sizeof title, index, "</dim>");
 	}
 
-	/* and technical name */
-	itemGetTechName(item->id, title + index, sizeof title - index);
-	StrCat(title, sizeof title, index, "</dim>");
+	if (extra)
+		StrCat(title, sizeof title, index, extra);
 
-	SIT_SetValues(mcui.toolTip, SIT_Visible, True, SIT_Title, title, SIT_DisplayTime, SITV_ResetTime, NULL);
+	SIT_SetValues(toolTip, SIT_Visible, True, SIT_Title, title, SIT_DisplayTime, SITV_ResetTime, NULL);
+}
+
+/* show info about block hovered in a tooltip */
+static void mcuiRefreshTooltip(MCInventory inv)
+{
+	int  index = inv->top + inv->curX + inv->curY * inv->invCol;
+	if (index >= inv->itemsNb)
+	{
+		SIT_SetValues(mcui.toolTip, SIT_Visible, False, NULL);
+		return;
+	}
+	mcuiSetTooltip(mcui.toolTip, inv->items + index, NULL);
 }
 
 static int mcuiDragItem(SIT_Widget w, APTR cd, APTR ud)
@@ -1348,4 +1359,12 @@ void mcuiReplace(SIT_Widget parent, Map map)
 	SIT_SetFocus(mcuiRepWnd.search);
 
 	SIT_ManageWidget(diag);
+}
+
+/*
+ * delete all/selective from selection
+ */
+void mcuiDeleteAll(SIT_Widget parent, Map map)
+{
+	SIT_Log(SIT_INFO, "TODO !");
 }

@@ -29,10 +29,11 @@ static int8_t railsNeigbors[] = { /* find the potential 2 neighbors of a rail ba
 	0, 1, 1, SIDE_SOUTH,   0, 0,-1, SIDE_NORTH,      /* ASCS */
 };
 
-/* minecraft update order is S, E, W, N; <neighbors> is ordered S, E, N, W */
+/* minecraft update order is S, E, W, N; default neighbor enumeration will be ordered S, E, N, W */
 static uint8_t mcNextOrder[] = {1, 3, 4, 2};
 
 
+/* update "Data" NBT array */
 static void mapSetData(Map map, vec4 pos, int data)
 {
 	struct BlockIter_t iter;
@@ -126,6 +127,7 @@ static int mapGetRailData(int blockId, int flags)
 
 #define RAILORIENT(blockId)    ((blockId >> 4) == RSRAILS ? blockId & 15 : blockId & 7)
 
+/* a rail has been, check if block state need to be updated on nerby rails */
 static void mapUpdateNearbyRails(Map map, vec4 pos, int blockId, DATA16 nbors)
 {
 	uint16_t neighbors[4];
@@ -367,6 +369,7 @@ void mapUpdateBlock(Map map, vec4 pos, int blockId, int oldBlockId, DATA8 tile)
 	}
 }
 
+/* follows a chain of powered rails in direction <offset> */
 static void mapUpdateRailsChain(Map map, struct BlockIter_t iter, int id, int offset, int powered)
 {
 	uint8_t power = powered;
@@ -498,7 +501,7 @@ int mapUpdateRails(Map map, int blockId, BlockIter iterator)
 /* power near fence gate/trapdoor/dropper/dispenser has changed */
 int mapUpdateGate(BlockIter iterator, int id, Bool init)
 {
-	/* trapdoor and fence gate have sligtly different data value */
+	/* trapdoor and fence gate have slightly different data value */
 	uint8_t flag, powered, i;
 	for (i = 0; i < 6 && ! redstoneIsPowered(*iterator, i, POW_NORMAL); i ++);
 	switch (blockIds[id>>4].special) {

@@ -35,8 +35,6 @@ void main(void)
 
 	/* ascending quad */
 	normal = int(normFlags[0] & 7);
-	if ((normFlags[0] & (1 << 4)) > 0)
-		normal = 4;
 
 	/* shading per face (OCS is done in fragment shader) */
 	float shade = normal < 6 ? shading[normal].x / 15 : 1/15.;

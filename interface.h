@@ -21,6 +21,7 @@ void mcuiInitDrawItems(void);
 void mcuiDrawItems(void);
 void mcuiAnalyze(SIT_Widget app, Map map);
 void mcuiReplace(SIT_Widget parent, Map map);
+void mcuiDeleteAll(SIT_Widget parent, Map map);
 
 #ifdef MCUI_IMPL
 

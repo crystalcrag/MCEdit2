@@ -47,9 +47,15 @@ static float invShading[] = { /* inventory shading for 3d blocks */
 	0.75, 0, 0, 0,
 };
 
+/* hack: toolbar for extended selection is assigned to block 255 in blocksTable.js */
+static ItemBuf extendedSelItems[] = {
+	{ID(255,0)}, {ID(255,1)}, {ID(255,2)}, {ID(255,3)}, {ID(255,4)}, {ID(255,5)}, {ID(255,6)}, {ID(255,7)}, {ID(255,8)},
+	/* offhand slot */
+	{ID(4000,0)},
+};
+
 void GLAPIENTRY debugGLError(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, const void* userParam)
 {
-	return;
 	STRPTR str, sev;
 	TEXT   typeUnknown[64];
 	switch (type) {
@@ -61,12 +67,12 @@ void GLAPIENTRY debugGLError(GLenum source, GLenum type, GLuint id, GLenum sever
 	case GL_DEBUG_TYPE_OTHER:               str = "OTHER"; break;
 	default:                                sprintf(str = typeUnknown, "TYPE:%d", type);
 	}
-    switch (severity){
-    case GL_DEBUG_SEVERITY_LOW:    sev = "LOW"; break;
-    case GL_DEBUG_SEVERITY_MEDIUM: sev = "MEDIUM"; break;
-    case GL_DEBUG_SEVERITY_HIGH:   sev = "HIGH"; break;
-    default:                       return; /* info stuff, don't care */
-    }
+	switch (severity){
+	case GL_DEBUG_SEVERITY_LOW:    sev = "LOW"; break;
+	case GL_DEBUG_SEVERITY_MEDIUM: sev = "MEDIUM"; break;
+	case GL_DEBUG_SEVERITY_HIGH:   sev = "HIGH"; break;
+	default:                       return; /* info stuff, don't care */
+	}
 	fprintf(stderr, "src: %d, id: %d, type: %s, sev: %s, %s\n", source, id, str, sev, message);
 }
 
@@ -248,61 +254,116 @@ static void renderSelection(void)
 }
 
 /* left click in off-hand mode: add selection point */
-int renderSetSelectionPoint(Bool set)
+int renderSetSelectionPoint(int action)
 {
-	if (! set)
-	{
-		render.selection.sel &= ~(SEL_FIRST|SEL_SECOND);
-		render.inventory->offhand &= ~2;
-		selectionClear();
-		return 0;
-	}
-	if ((render.selection.sel & SEL_CURRENT) == 0)
-		/* need a block being pointed at */
+	int ret = 0;
+	switch (action) {
+	case RENDER_SEL_INIT:
+		/* force block selection (avoid block preview) */
+		render.debugInfo |= DEBUG_SELECTION;
 		return 0;
 
-	if ((render.inventory->offhand & 2) == 0)
-	{
-		selectionSet(render.sitRoot, render.scale, render.selection.current, 0);
-		render.selection.sel |= SEL_FIRST;
+	case RENDER_SEL_COMPLETE:
+		/* switch to an inventory slot: check if selection is complete */
+		if ((render.selection.sel & SEL_BOTH) == SEL_BOTH)
+			return 3;
+		/* else no break: clear selection */
+
+	case RENDER_SEL_CLEAR:
+		render.selection.sel &= ~(SEL_FIRST|SEL_SECOND);
+		render.inventory->offhand &= ~(PLAYER_ALTPOINT | PLAYER_OFFHAND);
+		render.debugInfo &= ~DEBUG_SELECTION;
+		render.invCache ++;
+		selectionClear();
+		break;
+
+	case RENDER_SEL_ADDPT:
+		/* click on a block */
+		if ((render.selection.sel & SEL_CURRENT) == 0)
+			/* need a block being pointed at */
+			break;
+
+		if ((render.inventory->offhand & PLAYER_ALTPOINT) == 0)
+		{
+			selectionSet(render.sitRoot, render.scale, render.selection.current, 0);
+			render.selection.sel |= SEL_FIRST;
+		}
+		else
+		{
+			selectionSet(render.sitRoot, render.scale, render.selection.current, 1);
+			render.selection.sel |= SEL_SECOND;
+		}
+		if ((render.selection.sel & SEL_BOTH) == SEL_BOTH);
+			render.invCache ++;
+		ret = (render.selection.sel>>1) & 3;
+		if (ret != 3) render.inventory->offhand ^= PLAYER_ALTPOINT;
 	}
-	else
-	{
-		selectionSet(render.sitRoot, render.scale, render.selection.current, 1);
-		render.selection.sel |= SEL_SECOND;
-	}
-	int ret = (render.selection.sel>>1) & 3;
-	if (ret != 3) render.inventory->offhand ^= 2;
 	return ret;
 }
+
+void mcuiSetTooltip(SIT_Widget toolTip, Item item, STRPTR extra);
 
 /* from mouse pos mx, my: pickup block pointed at this location using ray casting */
 void renderPointToBlock(int mx, int my)
 {
 	if (mx < 0) mx = render.mouseX, my = render.mouseY;
 
-	/* hovering offhand slot: show tooltip */
-	vec4 dir = {render.inventory->x - 26 * render.scale, render.height - 22 * render.scale, 22 * render.scale};
+	/* hovering toolbar slot: show tooltip of item in slot */
+	vec4 dir = {render.inventory->x - 26 * render.scale, render.height - 22 * render.scale, 208 * render.scale};
 
 	if (dir[VX] <= mx && mx <= dir[VX] + dir[2] && my > dir[VY])
 	{
+		Item hover;
+		int  item;
+		if (mx >= render.inventory->x)
+		{
+			item = (mx - render.inventory->x) / (20*render.scale);
+			if (item > 8) item = 8;
+
+			if ((render.selection.sel & SEL_BOTH) != SEL_BOTH)
+				hover = &render.inventory->items[item];
+			else
+				hover = &extendedSelItems[item];
+		}
+		else hover = &extendedSelItems[9], item = 9;
+
 		render.selection.sel &= ~(SEL_CURRENT | SEL_NOCURRENT);
 		render.selection.sel |= SEL_OFFHAND;
-		render.inventory->offhand |= 4;
-		renderShowBlockInfo(True, DEBUG_BLOCK);
-		SIT_SetValues(render.blockInfo, SIT_Title,
-			"Switch to extended selection <b>(shortcut: G)</b><br>"
-			"Click to select which point to set/change <b>(shortcut: 0)</b>.",
-			NULL
-		);
-		return;
+		render.inventory->offhand |= PLAYER_TOOLBAR;
+		render.inventory->hoverSlot = item;
+
+		if (hover->id > 0 && hover != render.toolbarItem)
+		{
+			render.toolbarItem = hover;
+			renderShowBlockInfo(True, DEBUG_BLOCK);
+			if (item == 9)
+			{
+				SIT_SetValues(render.blockInfo, SIT_Title,
+					"Switch to extended selection <b>(shortcut: G)</b><br>"
+					"Click to select which point to set/change <b>(shortcut: 0 [zero])</b>.",
+					NULL
+				);
+			}
+			else
+			{
+				TEXT extra[32];
+				sprintf(extra, "<br><b>shortcut: %c</b>", '1' + item);
+				mcuiSetTooltip(render.blockInfo, hover, extra);
+			}
+		}
+		if (hover->id == 0)
+		{
+			renderShowBlockInfo(False, DEBUG_BLOCK);
+			render.toolbarItem = NULL;
+		}
 	}
 	else
 	{
 		if (render.selection.sel & SEL_OFFHAND)
 		{
 			renderShowBlockInfo(False, DEBUG_BLOCK);
-			render.inventory->offhand &= ~4;
+			render.inventory->offhand &= ~PLAYER_TOOLBAR;
+			render.toolbarItem = NULL;
 		}
 
 		/* this method has been ripped off from: https://stackoverflow.com/questions/2093096/implementing-ray-picking */
@@ -795,17 +856,19 @@ static void renderInventoryItems(float scale)
 {
 	if (render.inventory->update != render.invCache)
 	{
+		Item      item;
 		MDAICmd   cmd;
 		MDAICmd_t commands[MAXCOLINV];
 		float     location[MAXCOLINV * 3];
 		float *   loc;
 		int       count, i, ext;
 
+		item = (render.selection.sel & SEL_BOTH) == SEL_BOTH ? extendedSelItems : render.inventory->items;
+
 		/* inventory has changed: update all GL buffers */
-		for (i = count = ext = 0, cmd = commands, loc = location; i < MAXCOLINV; i ++)
+		for (i = count = ext = 0, cmd = commands, loc = location; i < MAXCOLINV; i ++, item ++)
 		{
-			Item item = &render.inventory->items[i];
-			int  size;
+			int size;
 			if (item->id == 0) continue;
 			if (item->id > ID(256, 0))
 			{

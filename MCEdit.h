@@ -1,5 +1,5 @@
 /*
- * MCEdit.h : datatype for main loop of rendering engine.
+ * MCEdit.h : datatype for handling main event loops.
  *
  * Written by T.Pierron, Feb 2020
  */
@@ -49,7 +49,8 @@ enum /* possible value for parameter mceditUIOverlay() */
 	MCUI_OVERLAY_BLOCK,
 	MCUI_OVERLAY_GOTO,
 	MCUI_OVERLAY_ANALYZE,
-	MCUI_OVERLAY_REPLACE
+	MCUI_OVERLAY_REPLACE,
+	MCUI_OVERLAY_DELALL
 };
 
 /* ID string */

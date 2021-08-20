@@ -168,15 +168,16 @@ static int mceditGoto(SIT_Widget w, APTR cd, APTR ud)
 }
 
 /* show statistics about selection */
-static int mceditCommands(SIT_Widget w, APTR cd, APTR ud)
+static int mceditCommands(int cmd)
 {
 	if (mcedit.selection == 3)
 	{
+		/* will render the slot change */
+		renderWorld();
+		SIT_RenderNodes(curTime);
+		SDL_GL_SwapBuffers();
 		FrameSaveRestoreTime(True);
-		switch ((int) cd & 0xff) {
-		case 'a': mceditUIOverlay(MCUI_OVERLAY_ANALYZE); break;
-		case 'r': mceditUIOverlay(MCUI_OVERLAY_REPLACE); break;
-		}
+		mceditUIOverlay(cmd);
 		FrameSaveRestoreTime(False);
 	}
 	return 1;
@@ -184,8 +185,7 @@ static int mceditCommands(SIT_Widget w, APTR cd, APTR ud)
 
 static int mceditClearSelection(SIT_Widget w, APTR cd, APTR ud)
 {
-	renderSetSelectionPoint(False);
-	mcedit.selection = 0;
+	mcedit.selection = renderSetSelectionPoint(RENDER_SEL_CLEAR);
 	return 1;
 }
 
@@ -256,9 +256,7 @@ int main(int nb, char * argv[])
 		{SITK_FlagCapture + SITK_FlagCtrl + 's',    SITE_OnActivate, NULL, mceditSaveChanges},
 
 		{SITK_FlagCtrl + 'g', SITE_OnActivate, NULL, mceditGoto},
-		{SITK_FlagCtrl + 'a', SITE_OnActivate, NULL, mceditCommands},
 		{SITK_FlagCtrl + 'd', SITE_OnActivate, NULL, mceditClearSelection},
-		{SITK_FlagCtrl + 'r', SITE_OnActivate, NULL, mceditCommands},
 		{0}
 	};
 
@@ -329,6 +327,9 @@ void mceditWorld(void)
 	{
 		while (SDL_PollEvent(&event))
 		{
+			static uint8_t toolbarCmds[] = {
+				MCUI_OVERLAY_REPLACE, 0, 0, MCUI_OVERLAY_ANALYZE, 0, 0, 0, 0, 0
+			};
 			int key;
 			switch (event.type) {
 			case SDL_KEYDOWN:
@@ -347,7 +348,6 @@ void mceditWorld(void)
 					break;
 				case SDLK_F7:
 					breakPoint = ! breakPoint;
-					//renderDebugBank();
 					break;
 				#endif
 				case SDLK_TAB:
@@ -356,6 +356,9 @@ void mceditWorld(void)
 					break;
 				case SDLK_F2:
 					takeScreenshot();
+					break;
+				case SDLK_DELETE:
+					mceditCommands(MCUI_OVERLAY_DELALL);
 					break;
 				case SDLK_F3: // DEBUG
 					if (event.key.keysym.mod & KMOD_CTRL)
@@ -397,8 +400,20 @@ void mceditWorld(void)
 					key = SDLKtoSIT(event.key.keysym.sym);
 					if (selectionProcessKey(key, SDLMtoSIT(event.key.keysym.mod)))
 						break;
-					if (! playerProcessKey(&mcedit.player, key, SDLMtoSIT(event.key.keysym.mod)))
-						goto forwardKeyPress;
+					switch (playerProcessKey(&mcedit.player, key, SDLMtoSIT(event.key.keysym.mod))) {
+					case 0: goto forwardKeyPress;
+					case 1:
+						/* just switched to offhand */
+						if (mcedit.selection == 0 && (mcedit.player.inventory.offhand & 1))
+							renderSetSelectionPoint(RENDER_SEL_INIT);
+						break;
+					case 2:
+						/* partial extended selection, but switched to main toolbar: cancel selection */
+						if ((mcedit.selection > 0 && mcedit.selection < 3) || (mcedit.selection == 0 && mcedit.player.inventory.offhand & 1))
+							mcedit.selection = renderSetSelectionPoint(RENDER_SEL_CLEAR);
+						else
+							mceditCommands(toolbarCmds[mcedit.player.inventory.selected]);
+					}
 				}
 				break;
 			case SDL_KEYUP:
@@ -478,7 +493,7 @@ void mceditWorld(void)
 			case SDL_MOUSEBUTTONUP:
 				if (SIT_ProcessClick(event.button.x, event.button.y, event.button.button-1, 0))
 					break;
-				if (event.button.button == SDL_BUTTON_RIGHT)
+				if (event.button.button == SDL_BUTTON_RIGHT && capture)
 				{
 					SDL_WM_GrabInput(SDL_GRAB_OFF);
 					SDL_ShowCursor(SDL_ENABLE);
@@ -534,30 +549,41 @@ void mceditWorld(void)
 /* left click */
 void mceditPlaceBlock(void)
 {
-	vec4 pos;
-	int  block, id;
-	Item item;
+	Player p = &mcedit.player;
+	vec4   pos;
+	int    block, id;
+	Item   item;
 
-	if (mcedit.player.inventory.offhand & 4)
+	if (p->inventory.offhand & PLAYER_TOOLBAR)
 	{
-		/* hovering off-hand slot */
-		if (mcedit.player.inventory.offhand & 1)
-			mcedit.player.inventory.offhand ^= 2;
+		/* click while hovering slot from toolbar */
+		if (p->inventory.hoverSlot == 9)
+		{
+			if ((p->inventory.offhand & PLAYER_OFFHAND) == 0)
+			{
+				p->inventory.offhand |= PLAYER_OFFHAND;
+				renderSetSelectionPoint(RENDER_SEL_INIT);
+			}
+			else p->inventory.offhand ^= PLAYER_ALTPOINT;
+		}
 		else
-			mcedit.player.inventory.offhand |= 1;
+		{
+			playerScrollInventory(p, p->inventory.hoverSlot - p->inventory.selected);
+			mcedit.selection = renderSetSelectionPoint(RENDER_SEL_COMPLETE);
+		}
 		return;
 	}
-	if (mcedit.player.inventory.offhand & 1)
+	if (p->inventory.offhand & PLAYER_OFFHAND)
 	{
 		/* off-hand slot selected: set selection point */
-		mcedit.selection = renderSetSelectionPoint(True);
+		mcedit.selection = renderSetSelectionPoint(RENDER_SEL_ADDPT);
 		return;
 	}
 
 	MapExtraData sel = renderGetSelectedBlock(pos, &block);
 	if (sel == NULL) return;
 
-	item = &mcedit.player.inventory.items[mcedit.player.inventory.selected];
+	item = &p->inventory.items[p->inventory.selected];
 	id   = mcedit.forceSel ? 0 : item->id;
 	/* use of an item: check if it creates a block instead */
 	if (id >= ID(256, 0))
@@ -716,6 +742,10 @@ void mceditUIOverlay(int type)
 
 	case MCUI_OVERLAY_REPLACE:
 		mcuiReplace(mcedit.app, mcedit.level);
+		break;
+
+	case MCUI_OVERLAY_DELALL:
+		mcuiDeleteAll(mcedit.app, mcedit.level);
 	}
 
 	SDL_EnableUNICODE(1);

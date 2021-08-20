@@ -112,11 +112,11 @@ static void playerSetDir(Player p)
 }
 
 /* set keyvec state according to key press/released */
-Bool playerProcessKey(Player p, int key, int mod)
+int playerProcessKey(Player p, int key, int mod)
 {
 	/* do not hi-jack keypress that involve Ctrl or Alt qualifier */
 	if (mod & (SITK_FlagCtrl | SITK_FlagAlt))
-		return False;
+		return 0;
 	uint8_t keyvec = p->keyvec & 15;
 	if ((mod & SITK_FlagUp) == 0)
 	{
@@ -133,7 +133,7 @@ Bool playerProcessKey(Player p, int key, int mod)
 		case '1': case '2': case '3': case '4': case '5':
 		case '6': case '7': case '8': case '9':
 			playerScrollInventory(p, (key - '1') - p->inventory.selected);
-			return True;
+			return 2;
 		case JUMP:
 			if ((int) curTime - lastTick < 250 && p->pmode <= MODE_CREATIVE)
 			{
@@ -158,7 +158,7 @@ Bool playerProcessKey(Player p, int key, int mod)
 				p->onground = 0;
 			}
 			break;
-		default: return False;
+		default: return 0;
 		}
 	}
 	else /* released */
@@ -170,7 +170,7 @@ Bool playerProcessKey(Player p, int key, int mod)
 		case RIGHT:    p->keyvec &= ~PLAYER_STRAFE_RIGHT; break;
 		case JUMP:     p->keyvec &= ~(PLAYER_UP | PLAYER_JUMP); break;
 		case FLYDOWN:  p->keyvec &= ~PLAYER_DOWN; break;
-		default:       return False;
+		default:       return 0;
 		}
 	}
 	if (keyvec == 0)
@@ -178,7 +178,7 @@ Bool playerProcessKey(Player p, int key, int mod)
 	if (keyvec != (p->keyvec & 15))
 		playerSetDir(p);
 	/* return whether or not the key was processed or not */
-	return True;
+	return 1;
 }
 
 /* change lookat position according to mouse movement and sensitivity */
@@ -438,7 +438,8 @@ void playerAddInventory(Player p, int blockId, DATA8 tileEntity)
 
 void playerScrollInventory(Player p, int dir)
 {
-	if (dir == 0 || p->inventory.offhand) return;
+//	if (dir == 0) return;
+	p->inventory.offhand = 0;
 	int pos = p->inventory.selected + dir;
 	if (pos < 0) pos = MAXCOLINV - 1;
 	if (pos >= MAXCOLINV) pos = 0;

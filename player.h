@@ -49,17 +49,22 @@ enum /* possible values for PickBuf.state */
 
 struct Inventory_t
 {
-	int     selected;
-	union {
-		int hover;
-		int offhand;
-	};
-	int     texture;
-	ItemBuf items[MAXCOLINV * 4 + 5];
-	int     x, y, update;
-	int     infoState, infoX;
-	int     infoTime;
-	TEXT    infoTxt[128];
+	int      selected;     /* current selected slot */
+	uint16_t offhand;      /* current offhand action: &1: first sel pt, &2: second sel pt */
+	uint16_t hoverSlot;    /* slot hovered by mouse */
+	int      texture;
+	ItemBuf  items[MAXCOLINV * 4 + 5];
+	int      x, y, update;
+	int      infoState, infoX;
+	int      infoTime;
+	TEXT     infoTxt[128];
+};
+
+enum /* flags values */
+{
+	PLAYER_OFFHAND  = 1,  /* off-hand selected */
+	PLAYER_ALTPOINT = 2,  /* use second pt of selection */
+	PLAYER_TOOLBAR  = 4   /* mouse is over toolbar (see hoverSlot) */
 };
 
 enum
@@ -75,7 +80,7 @@ void playerSaveLocation(Player, NBTFile levelDat);
 void playerUpdateNBT(Player, NBTFile levelDat);
 void playerSensitivity(float s);
 void playerLookAt(Player, int mx, int my);
-Bool playerProcessKey(Player, int key, int pressed);
+int  playerProcessKey(Player, int key, int pressed);
 void playerInitPickup(PickupBlock);
 void playerAddInventory(Player, int blockId, DATA8 tileEntity);
 void playerScrollInventory(Player, int dir);

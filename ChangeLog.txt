@@ -1,3 +1,13 @@
+=========== Week 33 ===========
+Thu Aug 19:
+	* toolbar for extended selection done.
+
+Tue Aug 17:
+	* integrating icons and tooltip for toolbar.
+
+Mon Aug 16:
+	* toolbar icons for extended selection.
+
 =========== Week 32 ===========
 Sun Aug 15:
 	* Replace selection command mostly done: multi-threaded and cancellable.
@@ -1140,7 +1150,7 @@ Wed Aug 19:
 
 Tue Aug 18:
 	* added logic to parse custom models for inventory.
-	* added item textures to main block texture.
+	* added item textures to main block texture (terrain.png).
 	* make a command line exe to compress customData[] table: saving 42Kb (not integrated yet) of static data.
 
 Mon Aug 17:

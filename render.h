@@ -31,11 +31,18 @@ void renderAllSaved(void);
 void renderFrustum(Bool snapshot);
 void renderResetViewport(void);
 void renderSaveRestoreState(Bool save);
-int  renderSetSelectionPoint(Bool set);
+int  renderSetSelectionPoint(int action);
 int  renderGetTerrain(int size[2]);
 int  renderGetFacingDirection(void);
 MapExtraData renderGetSelectedBlock(vec4 pos, int * blockModel);
 
+enum /* possible values for <action> of renderSetSelectionPoint */
+{
+	RENDER_SEL_CLEAR    = 0,
+	RENDER_SEL_ADDPT    = 1,
+	RENDER_SEL_COMPLETE = 2,
+	RENDER_SEL_INIT     = 3,
+};
 
 enum /* possible values for <what> of renderToggleDebug */
 {
@@ -110,6 +117,8 @@ enum                               /* bitfield for SelBlock.sel */
 	SEL_OFFHAND   = 16
 };
 
+#define SEL_BOTH                   (SEL_FIRST|SEL_SECOND)
+
 struct Message_t
 {
 	int     chrLen;
@@ -171,6 +180,7 @@ struct RenderWorld_t
 	int        invCache;
 	int        invCount;
 	int        invExt;
+	Item       toolbarItem;        /* item being hovered by mouse */
 	int        modifCount;         /* displayed at bottom of screen */
 	Message_t  message;            /* message at bottom of screen */
 	APTR       blockInfo;          /* SIT_TOOLTIP */

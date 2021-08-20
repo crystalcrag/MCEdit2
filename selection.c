@@ -121,13 +121,21 @@ static int selectionNudge(SIT_Widget w, APTR cd, APTR ud)
 	SIT_OnMouse * msg = cd;
 	switch (msg->state) {
 	case SITOM_ButtonPressed:
-		if (msg->button == SITOM_ButtonLeft)
-		{
+		switch (msg->button) {
+		case SITOM_ButtonLeft:
 			selection.nudgePoint = (int) ud;
+			selection.nudgeStep  = 1;
+			return 2;
+		case SITOM_ButtonRight:
+			/* button don't normally react to RMB: do it manually */
+			SIT_SetValues(w, SIT_CheckState, True, NULL);
+			selection.nudgePoint = (int) ud;
+			selection.nudgeStep  = 16;
 			return 2;
 		}
 		break;
 	case SITOM_ButtonReleased:
+		//SIT_SetValues(w, SIT_CheckState, False, NULL);
 		selection.nudgePoint = 0;
 		break;
 	}
@@ -152,6 +160,7 @@ Bool selectionProcessKey(int key, int mod)
 		case 'z':      axis = 1; dir = -1; break;
 		default:       return False;
 		}
+		dir *= selection.nudgeStep;
 		if (selection.nudgePoint & 1)
 			selection.firstPt[axis] += dir;
 		if (selection.nudgePoint & 2)
@@ -278,7 +287,7 @@ void selectionProcessFill(void * unused)
 	struct BlockIter_t iter;
 	Map  map;
 	vec4 pos;
-	int  dx, dy, dz, z, x, blockId;
+	int  dx, dy, dz, z, x, blockId, yinc;
 	pos[VX] = MIN(selection.firstPt[VX], selection.secondPt[VX]);
 	pos[VY] = MIN(selection.firstPt[VY], selection.secondPt[VY]);
 	pos[VZ] = MIN(selection.firstPt[VZ], selection.secondPt[VZ]);
@@ -297,6 +306,14 @@ void selectionProcessFill(void * unused)
 	MutexEnter(selectionAsync.wait);
 
 	Block b = &blockIds[blockId>>4];
+
+	if (b->opacSky < MAXSKY)
+	{
+		/* transparent to skylight: cheaper to start from top */
+		mapIter(&iter, 0, dy-1, 0);
+		yinc = -1;
+	}
+	else yinc = 1;
 
 	if ((b->special == BLOCK_HALF || b->special == BLOCK_STAIRS) && selectionAsync.side > 0)
 		blockId |= 8;
@@ -360,7 +377,7 @@ void selectionProcessFill(void * unused)
 			if (selectionAsync.cancel) goto break_all;
 			selectionAsync.progress[0] += dx;
 		}
-		mapIter(&iter, 0, 1, -dz);
+		mapIter(&iter, 0, yinc, -dz);
 		dy --;
 	}
 	/* note: mapUpdateEnd() will regen mesh, must no be called from here */
