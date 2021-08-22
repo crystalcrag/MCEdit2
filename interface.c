@@ -922,9 +922,11 @@ void mcuiCreateSignEdit(Map map, vec4 pos, int blockId, int * exit)
 /*
  * ask player a coordinate to jump to
  */
+
 static float mcuiCurPos[3];
 static int mcuiGetCoord(SIT_Widget w, APTR cd, APTR ud)
 {
+	/* ud is player vec4 position: don't modify until user confirms its choice */
 	memcpy(ud, mcuiCurPos, sizeof mcuiCurPos);
 	SIT_CloseDialog(w);
 	SIT_Exit(1);
@@ -933,7 +935,7 @@ static int mcuiGetCoord(SIT_Widget w, APTR cd, APTR ud)
 
 void mcuiGoto(SIT_Widget parent, vec4 pos)
 {
-	SIT_Widget diag = SIT_CreateWidget("goto.bg", SIT_DIALOG, parent,
+	SIT_Widget diag = SIT_CreateWidget("goto.mc rim", SIT_DIALOG, parent,
 		SIT_DialogStyles, SITV_Plain | SITV_Modal | SITV_Movable,
 		NULL
 	);
@@ -942,11 +944,11 @@ void mcuiGoto(SIT_Widget parent, vec4 pos)
 	SIT_CreateWidgets(diag,
 		"<label name=title title='Enter the coordinate you want to jump to:' left=FORM right=FORM style='text-align: center'>"
 		"<label name=Xlab title=X:>"
-		"<editbox name=X roundTo=2 editType=", SITV_Float, "width=10em scrollPos=", mcuiCurPos, "top=WIDGET,title,1em left=WIDGET,Xlab,0.5em>"
+		"<editbox name=X roundTo=2 editType=", SITV_Float, "width=10em curValue=", mcuiCurPos, "top=WIDGET,title,1em left=WIDGET,Xlab,0.5em>"
 		"<label name=Ylab title=Y: left=WIDGET,X,1em>"
-		"<editbox name=Y roundTo=2 editType=", SITV_Float, "width=10em scrollPos=", mcuiCurPos+1, "top=WIDGET,title,1em left=WIDGET,Ylab,0.5em>"
+		"<editbox name=Y roundTo=2 editType=", SITV_Float, "width=10em curValue=", mcuiCurPos+1, "top=WIDGET,title,1em left=WIDGET,Ylab,0.5em>"
 		"<label name=Zlab title=Z: left=WIDGET,Y,1em>"
-		"<editbox name=Z roundTo=2 editType=", SITV_Float, "width=10em scrollPos=", mcuiCurPos+2, "top=WIDGET,title,1em left=WIDGET,Zlab,0.5em>"
+		"<editbox name=Z roundTo=2 editType=", SITV_Float, "width=10em curValue=", mcuiCurPos+2, "top=WIDGET,title,1em left=WIDGET,Zlab,0.5em>"
 		"<button name=ok title=Goto top=WIDGET,X,1em buttonType=", SITV_DefaultButton, ">"
 		"<button name=ko title=Cancel top=WIDGET,X,1em right=FORM buttonType=", SITV_CancelButton, ">"
 	);
@@ -958,9 +960,12 @@ void mcuiGoto(SIT_Widget parent, vec4 pos)
 	SIT_ManageWidget(diag);
 }
 
+
+
 /*
  * show a summary about all the blocks in the selection
  */
+
 static int mcuiCopyAnalyze(SIT_Widget w, APTR cd, APTR ud)
 {
 	STRPTR bytes = malloc(256);
@@ -1086,8 +1091,10 @@ void mcuiAnalyze(SIT_Widget parent, Map map)
 	SIT_ManageWidget(diag);
 }
 
+
+
 /*
- * fill/replace selection with one type of block
+ * fill/replace selection with one type of block or with a geometric brush.
  */
 
 static struct
@@ -1110,8 +1117,18 @@ static struct
 	uint32_t    processTotal;
 	double      processStart;
 	uint8_t     canUseSpecial[32];
+
+	/* fill with brush part */
+	int         isHollow;
+	int         shape;
+	int         outerArea;
+	int         useHalfBlock;
+	float       thickVal;
+	SIT_Widget  XYZ[3];
+	SIT_Widget  thickness;
 }	mcuiRepWnd;
 
+/* remove these blocks from inventory selection */
 static uint8_t cannotFill[] = {
 	BLOCK_CHEST,        /* need tile entity with neighbor location */
 	BLOCK_DOOR,         /* 2 blocks tall */
@@ -1251,7 +1268,11 @@ static int mcuiFillDisabled(SIT_Widget w, APTR cd, APTR ud)
 /* stop fill/replace operation */
 static int mcuiFillStop(SIT_Widget w, APTR cd, APTR ud)
 {
-	SIT_Exit(1);
+	int type;
+	SIT_GetValues(w, SIT_CtrlType, &type, NULL);
+	if (type == SIT_BUTTON)
+		/* this callback can also be used by SIT_OnFinalize: don't change exit code in that case */
+		SIT_Exit(1);
 	if (mcuiRepWnd.asyncCheck)
 	{
 		selectionCancelOperation();
@@ -1263,7 +1284,14 @@ static int mcuiFillStop(SIT_Widget w, APTR cd, APTR ud)
 	return 1;
 }
 
-void mcuiReplace(SIT_Widget parent, Map map)
+/* if hollow mode is on, let user adjust thickness */
+static int mcuiActivateThickness(SIT_Widget w, APTR cd, APTR ud)
+{
+	SIT_SetValues(mcuiRepWnd.thickness, SIT_Enabled, (int) cd, NULL);
+	return 1;
+}
+
+void mcuiFillOrReplace(SIT_Widget parent, Map map, Bool fillWithBrush)
 {
 	static struct MCInventory_t mcinv   = {.invRow = 6, .invCol = MAXCOLINV};
 	static struct MCInventory_t fillinv = {.invRow = 1, .invCol = 1, .groupId = 1, .itemsNb = 1};
@@ -1273,12 +1301,17 @@ void mcuiReplace(SIT_Widget parent, Map map)
 	/* same scale than player toolbar... */
 	mcui.cellSz = roundf(mcui.width * 17 * ITEMSCALE / (3 * 182.));
 
+	/* if the interface is stopped early, we need to be notified */
+	SIT_AddCallback(parent, SITE_OnFinalize, mcuiFillStop, map);
+
 	SIT_Widget diag = SIT_CreateWidget("fillblock.bg", SIT_DIALOG + SIT_EXTRA((blockLast - blockStates) * sizeof (ItemBuf)), parent,
 		SIT_DialogStyles, SITV_Plain | SITV_Modal | SITV_Movable,
 		NULL
 	);
 
 	int i;
+	mcuiRepWnd.asyncCheck = NULL;
+	/* will filter out some Block_t.special flag */
 	memset(mcuiRepWnd.canUseSpecial, 1, sizeof mcuiRepWnd.canUseSpecial);
 	for (i = 0; i < DIM(cannotFill); i ++)
 		mcuiRepWnd.canUseSpecial[cannotFill[i]] = 0;
@@ -1290,17 +1323,87 @@ void mcuiReplace(SIT_Widget parent, Map map)
 		"<scrollbar width=1.2em name=scroll.inv wheelMult=1 top=OPPOSITE,inv,0 bottom=OPPOSITE,inv,0 right=FORM>"
 		"<label name=msg title='Fill:'>"
 		"<canvas composited=1 name=fill.inv left=WIDGET,msg,0.5em top=WIDGET,inv,0.5em/>"
-		"<button name=doreplace title='Replace by:' curValue=", &mcuiRepWnd.doReplace, "buttonType=", SITV_CheckBox, "left=WIDGET,fill,0.5em top=MIDDLE,fill>"
-		"<canvas composited=1 enabled=", mcuiRepWnd.doReplace, "name=replace.inv left=WIDGET,doreplace,0.5em top=WIDGET,inv,0.5em/>"
-		"<button name=side1 radioID=1 enabled=0 title=Top curValue=", &mcuiRepWnd.side, "buttonType=", SITV_RadioButton, "left=WIDGET,replace,0.5em top=MIDDLE,fill>"
-		"<button name=side0 radioID=0 enabled=0 title=Bottom curValue=", &mcuiRepWnd.side, "buttonType=", SITV_RadioButton, "left=WIDGET,side1,0.5em top=MIDDLE,fill>"
-		"<button name=similar enabled=", mcuiRepWnd.doReplace, "curValue=", &mcuiRepWnd.doSimilar, "title='Replace similar blocks (strairs, slabs)'"
-		" buttonType=", SITV_CheckBox, "left=OPPOSITE,doreplace top=WIDGET,fill,0.5em>"
-		"<button name=cancel title=Cancel right=FORM top=WIDGET,similar,1em>"
-		"<button name=ok title=", mcuiRepWnd.doReplace ? "Replace" : "Fill", "top=OPPOSITE,cancel right=WIDGET,cancel,0.5em>"
-		"<progress name=prog visible=0 title='%d%%' left=FORM right=WIDGET,ok,1em top=MIDDLE,ok>"
-		"<tooltip name=info delayTime=", SITV_TooltipManualTrigger, "displayTime=10000 toolTipAnchor=", SITV_TooltipFollowMouse, ">"
 	);
+
+	if (fillWithBrush)
+	{
+		/* interface to fill selection with a geometric brush */
+		vec points = selectionGetPoints();
+		float size[] = {
+			(int) fabsf(points[VX] - points[VX+4]) + 1,
+			(int) fabsf(points[VZ] - points[VZ+4]) + 1,
+			(int) fabsf(points[VY] - points[VY+4]) + 1
+		};
+		if (renderGetFacingDirection() & 1)
+		{
+			float tmp = size[0];
+			size[0] = size[1];
+			size[1] = tmp;
+		}
+		if (mcuiRepWnd.thickVal < 1)
+			mcuiRepWnd.thickVal = 1;
+
+		SIT_CreateWidgets(diag,
+			"<label name=label1 title=Shape: left=WIDGET,fill,0.5em top=MIDDLE,fill>"
+			"<button name=shape1 title=Round checkState=1 curValue=", &mcuiRepWnd.shape, "buttonType=", SITV_RadioButton,
+			" top=OPPOSITE,fill left=WIDGET,label1,0.5em>"
+			"<button name=shape2 title=Square curValue=", &mcuiRepWnd.shape, "buttonType=", SITV_RadioButton,
+			" top=WIDGET,shape1,0.3em left=WIDGET,label1,0.5em>"
+			"<button name=shape3 title=Diamond curValue=", &mcuiRepWnd.shape, "buttonType=", SITV_RadioButton,
+			" top=WIDGET,shape2,0.3em left=WIDGET,label1,0.5em>"
+
+			"<button name=outside title='Fill outer area' curValue=", &mcuiRepWnd.outerArea, "buttonType=", SITV_CheckBox,
+			" left=WIDGET,shape3,1em top=OPPOSITE,fill>"
+			"<button name=half title='Half-block' curValue=", &mcuiRepWnd.useHalfBlock, "buttonType=", SITV_CheckBox,
+			" left=WIDGET,shape3,1em top=WIDGET,outside,0.3em>"
+
+			"<frame name=title2 title=Size: left=FORM right=FORM top=WIDGET,shape3,0.5em/>"
+			"<label name=label2.big title=W: right=WIDGET,fill,0.5em>"
+			"<editbox name=xcoord roundTo=2 curValue=", size, "editType=", SITV_Float, "minValue=1"
+			" right=", SITV_AttachPosition, SITV_AttachPos(32), 0, "left=OPPOSITE,fill top=WIDGET,title2,0.9em>"
+			"<label name=label3.big title=L: left=WIDGET,xcoord,0.5em>"
+			"<editbox name=zcoord roundTo=2 curValue=", size+1, "editType=", SITV_Float, "minValue=1"
+			" right=", SITV_AttachPosition, SITV_AttachPos(64), 0, "left=WIDGET,label3,0.5em top=OPPOSITE,xcoord>"
+			"<label name=label4.big title=H: left=WIDGET,zcoord,0.5em>"
+			"<editbox name=ycoord roundTo=2 curValue=", size+2, "editType=", SITV_Float, "minValue=1"
+			" right=FORM,,1em left=WIDGET,label4,0.5em top=OPPOSITE,zcoord>"
+
+			"<frame name=title3 title='Thickness if hollow:' left=FORM right=FORM top=WIDGET,xcoord,0.5em/>"
+			"<label name=label5.big title=T:>"
+			"<editbox name=thick enabled=", mcuiRepWnd.isHollow, "roundTo=2 curValue=", &mcuiRepWnd.thickVal, "right=OPPOSITE,xcoord editType=", SITV_Float,
+			" left=OPPOSITE,xcoord top=WIDGET,title3,0.5em>"
+			"<button name=hollow curValue=", &mcuiRepWnd.isHollow, "buttonType=", SITV_CheckBox, "title=Hollow left=WIDGET,thick,0.5em top=MIDDLE,thick>"
+
+			"<button name=ok title=Fill>"
+			"<button name=cancel title=Cancel buttonType=", SITV_CancelButton, "right=FORM top=WIDGET,thick,0.5em>"
+			"<progress name=prog visible=0 title='%d%%' left=FORM right=WIDGET,ok,1em top=MIDDLE,ok>"
+		);
+		SIT_SetAttributes(diag,
+			"<label2 top=MIDDLE,xcoord><label3 top=MIDDLE,xcoord><label4 top=MIDDLE,xcoord>"
+			"<label5 right=WIDGET,thick,0.5em top=MIDDLE,thick>"
+			"<ok right=WIDGET,cancel,0.5em top=OPPOSITE,cancel>"
+		);
+		mcuiRepWnd.XYZ[0] = SIT_GetById(diag, "xcoord");
+		mcuiRepWnd.XYZ[1] = SIT_GetById(diag, "zcoord");
+		mcuiRepWnd.XYZ[2] = SIT_GetById(diag, "ycoord");
+		mcuiRepWnd.thickness = SIT_GetById(diag, "thick");
+		SIT_AddCallback(SIT_GetById(diag, "hollow"), SITE_OnActivate, mcuiActivateThickness, NULL);
+	}
+	else /* fill/replace entire selection */
+	{
+		SIT_CreateWidgets(diag,
+			"<button name=doreplace title='Replace by:' curValue=", &mcuiRepWnd.doReplace, "buttonType=", SITV_CheckBox, "left=WIDGET,fill,0.5em top=MIDDLE,fill>"
+			"<canvas composited=1 enabled=", mcuiRepWnd.doReplace, "name=replace.inv left=WIDGET,doreplace,0.5em top=WIDGET,inv,0.5em/>"
+			"<button name=side1 radioID=1 enabled=0 title=Top curValue=", &mcuiRepWnd.side, "buttonType=", SITV_RadioButton, "left=WIDGET,replace,0.5em top=MIDDLE,fill>"
+			"<button name=side0 radioID=0 enabled=0 title=Bottom curValue=", &mcuiRepWnd.side, "buttonType=", SITV_RadioButton, "left=WIDGET,side1,0.5em top=MIDDLE,fill>"
+			"<button name=similar enabled=", mcuiRepWnd.doReplace, "curValue=", &mcuiRepWnd.doSimilar, "title='Replace similar blocks (strairs, slabs)'"
+			" buttonType=", SITV_CheckBox, "left=OPPOSITE,doreplace top=WIDGET,fill,0.5em>"
+			"<button name=cancel title=Cancel right=FORM top=WIDGET,similar,1em>"
+			"<button name=ok title=", mcuiRepWnd.doReplace ? "Replace" : "Fill", "top=OPPOSITE,cancel right=WIDGET,cancel,0.5em>"
+			"<progress name=prog visible=0 title='%d%%' left=FORM right=WIDGET,ok,1em top=MIDDLE,ok>"
+			"<tooltip name=info delayTime=", SITV_TooltipManualTrigger, "displayTime=10000 toolTipAnchor=", SITV_TooltipFollowMouse, ">"
+		);
+	}
 	SIT_SetAttributes(diag, "<searchtxt top=MIDDLE,search><inv right=WIDGET,scroll,0.2em><msg top=MIDDLE,fill>");
 
 	mcuiRepWnd.accept  = SIT_GetById(diag, "ok");
@@ -1346,11 +1449,13 @@ void mcuiReplace(SIT_Widget parent, Map map)
 	replace.items = fillReplace + 1;
 
 	mcuiInitInventory(SIT_GetById(diag, "inv"), &mcinv);
-	mcuiInitInventory(mcuiRepWnd.fill,    &fillinv);
-	mcuiInitInventory(mcuiRepWnd.replace, &replace);
+	mcuiInitInventory(mcuiRepWnd.fill, &fillinv);
 	mcuiResetScrollbar(&mcinv);
-	SIT_AddCallback(mcuiRepWnd.replace, SITE_OnPaint, mcuiFillDisabled, NULL);
-
+	if (! fillWithBrush)
+	{
+		mcuiInitInventory(mcuiRepWnd.replace, &replace);
+		SIT_AddCallback(mcuiRepWnd.replace, SITE_OnPaint, mcuiFillDisabled, NULL);
+	}
 	SIT_GetValues(mcinv.cell, SIT_Padding, mcui.padding, NULL);
 	mcui.itemSz = mcui.cellSz - mcui.padding[0] - mcui.padding[2];
 
@@ -1364,7 +1469,55 @@ void mcuiReplace(SIT_Widget parent, Map map)
 /*
  * delete all/selective from selection
  */
+
+static int mcuiDeleteProgress(SIT_Widget w, APTR cd, APTR ud)
+{
+	if (mcuiRepWnd.processTotal == mcuiRepWnd.processCurrent)
+	{
+		/* done */
+		mapUpdateEnd(ud);
+		mcuiRepWnd.asyncCheck = NULL;
+		SIT_Exit(1);
+		/* will cancel the timer */
+		return -1;
+	}
+	double curTime = FrameGetTime();
+	if (curTime - mcuiRepWnd.processStart > 250)
+	{
+		if (mcuiRepWnd.replace == NULL)
+		{
+			SIT_Widget dialog = SIT_CreateWidget("delete.mc", SIT_DIALOG, w,
+				SIT_DialogStyles, SITV_Plain,
+				NULL
+			);
+			SIT_CreateWidgets(dialog,
+				"<label name=title title='<b>Delete in progress...</b>' left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, ">"
+				"<progress name=prog title=%d%% width=15em top=WIDGET,title,0.5em>"
+				"<button name=cancel title=Cancel buttonType=", SITV_CancelButton, "left=WIDGET,prog,1em top=WIDGET,title,0.5em>"
+			);
+			mcuiRepWnd.replace = dialog;
+			mcuiRepWnd.prog = SIT_GetById(dialog, "prog");
+			SIT_AddCallback(SIT_GetById(dialog, "cancel"), SITE_OnActivate, mcuiFillStop, ud);
+			SIT_ManageWidget(dialog);
+		}
+		/* show a progress bar dialog and a way to cancel the action */
+		SIT_SetValues(mcuiRepWnd.prog, SIT_ProgressPos, (int)
+			(uint64_t) mcuiRepWnd.processCurrent * 100 / mcuiRepWnd.processTotal, NULL);
+		mcuiRepWnd.processStart = curTime;
+	}
+	return 0;
+}
+
 void mcuiDeleteAll(SIT_Widget parent, Map map)
 {
-	SIT_Log(SIT_INFO, "TODO !");
+	/* delete all the blocks and entities in the selection */
+	mcuiRepWnd.processCurrent = 0;
+	mcuiRepWnd.replace = NULL;
+	mcuiRepWnd.processTotal = selectionFill(map, &mcuiRepWnd.processCurrent, 0, 0, 0);
+
+	/* if the interface is stopped early, we need to be notified */
+	SIT_AddCallback(parent, SITE_OnFinalize, mcuiFillStop, map);
+
+	/* this function will monitor the thread progress */
+	mcuiRepWnd.asyncCheck = SIT_ActionAdd(parent, mcuiRepWnd.processStart = curTime, curTime + 1e9, mcuiDeleteProgress, map);
 }

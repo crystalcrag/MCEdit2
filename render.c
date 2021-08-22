@@ -696,6 +696,7 @@ void renderSetViewMat(vec4 pos, vec4 lookat, float * yawPitch)
 	glBindBuffer(GL_UNIFORM_BUFFER, render.uboShader);
 	glBufferSubData(GL_UNIFORM_BUFFER, UBO_CAMERA_OFFFSET, sizeof (vec4), render.camera);
 
+	uint8_t oldDir = render.direction;
 	render.setFrustum = 1;
 	render.yaw = yawPitch[0];
 	render.pitch = yawPitch[1];
@@ -703,6 +704,8 @@ void renderSetViewMat(vec4 pos, vec4 lookat, float * yawPitch)
 	if (M_PI_4      <= render.yaw && render.yaw <= M_PI_4 + M_PI_2) render.direction = 0; else /* south:  45 ~ 135 */
 	if (M_PI+M_PI_4 <= render.yaw && render.yaw <= 2*M_PI-M_PI_4)   render.direction = 2; else /* north: 225 ~ 315 */
 	if (M_PI-M_PI_4 <= render.yaw && render.yaw <= M_PI+M_PI_4)     render.direction = 3;      /* west:  135 ~ 225 */
+	if (oldDir != render.direction)
+		selectionSetSize();
 }
 
 /* tooltip is about to be deleted, clear reference */

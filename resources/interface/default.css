@@ -8,14 +8,30 @@ dialog close { font-weight: bold; color: #d44; text-shadow: 2px 2px 2px black, -
 dialog close:hover { color: red }
 dialog close:hover:active { color: red; text-shadow: 2px 2px 2px #ccc, -1px -1px 2px black }
 
+/* minecraft style dialog */
 form.bg { padding: 0.5em; background-color: #c5c5c5; border: 0.2em outset #c5c5c5; color: #444;
 		  border-radius: 0.5em; box-shadow: 0 0 20px rgba(black, 0.5) }
 form.bg editbox { color: white; background-color: #8b8b8b; border: 2px inset #c5c5c5 }
+form.bg editbox:disabled { color: #888; background-color: #aaa; border: 2px inset #c5c5c5 }
 form.bg table { border: 2px inset #c5c5c5; background: #8b8b8b; color: white }
 form.bg table th { padding: 0.2em; background-color: #c5c5c5; border: 2px outset #c5c5c5; color: #222 }
 form.bg table td { padding: 0.2em; text-shadow: 2px 2px #3f3f3f }
 form.bg table td:checked { background-color: #23ba1f; color: selfore }
+form.bg fieldset { border: 0; font-weight: bold; border-top: 0.3em groove #c5c5c5; border-radius: 0; text-align: center }
 
+/* mcedit style dialog */
+form.mc { background: rgba(black, 0.5); font-size: 0.8em; padding: 0.5em; border-radius: 0.5em }
+form.mc.rim { box-shadow: 0 0 0.5em black; border: 0.2em solid black }
+form.mc button { padding: 0.2em 0.5em; box-shadow: none; border: 0; outline: 0; text-transform: none; text-shadow: none; background: white; color: black }
+form.mc button:kbdfocus { outline: 0.15em solid selback 0.1em }
+form.mc #first { background: yellow; color: black; }
+form.mc #second { background: blue; color: white; }
+form.mc button:active  { background: rgba(black,0.2), white }
+form.mc #first:active  { background: rgba(black,0.2), yellow }
+form.mc #second:active { background: rgba(black,0.2), blue }
+form.mc progress { background-color: rgba(black, 0.33); border-color: #555 }
+
+/* world selection */
 #header { background: linear-gradient(to right, rgba(#000,0.5), transparent 50%, rgba(#000,0.5)), url("dirt.png"); padding: 30px;
           background-size: 100% 100%, 64px 64px; border-bottom: 5px solid rgba(0,0,0,0.5) }
 
@@ -24,15 +40,17 @@ form.bg table td:checked { background-color: #23ba1f; color: selfore }
 
 #worlds { background: linear-gradient(to right, rgba(#000,0.3), rgba(#000,0.5) 20%, rgba(#000,0.3) 80%, rgba(#000,0.5)), url("dirt.png");
 		  box-shadow: black 0 0 20px inset; background-size: 100% 100%, 64px 64px; padding: 20px 6%; color: #ccc }
+#worlds { border-spacing: auto 20px }
+#worlds > td { border: 3px solid #888; padding: 2px }
+#worlds #wname { color: white }
+#worlds td { color: #aaa; text-shadow: 2px 2px rgba(#000,0.5) }
+#worlds td:checked { color: #eee; background: linear-gradient(to bottom, #87cb85, #6da46b); border: 2px solid #94df92 }
+#worlds td:checked td { color: #eee }
+#worlds thead { text-decoration: underline }
 
-#selection { background: rgba(black, 0.5); font-size: 0.8em; padding: 0.5em; border-radius: 0.5em }
-#selection button { padding: 0.2em 0.5em; box-shadow: none; border: 0; outline: 0; text-transform: none; text-shadow: none }
-#selection #whole { background: white; color: black; }
-#selection #first { background: yellow; color: black; }
-#selection #second { background: blue; color: white; }
-#selection #whole:active  { background: rgba(black,0.2), white }
-#selection #first:active  { background: rgba(black,0.2), yellow }
-#selection #second:active { background: rgba(black,0.2), blue }
+#toolbar { background: rgba(black,0.7); padding: 10px; box-shadow: 0 0 10px black; font-size: 0.9em }
+
+
 
 button { padding: 8px 20px 4px; border-radius: 4px; background: linear-gradient(to bottom, #87cb85, #6da46b); font-weight: bold;
 		 text-shadow: 0 2px rgba(#000,0.5); border: 2px solid #547e53; color: white;
@@ -51,6 +69,8 @@ button:disabled { background: linear-gradient(to bottom, rgba(#555,0.5), rgba(#4
 #edit { font-size: 1.5em; padding: 10px 20px 6px }
 #edit:active { box-shadow: 0 0 8px black inset; padding: 12px 22px 8px }
 #edit:disabled { padding: 12px 22px 8px }
+
+label.big { font-weight: bold }
 
 #signedit { padding: 0; border: none; border-radius: 0; -caret-color: black; box-shadow: none; text-align: center; padding-top: 15px; color: black }
 
@@ -115,17 +135,4 @@ progress bar { background-color: #23ba1f; border: 2px outset #23ba1f; color: whi
 vscroll.inv, .inv #td { border: 0.1em inset #ccc }
 #container { padding: 5px; color: #444; background-color: #c6c6c6; border: 0.2em outset #c6c6c6; border-radius: 0.3em }
 
-#worlds { border-spacing: auto 20px }
-#worlds > td { border: 3px solid #888; padding: 2px }
-#worlds #wname { color: white }
-#worlds td { color: #aaa; text-shadow: 2px 2px rgba(#000,0.5) }
-#worlds td:checked { color: #eee; background: linear-gradient(to bottom, #87cb85, #6da46b); border: 2px solid #94df92 }
-#worlds td:checked td { color: #eee }
-#worlds thead { text-decoration: underline }
-
-#toolbar { background: rgba(black,0.7); padding: 10px; box-shadow: 0 0 10px black; font-size: 0.9em }
-
 ::link { color: #55f }
-
-
-#block { outline: 2px solid #5c8b5b -4px; border-radius: 0.5em; background-color: black; color: white; white-space: pre-wrap; padding: 8px; tab-size: 8 }

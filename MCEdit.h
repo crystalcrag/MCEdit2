@@ -50,6 +50,7 @@ enum /* possible value for parameter mceditUIOverlay() */
 	MCUI_OVERLAY_GOTO,
 	MCUI_OVERLAY_ANALYZE,
 	MCUI_OVERLAY_REPLACE,
+	MCUI_OVERLAY_FILL,
 	MCUI_OVERLAY_DELALL
 };
 

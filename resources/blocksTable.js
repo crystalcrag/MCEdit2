@@ -3235,19 +3235,15 @@
 		{state:14, name: "+red",        tex: [ 4,22, 4,22, 4,22, 4,22, 4,22, 4,22]},
 		{state:15, name: "+black",      tex: [ 0,22, 0,22, 0,22, 0,22, 0,22, 0,22]},
 
+	/* generic half-slab block: rendering info will be stored in tile entity */
+	{id: 253, name: "Generic half block", type: SOLID},
+		{state: 0, name: "-", tex: [1,0]},
+
 	/* hack to handle collision box of door :-/ */
 	{id: 255, type: INVIS, name: "Door top", bbox: NONE, special: DOOR_TOP},
 		/* another hack: items for inventory with extended selection */
 		{state: 0, name: "Fill/replace",       tex: [2,31], inv: ITEM2D},
-		{state: 1, name: "Clone",              tex: [3,31], inv: ITEM2D},
-		{state: 2, name: "Copy",               tex: [6,31], inv: ITEM2D},
-		{state: 3, name: "Analyze",            tex: [4,31], inv: ITEM2D},
-		{state: 4, name: "Export",             tex: [7,31], inv: ITEM2D},
-		{state: 5, name: "Filter",             tex: [5,31], inv: ITEM2D},
-		{state: 6, name: "Delete selectively", inv: MODEL, model: [
-			191,16,16,16,0,0,0,0,0,0,0,0,0,128,8336,8352,144,128,8336,8352,144,128,8336,8352,144,128,8336,8352,144,144,8352,8368,160,160,8368,8384,176,
-		]},
-		{state: 7, name: "Brush",        inv: MODEL, model: [
+		{state: 1, name: "Fill with brush",    inv: MODEL, model: [
 			447,8,16,4,4,0,6,0,0,0,0,0,0,90288,98496,98512,90304,90288,98496,98512,90304,90288,98496,98512,90304,90288,98496,98512,90304,90288,98496,
 				98512,90304,90288,98496,98512,90304,
 			447,4,16,8,6,0,4,0,0,0,0,0,0,
@@ -3258,5 +3254,13 @@
 			447,4,8,16,6,4,0,0,0,0,0,0,0,
 			447,16,4,8,0,6,4,0,0,0,0,0,0,
 			191,8,4,16,4,6,0,0,0,0,0,0,0,
+		]},
+		{state: 2, name: "Clone",              tex: [3,31], inv: ITEM2D},
+		{state: 3, name: "Copy",               tex: [6,31], inv: ITEM2D},
+		{state: 4, name: "Analyze",            tex: [4,31], inv: ITEM2D},
+		{state: 5, name: "Export",             tex: [7,31], inv: ITEM2D},
+		{state: 6, name: "Filter",             tex: [5,31], inv: ITEM2D},
+		{state: 7, name: "Delete selectively", inv: MODEL, model: [
+			191,16,16,16,0,0,0,0,0,0,0,0,0,128,8336,8352,144,128,8336,8352,144,128,8336,8352,144,128,8336,8352,144,144,8352,8368,160,160,8368,8384,176,
 		]},
 		{state: 8, name: "Chunk control", tex: [8,31], inv: ITEM2D},

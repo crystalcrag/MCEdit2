@@ -1,4 +1,11 @@
 =========== Week 33 ===========
+Sat Aug 21:
+	* brush fill interface.
+
+Fri Aug 20:
+	* replaced stb_image.h by gdiplus on windows: 30Kb saved on SITGL.dll
+	* added delete block shortcut (via Delete key) along with progress update if it takes too long.
+
 Thu Aug 19:
 	* toolbar for extended selection done.
 
@@ -10,7 +17,7 @@ Mon Aug 16:
 
 =========== Week 32 ===========
 Sun Aug 15:
-	* Replace selection command mostly done: multi-threaded and cancellable.
+	* replace selection command mostly done: multi-threaded, progress indicator and cancellable.
 
 Sat Aug 14:
 	* Fill selection command mostly done.

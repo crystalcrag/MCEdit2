@@ -11,6 +11,7 @@
 
 void selectionInitStatic(int shader, DATA8 direction);
 void selectionSet(APTR sitRoot, float scale, vec4 pos, int point);
+void selectionSetSize(void);
 void selectionRender(void);
 void selectionClear(void);
 void selectionCancelOperation(void);

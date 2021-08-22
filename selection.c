@@ -14,6 +14,7 @@
 #include "selection.h"
 #include "mapUpdate.h"
 #include "player.h"
+#include "render.h"
 #include "SIT.h"
 
 struct Selection_t selection;
@@ -53,6 +54,23 @@ void selectionInitStatic(int shader, DATA8 direction)
 	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 20, (APTR) 12);
 	glEnableVertexAttribArray(1);
 	glBindVertexArray(0);
+}
+
+void selectionSetSize(void)
+{
+	if (selection.nudgeSize)
+	{
+		TEXT buffer[32];
+		int  size[] = {
+			(int) fabsf(selection.firstPt[VX] - selection.secondPt[VX]) + 1,
+			(int) fabsf(selection.firstPt[VZ] - selection.secondPt[VZ]) + 1,
+			(int) fabsf(selection.firstPt[VY] - selection.secondPt[VY]) + 1
+		};
+		if (renderGetFacingDirection() & 1)
+			swap(size[0], size[1]);
+		sprintf(buffer, "%dW x %dL x %dH", size[0], size[1], size[2]);
+		SIT_SetValues(selection.nudgeSize, SIT_Title, buffer, NULL);
+	}
 }
 
 static void selectionSetRect(void)
@@ -103,16 +121,7 @@ static void selectionSetRect(void)
 	/* lines around the edges */
 	glUnmapBuffer(GL_ARRAY_BUFFER);
 
-	if (selection.nudgeSize)
-	{
-		TEXT size[32];
-		sprintf(size, "%dW x %dL x %dH",
-			(int) fabsf(selection.firstPt[VX] - selection.secondPt[VX]) + 1,
-			(int) fabsf(selection.firstPt[VZ] - selection.secondPt[VZ]) + 1,
-			(int) fabsf(selection.firstPt[VY] - selection.secondPt[VY]) + 1
-		);
-		SIT_SetValues(selection.nudgeSize, SIT_Title, size, NULL);
-	}
+	selectionSetSize();
 }
 
 
@@ -181,7 +190,7 @@ void selectionSet(APTR sitRoot, float scale, vec4 pos, int point)
 	{
 		if (selection.nudgeDiag == NULL)
 		{
-			SIT_Widget diag = selection.nudgeDiag = SIT_CreateWidget("selection", SIT_DIALOG, sitRoot,
+			SIT_Widget diag = selection.nudgeDiag = SIT_CreateWidget("selection.mc", SIT_DIALOG, sitRoot,
 				SIT_DialogStyles,  SITV_Plain,
 				SIT_Bottom,        SITV_AttachForm, NULL, (int) (24 * scale),
 				SIT_TopAttachment, SITV_AttachNone,
@@ -371,7 +380,11 @@ void selectionProcessFill(void * unused)
 		for (z = dz; z > 0; z --, mapIter(&iter, -dx, 0, 1))
 		{
 			for (x = dx; x > 0; x --, mapIter(&iter, 1, 0, 0))
+			{
+				/* DEBUG: slow down processing */
+				// ThreadPause(500);
 				mapUpdate(map, NULL, blockId, NULL, UPDATE_SILENT);
+			}
 
 			/* emergency exit */
 			if (selectionAsync.cancel) goto break_all;
@@ -563,11 +576,15 @@ int selectionReplace(Map map, DATA32 progress, int blockId, int replId, int side
 	       (int) selection.regionSize[VZ];
 }
 
+/* need to wait for thread to exit first */
 void selectionCancelOperation(void)
 {
 	selectionAsync.cancel = 1;
 	/* wait for thread to finish */
-	MutexEnter(selectionAsync.wait);
-	MutexLeave(selectionAsync.wait);
+	if (selectionAsync.wait)
+	{
+		MutexEnter(selectionAsync.wait);
+		MutexLeave(selectionAsync.wait);
+	}
 }
 

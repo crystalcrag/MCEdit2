@@ -328,7 +328,7 @@ void mceditWorld(void)
 		while (SDL_PollEvent(&event))
 		{
 			static uint8_t toolbarCmds[] = {
-				MCUI_OVERLAY_REPLACE, 0, 0, MCUI_OVERLAY_ANALYZE, 0, 0, 0, 0, 0
+				MCUI_OVERLAY_REPLACE, MCUI_OVERLAY_FILL, 0, 0, MCUI_OVERLAY_ANALYZE, 0, 0, 0, 0
 			};
 			int key;
 			switch (event.type) {
@@ -741,7 +741,11 @@ void mceditUIOverlay(int type)
 		break;
 
 	case MCUI_OVERLAY_REPLACE:
-		mcuiReplace(mcedit.app, mcedit.level);
+		mcuiFillOrReplace(mcedit.app, mcedit.level, False);
+		break;
+
+	case MCUI_OVERLAY_FILL:
+		mcuiFillOrReplace(mcedit.app, mcedit.level, True);
 		break;
 
 	case MCUI_OVERLAY_DELALL:
@@ -812,7 +816,8 @@ void mceditUIOverlay(int type)
 	/* loop exit = user hit Esc key */
 
 	/* check if there was any modifications */
-	if (type == MCUI_OVERLAY_BLOCK)
+	switch (type) {
+	case MCUI_OVERLAY_BLOCK:
 	{
 		NBTFile_t chest = {0};
 		NBTFile_t playerInv = {0};
@@ -845,15 +850,15 @@ void mceditUIOverlay(int type)
 			if (offset >= 0)
 				mapDecodeItems(mcedit.player.inventory.items, MAXCOLINV, NBT_Hdr(&mcedit.level->levelDat, offset));
 		}
-	}
-	else if (type == MCUI_OVERLAY_GOTO)
-	{
+	}	break;
+	case MCUI_OVERLAY_GOTO:
 		playerTeleport(&mcedit.player, mcedit.level, pos);
 		renderSetViewMat(mcedit.player.pos, mcedit.player.lookat, &mcedit.player.angleh);
-	}
-	else if (type == MCUI_OVERLAY_ANALYZE ||
-	         type == MCUI_OVERLAY_REPLACE)
-	{
+		break;
+
+	case MCUI_OVERLAY_ANALYZE:
+	case MCUI_OVERLAY_REPLACE:
+	case MCUI_OVERLAY_FILL:
 		mcedit.player.inventory.update ++;
 	}
 	mcedit.exit = 0;
