@@ -61,7 +61,7 @@ void selectionSetSize(void)
 	if (selection.nudgeSize)
 	{
 		TEXT buffer[32];
-		int  size[] = {
+		int size[] = {
 			(int) fabsf(selection.firstPt[VX] - selection.secondPt[VX]) + 1,
 			(int) fabsf(selection.firstPt[VZ] - selection.secondPt[VZ]) + 1,
 			(int) fabsf(selection.firstPt[VY] - selection.secondPt[VY]) + 1
@@ -109,6 +109,7 @@ static void selectionSetRect(void)
 			vtx += 10;
 		}
 	}
+	/* lines around the box */
 	for (i = 36; i < 36+24; i ++, vtx += 5)
 	{
 		DATA8 p = vertex + bboxIndices[i] * 3;
@@ -120,10 +121,10 @@ static void selectionSetRect(void)
 	}
 	/* lines around the edges */
 	glUnmapBuffer(GL_ARRAY_BUFFER);
+	selection.extVtx = 36;
 
 	selectionSetSize();
 }
-
 
 static int selectionNudge(SIT_Widget w, APTR cd, APTR ud)
 {
@@ -240,8 +241,7 @@ static void selectionDrawPoint(vec4 point, int offset)
 	indices = offset * (24+36) * 2;
 	glEnable(GL_DEPTH_TEST);
 	glProgramUniform4fv(selection.shader, selection.infoLoc, 1, loc);
-	setShaderValue(selection.shader, "info", 4, loc);
-	if (offset == 2) glDrawArrays(GL_TRIANGLES, 8*2, 36);
+	if (offset == 2) glDrawArrays(GL_TRIANGLES, 8*2, selection.extVtx);
 	else glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_SHORT, (APTR) indices);
 	indices += 36*2;
 
@@ -574,6 +574,154 @@ int selectionReplace(Map map, DATA32 progress, int blockId, int replId, int side
 	return (int) selection.regionSize[VX] *
 	       (int) selection.regionSize[VY] *
 	       (int) selection.regionSize[VZ];
+}
+
+
+/*
+ * fill selection with a geometric brush
+ */
+static Bool isInsideShape(int shape, vec4 voxelPos, vec4 sqRxyz)
+{
+	vec4 voxel;
+	int  i, axis1, axis2;
+	if (shape == SHAPE_CYLINDER)
+	{
+		axis1 = sqRxyz[VT];
+		axis2 = (axis1 >> 2) & 3;
+		axis1 &= 3;
+	}
+	for (i = 0; i < 3; i ++)
+	{
+		if (voxelPos[i] == 0) continue;
+		memcpy(voxel, voxelPos, 12);
+		if (voxel[i] < 0) voxel[i] --;
+		else              voxel[i] ++;
+		/*
+		 * <voxel> is the vector from sphere center to voxel center: check in the vector direction
+		 * if there is a farther voxel that would this one
+		 */
+		switch (shape) {
+		case SHAPE_SPHERE:
+			if (voxel[VX]*voxel[VX]*sqRxyz[VX] + voxel[VY]*voxel[VY]*sqRxyz[VY] + voxel[VZ]*voxel[VZ]*sqRxyz[VZ] >= 1)
+				return False;
+			break;
+		case SHAPE_CYLINDER:
+			if (voxel[axis1]*voxel[axis1]*sqRxyz[axis1] + voxel[axis2]*voxel[axis2]*sqRxyz[axis2] >= 1)
+				return False;
+		}
+	}
+	/* hidden on 3 sides: don't place that voxel */
+	return True;
+}
+
+/* get the axis (W, L or H) perdenticular to the disk of the cylinder */
+int selectionCylinderAxis(vec4 size, int direction)
+{
+	vec4 ratio = {
+		fabsf(1 - size[1] / size[2]),
+		fabsf(1 - size[0] / size[2]),
+		fabsf(1 - size[0] / size[1])
+	};
+	/* get the axis closest to 0 */
+	int axis = 0;
+	if (ratio[0] == ratio[1]) return 2;
+	if (ratio[0] > ratio[1]) axis = 1;
+	if (ratio[axis] > ratio[2]) axis = 2;
+	return axis;
+}
+
+
+int selectionFillWithShape(Map map, DATA32 progress, int blockId, int shape, vec4 size, int direction)
+{
+	vec4 pos = {
+		MIN(selection.firstPt[VX], selection.secondPt[VX]),
+		MIN(selection.firstPt[VY], selection.secondPt[VY]),
+		MIN(selection.firstPt[VZ], selection.secondPt[VZ])
+	};
+
+	/* size can be bigger than selection to create half-sphere or arches */
+	int selSize[] = {size[0], size[2], size[1]};
+	if (direction & 1)
+		swap(selSize[VX], selSize[VZ]);
+
+	vec4 center = {
+		pos[VX] + selSize[VX] * 0.5,
+		pos[VY] + selSize[VY] * 0.5,
+		pos[VZ] + selSize[VZ] * 0.5,
+	};
+
+	int x, y, z;
+
+	struct BlockIter_t iter;
+	mapInitIter(map, &iter, pos, blockId > 0);
+	mapUpdateInit(&iter);
+
+	/* equation of an ellipse is (x - center[VX])² / Rx² + (y - center[VY])² / Ry² + (z - center[VZ])² / Rz² <= 1 */
+	pos[VX] = 1 / (selSize[VX] * selSize[VX] * 0.25); /* == 1 / Rx.y.z² */
+	pos[VY] = 1 / (selSize[VY] * selSize[VY] * 0.25);
+	pos[VZ] = 1 / (selSize[VZ] * selSize[VZ] * 0.25);
+
+	selSize[VX] = fabsf(selection.firstPt[VX] - selection.secondPt[VX]) + 1;
+	selSize[VY] = fabsf(selection.firstPt[VY] - selection.secondPt[VY]) + 1;
+	selSize[VZ] = fabsf(selection.firstPt[VZ] - selection.secondPt[VZ]) + 1;
+	float   yoff = selSize[VY] - size[2];
+	uint8_t outer = shape & SHAPE_OUTER;
+	uint8_t hollow = shape & SHAPE_HOLLOW;
+	uint8_t axis1 = 0;
+	uint8_t axis2 = 0;
+	if ((shape & 15) == SHAPE_CYLINDER)
+	{
+		/* get the 2 axis where the disk of the cylinder will be located */
+		uint8_t axis[] = {0, 2};
+		if (direction & 1) axis[0] = 2, axis[1] = 0;
+		if (shape & SHAPE_AXIS_H) axis1 = axis[0], axis2 = axis[1]; else
+		if (shape & SHAPE_AXIS_L) axis1 = axis[0], axis2 = 1;
+		else                      axis1 = axis[1], axis2 = 1;
+		pos[VT] = axis1 | (axis2 << 2);
+	}
+	shape &= 15;
+
+	for (y = 0; y < selSize[VY]; y ++, mapIter(&iter, 0, 1, -selSize[VZ]))
+	{
+		for (z = 0; z < selSize[VZ]; z ++, mapIter(&iter, -selSize[VX], 0, 1))
+		{
+			for (x = 0; x < selSize[VX]; x ++, mapIter(&iter, 1, 0, 0))
+			{
+				/*
+				 * add a voxel if its center is within the sphere (this is also what was done in MCEdit v1)
+				 * this might not rasterize a sphere as perfectly as it should, but the result is kind
+				 * of esthetically pleasing, which is all what matter.
+				 */
+				vec4 vox = {
+					iter.ref->X + iter.x + 0.5 - center[VX],
+					iter.yabs + 0.5 - center[VY] - yoff,
+					iter.ref->Z + iter.z + 0.5 - center[VZ]
+				};
+				switch (shape) {
+				case SHAPE_SPHERE:
+					vox[VT] = vox[VX]*vox[VX]*pos[VX] + vox[VY]*vox[VY]*pos[VY] + vox[VZ]*vox[VZ]*pos[VZ];
+					break;
+				case SHAPE_CYLINDER:
+					vox[VT] = vox[axis1]*vox[axis1]*pos[axis1] + vox[axis2]*vox[axis2]*pos[axis2];
+				}
+				if (outer)
+				{
+					/* don't care about hollow */
+					if (vox[VT] < 1) continue;
+				}
+				else
+				{
+					if (vox[VT] >= 1) continue;
+					if (hollow && isInsideShape(shape, vox, pos)) continue;
+				}
+				mapUpdate(map, NULL, blockId, NULL, UPDATE_SILENT);
+			}
+		}
+	}
+
+	mapUpdateEnd(map);
+
+	return 0;
 }
 
 /* need to wait for thread to exit first */

@@ -19,6 +19,25 @@ vec  selectionGetPoints(void);
 Bool selectionProcessKey(int key, int mod);
 int  selectionFill(Map map, DATA32 progress, int blockId, int side, int direction);
 int  selectionReplace(Map map, DATA32 progress, int blockId, int replId, int side, Bool doSimilar);
+int  selectionFillWithShape(Map map, DATA32 progress, int blockId, int shape, vec4 size, int direction);
+int  selectionCylinderAxis(vec4 size, int direction);
+
+enum /* flags for <shape> parameter of function selectionFillWithShape() */
+{
+	SHAPE_SPHERE   = 0,
+	SHAPE_CYLINDER = 1,
+	SHAPE_DIAMOND  = 2,
+
+	/* these flags can be or'ed */
+	SHAPE_HOLLOW   = 0x10,
+	SHAPE_OUTER    = 0x20,
+	SHAPE_HALFSLAB = 0x40,
+
+	/* used by cylinder shape */
+	SHAPE_AXIS_W   = 0x100,
+	SHAPE_AXIS_L   = 0x200,
+	SHAPE_AXIS_H   = 0x400
+};
 
 #ifdef SELECTION_IMPL     /* private stuff below */
 struct Selection_t
@@ -26,6 +45,7 @@ struct Selection_t
 	int   shader;
 	int   infoLoc;        /* shader uniform location */
 	int   vao;            /* GL buffer to render selection points/box */
+	int   extVtx;
 	int   vboVertex;
 	int   vboIndex;
 	int   vboCount;

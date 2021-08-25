@@ -1123,9 +1123,9 @@ static struct
 	int         shape;
 	int         outerArea;
 	int         useHalfBlock;
-	float       thickVal;
+	int         axisCylinder;
+	vec4        size;
 	SIT_Widget  XYZ[3];
-	SIT_Widget  thickness;
 }	mcuiRepWnd;
 
 /* remove these blocks from inventory selection */
@@ -1193,16 +1193,30 @@ static int mcuiFillBlocks(SIT_Widget w, APTR cd, APTR map)
 	/* these functions will start a thread: processing the entire selection can be long, so don't hang the interface in the meantime */
 	int block = mcuiRepWnd.invFill->items->id;
 	mcuiRepWnd.processCurrent = 0;
-	if (! mcuiRepWnd.doReplace)
+	if (mcuiRepWnd.XYZ[0])
+	{
+		/* geometric brush fill */
+		int shape = mcuiRepWnd.shape | (1 << (mcuiRepWnd.axisCylinder + 8));
+		if (mcuiRepWnd.isHollow)     shape |= SHAPE_HOLLOW;
+		if (mcuiRepWnd.useHalfBlock) shape |= SHAPE_HALFSLAB;
+		if (mcuiRepWnd.outerArea)    shape |= SHAPE_OUTER;
+		mcuiRepWnd.processTotal = selectionFillWithShape(map, &mcuiRepWnd.processCurrent, block, shape,
+			mcuiRepWnd.size, renderGetFacingDirection());
+	}
+	else if (! mcuiRepWnd.doReplace)
+	{
+		/* fill entire selection */
 		mcuiRepWnd.processTotal = selectionFill(map, &mcuiRepWnd.processCurrent, block, mcuiRepWnd.side, renderGetFacingDirection());
-	else
-		mcuiRepWnd.processTotal = selectionReplace(map, &mcuiRepWnd.processCurrent, block, mcuiRepWnd.invRepl->items->id, mcuiRepWnd.side, mcuiRepWnd.doSimilar);
+	}
+	else mcuiRepWnd.processTotal = selectionReplace(map, &mcuiRepWnd.processCurrent, block, mcuiRepWnd.invRepl->items->id, mcuiRepWnd.side, mcuiRepWnd.doSimilar);
 
 	/* better not to click twice on this button */
 	SIT_SetValues(w, SIT_Enabled, False, NULL);
 
 	/* this function will monitor the thread progress */
 	mcuiRepWnd.asyncCheck = SIT_ActionAdd(w, mcuiRepWnd.processStart = curTime, curTime + 1e9, mcuiFillCheckProgress, map);
+
+	renderAddModif();
 
 	return 1;
 }
@@ -1284,13 +1298,6 @@ static int mcuiFillStop(SIT_Widget w, APTR cd, APTR ud)
 	return 1;
 }
 
-/* if hollow mode is on, let user adjust thickness */
-static int mcuiActivateThickness(SIT_Widget w, APTR cd, APTR ud)
-{
-	SIT_SetValues(mcuiRepWnd.thickness, SIT_Enabled, (int) cd, NULL);
-	return 1;
-}
-
 void mcuiFillOrReplace(SIT_Widget parent, Map map, Bool fillWithBrush)
 {
 	static struct MCInventory_t mcinv   = {.invRow = 6, .invCol = MAXCOLINV};
@@ -1328,39 +1335,42 @@ void mcuiFillOrReplace(SIT_Widget parent, Map map, Bool fillWithBrush)
 	if (fillWithBrush)
 	{
 		/* interface to fill selection with a geometric brush */
+		TEXT cylinder[32];
 		vec points = selectionGetPoints();
-		float size[] = {
-			(int) fabsf(points[VX] - points[VX+4]) + 1,
-			(int) fabsf(points[VZ] - points[VZ+4]) + 1,
-			(int) fabsf(points[VY] - points[VY+4]) + 1
-		};
-		if (renderGetFacingDirection() & 1)
+		vec size   = mcuiRepWnd.size;
+		int dir    = renderGetFacingDirection();
+		size[0] = (int) fabsf(points[VX] - points[VX+4]) + 1;
+		size[1] = (int) fabsf(points[VZ] - points[VZ+4]) + 1;
+		size[2] = (int) fabsf(points[VY] - points[VY+4]) + 1;
+		if (dir & 1)
 		{
 			float tmp = size[0];
 			size[0] = size[1];
 			size[1] = tmp;
 		}
-		if (mcuiRepWnd.thickVal < 1)
-			mcuiRepWnd.thickVal = 1;
+		mcuiRepWnd.axisCylinder = selectionCylinderAxis(size, dir);
+		sprintf(cylinder, "Cylinder (%c)", "WLH"[mcuiRepWnd.axisCylinder]);
 
 		SIT_CreateWidgets(diag,
 			"<label name=label1 title=Shape: left=WIDGET,fill,0.5em top=MIDDLE,fill>"
 			"<button name=shape1 title=Round checkState=1 curValue=", &mcuiRepWnd.shape, "buttonType=", SITV_RadioButton,
 			" top=OPPOSITE,fill left=WIDGET,label1,0.5em>"
-			"<button name=shape2 title=Square curValue=", &mcuiRepWnd.shape, "buttonType=", SITV_RadioButton,
-			" top=WIDGET,shape1,0.3em left=WIDGET,label1,0.5em>"
+			"<button name=shape2 title=", cylinder, "curValue=", &mcuiRepWnd.shape, "buttonType=", SITV_RadioButton,
+			" top=WIDGET,shape1,0.3em left=WIDGET,label1,0.5em maxWidth=shape1>"
 			"<button name=shape3 title=Diamond curValue=", &mcuiRepWnd.shape, "buttonType=", SITV_RadioButton,
-			" top=WIDGET,shape2,0.3em left=WIDGET,label1,0.5em>"
+			" top=WIDGET,shape2,0.3em left=WIDGET,label1,0.5em maxWidth=shape2>"
 
 			"<button name=outside title='Fill outer area' curValue=", &mcuiRepWnd.outerArea, "buttonType=", SITV_CheckBox,
-			" left=WIDGET,shape3,1em top=OPPOSITE,fill>"
+			" left=WIDGET,shape1,1em top=OPPOSITE,fill>"
 			"<button name=half title='Half-block' curValue=", &mcuiRepWnd.useHalfBlock, "buttonType=", SITV_CheckBox,
-			" left=WIDGET,shape3,1em top=WIDGET,outside,0.3em>"
+			" left=WIDGET,shape1,1em top=WIDGET,outside,0.3em>"
+			"<button name=hollow curValue=", &mcuiRepWnd.isHollow, "buttonType=", SITV_CheckBox, "title=Hollow"
+			" left=WIDGET,shape1,1em top=WIDGET,half,0.3em>"
 
-			"<frame name=title2 title=Size: left=FORM right=FORM top=WIDGET,shape3,0.5em/>"
+			"<frame name=title2 title='<b>Size:</b> (clipped by selection)' left=FORM right=FORM top=WIDGET,shape3,0.5em/>"
 			"<label name=label2.big title=W: right=WIDGET,fill,0.5em>"
 			"<editbox name=xcoord roundTo=2 curValue=", size, "editType=", SITV_Float, "minValue=1"
-			" right=", SITV_AttachPosition, SITV_AttachPos(32), 0, "left=OPPOSITE,fill top=WIDGET,title2,0.9em>"
+			" right=", SITV_AttachPosition, SITV_AttachPos(32), 0, "left=OPPOSITE,fill top=WIDGET,title2,0.5em>"
 			"<label name=label3.big title=L: left=WIDGET,xcoord,0.5em>"
 			"<editbox name=zcoord roundTo=2 curValue=", size+1, "editType=", SITV_Float, "minValue=1"
 			" right=", SITV_AttachPosition, SITV_AttachPos(64), 0, "left=WIDGET,label3,0.5em top=OPPOSITE,xcoord>"
@@ -1368,15 +1378,10 @@ void mcuiFillOrReplace(SIT_Widget parent, Map map, Bool fillWithBrush)
 			"<editbox name=ycoord roundTo=2 curValue=", size+2, "editType=", SITV_Float, "minValue=1"
 			" right=FORM,,1em left=WIDGET,label4,0.5em top=OPPOSITE,zcoord>"
 
-			"<frame name=title3 title='Thickness if hollow:' left=FORM right=FORM top=WIDGET,xcoord,0.5em/>"
-			"<label name=label5.big title=T:>"
-			"<editbox name=thick enabled=", mcuiRepWnd.isHollow, "roundTo=2 curValue=", &mcuiRepWnd.thickVal, "right=OPPOSITE,xcoord editType=", SITV_Float,
-			" left=OPPOSITE,xcoord top=WIDGET,title3,0.5em>"
-			"<button name=hollow curValue=", &mcuiRepWnd.isHollow, "buttonType=", SITV_CheckBox, "title=Hollow left=WIDGET,thick,0.5em top=MIDDLE,thick>"
-
 			"<button name=ok title=Fill>"
-			"<button name=cancel title=Cancel buttonType=", SITV_CancelButton, "right=FORM top=WIDGET,thick,0.5em>"
+			"<button name=cancel title=Cancel buttonType=", SITV_CancelButton, "right=FORM top=WIDGET,xcoord,0.5em>"
 			"<progress name=prog visible=0 title='%d%%' left=FORM right=WIDGET,ok,1em top=MIDDLE,ok>"
+			"<tooltip name=info delayTime=", SITV_TooltipManualTrigger, "displayTime=10000 toolTipAnchor=", SITV_TooltipFollowMouse, ">"
 		);
 		SIT_SetAttributes(diag,
 			"<label2 top=MIDDLE,xcoord><label3 top=MIDDLE,xcoord><label4 top=MIDDLE,xcoord>"
@@ -1386,8 +1391,6 @@ void mcuiFillOrReplace(SIT_Widget parent, Map map, Bool fillWithBrush)
 		mcuiRepWnd.XYZ[0] = SIT_GetById(diag, "xcoord");
 		mcuiRepWnd.XYZ[1] = SIT_GetById(diag, "zcoord");
 		mcuiRepWnd.XYZ[2] = SIT_GetById(diag, "ycoord");
-		mcuiRepWnd.thickness = SIT_GetById(diag, "thick");
-		SIT_AddCallback(SIT_GetById(diag, "hollow"), SITE_OnActivate, mcuiActivateThickness, NULL);
 	}
 	else /* fill/replace entire selection */
 	{
@@ -1403,6 +1406,7 @@ void mcuiFillOrReplace(SIT_Widget parent, Map map, Bool fillWithBrush)
 			"<progress name=prog visible=0 title='%d%%' left=FORM right=WIDGET,ok,1em top=MIDDLE,ok>"
 			"<tooltip name=info delayTime=", SITV_TooltipManualTrigger, "displayTime=10000 toolTipAnchor=", SITV_TooltipFollowMouse, ">"
 		);
+		mcuiRepWnd.XYZ[0] = NULL;
 	}
 	SIT_SetAttributes(diag, "<searchtxt top=MIDDLE,search><inv right=WIDGET,scroll,0.2em><msg top=MIDDLE,fill>");
 
@@ -1514,6 +1518,7 @@ void mcuiDeleteAll(SIT_Widget parent, Map map)
 	mcuiRepWnd.processCurrent = 0;
 	mcuiRepWnd.replace = NULL;
 	mcuiRepWnd.processTotal = selectionFill(map, &mcuiRepWnd.processCurrent, 0, 0, 0);
+	renderAddModif();
 
 	/* if the interface is stopped early, we need to be notified */
 	SIT_AddCallback(parent, SITE_OnFinalize, mcuiFillStop, map);

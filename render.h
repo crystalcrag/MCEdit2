@@ -31,6 +31,7 @@ void renderAllSaved(void);
 void renderFrustum(Bool snapshot);
 void renderResetViewport(void);
 void renderSaveRestoreState(Bool save);
+void renderResetFrustum(void);
 int  renderSetSelectionPoint(int action);
 int  renderGetTerrain(int size[2]);
 int  renderGetFacingDirection(void);

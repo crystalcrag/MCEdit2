@@ -23,7 +23,7 @@ void modelFree(Model model)
 
 /*
  * Generate a sphere by subdividing into evenly spaced slices. Primitives will be triangles but
- * not of the same size. This way it is easy to map a texture on it. Faces are oriented clock-wise
+ * not of the same size. This way it is easy to map a texture on it.
  */
 Model modelSphere(float size, int subdiv)
 {

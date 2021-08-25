@@ -1,4 +1,14 @@
+=========== Week 34 ===========
+Tue Aug 24:
+	* geometric brush continued: hollow, outer and cylinder done.
+
+Mon Aug 23:
+	* sphare brush based on distance from center to center of voxel: better.
+
 =========== Week 33 ===========
+Sun Aug 22:
+	* sphere brush first version: meh (based on volume coverage).
+
 Sat Aug 21:
 	* brush fill interface.
 

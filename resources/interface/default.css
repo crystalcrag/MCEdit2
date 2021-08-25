@@ -17,7 +17,7 @@ form.bg table { border: 2px inset #c5c5c5; background: #8b8b8b; color: white }
 form.bg table th { padding: 0.2em; background-color: #c5c5c5; border: 2px outset #c5c5c5; color: #222 }
 form.bg table td { padding: 0.2em; text-shadow: 2px 2px #3f3f3f }
 form.bg table td:checked { background-color: #23ba1f; color: selfore }
-form.bg fieldset { border: 0; font-weight: bold; border-top: 0.3em groove #c5c5c5; border-radius: 0; text-align: center }
+form.bg fieldset { border: 0; border-top: 0.3em groove #c5c5c5; border-radius: 0; text-align: center }
 
 /* mcedit style dialog */
 form.mc { background: rgba(black, 0.5); font-size: 0.8em; padding: 0.5em; border-radius: 0.5em }

@@ -1529,6 +1529,11 @@ int renderGetTerrain(int size[2])
 	return render.nvgTerrain;
 }
 
+void renderResetFrustum(void)
+{
+	render.setFrustum = 1;
+}
+
 /* SIT_Nuke is about to be called */
 void renderSaveRestoreState(Bool save)
 {

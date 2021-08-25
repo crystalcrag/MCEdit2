@@ -113,7 +113,7 @@ void mapInitIter(Map map, BlockIter iter, vec4 pos, Bool autoAlloc)
 	if (cd == NULL)
 	{
 		if (autoAlloc && 0 <= layer && layer < CHUNK_LIMIT)
-			iter->cd = cd = chunkCreateEmpty(ref, layer);
+			iter->cd = cd = chunkCreateEmpty(ref, layer), renderResetFrustum();
 		else /* iterator around a block in mapUpdate.c/blockUpdate.c might go one block above or below */
 			iter->cd = cd = chunkAir;
 		iter->blockIds = cd->blockIds;
@@ -186,7 +186,7 @@ void mapIter(BlockIter iter, int dx, int dy, int dz)
 	{
 		/* XXX check if above or below build limit */
 		if (iter->alloc)
-			cd = chunkCreateEmpty(ref, iter->yabs>>4);
+			cd = chunkCreateEmpty(ref, iter->yabs>>4), renderResetFrustum();
 		else
 			cd = chunkAir;
 	}
@@ -1422,7 +1422,7 @@ void mapUpdateMesh(Map map)
 		particlesChunkUpdate(map, cd);
 		if (cd->cdFlags == CDFLAG_PENDINGDEL)
 			/* link within chunk has already been removed in chunkUpdate() */
-			free(cd);
+			free(cd), renderResetFrustum();
 		else
 			cd->update = NULL;
 		#ifdef DEBUG

@@ -307,18 +307,22 @@ int main(int nb, char * argv[])
 	return 0;
 }
 
+static uint8_t toolbarCmds[] = {
+	MCUI_OVERLAY_REPLACE, MCUI_OVERLAY_FILL, 0, 0, MCUI_OVERLAY_ANALYZE, 0, 0, 0, 0
+};
+
 /*
  * Main loop for editing world
  */
 void mceditWorld(void)
 {
 	SDL_Event event;
-	#ifdef DEBUG
-	uint8_t   paused = 0;
-	#endif
 	uint8_t   ignore = 0;
 	uint8_t   capture = 0;
 	uint8_t   sunMove = 0;
+	#ifdef DEBUG
+	uint8_t   paused = 0;
+	#endif
 
 	renderSetInventory(&mcedit.player.inventory);
 	renderSetViewMat(mcedit.player.pos, mcedit.player.lookat, &mcedit.player.angleh);
@@ -327,9 +331,6 @@ void mceditWorld(void)
 	{
 		while (SDL_PollEvent(&event))
 		{
-			static uint8_t toolbarCmds[] = {
-				MCUI_OVERLAY_REPLACE, MCUI_OVERLAY_FILL, 0, 0, MCUI_OVERLAY_ANALYZE, 0, 0, 0, 0
-			};
 			int key;
 			switch (event.type) {
 			case SDL_KEYDOWN:
@@ -392,6 +393,9 @@ void mceditWorld(void)
 					break;
 				case SDLK_i:
 					FrameSaveRestoreTime(True);
+					SDL_WM_GrabInput(SDL_GRAB_OFF);
+					SDL_ShowCursor(SDL_ENABLE);
+					capture = ignore = 0;
 					mceditUIOverlay(MCUI_OVERLAY_BLOCK);
 					FrameSaveRestoreTime(False);
 					mcedit.player.inventory.update ++;
@@ -410,9 +414,16 @@ void mceditWorld(void)
 					case 2:
 						/* partial extended selection, but switched to main toolbar: cancel selection */
 						if ((mcedit.selection > 0 && mcedit.selection < 3) || (mcedit.selection == 0 && mcedit.player.inventory.offhand & 1))
+						{
 							mcedit.selection = renderSetSelectionPoint(RENDER_SEL_CLEAR);
+						}
 						else
+						{
+							SDL_WM_GrabInput(SDL_GRAB_OFF);
+							SDL_ShowCursor(SDL_ENABLE);
+							capture = ignore = 0;
 							mceditCommands(toolbarCmds[mcedit.player.inventory.selected]);
+						}
 					}
 				}
 				break;
@@ -501,8 +512,7 @@ void mceditWorld(void)
 						SDL_WarpMouse(mcedit.width>>1, mcedit.height>>1);
 					else
 						SDL_WarpMouse(mcedit.mouseX, mcedit.mouseY);
-					capture = 0;
-					ignore = 0;
+					capture = ignore = 0;
 				}
 				break;
 			case SDL_VIDEORESIZE:
@@ -571,6 +581,8 @@ void mceditPlaceBlock(void)
 			playerScrollInventory(p, p->inventory.hoverSlot - p->inventory.selected);
 			mcedit.selection = renderSetSelectionPoint(RENDER_SEL_COMPLETE);
 		}
+		if (mcedit.selection == 3)
+			mceditCommands(toolbarCmds[mcedit.player.inventory.selected]);
 		return;
 	}
 	if (p->inventory.offhand & PLAYER_OFFHAND)
@@ -654,6 +666,7 @@ void mceditUIOverlay(int type)
 
 	MapExtraData sel = NULL;
 	itemCount = 0;
+	item = NULL;
 	switch (type) {
 	case MCUI_OVERLAY_BLOCK:
 		/* show list of blocks to edit player's inventory */
