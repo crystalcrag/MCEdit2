@@ -24,6 +24,7 @@ void mapUpdateMesh(Map);
 void mapUpdateFlush(Map);
 void mapUpdatePush(Map, vec4 pos, int blockId, DATA8 tile);
 int  mapUpdateGetCnxGraph(ChunkData, int start, DATA8 visited);
+void mapUpdateFloodFill(Map map, vec4 pos, DATA8 visited, int8_t minMax[8]);
 void mapUpdateInit(BlockIter);
 void mapUpdateEnd(Map);
 

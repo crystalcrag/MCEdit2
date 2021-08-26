@@ -483,7 +483,9 @@ void mceditWorld(void)
 					capture = 1;
 					break;
 				case SDL_BUTTON_MIDDLE:
+					if ((mcedit.player.inventory.offhand & 1) == 0)
 					{
+						/* add block selected to inventory bar */
 						vec4 pos;
 						MapExtraData sel = renderGetSelectedBlock(pos, NULL);
 						if (sel)
@@ -493,6 +495,7 @@ void mceditWorld(void)
 							playerUpdateNBT(&mcedit.player, &mcedit.level->levelDat);
 						}
 					}
+					else mcedit.selection = renderSetSelectionPoint(RENDER_SEL_AUTO);
 					break;
 				case SDL_BUTTON_WHEELUP:
 					playerScrollInventory(&mcedit.player, -1);

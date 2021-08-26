@@ -277,6 +277,16 @@ int renderSetSelectionPoint(int action)
 		selectionClear();
 		break;
 
+	case RENDER_SEL_AUTO:
+		if (render.selection.sel & SEL_CURRENT)
+		{
+			selectionAutoSelect(render.level, render.selection.current, render.sitRoot, render.scale);
+			render.selection.sel |= SEL_FIRST|SEL_SECOND;
+			render.invCache ++;
+			return 3;
+		}
+		break;
+
 	case RENDER_SEL_ADDPT:
 		/* click on a block */
 		if ((render.selection.sel & SEL_CURRENT) == 0)
@@ -285,12 +295,12 @@ int renderSetSelectionPoint(int action)
 
 		if ((render.inventory->offhand & PLAYER_ALTPOINT) == 0)
 		{
-			selectionSet(render.sitRoot, render.scale, render.selection.current, 0);
+			selectionSetPoint(render.sitRoot, render.scale, render.selection.current, 0);
 			render.selection.sel |= SEL_FIRST;
 		}
 		else
 		{
-			selectionSet(render.sitRoot, render.scale, render.selection.current, 1);
+			selectionSetPoint(render.sitRoot, render.scale, render.selection.current, 1);
 			render.selection.sel |= SEL_SECOND;
 		}
 		if ((render.selection.sel & SEL_BOTH) == SEL_BOTH);

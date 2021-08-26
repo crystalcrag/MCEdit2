@@ -43,6 +43,7 @@ enum /* possible values for <action> of renderSetSelectionPoint */
 	RENDER_SEL_ADDPT    = 1,
 	RENDER_SEL_COMPLETE = 2,
 	RENDER_SEL_INIT     = 3,
+	RENDER_SEL_AUTO     = 4,
 };
 
 enum /* possible values for <what> of renderToggleDebug */

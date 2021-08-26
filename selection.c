@@ -181,7 +181,8 @@ Bool selectionProcessKey(int key, int mod)
 	return False;
 }
 
-void selectionSet(APTR sitRoot, float scale, vec4 pos, int point)
+/* set the position of one of the 2 extended selection point */
+void selectionSetPoint(APTR sitRoot, float scale, vec4 pos, int point)
 {
 	memcpy(point ? selection.secondPt : selection.firstPt, pos, 16);
 
@@ -275,6 +276,23 @@ void selectionRender(void)
 }
 
 /*
+ * select similar blocks
+ */
+void selectionAutoSelect(Map map, vec4 pos, APTR sitRoot, float scale)
+{
+	uint8_t visited[512];
+	int8_t  minMax[8];
+
+	memset(visited, 0, sizeof visited);
+	mapUpdateFloodFill(map, pos, visited, minMax);
+
+	vec4 pt1 = {pos[VX] + minMax[VX],   pos[VY] + minMax[VY],   pos[VZ] + minMax[VZ]};
+	vec4 pt2 = {pos[VX] + minMax[VX+4], pos[VY] + minMax[VY+4], pos[VZ] + minMax[VZ+4]};
+	selectionSetPoint(sitRoot, scale, pt1, 0);
+	selectionSetPoint(sitRoot, scale, pt2, 1);
+}
+
+/*
  * selection manipulation : fill / replace
  */
 static struct
@@ -287,6 +305,7 @@ static struct
 	int    replId;
 	int    similar;
 	char   cancel;
+	vec4   size;
 	Mutex  wait;
 }	selectionAsync;
 
@@ -349,13 +368,19 @@ void selectionProcessFill(void * unused)
 			blockId |= dir2data[selectionAsync.facing];
 		}
 		break;
+	case ORIENT_STAIRS:
+		{
+			static uint8_t dir2stairs[] = {2, 0, 3, 1};
+			blockId |= dir2stairs[selectionAsync.facing];
+		}
+		break;
 	case ORIENT_SWNE:
 		break;
 	}
 
 	if (dy == 1 && dx > 2 && dz > 2 && b->special == BLOCK_STAIRS)
 	{
-		/* only build build the outline of a rectangle with this block (typical use case: roof) */
+		/* only build the outline of a rectangle with this block (typical use case: roof) */
 		blockId |= 2;
 		for (x = dx; x > 0; x--, mapIter(&iter, 1, 0, 0))
 			mapUpdate(map, NULL, blockId, NULL, UPDATE_SILENT);
@@ -374,6 +399,9 @@ void selectionProcessFill(void * unused)
 		mapIter(&iter, dx-1, 0, -dz+2);
 		for (z = dz-2; z > 0; z--, mapIter(&iter, 0, 0, 1))
 			mapUpdate(map, NULL, blockId, NULL, UPDATE_SILENT);
+
+		/* no need to check if the operation is cancelled: this type of operation should be very fast */
+		selectionAsync.progress[0] = dz*dx;
 	}
 	else while (dy > 0)
 	{
@@ -608,6 +636,10 @@ static Bool isInsideShape(int shape, vec4 voxelPos, vec4 sqRxyz)
 		case SHAPE_CYLINDER:
 			if (voxel[axis1]*voxel[axis1]*sqRxyz[axis1] + voxel[axis2]*voxel[axis2]*sqRxyz[axis2] >= 1)
 				return False;
+			break;
+		case SHAPE_DIAMOND:
+			if (fabsf(voxel[VX])*sqRxyz[VX] + fabsf(voxel[VY])*sqRxyz[VY] + fabsf(voxel[VZ])*sqRxyz[VZ] - EPSILON >= 1)
+				return False;
 		}
 	}
 	/* hidden on 3 sides: don't place that voxel */
@@ -630,8 +662,8 @@ int selectionCylinderAxis(vec4 size, int direction)
 	return axis;
 }
 
-
-int selectionFillWithShape(Map map, DATA32 progress, int blockId, int shape, vec4 size, int direction)
+static void selectionProcessShape(void * unused)
+//Map map, DATA32 progress, int blockId, int flags, vec4 size, int direction)
 {
 	vec4 pos = {
 		MIN(selection.firstPt[VX], selection.secondPt[VX]),
@@ -640,8 +672,8 @@ int selectionFillWithShape(Map map, DATA32 progress, int blockId, int shape, vec
 	};
 
 	/* size can be bigger than selection to create half-sphere or arches */
-	int selSize[] = {size[0], size[2], size[1]};
-	if (direction & 1)
+	int selSize[] = {selectionAsync.size[0], selectionAsync.size[2], selectionAsync.size[1]};
+	if (selectionAsync.facing & 1)
 		swap(selSize[VX], selSize[VZ]);
 
 	vec4 center = {
@@ -651,35 +683,48 @@ int selectionFillWithShape(Map map, DATA32 progress, int blockId, int shape, vec
 	};
 
 	int x, y, z;
+	int flags = selectionAsync.similar;
+	uint8_t shape = flags & 15;
 
 	struct BlockIter_t iter;
-	mapInitIter(map, &iter, pos, blockId > 0);
+	MutexEnter(selectionAsync.wait);
+	mapInitIter(selectionAsync.map, &iter, pos, selectionAsync.blockId > 0);
 	mapUpdateInit(&iter);
 
-	/* equation of an ellipse is (x - center[VX])² / Rx² + (y - center[VY])² / Ry² + (z - center[VZ])² / Rz² <= 1 */
-	pos[VX] = 1 / (selSize[VX] * selSize[VX] * 0.25); /* == 1 / Rx.y.z² */
-	pos[VY] = 1 / (selSize[VY] * selSize[VY] * 0.25);
-	pos[VZ] = 1 / (selSize[VZ] * selSize[VZ] * 0.25);
+	switch (shape) {
+	case SHAPE_SPHERE:
+	case SHAPE_CYLINDER:
+		/* equation of an ellipse is (x - center[VX])² / Rx² + (y - center[VY])² / Ry² + (z - center[VZ])² / Rz² <= 1 */
+		pos[VX] = 1 / (selSize[VX] * selSize[VX] * 0.25); /* == 1 / Rx.y.z² */
+		pos[VY] = 1 / (selSize[VY] * selSize[VY] * 0.25);
+		pos[VZ] = 1 / (selSize[VZ] * selSize[VZ] * 0.25);
+		break;
+	case SHAPE_DIAMOND:
+		/* equation of a diamond: |x - center[VX]| / Rx + |y - center[VY]| / Ry + |z - center[VZ]| / Rz <= 1 */
+		pos[VX] = 2. / selSize[VX];
+		pos[VY] = 2. / selSize[VY];
+		pos[VZ] = 2. / selSize[VZ];
+	}
 
 	selSize[VX] = fabsf(selection.firstPt[VX] - selection.secondPt[VX]) + 1;
 	selSize[VY] = fabsf(selection.firstPt[VY] - selection.secondPt[VY]) + 1;
 	selSize[VZ] = fabsf(selection.firstPt[VZ] - selection.secondPt[VZ]) + 1;
-	float   yoff = selSize[VY] - size[2];
-	uint8_t outer = shape & SHAPE_OUTER;
-	uint8_t hollow = shape & SHAPE_HOLLOW;
+	float   yoff = selSize[VY] - selectionAsync.size[2];
+	uint8_t outer = flags & SHAPE_OUTER;
+	uint8_t hollow = flags & SHAPE_HOLLOW;
 	uint8_t axis1 = 0;
 	uint8_t axis2 = 0;
-	if ((shape & 15) == SHAPE_CYLINDER)
+	if (shape == SHAPE_CYLINDER)
 	{
 		/* get the 2 axis where the disk of the cylinder will be located */
 		uint8_t axis[] = {0, 2};
-		if (direction & 1) axis[0] = 2, axis[1] = 0;
-		if (shape & SHAPE_AXIS_H) axis1 = axis[0], axis2 = axis[1]; else
-		if (shape & SHAPE_AXIS_L) axis1 = axis[0], axis2 = 1;
+		if (selectionAsync.facing & 1) axis[0] = 2, axis[1] = 0;
+		if (flags & SHAPE_AXIS_H) axis1 = axis[0], axis2 = axis[1]; else
+		if (flags & SHAPE_AXIS_L) axis1 = axis[0], axis2 = 1;
 		else                      axis1 = axis[1], axis2 = 1;
 		pos[VT] = axis1 | (axis2 << 2);
 	}
-	shape &= 15;
+	flags &= 15;
 
 	for (y = 0; y < selSize[VY]; y ++, mapIter(&iter, 0, 1, -selSize[VZ]))
 	{
@@ -703,6 +748,9 @@ int selectionFillWithShape(Map map, DATA32 progress, int blockId, int shape, vec
 					break;
 				case SHAPE_CYLINDER:
 					vox[VT] = vox[axis1]*vox[axis1]*pos[axis1] + vox[axis2]*vox[axis2]*pos[axis2];
+					break;
+				case SHAPE_DIAMOND:
+					vox[VT] = fabsf(vox[VX])*pos[VX] + fabsf(vox[VY])*pos[VY] + fabsf(vox[VZ])*pos[VZ] - EPSILON;
 				}
 				if (outer)
 				{
@@ -714,14 +762,40 @@ int selectionFillWithShape(Map map, DATA32 progress, int blockId, int shape, vec
 					if (vox[VT] >= 1) continue;
 					if (hollow && isInsideShape(shape, vox, pos)) continue;
 				}
-				mapUpdate(map, NULL, blockId, NULL, UPDATE_SILENT);
+				mapUpdate(selectionAsync.map, NULL, selectionAsync.blockId, NULL, UPDATE_SILENT);
+				/* DEBUG: slow processing down */
+				ThreadPause(500);
 			}
+
+			if (selectionAsync.cancel) goto break_all;
+			selectionAsync.progress[0] += selSize[VX];
 		}
 	}
+	break_all:
+	MutexLeave(selectionAsync.wait);
+}
 
-	mapUpdateEnd(map);
+/* start the thread that will do the job */
+int selectionFillWithShape(Map map, DATA32 progress, int blockId, int flags, vec4 size, int direction)
+{
+	selectionAsync.progress = progress;
+	selectionAsync.blockId  = blockId;
+	selectionAsync.similar  = flags;
+	selectionAsync.facing   = direction;
+	selectionAsync.map      = map;
+	selectionAsync.cancel   = 0;
 
-	return 0;
+	memcpy(selectionAsync.size, size, 12);
+
+	/* wait for thread to finish */
+	if (! selectionAsync.wait)
+		selectionAsync.wait = MutexCreate();
+
+	ThreadCreate(selectionProcessShape, NULL);
+
+	return (int) selection.regionSize[VX] *
+	       (int) selection.regionSize[VY] *
+	       (int) selection.regionSize[VZ];
 }
 
 /* need to wait for thread to exit first */
@@ -735,4 +809,3 @@ void selectionCancelOperation(void)
 		MutexLeave(selectionAsync.wait);
 	}
 }
-

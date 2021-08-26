@@ -1,9 +1,13 @@
 =========== Week 34 ===========
+Wed Aug 25:
+	* extended selection: select by similar block type.
+	* geometric diamond brush done.
+
 Tue Aug 24:
 	* geometric brush continued: hollow, outer and cylinder done.
 
 Mon Aug 23:
-	* sphare brush based on distance from center to center of voxel: better.
+	* sphere brush based on distance from center of brush to center of voxel: better.
 
 =========== Week 33 ===========
 Sun Aug 22:

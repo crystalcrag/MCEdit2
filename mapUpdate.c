@@ -1398,6 +1398,65 @@ int mapUpdateGetCnxGraph(ChunkData cd, int start, DATA8 visited)
 	return cnx;
 }
 
+/* extended selection: select all similar blocks within a 16x16x16 area */
+void mapUpdateFloodFill(Map map, vec4 pos, DATA8 visited, int8_t minMax[8])
+{
+	struct BlockIter_t iter;
+	int8_t min[4] = {0, 0, 0};
+	int8_t max[4] = {0, 0, 0};
+	int    block;
+	mapUpdateInitTrack(track);
+	mapInitIter(map, &iter, pos, False);
+	trackAdd(0, 0, 0);
+	visited[0] |= mask8bit[0];
+	block = getBlockId(&iter);
+
+	while (track.usage > 0)
+	{
+		int8_t * XYZ = track.coord + track.pos;
+		uint8_t  i;
+
+		track.pos += 3;
+		track.usage -= 3;
+		if (track.pos == track.max) track.pos = 0;
+
+		/* no more than 16x16x16 */
+		for (i = 0; i < 3; i ++)
+		{
+			int8_t x = XYZ[i];
+			if (x < min[i] || x > max[i])
+			{
+				if (max[i] - min[i] + 1 >= 16) continue;
+				if (x < min[i]) min[i] = x;
+				else            max[i] = x;
+			}
+		}
+
+		struct BlockIter_t neighbor = iter;
+		mapIter(&neighbor, XYZ[0], XYZ[1], XYZ[2]);
+		for (i = 0; i < 6; i ++)
+		{
+			mapIter(&neighbor, xoff[i], yoff[i], zoff[i]);
+			if (getBlockId(&neighbor) == block)
+			{
+				int8_t x = XYZ[0] + relx[i];
+				int8_t y = XYZ[1] + rely[i];
+				int8_t z = XYZ[2] + relz[i];
+				/* that's why it is limited to 16x16x16: <visited> can only hold 4096 bits */
+				int pos = (x & 15) + (z & 15) * 16 + (y & 15) * 256;
+				if ((visited[pos>>3] & mask8bit[pos&7]) == 0)
+				{
+					visited[pos>>3] |= mask8bit[pos&7];
+					trackAdd(x, y, z);
+				}
+			}
+		}
+	}
+
+	memcpy(minMax,   min, 4);
+	memcpy(minMax+4, max, 4);
+}
+
 /*
  * generic block update function: dispatch to various other functions of this module.
  */
