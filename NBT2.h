@@ -104,9 +104,9 @@ struct NBTHdr_t
 #define	TAG_List_Compound    (TAG_List | (TAG_Compound << 4))
 
 #ifdef NBT_IMPL			     /* private stuff below */
-#define SKYLIGHT_OFFSET      4112
-#define BLOCKLIGHT_OFFSET    6180
-#define DATA_OFFSET          8248
+#define DATA_OFFSET          4112 /* size of all (previous table + previous NBTHdr) */
+#define SKYLIGHT_OFFSET      6176
+#define BLOCKLIGHT_OFFSET    8244
 #define ADDID_OFFSET         10312
 
 #define SET_NULL(mem)        * (uint32_t *) mem = 0
@@ -151,8 +151,8 @@ struct ZStream_t
 #define	UINT16(in)     ((gzGetC(in) << 8) | gzGetC(in))
 
 #else /* !NBT_IMPL */
-#define SKYLIGHT_OFFSET       4116 /* offset from start of blockId ... */
-#define BLOCKLIGHT_OFFSET     6184 /* ... and each table being 2048 bytes */
-#define DATA_OFFSET           8248
+#define DATA_OFFSET           4112 /* offset from start of blockId ... */
+#define SKYLIGHT_OFFSET       6180 /* ... and each table being 2048 bytes + NBTHdr */
+#define BLOCKLIGHT_OFFSET     8248
 #endif
 #endif

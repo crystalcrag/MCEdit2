@@ -25,7 +25,7 @@ typedef void (*ChunkFlushCb_t)(WriteBuffer);
 void      chunkInitStatic(void);
 Bool      chunkLoad(Chunk, const char * path, int x, int z);
 Bool      chunkSave(Chunk, const char * path);
-void      chunkUpdate(Chunk update, ChunkData air, int layer);
+void      chunkUpdate(Chunk update, ChunkData air, DATAS16 chunkOffsets, int layer);
 int       chunkFree(Chunk);
 ChunkData chunkCreateEmpty(Chunk, int layer);
 DATA8     chunkGetTileEntity(Chunk, int * XYZ);
@@ -70,9 +70,12 @@ struct Chunk_t                         /* an entire column of 16x16 blocks */
 	uint8_t   cflags;                  /* CLFAG_* */
 	uint8_t   neighbor;                /* offset for chunkNeighbor[] table */
 	uint8_t   maxy;                    /* number of sub-chunks in layer[], starting at 0 */
+
 	uint8_t   lightPopulated;          /* information from NBT */
 	uint8_t   terrainDeco;             /* trees and ores have been generated */
 	uint8_t   cdIndex;                 /* iterate over ChunkData when saving */
+	uint8_t   noChunks;                /* S,E,N,W bitfield: no chunks in this direction */
+
 	int       X, Z;                    /* coord in blocks unit (not chunk, ie: map coord) */
 	DATA8     biomeMap;                /* XZ map of biome id */
 	DATA32    heightMap;               /* XZ map of lowest Y coordinate where skylight value == 15 */
@@ -103,7 +106,8 @@ enum /* flags for Chunk.cflags */
 enum /* flags for ChunkData.cdFlags */
 {
 	CDFLAG_PENDINGDEL   = 0x01,        /* chunk is empty: can be deleted */
-	CDFLAG_UPDATENEARBY = 0x02         /* chunk changed: update nearby chunks if necessary */
+	CDFLAG_UPDATENEARBY = 0x02,        /* chunk changed: update nearby chunks if necessary */
+	CDFLAG_NOLIGHT      = 0x04         /* cd->blockIds only contains block and data table (brush) */
 };
 
 enum /* NBT update tag */

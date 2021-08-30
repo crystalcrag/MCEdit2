@@ -32,6 +32,7 @@ void renderFrustum(Bool snapshot);
 void renderResetViewport(void);
 void renderSaveRestoreState(Bool save);
 void renderResetFrustum(void);
+void renderDrawMap(Map map, vec4 pos);
 int  renderSetSelectionPoint(int action);
 int  renderGetTerrain(int size[2]);
 int  renderGetFacingDirection(void);
@@ -73,13 +74,13 @@ enum /* possible flags for paramter <what> of debugToggleInfo() (side view) */
 
 /* chunk transfer to GPU */
 void renderInitBuffer(ChunkData cd, WriteBuffer, WriteBuffer);
-void renderFinishMesh(Bool updateVtxSize);
+void renderFinishMesh(Map map, Bool updateVtxSize);
 void renderFreeArray(ChunkData);
 
 /* house keeping */
-void renderClearBank(void);
+void renderClearBank(Map map);
 void renderAddToBank(ChunkData);
-void renderAllocCmdBuffer(void);
+void renderAllocCmdBuffer(Map map);
 
 void renderItems(Item items, int count, float scale);
 
@@ -211,7 +212,6 @@ void debugRender(void);
  * store mesh of chunks into banks so that they can be rendered with very little OpenGL draw calls.
  */
 
-#define MEMPOOL                    20 * 1024 * 1000    /* allocated on the GPU (in bytes) */
 #define MEMITEM                    512
 
 /* private definition */

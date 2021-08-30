@@ -123,10 +123,10 @@ void signFillVertex(int blockId, float pt[6], int uv[4])
 }
 
 /* text is stored in JSON, really ?! */
-static int signParseText(STRPTR dest, int max, STRPTR json)
+static int signParseText(DATA8 dest, int max, DATA8 json)
 {
 	/* do it quick'n dirty */
-	STRPTR text = strstr(json, "\"text\":");
+	DATA8 text = strstr(json, "\"text\":");
 	if (text && text[7] == '\"')
 	{
 		/* it's not like NBT allow storing arbitrary datatypes like JSON does */
@@ -210,21 +210,21 @@ static void signUpdateBank(SignText sign)
 	nvgFontFaceId(vg, signs.font);
 	nvgFontSize(vg, SIGN_HEIGHT/4);
 	nvgTextAlign(vg, NVG_ALIGN_TOP | NVG_ALIGN_LEFT);
-	nvgFillColorRGBA8(vg, "\0\0\0\xff");
+	nvgFillColorRGBAS8(vg, "\0\0\0\xff");
 	/* clear remain of previous sign if any */
 	nvgBeginPath(vg);
 	nvgRect(vg, x, y, SIGN_WIDTH, SIGN_HEIGHT);
 	nvgFill(vg);
 
 	/* now we can draw the text */
-	nvgFillColorRGBA8(vg, "\xff\0\0\xff");
+	nvgFillColorRGBAS8(vg, "\xff\0\0\xff");
 	ellipse = nvgTextBounds(vg, 0, 0, ellipsis, ellipsis + 3, NULL);
 
 	int i;
 	for (i = 0; i < 4; i ++, y += SIGN_HEIGHT / 4)
 	{
-		TEXT text[128];
-		int  len = signParseText(text, sizeof text, sign->tile + sign->text[i]);
+		uint8_t text[128];
+		int len = signParseText(text, sizeof text, sign->tile + sign->text[i]);
 
 		if (len > 0)
 		{
@@ -269,7 +269,7 @@ void signSetText(Chunk chunk, vec4 pos, DATA8 msg)
 	int    XYZ[] = {pos[0], pos[1], pos[2]};
 	int    i;
 
-	Split(text, msg, DIM(text), '\n');
+	Split(text, (STRPTR) msg, DIM(text), '\n');
 
 	for (i = 0; i < 4; i ++)
 	{

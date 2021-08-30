@@ -763,7 +763,7 @@ uint8_t openDoorDataToModel[] = {
 static int offsets[] = { /* neighbors: S, E, N, W, T, B */
 	16, 1, -16, -1, 256, -256
 };
-static int8_t offsetConnected[] = { /* S, E, N, W, T, B (4 coords per face) */
+static uint8_t offsetConnected[] = { /* S, E, N, W, T, B (4 coords per face) */
 	9+13, 1+13, -9+13, -1+13,     9+13, -3+13, -9+13,  3+13,    9+13, -1+13, -9+13,  1+13,
 	9+13, 3+13, -9+13, -3+13,    -3+13,  1+13,  3+13, -1+13,    3+13,  1+13, -3+13, -1+13
 };
@@ -986,15 +986,15 @@ static void chunkAddEmitters(ChunkData cd, int pos, int type)
 
 extern int breakPoint;
 static void chunkGenQuad(ChunkData neighbors[], WriteBuffer buffer, BlockState b, int pos);
-static void chunkGenCust(ChunkData neighbors[], WriteBuffer opaque, BlockState b, int pos);
-static void chunkGenCube(ChunkData neighbors[], WriteBuffer opaque, BlockState b, int pos);
+static void chunkGenCust(ChunkData neighbors[], WriteBuffer opaque, BlockState b, DATAS16 chunkOffsets, int pos);
+static void chunkGenCube(ChunkData neighbors[], WriteBuffer opaque, BlockState b, DATAS16 chunkOffsets, int pos);
 int mapUpdateGetCnxGraph(ChunkData, int start, DATA8 visited);
 
 /*
  * transform chunk data into something useful for the vertex shader (blocks.vsh)
  * this is the "meshing" function for our world
  */
-void chunkUpdate(Chunk c, ChunkData empty, int layer)
+void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 {
 	static uint8_t visited[512];
 	struct WriteBuffer_t alpha, opaque;
@@ -1009,8 +1009,9 @@ void chunkUpdate(Chunk c, ChunkData empty, int layer)
 	neighbors[4] = layer+1 < c->maxy ? c->layer[layer+1] : empty;
 	for (i = 0; i < 4; i ++)
 	{
-		neighbors[i] = (c + chunkNeighbor[c->neighbor + (1<<i)])->layer[layer];
-		if (neighbors[i] == NULL) neighbors[i] = empty;
+		neighbors[i] = (c + chunkOffsets[c->neighbor + (1<<i)])->layer[layer];
+		if (neighbors[i] == NULL || (c->noChunks & (1 << i)))
+			neighbors[i] = empty;
 	}
 	if (cur->emitters)
 		cur->emitters[0] = 0;
@@ -1053,7 +1054,7 @@ void chunkUpdate(Chunk c, ChunkData empty, int layer)
 		case CUST:
 			if (state->custModel)
 			{
-				chunkGenCust(neighbors, STATEFLAG(state, ALPHATEX) ? &alpha : &opaque, state, pos);
+				chunkGenCust(neighbors, STATEFLAG(state, ALPHATEX) ? &alpha : &opaque, state, chunkOffsets, pos);
 				/* SOLIDOUTER: custom block with ambient occlusion */
 				if (state->special != BLOCK_SOLIDOUTER)
 					break;
@@ -1062,7 +1063,7 @@ void chunkUpdate(Chunk c, ChunkData empty, int layer)
 		case TRANS:
 			// no break;
 		case SOLID:
-			chunkGenCube(neighbors, STATEFLAG(state, ALPHATEX) ? &alpha : &opaque, state, pos);
+			chunkGenCube(neighbors, STATEFLAG(state, ALPHATEX) ? &alpha : &opaque, state, chunkOffsets, pos);
 			break;
 		default:
 			if (state->id == 0) air ++;
@@ -1070,7 +1071,7 @@ void chunkUpdate(Chunk c, ChunkData empty, int layer)
 	}
 
 	/* entire sub-chunk is composed of air: check if we can get rid of it */
-	if (air == 4096)
+	if (air == 4096 && (cur->cdFlags & CDFLAG_NOLIGHT) == 0)
 	{
 		/* block light must be all 0 and skylight be all 15 */
 		if (memcmp(cur->blockIds + BLOCKLIGHT_OFFSET, empty->blockIds + BLOCKLIGHT_OFFSET, 2048) == 0 &&
@@ -1113,11 +1114,15 @@ static void chunkGenQuad(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 	int     seed  = neighbors[6]->Y ^ chunk->X ^ chunk->Z;
 	uint8_t x, y, z, light;
 
-	x =  LIGHT(neighbors[6], pos>>1);
-	y = SKYLIT(neighbors[6], pos>>1);
+	if ((neighbors[6]->cdFlags & CDFLAG_NOLIGHT) == 0)
+	{
+		x =  LIGHT(neighbors[6], pos>>1);
+		y = SKYLIT(neighbors[6], pos>>1);
 
-	if (pos & 1) light = (y & 0xf0) | (x >> 4);
-	else         light = (y << 4)   | (x & 15);
+		if (pos & 1) light = (y & 0xf0) | (x >> 4);
+		else         light = (y << 4)   | (x & 15);
+	}
+	else light = 0xf0; /* brush */
 
 	x = (pos & 15);
 	z = (pos >> 4) & 15;
@@ -1216,7 +1221,7 @@ static DATA8 chunkGetTileEntityFromOffset(Chunk c, int Y, int offset)
 }
 
 /* custom model mesh: anything that doesn't fit quad or full/half block */
-static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b, int pos)
+static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b, DATAS16 chunkOffsets, int pos)
 {
 	static uint8_t connect6blocks[] = {
 		/*B*/7, 5, 1, 3, 4,   /*M*/16, 14, 10, 12,   /*T*/25, 23, 19, 21, 22
@@ -1236,10 +1241,14 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 	y = (pos >> 8);
 	Y = neighbors[6]->Y >> 4;
 
-	light = blocks[SKYLIGHT_OFFSET   + (pos >> 1)];
-	sides = blocks[BLOCKLIGHT_OFFSET + (pos >> 1)];
-	if (pos & 1) light = (light & 0xf0) | (sides >> 4);
-	else         light = ((light & 15) << 4) | (sides & 15);
+	if ((neighbors[6]->cdFlags & CDFLAG_NOLIGHT) == 0)
+	{
+		light = blocks[SKYLIGHT_OFFSET   + (pos >> 1)];
+		sides = blocks[BLOCKLIGHT_OFFSET + (pos >> 1)];
+		if (pos & 1) light = (light & 0xf0) | (sides >> 4);
+		else         light = ((light & 15) << 4) | (sides & 15);
+	}
+	else light = 0xf0; /* brush */
 
 	sides = xsides[x] | ysides[y] | zsides[z];
 	data  = blocks[DATA_OFFSET + (pos >> 1)];
@@ -1345,9 +1354,9 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 			if (ocs > 0)
 			{
 				/* neighbor is in another chunk: bits of OCS will tell where: 1:S, 2:E, 4:N, 8:W, 16:T, 32:B */
-				Chunk sub = c + chunkNeighbor[c->neighbor + (ocs&15)];
+				Chunk sub = c + chunkOffsets[c->neighbor + (ocs&15)];
 				int   lay = Y + subChunkOff[ocs];
-				if (lay < 0 || lay >= CHUNK_LIMIT) continue;
+				if (lay < 0 || lay >= CHUNK_LIMIT || (c->noChunks & ocs)) continue;
 				ChunkData cd = sub->layer[lay];
 				if (! cd) continue;
 				/* translate pos into new chunk */
@@ -1465,7 +1474,7 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 }
 
 /* most common block within a chunk */
-static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b, int pos)
+static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b, DATAS16 chunkOffsets, int pos)
 {
 	uint16_t blockIds3x3[27];
 	uint8_t  skyBlock[27];
@@ -1474,7 +1483,7 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 	DATA8    blocks = neighbors[6]->blockIds;
 	int      side, sides, occlusion, slab, rotate;
 	int      i, j, k, n;
-	uint8_t  x, y, z, Y, data;
+	uint8_t  x, y, z, Y, data, hasLights;
 	Chunk    c;
 
 	x = (pos & 15);
@@ -1482,7 +1491,7 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 	y = (pos >> 8);
 	c = neighbors[6]->chunk;
 	Y = neighbors[6]->Y >> 4;
-
+	hasLights = (neighbors[6]->cdFlags & CDFLAG_NOLIGHT) == 0;
 	sides = xsides[x] | ysides[y] | zsides[z];
 
 	/* outer loop: iterate over each faces (6) */
@@ -1546,16 +1555,20 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 				if (ocs > 0)
 				{
 					/* neighbor is in another chunk: bits of OCS will tell where: 1:S, 2:E, 4:N, 8:W, 16:T, 32:B */
-					Chunk sub = c + chunkNeighbor[c->neighbor + (ocs&15)];
+					Chunk sub = c + chunkOffsets[c->neighbor + (ocs&15)];
 					int   lay = Y + subChunkOff[ocs];
-					if (lay < 0 || lay >= CHUNK_LIMIT) continue;
+					if (lay < 0 || lay >= CHUNK_LIMIT || (c->noChunks & ocs)) continue;
 					cd = sub->layer[lay];
 					if (! cd) { skyBlock[k] = 15<<4; continue; }
 					/* translate pos into new chunk */
 					off += blockOffset[ocs] + blockOffset2[occlusionSides[k] & sides];
 					/* extract block+sky light */
-					data =  LIGHT(cd, off >> 1); skyBlock[k]  = off & 1 ? data >> 4 : data & 0xf;
-					data = SKYLIT(cd, off >> 1); skyBlock[k] |= off & 1 ? data & 0xf0 : data << 4;
+					if (hasLights)
+					{
+						data =  LIGHT(cd, off >> 1); skyBlock[k]  = off & 1 ? data >> 4 : data & 0xf;
+						data = SKYLIT(cd, off >> 1); skyBlock[k] |= off & 1 ? data & 0xf0 : data << 4;
+					}
+					else skyBlock[k] = 0xf0;
 					/* block and metadata */
 					data = META(cd, off >> 1);
 					id   = cd->blockIds[off];
@@ -1564,9 +1577,14 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 				{
 					cd   = neighbors[6];
 					off += occlusionNeighbors[k];
-					data = blocks[BLOCKLIGHT_OFFSET + (off >> 1)]; skyBlock[k]  = off & 1 ? data >> 4 : data & 0xf;
-					data = blocks[SKYLIGHT_OFFSET   + (off >> 1)]; skyBlock[k] |= off & 1 ? data & 0xf0 : data << 4;
-					data = blocks[DATA_OFFSET       + (off >> 1)];
+					if (hasLights)
+					{
+						data = blocks[BLOCKLIGHT_OFFSET + (off >> 1)]; skyBlock[k]  = off & 1 ? data >> 4 : data & 0xf;
+						data = blocks[SKYLIGHT_OFFSET   + (off >> 1)]; skyBlock[k] |= off & 1 ? data & 0xf0 : data << 4;
+					}
+					else /* brush don't have skylight/blocklight */
+						skyBlock[k] = 0xf0;
+					data = blocks[DATA_OFFSET + (off >> 1)];
 					id   = blocks[off];
 				}
 				t = blockGetByIdData(id, off & 1 ? data >> 4 : data & 0xf);

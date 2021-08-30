@@ -27,6 +27,8 @@ struct GameState_t
 	int      maxDist;          /* render distance in chunks */
 	uint8_t  forceSel;         /* don't display inventory item */
 	uint8_t  selection;        /* selection state: &1: first block selected, &2: second */
+	uint8_t  hasClone;         /* clone brush active */
+	uint8_t  inEditBox;        /* edit box is active: restrict some kbd shortcut */
 	TEXT     capture[128];     /* screenshot directory */
 };
 
@@ -34,6 +36,7 @@ enum /* possible values for state: which game loop are we running */
 {
 	GAMELOOP_WORLDSELECT,
 	GAMELOOP_WORLD,
+	GAMELOOP_OVERLAY,
 	GAMELOOP_SIDEVIEW
 };
 
@@ -51,7 +54,9 @@ enum /* possible value for parameter mceditUIOverlay() */
 	MCUI_OVERLAY_ANALYZE,
 	MCUI_OVERLAY_REPLACE,
 	MCUI_OVERLAY_FILL,
-	MCUI_OVERLAY_DELALL
+	MCUI_OVERLAY_DELALL,
+	MCUI_SEL_CLONE,
+	MCUI_SEL_COPY
 };
 
 /* ID string */

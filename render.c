@@ -26,7 +26,6 @@ struct RenderWorld_t render;
 extern double        curTime;
 static ListHead      meshBanks;    /* MeshBuffer */
 static ListHead      alphaBanks;   /* MeshBuffer */
-static ListHead      gpuBanks;     /* GPUBank */
 
 /* fixed shading per face (somewhat copied from minecraft): S, E, N, W, T, B */
 static float shading[] = {
@@ -200,50 +199,53 @@ static void renderSelection(void)
 
 		/* draw block bounding box */
 		BlockState b   = blockGetById(render.selection.extra.blockId);
-		VTXBBox    box = blockGetBBoxForVertex(b); if (! box) return;
+		VTXBBox    box = blockGetBBoxForVertex(b);
 		int        flg = render.selection.extra.cnxFlags;
 		int        off = 0;
 		int        count;
 
-		if (render.selection.extra.special == BLOCK_DOOR_TOP) loc[VY] --;
-		loc[3] = 1;
-		glProgramUniform4fv(render.selection.shader, locOffset, 1, loc);
-		glBindVertexArray(render.vaoBBox);
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, render.vboBBoxIdx);
-		glFrontFace(GL_CCW);
-
-		/* too complex to do in the vertex/geometry shader */
-		static int lastId, lastFlag, lastCount;
-		/* rearrange element array on the fly: performance does not really matter here */
-		if (lastId != b->id || lastFlag != flg)
+		if (box)
 		{
-			count = lastCount = blockGenVertexBBox(b, box, flg, &render.vboBBoxVTX, ID(31,0), 0);
-			lastId = b->id;
-			lastFlag = flg;
-			//fprintf(stderr, "block = %s, cnx = %d\n", b->name, flg);
+			if (render.selection.extra.special == BLOCK_DOOR_TOP) loc[VY] --;
+			loc[3] = 1;
+			glProgramUniform4fv(render.selection.shader, locOffset, 1, loc);
+			glBindVertexArray(render.vaoBBox);
+			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, render.vboBBoxIdx);
+			glFrontFace(GL_CCW);
+
+			/* too complex to do in the vertex/geometry shader */
+			static int lastId, lastFlag, lastCount;
+			/* rearrange element array on the fly: performance does not really matter here */
+			if (lastId != b->id || lastFlag != flg)
+			{
+				count = lastCount = blockGenVertexBBox(b, box, flg, &render.vboBBoxVTX, ID(31,0), 0);
+				lastId = b->id;
+				lastFlag = flg;
+				//fprintf(stderr, "block = %s, cnx = %d\n", b->name, flg);
+			}
+			else count = lastCount;
+
+			/* filled polygon */
+			glDepthMask(GL_FALSE);
+			glDrawElements(GL_TRIANGLES, count & 0xffff, GL_UNSIGNED_SHORT, 0);
+
+			loc[3] = 0;
+			glProgramUniform4fv(render.selection.shader, locOffset, 1, loc);
+
+			/* edge highlight */
+			off += (count & 0xffff) * 2;
+			count >>= 16;
+			glDrawElements(GL_LINES, count, GL_UNSIGNED_SHORT, (APTR) off);
+
+			/* hidden part of selection box */
+			loc[3] = 2;
+			glProgramUniform4fv(render.selection.shader, locOffset, 1, loc);
+			glDepthFunc(GL_GEQUAL);
+			glDrawElements(GL_LINES, count, GL_UNSIGNED_SHORT, (APTR) off);
+
+			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+			glDepthFunc(GL_LEQUAL);
 		}
-		else count = lastCount;
-
-		/* filled polygon */
-		glDepthMask(GL_FALSE);
-		glDrawElements(GL_TRIANGLES, count & 0xffff, GL_UNSIGNED_SHORT, 0);
-
-		loc[3] = 0;
-		glProgramUniform4fv(render.selection.shader, locOffset, 1, loc);
-
-		/* edge highlight */
-		off += (count & 0xffff) * 2;
-		count >>= 16;
-		glDrawElements(GL_LINES, count, GL_UNSIGNED_SHORT, (APTR) off);
-
-		/* hidden part of selection box */
-		loc[3] = 2;
-		glProgramUniform4fv(render.selection.shader, locOffset, 1, loc);
-		glDepthFunc(GL_GEQUAL);
-		glDrawElements(GL_LINES, count, GL_UNSIGNED_SHORT, (APTR) off);
-
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-		glDepthFunc(GL_LEQUAL);
 
 		if (render.selection.sel & (SEL_FIRST|SEL_SECOND))
 			selectionRender();
@@ -367,7 +369,7 @@ void renderPointToBlock(int mx, int my)
 			render.toolbarItem = NULL;
 		}
 	}
-	else
+	else /* use raycasting to get block being pointed at */
 	{
 		if (render.selection.sel & SEL_OFFHAND)
 		{
@@ -749,6 +751,8 @@ void renderShowBlockInfo(Bool show, int what)
 	{
 		render.debugInfo &= ~what;
 		SIT_SetValues(render.blockInfo, SIT_Visible, False, NULL);
+		if (render.selection.sel & SEL_BOTH)
+			render.debugInfo |= DEBUG_SELECTION;
 	}
 }
 
@@ -842,9 +846,9 @@ static void renderDrawExtInv(Item items, float scale, int count)
 
 			int x = roundf(items->x + scale - nvgTextBounds(vg, 0, 0, number, number+2, NULL));
 			int y = render.height - items->y - fh;
-			nvgFillColorRGBA8(vg, "\0\0\0\xff");
+			nvgFillColorRGBAS8(vg, "\0\0\0\xff");
 			nvgText(vg, x + 2, y + 2, number, number + 2);
-			nvgFillColorRGBA8(vg, "\xff\xff\xff\xff");
+			nvgFillColorRGBAS8(vg, "\xff\xff\xff\xff");
 			nvgText(vg, x, y, number, number + 2);
 		}
 		if (items->uses > 0)
@@ -853,7 +857,7 @@ static void renderDrawExtInv(Item items, float scale, int count)
 			float dura = itemDurability(items);
 			int y = render.height - items->y - sz * 2;
 			nvgRect(vg, items->x, y, scale, sz*2);
-			nvgFillColorRGBA8(vg, "\0\0\0\xff");
+			nvgFillColorRGBAS8(vg, "\0\0\0\xff");
 			nvgFill(vg);
 			nvgBeginPath(vg);
 			nvgFillColorRGBA8(vg, blockGetDurability(dura));
@@ -1087,7 +1091,7 @@ static void renderPrepVisibleChunks(Map map)
 	player = (0 <= Y && Y < map->center->maxy ? map->center->layer[Y] : NULL);
 
 	/* prep all the terrain chunks we will need to render */
-	for (bank = HEAD(gpuBanks); bank; NEXT(bank))
+	for (bank = HEAD(map->gpuBanks); bank; NEXT(bank))
 	{
 		if (bank->vtxSize == 0) continue;
 		bank->cmdTotal = 0;
@@ -1165,9 +1169,9 @@ static void renderText(NVGcontext * vg, int x, int y, STRPTR text, float a)
 {
 	STRPTR end = strchr(text, 0);
 	nvgGlobalAlpha(vg, a);
-	nvgFillColorRGBA8(vg, "\0\0\0\xff");
+	nvgFillColorRGBAS8(vg, "\0\0\0\xff");
 	nvgText(vg, x+2, y+2, text, end);
-	nvgFillColorRGBA8(vg, "\xff\xff\xff\xff");
+	nvgFillColorRGBAS8(vg, "\xff\xff\xff\xff");
 	nvgText(vg, x, y, text, end);
 	nvgGlobalAlpha(vg, 1);
 }
@@ -1367,7 +1371,7 @@ void renderWorld(void)
 
 	/* first pass: main terrain */
 	GPUBank bank;
-	for (bank = HEAD(gpuBanks); bank; NEXT(bank))
+	for (bank = HEAD(render.level->gpuBanks); bank; NEXT(bank))
 	{
 		if (bank->cmdTotal > 0)
 		{
@@ -1384,7 +1388,7 @@ void renderWorld(void)
 	/* third pass: translucent terrain */
 	glUseProgram(render.shaderBlocks);
 //	glDepthMask(GL_FALSE);
-	for (bank = HEAD(gpuBanks); bank; NEXT(bank))
+	for (bank = HEAD(render.level->gpuBanks); bank; NEXT(bank))
 	{
 		if (bank->cmdAlpha > 0)
 		{
@@ -1490,9 +1494,9 @@ void renderWorld(void)
 		nvgFontSize(vg, FONTSIZE_MSG);
 		nvgBeginPath(vg);
 		nvgRect(vg, FONTSIZE, render.height - FONTSIZE * 2, render.message.pxLen + FONTSIZE_MSG, FONTSIZE);
-		nvgFillColorRGBA8(vg, "\0\0\0\xaa");
+		nvgFillColorRGBAS8(vg, "\0\0\0\xaa");
 		nvgFill(vg);
-		nvgFillColorRGBA8(vg, "\xff\xff\xff\xff");
+		nvgFillColorRGBAS8(vg, "\xff\xff\xff\xff");
 		nvgText(vg, FONTSIZE+FONTSIZE_MSG/2, render.height - FONTSIZE*2+(FONTSIZE-FONTSIZE_MSG)/2, render.message.text, render.message.text + render.message.chrLen);
 	}
 
@@ -1511,6 +1515,40 @@ void renderWorld(void)
 		if (render.selection.extra.entity > 0 || (render.selection.sel & SEL_CURRENT))
 			/* tooltip about block being pointed at */
 			renderBlockInfo(&render.selection);
+	}
+}
+
+/* mostly used to render cloned selection */
+void renderDrawMap(Map map, vec4 pos)
+{
+	GPUBank bank;
+	renderPrepVisibleChunks(map);
+
+	glUseProgram(render.shaderBlocks);
+	for (bank = HEAD(map->gpuBanks); bank; NEXT(bank))
+	{
+		if (bank->cmdTotal > 0)
+		{
+			/* we have something to render from this bank */
+			glBindVertexArray(bank->vaoTerrain);
+			glBindBuffer(GL_DRAW_INDIRECT_BUFFER, bank->vboMDAI);
+			glMultiDrawArraysIndirect(GL_POINTS, 0, bank->cmdTotal, 0);
+		}
+	}
+
+	/* second: entities */
+	//entityRender();
+
+	/* third pass: translucent terrain */
+	for (bank = HEAD(map->gpuBanks); bank; NEXT(bank))
+	{
+		if (bank->cmdAlpha > 0)
+		{
+			/* we have something to render from this bank */
+			glBindVertexArray(bank->vaoTerrain);
+			glBindBuffer(GL_DRAW_INDIRECT_BUFFER, bank->vboMDAI);
+			glMultiDrawArraysIndirect(GL_POINTS, (void*)(bank->cmdTotal*16), bank->cmdAlpha, 0);
+		}
 	}
 }
 
@@ -1610,7 +1648,6 @@ void renderInitBuffer(ChunkData cd, WriteBuffer opaque, WriteBuffer alpha)
 	/* typical sub-chunk is usually below 64Kb of mesh data */
 	if (meshBanks.lh_Head == NULL)
 	{
-		/* since we are using a 5 bytes per vertex, we will only use at most 65535 bytes */
 		mesh = renderAllocMeshBuf(&alphaBanks);
 		mesh = renderAllocMeshBuf(&meshBanks);
 	}
@@ -1643,7 +1680,7 @@ void renderInitBuffer(ChunkData cd, WriteBuffer opaque, WriteBuffer alpha)
  * - allocating in a bank where there is no free list is O(1)
  * - if there are free list, it is O(N), where N = number of free list.
  */
-static int renderStoreArrays(ChunkData cd, int size)
+static int renderStoreArrays(Map map, ChunkData cd, int size)
 {
 	GPUBank bank;
 	GPUMem  mem;
@@ -1658,12 +1695,12 @@ static int renderStoreArrays(ChunkData cd, int size)
 		return -1;
 	}
 
-	for (bank = HEAD(gpuBanks); bank && bank->memAvail <= bank->memUsed + size /* bank is full */; NEXT(bank));
+	for (bank = HEAD(map->gpuBanks); bank && bank->memAvail <= bank->memUsed + size /* bank is full */; NEXT(bank));
 
 	if (bank == NULL)
 	{
 		bank = calloc(sizeof *bank, 1);
-		bank->memAvail = MEMPOOL;
+		bank->memAvail = map->GPUMaxChunk;
 		bank->maxItems = MEMITEM;
 		bank->usedList = calloc(sizeof *mem, MEMITEM);
 		bank->firstFree = -1;
@@ -1676,7 +1713,7 @@ static int renderStoreArrays(ChunkData cd, int size)
 		glBindVertexArray(bank->vaoTerrain);
 		glBindBuffer(GL_ARRAY_BUFFER, bank->vboTerrain);
 		/* this will allocate memory on the GPU: mem chunks of 20Mb */
-		glBufferData(GL_ARRAY_BUFFER, MEMPOOL, NULL, GL_STATIC_DRAW);
+		glBufferData(GL_ARRAY_BUFFER, map->GPUMaxChunk, NULL, GL_STATIC_DRAW);
 		glVertexAttribIPointer(0, 4, GL_UNSIGNED_INT, VERTEX_DATA_SIZE, 0);
 		glEnableVertexAttribArray(0);
 		glVertexAttribIPointer(1, 3, GL_UNSIGNED_INT, VERTEX_DATA_SIZE, (void *) 16);
@@ -1688,7 +1725,7 @@ static int renderStoreArrays(ChunkData cd, int size)
 
 		checkOpenGLError("renderStoreArrays");
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
-		ListAddTail(&gpuBanks, &bank->node);
+		ListAddTail(&map->gpuBanks, &bank->node);
 	}
 
 	/* check for free space in the bank */
@@ -1837,10 +1874,10 @@ void renderFreeArray(ChunkData cd)
 }
 
 /* about to build command list for glMultiDrawArraysIndirect() */
-void renderClearBank(void)
+void renderClearBank(Map map)
 {
 	GPUBank bank;
-	for (bank = HEAD(gpuBanks); bank; bank->vtxSize = 0, bank->cmdTotal = 0, NEXT(bank));
+	for (bank = HEAD(map->gpuBanks); bank; bank->vtxSize = 0, bank->cmdTotal = 0, NEXT(bank));
 }
 
 /* number of sub-chunk we will have to render: will define the size of the command list */
@@ -1852,10 +1889,10 @@ void renderAddToBank(ChunkData cd)
 }
 
 /* alloc command list buffer on the GPU */
-void renderAllocCmdBuffer(void)
+void renderAllocCmdBuffer(Map map)
 {
 	GPUBank bank;
-	for (bank = HEAD(gpuBanks); bank; NEXT(bank))
+	for (bank = HEAD(map->gpuBanks); bank; NEXT(bank))
 	{
 		/* avoid reallocating this buffer: it is used quite a lot (changed every frame) */
 		int count = (bank->vtxSize + 1023) & ~1023;
@@ -1873,7 +1910,7 @@ void renderAllocCmdBuffer(void)
 }
 
 /* transfer mesh to GPU */
-void renderFinishMesh(Bool updateVtxSize)
+void renderFinishMesh(Map map, Bool updateVtxSize)
 {
 	MeshBuffer list;
 	int        size, alpha;
@@ -1908,11 +1945,11 @@ void renderFinishMesh(Bool updateVtxSize)
 		{
 			/* not enough space: need to "free" previous mesh before */
 			renderFreeArray(cd);
-			offset = renderStoreArrays(cd, total);
+			offset = renderStoreArrays(map, cd, total);
 		}
 		else offset = mem->offset, cd->glSize = total; /* reuse mem segment */
 	}
-	else offset = renderStoreArrays(cd, total);
+	else offset = renderStoreArrays(map, cd, total);
 
 //	fprintf(stderr, "allocating %d bytes at %d for chunk %d, %d / %d\n", total, offset, cd->chunk->X, cd->chunk->Z, cd->Y);
 
@@ -1942,11 +1979,11 @@ void renderFinishMesh(Bool updateVtxSize)
 	}
 }
 
-void renderDebugBank(void)
+void renderDebugBank(Map map)
 {
 	GPUBank bank;
 
-	for (bank = HEAD(gpuBanks); bank; NEXT(bank))
+	for (bank = HEAD(map->gpuBanks); bank; NEXT(bank))
 	{
 		GPUMem mem;
 		int    i, total;
@@ -1954,7 +1991,7 @@ void renderDebugBank(void)
 		for (mem = bank->usedList, i = bank->nbItem, total = 0; i > 0; i --, mem ++)
 			if (mem->size > 0) total += mem->size;
 
-		fprintf(stderr, "bank: mem = %d/%dK, items: %d/%d, vtxSize: %d, mem: %d bytes, avg = %d\n", bank->memUsed>>10, bank->memAvail>>10,
+		fprintf(stderr, "bank: mem = %d/%dK, items: %d/%d, vtxSize: %d\nmem: %d bytes bytes, avg = %d bytes\n", bank->memUsed>>10, bank->memAvail>>10,
 			bank->nbItem, bank->maxItems, bank->vtxSize, total, total / bank->nbItem);
 	}
 }

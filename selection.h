@@ -22,6 +22,9 @@ int  selectionFill(Map map, DATA32 progress, int blockId, int side, int directio
 int  selectionReplace(Map map, DATA32 progress, int blockId, int replId, int side, Bool doSimilar);
 int  selectionFillWithShape(Map map, DATA32 progress, int blockId, int shape, vec4 size, int direction);
 int  selectionCylinderAxis(vec4 size, int direction);
+void selectionClone(APTR sitRoot, Map map, vec4 toPos, int side);
+void selectionSetClonePt(vec4 pos, int side);
+void selectionCancelClone(void);
 
 enum /* flags for <shape> parameter of function selectionFillWithShape() */
 {
@@ -40,31 +43,41 @@ enum /* flags for <shape> parameter of function selectionFillWithShape() */
 	SHAPE_AXIS_H   = 0x400
 };
 
-#ifdef SELECTION_IMPL     /* private stuff below */
+#ifdef SELECTION_IMPL        /* private stuff below */
 struct Selection_t
 {
-	int   shader;
-	int   infoLoc;        /* shader uniform location */
-	int   vao;            /* GL buffer to render selection points/box */
-	int   extVtx;
-	int   vboVertex;
-	int   vboIndex;
-	int   vboCount;
-	int   hasPoint;       /* &1: first point set, &2: second point set */
-	int   nudgePoint;     /* which point is being held in the nudge window */
-	int   nudgeStep;
-	vec4  firstPt;        /* coord in world space */
-	vec4  secondPt;
-	vec4  regionPt;
-	vec4  regionSize;
-	APTR  nudgeDiag;      /* SIT_DIALOG */
-	APTR  nudgeSize;      /* SIT_LABEL */
-	DATA8 direction;      /* from render.c: used by selection nudge */
+	int      shader;
+	int      shaderBlocks;
+	int      infoLoc;        /* shader uniform location */
+	int      vao;            /* GL buffer to render selection points/box */
+	int      vboVertex;
+	int      vboIndex;
+	uint8_t  hasPoint;       /* &1: first point set, &2: second point set */
+	uint8_t  hasClone;       /* 1 if selection has been cloned */
+	uint8_t  nudgePoint;     /* which point is being held in the nudge window */
+	uint8_t  nudgeStep;
+	vec4     firstPt;        /* coord in world space */
+	vec4     secondPt;
+	vec4     regionPt;
+	vec4     regionSize;
+	vec4     clonePt;
+	vec4     cloneSize;
+	int      cloneOff[3];
+	int      cloneRepeat;
+	int      copyAir;
+	int      copyWater;
+	int      copyBiome;
+	APTR     nudgeDiag;      /* SIT_DIALOG */
+	APTR     editBrush;      /* SIT_DIALOG */
+	APTR     nudgeSize;      /* SIT_LABEL */
+	APTR     brushOff[3];    /* SIT_EDITBOX */
+	Map      clone;          /* mesh for cloned selection */
+	DATA8    direction;      /* from render.c: used by selection nudge */
 };
 
-#define MAX_SELECTION     1024
-#define MAX_VERTEX        (8*2+36+24)
-#define MAX_INDEX         ((24 + 36)*2)
+#define MAX_SELECTION        1024
+#define MAX_VERTEX           (8*2+(36+24)*2)
+#define MAX_INDEX            ((24 + 36)*2)
 
 #endif
 #endif

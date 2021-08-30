@@ -364,7 +364,7 @@ void particlesChunkUpdate(Map map, ChunkData cd)
 
 	if (abs(pos[0]) <= 1 && abs(pos[1]) <= 1 && abs(pos[2]) <= 1)
 	{
-		int16_t * newIds = cd->emitters;
+		DATA16    newIds = cd->emitters;
 		int16_t   index = pos[0]+pos[2]*3+pos[1]*9+13;
 		int16_t * start = &emitters.startIds[index];
 		Emitter   oldEmit;

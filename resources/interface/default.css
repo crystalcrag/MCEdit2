@@ -20,15 +20,20 @@ form.bg table td:checked { background-color: #23ba1f; color: selfore }
 form.bg fieldset { border: 0; border-top: 0.3em groove #c5c5c5; border-radius: 0; text-align: center }
 
 /* mcedit style dialog */
-form.mc { background: rgba(black, 0.5); font-size: 0.8em; padding: 0.5em; border-radius: 0.5em }
+form.mc { background: rgba(black, 0.5); font-size: 0.9em; padding: 0.5em; border-radius: 0.5em }
 form.mc.rim { box-shadow: 0 0 0.5em black; border: 0.2em solid black }
 form.mc button { padding: 0.2em 0.5em; box-shadow: none; border: 0; outline: 0; text-transform: none; text-shadow: none; background: white; color: black }
 form.mc button:kbdfocus { outline: 0.15em solid selback 0.1em }
 form.mc #first { background: yellow; color: black; }
 form.mc #second { background: blue; color: white; }
+form.mc #nudge { background: green; color: white }
+form.mc button.act { background: #555; text-align: center; color: yellow }
+form.mc #ko.act { color: #f88 }
 form.mc button:active  { background: rgba(black,0.2), white }
+form.mc button.act:active { color: black }
 form.mc #first:active  { background: rgba(black,0.2), yellow }
 form.mc #second:active { background: rgba(black,0.2), blue }
+form.mc #nudge:active { background: rgba(black,0.2), green; color: #ddd }
 form.mc progress { background-color: rgba(black, 0.33); border-color: #555 }
 
 /* world selection */

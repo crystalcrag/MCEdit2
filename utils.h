@@ -18,6 +18,7 @@
 typedef uint16_t *          DATA16;
 typedef uint32_t *          DATA32;
 typedef struct NVGcontext * NVGCTX;
+typedef int16_t *           DATAS16;
 
 typedef float *             vec;
 typedef float               vec4[4];

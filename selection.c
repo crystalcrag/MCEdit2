@@ -31,6 +31,9 @@ void selectionInitStatic(int shader, DATA8 direction)
 	selection.shader = shader;
 	selection.infoLoc = glGetUniformLocation(shader, "info");
 	selection.direction = direction;
+	selection.cloneRepeat = 1;
+	selection.copyAir = 1;
+	selection.copyWater = 1;
 
 	/* will use selection.vsh and indexed rendering */
 	glGenBuffers(2, &selection.vboVertex);
@@ -73,19 +76,28 @@ void selectionSetSize(void)
 	}
 }
 
-static void selectionSetRect(void)
+static void selectionSetRect(int pointId)
 {
 	int i;
-	for (i = 0; i < 3; i ++)
+	if (pointId == 2)
 	{
-		float pt1 = selection.firstPt[i];
-		float pt2 = selection.secondPt[i];
-		selection.regionPt[i] = (pt1 < pt2 ? pt1 : pt2) - 0.005;
-		selection.regionSize[i] = fabsf(pt2 - pt1) + 0.01 + 1;
+		for (i = 0; i < 3; i ++)
+		{
+			float pt1 = selection.firstPt[i];
+			float pt2 = selection.secondPt[i];
+			selection.regionPt[i] = (pt1 < pt2 ? pt1 : pt2) - 0.005;
+			selection.regionSize[i] = fabsf(pt2 - pt1) + 0.01 + 1;
+		}
 	}
 
 	glBindBuffer(GL_ARRAY_BUFFER, selection.vboVertex);
-	vec vtx = (vec) glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY) + (8*5) * 2;
+	vec vtx = (vec) glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
+	vec size;
+
+	switch (pointId) {
+	case 2: size = selection.regionSize; vtx += (8*5) * 2; break;
+	case 3: size = selection.cloneSize;  vtx += (8*2 + 36 + 24) * 5;
+	}
 
 	/* build a box big enough to cover the whole region */
 	for (i = 0; i < 24; i ++, vtx += 5)
@@ -94,11 +106,11 @@ static void selectionSetRect(void)
 		static uint8_t coordV[] = {1, 1, 1, 1, 2, 2};
 		DATA8 p  = vertex + cubeIndices[i];
 		DATA8 uv = texCoord + (i & 3) * 2;
-		vtx[0] = p[0] * selection.regionSize[0];
-		vtx[1] = p[1] * selection.regionSize[1];
-		vtx[2] = p[2] * selection.regionSize[2];
-		vtx[3] = uv[0] * selection.regionSize[coordU[i>>2]]; if (vtx[3] > 0) vtx[3] -= 0.01;
-		vtx[4] = uv[1] * selection.regionSize[coordV[i>>2]]; if (vtx[4] > 0) vtx[4] -= 0.01;
+		vtx[0] = p[0] * size[0];
+		vtx[1] = p[1] * size[1];
+		vtx[2] = p[2] * size[2];
+		vtx[3] = uv[0] * size[coordU[i>>2]]; if (vtx[3] > 0) vtx[3] -= 0.01;
+		vtx[4] = uv[1] * size[coordV[i>>2]]; if (vtx[4] > 0) vtx[4] -= 0.01;
 		vtx[3] /= 16;
 		vtx[4] /= 32;
 		if ((i & 3) == 3)
@@ -113,15 +125,14 @@ static void selectionSetRect(void)
 	for (i = 36; i < 36+24; i ++, vtx += 5)
 	{
 		DATA8 p = vertex + bboxIndices[i] * 3;
-		vtx[0] = p[0] * selection.regionSize[0];
-		vtx[1] = p[1] * selection.regionSize[1];
-		vtx[2] = p[2] * selection.regionSize[2];
+		vtx[0] = p[0] * size[0];
+		vtx[1] = p[1] * size[1];
+		vtx[2] = p[2] * size[2];
 		vtx[3] = (31*16+8) / 512.;
 		vtx[4] = 8 / 1024.;
 	}
 	/* lines around the edges */
 	glUnmapBuffer(GL_ARRAY_BUFFER);
-	selection.extVtx = 36;
 
 	selectionSetSize();
 }
@@ -175,7 +186,10 @@ Bool selectionProcessKey(int key, int mod)
 			selection.firstPt[axis] += dir;
 		if (selection.nudgePoint & 2)
 			selection.secondPt[axis] += dir;
-		selectionSetRect();
+		if (selection.nudgePoint & 4)
+			selection.clonePt[axis] += dir,
+			selectionSetClonePt(NULL, -1);
+		selectionSetRect(2);
 		return True;
 	}
 	return False;
@@ -208,10 +222,10 @@ void selectionSetPoint(APTR sitRoot, float scale, vec4 pos, int point)
 			SIT_AddCallback(SIT_GetById(diag, "whole"),  SITE_OnClick, selectionNudge, (APTR) 3);
 			SIT_AddCallback(SIT_GetById(diag, "first"),  SITE_OnClick, selectionNudge, (APTR) 1);
 			SIT_AddCallback(SIT_GetById(diag, "second"), SITE_OnClick, selectionNudge, (APTR) 2);
-			selectionSetRect();
+			selectionSetRect(2);
 			SIT_ManageWidget(diag);
 		}
-		else selectionSetRect();
+		else selectionSetRect(2);
 	}
 }
 
@@ -231,33 +245,37 @@ vec selectionGetPoints(void)
 	return selection.firstPt;
 }
 
-
-static void selectionDrawPoint(vec4 point, int offset)
+/* draw selection point/boxes */
+static void selectionDrawPoint(vec4 point, int pointId)
 {
 	/* first: draw fllled box */
 	vec4 loc;
-	int  indices;
 	memcpy(loc, point, sizeof loc);
-	loc[3] = offset*4+4+1;
-	indices = offset * (24+36) * 2;
+	loc[3] = pointId*4+4+1;
 	glEnable(GL_DEPTH_TEST);
 	glProgramUniform4fv(selection.shader, selection.infoLoc, 1, loc);
-	if (offset == 2) glDrawArrays(GL_TRIANGLES, 8*2, selection.extVtx);
-	else glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_SHORT, (APTR) indices);
-	indices += 36*2;
+	switch (pointId) {
+	case 0: loc[3] --;   glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_SHORT, 0); break; /* first pt */
+	case 1: loc[3] --;   glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_SHORT, (APTR) ((24+36)*2)); break; /* first pt */
+	case 2: loc[3] = 0;  glDrawArrays(GL_TRIANGLES, 8*2, 36); break; /* box that cover 1st and 2nd point */
+	case 3: loc[3] = 20; glDrawArrays(GL_TRIANGLES, 8*2+36+24, 36);  /* box that cover cloned selection */
+	}
 
-	if (offset == 2) loc[3] = 0;
-	else loc[3] -= 1;
 	glDisable(GL_DEPTH_TEST);
 	glProgramUniform4fv(selection.shader, selection.infoLoc, 1, loc);
-	if (offset == 2) glDrawArrays(GL_LINES, 8*2+36, 24);
-	else glDrawElements(GL_LINES, 24, GL_UNSIGNED_SHORT, (APTR) indices);
+	switch (pointId) {
+	case 0: glDrawElements(GL_LINES, 24, GL_UNSIGNED_SHORT, (APTR) (36 * 2)); break;
+	case 1: glDrawElements(GL_LINES, 24, GL_UNSIGNED_SHORT, (APTR) ((24+36*2)*2)); break;
+	case 2: glDrawArrays(GL_LINES, 8*2+36, 24); break;
+	case 3: glDrawArrays(GL_LINES, 8*2+36*2+24, 24);
+	}
 }
 
 void selectionRender(void)
 {
 	if (selection.hasPoint)
 	{
+		glDepthMask(GL_FALSE);
 		glUseProgram(selection.shader);
 		glBindVertexArray(selection.vao);
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, selection.vboIndex);
@@ -269,10 +287,317 @@ void selectionRender(void)
 		        selectionDrawPoint(selection.secondPt, 1);
 		        selectionDrawPoint(selection.regionPt, 2);
 		}
+		if (selection.hasClone)
+		{
+			/* draw the brush */
+			#if 0
+			glDepthMask(GL_TRUE);
+			vec4 clonePt = {selection.clonePt[VX]-1, selection.clonePt[VY]-1, selection.clonePt[VZ]-1, 1};
+			renderDrawMap(selection.clone, clonePt);
+			#endif
 
+			/* box overlay */
+			glDepthMask(GL_FALSE);
+			glUseProgram(selection.shader);
+			glBindVertexArray(selection.vao);
+			selectionDrawPoint(selection.clonePt, 3);
+		}
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 		glEnable(GL_DEPTH_TEST);
 	}
+}
+
+/*
+ * clone selection tool: create a mini-map from the selected blocks
+ */
+void selectionSetClonePt(vec4 pos, int side)
+{
+	static uint8_t axis[] = { /* S, E, N, W, T, B */
+		0, 1, 2,  0,
+		2, 1, 0,  0,
+		0, 1, 2,  1,
+		2, 1, 0,  1,
+		0, 2, 1,  0,
+		0, 2, 1,  1,
+	};
+
+	DATA8 off = axis + side * 4;
+	int i, j;
+
+	if (side >= 0)
+	{
+		i = off[0]; selection.clonePt[i] = pos[i] - floorf(selection.cloneSize[i] * 0.5);
+		i = off[1]; selection.clonePt[i] = pos[i] - floorf(selection.cloneSize[i] * 0.5);
+		i = off[2]; selection.clonePt[i] = pos[i] + (off[3] ? -floorf(selection.cloneSize[i]) : 1);
+	}
+
+	/* offset from original selection */
+	if (selection.editBrush)
+	{
+		for (i = 0; i < 3; i ++)
+		{
+			TEXT coord[32];
+			sprintf(coord, "%d", (int) (selection.clonePt[i] - selection.regionPt[i] - 0.005));
+			SIT_SetValues(selection.brushOff[i], SIT_Title, coord, NULL);
+		}
+	}
+
+	/* relocate chunk->X+Z, renderPrepVisibleChunks() will need this */
+	if (selection.clone)
+	{
+		Chunk c;
+		Map   brush = selection.clone;
+		int   x = (brush->size[VX] + 15) >> 4;
+		int   z = (brush->size[VZ] + 15) >> 4;
+		for (c = brush->chunks, pos = selection.clonePt, j = 0; j < z; j ++)
+		{
+			for (i = 0; i < x; i ++, c ++)
+			{
+				c->X = (int) pos[VX] + i * 16;
+				c->Z = (int) pos[VZ] + j * 16;
+			}
+		}
+	}
+	fprintf(stderr, "clone pt = %g,%g,%g, side = %d\n", selection.clonePt[0], selection.clonePt[1], selection.clonePt[2], side);
+}
+
+/* SITE_OnChange on brush offset */
+static int selectionChangeCoord(SIT_Widget w, APTR cd, APTR ud)
+{
+	int axis = (int) ud;
+	selection.clonePt[axis] = selection.regionPt[axis] + 0.005 + atoi(cd);
+	return 1;
+}
+
+/* copy selected blocks into a mini-map */
+void selectionClone(APTR sitRoot, Map map, vec4 pos, int side)
+{
+	selection.cloneSize[VX] = fabsf(selection.firstPt[VX] - selection.secondPt[VX]) + 1 + 0.01;
+	selection.cloneSize[VY] = fabsf(selection.firstPt[VY] - selection.secondPt[VY]) + 1 + 0.01;
+	selection.cloneSize[VZ] = fabsf(selection.firstPt[VZ] - selection.secondPt[VZ]) + 1 + 0.01;
+
+	if (! selection.hasClone)
+	{
+		selectionSetRect(3);
+		selection.hasClone = 1;
+	}
+
+	if (! selection.editBrush)
+	{
+		SIT_Widget diag = selection.editBrush = SIT_CreateWidget("brush.mc", SIT_DIALOG, sitRoot,
+			SIT_DialogStyles,  SITV_Plain,
+			SIT_Left,          SITV_AttachForm, NULL, SITV_Em(0.5),
+			SIT_TopAttachment, SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter,
+			NULL
+		);
+		SIT_CreateWidgets(diag,
+			"<label name=brotate title=R:>"
+			"<button name=rotate.act title=Rotate left=WIDGET,brotate,0.3em>"
+			"<label name=broll title=T: left=WIDGET,rotate,1em>"
+			"<button maxWidth=rotate name=roll.act title=Roll left=WIDGET,broll,0.3em>"
+			"<label name=bflip maxWidth=brotate title=F:>"
+			"<button name=flip.act title=Flip maxWidth=roll top=WIDGET,broll,0.5em left=WIDGET,bflip,0.3em>"
+			"<label name=bmirror maxWidth=broll title=M: left=WIDGET,flip,1em>"
+			"<button name=mirror.act title=Mirror maxWidth=flip top=WIDGET,broll,0.5em left=WIDGET,bmirror,0.3em>"
+
+			"<button name=nudge title=Nudge nextCtrl=NONE right=FORM>"
+			"<label name=xlab title=X:><editbox name=xcoord curValue=", selection.cloneOff, "editType=", SITV_Integer,
+			" right=WIDGET,nudge,1em left=WIDGET,xlab,0.3em top=WIDGET,mirror,1em>"
+			"<label name=ylab title=Y: maxWidth=xlab><editbox name=ycoord curValue=", selection.cloneOff+1, "editType=", SITV_Integer,
+			" right=WIDGET,nudge,1em left=WIDGET,ylab,0.3em top=WIDGET,xcoord,0.5em>"
+			"<label name=zlab title=Z: maxWidth=ylab><editbox name=zcoord curValue=", selection.cloneOff+2, "editType=", SITV_Integer,
+			" right=WIDGET,nudge,1em left=WIDGET,zlab,0.3em top=WIDGET,ycoord,0.5em>"
+
+			"<label name=tlab title=... maxWidth=zlab>"
+			"<editbox name=repeat curValue=", &selection.cloneRepeat, "editType=", SITV_Integer, "left=OPPOSITE,zcoord minValue=1 maxValue=128"
+			" right=OPPOSITE,zcoord top=WIDGET,zcoord,1em>"
+			"<label name=brep title=(Repeat) top=MIDDLE,repeat left=WIDGET,repeat,1em>"
+
+			"<button name=copyair title='Copy air'   curValue=", &selection.copyAir,   "top=WIDGET,repeat,1em    buttonType=", SITV_CheckBox, ">"
+			"<button name=copywat title='Copy water' curValue=", &selection.copyWater, "top=WIDGET,copyair,0.5em buttonType=", SITV_CheckBox, ">"
+			"<button name=copybio title='Copy biome' curValue=", &selection.copyBiome, "top=WIDGET,copywat,0.5em buttonType=", SITV_CheckBox, ">"
+
+			"<button name=ko.act title=Cancel right=FORM top=WIDGET,copybio,1em>"
+			"<button name=ok.act title=Clone  right=WIDGET,ko,0.5em top=OPPOSITE,ko>"
+		);
+		SIT_SetAttributes(diag,
+			"<brotate top=MIDDLE,rotate><broll top=MIDDLE,roll><bflip top=MIDDLE,flip><bmirror top=MIDDLE,mirror>"
+			"<xlab top=MIDDLE,xcoord><ylab top=MIDDLE,ycoord><zlab top=MIDDLE,zcoord>"
+			"<nudge top=MIDDLE,ycoord><tlab top=MIDDLE,repeat>"
+		);
+		int i;
+		for (i = 0; i < 3; i ++)
+		{
+			static STRPTR editBoxes[] = {"xcoord", "ycoord", "zcoord"};
+			SIT_AddCallback(selection.brushOff[i] = SIT_GetById(diag, editBoxes[i]), SITE_OnChange, selectionChangeCoord, (APTR) i);
+		}
+		SIT_AddCallback(SIT_GetById(diag, "nudge"), SITE_OnClick, selectionNudge, (APTR) 4);
+		SIT_ManageWidget(diag);
+	}
+
+#if 0
+	if (selection.clone)
+		free(selection.clone);
+
+	uint16_t sizes[] = {
+		fabsf(selection.firstPt[VX] - selection.secondPt[VX]) + 3,
+		fabsf(selection.firstPt[VY] - selection.secondPt[VY]) + 3,
+		fabsf(selection.firstPt[VZ] - selection.secondPt[VZ]) + 3
+	};
+	uint16_t chunks[] = {
+		(sizes[VX] + 15) >> 4,
+		(sizes[VY] + 15) >> 4,
+		(sizes[VZ] + 15) >> 4
+	};
+
+	int total = chunks[VX] * chunks[VZ] * (chunks[VY] * (4096 + 2048 + sizeof (struct ChunkData_t)) + sizeof (struct Chunk_t)) +
+	       sizeof (struct Map_t);
+
+	fprintf(stderr, "bytes for brush = %d\n", total);
+
+	/* alloc everything in one mem chunk: the brush isn't going to be resized anyway */
+	Map brush = selection.clone = calloc(1, total);
+
+	if (brush)
+	{
+		ChunkData cd;
+		Chunk     chunk;
+		DATA8     blocks;
+		int       chunkXZ = chunks[VX] * chunks[VZ];
+		int       x, y, z;
+
+		brush->chunkOffsets = (DATAS16) brush->path;
+		brush->chunks = (Chunk) (brush + 1);
+		brush->GPUMaxChunk = 512 * 1024;
+		cd = (ChunkData) (brush->chunks + chunkXZ);
+		blocks = (DATA8) (cd + chunkXZ * chunks[VY]);
+
+		memcpy(brush->size, sizes, 6);
+
+		/* does not matter: there will be no wrap around chunks */
+		brush->mapArea = brush->maxDist = brush->mapSize = 1e6;
+		brush->center  = brush->chunks;
+		/* mapInitIter() / mapIter() need to be working though */
+		for (x = 0; x < 16; x ++)
+		{
+			int offset = 0;
+			if (x & 1) offset += chunks[VX];
+			if (x & 2) offset += 1;
+			if (x & 4) offset -= chunks[VX];
+			if (x & 8) offset -= 1;
+			brush->chunkOffsets[x] = offset;
+		}
+
+		ChunkData * first = &brush->firstVisible;
+
+		/* init Chunk and ChunkData */
+		for (z = 0, chunk = brush->chunks; z < chunks[VZ]; z ++)
+		{
+			for (x = 0; x < chunks[VX]; x ++, chunk ++)
+			{
+				/* setup chunk */
+				chunk->X = x * 16;
+				chunk->Z = z * 16;
+				chunk->maxy = chunks[VY];
+				chunk->cflags |= CFLAG_GOTDATA;
+				/* brush don't have lazy chunks all around */
+				uint8_t missing = 0;
+				if (x == 0) missing |= 1 << SIDE_WEST;
+				if (z == 0) missing |= 1 << SIDE_NORTH;
+				if (x == chunks[VX]-1) missing |= 1 << SIDE_EAST;
+				if (z == chunks[VZ]-1) missing |= 1 << SIDE_SOUTH;
+				chunk->noChunks = missing;
+				for (y = 0; y < chunks[VY]; y ++, cd ++, blocks += 4096 + 2048)
+				{
+					chunk->layer[y] = cd;
+					/* setup ChunkData */
+					*first = cd;
+					first = &cd->visible;
+					cd->Y = y * 16;
+					/* will only contain blockId + data, no skylight or blocklight */
+					cd->cdflags = CDFLAG_NOLIGHT;
+					cd->blockIds = blocks;
+				}
+			}
+		}
+
+		/* now we can copy blocks from map to the brush */
+		vec4 pos = {
+			fminf(selection.firstPt[VX], selection.secondPt[VX]),
+			fminf(selection.firstPt[VY], selection.secondPt[VY]),
+			fminf(selection.firstPt[VZ], selection.secondPt[VZ])
+		};
+		struct BlockIter_t iter;
+		DATA8 blockIds;
+		int   offset;
+		mapInitIter(map, &iter, pos, False);
+		/* note: we have to add a 1 block layer all around the brush to prevent face culling at the edge of chunk */
+		for (y = 1, offset = 256, blockIds = cd->blockIds, cd = brush->firstVisible; y <= sizes[VY]; y ++, mapIter(&iter, 0, - sizes[VZ], 1))
+		{
+			for (z = 1, offset += 16; z < sizes[VZ]; z ++, mapIter(&iter, - sizes[VX], 1, 0))
+			{
+				for (x = 1, offset ++; x < sizes[VX]; x ++, mapIter(&iter, 1, 0, 0))
+				{
+					/* would be nice if we could use memcpy(), but DATA_OFFSET table is packed by 2 voxels per byte :-/ */
+					uint8_t data = iter.blockIds[DATA_OFFSET + (iter.offset >> 1)];
+					blockIds[offset] = iter.blockIds[iter.offset];
+					if (iter.offset & 1) data >>= 4; else data &= 15;
+					blockIds[DATA_OFFSET + (offset>>1)] |= (offset & 1) ? data << 4 : data;
+
+					if ((x & 15) == 15)
+					{
+						cd += chunks[VY];
+						offset &= ~15;
+						blockIds = cd->blockIds;
+					}
+				}
+				if ((z & 15) == 15)
+				{
+					cd += chunks[VX] * chunks[VY];
+					offset &= ~(15<<4);
+					blockIds = cd->blockIds;
+				}
+			}
+			if ((y & 15) == 15)
+			{
+				cd ++;
+				offset &= ~(15<<8);
+				blockIds = cd->blockIds;
+			}
+		}
+
+		/* still not done: need to convert all into meshes */
+		for (z = 0, chunk = brush->chunks; z < chunks[VZ]; z ++)
+		{
+			for (x = 0; x < chunks[VX]; x ++, chunk ++)
+			{
+				for (y = 0; y < chunk->maxy; y ++)
+				{
+					chunkUpdate(chunk, chunkAir, map->chunkOffsets, y);
+					/* transfer chunk to the GPU */
+					renderFinishMesh(brush, True);
+				}
+			}
+		}
+	}
+#endif
+	selectionSetClonePt(pos, side);
+}
+
+/* remove everything related to cloned selection */
+void selectionCancelClone(void)
+{
+	if (selection.clone)
+	{
+		free(selection.clone);
+		selection.clone = NULL;
+	}
+	if (selection.editBrush)
+	{
+		SIT_CloseDialog(selection.editBrush);
+		selection.editBrush = NULL;
+	}
+	selection.hasClone = 0;
 }
 
 /*
@@ -284,6 +609,7 @@ void selectionAutoSelect(Map map, vec4 pos, APTR sitRoot, float scale)
 	int8_t  minMax[8];
 
 	memset(visited, 0, sizeof visited);
+	/* work is done in that function because of that ring buffer */
 	mapUpdateFloodFill(map, pos, visited, minMax);
 
 	vec4 pt1 = {pos[VX] + minMax[VX],   pos[VY] + minMax[VY],   pos[VZ] + minMax[VZ]};
@@ -293,7 +619,7 @@ void selectionAutoSelect(Map map, vec4 pos, APTR sitRoot, float scale)
 }
 
 /*
- * selection manipulation : fill / replace
+ * selection manipulation : fill / replace / geometric brushes
  */
 static struct
 {
@@ -493,8 +819,8 @@ static void selectionFindVariant(int variant[3], int blockId)
 		if (state->special == BLOCK_HALF && variant[2] == 0 && strcasestr(state->name, match))
 			variant[2] = state->id, flags |= 2;
 	}
-	fprintf(stderr, "varient of %d:%d = %d:%d (stairs) %d:%d (slab)\n", blockId>>4, blockId&15,
-		variant[1]>>4, variant[1]&15, variant[2]>>4, variant[2]&15);
+//	fprintf(stderr, "variant of %d:%d = %d:%d (stairs) %d:%d (slab)\n", blockId>>4, blockId&15,
+//		variant[1]>>4, variant[1]&15, variant[2]>>4, variant[2]&15);
 }
 
 
@@ -764,7 +1090,7 @@ static void selectionProcessShape(void * unused)
 				}
 				mapUpdate(selectionAsync.map, NULL, selectionAsync.blockId, NULL, UPDATE_SILENT);
 				/* DEBUG: slow processing down */
-				ThreadPause(500);
+				// ThreadPause(500);
 			}
 
 			if (selectionAsync.cancel) goto break_all;

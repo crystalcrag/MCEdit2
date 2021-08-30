@@ -36,10 +36,14 @@ struct Map_t
 	int       mapSize;             /* mapArea * mapArea */
 	int       frame;               /* needed by frustum culling */
 	int       GPUchunk;            /* statistic used by debug screen (chunks with mesh on GPU) */
+	int       GPUMaxChunk;         /* chunk of mem to allocate for a single VBO */
 	uint16_t  curOffset;           /* reduce sorting for alpha transparency */
+	uint16_t  size[3];             /* brush only: size in blocks of brush (incl. 1 block margin around) */
 	Chunk     center;              /* chunks + mapX + mapZ * mapArea */
-	ListHead  genList;             /* chunks to process */
+	ListHead  gpuBanks;            /* VBO for chunk mesh (GPUBank) */
+	ListHead  genList;             /* chunks to process (Chunk) */
 	Chunk     genLast;
+	DATAS16   chunkOffsets;        /* array 16*9: similar to chunkNeighbors[] */
 	char      path[MAX_PATHLEN];   /* path to level.dat */
 	ChunkData dirty;               /* sub-chunks that needs mesh regeneration */
 	ChunkData firstVisible;        /* list of visible chunks according to the MVP matrix */

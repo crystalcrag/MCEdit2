@@ -936,7 +936,7 @@ static int mcuiGetCoord(SIT_Widget w, APTR cd, APTR ud)
 void mcuiGoto(SIT_Widget parent, vec4 pos)
 {
 	SIT_Widget diag = SIT_CreateWidget("goto.mc rim", SIT_DIALOG, parent,
-		SIT_DialogStyles, SITV_Plain | SITV_Modal | SITV_Movable,
+		SIT_DialogStyles, SITV_Plain | SITV_Movable,
 		NULL
 	);
 	memcpy(mcuiCurPos, pos, 12);
@@ -949,8 +949,8 @@ void mcuiGoto(SIT_Widget parent, vec4 pos)
 		"<editbox name=Y roundTo=2 editType=", SITV_Float, "width=10em curValue=", mcuiCurPos+1, "top=WIDGET,title,1em left=WIDGET,Ylab,0.5em>"
 		"<label name=Zlab title=Z: left=WIDGET,Y,1em>"
 		"<editbox name=Z roundTo=2 editType=", SITV_Float, "width=10em curValue=", mcuiCurPos+2, "top=WIDGET,title,1em left=WIDGET,Zlab,0.5em>"
-		"<button name=ok title=Goto top=WIDGET,X,1em buttonType=", SITV_DefaultButton, ">"
-		"<button name=ko title=Cancel top=WIDGET,X,1em right=FORM buttonType=", SITV_CancelButton, ">"
+		"<button name=ok.act title=Goto top=WIDGET,X,1em buttonType=", SITV_DefaultButton, ">"
+		"<button name=ko.act title=Cancel top=WIDGET,X,1em right=FORM buttonType=", SITV_CancelButton, ">"
 	);
 	SIT_SetAttributes(diag,
 		"<Xlab top=MIDDLE,X><Ylab top=MIDDLE,Y><Zlab top=MIDDLE,Z><ok right=WIDGET,ko,0.5em>"
@@ -1324,8 +1324,10 @@ void mcuiFillOrReplace(SIT_Widget parent, Map map, Bool fillWithBrush)
 		mcuiRepWnd.canUseSpecial[cannotFill[i]] = 0;
 
 	SIT_CreateWidgets(diag,
+		"<label name=dlgtitle title=", fillWithBrush ? "<b>Geometric brush fill</b>" : "<b>Fill or replace selection</b>",
+		" left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, ">"
 		"<label name=searchtxt title='Search:'>"
-		"<editbox name=search left=WIDGET,searchtxt,0.5em right=FORM>"
+		"<editbox name=search left=WIDGET,searchtxt,0.5em right=FORM top=WIDGET,dlgtitle,0.3em>"
 		"<canvas composited=1 name=inv.inv left=FORM top=WIDGET,search,0.5em/>"
 		"<scrollbar width=1.2em name=scroll.inv wheelMult=1 top=OPPOSITE,inv,0 bottom=OPPOSITE,inv,0 right=FORM>"
 		"<label name=msg title='Fill:'>"
@@ -1497,7 +1499,7 @@ static int mcuiDeleteProgress(SIT_Widget w, APTR cd, APTR ud)
 			SIT_CreateWidgets(dialog,
 				"<label name=title title='<b>Delete in progress...</b>' left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, ">"
 				"<progress name=prog title=%d%% width=15em top=WIDGET,title,0.5em>"
-				"<button name=cancel title=Cancel buttonType=", SITV_CancelButton, "left=WIDGET,prog,1em top=WIDGET,title,0.5em>"
+				"<button name=ko.act title=Cancel buttonType=", SITV_CancelButton, "left=WIDGET,prog,1em top=WIDGET,title,0.5em>"
 			);
 			mcuiRepWnd.replace = dialog;
 			mcuiRepWnd.prog = SIT_GetById(dialog, "prog");

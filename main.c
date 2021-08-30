@@ -120,6 +120,7 @@ static int SDLKtoSIT(int key)
 		SDLK_F13,       SITK_F13,
 		SDLK_F14,       SITK_F14,
 		SDLK_F15,       SITK_F15,
+		SDLK_TAB,       SITK_Tab,
 		SDLK_BACKSPACE, SITK_BackSpace,
 		SDLK_ESCAPE,    SITK_Escape,
 		SDLK_SPACE,     SITK_Space,
@@ -167,18 +168,35 @@ static int mceditGoto(SIT_Widget w, APTR cd, APTR ud)
 	return 1;
 }
 
-/* show statistics about selection */
+/* handle extended selection toolbar actions */
 static int mceditCommands(int cmd)
 {
 	if (mcedit.selection == 3)
 	{
-		/* will render the slot change */
-		renderWorld();
-		SIT_RenderNodes(curTime);
-		SDL_GL_SwapBuffers();
-		FrameSaveRestoreTime(True);
-		mceditUIOverlay(cmd);
-		FrameSaveRestoreTime(False);
+		if (cmd < MCUI_SEL_CLONE)
+		{
+			if (mcedit.hasClone)
+			{
+				/* remove current brush */
+				selectionCancelClone();
+				mcedit.hasClone = 0;
+			}
+			/* will render the slot change */
+			renderWorld();
+			SIT_RenderNodes(curTime);
+			SDL_GL_SwapBuffers();
+			FrameSaveRestoreTime(True);
+			mceditUIOverlay(cmd);
+			FrameSaveRestoreTime(False);
+		}
+		else /* brush manipulation: doesn't use any popup */
+		{
+			vec4 pos;
+			MapExtraData sel = renderGetSelectedBlock(pos, NULL);
+			if (sel == NULL) return 1;
+			selectionClone(mcedit.app, mcedit.level, pos, sel->side);
+			mcedit.hasClone = 1;
+		}
 	}
 	return 1;
 }
@@ -192,20 +210,36 @@ static int mceditClearSelection(SIT_Widget w, APTR cd, APTR ud)
 /* enable auto-repeat for text widget */
 static int mceditTrackFocus(SIT_Widget w, APTR cd, APTR ud)
 {
-	static int repeatOn = 0;
 	int type;
-	SIT_GetValues(w, SIT_CtrlType, &type, NULL);
+	SIT_GetValues(SIT_GetFocus(), SIT_CtrlType, &type, NULL);
 	if (cd && type == SIT_EDITBOX)
 	{
-		SDL_EnableKeyRepeat(SDL_DEFAULT_REPEAT_DELAY, SDL_DEFAULT_REPEAT_INTERVAL);
-		repeatOn = 1;
+		if (mcedit.inEditBox == 0)
+			SDL_EnableKeyRepeat(SDL_DEFAULT_REPEAT_DELAY, SDL_DEFAULT_REPEAT_INTERVAL);
+		mcedit.inEditBox = 1;
 	}
-	else if (repeatOn)
+	else if (mcedit.inEditBox)
 	{
 		SDL_EnableKeyRepeat(0, 0);
-		repeatOn = 0;
+		mcedit.inEditBox = 0;
 	}
 	return 0;
+}
+
+/* ESC key pressed: cancel stuff, if nothing to cancel, exit then */
+static int mceditCancelStuff(SIT_Widget w, APTR cd, APTR ud)
+{
+	if (mcedit.hasClone)
+		selectionCancelClone(),
+		mcedit.hasClone = 0;
+	else if (mcedit.state == GAMELOOP_OVERLAY)
+		SIT_Exit(1); /* exit from loop, not app */
+	else if (mcedit.selection)
+		renderSetSelectionPoint(RENDER_SEL_CLEAR),
+		mcedit.selection = 0;
+	else
+		SIT_Exit(1);
+	return 1;
 }
 
 /*
@@ -252,7 +286,7 @@ int main(int nb, char * argv[])
 
 	static SIT_Accel accels[] = {
 		{SITK_FlagCapture + SITK_FlagAlt + SITK_F4, SITE_OnClose},
-		{SITK_FlagCapture + SITK_Escape,            SITE_OnClose},
+		{SITK_FlagCapture + SITK_Escape,            SITE_OnActivate, NULL, mceditCancelStuff},
 		{SITK_FlagCapture + SITK_FlagCtrl + 's',    SITE_OnActivate, NULL, mceditSaveChanges},
 
 		{SITK_FlagCtrl + 'g', SITE_OnActivate, NULL, mceditGoto},
@@ -308,7 +342,7 @@ int main(int nb, char * argv[])
 }
 
 static uint8_t toolbarCmds[] = {
-	MCUI_OVERLAY_REPLACE, MCUI_OVERLAY_FILL, 0, 0, MCUI_OVERLAY_ANALYZE, 0, 0, 0, 0
+	MCUI_OVERLAY_REPLACE, MCUI_OVERLAY_FILL, MCUI_SEL_CLONE, MCUI_SEL_COPY, MCUI_OVERLAY_ANALYZE, 0, 0, 0, 0
 };
 
 /*
@@ -334,6 +368,12 @@ void mceditWorld(void)
 			int key;
 			switch (event.type) {
 			case SDL_KEYDOWN:
+				if (mcedit.inEditBox)
+				{
+					key = SDLKtoSIT(event.key.keysym.sym);
+					goto forwardKeyPress;
+				}
+
 				switch (event.key.keysym.sym) {
 				case SDLK_LALT:
 					mcedit.forceSel = 1;
@@ -352,6 +392,8 @@ void mceditWorld(void)
 					break;
 				#endif
 				case SDLK_TAB:
+					if (mcedit.hasClone)
+						goto forwardKeyPress;
 					mcedit.state = GAMELOOP_SIDEVIEW;
 					mcedit.exit = 2;
 					break;
@@ -428,6 +470,11 @@ void mceditWorld(void)
 				}
 				break;
 			case SDL_KEYUP:
+				if (mcedit.inEditBox)
+				{
+					key = SDLKtoSIT(event.key.keysym.sym);
+					goto forwardKeyPress;
+				}
 				switch (event.key.keysym.sym) {
 				case SDLK_LALT:
 					mcedit.forceSel = 0;
@@ -483,7 +530,7 @@ void mceditWorld(void)
 					capture = 1;
 					break;
 				case SDL_BUTTON_MIDDLE:
-					if ((mcedit.player.inventory.offhand & 1) == 0)
+					if ((mcedit.player.inventory.offhand & 1) == 0 && mcedit.selection == 0)
 					{
 						/* add block selected to inventory bar */
 						vec4 pos;
@@ -498,10 +545,12 @@ void mceditWorld(void)
 					else mcedit.selection = renderSetSelectionPoint(RENDER_SEL_AUTO);
 					break;
 				case SDL_BUTTON_WHEELUP:
-					playerScrollInventory(&mcedit.player, -1);
+					if ((mcedit.player.inventory.offhand & 1) == 0 && mcedit.selection == 0)
+						playerScrollInventory(&mcedit.player, -1);
 					break;
 				case SDL_BUTTON_WHEELDOWN:
-					playerScrollInventory(&mcedit.player, 1);
+					if ((mcedit.player.inventory.offhand & 1) == 0 && mcedit.selection == 0)
+						playerScrollInventory(&mcedit.player, 1);
 				}
 				break;
 			case SDL_MOUSEBUTTONUP:
@@ -594,9 +643,15 @@ void mceditPlaceBlock(void)
 		mcedit.selection = renderSetSelectionPoint(RENDER_SEL_ADDPT);
 		return;
 	}
-
 	MapExtraData sel = renderGetSelectedBlock(pos, &block);
 	if (sel == NULL) return;
+
+	if (mcedit.hasClone)
+	{
+		/* move clone brush instead */
+		selectionSetClonePt(pos, sel->side);
+		return;
+	}
 
 	item = &p->inventory.items[p->inventory.selected];
 	id   = mcedit.forceSel ? 0 : item->id;
@@ -666,6 +721,7 @@ void mceditUIOverlay(int type)
 	SIT_SetValues(mcedit.app, SIT_RefreshMode, SITV_RefreshAsNeeded, NULL);
 	mcuiTakeSnapshot(mcedit.app, mcedit.width, mcedit.height);
 	renderSaveRestoreState(True);
+	mcedit.state = GAMELOOP_OVERLAY;
 
 	MapExtraData sel = NULL;
 	itemCount = 0;
@@ -884,6 +940,7 @@ void mceditUIOverlay(int type)
 	SIT_SetValues(mcedit.app, SIT_RefreshMode, SITV_RefreshAlways, NULL);
 	SDL_EnableUNICODE(0);
 	renderSaveRestoreState(False);
+	mcedit.state = GAMELOOP_WORLD;
 }
 
 /*

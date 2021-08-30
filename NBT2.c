@@ -14,6 +14,7 @@
 #include <stdarg.h>
 #include <malloc.h>
 #include "NBT2.h"
+#include "utils.h"
 
 /* only scalar types */
 static uint8_t sizeof_type[] = {0, 1, 2, 4, 8, 4, 8};
@@ -194,8 +195,8 @@ static int NBT_ParseFile(NBTFile nbt, ZStream in, int flags)
 	if ((flags & NBT_SECTION_FLAG) && len > 0)
 	{
 		/* keep some tables in a specific order */
-		static uint16_t offset[] = {0, 0, SKYLIGHT_OFFSET, BLOCKLIGHT_OFFSET, DATA_OFFSET, ADDID_OFFSET};
-		DATA8 sub = strstr("\1""Blocks\2""SkyLight\3""BlockLight\4""Data\5""Y", hdr->name);
+		static uint16_t offset[] = {0, 0, DATA_OFFSET, SKYLIGHT_OFFSET, BLOCKLIGHT_OFFSET, ADDID_OFFSET};
+		DATA8 sub = strstr("\1""Blocks\2""Data\3""SkyLight\4""BlockLight\5""Y", hdr->name);
 		if (sub && sub[len] < 10)
 		{
 			/* copy hdr at specific location */
@@ -1038,7 +1039,7 @@ static int NBT_WriteToZip(APTR out, APTR buffer, int size, int be)
 		int max = zip->avail_in;
 		if (max + size > 1024)
 		{
-			STRPTR start = zip->next_in;
+			DATA8 start = zip->next_in;
 			deflate(zip, Z_NO_FLUSH);
 			if (zip->avail_out == 0)
 			{
@@ -1234,7 +1235,7 @@ DATA8 NBT_Compress(NBTFile nbt, int * size, int page, NBT_WriteCb_t cb, APTR cbp
 		NBT_WriteToZip, cb, cbparam
 	};
 	z_stream zip;
-	TEXT     chunk[1024];
+	uint8_t  chunk[1024];
 	DATA8    buffer;
 
 	page <<= 12;
@@ -1297,8 +1298,7 @@ int NBT_Dump(NBTFile root, int offset, int level, FILE * out)
 		"TAG_Float", "TAG_Double", "TAG_ByteArray", "TAG_String", "TAG_List",
 		"TAG_Compound"
 	};
-	STRPTR p;
-	DATA8  mem;
+	DATA8  p, mem;
 	NBTHdr hdr;
 	int    i, type, sz, old;
 

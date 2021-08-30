@@ -1339,7 +1339,7 @@ same way on all faces.
   <img src="images/tex-rotate.png">
 </div>
 
-<p>Since there is 6 faces and you need 2 bits to encode each rotation, the <tt>BlockState_t.rotate</tt>
+<p>Since there are 6 faces and you need 2 bits to encode each rotation, the <tt>BlockState_t.rotate</tt>
 field contains 12bits of information. You cannot mirror a texture though, for this you'll need to a <tt>CUST</tt> voxel.
 
 <h4 id="skyblock"><span>Block and sky light</span></h4>
@@ -1415,6 +1415,20 @@ table (24 elements in total). Each group of 4 elements is of course ordered top,
 what the big deal with these ? Well, you'll have a glimpse of why Mojang has not added (as of writing
 this, in august 2021) vertical slab to <prod>Minecraft</prod>: they introduce <b>a lot</b> of edge cases,
 and it sadly means <b>lots of look-up tables</b>.
+
+<p>The first thing to keep in mind with half-block, is <prod>MinecrafT</prod> treat them as if they were
+a <tt>SOLID</tt> voxel: they completely block light (sky and torch) no matter what their orientation
+is. If you attempt to get block or sky light at their coordinate, you'll get 0.
+
+<p>The way half-blocks are meshed is a bit different from full voxel though. In case it wasn't clear up
+until now, the chunk meshing for full voxel does not attempt to merge adjacent quads that share the same
+properties (note: it should though).  For half-slab though, the engine tries way harder. This is the
+gist of the meshing phase: whenever a sub-face (ie: 0.5 x 0.5 in size) is detected as being visible,
+we check in the 2 directions perpendicular to the normal if the size can be extended, and generate a
+quad of this size instead. This is done in the function <tt>halfBlockGenMesh()</tt> in <tt>halfBlocks.c</tt>.
+
+
+
 
 <h4 id="ocs"><span>Ambient occlusion</span></h4>
 

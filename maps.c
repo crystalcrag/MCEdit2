@@ -655,7 +655,7 @@ void mapGenerateMesh(Map map)
 		for (i = 0, X = list->X, Z = list->Z; i < DIM(directions); i ++)
 		{
 			int   dir  = directions[i];
-			Chunk load = list + chunkNeighbor[list->neighbor + dir];
+			Chunk load = list + map->chunkOffsets[list->neighbor + dir];
 
 			/* already loaded ? */
 			if ((load->cflags & CFLAG_GOTDATA) == 0)
@@ -673,8 +673,8 @@ void mapGenerateMesh(Map map)
 			if (cd)
 			{
 				/* this is the function that will convert chunk into triangles */
-				chunkUpdate(list, chunkAir, i);
-				renderFinishMesh(False);
+				chunkUpdate(list, chunkAir, map->chunkOffsets, i);
+				renderFinishMesh(map, False);
 				particlesChunkUpdate(map, cd);
 				if (cd->cdFlags == CDFLAG_PENDINGDEL)
 				{
@@ -891,6 +891,8 @@ Map mapInitFromPath(STRPTR path, int renderDist)
 
 		map->chunks = mapAllocArea(map->mapArea);
 		map->center = map->chunks + (map->mapX + map->mapZ * map->mapArea);
+		map->chunkOffsets = chunkNeighbor;
+		map->GPUMaxChunk = 20 * 1024 * 1024;
 
 		if (! map->chunks)
 		{
@@ -1510,7 +1512,7 @@ void mapViewFrustum(Map map, mat4 mvp, vec4 camera)
 
 	map->firstVisible = NULL;
 	map->genLast = NULL;
-	renderClearBank();
+	renderClearBank(map);
 
 	#if 0
 	/*
@@ -1693,5 +1695,5 @@ void mapViewFrustum(Map map, mat4 mvp, vec4 camera)
 	for (cur = map->firstVisible; cur; cur = cur->visible)
 		mapCullCave(cur, camera);
 
-	renderAllocCmdBuffer();
+	renderAllocCmdBuffer(map);
 }

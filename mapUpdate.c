@@ -1476,8 +1476,8 @@ void mapUpdateMesh(Map map)
 		cd->slot = 0;
 		next = cd->update;
 		//fprintf(stderr, "updating chunk %d, %d, %d%s\n", cd->chunk->X, cd->Y, cd->chunk->Z, cd->cdFlags & CDFLAG_UPDATENEARBY ? " [NEARBY]" : "");
-		chunkUpdate(cd->chunk, chunkAir, cd->Y >> 4);
-		renderFinishMesh(True);
+		chunkUpdate(cd->chunk, chunkAir, map->chunkOffsets, cd->Y >> 4);
+		renderFinishMesh(map, True);
 		particlesChunkUpdate(map, cd);
 		if (cd->cdFlags == CDFLAG_PENDINGDEL)
 			/* link within chunk has already been removed in chunkUpdate() */

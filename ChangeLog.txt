@@ -1,7 +1,18 @@
 =========== Week 34 ===========
+Sun Aug 29:
+	* clone tool: added edit brush interface.
+
+Sat Aug 28:
+	* clone tool logic continued.
+
+Fri Aug 27:
+	* started clone selection tool.
+	* attempt to fix pointer-sign: meh, revert most of the changes.
+
 Wed Aug 25:
 	* extended selection: select by similar block type.
 	* geometric diamond brush done.
+	* SITGL: fix potential crash in undo/redo of SIT_EDITBOX (memmove caused a buffer overflow).
 
 Tue Aug 24:
 	* geometric brush continued: hollow, outer and cylinder done.

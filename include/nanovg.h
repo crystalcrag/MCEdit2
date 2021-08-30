@@ -286,6 +286,10 @@ DLLIMP void nvgShapeAntiAlias(NVGcontext* ctx, int enabled);
 DLLIMP void nvgStrokeColor(NVGcontext* ctx, NVGcolor color);
 DLLIMP void nvgStrokeColorRGBA8(NVGcontext* ctx, unsigned char rgba[4]);
 
+// damn -Wpointer-sign
+#define nvgStrokeColorRGBAS8(ctx, rgba)    nvgStrokeColorRGBA8(ctx, (uint8_t *) rgba)
+#define nvgFillColorRGBAS8(ctx, rgba)      nvgFillColorRGBA8(ctx, (uint8_t *) rgba)
+
 // Sets current stroke style to a paint, which can be a one of the gradients or a pattern.
 DLLIMP void nvgStrokePaint(NVGcontext* ctx, NVGpaint paint);
 
