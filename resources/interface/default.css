@@ -21,7 +21,6 @@ form.bg fieldset { border: 0; border-top: 0.3em groove #c5c5c5; border-radius: 0
 
 /* mcedit style dialog */
 form.mc { background: rgba(black, 0.5); font-size: 0.9em; padding: 0.5em; border-radius: 0.5em }
-form.mc.rim { box-shadow: 0 0 0.5em black; border: 0.2em solid black }
 form.mc button { padding: 0.2em 0.5em; box-shadow: none; border: 0; outline: 0; text-transform: none; text-shadow: none; background: white; color: black }
 form.mc button:kbdfocus { outline: 0.15em solid selback 0.1em }
 form.mc #first { background: yellow; color: black; }

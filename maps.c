@@ -473,7 +473,7 @@ static void mapShowChunks(Map map)
 	Chunk c;
 	int   i, size;
 	fprintf(stderr, "=== map chunk loaded ===\n");
-	for (i = 0, c = map->chunks, size = map->mapSize; i < size; i ++, c ++)
+	for (i = 0, c = map->chunks, size = map->mapArea * map->mapArea; i < size; i ++, c ++)
 	{
 		uint8_t flags = c->cflags;
 		uint8_t bank = 0;
@@ -848,7 +848,6 @@ Bool mapSetRenderDist(Map map, int maxDist)
 		free(map->chunks);
 		map->maxDist  = area - 4;
 		map->mapArea  = area;
-		map->mapSize  = area * area;
 		map->mapZ     = map->mapX = XZmid;
 		map->chunks   = chunks;
 		map->GPUchunk = loaded;
@@ -881,7 +880,6 @@ Map mapInitFromPath(STRPTR path, int renderDist)
 		ChunkData air = chunkAir = (ChunkData) (map + 1);
 		map->maxDist = renderDist * 2 + 1;
 		map->mapArea = renderDist * 2 + 5;
-		map->mapSize = map->mapArea * map->mapArea;
 		map->mapZ    = map->mapX = renderDist + 2;
 
 		/* all tables but skyLight will be 0 */

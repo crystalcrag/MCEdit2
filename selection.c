@@ -34,13 +34,16 @@ void selectionInitStatic(int shader, DATA8 direction)
 	selection.cloneRepeat = 1;
 	selection.copyAir = 1;
 	selection.copyWater = 1;
+	selection.wait = MutexCreate();
 
 	/* will use selection.vsh and indexed rendering */
-	glGenBuffers(2, &selection.vboVertex);
+	glGenBuffers(3, &selection.vboVertex);
 	glBindBuffer(GL_ARRAY_BUFFER, selection.vboVertex);
 	glBufferData(GL_ARRAY_BUFFER, MAX_VERTEX * 20, NULL, GL_STATIC_DRAW);
 	glBindBuffer(GL_ARRAY_BUFFER, selection.vboIndex);
 	glBufferData(GL_ARRAY_BUFFER, MAX_INDEX * 2, NULL, GL_STATIC_DRAW);
+	glBindBuffer(GL_ARRAY_BUFFER, selection.vboLOC);
+	glBufferData(GL_ARRAY_BUFFER, MAX_REPEAT * 12, NULL, GL_STATIC_DRAW);
 
 	/* already populate data for 1st and 2nd point */
 	BlockState b = blockGetById(ID(1,0));
@@ -56,9 +59,14 @@ void selectionInitStatic(int shader, DATA8 direction)
 	glEnableVertexAttribArray(0);
 	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 20, (APTR) 12);
 	glEnableVertexAttribArray(1);
+	glBindBuffer(GL_ARRAY_BUFFER, selection.vboLOC);
+	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(2);
+	glVertexAttribDivisor(2, 1);
 	glBindVertexArray(0);
 }
 
+/* show size of selection in the "nudge" window */
 void selectionSetSize(void)
 {
 	if (selection.nudgeSize)
@@ -76,8 +84,10 @@ void selectionSetSize(void)
 	}
 }
 
+/* build a rect for selection shader */
 static void selectionSetRect(int pointId)
 {
+	vec vtx, size;
 	int i;
 	if (pointId == 2)
 	{
@@ -85,19 +95,26 @@ static void selectionSetRect(int pointId)
 		{
 			float pt1 = selection.firstPt[i];
 			float pt2 = selection.secondPt[i];
-			selection.regionPt[i] = (pt1 < pt2 ? pt1 : pt2) - 0.005;
-			selection.regionSize[i] = fabsf(pt2 - pt1) + 0.01 + 1;
+			selection.regionPt[i] = (pt1 < pt2 ? pt1 : pt2);
+			selection.regionSize[i] = fabsf(pt2 - pt1) + 1;
 		}
 	}
 
-	glBindBuffer(GL_ARRAY_BUFFER, selection.vboVertex);
-	vec vtx = (vec) glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
-	vec size;
-
 	switch (pointId) {
-	case 2: size = selection.regionSize; vtx += (8*5) * 2; break;
-	case 3: size = selection.cloneSize;  vtx += (8*2 + 36 + 24) * 5;
+	case 2: size = selection.regionSize; i = (8*5) * 2; break;
+	case 3: size = selection.cloneSize;  i = (8*2 + 36 + 24) * 5; break;
+	default: return;
 	}
+
+	glBindBuffer(GL_ARRAY_BUFFER, selection.vboVertex);
+	vtx = (vec) glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY) + i;
+
+	/* add a bit of padding to prevent z-fighting */
+	vec4 pad = {
+		size[VX] + VTX_EPSILON*2,
+		size[VY] + VTX_EPSILON*2,
+		size[VZ] + VTX_EPSILON*2
+	};
 
 	/* build a box big enough to cover the whole region */
 	for (i = 0; i < 24; i ++, vtx += 5)
@@ -106,9 +123,9 @@ static void selectionSetRect(int pointId)
 		static uint8_t coordV[] = {1, 1, 1, 1, 2, 2};
 		DATA8 p  = vertex + cubeIndices[i];
 		DATA8 uv = texCoord + (i & 3) * 2;
-		vtx[0] = p[0] * size[0];
-		vtx[1] = p[1] * size[1];
-		vtx[2] = p[2] * size[2];
+		vtx[0] = p[VX] * pad[VX];
+		vtx[1] = p[VY] * pad[VY];
+		vtx[2] = p[VZ] * pad[VZ];
 		vtx[3] = uv[0] * size[coordU[i>>2]]; if (vtx[3] > 0) vtx[3] -= 0.01;
 		vtx[4] = uv[1] * size[coordV[i>>2]]; if (vtx[4] > 0) vtx[4] -= 0.01;
 		vtx[3] /= 16;
@@ -125,9 +142,9 @@ static void selectionSetRect(int pointId)
 	for (i = 36; i < 36+24; i ++, vtx += 5)
 	{
 		DATA8 p = vertex + bboxIndices[i] * 3;
-		vtx[0] = p[0] * size[0];
-		vtx[1] = p[1] * size[1];
-		vtx[2] = p[2] * size[2];
+		vtx[0] = p[VX] * pad[VX];
+		vtx[1] = p[VY] * pad[VY];
+		vtx[2] = p[VZ] * pad[VZ];
 		vtx[3] = (31*16+8) / 512.;
 		vtx[4] = 8 / 1024.;
 	}
@@ -156,22 +173,27 @@ static int selectionNudge(SIT_Widget w, APTR cd, APTR ud)
 		}
 		break;
 	case SITOM_ButtonReleased:
-		//SIT_SetValues(w, SIT_CheckState, False, NULL);
 		selection.nudgePoint = 0;
 		break;
 	}
 	return 1;
 }
 
+/* nudge selection using directional keys normally used for player movement */
 Bool selectionProcessKey(int key, int mod)
 {
-	if (selection.nudgePoint > 0)
+	if (selection.nudgePoint > 0) /* one button must be held down */
 	{
 		static int8_t axisSENW[] = {2,0,2,0};
 		static int8_t axisMain[] = {1,1,-1,-1};
 		static int8_t axisRot[]  = {1,-1,-1,1};
 		int8_t axis = 0;
 		int8_t dir  = selection.direction[0]; /* S,E,N,W */
+
+		/* selection is being cloned: can't move first and second point */
+		if (selection.brush && selection.nudgePoint < 4)
+			return False;
+
 		switch (key) {
 		case FORWARD:  axis = axisSENW[dir];   dir =  axisMain[dir]; break;
 		case BACKWARD: axis = axisSENW[dir];   dir = -axisMain[dir]; break;
@@ -188,7 +210,7 @@ Bool selectionProcessKey(int key, int mod)
 			selection.secondPt[axis] += dir;
 		if (selection.nudgePoint & 4)
 			selection.clonePt[axis] += dir,
-			selectionSetClonePt(NULL, -1);
+			selectionSetClonePt(NULL, SEL_CLONEPT_IS_SET);
 		selectionSetRect(2);
 		return True;
 	}
@@ -245,20 +267,27 @@ vec selectionGetPoints(void)
 	return selection.firstPt;
 }
 
+Bool selectionHasClone(void)
+{
+	return selection.brush != NULL;
+}
+
 /* draw selection point/boxes */
 static void selectionDrawPoint(vec4 point, int pointId)
 {
 	/* first: draw fllled box */
-	vec4 loc;
-	memcpy(loc, point, sizeof loc);
-	loc[3] = pointId*4+4+1;
+	vec4 loc = {
+		point[VX] - VTX_EPSILON,
+		point[VY] - VTX_EPSILON,
+		point[VZ] - VTX_EPSILON, pointId*4+4+1
+	};
 	glEnable(GL_DEPTH_TEST);
 	glProgramUniform4fv(selection.shader, selection.infoLoc, 1, loc);
 	switch (pointId) {
-	case 0: loc[3] --;   glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_SHORT, 0); break; /* first pt */
-	case 1: loc[3] --;   glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_SHORT, (APTR) ((24+36)*2)); break; /* first pt */
-	case 2: loc[3] = 0;  glDrawArrays(GL_TRIANGLES, 8*2, 36); break; /* box that cover 1st and 2nd point */
-	case 3: loc[3] = 20; glDrawArrays(GL_TRIANGLES, 8*2+36+24, 36);  /* box that cover cloned selection */
+	case 0: loc[VT] --;   glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_SHORT, 0); break; /* first pt */
+	case 1: loc[VT] --;   glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_SHORT, (APTR) ((24+36)*2)); break; /* first pt */
+	case 2: loc[VT] = 0;  glDrawArrays(GL_TRIANGLES, 8*2, 36); break; /* box that cover 1st and 2nd point */
+	case 3: loc[VT] = 20; glDrawArraysInstanced(GL_TRIANGLES, 8*2+36+24, 36, selection.cloneRepeat);  /* box that cover cloned selection */
 	}
 
 	glDisable(GL_DEPTH_TEST);
@@ -267,10 +296,11 @@ static void selectionDrawPoint(vec4 point, int pointId)
 	case 0: glDrawElements(GL_LINES, 24, GL_UNSIGNED_SHORT, (APTR) (36 * 2)); break;
 	case 1: glDrawElements(GL_LINES, 24, GL_UNSIGNED_SHORT, (APTR) ((24+36*2)*2)); break;
 	case 2: glDrawArrays(GL_LINES, 8*2+36, 24); break;
-	case 3: glDrawArrays(GL_LINES, 8*2+36*2+24, 24);
+	case 3: glDrawArraysInstanced(GL_LINES, 8*2+36*2+24, 24, selection.cloneRepeat);
 	}
 }
 
+/* render everything related to selection: points, box, brush */
 void selectionRender(void)
 {
 	if (selection.hasPoint)
@@ -289,12 +319,11 @@ void selectionRender(void)
 		}
 		if (selection.hasClone)
 		{
-			/* draw the brush */
-			#if 0
+			/* draw the brush (only once, no matter how many repeats there are) */
 			glDepthMask(GL_TRUE);
-			vec4 clonePt = {selection.clonePt[VX]-1, selection.clonePt[VY]-1, selection.clonePt[VZ]-1, 1};
-			renderDrawMap(selection.clone, clonePt);
-			#endif
+			glEnable(GL_DEPTH_TEST);
+			renderDrawMap(selection.brush);
+			glDisable(GL_DEPTH_TEST);
 
 			/* box overlay */
 			glDepthMask(GL_FALSE);
@@ -336,36 +365,116 @@ void selectionSetClonePt(vec4 pos, int side)
 	{
 		for (i = 0; i < 3; i ++)
 		{
-			TEXT coord[32];
-			sprintf(coord, "%d", (int) (selection.clonePt[i] - selection.regionPt[i] - 0.005));
-			SIT_SetValues(selection.brushOff[i], SIT_Title, coord, NULL);
+			selection.cloneOff[i] = selection.clonePt[i] - selection.regionPt[i];
+			if (side != SEL_CLONEOFF_IS_SET)
+				SIT_SetValues(selection.brushOff[i], SIT_Title, NULL, NULL);
 		}
+
+		/* set VBO location for instanced rendering */
+		glBindBuffer(GL_ARRAY_BUFFER, selection.vboLOC);
+		vec loc = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
+
+		for (i = selection.cloneRepeat, j = 0; i > 0; i --, j ++, loc += 3)
+		{
+			loc[VX] = selection.clonePt[VX] + selection.cloneOff[VX] * j - VTX_EPSILON;
+			loc[VY] = selection.clonePt[VY] + selection.cloneOff[VY] * j - VTX_EPSILON;
+			loc[VZ] = selection.clonePt[VZ] + selection.cloneOff[VZ] * j - VTX_EPSILON;
+		}
+
+		glUnmapBuffer(GL_ARRAY_BUFFER);
 	}
 
 	/* relocate chunk->X+Z, renderPrepVisibleChunks() will need this */
-	if (selection.clone)
+	if (selection.brush)
 	{
 		Chunk c;
-		Map   brush = selection.clone;
+		Map   brush = selection.brush;
 		int   x = (brush->size[VX] + 15) >> 4;
 		int   z = (brush->size[VZ] + 15) >> 4;
 		for (c = brush->chunks, pos = selection.clonePt, j = 0; j < z; j ++)
 		{
 			for (i = 0; i < x; i ++, c ++)
 			{
-				c->X = (int) pos[VX] + i * 16;
-				c->Z = (int) pos[VZ] + j * 16;
+				c->X = (int) pos[VX] + i * 16 - 1;
+				c->Z = (int) pos[VZ] + j * 16 - 1;
+				int k;
+				for (k = 0; k < c->maxy; k ++)
+					c->layer[k]->Y = (int) pos[VY] + k * 16 - 1;
 			}
 		}
 	}
-	fprintf(stderr, "clone pt = %g,%g,%g, side = %d\n", selection.clonePt[0], selection.clonePt[1], selection.clonePt[2], side);
+//	fprintf(stderr, "clone pt = %g,%g,%g, side = %d\n", selection.clonePt[0], selection.clonePt[1], selection.clonePt[2], side);
 }
 
-/* SITE_OnChange on brush offset */
+/* SITE_OnChange on brush offsets */
 static int selectionChangeCoord(SIT_Widget w, APTR cd, APTR ud)
 {
 	int axis = (int) ud;
-	selection.clonePt[axis] = selection.regionPt[axis] + 0.005 + atoi(cd);
+	selection.clonePt[axis] = selection.regionPt[axis] + selection.cloneOff[axis];
+	selectionSetClonePt(NULL, SEL_CLONEOFF_IS_SET);
+	return 1;
+}
+
+/* SITE_OnChange on repeat count */
+static int selectionRepeat(SIT_Widget w, APTR cd, APTR ud)
+{
+	selectionSetClonePt(NULL, SEL_CLONEOFF_IS_SET);
+	return 1;
+}
+
+static int selectionCloneBlocks(SIT_Widget w, APTR cd, APTR map)
+{
+	struct BlockIter_t dst;
+	struct BlockIter_t src;
+	Map brush = selection.brush;
+	vec4 pos;
+	memcpy(pos, selection.clonePt, sizeof pos);
+	mapInitIter(map,   &dst, selection.clonePt, True); selection.clonePt[VY] = 1;
+	mapInitIter(brush, &src, selection.clonePt, False);
+
+	mapUpdateInit(&dst);
+
+	uint8_t air = selection.copyAir;
+	uint8_t water = selection.copyWater;
+	uint8_t count = selection.cloneRepeat; /* repeat is clamped to 128 */
+
+	for (;;)
+	{
+		int dx = brush->size[VX] - 2;
+		int dy = brush->size[VY] - 2;
+		int dz = brush->size[VZ] - 2;
+		while (dy > 0)
+		{
+			int z, x;
+			for (z = 0; z < dz; z ++, mapIter(&src, -dx, 0, 1), mapIter(&dst, -dx, 0, 1))
+			{
+				for (x = 0; x < dx; x ++, mapIter(&src, 1, 0, 0), mapIter(&dst, 1, 0, 0))
+				{
+					uint8_t data = src.blockIds[DATA_OFFSET + (src.offset >> 1)];
+					int blockId = (src.blockIds[src.offset] << 4) | (src.offset & 1 ? data >> 4 : data & 15);
+					if (dst.ref == NULL) continue; /* outside map :-/ */
+					if (air == 0 && blockId == 0) continue;
+					if (water == 0 && blockGetById(blockId)->special == LIKID) continue;
+					mapUpdate(map, NULL, blockId, NULL, UPDATE_SILENT);
+				}
+			}
+			mapIter(&src, 0, 1, -dz);
+			mapIter(&dst, 0, 1, -dz);
+			dy --;
+		}
+		count --;
+		if (count == 0) break;
+
+		pos[VX] += selection.cloneOff[VX];
+		pos[VY] += selection.cloneOff[VY];
+		pos[VZ] += selection.cloneOff[VZ];
+
+		mapInitIter(map, &dst, pos, True);
+		mapInitIter(brush, &src, selection.clonePt, False);
+	}
+
+	mapUpdateEnd(map);
+	selectionCancelClone();
 	return 1;
 }
 
@@ -432,12 +541,16 @@ void selectionClone(APTR sitRoot, Map map, vec4 pos, int side)
 			SIT_AddCallback(selection.brushOff[i] = SIT_GetById(diag, editBoxes[i]), SITE_OnChange, selectionChangeCoord, (APTR) i);
 		}
 		SIT_AddCallback(SIT_GetById(diag, "nudge"), SITE_OnClick, selectionNudge, (APTR) 4);
+		SIT_AddCallback(SIT_GetById(diag, "repeat"), SITE_OnChange, selectionRepeat, NULL);
+		SIT_AddCallback(SIT_GetById(diag, "ok"), SITE_OnActivate, selectionCloneBlocks, map);
 		SIT_ManageWidget(diag);
 	}
 
-#if 0
-	if (selection.clone)
-		free(selection.clone);
+	if (selection.brush)
+	{
+		renderFreeMesh(selection.brush);
+		free(selection.brush);
+	}
 
 	uint16_t sizes[] = {
 		fabsf(selection.firstPt[VX] - selection.secondPt[VX]) + 3,
@@ -450,13 +563,11 @@ void selectionClone(APTR sitRoot, Map map, vec4 pos, int side)
 		(sizes[VZ] + 15) >> 4
 	};
 
-	int total = chunks[VX] * chunks[VZ] * (chunks[VY] * (4096 + 2048 + sizeof (struct ChunkData_t)) + sizeof (struct Chunk_t)) +
+	int total = chunks[VX] * chunks[VZ] * (chunks[VY] * (SKYLIGHT_OFFSET + sizeof (struct ChunkData_t)) + sizeof (struct Chunk_t)) +
 	       sizeof (struct Map_t);
 
-	fprintf(stderr, "bytes for brush = %d\n", total);
-
 	/* alloc everything in one mem chunk: the brush isn't going to be resized anyway */
-	Map brush = selection.clone = calloc(1, total);
+	Map brush = selection.brush = calloc(1, total);
 
 	if (brush)
 	{
@@ -469,14 +580,14 @@ void selectionClone(APTR sitRoot, Map map, vec4 pos, int side)
 		brush->chunkOffsets = (DATAS16) brush->path;
 		brush->chunks = (Chunk) (brush + 1);
 		brush->GPUMaxChunk = 512 * 1024;
+		brush->maxDist = brush->mapArea = 1e6;
 		cd = (ChunkData) (brush->chunks + chunkXZ);
 		blocks = (DATA8) (cd + chunkXZ * chunks[VY]);
 
 		memcpy(brush->size, sizes, 6);
 
 		/* does not matter: there will be no wrap around chunks */
-		brush->mapArea = brush->maxDist = brush->mapSize = 1e6;
-		brush->center  = brush->chunks;
+		brush->center = brush->chunks;
 		/* mapInitIter() / mapIter() need to be working though */
 		for (x = 0; x < 16; x ++)
 		{
@@ -496,8 +607,6 @@ void selectionClone(APTR sitRoot, Map map, vec4 pos, int side)
 			for (x = 0; x < chunks[VX]; x ++, chunk ++)
 			{
 				/* setup chunk */
-				chunk->X = x * 16;
-				chunk->Z = z * 16;
 				chunk->maxy = chunks[VY];
 				chunk->cflags |= CFLAG_GOTDATA;
 				/* brush don't have lazy chunks all around */
@@ -507,15 +616,16 @@ void selectionClone(APTR sitRoot, Map map, vec4 pos, int side)
 				if (x == chunks[VX]-1) missing |= 1 << SIDE_EAST;
 				if (z == chunks[VZ]-1) missing |= 1 << SIDE_SOUTH;
 				chunk->noChunks = missing;
-				for (y = 0; y < chunks[VY]; y ++, cd ++, blocks += 4096 + 2048)
+				for (y = 0; y < chunks[VY]; y ++, cd ++, blocks += SKYLIGHT_OFFSET)
 				{
 					chunk->layer[y] = cd;
 					/* setup ChunkData */
 					*first = cd;
 					first = &cd->visible;
 					cd->Y = y * 16;
+					cd->chunk = chunk;
 					/* will only contain blockId + data, no skylight or blocklight */
-					cd->cdflags = CDFLAG_NOLIGHT;
+					cd->cdFlags = CDFLAG_NOLIGHT;
 					cd->blockIds = blocks;
 				}
 			}
@@ -531,12 +641,17 @@ void selectionClone(APTR sitRoot, Map map, vec4 pos, int side)
 		DATA8 blockIds;
 		int   offset;
 		mapInitIter(map, &iter, pos, False);
+		sizes[VX] -= 2;
+		sizes[VY] -= 2;
+		sizes[VZ] -= 2;
 		/* note: we have to add a 1 block layer all around the brush to prevent face culling at the edge of chunk */
-		for (y = 1, offset = 256, blockIds = cd->blockIds, cd = brush->firstVisible; y <= sizes[VY]; y ++, mapIter(&iter, 0, - sizes[VZ], 1))
+		for (y = 1, offset = 256+16+1, cd = brush->firstVisible, blockIds = cd->blockIds; y <= sizes[VY]; y ++, mapIter(&iter, 0, - sizes[VZ], 1))
 		{
-			for (z = 1, offset += 16; z < sizes[VZ]; z ++, mapIter(&iter, - sizes[VX], 1, 0))
+			ChunkData starty = cd;
+			for (z = 1; z <= sizes[VZ]; z ++, mapIter(&iter, - sizes[VX], 1, 0))
 			{
-				for (x = 1, offset ++; x < sizes[VX]; x ++, mapIter(&iter, 1, 0, 0))
+				ChunkData startz = cd;
+				for (x = 1; x <= sizes[VX]; x ++, mapIter(&iter, 1, 0, 0))
 				{
 					/* would be nice if we could use memcpy(), but DATA_OFFSET table is packed by 2 voxels per byte :-/ */
 					uint8_t data = iter.blockIds[DATA_OFFSET + (iter.offset >> 1)];
@@ -550,54 +665,67 @@ void selectionClone(APTR sitRoot, Map map, vec4 pos, int side)
 						offset &= ~15;
 						blockIds = cd->blockIds;
 					}
+					else offset ++;
 				}
+				cd = startz;
 				if ((z & 15) == 15)
 				{
 					cd += chunks[VX] * chunks[VY];
 					offset &= ~(15<<4);
 					blockIds = cd->blockIds;
 				}
+				else offset += 16;
+				offset -= sizes[VX];
 			}
+			cd = starty;
 			if ((y & 15) == 15)
 			{
 				cd ++;
 				offset &= ~(15<<8);
 				blockIds = cd->blockIds;
 			}
+			else offset += 256;
+			offset -= sizes[VZ] << 4;
 		}
 
-		/* still not done: need to convert all into meshes */
+		/* still not done: need to convert all chunks into meshes */
 		for (z = 0, chunk = brush->chunks; z < chunks[VZ]; z ++)
 		{
 			for (x = 0; x < chunks[VX]; x ++, chunk ++)
 			{
 				for (y = 0; y < chunk->maxy; y ++)
 				{
-					chunkUpdate(chunk, chunkAir, map->chunkOffsets, y);
+					chunkUpdate(chunk, chunkAir, brush->chunkOffsets, y);
 					/* transfer chunk to the GPU */
 					renderFinishMesh(brush, True);
 				}
 			}
 		}
+		renderAllocCmdBuffer(brush);
 	}
-#endif
+
 	selectionSetClonePt(pos, side);
 }
 
 /* remove everything related to cloned selection */
-void selectionCancelClone(void)
+Bool selectionCancelClone(void)
 {
-	if (selection.clone)
+	Bool ret = False;
+	if (selection.brush)
 	{
-		free(selection.clone);
-		selection.clone = NULL;
+		renderFreeMesh(selection.brush);
+		free(selection.brush);
+		selection.brush = NULL;
+		ret = True;
 	}
 	if (selection.editBrush)
 	{
 		SIT_CloseDialog(selection.editBrush);
 		selection.editBrush = NULL;
+		ret = True;
 	}
 	selection.hasClone = 0;
+	return ret;
 }
 
 /*
@@ -632,7 +760,6 @@ static struct
 	int    similar;
 	char   cancel;
 	vec4   size;
-	Mutex  wait;
 }	selectionAsync;
 
 /* thread to process fill command */
@@ -657,7 +784,7 @@ void selectionProcessFill(void * unused)
 	mapUpdateInit(&iter);
 
 	/* lock the mutex for main thread to know when we are finished here */
-	MutexEnter(selectionAsync.wait);
+	MutexEnter(selection.wait);
 
 	Block b = &blockIds[blockId>>4];
 
@@ -749,7 +876,7 @@ void selectionProcessFill(void * unused)
 	}
 	/* note: mapUpdateEnd() will regen mesh, must no be called from here */
 	break_all:
-	MutexLeave(selectionAsync.wait);
+	MutexLeave(selection.wait);
 }
 
 /* this only starts selection processing */
@@ -761,10 +888,6 @@ int selectionFill(Map map, DATA32 progress, int blockId, int side, int direction
 	selectionAsync.facing   = direction;
 	selectionAsync.map      = map;
 	selectionAsync.cancel   = 0;
-
-	/* wait for thread to finish */
-	if (! selectionAsync.wait)
-		selectionAsync.wait = MutexCreate();
 
 	/* have to be careful with thread: don't call any opengl or SITGL function in them */
 	ThreadCreate(selectionProcessFill, NULL);
@@ -839,7 +962,7 @@ static void selectionProcessReplace(void * unsued)
 	dy = selection.regionSize[VY];
 	dz = selection.regionSize[VZ];
 
-	MutexEnter(selectionAsync.wait);
+	MutexEnter(selection.wait);
 
 	map = selectionAsync.map;
 	replId = selectionAsync.replId;
@@ -905,7 +1028,7 @@ static void selectionProcessReplace(void * unsued)
 		}
 	}
 	break_all:
-	MutexLeave(selectionAsync.wait);
+	MutexLeave(selection.wait);
 }
 
 /* change one type of block with another */
@@ -918,10 +1041,6 @@ int selectionReplace(Map map, DATA32 progress, int blockId, int replId, int side
 	selectionAsync.side     = side;
 	selectionAsync.map      = map;
 	selectionAsync.cancel   = 0;
-
-	/* wait for thread to finish */
-	if (! selectionAsync.wait)
-		selectionAsync.wait = MutexCreate();
 
 	ThreadCreate(selectionProcessReplace, NULL);
 
@@ -944,6 +1063,7 @@ static Bool isInsideShape(int shape, vec4 voxelPos, vec4 sqRxyz)
 		axis2 = (axis1 >> 2) & 3;
 		axis1 &= 3;
 	}
+	else axis1 = axis2 = 0;
 	for (i = 0; i < 3; i ++)
 	{
 		if (voxelPos[i] == 0) continue;
@@ -952,7 +1072,7 @@ static Bool isInsideShape(int shape, vec4 voxelPos, vec4 sqRxyz)
 		else              voxel[i] ++;
 		/*
 		 * <voxel> is the vector from sphere center to voxel center: check in the vector direction
-		 * if there is a farther voxel that would this one
+		 * if there is a farther voxel that would hide this one
 		 */
 		switch (shape) {
 		case SHAPE_SPHERE:
@@ -989,7 +1109,6 @@ int selectionCylinderAxis(vec4 size, int direction)
 }
 
 static void selectionProcessShape(void * unused)
-//Map map, DATA32 progress, int blockId, int flags, vec4 size, int direction)
 {
 	vec4 pos = {
 		MIN(selection.firstPt[VX], selection.secondPt[VX]),
@@ -1013,7 +1132,7 @@ static void selectionProcessShape(void * unused)
 	uint8_t shape = flags & 15;
 
 	struct BlockIter_t iter;
-	MutexEnter(selectionAsync.wait);
+	MutexEnter(selection.wait);
 	mapInitIter(selectionAsync.map, &iter, pos, selectionAsync.blockId > 0);
 	mapUpdateInit(&iter);
 
@@ -1098,7 +1217,7 @@ static void selectionProcessShape(void * unused)
 		}
 	}
 	break_all:
-	MutexLeave(selectionAsync.wait);
+	MutexLeave(selection.wait);
 }
 
 /* start the thread that will do the job */
@@ -1113,10 +1232,6 @@ int selectionFillWithShape(Map map, DATA32 progress, int blockId, int flags, vec
 
 	memcpy(selectionAsync.size, size, 12);
 
-	/* wait for thread to finish */
-	if (! selectionAsync.wait)
-		selectionAsync.wait = MutexCreate();
-
 	ThreadCreate(selectionProcessShape, NULL);
 
 	return (int) selection.regionSize[VX] *
@@ -1129,9 +1244,6 @@ void selectionCancelOperation(void)
 {
 	selectionAsync.cancel = 1;
 	/* wait for thread to finish */
-	if (selectionAsync.wait)
-	{
-		MutexEnter(selectionAsync.wait);
-		MutexLeave(selectionAsync.wait);
-	}
+	MutexEnter(selection.wait);
+	MutexLeave(selection.wait);
 }

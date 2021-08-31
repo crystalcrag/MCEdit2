@@ -760,9 +760,6 @@ uint8_t openDoorDataToModel[] = {
 	5, 6, 7, 4, 3, 0, 1, 2
 };
 
-static int offsets[] = { /* neighbors: S, E, N, W, T, B */
-	16, 1, -16, -1, 256, -256
-};
 static uint8_t offsetConnected[] = { /* S, E, N, W, T, B (4 coords per face) */
 	9+13, 1+13, -9+13, -1+13,     9+13, -3+13, -9+13,  3+13,    9+13, -1+13, -9+13,  1+13,
 	9+13, 3+13, -9+13, -3+13,    -3+13,  1+13,  3+13, -1+13,    3+13,  1+13, -3+13, -1+13
@@ -1516,6 +1513,9 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 			}
 			else
 			{
+				static int offsets[] = { /* neighbors: S, E, N, W, T, B */
+					16, 1, -16, -1, 256, -256
+				};
 				n += offsets[i>>2];
 				data = blocks[DATA_OFFSET + (n >> 1)];
 				t = blockGetByIdData(blocks[n], n & 1 ? data >> 4 : data & 0xf);

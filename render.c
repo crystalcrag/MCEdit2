@@ -1519,7 +1519,7 @@ void renderWorld(void)
 }
 
 /* mostly used to render cloned selection */
-void renderDrawMap(Map map, vec4 pos)
+void renderDrawMap(Map map)
 {
 	GPUBank bank;
 	renderPrepVisibleChunks(map);
@@ -1895,7 +1895,7 @@ void renderAllocCmdBuffer(Map map)
 	for (bank = HEAD(map->gpuBanks); bank; NEXT(bank))
 	{
 		/* avoid reallocating this buffer: it is used quite a lot (changed every frame) */
-		int count = (bank->vtxSize + 1023) & ~1023;
+		int count = map->GPUMaxChunk > 1024*1024 ? (bank->vtxSize + 1023) & ~1023 : bank->vtxSize;
 
 		if (bank->vboLocSize < count)
 		{
@@ -1976,6 +1976,20 @@ void renderFinishMesh(Map map, Bool updateVtxSize)
 			bank->vtxSize += oldSize ? -1 : 1;
 		if ((oldAlpha > 0) != (cd->glAlpha > 0))
 			bank->vtxSize += oldAlpha ? -1 : 1;
+	}
+}
+
+/* free all VBO allocated for map */
+void renderFreeMesh(Map map)
+{
+	GPUBank bank, next;
+	for (bank = next = HEAD(map->gpuBanks); bank; bank = next)
+	{
+		NEXT(next);
+		glDeleteVertexArrays(1, &bank->vaoTerrain);
+		glDeleteBuffers(3, &bank->vboTerrain);
+		free(bank->usedList);
+		free(bank);
 	}
 }
 

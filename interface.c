@@ -935,7 +935,7 @@ static int mcuiGetCoord(SIT_Widget w, APTR cd, APTR ud)
 
 void mcuiGoto(SIT_Widget parent, vec4 pos)
 {
-	SIT_Widget diag = SIT_CreateWidget("goto.mc rim", SIT_DIALOG, parent,
+	SIT_Widget diag = SIT_CreateWidget("goto.bg", SIT_DIALOG, parent,
 		SIT_DialogStyles, SITV_Plain | SITV_Movable,
 		NULL
 	);

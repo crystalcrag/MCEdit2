@@ -1,4 +1,9 @@
 =========== Week 34 ===========
+Mon Aug 30:
+	* brush is now rendered as a mini-map.
+	* brush can be copied in the world (including repeated); still need rotate, roll, ...
+
+=========== Week 34 ===========
 Sun Aug 29:
 	* clone tool: added edit brush interface.
 

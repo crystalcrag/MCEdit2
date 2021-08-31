@@ -19,6 +19,7 @@
 
 Bool renderInitStatic(int width, int height, APTR sitRoot);
 Map  renderInitWorld(STRPTR path, int renderDist);
+void renderFreeMesh(Map map);
 void renderWorld();
 void renderSetViewMat(vec4 pos, vec4 lookat, float * yawPitch);
 void renderToggleDebug(int what);
@@ -32,7 +33,7 @@ void renderFrustum(Bool snapshot);
 void renderResetViewport(void);
 void renderSaveRestoreState(Bool save);
 void renderResetFrustum(void);
-void renderDrawMap(Map map, vec4 pos);
+void renderDrawMap(Map map);
 int  renderSetSelectionPoint(int action);
 int  renderGetTerrain(int size[2]);
 int  renderGetFacingDirection(void);

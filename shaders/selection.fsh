@@ -16,7 +16,7 @@ void main(void)
 	/* simulate a repeatable texture: blocktTex has repeat param set to clamp */
 	case 3:  color = texture(blockTex, vec2(mod(tex.x, 0.0625), mod(tex.y, 0.03125) + 0.46875)); break;
 	case 4:  color = texture(blockTex, vec2(mod(tex.x, 0.0625), mod(tex.y, 0.03125) + 0.46875)) * vec4(0.2, 0.7, 0.2, 0.5); break;
-	case 5:  color = vec4(0.2, 1, 0.2, 1);
+	case 5:  color = vec4(0.2, 1, 0.2, 1); /* edges of cloned selection */
 	}
 	switch (selType&3) {
 	case 1: color.a *= 0.5; break; /* hidden edges: less opaque */

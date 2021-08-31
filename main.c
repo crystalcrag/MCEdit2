@@ -26,7 +26,7 @@
 
 GameState_t mcedit;
 double      curTime;
-int breakPoint;   /* easier to place break points :-/ */
+int         breakPoint;   /* easier to place break points :-/ */
 
 static void takeScreenshot(void)
 {
@@ -175,12 +175,8 @@ static int mceditCommands(int cmd)
 	{
 		if (cmd < MCUI_SEL_CLONE)
 		{
-			if (mcedit.hasClone)
-			{
-				/* remove current brush */
-				selectionCancelClone();
-				mcedit.hasClone = 0;
-			}
+			/* remove current brush */
+			selectionCancelClone();
 			/* will render the slot change */
 			renderWorld();
 			SIT_RenderNodes(curTime);
@@ -195,7 +191,6 @@ static int mceditCommands(int cmd)
 			MapExtraData sel = renderGetSelectedBlock(pos, NULL);
 			if (sel == NULL) return 1;
 			selectionClone(mcedit.app, mcedit.level, pos, sel->side);
-			mcedit.hasClone = 1;
 		}
 	}
 	return 1;
@@ -229,9 +224,8 @@ static int mceditTrackFocus(SIT_Widget w, APTR cd, APTR ud)
 /* ESC key pressed: cancel stuff, if nothing to cancel, exit then */
 static int mceditCancelStuff(SIT_Widget w, APTR cd, APTR ud)
 {
-	if (mcedit.hasClone)
-		selectionCancelClone(),
-		mcedit.hasClone = 0;
+	if (selectionCancelClone())
+		;
 	else if (mcedit.state == GAMELOOP_OVERLAY)
 		SIT_Exit(1); /* exit from loop, not app */
 	else if (mcedit.selection)
@@ -392,8 +386,11 @@ void mceditWorld(void)
 					break;
 				#endif
 				case SDLK_TAB:
-					if (mcedit.hasClone)
+					if (selectionHasClone())
+					{
+						key = SITK_Tab;
 						goto forwardKeyPress;
+					}
 					mcedit.state = GAMELOOP_SIDEVIEW;
 					mcedit.exit = 2;
 					break;
@@ -530,7 +527,9 @@ void mceditWorld(void)
 					capture = 1;
 					break;
 				case SDL_BUTTON_MIDDLE:
-					if ((mcedit.player.inventory.offhand & 1) == 0 && mcedit.selection == 0)
+					#define NO_EXTENDED_SEL_TOOLBAR \
+						(mcedit.player.inventory.offhand & 1) == 0 && mcedit.selection == 0
+					if (NO_EXTENDED_SEL_TOOLBAR)
 					{
 						/* add block selected to inventory bar */
 						vec4 pos;
@@ -545,17 +544,15 @@ void mceditWorld(void)
 					else mcedit.selection = renderSetSelectionPoint(RENDER_SEL_AUTO);
 					break;
 				case SDL_BUTTON_WHEELUP:
-					if ((mcedit.player.inventory.offhand & 1) == 0 && mcedit.selection == 0)
+					if (NO_EXTENDED_SEL_TOOLBAR)
 						playerScrollInventory(&mcedit.player, -1);
 					break;
 				case SDL_BUTTON_WHEELDOWN:
-					if ((mcedit.player.inventory.offhand & 1) == 0 && mcedit.selection == 0)
+					if (NO_EXTENDED_SEL_TOOLBAR)
 						playerScrollInventory(&mcedit.player, 1);
 				}
 				break;
 			case SDL_MOUSEBUTTONUP:
-				if (SIT_ProcessClick(event.button.x, event.button.y, event.button.button-1, 0))
-					break;
 				if (event.button.button == SDL_BUTTON_RIGHT && capture)
 				{
 					SDL_WM_GrabInput(SDL_GRAB_OFF);
@@ -566,6 +563,8 @@ void mceditWorld(void)
 						SDL_WarpMouse(mcedit.mouseX, mcedit.mouseY);
 					capture = ignore = 0;
 				}
+				if (SIT_ProcessClick(event.button.x, event.button.y, event.button.button-1, 0))
+					break;
 				break;
 			case SDL_VIDEORESIZE:
 				mcedit.width  = event.resize.w;
@@ -646,7 +645,7 @@ void mceditPlaceBlock(void)
 	MapExtraData sel = renderGetSelectedBlock(pos, &block);
 	if (sel == NULL) return;
 
-	if (mcedit.hasClone)
+	if (selectionHasClone())
 	{
 		/* move clone brush instead */
 		selectionSetClonePt(pos, sel->side);

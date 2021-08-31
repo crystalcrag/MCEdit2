@@ -24,7 +24,7 @@ int  selectionFillWithShape(Map map, DATA32 progress, int blockId, int shape, ve
 int  selectionCylinderAxis(vec4 size, int direction);
 void selectionClone(APTR sitRoot, Map map, vec4 toPos, int side);
 void selectionSetClonePt(vec4 pos, int side);
-void selectionCancelClone(void);
+Bool selectionCancelClone(void);
 
 enum /* flags for <shape> parameter of function selectionFillWithShape() */
 {
@@ -43,6 +43,12 @@ enum /* flags for <shape> parameter of function selectionFillWithShape() */
 	SHAPE_AXIS_H   = 0x400
 };
 
+enum /* special values for <side> parameter of selectionSetClonePt() */
+{
+	SEL_CLONEPT_IS_SET  = -1,  /* no need to reset clonePt[] */
+	SEL_CLONEOFF_IS_SET = -2,  /* no need to reset editbox offset */
+};
+
 #ifdef SELECTION_IMPL        /* private stuff below */
 struct Selection_t
 {
@@ -52,10 +58,12 @@ struct Selection_t
 	int      vao;            /* GL buffer to render selection points/box */
 	int      vboVertex;
 	int      vboIndex;
+	int      vboLOC;
 	uint8_t  hasPoint;       /* &1: first point set, &2: second point set */
 	uint8_t  hasClone;       /* 1 if selection has been cloned */
 	uint8_t  nudgePoint;     /* which point is being held in the nudge window */
 	uint8_t  nudgeStep;
+	Mutex    wait;           /* used by asynchronous actions (fill/replace/brush) */
 	vec4     firstPt;        /* coord in world space */
 	vec4     secondPt;
 	vec4     regionPt;
@@ -71,13 +79,15 @@ struct Selection_t
 	APTR     editBrush;      /* SIT_DIALOG */
 	APTR     nudgeSize;      /* SIT_LABEL */
 	APTR     brushOff[3];    /* SIT_EDITBOX */
-	Map      clone;          /* mesh for cloned selection */
+	Map      brush;          /* mesh for cloned selection */
 	DATA8    direction;      /* from render.c: used by selection nudge */
 };
 
-#define MAX_SELECTION        1024
+#define MAX_REPEAT           128
+#define MAX_SELECTION        1024 /* blocks */
 #define MAX_VERTEX           (8*2+(36+24)*2)
 #define MAX_INDEX            ((24 + 36)*2)
+#define VTX_EPSILON          0.005
 
 #endif
 #endif

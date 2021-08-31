@@ -501,8 +501,8 @@ which results in more chunks being drawn, but should not leave any unfilled hole
 
 <p>This is <b>done after the chunks have been culled from the frustum</b>. In MCPE, it was done before.
 In this engine, it is not feasible because a given chunk can add up to 26 others. Graph traversal only
-works with connected chunks (<tt>S, E, N, W, T, B</tt>). While technically, it is not impossible to
-make it work, and have indeed been tried, in practice it adds way too much complexity compared to current
+works with connected chunks (<tt>S, E, N, W, T, B</tt>). While technically, it is possible to make it
+work, and have indeed been tried, in practice it adds way too much complexity compared to current
 implementation (another advice to not waste any time with this idea).
 
 <p>The way it is done, is actually pretty simple: since frustum culling orders chunks from near to far,
@@ -1422,10 +1422,12 @@ is. If you attempt to get block or sky light at their coordinate, you'll get 0.
 
 <p>The way half-blocks are meshed is a bit different from full voxel though. In case it wasn't clear up
 until now, the chunk meshing for full voxel does not attempt to merge adjacent quads that share the same
-properties (note: it should though).  For half-slab though, the engine tries way harder. This is the
-gist of the meshing phase: whenever a sub-face (ie: 0.5 x 0.5 in size) is detected as being visible,
-we check in the 2 directions perpendicular to the normal if the size can be extended, and generate a
-quad of this size instead. This is done in the function <tt>halfBlockGenMesh()</tt> in <tt>halfBlocks.c</tt>.
+properties (note: it should though).
+
+<p>For half-slab though, the engine tries way harder. This is the gist of the meshing phase: whenever
+a sub-face (ie: 0.5 x 0.5 in size) is detected as being visible, we check in the 2 directions perpendicular
+to the normal if the size can be extended, and generate a quad of this size instead. This is done in
+the function <tt>halfBlockGenMesh()</tt> in <tt>halfBlocks.c</tt>.
 
 
 
