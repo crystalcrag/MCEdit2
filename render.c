@@ -276,7 +276,7 @@ int renderSetSelectionPoint(int action)
 		render.inventory->offhand &= ~(PLAYER_ALTPOINT | PLAYER_OFFHAND);
 		render.debugInfo &= ~DEBUG_SELECTION;
 		render.invCache ++;
-		selectionClear();
+		selectionCancel();
 		break;
 
 	case RENDER_SEL_AUTO:
@@ -297,12 +297,12 @@ int renderSetSelectionPoint(int action)
 
 		if ((render.inventory->offhand & PLAYER_ALTPOINT) == 0)
 		{
-			selectionSetPoint(render.sitRoot, render.scale, render.selection.current, 0);
+			selectionSetPoint(render.sitRoot, render.scale, render.selection.current, SEL_POINT_1);
 			render.selection.sel |= SEL_FIRST;
 		}
 		else
 		{
-			selectionSetPoint(render.sitRoot, render.scale, render.selection.current, 1);
+			selectionSetPoint(render.sitRoot, render.scale, render.selection.current, SEL_POINT_2);
 			render.selection.sel |= SEL_SECOND;
 		}
 		if ((render.selection.sel & SEL_BOTH) == SEL_BOTH);

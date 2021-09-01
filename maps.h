@@ -84,6 +84,7 @@ struct BlockIter_t                 /* iterate over nearby blocks */
 	uint8_t   alloc;               /* alloc sub-chunk on the fly */
 	uint16_t  yabs, offset;        /* abs Y value and offset within blocks table (blockIds, skyLight, ...) */
 	DATA8     blockIds;            /* blockIds table within ChunkData or NULL if sub-chunk is missing */
+	DATAS16   nbor;                /* offsets to get to neighbor chunk (c.f. chunkNeighbor[]) */
 };
 
 Map     mapInitFromPath(STRPTR path, int renderDist);

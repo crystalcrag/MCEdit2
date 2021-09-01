@@ -105,6 +105,7 @@ void mapInitIter(Map map, BlockIter iter, vec4 pos, Bool autoAlloc)
 	iter->yabs = y;
 	iter->x    = floorf(pos[0]) - ref->X;
 	iter->z    = floorf(pos[2]) - ref->Z;
+	iter->nbor = map->chunkOffsets;
 
 	iter->alloc    = autoAlloc;
 	iter->offset   = CHUNK_BLOCK_POS(iter->x, iter->z, y&15);
@@ -131,6 +132,7 @@ void mapInitIterOffset(BlockIter iter, ChunkData cd, int offset)
 	iter->y        = offset;
 	iter->yabs     = cd->Y + iter->y;
 	iter->alloc    = False;
+	iter->nbor     = chunkNeighbor;
 	iter->blockIds = cd ? cd->blockIds : NULL;
 }
 
@@ -145,14 +147,14 @@ void mapIter(BlockIter iter, int dx, int dy, int dz)
 	if (pos < 0)
 	{
 		do {
-			ref += chunkNeighbor[ref->neighbor+8];
+			ref += iter->nbor[ref->neighbor+8];
 			pos += 16;
 		} while (pos < 0);
 	}
 	else if (pos > 15)
 	{
 		do {
-			ref += chunkNeighbor[ref->neighbor+2];
+			ref += iter->nbor[ref->neighbor+2];
 			pos -= 16;
 		} while (pos > 15);
 	}
@@ -164,14 +166,14 @@ void mapIter(BlockIter iter, int dx, int dy, int dz)
 	if (pos < 0)
 	{
 		do {
-			ref += chunkNeighbor[ref->neighbor+4];
+			ref += iter->nbor[ref->neighbor+4];
 			pos += 16;
 		} while (pos < 0);
 	}
 	else if (pos > 15)
 	{
 		do {
-			ref += chunkNeighbor[ref->neighbor+1];
+			ref += iter->nbor[ref->neighbor+1];
 			pos -= 16;
 		} while (pos > 15);
 	}
@@ -1399,7 +1401,7 @@ int mapUpdateGetCnxGraph(ChunkData cd, int start, DATA8 visited)
 }
 
 /* extended selection: select all similar blocks within a 16x16x16 area */
-void mapUpdateFloodFill(Map map, vec4 pos, DATA8 visited, int8_t minMax[8])
+void mapUpdateFloodFill(Map map, vec4 pos, uint8_t visited[4096], int8_t minMax[8])
 {
 	struct BlockIter_t iter;
 	int8_t min[4] = {0, 0, 0};
@@ -1426,7 +1428,7 @@ void mapUpdateFloodFill(Map map, vec4 pos, DATA8 visited, int8_t minMax[8])
 			int8_t x = XYZ[i];
 			if (x < min[i] || x > max[i])
 			{
-				if (max[i] - min[i] + 1 >= 16) continue;
+				if (max[i] - min[i] + 1 >= 32) continue;
 				if (x < min[i]) min[i] = x;
 				else            max[i] = x;
 			}
@@ -1443,7 +1445,9 @@ void mapUpdateFloodFill(Map map, vec4 pos, DATA8 visited, int8_t minMax[8])
 				int8_t y = XYZ[1] + rely[i];
 				int8_t z = XYZ[2] + relz[i];
 				/* that's why it is limited to 16x16x16: <visited> can only hold 4096 bits */
-				int pos = (x & 15) + (z & 15) * 16 + (y & 15) * 256;
+				int pos = (x & 31) + (z & 31) * 32 + (y & 15) * 1024;
+				if (y >= 32*32*32)
+					puts("no good");
 				if ((visited[pos>>3] & mask8bit[pos&7]) == 0)
 				{
 					visited[pos>>3] |= mask8bit[pos&7];

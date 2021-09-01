@@ -89,7 +89,7 @@ static void selectionSetRect(int pointId)
 {
 	vec vtx, size;
 	int i;
-	if (pointId == 2)
+	if (pointId == SEL_POINT_BOX)
 	{
 		for (i = 0; i < 3; i ++)
 		{
@@ -101,8 +101,8 @@ static void selectionSetRect(int pointId)
 	}
 
 	switch (pointId) {
-	case 2: size = selection.regionSize; i = (8*5) * 2; break;
-	case 3: size = selection.cloneSize;  i = (8*2 + 36 + 24) * 5; break;
+	case SEL_POINT_BOX:   size = selection.regionSize; i = (8*5) * 2; break;
+	case SEL_POINT_CLONE: size = selection.cloneSize;  i = (8*2 + 36 + 24) * 5; break;
 	default: return;
 	}
 
@@ -179,6 +179,15 @@ static int selectionNudge(SIT_Widget w, APTR cd, APTR ud)
 	return 1;
 }
 
+static void selectionBrushRotate(void);
+
+static int cancelActivation(SIT_Widget w, APTR cd, APTR ud)
+{
+	fprintf(stderr, "cancel activation\n");
+	SIT_SetValues(w, SIT_CheckState, False, NULL);
+	return -1;
+}
+
 /* nudge selection using directional keys normally used for player movement */
 Bool selectionProcessKey(int key, int mod)
 {
@@ -211,8 +220,24 @@ Bool selectionProcessKey(int key, int mod)
 		if (selection.nudgePoint & 4)
 			selection.clonePt[axis] += dir,
 			selectionSetClonePt(NULL, SEL_CLONEPT_IS_SET);
-		selectionSetRect(2);
+		selectionSetRect(SEL_POINT_BOX);
 		return True;
+	}
+	else if (selection.brush)
+	{
+		static STRPTR ctrlName[] = {"rotate", "roll", "flip", "mirror"};
+		uint8_t ctrl;
+		switch (key) {
+		case 'r': ctrl = 0; selectionBrushRotate(); break;
+		case 't': ctrl = 1; break;
+		case 'l': ctrl = 2; break;
+		case 'm': ctrl = 3; break;
+		default: return False;
+		}
+		double curTime = FrameGetTime();
+		SIT_Widget w = SIT_GetById(selection.editBrush, ctrlName[ctrl]);
+		SIT_SetValues(w, SIT_CheckState, True, NULL);
+		SIT_ActionAdd(w, curTime + 100, curTime + 100, cancelActivation, NULL);
 	}
 	return False;
 }
@@ -244,14 +269,14 @@ void selectionSetPoint(APTR sitRoot, float scale, vec4 pos, int point)
 			SIT_AddCallback(SIT_GetById(diag, "whole"),  SITE_OnClick, selectionNudge, (APTR) 3);
 			SIT_AddCallback(SIT_GetById(diag, "first"),  SITE_OnClick, selectionNudge, (APTR) 1);
 			SIT_AddCallback(SIT_GetById(diag, "second"), SITE_OnClick, selectionNudge, (APTR) 2);
-			selectionSetRect(2);
+			selectionSetRect(SEL_POINT_BOX);
 			SIT_ManageWidget(diag);
 		}
-		else selectionSetRect(2);
+		else selectionSetRect(SEL_POINT_BOX);
 	}
 }
 
-void selectionClear(void)
+void selectionCancel(void)
 {
 	if (selection.nudgeDiag)
 	{
@@ -259,6 +284,8 @@ void selectionClear(void)
 		selection.nudgeDiag = NULL;
 		selection.nudgeSize = NULL;
 	}
+	if (selection.brush)
+		selectionCancelClone(NULL, NULL, NULL);
 	selection.hasPoint = 0;
 }
 
@@ -429,14 +456,15 @@ static int selectionCloneBlocks(SIT_Widget w, APTR cd, APTR map)
 	Map brush = selection.brush;
 	vec4 pos;
 	memcpy(pos, selection.clonePt, sizeof pos);
-	mapInitIter(map,   &dst, selection.clonePt, True); selection.clonePt[VY] = 1;
-	mapInitIter(brush, &src, selection.clonePt, False);
-
+	mapInitIter(map, &dst, selection.clonePt, True);
+	mapInitIterOffset(&src, brush->firstVisible, 256+16+1);
 	mapUpdateInit(&dst);
+	src.nbor = brush->chunkOffsets;
+	src.yabs = 1;
 
 	uint8_t air = selection.copyAir;
 	uint8_t water = selection.copyWater;
-	uint8_t count = selection.cloneRepeat; /* repeat is clamped to 128 */
+	uint8_t count = selection.cloneRepeat; /* max repeat is 128 */
 
 	for (;;)
 	{
@@ -474,7 +502,14 @@ static int selectionCloneBlocks(SIT_Widget w, APTR cd, APTR map)
 	}
 
 	mapUpdateEnd(map);
-	selectionCancelClone();
+	selectionCancelClone(NULL, NULL, NULL);
+	return 1;
+}
+
+/* SITE_OnActivate: initiate rotate, flip, mirror or roll */
+static int selectionTransform(SIT_Widget w, APTR cd, APTR ud)
+{
+	selectionBrushRotate();
 	return 1;
 }
 
@@ -487,7 +522,7 @@ void selectionClone(APTR sitRoot, Map map, vec4 pos, int side)
 
 	if (! selection.hasClone)
 	{
-		selectionSetRect(3);
+		selectionSetRect(SEL_POINT_CLONE);
 		selection.hasClone = 1;
 	}
 
@@ -501,15 +536,15 @@ void selectionClone(APTR sitRoot, Map map, vec4 pos, int side)
 		);
 		SIT_CreateWidgets(diag,
 			"<label name=brotate title=R:>"
-			"<button name=rotate.act title=Rotate left=WIDGET,brotate,0.3em>"
+			"<button name=rotate.act title='<xchar src=rotate.png> Rotate' left=WIDGET,brotate,0.3em>"
 			"<label name=broll title=T: left=WIDGET,rotate,1em>"
-			"<button maxWidth=rotate name=roll.act title=Roll left=WIDGET,broll,0.3em>"
-			"<label name=bflip maxWidth=brotate title=F:>"
-			"<button name=flip.act title=Flip maxWidth=roll top=WIDGET,broll,0.5em left=WIDGET,bflip,0.3em>"
+			"<button maxWidth=rotate name=roll.act title='<pchar src=roll.png> Roll' left=WIDGET,broll,0.3em>"
+			"<label name=bflip maxWidth=brotate title=L:>"
+			"<button name=flip.act title='<pchar src=flip.png> Flip' maxWidth=roll top=WIDGET,broll,0.5em left=WIDGET,bflip,0.3em>"
 			"<label name=bmirror maxWidth=broll title=M: left=WIDGET,flip,1em>"
-			"<button name=mirror.act title=Mirror maxWidth=flip top=WIDGET,broll,0.5em left=WIDGET,bmirror,0.3em>"
+			"<button name=mirror.act title='<xchar src=mirror.png> Mirror' maxWidth=flip top=WIDGET,broll,0.5em left=WIDGET,bmirror,0.3em>"
 
-			"<button name=nudge title=Nudge nextCtrl=NONE right=FORM>"
+			"<button name=nudge title=Nudge nextCtrl=NONE right=FORM maxWidth=mirror>"
 			"<label name=xlab title=X:><editbox name=xcoord curValue=", selection.cloneOff, "editType=", SITV_Integer,
 			" right=WIDGET,nudge,1em left=WIDGET,xlab,0.3em top=WIDGET,mirror,1em>"
 			"<label name=ylab title=Y: maxWidth=xlab><editbox name=ycoord curValue=", selection.cloneOff+1, "editType=", SITV_Integer,
@@ -527,7 +562,7 @@ void selectionClone(APTR sitRoot, Map map, vec4 pos, int side)
 			"<button name=copybio title='Copy biome' curValue=", &selection.copyBiome, "top=WIDGET,copywat,0.5em buttonType=", SITV_CheckBox, ">"
 
 			"<button name=ko.act title=Cancel right=FORM top=WIDGET,copybio,1em>"
-			"<button name=ok.act title=Clone  right=WIDGET,ko,0.5em top=OPPOSITE,ko>"
+			"<button name=ok.act title=Clone  right=WIDGET,ko,0.5em top=OPPOSITE,ko buttonType=", SITV_DefaultButton, ">"
 		);
 		SIT_SetAttributes(diag,
 			"<brotate top=MIDDLE,rotate><broll top=MIDDLE,roll><bflip top=MIDDLE,flip><bmirror top=MIDDLE,mirror>"
@@ -543,6 +578,8 @@ void selectionClone(APTR sitRoot, Map map, vec4 pos, int side)
 		SIT_AddCallback(SIT_GetById(diag, "nudge"), SITE_OnClick, selectionNudge, (APTR) 4);
 		SIT_AddCallback(SIT_GetById(diag, "repeat"), SITE_OnChange, selectionRepeat, NULL);
 		SIT_AddCallback(SIT_GetById(diag, "ok"), SITE_OnActivate, selectionCloneBlocks, map);
+		SIT_AddCallback(SIT_GetById(diag, "ko"), SITE_OnActivate, selectionCancelClone, map);
+		SIT_AddCallback(SIT_GetById(diag, "rotate"), SITE_OnActivate, selectionTransform, NULL);
 		SIT_ManageWidget(diag);
 	}
 
@@ -637,55 +674,28 @@ void selectionClone(APTR sitRoot, Map map, vec4 pos, int side)
 			fminf(selection.firstPt[VY], selection.secondPt[VY]),
 			fminf(selection.firstPt[VZ], selection.secondPt[VZ])
 		};
-		struct BlockIter_t iter;
-		DATA8 blockIds;
-		int   offset;
-		mapInitIter(map, &iter, pos, False);
+		struct BlockIter_t src;
+		struct BlockIter_t dst;
+		mapInitIter(map, &src, pos, False);
+		mapInitIterOffset(&dst, brush->firstVisible, 256+16+1);
+		dst.nbor = brush->chunkOffsets;
 		sizes[VX] -= 2;
 		sizes[VY] -= 2;
 		sizes[VZ] -= 2;
 		/* note: we have to add a 1 block layer all around the brush to prevent face culling at the edge of chunk */
-		for (y = 1, offset = 256+16+1, cd = brush->firstVisible, blockIds = cd->blockIds; y <= sizes[VY]; y ++, mapIter(&iter, 0, - sizes[VZ], 1))
+		for (y = 1; y <= sizes[VY]; y ++, mapIter(&src, 0, 1, -sizes[VZ]), mapIter(&dst, 0, 1, -sizes[VZ]))
 		{
-			ChunkData starty = cd;
-			for (z = 1; z <= sizes[VZ]; z ++, mapIter(&iter, - sizes[VX], 1, 0))
+			for (z = 1; z <= sizes[VZ]; z ++, mapIter(&src, -sizes[VX], 0, 1), mapIter(&dst, -sizes[VX], 0, 1))
 			{
-				ChunkData startz = cd;
-				for (x = 1; x <= sizes[VX]; x ++, mapIter(&iter, 1, 0, 0))
+				for (x = 1; x <= sizes[VX]; x ++, mapIter(&src, 1, 0, 0), mapIter(&dst, 1, 0, 0))
 				{
 					/* would be nice if we could use memcpy(), but DATA_OFFSET table is packed by 2 voxels per byte :-/ */
-					uint8_t data = iter.blockIds[DATA_OFFSET + (iter.offset >> 1)];
-					blockIds[offset] = iter.blockIds[iter.offset];
-					if (iter.offset & 1) data >>= 4; else data &= 15;
-					blockIds[DATA_OFFSET + (offset>>1)] |= (offset & 1) ? data << 4 : data;
-
-					if ((x & 15) == 15)
-					{
-						cd += chunks[VY];
-						offset &= ~15;
-						blockIds = cd->blockIds;
-					}
-					else offset ++;
+					uint8_t data = src.blockIds[DATA_OFFSET + (src.offset >> 1)];
+					dst.blockIds[dst.offset] = src.blockIds[src.offset];
+					if (src.offset & 1) data >>= 4; else data &= 15;
+					dst.blockIds[DATA_OFFSET + (dst.offset>>1)] |= dst.offset & 1 ? data << 4 : data;
 				}
-				cd = startz;
-				if ((z & 15) == 15)
-				{
-					cd += chunks[VX] * chunks[VY];
-					offset &= ~(15<<4);
-					blockIds = cd->blockIds;
-				}
-				else offset += 16;
-				offset -= sizes[VX];
 			}
-			cd = starty;
-			if ((y & 15) == 15)
-			{
-				cd ++;
-				offset &= ~(15<<8);
-				blockIds = cd->blockIds;
-			}
-			else offset += 256;
-			offset -= sizes[VZ] << 4;
 		}
 
 		/* still not done: need to convert all chunks into meshes */
@@ -708,24 +718,122 @@ void selectionClone(APTR sitRoot, Map map, vec4 pos, int side)
 }
 
 /* remove everything related to cloned selection */
-Bool selectionCancelClone(void)
+int selectionCancelClone(SIT_Widget w, APTR cd, APTR ud)
 {
-	Bool ret = False;
+	int ret = 0;
 	if (selection.brush)
 	{
 		renderFreeMesh(selection.brush);
 		free(selection.brush);
 		selection.brush = NULL;
-		ret = True;
+		ret = 1;
 	}
 	if (selection.editBrush)
 	{
 		SIT_CloseDialog(selection.editBrush);
 		selection.editBrush = NULL;
-		ret = True;
+		ret = 1;
 	}
 	selection.hasClone = 0;
 	return ret;
+}
+
+/*
+ * brush manipulation: rotate, flip, mirror, roll
+ */
+
+/* rotation is always done along Y axis by 90deg steps */
+static void selectionBrushRotate(void)
+{
+	/* therefore we can rotate the brush Y layer per Y layer */
+	Map brush = selection.brush;
+	int chunkX = (brush->size[VX] + 15) >> 4;
+	int chunkZ = (brush->size[VZ] + 15) >> 4;
+	int size = chunkX * chunkZ * ((brush->size[VY] + 15) >> 4);
+	int dx, dy, dz, x, y, z;
+
+	DATA8 layer = size <= 6 ? alloca(size * 384) : malloc(size * 384);
+	memset(layer, 0, size * 384);
+
+	struct BlockIter_t iter;
+	Chunk c;
+	mapInitIterOffset(&iter, brush->firstVisible, 256+16+1);
+	iter.yabs = 1;
+	iter.nbor = brush->chunkOffsets;
+
+	dx = brush->size[VX] - 2;
+	dy = brush->size[VY] - 2;
+	dz = brush->size[VZ] - 2;
+	/* relocate blocks + data */
+	for (y = 1; y <= dy; y ++, mapIter(&iter, 0, 1, -dz))
+	{
+		for (z = 1; z <= dz; z ++, mapIter(&iter, -dx, 0, 1))
+		{
+			for (x = 1; x <= dx; x ++, mapIter(&iter, 1, 0, 0))
+			{
+				/* these 2 assignments will do the 90deg CW rotation */
+				int x2 = dz - z + 1;
+				int z2 = x;
+				int off = 0;
+				if (x2 > 15) off += 384 * (x2 >> 4), x2 &= 15;
+				if (z2 > 15) off += 384 * chunkX * (z2 >> 4), z2 &= 15;
+				off += z2*16 + x2;
+				int blockId = getBlockId(&iter);
+				layer[off] = blockId >> 4; blockId &= 15;
+				layer[256 + (off >> 1)] |= off & 1 ? blockId << 4 : blockId;
+			}
+		}
+		/* copy temp layer into brush */
+		DATA8 blocks;
+		for (z = 0, blocks = layer, c = brush->chunks; z < chunkZ; z ++)
+		{
+			for (x = 0; x < chunkX; x ++, blocks += 384, c ++)
+			{
+				DATA8 dest = c->layer[y>>4]->blockIds;
+				memcpy(dest + iter.y * 256, blocks, 256);
+				memcpy(dest + iter.y * 128 + DATA_OFFSET, blocks + 256, 128);
+			}
+		}
+	}
+	if (size > 6) free(layer);
+	brush->size[VX] = dz+2;
+	brush->size[VZ] = dx+2;
+
+	/* relocate chunk coord */
+	swap(chunkX, chunkZ);
+	dx = selection.clonePt[VX];
+	dz = selection.clonePt[VZ];
+	for (z = 0, c = brush->chunks; z < chunkZ; z ++)
+	{
+		for (x = 0; x < chunkX; x ++, c ++)
+		{
+			uint8_t missing = 0;
+			if (x == 0) missing |= 1 << SIDE_WEST;
+			if (z == 0) missing |= 1 << SIDE_NORTH;
+			if (x == chunkX-1) missing |= 1 << SIDE_EAST;
+			if (z == chunkZ-1) missing |= 1 << SIDE_SOUTH;
+			c->noChunks = missing;
+			c->X = dx + x * 16 - 1;
+			c->Z = dz + z * 16 - 1;
+
+			for (dy = 0; dy < c->maxy; dy ++)
+			{
+				chunkUpdate(c, chunkAir, brush->chunkOffsets, dy);
+				/* transfer chunk to the GPU */
+				renderFinishMesh(brush, True);
+			}
+		}
+	}
+	/* should be the same ? XXX need testing */
+	renderAllocCmdBuffer(brush);
+
+	/* swap sizes for X and Z axis */
+	vec   sz  = selection.cloneSize;
+	float tmp = sz[VX];
+	sz[VX] = sz[VZ];
+	sz[VZ] = tmp;
+
+	selectionSetRect(SEL_POINT_CLONE);
 }
 
 /*
@@ -733,17 +841,17 @@ Bool selectionCancelClone(void)
  */
 void selectionAutoSelect(Map map, vec4 pos, APTR sitRoot, float scale)
 {
-	uint8_t visited[512];
+	DATA8 visited = calloc(1, 4096);
 	int8_t  minMax[8];
 
-	memset(visited, 0, sizeof visited);
-	/* work is done in that function because of that ring buffer */
+	/* work is done in mapUpdate.c because of that ring buffer */
 	mapUpdateFloodFill(map, pos, visited, minMax);
+	free(visited);
 
 	vec4 pt1 = {pos[VX] + minMax[VX],   pos[VY] + minMax[VY],   pos[VZ] + minMax[VZ]};
 	vec4 pt2 = {pos[VX] + minMax[VX+4], pos[VY] + minMax[VY+4], pos[VZ] + minMax[VZ+4]};
-	selectionSetPoint(sitRoot, scale, pt1, 0);
-	selectionSetPoint(sitRoot, scale, pt2, 1);
+	selectionSetPoint(sitRoot, scale, pt1, SEL_POINT_1);
+	selectionSetPoint(sitRoot, scale, pt2, SEL_POINT_2);
 }
 
 /*

@@ -8,14 +8,16 @@
 #define MC_SELECTION_H
 
 #include "maps.h"
+#include "SIT.h"
 
 void selectionInitStatic(int shader, DATA8 direction);
 void selectionSetPoint(APTR sitRoot, float scale, vec4 pos, int point);
 void selectionSetSize(void);
 void selectionRender(void);
-void selectionClear(void);
+void selectionCancel(void);
 void selectionCancelOperation(void);
 vec  selectionGetPoints(void);
+Bool selectionHasClone(void);
 Bool selectionProcessKey(int key, int mod);
 void selectionAutoSelect(Map map, vec4 pos, APTR sitRoot, float scale);
 int  selectionFill(Map map, DATA32 progress, int blockId, int side, int direction);
@@ -24,7 +26,7 @@ int  selectionFillWithShape(Map map, DATA32 progress, int blockId, int shape, ve
 int  selectionCylinderAxis(vec4 size, int direction);
 void selectionClone(APTR sitRoot, Map map, vec4 toPos, int side);
 void selectionSetClonePt(vec4 pos, int side);
-Bool selectionCancelClone(void);
+int  selectionCancelClone(SIT_Widget w, APTR cd, APTR ud);
 
 enum /* flags for <shape> parameter of function selectionFillWithShape() */
 {
@@ -47,6 +49,14 @@ enum /* special values for <side> parameter of selectionSetClonePt() */
 {
 	SEL_CLONEPT_IS_SET  = -1,  /* no need to reset clonePt[] */
 	SEL_CLONEOFF_IS_SET = -2,  /* no need to reset editbox offset */
+};
+
+enum /* sselection pointId */
+{
+	SEL_POINT_1     = 0,       /* first point (yellow) */
+	SEL_POINT_2     = 1,       /* second point (blue) */
+	SEL_POINT_BOX   = 2,       /* white rectangle around selection */
+	SEL_POINT_CLONE = 3        /* green rectangle around brush */
 };
 
 #ifdef SELECTION_IMPL        /* private stuff below */

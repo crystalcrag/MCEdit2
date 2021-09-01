@@ -26,7 +26,7 @@ form.mc button:kbdfocus { outline: 0.15em solid selback 0.1em }
 form.mc #first { background: yellow; color: black; }
 form.mc #second { background: blue; color: white; }
 form.mc #nudge { background: green; color: white }
-form.mc button.act { background: #555; text-align: center; color: yellow }
+form.mc button.act { background: #555; color: yellow }
 form.mc #ko.act { color: #f88 }
 form.mc button:active  { background: rgba(black,0.2), white }
 form.mc button.act:active { color: black }
@@ -57,7 +57,7 @@ form.mc progress { background-color: rgba(black, 0.33); border-color: #555 }
 
 
 button { padding: 8px 20px 4px; border-radius: 4px; background: linear-gradient(to bottom, #87cb85, #6da46b); font-weight: bold;
-		 text-shadow: 0 2px rgba(#000,0.5); border: 2px solid #547e53; color: white;
+		 text-shadow: 0 2px rgba(#000,0.5); border: 2px solid #547e53; color: white; text-align: center;
 		 border-color: #94df92 #547e53 #547e53 #94df92; outline: 3px solid black; text-transform: uppercase }
 button.left   { border-radius: 6px 0 0 6px }
 button.center { border-radius: 0 }

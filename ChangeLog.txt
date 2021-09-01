@@ -1,4 +1,9 @@
 =========== Week 34 ===========
+Tue Aug 31:
+	* clone selection was fubar if it was bigger than 16 blocks in any axis.
+	* added icons to buttons to better visualize what their effect is.
+	* rotate brush working.
+
 Mon Aug 30:
 	* brush is now rendered as a mini-map.
 	* brush can be copied in the world (including repeated); still need rotate, roll, ...

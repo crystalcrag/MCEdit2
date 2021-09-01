@@ -176,7 +176,7 @@ static int mceditCommands(int cmd)
 		if (cmd < MCUI_SEL_CLONE)
 		{
 			/* remove current brush */
-			selectionCancelClone();
+			selectionCancelClone(NULL, NULL, NULL);
 			/* will render the slot change */
 			renderWorld();
 			SIT_RenderNodes(curTime);
@@ -224,7 +224,7 @@ static int mceditTrackFocus(SIT_Widget w, APTR cd, APTR ud)
 /* ESC key pressed: cancel stuff, if nothing to cancel, exit then */
 static int mceditCancelStuff(SIT_Widget w, APTR cd, APTR ud)
 {
-	if (selectionCancelClone())
+	if (selectionCancelClone(NULL, NULL, NULL))
 		;
 	else if (mcedit.state == GAMELOOP_OVERLAY)
 		SIT_Exit(1); /* exit from loop, not app */
