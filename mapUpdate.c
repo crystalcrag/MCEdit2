@@ -1258,14 +1258,16 @@ static int mapUpdateIfPowered(Map map, BlockIter iterator, int oldId, int blockI
 		if (b->orientHint == ORIENT_LEVER)
 		{
 			/* buttons & lever */
-			mapUpdateConnected(map, iterator, blockId);
+			if ((oldId >> 4) == (blockId >> 4))
+				mapUpdateConnected(map, iterator, blockId);
 		}
 		else switch (b->special) {
 		case BLOCK_DOOR:
 			return mapUpdateDoor(iterator, blockId, init);
 		case BLOCK_TRAPDOOR:
 		case BLOCK_FENCEGATE:
-			return mapUpdateGate(iterator, blockId, init);
+			if ((oldId >> 4) == (blockId >> 4))
+				return mapUpdateGate(iterator, blockId, init);
 		}
 	}
 	return blockId;

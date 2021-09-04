@@ -1,8 +1,21 @@
 =========== Week 34 ===========
+Fri Sep 3:
+	* flip and mirror brush done.
+	* bug fixed: full bbox with non-AABB was fubar.
+
+Thu Sep 2:
+	* flip and mirror brush started.
+
+Wed Sep 1:
+	* when rotating selection, also rotate block state.
+	* reworked item stack drag in inventories (supports LMB and RMB).
+	* selection can handle tile entities.
+
 Tue Aug 31:
 	* clone selection was fubar if it was bigger than 16 blocks in any axis.
 	* added icons to buttons to better visualize what their effect is.
 	* rotate brush working.
+	* auto-select radius increased to 32 (from 16).
 
 Mon Aug 30:
 	* brush is now rendered as a mini-map.

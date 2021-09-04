@@ -184,6 +184,7 @@
 			/* black */
 			1567+BHDR_INCFACEID,16,8,32,-2,8,0,0,0,0,5,30,0,200839,205456,205472,200855,184423,189040,189072,184455,77591,82208,82224,77607,184455,189072,189040,184423,189072,189040,197248,197280,
 		]},
+		/* foot: orient south */
 		{state: 0, name: "+white", tex: [5, 9, 7, 9, 8, 9, 7, 9], rotate: 3903, model: [
 			/* white */
 			1307+BHDR_INCFACEID,16,9,16,0,0,0,0,0,0,0,0,0,200887,205504,205520,200903,209079,213696,213712,209095,209095,213712,213696,209079,213712,213696,221904,221920,
@@ -234,9 +235,9 @@
 			1307+BHDR_INCFACEID,16,9,16,0,0,0,0,0,0,0,0,0,200839,205456,205472,200855,184423,189040,189056,184439,184439,189056,189040,184423,189056,189040,197248,197264,
 			1056,16,16,16,0,3,0,0,0,0,0,0,0,80,8288,8272,64,
 		]},
-		{state: 1, name: "+orange",     tex: [7, 9, 8, 9, 7, 9, 5, 9], model: [SAME_AS, ID(26, 0), 1918]},
-		{state: 2, name: "+magenta",    tex: [7, 9, 8, 9, 7, 9, 5, 9], model: [SAME_AS, ID(26, 0), 283]},
-		{state: 3, name: "+light blue", tex: [7, 9, 8, 9, 7, 9, 5, 9], model: [SAME_AS, ID(26, 0), 795]},
+		{state: 1, name: "+orange",     tex: [7, 9, 8, 9, 7, 9, 5, 9], model: [SAME_AS, ID(26, 0), 1918]}, /* foot: orient west */
+		{state: 2, name: "+magenta",    tex: [7, 9, 8, 9, 7, 9, 5, 9], model: [SAME_AS, ID(26, 0), 283]},  /* foot: orient north */
+		{state: 3, name: "+light blue", tex: [7, 9, 8, 9, 7, 9, 5, 9], model: [SAME_AS, ID(26, 0), 795]},  /* foot: orient east */
 		{state: 4, name: "+yellow"},
 		{state: 5, name: "+lime"},
 		{state: 6, name: "+pink"},
@@ -299,7 +300,7 @@
 		{state:14, name: "-red",    model: [SAME_AS, ID(26, 2)]},
 		{state:15, name: "-black",  model: [SAME_AS, ID(26, 3)]},
 
-	{id: 27, name: "Powered rail", type: QUAD, inv: ITEM2D, invState: 0, cat: RAILS, special: RAILS, orient: SE, rsupdate: RECEIVE,
+	{id: 27, name: "Powered rail", type: QUAD, inv: ITEM2D, invState: 0, cat: RAILS, special: RAILS, orient: RAILS, rsupdate: RECEIVE,
 		tech: "golden_rail", placement: "ground", pushable: YES},
 		{state: 0, name: "+OFF,N/S", tex: [3, 10], quad: [BOTTOM]},
 		{state: 1, name: "+OFF,E/W", tex: [3, 10], quad: [BOTTOM], rotate: 1},
@@ -314,7 +315,7 @@
 		{state:12, name: "+ON,A/N",  tex: [3, 11], quad: [ASCN]},
 		{state:13, name: "+ON,A/S",  tex: [3, 11], quad: [ASCS]},
 
-	{id: 28, name: "Detector rail", type: QUAD, inv: ITEM2D, cat: RAILS, special: RAILS, rswire: ALLDIR, invState: 0, orient: SE,
+	{id: 28, name: "Detector rail", type: QUAD, inv: ITEM2D, cat: RAILS, special: RAILS, rswire: ALLDIR, invState: 0, orient: RAILS,
 		placement: "ground", pushable: YES},
 		{state: 0, name: "+OFF,N/S", tex: [ 3, 12], quad: [BOTTOM]},
 		{state: 1, name: "+OFF,E/W", tex: [ 3, 12], quad: [BOTTOM], rotate: 1},
@@ -380,7 +381,7 @@
 		{state:12, name: "-west",           tex: [31, 4,13, 6,31, 4,14, 6,12, 6,12, 6,  1329], model: [SAME_AS, ID(29,12)]},
 		{state:13, name: "-east",           tex: [31, 4,14, 6,31, 4,13, 6,31, 4,31, 4,  3859], model: [SAME_AS, ID(29,12)]},
 
-	{id: 34, name: "Piston head", type: CUST, bbox: FULL, pushable: NO},
+	{id: 34, name: "Piston head", type: CUST, bbox: FULL, pushable: NO, orient: FULL},
 		{state: 0, name: "+down",  tex: [31, 5,31, 5,31, 5,31, 5], model: [
 			319,16,4,16,0,0,0,0,0,0,0,0,0,51508,49456,49440,51492,51508,49456,49440,51492,51508,49456,49440,51492,51508,49456,49440,51492,
 				49440,57648,57632,49424,49440,57648,57632,49424,
@@ -565,7 +566,7 @@
 		{state: 6, name: "+top, south",    tex: [4, 0, 4, 0, 4, 0, 4, 0, 4, 0, 4, 0]},
 		{state: 7, name: "+top, north",    tex: [4, 0, 4, 0, 4, 0, 4, 0, 4, 0, 4, 0]},
 
-	{id: 54, name: "Chest", type: CUST, special: CHEST, inv: MODEL, bbox: FULL, invState: 3, cat: DECO, tile: 1, orient: SENW},
+	{id: 54, name: "Chest", type: CUST, special: CHEST, inv: MODEL, bbox: FULL, invState: 3, cat: DECO, tile: 1, orient: NSWE},
 		{state: 0, tex: [17, 3,17, 3,18, 3,17, 3], model: [
 			319+BHDR_INCFACEID,14,14,14,1,0,1,0,0,0,0,0,0,24896,33104,33120,24912,24896,33104,33120,24912,24912,33120,33136,24928,24896,
 				33104,33120,24912,24880,33088,33104,24896,24880,33088,33104,24896,
@@ -644,7 +645,7 @@
 		{state: 6, name: "-",    tex: [2, 0, 2, 0, 2, 0, 2, 0, 7, 5, 2, 0]},
 		{state: 7, name: "+wet", tex: [2, 0, 2, 0, 2, 0, 2, 0, 7, 5, 2, 0]},
 
-	{id: 61, name: "Furnace", type: SOLID, inv: CUBE, invState: 0, cat: DECO, orient: SENW, tile: 1, pushable: NO},
+	{id: 61, name: "Furnace", type: SOLID, inv: CUBE, invState: 0, cat: DECO, orient: NSWE, tile: 1, pushable: NO},
 		{state: 0, name: "-",      tex: [12, 2,13, 2,13, 2,13, 2,14, 3,14, 3]},
 		{state: 1, name: "-",      tex: [12, 2,13, 2,13, 2,13, 2,14, 3,14, 3]},
 		{state: 2, name: "+north", tex: [13, 2,13, 2,12, 2,13, 2,14, 3,14, 3]},
@@ -721,14 +722,14 @@
 		{state:14, name: "-", model: [SAME_AS, ID(64, 12), 1087]},
 		{state:15, name: "-", model: [SAME_AS, ID(64, 12), 1599]},
 
-	{id: 65, name: "Ladder", type: QUAD, inv: ITEM2D, invState: 0, cat: DECO, orient: SENW, placement: "wall", pushable: DROPITEM, bboxPlayer: AUTO},
+	{id: 65, name: "Ladder", type: QUAD, inv: ITEM2D, invState: 0, cat: DECO, orient: NSWE, placement: "wall", pushable: DROPITEM, bboxPlayer: AUTO},
 		{state: 0, name: "+north", tex: [3, 5], quad: [NORTH]},
 		{state: 2, name: "+south", tex: [3, 5], quad: [SOUTH]},
 		{state: 3, name: "+north", tex: [3, 5], quad: [NORTH]},
 		{state: 4, name: "+east",  tex: [3, 5], quad: [EAST]},
 		{state: 5, name: "-west",  tex: [3, 5], quad: [WEST]},
 
-	{id: 66, name: "Rails", type: QUAD, inv: ITEM2D, invState: 0, cat: RAILS, rsupdate: RECEIVE, special: RAILS, orient: SE, tech: "rail",
+	{id: 66, name: "Rails", type: QUAD, inv: ITEM2D, invState: 0, cat: RAILS, rsupdate: RECEIVE, special: RAILS, orient: RAILS, tech: "rail",
 		placement: "ground", pushable: YES},
 		{state: 0, name: "+N/S",             tex: [0, 8], quad: [BOTTOM]},
 		{state: 1, name: "+E/W",             tex: [0, 8], quad: [BOTTOM], rotate: 1},
@@ -1031,13 +1032,13 @@
 	{id: 89, name: "Glowstone", type: SOLID, inv: CUBE, cat: DECO, emitLight: 15},
 		{state: 0, tex: [9, 6, 9, 6, 9, 6, 9, 6, 9, 6, 9, 6]},
 
-	{id: 90, name: "Nether portal", type: CUST, bbox: MAX, bboxPlayer: NONE, tech: "portal", pushable: NO},
+	{id: 90, name: "Nether portal", type: CUST, orient: SE, bbox: MAX, bboxPlayer: NONE, tech: "portal", pushable: NO},
 		{state: 2, name: "+N/S", tex: [6,15, 6,15, 6,15, 6,15, 6,15], model: [
 			5,16,16,4,0,0,6,0,0,0,0,0,0,123216,131424,131440,123232,123216,131424,131440,123232,
 		]},
 		{state: 1, name: "+E/W", model: [SAME_AS, ID(90, 2), 517]},
 
-	{id: 91, name: "Jack-O-Lantern", type: SOLID, inv: CUBE, invState: 0, cat: DECO, tech: "lit_pumpkin", orient: SENW, emitLight: 15, pushable: DROPITEM},
+	{id: 91, name: "Jack-O-Lantern", type: SOLID, inv: CUBE, invState: 0, cat: DECO, tech: "lit_pumpkin", orient: NSWE, emitLight: 15, pushable: DROPITEM},
 		{state: 0, name: "+south", tex: [8, 7, 6, 7, 6, 7, 6, 7, 6, 6, 6, 6]},
 		{state: 1, name: "+west",  tex: [6, 7, 6, 7, 6, 7, 8, 7, 6, 6, 6, 6]},
 		{state: 2, name: "+north", tex: [6, 7, 6, 7, 8, 7, 6, 7, 6, 6, 6, 6]},
@@ -1313,7 +1314,7 @@
 	{id: 105, name: "Melon stem", type: QUAD, placement: "farmland", pushable: DROPITEM},
 		{state: 0, tex: [15, 6], quad: [CROSS]},
 
-	{id: 106, name: "Vines", type: QUAD, inv: ITEM2D, invState: 1, cat: DECO, orient: SENW, special: NOSIDE, tech: "vine", placement: "wall", pushable: DESTROY},
+	{id: 106, name: "Vines", type: QUAD, inv: ITEM2D, invState: 1, cat: DECO, orient: VINES, special: NOSIDE, tech: "vine", placement: "wall", pushable: DESTROY},
 		{state: 1, name: "+S",    tex: [15, 8], quad: [SOUTH]},
 		{state: 2, name: "+W",    tex: [15, 8], quad: [WEST]},
 		{state: 3, name: "+SW",   tex: [15, 8], quad: [SOUTH, WEST]},
@@ -1664,7 +1665,7 @@
 	{id: 129, name: "Emerald ore", type: SOLID, inv: CUBE, cat: BUILD},
 		{state: 0, tex: [11,10,11,10,11,10,11,10,11,10,11,10]},
 
-	{id: 130, name: "Ender chest", type: CUST, bbox: MAX, inv: MODEL, invState: 0, cat: DECO, pushable: NO},
+	{id: 130, name: "Ender chest", type: CUST, bbox: MAX, inv: MODEL, invState: 3, orient: NSWE, cat: DECO, pushable: NO},
 		{state: 0, name: "+north", tex: [16, 2,16, 2,16, 2,16, 2,16, 2], model: [
 			319,14,14,14,1,0,1,0,0,0,0,0,0,16704,24912,24928,16720,16704,24912,24928,16720,16672,24880,24896,16688,16704,24912,24928,16720,16688,
 				24896,24912,16704,16720,24928,24944,16736,
@@ -1873,7 +1874,7 @@
 		{state:11, name: "-E/W", model: [SAME_AS, ID(145, 9)]},
 
 	/* minecraft 1.5 */
-	{id: 146, name: "Trapped chest", type: CUST, bbox: FULL, special: CHEST, inv: MODEL, invState: 3, tile: 1, cat: DECO, orient: SENW, pushable: NO},
+	{id: 146, name: "Trapped chest", type: CUST, bbox: FULL, special: CHEST, inv: MODEL, invState: 3, tile: 1, cat: DECO, orient: NSWE, pushable: NO},
 		{state: 0, tex: [17, 6,17, 6,18, 6,17, 6], model: [
 			319+BHDR_INCFACEID,14,14,14,1,0,1,0,0,0,0,0,0,49520,57728,57744,49536,49520,57728,57744,49536,49536,57744,57760,49552,49520,57728,
 				57744,49536,49504,57712,57728,49520,49504,57712,57728,49520,
@@ -2058,7 +2059,7 @@
 		{state: 6, name: "+top, south",    tex: [9,13, 9,13, 9,13, 9,13, 9,13, 9,13]},
 		{state: 7, name: "+top, north",    tex: [9,13, 9,13, 9,13, 9,13, 9,13, 9,13]},
 
-	{id: 157, name: "Activator rail", type: QUAD, inv: ITEM2D, invState: 0, placement: "ground", cat: RAILS, special: RAILS, orient: SE, pushable: YES},
+	{id: 157, name: "Activator rail", type: QUAD, inv: ITEM2D, invState: 0, placement: "ground", cat: RAILS, special: RAILS, orient: RAILS, pushable: YES},
 		{state: 0, name: "-OFF,_N/S",                tex: [10, 13], quad: [BOTTOM]},
 		{state: 1, name: "-E/W",                     tex: [10, 13], quad: [BOTTOM], rotate: 1},
 		{state: 2, name: "-ascending_east",          tex: [10, 13], quad: [ASCE]},

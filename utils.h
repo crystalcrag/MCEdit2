@@ -70,6 +70,7 @@ int  checkOpenGLError(const char * name);
 void setShaderValue(int prog, const char * field, int args, float * array);
 
 #define bitfieldExtract(num, start, length)    ((num >> start) & ((1 << length)-1))
+#define ROT4(num)                              (((num << 1) & 15) | ((num & 8) >> 3))
 
 /* Q'n'D JSON parser */
 typedef Bool (*JSONParseCb_t)(const char * file, STRPTR * keys, int line);

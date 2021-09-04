@@ -31,7 +31,7 @@ void mapUpdateEnd(Map);
 enum /* extra flags for blockUpdate param from mapUpdate() */
 {
 	UPDATE_SILENT    = 16,         /* don't generate particles */
-	UPDATE_KEEPLIGHT = 32,         /* don't change block and sky light (blocks will need an update later though) */
+	UPDATE_KEEPLIGHT = 32          /* don't change block and sky light (blocks will need an update later though) */
 };
 
 /* private stuff below that point */

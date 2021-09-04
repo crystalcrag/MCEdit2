@@ -1327,7 +1327,8 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 		else connect = 1 << 14;
 		break;
 	case BLOCK_SIGN:
-		c->signList = signAddToList(b->id, chunkGetTileEntityFromOffset(c, neighbors[6]->Y, pos), c->signList, light);
+		if ((neighbors[6]->cdFlags & CDFLAG_NOLIGHT) == 0) /* don't render sign text for brush */
+			c->signList = signAddToList(b->id, chunkGetTileEntityFromOffset(c, neighbors[6]->Y, pos), c->signList, light);
 		break;
 	default:
 		/* piston head with a tile entity: head will be rendered as an entity if it is moving */
@@ -1593,15 +1594,18 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 				{
 					if (t->special == BLOCK_HALF || t->special == BLOCK_STAIRS)
 					{
-						struct BlockIter_t iter;
-						/* slab and stairs have 0 skylight and blocklight: pick the one above */
-						mapInitIterOffset(&iter, cd, off);
-						mapIter(&iter, 0, 1, 0);
-						skyBlock[k] = mapGetSkyBlockLight(&iter);
-						data = skyBlock[k] >> 4;
-						if (data > 0 && data < MAXSKY) skyBlock[k] -= 0x10;
-						if ((skyBlock[k] & 0x0f) > 0)  skyBlock[k] -= 0x01;
-						slab |= 1<<k;
+						if (hasLights)
+						{
+							struct BlockIter_t iter;
+							/* slab and stairs have 0 skylight and blocklight: pick the one above */
+							mapInitIterOffset(&iter, cd, off);
+							mapIter(&iter, 0, 1, 0);
+							skyBlock[k] = mapGetSkyBlockLight(&iter);
+							data = skyBlock[k] >> 4;
+							if (data > 0 && data < MAXSKY) skyBlock[k] -= 0x10;
+							if ((skyBlock[k] & 0x0f) > 0)  skyBlock[k] -= 0x01;
+							slab |= 1<<k;
+						}
 					}
 					else occlusion |= 1<<k;
 				}

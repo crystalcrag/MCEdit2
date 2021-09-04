@@ -45,6 +45,7 @@ struct MCInterface_t
 	int          padding[4];
 	Item         allItems;
 	uint8_t      selCount;
+	uint8_t      dragOneItem;
 	ItemBuf      dragSplit;
 	ItemBuf      drag;
 	ItemBuf      items[128];
@@ -58,7 +59,7 @@ struct MCInventory_t
 	SIT_Widget cell;
 	int8_t     curX, curY;
 	uint8_t    invCol, invRow;
-	uint8_t    groupId;
+	uint8_t    groupId, singleItem;
 	Item       items;
 	int        itemsNb, top;
 };

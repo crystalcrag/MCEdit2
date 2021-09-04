@@ -216,25 +216,28 @@ static int mcuiDragItem(SIT_Widget w, APTR cd, APTR ud)
 
 static void mcuiSplitItems(Item addCell)
 {
-	/* needs to be empty */
-	if (addCell->id > 0)
+	if (addCell->slot > 0 || (addCell->id > 0 && addCell->id != mcui.dragSplit.id))
 		return;
 
-	/* items need to filled in the order the area was drawn */
+	/* items need to filled in the order they were drawn */
 	DATA8 slots, group;
 	Item  list, eof;
 	int   count, split, i;
 
-	addCell[0] = mcui.dragSplit;
+	if (addCell->id == 0)
+	{
+		addCell[0] = mcui.dragSplit;
+		addCell->count = addCell->added = 0;
+	}
 	addCell->slot = ++ mcui.selCount;
 	count = mcui.dragSplit.count;
-	split = count / mcui.selCount;
+	split = mcui.dragOneItem ? 1 : count / mcui.selCount;
 	if (split < 1) split = 1;
 
 	slots = alloca(mcui.selCount * 2);
 	group = slots + mcui.selCount;
 
-	/* linearize all slots */
+	/* get all slots affected so far in a linear buffer */
 	for (i = 0; i < mcui.groupCount; i ++)
 	{
 		MCInventory inv = mcui.groups[i];
@@ -254,11 +257,13 @@ static void mcuiSplitItems(Item addCell)
 	{
 		MCInventory inv = mcui.groups[group[i]];
 		list = inv->items + slots[i];
-		list->count = split;
-		if (count >= split)
-			count -= split;
-		else
-			list->id = 0, list->count = 0;
+
+		list->count -= list->added;
+		list->added = 0;
+		int left = MIN(split, count);
+		count -= left - itemAddCount(list, left);
+		if (list->count == 0)
+			list->id = 0;
 	}
 
 	/* if there are any leftovers, drag them */
@@ -274,11 +279,40 @@ static void mcuiSplitItems(Item addCell)
 	SIT_ForceRefresh();
 }
 
+/* check if we double-clicked on an item: gather all the same item into one slot (up to stack limit) */
+static void mcuiGrabAllItems(MCInventory inv, int index)
+{
+	static double lastClick;
+	static int    lastSlot;
+
+	if (inv->singleItem)
+		return;
+
+	double curTime = FrameGetTime();
+	if (lastSlot == index && curTime - lastClick < 500)
+	{
+		//uint8_t groupId = inv->groupId;
+		Item item, end;
+		for (item = inv->items, end = item + inv->itemsNb; item < end; item ++)
+		{
+			if (mcui.drag.id != item->id) continue;
+			item->count = itemAddCount(&mcui.drag, item->count);
+			if (item->count == 0) item->id = 0;
+			else break; /* stack full */
+		}
+	}
+	else fprintf(stderr, "%d != %d || diff = %g\n", lastSlot, index, curTime - lastClick);
+	lastSlot = index;
+	lastClick = curTime;
+}
+
+
 /* highlight cell hovered */
 static int mcuiInventoryMouse(SIT_Widget w, APTR cd, APTR ud)
 {
 	SIT_OnMouse * msg = cd;
 	MCInventory   inv = ud;
+	Item          old;
 
 	int cellx = msg->x / mcui.cellSz;
 	int celly = msg->y / mcui.cellSz;
@@ -340,7 +374,7 @@ static int mcuiInventoryMouse(SIT_Widget w, APTR cd, APTR ud)
 			}
 			break;
 		case SITOM_ButtonRight:
-			if (inv->groupId)
+			if (inv->groupId && inv->items[cellx].count > 0)
 			{
 				/* grab half the stack */
 				Item cur = inv->items + cellx;
@@ -359,7 +393,17 @@ static int mcuiInventoryMouse(SIT_Widget w, APTR cd, APTR ud)
 				mcui.drag.y = mcui.height - (cellx >> 16) - mcui.itemSz;
 				return -1;
 			}
-			/* else no break */
+			else if (! inv->singleItem && mcui.drag.id > 0)
+			{
+				/* initiate drag, but only distribute 1 item at time */
+				celly = 1;
+				mcui.dragOneItem = 1;
+				old = &inv->items[cellx];
+				if (old->id == 0 || old->id == mcui.drag.id)
+					goto init_drag;
+			}
+			else mcui.drag.id = 0;
+			break;
 		case SITOM_ButtonLeft:
 			if (msg->flags & SITK_FlagShift)
 			{
@@ -380,35 +424,39 @@ static int mcuiInventoryMouse(SIT_Widget w, APTR cd, APTR ud)
 			}
 			else if (mcui.drag.id > 0)
 			{
-				if (inv->groupId)
+				if (inv->singleItem == 0)
 				{
 					/* merge stack if same id */
-					ItemBuf old = inv->items[cellx];
-					inv->items[cellx] = mcui.drag;
+					old = &inv->items[cellx];
 					SIT_ApplyCallback(w, (APTR) (int) mcui.drag.id, SITE_OnChange);
-					if (old.id == mcui.drag.id)
+					if (old->id == 0 || old->id == mcui.drag.id)
 					{
-						/* but only to stack limit (old.count == leftovers) */
-						old.count = itemAddCount(&inv->items[cellx], old.count);
-						if (old.count == 0) old.id = 0;
-					}
-
-					if (old.id > 0)
-					{
-						/* click on a slot with items in it: exchange with item being dragged */
-						mcui.drag.id = old.id;
-						mcui.drag.count = old.count;
-						mcui.drag.uses = old.uses;
-						mcui.drag.extra = old.extra;
-						SIT_ForceRefresh();
-					}
-					else /* start spliting items by drawing on inventory slots */
-					{
-						mcui.groupIdStart = inv->groupId;
+						/* but only to stack limit */
+						mcui.dragOneItem = 0;
+						celly = mcui.drag.count;
+						init_drag:
 						mcui.dragSplit = mcui.drag;
-						mcui.drag.id = 0;
+						if (old->id == 0)
+							*old = mcui.drag, old->count = old->added = celly, mcui.drag.count -= celly;
+						else
+							mcui.drag.count -= celly - itemAddCount(old, celly);
+						/* start spliting items by drawing on inventory slots */
+						mcui.groupIdStart = inv->groupId;
+						if (mcui.drag.count == 0)
+							mcui.drag.id = 0;
 						mcui.selCount = 1;
 						inv->items[cellx].slot = 1;
+						SIT_ForceRefresh();
+					}
+					else if (old->id > 0)
+					{
+						/* click on a slot with different items in it: exchange with item being dragged */
+						ItemBuf buf = mcui.drag;
+						mcui.drag.id = old->id;
+						mcui.drag.count = old->count;
+						mcui.drag.uses = old->uses;
+						mcui.drag.extra = old->extra;
+						*old = buf;
 						SIT_ForceRefresh();
 					}
 					return -1;
@@ -438,6 +486,8 @@ static int mcuiInventoryMouse(SIT_Widget w, APTR cd, APTR ud)
 				cellx = SIT_InitDrag(mcuiDragItem);
 				mcui.drag.x = cellx & 0xffff;
 				mcui.drag.y = mcui.height - (cellx >> 16) - mcui.itemSz;
+				mcuiGrabAllItems(inv, cellx);
+				SIT_ForceRefresh();
 			}
 			/* cancel capture move */
 			return -1;
@@ -711,7 +761,7 @@ void mcuiCreateInventory(Inventory player)
 	mcui.groupCount = 0;
 	mcui.cb = NULL;
 
-	static struct MCInventory_t mcinv = {.invRow = 6, .invCol = MAXCOLINV};
+	static struct MCInventory_t mcinv = {.invRow = 6, .invCol = MAXCOLINV, .singleItem = 1};
 
 	SIT_GetValues(diag, SIT_UserData, &mcui.allItems, NULL);
 	mcinv.items   = mcui.allItems;
@@ -1300,9 +1350,9 @@ static int mcuiFillStop(SIT_Widget w, APTR cd, APTR ud)
 
 void mcuiFillOrReplace(SIT_Widget parent, Map map, Bool fillWithBrush)
 {
-	static struct MCInventory_t mcinv   = {.invRow = 6, .invCol = MAXCOLINV};
-	static struct MCInventory_t fillinv = {.invRow = 1, .invCol = 1, .groupId = 1, .itemsNb = 1};
-	static struct MCInventory_t replace = {.invRow = 1, .invCol = 1, .groupId = 2, .itemsNb = 1};
+	static struct MCInventory_t mcinv   = {.invRow = 6, .invCol = MAXCOLINV, .singleItem = 1};
+	static struct MCInventory_t fillinv = {.invRow = 1, .invCol = 1, .groupId = 1, .itemsNb = 1, .singleItem = 1};
+	static struct MCInventory_t replace = {.invRow = 1, .invCol = 1, .groupId = 2, .itemsNb = 1, .singleItem = 1};
 	static struct Item_t fillReplace[2];
 
 	/* same scale than player toolbar... */

@@ -30,7 +30,7 @@ typedef struct ChunkFake_t *       ChunkFake;
 struct Map_t
 {
 	float     cx, cy, cz;          /* player pos (init) */
-	int       mapX, mapZ;          /* map center */
+	int       mapX, mapZ;          /* map center (coords in Map_t.chunks) */
 	int       maxDist;             /* max render distance in chunks */
 	int       mapArea;             /* size of entire area of map (including lazy chunks) */
 	int       frame;               /* needed by frustum culling */

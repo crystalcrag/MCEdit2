@@ -511,15 +511,15 @@ int mapUpdateGate(BlockIter iterator, int id, Bool init)
 	}
 	if (powered == 0)
 	{
-		if (i == 6) return id;
+		if (i == 6 || init) return id;
 		/* gate closed, but has a power source nearby */
-		if (init) return id | flag;
+		if (init) return id;
 		else mapUpdateTable(iterator, (id | flag) & 15, DATA_OFFSET);
 	}
 	else if (i == 6)
 	{
 		/* gate powered/opened, without power source */
-		if (init) return id & ~flag; /* cut power and close gate */
+		if (init) return id; /* cut power and close gate */
 		else mapUpdateTable(iterator, (id & ~flag) & 15, DATA_OFFSET);
 	}
 	return id;

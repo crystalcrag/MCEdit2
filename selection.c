@@ -151,7 +151,8 @@ static void selectionSetRect(int pointId)
 	/* lines around the edges */
 	glUnmapBuffer(GL_ARRAY_BUFFER);
 
-	selectionSetSize();
+	if (pointId == SEL_POINT_BOX)
+		selectionSetSize();
 }
 
 static int selectionNudge(SIT_Widget w, APTR cd, APTR ud)
@@ -180,10 +181,11 @@ static int selectionNudge(SIT_Widget w, APTR cd, APTR ud)
 }
 
 static void selectionBrushRotate(void);
+static void selectionBrushFlip(void);
+static void selectionBrushMirror(void);
 
 static int cancelActivation(SIT_Widget w, APTR cd, APTR ud)
 {
-	fprintf(stderr, "cancel activation\n");
 	SIT_SetValues(w, SIT_CheckState, False, NULL);
 	return -1;
 }
@@ -230,10 +232,11 @@ Bool selectionProcessKey(int key, int mod)
 		switch (key) {
 		case 'r': ctrl = 0; selectionBrushRotate(); break;
 		case 't': ctrl = 1; break;
-		case 'l': ctrl = 2; break;
-		case 'm': ctrl = 3; break;
+		case 'l': ctrl = 2; selectionBrushFlip(); break;
+		case 'm': ctrl = 3; selectionBrushMirror(); break;
 		default: return False;
 		}
+		/* highlight button used */
 		double curTime = FrameGetTime();
 		SIT_Widget w = SIT_GetById(selection.editBrush, ctrlName[ctrl]);
 		SIT_SetValues(w, SIT_CheckState, True, NULL);
@@ -411,26 +414,15 @@ void selectionSetClonePt(vec4 pos, int side)
 		glUnmapBuffer(GL_ARRAY_BUFFER);
 	}
 
-	/* relocate chunk->X+Z, renderPrepVisibleChunks() will need this */
+	/* set brush location in world coord */
 	if (selection.brush)
 	{
-		Chunk c;
-		Map   brush = selection.brush;
-		int   x = (brush->size[VX] + 15) >> 4;
-		int   z = (brush->size[VZ] + 15) >> 4;
-		for (c = brush->chunks, pos = selection.clonePt, j = 0; j < z; j ++)
-		{
-			for (i = 0; i < x; i ++, c ++)
-			{
-				c->X = (int) pos[VX] + i * 16 - 1;
-				c->Z = (int) pos[VZ] + j * 16 - 1;
-				int k;
-				for (k = 0; k < c->maxy; k ++)
-					c->layer[k]->Y = (int) pos[VY] + k * 16 - 1;
-			}
-		}
+		Map brush = selection.brush;
+		pos = selection.clonePt;
+		brush->cx = pos[0] - 1;
+		brush->cy = pos[1] - 1;
+		brush->cz = pos[2] - 1;
 	}
-//	fprintf(stderr, "clone pt = %g,%g,%g, side = %d\n", selection.clonePt[0], selection.clonePt[1], selection.clonePt[2], side);
 }
 
 /* SITE_OnChange on brush offsets */
@@ -449,6 +441,7 @@ static int selectionRepeat(SIT_Widget w, APTR cd, APTR ud)
 	return 1;
 }
 
+/* copy blocks from brush into map */
 static int selectionCloneBlocks(SIT_Widget w, APTR cd, APTR map)
 {
 	struct BlockIter_t dst;
@@ -483,7 +476,8 @@ static int selectionCloneBlocks(SIT_Widget w, APTR cd, APTR map)
 					if (dst.ref == NULL) continue; /* outside map :-/ */
 					if (air == 0 && blockId == 0) continue;
 					if (water == 0 && blockGetById(blockId)->special == LIKID) continue;
-					mapUpdate(map, NULL, blockId, NULL, UPDATE_SILENT);
+					DATA8 tile = chunkDeleteIterTE(src, True);
+					mapUpdate(map, NULL, blockId, tile, UPDATE_SILENT);
 				}
 			}
 			mapIter(&src, 0, 1, -dz);
@@ -509,7 +503,12 @@ static int selectionCloneBlocks(SIT_Widget w, APTR cd, APTR map)
 /* SITE_OnActivate: initiate rotate, flip, mirror or roll */
 static int selectionTransform(SIT_Widget w, APTR cd, APTR ud)
 {
-	selectionBrushRotate();
+	switch ((int) ud) {
+	case 0: selectionBrushRotate(); break;
+	case 1: break;
+	case 2: selectionBrushFlip(); break;
+	case 3: selectionBrushMirror(); break;
+	}
 	return 1;
 }
 
@@ -580,6 +579,9 @@ void selectionClone(APTR sitRoot, Map map, vec4 pos, int side)
 		SIT_AddCallback(SIT_GetById(diag, "ok"), SITE_OnActivate, selectionCloneBlocks, map);
 		SIT_AddCallback(SIT_GetById(diag, "ko"), SITE_OnActivate, selectionCancelClone, map);
 		SIT_AddCallback(SIT_GetById(diag, "rotate"), SITE_OnActivate, selectionTransform, NULL);
+		SIT_AddCallback(SIT_GetById(diag, "roll"), SITE_OnActivate, selectionTransform, (APTR) 1);
+		SIT_AddCallback(SIT_GetById(diag, "flip"), SITE_OnActivate, selectionTransform, (APTR) 2);
+		SIT_AddCallback(SIT_GetById(diag, "mirror"), SITE_OnActivate, selectionTransform, (APTR) 3);
 		SIT_ManageWidget(diag);
 	}
 
@@ -617,7 +619,8 @@ void selectionClone(APTR sitRoot, Map map, vec4 pos, int side)
 		brush->chunkOffsets = (DATAS16) brush->path;
 		brush->chunks = (Chunk) (brush + 1);
 		brush->GPUMaxChunk = 512 * 1024;
-		brush->maxDist = brush->mapArea = 1e6;
+		brush->maxDist = 1e6;
+		brush->mapArea = -1;
 		cd = (ChunkData) (brush->chunks + chunkXZ);
 		blocks = (DATA8) (cd + chunkXZ * chunks[VY]);
 
@@ -646,6 +649,8 @@ void selectionClone(APTR sitRoot, Map map, vec4 pos, int side)
 				/* setup chunk */
 				chunk->maxy = chunks[VY];
 				chunk->cflags |= CFLAG_GOTDATA;
+				chunk->X = x * 16;
+				chunk->Z = z * 16;
 				/* brush don't have lazy chunks all around */
 				uint8_t missing = 0;
 				if (x == 0) missing |= 1 << SIDE_WEST;
@@ -694,6 +699,12 @@ void selectionClone(APTR sitRoot, Map map, vec4 pos, int side)
 					dst.blockIds[dst.offset] = src.blockIds[src.offset];
 					if (src.offset & 1) data >>= 4; else data &= 15;
 					dst.blockIds[DATA_OFFSET + (dst.offset>>1)] |= dst.offset & 1 ? data << 4 : data;
+
+					/* also need to copy tile entities */
+					DATA8 tile = chunkGetTileEntity(src.ref, (int[3]) {src.x, src.yabs, src.z});
+					if (tile)
+						/* don't relocate coord within tile entity yet (will be done by mapUpdate()) */
+						chunkAddIterTE(dst, NBT_Copy(tile));
 				}
 			}
 		}
@@ -713,7 +724,6 @@ void selectionClone(APTR sitRoot, Map map, vec4 pos, int side)
 		}
 		renderAllocCmdBuffer(brush);
 	}
-
 	selectionSetClonePt(pos, side);
 }
 
@@ -723,8 +733,14 @@ int selectionCancelClone(SIT_Widget w, APTR cd, APTR ud)
 	int ret = 0;
 	if (selection.brush)
 	{
-		renderFreeMesh(selection.brush);
-		free(selection.brush);
+		Map   brush = selection.brush;
+		Chunk chunk;
+		int   count;
+		renderFreeMesh(brush);
+		/* clear tile entites per chunk */
+		for (chunk = brush->chunks, count = ((brush->size[VX] + 15) >> 4) * ((brush->size[VZ] + 15) >> 4); count > 0; count --, chunk ++)
+			if (chunk->tileEntities) free(chunk->tileEntities);
+		free(brush);
 		selection.brush = NULL;
 		ret = 1;
 	}
@@ -742,7 +758,16 @@ int selectionCancelClone(SIT_Widget w, APTR cd, APTR ud)
  * brush manipulation: rotate, flip, mirror, roll
  */
 
-/* rotation is always done along Y axis by 90deg steps */
+#define mapUpdateData(iterptr, data) \
+{ \
+	DATA8 dataTbl = (iterptr)->blockIds + DATA_OFFSET + ((iterptr)->offset >> 1); \
+	if ((iterptr)->offset & 1) \
+		dataTbl[0] = (dataTbl[0] & 15) | ((data) << 4); \
+	else \
+		dataTbl[0] = (dataTbl[0] & 0xf0) | (data); \
+}
+
+/* rotation is always done along Y axis by 90deg CW steps */
 static void selectionBrushRotate(void)
 {
 	/* therefore we can rotate the brush Y layer per Y layer */
@@ -778,7 +803,7 @@ static void selectionBrushRotate(void)
 				if (x2 > 15) off += 384 * (x2 >> 4), x2 &= 15;
 				if (z2 > 15) off += 384 * chunkX * (z2 >> 4), z2 &= 15;
 				off += z2*16 + x2;
-				int blockId = getBlockId(&iter);
+				int blockId = blockRotate90(getBlockId(&iter));
 				layer[off] = blockId >> 4; blockId &= 15;
 				layer[256 + (off >> 1)] |= off & 1 ? blockId << 4 : blockId;
 			}
@@ -792,6 +817,8 @@ static void selectionBrushRotate(void)
 				DATA8 dest = c->layer[y>>4]->blockIds;
 				memcpy(dest + iter.y * 256, blocks, 256);
 				memcpy(dest + iter.y * 128 + DATA_OFFSET, blocks + 256, 128);
+				/* cleanup for next layer */
+				memset(blocks, 0, 384);
 			}
 		}
 	}
@@ -799,10 +826,11 @@ static void selectionBrushRotate(void)
 	brush->size[VX] = dz+2;
 	brush->size[VZ] = dx+2;
 
-	/* relocate chunk coord */
+	/* relocate chunk coord and regenerate mesh */
 	swap(chunkX, chunkZ);
-	dx = selection.clonePt[VX];
-	dz = selection.clonePt[VZ];
+	float diff = (selection.cloneSize[VX] - selection.cloneSize[VZ]) * 0.5;
+	selection.clonePt[VX] += roundf(diff);
+	selection.clonePt[VZ] += roundf(-diff);
 	for (z = 0, c = brush->chunks; z < chunkZ; z ++)
 	{
 		for (x = 0; x < chunkX; x ++, c ++)
@@ -813,8 +841,8 @@ static void selectionBrushRotate(void)
 			if (x == chunkX-1) missing |= 1 << SIDE_EAST;
 			if (z == chunkZ-1) missing |= 1 << SIDE_SOUTH;
 			c->noChunks = missing;
-			c->X = dx + x * 16 - 1;
-			c->Z = dz + z * 16 - 1;
+			c->X = x * 16;
+			c->Z = z * 16;
 
 			for (dy = 0; dy < c->maxy; dy ++)
 			{
@@ -834,7 +862,166 @@ static void selectionBrushRotate(void)
 	sz[VZ] = tmp;
 
 	selectionSetRect(SEL_POINT_CLONE);
+	selectionSetClonePt(NULL, -1);
 }
+
+static void selectionBrushFlip(void)
+{
+	Map brush = selection.brush;
+	int dx, dy, dz, x, y, z;
+
+	dx = brush->size[VX] - 2;
+	dy = brush->size[VY] - 2;
+	dz = brush->size[VZ] - 2;
+
+	struct BlockIter_t iterHI;
+	struct BlockIter_t iterLO;
+	mapInitIterOffset(&iterLO, brush->firstVisible, 256+16+1);
+	iterLO.yabs = 1;
+	iterLO.nbor = brush->chunkOffsets;
+	iterHI = iterLO;
+	mapIter(&iterHI, 0, dy - 1, 0);
+
+	/* relocate blocks + data */
+	for (y = 1; iterLO.yabs < iterHI.yabs; y ++, mapIter(&iterLO, 0, 1, -dz), mapIter(&iterHI, 0, -1, -dz))
+	{
+		for (z = 1; z <= dz; z ++, mapIter(&iterLO, -dx, 0, 1), mapIter(&iterHI, -dx, 0, 1))
+		{
+			for (x = 1; x <= dx; x ++, mapIter(&iterLO, 1, 0, 0), mapIter(&iterHI, 1, 0, 0))
+			{
+				/* exchange LO & HI blockId, flipping them in the process */
+				int idLO = blockMirrorY(getBlockId(&iterHI));
+				int idHI = blockMirrorY(getBlockId(&iterLO));
+
+				iterHI.blockIds[iterHI.offset] = idHI >> 4;
+				iterLO.blockIds[iterLO.offset] = idLO >> 4;
+				DATA8 tileLO = chunkDeleteIterTE(iterHI, True);
+				DATA8 tileHI = chunkDeleteIterTE(iterLO, True);
+				mapUpdateData(&iterLO, idLO & 15);
+				mapUpdateData(&iterHI, idHI & 15);
+				if (tileLO) chunkAddIterTE(iterLO, tileLO);
+				if (tileHI) chunkAddIterTE(iterHI, tileHI);
+			}
+		}
+	}
+	if (iterLO.yabs == iterHI.yabs)
+	{
+		/* odd high brush: need to flip one layer alone */
+		for (z = 1; z <= dz; z ++, mapIter(&iterLO, -dx, 0, 1))
+		{
+			for (x = 1; x <= dx; x ++, mapIter(&iterLO, 1, 0, 0))
+			{
+				/* tile entities won't be moved, no need to check for them */
+				int id = blockMirrorY(getBlockId(&iterLO));
+				iterLO.blockIds[iterLO.offset] = id >> 4;
+				mapUpdateData(&iterLO, id&15);
+			}
+		}
+	}
+
+	/* regenerate mesh of brush */
+	Chunk c;
+	dx = (brush->size[VX] + 15) >> 4;
+	dz = (brush->size[VZ] + 15) >> 4;
+	for (z = 0, c = brush->chunks; z < dz; z ++)
+	{
+		for (x = 0; x < dx; x ++, c ++)
+		{
+			for (y = 0, dy = c->maxy; y < dy; y ++)
+			{
+				chunkUpdate(c, chunkAir, brush->chunkOffsets, y);
+				/* transfer chunk to the GPU */
+				renderFinishMesh(brush, True);
+			}
+		}
+	}
+	renderAllocCmdBuffer(brush);
+}
+
+typedef int (*BlockTransform_t)(int blockId);
+
+static void selectionBrushMirror(void)
+{
+	Map brush = selection.brush;
+	int dx, dy, dz, x, y, z, axisEW;
+	int iterX, iterZ;
+
+	dx = brush->size[VX] - 2;
+	dy = brush->size[VY] - 2;
+	dz = brush->size[VZ] - 2;
+	/* mirror will be done perdendicular to camera viewing direction */
+	axisEW = (selection.direction[0] & 1) == 0;
+
+	struct BlockIter_t iterMIN;
+	struct BlockIter_t iterMAX;
+	BlockTransform_t   trans;
+	int8_t             dirX, dirZ;
+	mapInitIterOffset(&iterMIN, brush->firstVisible, 256+16+1);
+	iterMIN.yabs = 1;
+	iterMIN.nbor = brush->chunkOffsets;
+	iterMAX = iterMIN;
+	iterZ   = dz;
+	iterX   = dx;
+	if (axisEW) mapIter(&iterMAX, dx - 1, 0, 0), trans = blockMirrorX, iterX >>= 1, dirX = -1, dirZ =  1;
+	else        mapIter(&iterMAX, 0, 0, dz - 1), trans = blockMirrorZ, iterZ >>= 1, dirX =  1, dirZ = -1;
+
+
+	/* relocate blocks + data */
+	for (y = 1; y <= dy; y ++, mapIter(&iterMIN, 0, 1, -iterZ), mapIter(&iterMAX, 0, 1, iterZ * dirZ))
+	{
+		for (z = 1; z <= iterZ; z ++, mapIter(&iterMIN, -iterX, 0, 1), mapIter(&iterMAX, -iterX, 0, dirZ))
+		{
+			for (x = 1; x <= iterX; x ++, mapIter(&iterMIN, 1, 0, 0), mapIter(&iterMAX, dirX, 0, 0))
+			{
+				/* exchange LO & HI blockId, mirroring them in the process */
+				int idMIN = trans(getBlockId(&iterMAX));
+				int idMAX = trans(getBlockId(&iterMIN));
+
+				iterMAX.blockIds[iterMAX.offset] = idMAX >> 4;
+				iterMIN.blockIds[iterMIN.offset] = idMIN >> 4;
+				mapUpdateData(&iterMIN, idMIN & 15);
+				mapUpdateData(&iterMAX, idMAX & 15);
+				DATA8 tileMIN = chunkDeleteIterTE(iterMAX, True);
+				DATA8 tileMAX = chunkDeleteIterTE(iterMIN, True);
+				if (tileMIN) chunkAddIterTE(iterMIN, tileMIN);
+				if (tileMAX) chunkAddIterTE(iterMAX, tileMAX);
+			}
+			if (axisEW && iterMIN.x == iterMAX.x)
+			{
+				/* odd width: need to transform a single block */
+				int id = trans(getBlockId(&iterMIN));
+				iterMIN.blockIds[iterMIN.offset] = id >> 4;
+				mapUpdateData(&iterMIN, id & 15);
+			}
+		}
+		if (axisEW == 0 && iterMIN.z == iterMAX.z)
+		{
+			/* odd length */
+			int id = trans(getBlockId(&iterMIN));
+			iterMIN.blockIds[iterMIN.offset] = id >> 4;
+			mapUpdateData(&iterMIN, id & 15);
+		}
+	}
+
+	/* regenerate mesh of brush */
+	Chunk c;
+	dx = (brush->size[VX] + 15) >> 4;
+	dz = (brush->size[VZ] + 15) >> 4;
+	for (z = 0, c = brush->chunks; z < dz; z ++)
+	{
+		for (x = 0; x < dx; x ++, c ++)
+		{
+			for (y = 0, dy = c->maxy; y < dy; y ++)
+			{
+				chunkUpdate(c, chunkAir, brush->chunkOffsets, y);
+				/* transfer chunk to the GPU */
+				renderFinishMesh(brush, True);
+			}
+		}
+	}
+	renderAllocCmdBuffer(brush);
+}
+
 
 /*
  * select similar blocks
@@ -916,14 +1103,14 @@ void selectionProcessFill(void * unused)
 		}
 		/* else upward beam */
 		break;
-	case ORIENT_SE: /* rails */
+	case ORIENT_RAILS:
 		if (dy == 1)
 		{
 			if (dz == 1 && dx > 1) blockId |= 1; /* E/W */
 			/* else N/S is 0 */
 		}
 		break;
-	case ORIENT_SENW: /* ladder, furnace, jack-o-lantern ... */
+	case ORIENT_NSWE: /* ladder, furnace, jack-o-lantern ... */
 		{
 			static uint8_t dir2data[] = {2, 4, 3, 5};
 			blockId |= dir2data[selectionAsync.facing];
@@ -975,7 +1162,7 @@ void selectionProcessFill(void * unused)
 				mapUpdate(map, NULL, blockId, NULL, UPDATE_SILENT);
 			}
 
-			/* emergency exit */
+			/* O(n³) complexity functions better have a way to be cancelled */
 			if (selectionAsync.cancel) goto break_all;
 			selectionAsync.progress[0] += dx;
 		}
@@ -1112,7 +1299,7 @@ static void selectionProcessReplace(void * unsued)
 			dy --;
 		}
 	}
-	else
+	else /* only replace <blockId> */
 	{
 		if ((b->special == BLOCK_HALF || b->special == BLOCK_STAIRS) && selectionAsync.side > 0)
 			replId |= 8;
@@ -1248,7 +1435,7 @@ static void selectionProcessShape(void * unused)
 	case SHAPE_SPHERE:
 	case SHAPE_CYLINDER:
 		/* equation of an ellipse is (x - center[VX])² / Rx² + (y - center[VY])² / Ry² + (z - center[VZ])² / Rz² <= 1 */
-		pos[VX] = 1 / (selSize[VX] * selSize[VX] * 0.25); /* == 1 / Rx.y.z² */
+		pos[VX] = 1 / (selSize[VX] * selSize[VX] * 0.25); /* == 1 / Rx.y.z² (selSize == diameter) */
 		pos[VY] = 1 / (selSize[VY] * selSize[VY] * 0.25);
 		pos[VZ] = 1 / (selSize[VZ] * selSize[VZ] * 0.25);
 		break;
@@ -1286,8 +1473,8 @@ static void selectionProcessShape(void * unused)
 			for (x = 0; x < selSize[VX]; x ++, mapIter(&iter, 1, 0, 0))
 			{
 				/*
-				 * add a voxel if its center is within the sphere (this is also what was done in MCEdit v1)
-				 * this might not rasterize a sphere as perfectly as it should, but the result is kind
+				 * add a voxel if its center is within the object (this is also what was done in MCEdit v1)
+				 * this might not rasterize the object as perfectly as it should, but the result is kind
 				 * of esthetically pleasing, which is all what matter.
 				 */
 				vec4 vox = {

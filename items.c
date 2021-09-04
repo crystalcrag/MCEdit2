@@ -196,16 +196,19 @@ int itemGetCount(void)
 	return items.count;
 }
 
+/* will return leftovers that don't fit the max stack count */
 int itemAddCount(Item dest, int add)
 {
 	ItemDesc desc = itemGetById(dest->id);
 	int      max  = desc ? desc->stack : 64;
+	int      old  = dest->count;
 
 	dest->count += add;
 	if (dest->count > max)
 		add = dest->count - max, dest->count = max;
 	else
 		add = 0;
+	dest->added = dest->count - old;
 
 	/* leftovers */
 	return add;

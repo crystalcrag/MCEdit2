@@ -415,10 +415,11 @@ void playerAddInventory(Player p, int blockId, DATA8 tileEntity)
 			if (b->inventory == 0)
 			{
 				/* this block is not supposed to be in inventory, check for alternative */
-				for (blockId &= ~15, b = blockGetById(blockId); (b->id & ~15) == blockId && b->inventory == 0; b ++);
-				if ((b->id & ~15) != blockId) return;
-				blockId = b->id;
+				blockId = blockAdjustInventory(blockId);
+				/* that entire block type can't be used as an inventory item */
+				if (blockId == 0) return;
 			}
+
 			/* check if it is already in inventory */
 			int i;
 			for (item = p->inventory.items, i = 0; i < MAXCOLINV && !(item->id == blockId && item->extra == NULL); i ++, item ++);

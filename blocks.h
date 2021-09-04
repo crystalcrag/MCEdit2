@@ -41,6 +41,11 @@ DATA16  blockParseModel(float * values, int count, DATA16 buffer);
 void    blockGetEmitterLocation(int blockId, float offset[5]);
 int     blockInvCountVertex(DATA16 model, int faceId);
 int     blockInvCopyFromModel(DATA16 ret, DATA16 model, int faceId);
+int     blockAdjustInventory(int blockId);
+int     blockRotate90(int blockId);
+int     blockMirrorX(int blockId);
+int     blockMirrorY(int blockId);
+int     blockMirrorZ(int blockId);
 
 void    halfBlockGenMesh(WriteBuffer, DATA8 model, int size /* 2 or 8 */, DATA8 xyz, DATA8 tex, DATA16 blockIds, DATA8 skyBlock, int genSides);
 DATA8   halfBlockGetModel(BlockState, int size /* 1, 2 or 8 */, DATA16 blockIds);
@@ -215,12 +220,14 @@ enum                             /* orientation method: Block.orientHint */
 	ORIENT_SLAB,
 	ORIENT_TORCH,
 	ORIENT_STAIRS,
-	ORIENT_SENW,                 /* chest */
+	ORIENT_NSWE,                 /* chest */
 	ORIENT_SWNE,                 /* terracotta */
 	ORIENT_DOOR,
-	ORIENT_SE,                   /* fence gate */
+	ORIENT_RAILS,                /* rails */
+	ORIENT_SE,
 	ORIENT_LEVER,
-	ORIENT_SNOW
+	ORIENT_SNOW,
+	ORIENT_VINES
 };
 
 enum                             /* editable tile entity XXX deprecated */

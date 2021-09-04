@@ -38,7 +38,8 @@ struct Item_t              /* for rendering */
 	uint16_t uses;         /* display durability bar */
 	uint16_t count;        /* stack count */
 	uint16_t x, y;         /* position on screen (relative to bottom left) */
-	uint16_t slot;         /* inventory slot XXX not sure */
+	uint8_t  slot;         /* used to manage items dragged over inventory */
+	uint8_t  added;        /* items temporarily added to count (drag item) */
 	DATA8    extra;        /* NBT fragment */
 };
 

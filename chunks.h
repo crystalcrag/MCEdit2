@@ -36,6 +36,9 @@ void      chunkUpdateTilePosition(Chunk, int * XYZ, DATA8 tile);
 void      chunkMarkForUpdate(Chunk);
 void      chunkExpandEntities(Chunk);
 
+#define chunkDeleteIterTE(iter,ext)    chunkDeleteTileEntity((iter).ref, (int[3]){(iter).x, (iter).yabs, (iter).z}, ext)
+#define chunkAddIterTE(iter,tile)      chunkAddTileEntity((iter).ref, (int[3]){(iter).x, (iter).yabs, (iter).z}, tile)
+
 struct ChunkData_t                     /* one sub-chunk of 16x16x16 blocks */
 {
 	ChunkData visible;                 /* frustum culling list */

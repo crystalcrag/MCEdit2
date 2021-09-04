@@ -373,6 +373,7 @@ void renderPointToBlock(int mx, int my)
 	{
 		if (render.selection.sel & SEL_OFFHAND)
 		{
+			/* was hovering toolbar: clear tooltip */
 			renderShowBlockInfo(False, DEBUG_BLOCK);
 			render.inventory->offhand &= ~PLAYER_TOOLBAR;
 			render.toolbarItem = NULL;
@@ -1084,11 +1085,18 @@ static void renderPrepVisibleChunks(Map map)
 	GPUBank   bank;
 	MDAICmd   cmd;
 	float *   loc;
+	int       dx, dy, dz;
 
 	render.debugTotalTri = 0;
 
 	int Y = CPOS(render.camera[1]);
 	player = (0 <= Y && Y < map->center->maxy ? map->center->layer[Y] : NULL);
+
+	if (map->mapArea < 0)
+		/* brush: chunks always starts at 0,0,0; map->c{x,y,z} is location of brush in world coord */
+		dx = map->cx, dy = map->cy, dz = map->cz;
+	else
+		dx = dy = dz = 0;
 
 	/* prep all the terrain chunks we will need to render */
 	for (bank = HEAD(map->gpuBanks); bank; NEXT(bank))
@@ -1127,9 +1135,9 @@ static void renderPrepVisibleChunks(Map map)
 					start += cmd->count;
 
 					loc = bank->locBuffer + bank->cmdTotal * 3;
-					loc[0] = chunk->X;
-					loc[1] = cd->Y;
-					loc[2] = chunk->Z;
+					loc[0] = dx + chunk->X;
+					loc[1] = dy + cd->Y;
+					loc[2] = dz + chunk->Z;
 					bank->cmdTotal ++;
 				}
 				/* alpha chunks needs to be drawn from far to near */
@@ -1143,9 +1151,9 @@ static void renderPrepVisibleChunks(Map map)
 					cmd->baseInstance = alphaIndex; /* needed by glVertexAttribDivisor() */
 
 					loc = bank->locBuffer + alphaIndex * 3;
-					loc[0] = chunk->X;
-					loc[1] = cd->Y;
-					loc[2] = chunk->Z;
+					loc[0] = dx + chunk->X;
+					loc[1] = dy + cd->Y;
+					loc[2] = dz + chunk->Z;
 					alphaIndex --;
 
 					/* check if we need to sort vertex: this is costly but should not be done very often */
@@ -1190,6 +1198,18 @@ void renderBlockInfo(SelBlock_t * sel)
 		{
 			int id    = sel->extra.blockId;
 			int XYZ[] = {sel->current[0], sel->current[1], sel->current[2]};
+
+			if (sel->extra.special == BLOCK_BED)
+			{
+				/* color is encoded in tile entity :-/ */
+				DATA8 tile = chunkGetTileEntity(sel->extra.chunk, (int[3]) {XYZ[0]&15, XYZ[1], XYZ[2]&15});
+				if (tile)
+				{
+					struct NBTFile_t nbt = {.mem = tile};
+					id &= ~15;
+					id |= NBT_ToInt(&nbt, NBT_FindNode(&nbt, 0, "color"), 14);
+				}
+			}
 
 			sprintf(msg, "X: %d <dim>(%d)</dim>\nY: %d <dim>(%d)</dim>\nZ: %d <dim>(%d)</dim>\n%s <dim>(%d:%d)</dim>",
 				XYZ[0], XYZ[0] & 15, XYZ[1], XYZ[1] & 15, XYZ[2], XYZ[2] & 15, blockGetById(id)->name, id>>4, id&15);

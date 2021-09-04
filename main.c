@@ -5,6 +5,7 @@
  * - OpenGL 4.3+
  * - SDL1
  * - SITGL
+ * - C11 compiler
  *
  * Written by T.Pierron, jan 2020
  */
@@ -398,7 +399,8 @@ void mceditWorld(void)
 					takeScreenshot();
 					break;
 				case SDLK_DELETE:
-					mceditCommands(MCUI_OVERLAY_DELALL);
+					if (! selectionHasClone())
+						mceditCommands(MCUI_OVERLAY_DELALL);
 					break;
 				case SDLK_F3: // DEBUG
 					if (event.key.keysym.mod & KMOD_CTRL)
