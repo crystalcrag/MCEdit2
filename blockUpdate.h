@@ -15,6 +15,13 @@ void updateAdd(BlockIter iter, int blockId, int nbTick);
 void updateRemove(ChunkData cd, int offset, int clearSorted);
 Bool updateAlloc(int max);
 
+int  blockRotateX90(BlockIter);
+int  blockRotateY90(BlockIter);
+int  blockRotateZ90(BlockIter);
+int  blockMirrorX(BlockIter);
+int  blockMirrorY(BlockIter);
+int  blockMirrorZ(BlockIter);
+
 #ifdef BLOCK_UPDATE_IMPL
 typedef struct TileTick_t *    TileTick;
 

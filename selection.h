@@ -84,7 +84,8 @@ struct Selection_t
 	int      cloneRepeat;
 	int      copyAir;
 	int      copyWater;
-	int      copyBiome;
+	int      copyEntity;
+	STRPTR   ext[4];         /* directionnal dependant icon for roll button */
 	APTR     nudgeDiag;      /* SIT_DIALOG */
 	APTR     editBrush;      /* SIT_DIALOG */
 	APTR     nudgeSize;      /* SIT_LABEL */

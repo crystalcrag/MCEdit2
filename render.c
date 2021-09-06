@@ -725,7 +725,20 @@ void renderSetViewMat(vec4 pos, vec4 lookat, float * yawPitch)
 static int clearRef(SIT_Widget w, APTR cd, APTR ud)
 {
 	render.blockInfo = NULL;
+	render.oldblockInfo = 0;
 	return 1;
+}
+
+void renderDebugTip(void)
+{
+	if (render.blockInfo)
+	{
+		int display, delay, anchor;
+		STRPTR title;
+		SIT_GetValues(render.blockInfo, SIT_DisplayTime, &display, SIT_DelayTime, &delay, SIT_ToolTipAnchor, &anchor, SIT_Title, &title, NULL);
+		fprintf(stderr, "display = %d\ndelay = %d\nanchor = %d\ntitle = %s\n", display, delay, anchor, title);
+	}
+	else fprintf(stderr, "tooltip not created yet\n");
 }
 
 void renderShowBlockInfo(Bool show, int what)
@@ -1188,12 +1201,10 @@ static void renderText(NVGcontext * vg, int x, int y, STRPTR text, float a)
 /* show tooltip near mouse cursor containing some info on the block selected */
 void renderBlockInfo(SelBlock_t * sel)
 {
-	static vec4 pos;
-
-	if (memcmp(pos, sel->current, 12))
+	if (render.oldblockInfo != sel->extra.blockId)
 	{
 		TEXT msg[256];
-		memcpy(pos, sel->current, 12);
+		render.oldblockInfo = sel->extra.blockId;
 		if (sel->extra.entity == 0)
 		{
 			int id    = sel->extra.blockId;

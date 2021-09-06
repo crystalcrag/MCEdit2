@@ -308,7 +308,7 @@ DATA8 chunkDeleteTileEntity(Chunk c, int * XYZ, Bool extract)
 		ent->prev = EOF_MARKER;
 		ent = next;
 	}
-	fprintf(stderr, "deleting tile entity at %d, %d, %d\n", c->X + XYZ[0], XYZ[1], c->Z + XYZ[2]);
+	// fprintf(stderr, "deleting tile entity at %d, %d, %d\n", c->X + XYZ[0], XYZ[1], c->Z + XYZ[2]);
 	if (extract)
 	{
 		if (c->nbt.mem <= data && data < c->nbt.mem + c->nbt.usage)
@@ -1637,7 +1637,7 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 		{
 			uint8_t pos[3] = {x<<1, y<<1, z<<1};
 			//fprintf(stderr, "meshing %s at pos %d, %d, %d\n", b->name, x, y, z);
-			halfBlockGenMesh(buffer, halfBlockGetModel(b, 2, blockIds3x3), 2, pos, &b->nzU, blockIds3x3, skyBlock, 63);
+			halfBlockGenMesh(buffer, halfBlockGetModel(b, 2, blockIds3x3), 2, pos, b, blockIds3x3, skyBlock, 63);
 			break;
 		}
 		#if 1
@@ -1647,7 +1647,7 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 			DATA8 model = halfBlockGetModel(b, 2, blockIds3x3);
 			if (model)
 			{
-				halfBlockGenMesh(buffer, model, 2, pos, &b->nzU, blockIds3x3, skyBlock, 1 << (i>>2));
+				halfBlockGenMesh(buffer, model, 2, pos, b, blockIds3x3, skyBlock, 1 << (i>>2));
 				continue;
 			}
 		}

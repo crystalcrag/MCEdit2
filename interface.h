@@ -59,11 +59,16 @@ struct MCInventory_t
 	SIT_Widget cell;
 	int8_t     curX, curY;
 	uint8_t    invCol, invRow;
-	uint8_t    groupId, singleItem;
+	uint8_t    groupId, movable;
 	Item       items;
 	int        itemsNb, top;
 };
 
+enum /* possible flags for <behavior> */
+{
+	INV_PICK_ONLY   = 1,          /* can only pickup block, not drop them */
+	INV_SINGLE_DROP = 2,          /* can drop item, but only one at most */
+};
 
 #endif
 #endif

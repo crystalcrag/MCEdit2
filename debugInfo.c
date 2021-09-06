@@ -113,9 +113,11 @@ void debugBlockVertex(Map map, SelBlock_t * select)
 				{
 					uint16_t U = bitfieldExtract(p[4], 14, 9);
 					uint16_t V = bitfieldExtract(p[4], 23, 9) | (bitfieldExtract(p[1], 30, 1) << 9);
+					uint16_t Usz = U + bitfieldExtract(p[5], 16, 8) - 128;
+					uint16_t Vsz = V + bitfieldExtract(p[5], 24, 8) - 128;
 					uint32_t ocsmap = bitfieldExtract(p[5], 0, 9) | (bitfieldExtract(p[3], 28, 4) << 9) | (bitfieldExtract(p[2], 28, 4) << 13);
-					fprintf(stderr, "VERTEX2: %g %g %g - NORM: %d (%c) - uv: %d,%d - OCS: %d/%d/%d/%d\n",
-						V2[0]*0.5, V2[1]*0.5, V2[2]*0.5, side, "SENWTB"[side], U, V, p[5]&3, (p[5]>>2)&3, (p[5]>>4)&3, (p[5]>>6)&3
+					fprintf(stderr, "VERTEX2: %g %g %g - NORM: %d (%c) - uv: %d,%d / %d,%d%s - OCS: %d/%d/%d/%d\n",
+						V2[0]*0.5, V2[1]*0.5, V2[2]*0.5, side, "SENWTB"[side], U, V, Usz, Vsz, p[5] & FLAG_TEX_KEEPX ? "X": "", p[5]&3, (p[5]>>2)&3, (p[5]>>4)&3, (p[5]>>6)&3
 					);
 					fprintf(stderr, "VERTEX3: %g %g %g - LIGHT: %d/%d/%d/%d, SKY: %d/%d/%d/%d",
 						V3[0]*0.5, V3[1]*0.5, V3[2]*0.5,

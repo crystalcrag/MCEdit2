@@ -187,6 +187,7 @@ struct RenderWorld_t
 	Item       toolbarItem;        /* item being hovered by mouse */
 	int        modifCount;         /* displayed at bottom of screen */
 	Message_t  message;            /* message at bottom of screen */
+	int        oldblockInfo;
 	APTR       blockInfo;          /* SIT_TOOLTIP */
 	APTR       sitRoot;            /* SIT_APP */
 };

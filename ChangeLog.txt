@@ -1,4 +1,11 @@
 =========== Week 34 ===========
+Sun Sep 5:
+	* half-block meshing didn't take tex rotation into account.
+	* roll brush seems working for now.
+
+Sat Sep 4:
+	* started roll brush: in place modification was way too complex, use new brush.
+
 Fri Sep 3:
 	* flip and mirror brush done.
 	* bug fixed: full bbox with non-AABB was fubar.

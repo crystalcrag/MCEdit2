@@ -90,6 +90,7 @@ static uint16_t vtxAdjust[] = {
 static uint8_t modelsSize0[DIM(modelsSize2)];
 
 extern uint8_t skyBlockOffset[];
+extern uint8_t texCoord[];
 extern int8_t  normals[];
 
 /* keep a cache of models surrounding a given blocks */
@@ -329,7 +330,7 @@ static Bool isVisible(DATA16 blockIds, ModelCache models, DATA8 pos, int dir)
  * Main function to convert a detail block metadata into a triangle mesh:
  * contrary to chunk meshing, we try harder to make triangles as big as possible.
  */
-void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DATA8 xyz, DATA8 tex, DATA16 blockIds, DATA8 skyBlock, int genSides)
+void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DATA8 xyz, BlockState b, DATA16 blockIds, DATA8 skyBlock, int genSides)
 {
 	static uint8_t xsides[] = { 2, 8};
 	static uint8_t ysides[] = {16,32};
@@ -357,6 +358,7 @@ void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DAT
 	for (face = faces, out = write->cur, i = 8, memset(pos, 0, sizeof pos); i > 0; i --, face ++)
 	{
 		uint8_t flags = *face, sides;
+		uint16_t rotate;
 		if ((flags & 63) == 63) continue; /* empty (or done) sub-voxel */
 
 		k = face - faces;
@@ -370,7 +372,7 @@ void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DAT
 		sides = xsides[x] | ysides[y] | zsides[z];
 
 		/* scan missing face on this sub-block */
-		for (j = 0; j < 6; j ++)
+		for (j = 0, rotate = b->rotate; j < 6; j ++, rotate >>= 2)
 		{
 			static uint8_t dir0[]  = {2, 0, 2, 0, 1, 1}; /* index in pos/rect */
 			static uint8_t axis[]  = {2, 0, 0, 0, 1};
@@ -489,7 +491,7 @@ void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DAT
 			#define VERTEX(x)     ((x) * (BASEVTX/2) + ORIGINVTX)
 
 			/* add rect [pos x rect] to mesh */
-			DATA8 UV = tex + (j << 1);
+			DATA8 UV = &b->nzU + (j << 1);
 			if (j == 1) rect[0] ++;
 			if (j == 4) rect[1] ++;
 			if (j == 0) rect[2] ++;
@@ -522,25 +524,31 @@ void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DAT
 				base = vtx[4+coordU[j]] << texSz; U = (UV[0] << 4) + (rev == 1 ? 16 - base : base);
 				base = vtx[4+coordV[j]] << texSz; V = (UV[1] << 4) + (rev != 2 ? 16 - base : base);
 
-				out[1] = Z1 | (RELDX(vtx[4] + xyz[0]) << 16) | ((V & 512) << 21);
-				out[2] = RELDY(vtx[5] + xyz[1]) | (RELDZ(vtx[6] + xyz[2]) << 14) | ((ocsext & 0xf0) << 24);
-
 				/* third vertex */
 				idx = vertex + face2[2];
 				vtx[8]  = pos[0] + (idx[0] * rect[0]);
 				vtx[9]  = pos[1] + (idx[1] * rect[1]);
 				vtx[10] = pos[2] + (idx[2] * rect[2]);
 
-				out[3] = RELDX(vtx[8]  + xyz[0]) | (RELDY(vtx[9] + xyz[1]) << 14) | (ocsext << 28);
-				out[4] = RELDZ(vtx[10] + xyz[2]) | (U << 14) | (V << 23);
-
 				/* tex size and normal */
 				base = vtx[8+coordU[j]] << texSz; Usz = (UV[0] << 4) + (rev == 1 ? 16 - base : base);
 				base = vtx[8+coordV[j]] << texSz; Vsz = (UV[1] << 4) + (rev != 2 ? 16 - base : base);
+				switch (rotate & 3) {
+				case 1: swap(V, Vsz); break;
+				case 3: base = U; U = Vsz; Vsz = Usz; Usz = V; V = base; break;
+				case 2: swap(U, Usz); swap(V, Vsz); break;
+				}
+				out[1] = Z1 | (RELDX(vtx[4] + xyz[0]) << 16) | ((V & 512) << 21);
+				out[2] = RELDY(vtx[5] + xyz[1]) | (RELDZ(vtx[6] + xyz[2]) << 14) | ((ocsext & 0xf0) << 24);
+
+				out[3] = RELDX(vtx[8]  + xyz[0]) | (RELDY(vtx[9] + xyz[1]) << 14) | (ocsext << 28);
+				out[4] = RELDZ(vtx[10] + xyz[2]) | (U << 14) | (V << 23);
+
 				out[5] = ((Usz + 128 - U) << 16) | ((Vsz + 128 - V) << 24) | (j << 9) | ocsval;
 				out[6] = 0;
 
-				//if (texCoord[j] == texCoord[j + 6]) out[5] |= FLAG_TEX_KEEPX;
+				base = (rotate & 3) * 8;
+				if (texCoord[base] == texCoord[base + 6]) out[5] |= FLAG_TEX_KEEPX;
 
 				/* skylight, blocklight */
 				for (k = 0, face2 = skyBlockOffset + j * 16; k < 4; k ++)

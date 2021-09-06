@@ -42,12 +42,8 @@ void    blockGetEmitterLocation(int blockId, float offset[5]);
 int     blockInvCountVertex(DATA16 model, int faceId);
 int     blockInvCopyFromModel(DATA16 ret, DATA16 model, int faceId);
 int     blockAdjustInventory(int blockId);
-int     blockRotate90(int blockId);
-int     blockMirrorX(int blockId);
-int     blockMirrorY(int blockId);
-int     blockMirrorZ(int blockId);
 
-void    halfBlockGenMesh(WriteBuffer, DATA8 model, int size /* 2 or 8 */, DATA8 xyz, DATA8 tex, DATA16 blockIds, DATA8 skyBlock, int genSides);
+void    halfBlockGenMesh(WriteBuffer, DATA8 model, int size /* 2 or 8 */, DATA8 xyz, BlockState, DATA16 blockIds, DATA8 skyBlock, int genSides);
 DATA8   halfBlockGetModel(BlockState, int size /* 1, 2 or 8 */, DATA16 blockIds);
 void    halfBlockGetBBox(DATA16 blockIds, VTXBBox array, int max);
 void    halfBlockInit(void);

@@ -1091,3 +1091,244 @@ void updateFinished(Map map, DATA8 tile, vec4 dest)
 		}
 	}
 }
+
+/*
+ * rotate/mirror block state
+ */
+
+/* adjust data part to reorient the block 90deg CW on Y axis */
+int blockRotateY90(BlockIter iter)
+{
+	/* rotate data value directly */
+	static uint8_t rotateFull[] = {0, 1, 5, 3, 4, 2, 6, 7};
+	static uint8_t rotateSWNE[] = {1, 2, 3, 0};
+	static uint8_t rotateNSWE[] = {5, 1, 5, 4, 2, 3, 6, 7};
+	static uint8_t rotateRail[] = {1, 1, 5, 4, 2, 3, 7, 8, 9, 6, 10, 11, 12, 13, 14, 15};
+	static uint8_t rotateDoor[] = {1, 2, 3, 0};
+	static uint8_t rotateStair[] = {2, 3, 1, 0};
+	static uint8_t rotateTorch[] = {0, 3, 4, 2, 1, 5, 6, 7};
+	static uint8_t rotateLever[] = {7, 3, 4, 2, 1, 6, 5, 0};
+	static uint8_t rotateTrapD[] = {3, 2, 0, 1};
+
+	int blockId = getBlockId(iter);
+	Block b = &blockIds[blockId>>4];
+	switch (b->orientHint) {
+	case ORIENT_FULL:   return (blockId & ~7) | rotateFull[blockId & 7];
+	case ORIENT_SWNE:
+	case ORIENT_BED:    return (blockId & ~3) | rotateSWNE[blockId&3];
+	case ORIENT_NSWE:   return (blockId & ~7) | rotateNSWE[blockId & 7];
+	case ORIENT_SE:     return blockId ^ 1;
+	case ORIENT_LOG:    return 4 <= (blockId & 15) && (blockId & 15) < 12 ? blockId ^ 12 : blockId;
+	case ORIENT_STAIRS: return (blockId & ~3) | rotateStair[blockId & 3];
+	case ORIENT_TORCH:  return (blockId & ~7) | rotateTorch[blockId & 7];
+	case ORIENT_LEVER:  return (blockId & ~7) | rotateLever[blockId & 7];
+	case ORIENT_VINES:  return (blockId & ~15) | ROT4(blockId);
+	case ORIENT_DOOR:
+		/* top part of door: orient is in bottom part */
+		if (blockId & 8) return blockId;
+		return (blockId & ~3) | rotateDoor[blockId & 3];
+	case ORIENT_RAILS:
+		if (blockStateIndex[(blockId & ~15) | 7])
+			/* this rail type can curve */
+			return (blockId & ~15) | rotateRail[blockId & 15];
+		else /* only straight */
+			return (blockId & ~7)  | rotateRail[blockId & 7];
+	default:
+		switch (b->special) {
+		case BLOCK_SIGN:
+			if (blockStateIndex[(blockId & ~15) | 8])
+				/* standing post */
+				return (blockId & ~15) | ((blockId + 4) & 15);
+			else /* wall sign */
+				return (blockId & ~7) | rotateNSWE[blockId & 7];
+		case BLOCK_TRAPDOOR:
+			return (blockId & ~3) | rotateTrapD[blockId & 3];
+		default:
+			return blockId;
+		}
+	}
+}
+
+/* used by "roll" function */
+int blockRotateX90(BlockIter iter)
+{
+	/* careful: these tables are not intuitive */
+	static uint8_t rotateXLog[]   = {8, 4, 0, 12};
+	static uint8_t rotateXFull[]  = {3, 2, 0, 1, 4, 5, 6, 7};
+	static uint8_t rotateXStair[] = {0, 1, 6, 2, 4, 5, 7, 3};
+	static uint8_t rotateXLever[] = {3, 1, 2, 6, 0, 4, 4, 3};
+	static uint8_t rotateXTrapD[] = {12, 4, 2, 3, 8, 0, 6, 7, 13, 5, 10, 11, 9, 1, 14, 15};
+
+	int blockId = getBlockId(iter);
+	Block b = &blockIds[blockId>>4];
+	switch (b->orientHint) {
+	case ORIENT_LOG:    return (blockId & ~12) | rotateXLog[(blockId & 12) >> 2];
+	case ORIENT_FULL:   return (blockId & ~7)  | rotateXFull[blockId & 7];
+	case ORIENT_STAIRS: return (blockId & ~7)  | rotateXStair[blockId & 7];
+	case ORIENT_LEVER:  return (blockId & ~7)  | rotateXLever[blockId & 7];
+	case ORIENT_DOOR:
+	case ORIENT_BED:    return 0; /* can't be rolled: delete block */
+	default:
+		if (b->special == BLOCK_TRAPDOOR)
+			return (blockId & ~15) | rotateXTrapD[blockId & 15];
+	}
+	return blockId;
+}
+
+/* used by "roll" function */
+int blockRotateZ90(BlockIter iter)
+{
+	/* careful: these tables are not intuitive */
+	static uint8_t rotateZLog[]   = {4, 0, 8, 12};
+	static uint8_t rotateZFull[]  = {5, 4, 2, 3, 0, 1, 6, 7};
+	static uint8_t rotateZStair[] = {4, 0, 3, 4, 5, 1, 6, 7};
+	static uint8_t rotateZLever[] = {1, 6, 0, 3, 4, 2, 2, 1};
+	static uint8_t rotateZTrapD[] = {0, 1, 14, 6, 4, 5, 10, 2, 8, 9, 15, 7, 12, 13, 11, 3};
+
+	int blockId = getBlockId(iter);
+	Block b = &blockIds[blockId>>4];
+	switch (b->orientHint) {
+	case ORIENT_LOG:    return (blockId & ~12) | rotateZLog[(blockId & 12) >> 2];
+	case ORIENT_FULL:   return (blockId & ~7)  | rotateZFull[blockId & 7];
+	case ORIENT_STAIRS: return (blockId & ~7)  | rotateZStair[blockId & 7];
+	case ORIENT_LEVER:  return (blockId & ~7)  | rotateZLever[blockId & 7];
+	case ORIENT_DOOR:
+	case ORIENT_BED:    return 0; /* can't be rolled: delete block */
+	default:
+		if (b->special == BLOCK_TRAPDOOR)
+			return (blockId & ~15) | rotateZTrapD[blockId & 15];
+	}
+	return blockId;
+}
+
+/* set lower 4bits to reflect a flip/mirror along Y axis */
+int blockMirrorY(BlockIter iter)
+{
+	static uint8_t mirrorYFull[] = {1, 0, 2, 3, 4, 5, 6, 7};
+	static uint8_t mirrorYLever[] = {5, 1, 2, 3, 4, 0, 6, 7, 13, 9, 10, 11, 12, 8, 14, 15};
+	int blockId = getBlockId(iter);
+	Block b = &blockIds[blockId>>4];
+	switch (b->orientHint) {
+	case ORIENT_FULL:   return (blockId & ~7) | mirrorYFull[blockId & 7];
+	case ORIENT_SLAB:   return blockId ^ 8;
+	case ORIENT_STAIRS: return blockId ^ 4;
+	case ORIENT_LEVER:  return (blockId & !15) | mirrorYLever[blockId & 15];
+	default:
+		if (b->special == BLOCK_TRAPDOOR)
+			return blockId ^ 8;
+	}
+	return blockId;
+}
+
+static int mirrorDoor(BlockIter iter, int offset, int blockId)
+{
+	/* top part of door: orient is in bottom part */
+	if ((blockId & 8) == 0)
+	{
+		/* would have been much simpler if hinge and orient were in the same data value :-/ */
+		static uint8_t mirrorDoor[]  = {6, 5, 4, 7, 2, 1, 0, 3,    4, 7, 6, 5, 0, 3, 2, 1};
+		uint8_t top, data;
+		mapIter(iter, 0,  1, 0); top  = getBlockId(iter) & 15;
+		mapIter(iter, 0, -1, 0); data = mirrorDoor[offset + ((blockId & 3) | ((top & 1) << 2))];
+		DATA8 p = iter->blockIds + DATA_OFFSET + 128 + (iter->offset >> 1);
+		if (iter->offset & 1) p[0] = (p[0] & 0xef) | ((data & 4) << 2);
+		else                  p[0] = (p[0] & 0xfe) | ((data & 4) >> 2);
+		/* all that crap would not be necessary up to this point; sigh :-/ */
+		return (blockId & ~3) | (data & 3);
+	}
+	else return blockId;
+}
+
+int blockMirrorX(BlockIter iter)
+{
+	static uint8_t mirrorXFull[]  = {0, 1, 2, 3, 5, 4, 6, 7};
+	static uint8_t mirrorXRail[]  = {0, 1, 3, 2, 4, 5, 7, 6, 9, 8, 10, 11, 12, 13, 14, 15};
+	static uint8_t mirrorXSWNE[]  = {0, 3, 2, 1};
+	static uint8_t mirrorXTorch[] = {0, 2, 1, 3, 4, 5, 6, 7};
+	static uint8_t mirrorXNSWE[]  = {0, 1, 2, 3, 5, 4, 6, 7};
+	static uint8_t mirrorXStair[] = {1, 0, 2, 3};
+	static uint8_t mirrorXTrapD[] = {0, 1, 3, 2};
+	static uint8_t mirrorXSign[]  = {0, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1};
+	static uint8_t mirrorXLever[] = {0, 2, 1, 3, 4, 5, 6, 7};
+
+	int blockId = getBlockId(iter);
+	Block b = &blockIds[blockId>>4];
+	switch (b->orientHint) {
+	case ORIENT_FULL:   return (blockId & ~7) | mirrorXFull[blockId & 7];
+	case ORIENT_TORCH:  return (blockId & ~7) | mirrorXTorch[blockId & 7];
+	case ORIENT_STAIRS: return (blockId & ~3) | mirrorXStair[blockId & 3];
+	case ORIENT_NSWE:   return (blockId & ~7) | mirrorXNSWE[blockId & 7];
+	case ORIENT_BED:
+	case ORIENT_SE:
+	case ORIENT_SWNE:   return (blockId & ~3) | mirrorXSWNE[blockId & 3];
+	case ORIENT_LEVER:  return (blockId & ~7) | mirrorXLever[blockId & 7];
+	case ORIENT_VINES:  return blockId ^ 10;
+	case ORIENT_DOOR:   return mirrorDoor(iter, 0, blockId);
+	case ORIENT_RAILS:
+		if (blockStateIndex[(blockId & ~15) | 7])
+			/* this type of rail type can curve */
+			return (blockId & ~15) | mirrorXRail[blockId & 15];
+		else
+			return (blockId & ~7) | mirrorXRail[blockId & 7];
+	default:
+		switch (b->special) {
+		case BLOCK_SIGN:
+			if (blockStateIndex[(blockId & ~15) | 8])
+				/* standing post */
+				return (blockId & ~15) | mirrorXSign[blockId & 15];
+			else /* wall sign */
+				return (blockId & ~7) | mirrorXNSWE[blockId & 7];
+		case BLOCK_TRAPDOOR:
+			return (blockId & ~3) | mirrorXTrapD[blockId & 3];
+		}
+	// TODO mushroom block
+	}
+	return blockId;
+}
+
+int blockMirrorZ(BlockIter iter)
+{
+	static uint8_t mirrorZFull[]  = {0, 1, 3, 2, 4, 5, 6, 7};
+	static uint8_t mirrorZRail[]  = {0, 1, 2, 3, 5, 4, 9, 8, 7, 6, 10, 11, 12, 13, 14, 15};
+	static uint8_t mirrorZSWNE[]  = {2, 1, 0, 3};
+	static uint8_t mirrorZTorch[] = {0, 1, 2, 4, 3, 5, 6, 7};
+	static uint8_t mirrorZNSWE[]  = {3, 1, 3, 2, 4, 5, 6, 7};
+	static uint8_t mirrorZStair[] = {0, 1, 3, 2};
+	static uint8_t mirrorZSign[]  = {8, 7, 6, 5, 4, 3, 2, 1, 0, 15, 14, 13, 12, 11, 10, 9};
+	static uint8_t mirrorZLever[] = {0, 1, 2, 4, 3, 5, 6, 7};
+	static uint8_t mirrorZTrapD[] = {1, 0, 2, 3};
+
+	int blockId = getBlockId(iter);
+	Block b = &blockIds[blockId>>4];
+	switch (b->orientHint) {
+	case ORIENT_FULL:   return (blockId & ~7) | mirrorZFull[blockId & 7];
+	case ORIENT_TORCH:  return (blockId & ~7) | mirrorZTorch[blockId & 7];
+	case ORIENT_STAIRS: return (blockId & ~3) | mirrorZStair[blockId & 3];
+	case ORIENT_NSWE:   return (blockId & ~7) | mirrorZNSWE[blockId & 7];
+	case ORIENT_BED:
+	case ORIENT_SE:
+	case ORIENT_SWNE:   return (blockId & ~3) | mirrorZSWNE[blockId & 3];
+	case ORIENT_LEVER:  return (blockId & ~7) | mirrorZLever[blockId & 7];
+	case ORIENT_VINES:  return blockId ^ 5;
+	case ORIENT_DOOR:   return mirrorDoor(iter, 8, blockId);
+	case ORIENT_RAILS:
+		if (blockStateIndex[(blockId & ~15) | 7])
+			/* this type of rail type can curve */
+			return (blockId & ~15) | mirrorZRail[blockId & 15];
+		else
+			return (blockId & ~7) | mirrorZRail[blockId & 7];
+	default:
+		switch (b->special) {
+		case BLOCK_SIGN:
+			if (blockStateIndex[(blockId & ~15) | 8])
+				/* standing post */
+				return (blockId & ~15) | mirrorZSign[blockId & 15];
+			else /* wall sign */
+				return (blockId & ~7) | mirrorZNSWE[blockId & 7];
+		case BLOCK_TRAPDOOR:
+			return (blockId & ~3) | mirrorZTrapD[blockId & 3];
+		}
+	// TODO mushroom block
+	}
+	return blockId;
+}

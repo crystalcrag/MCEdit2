@@ -384,6 +384,7 @@ void mceditWorld(void)
 					break;
 				case SDLK_F7:
 					breakPoint = ! breakPoint;
+					renderDebugTip();
 					break;
 				#endif
 				case SDLK_TAB:
