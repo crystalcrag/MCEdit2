@@ -182,7 +182,8 @@ enum NVGimageFlags {
 	NVG_IMAGE_PREMULTIPLIED		= 1<<4,		// Image data has premultiplied alpha.
 	NVG_IMAGE_NEAREST			= 1<<5,		// Image interpolation is Nearest instead Linear
 	NVG_IMAGE_MASK              = 1<<6,     // Only use first component of image
-	NVG_IMAGE_GLTEX             = 1<<7      // flags for nvgCreateImage: filename is an OpenGL texture id
+	NVG_IMAGE_GLTEX             = 1<<7,     // flag for nvgCreateImage: filename is an OpenGL texture id
+	NVG_IMAGE_DEPTH             = 1<<8      // flag for nvgluCreateFramebuffer(): add a depth buffer to FBO
 };
 
 // Begin drawing a new frame

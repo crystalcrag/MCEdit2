@@ -19,7 +19,7 @@
 
 Bool renderInitStatic(int width, int height, APTR sitRoot);
 Map  renderInitWorld(STRPTR path, int renderDist);
-void renderFreeMesh(Map map);
+void renderFreeMesh(Map map, Bool clear);
 void renderWorld();
 void renderSetViewMat(vec4 pos, vec4 lookat, float * yawPitch);
 void renderToggleDebug(int what);
@@ -34,9 +34,11 @@ void renderResetViewport(void);
 void renderSaveRestoreState(Bool save);
 void renderResetFrustum(void);
 void renderDrawMap(Map map);
+void renderSetCompassOffset(float offset);
 int  renderSetSelectionPoint(int action);
 int  renderGetTerrain(int size[2]);
 int  renderGetFacingDirection(void);
+int  renderInitUBO(void);
 MapExtraData renderGetSelectedBlock(vec4 pos, int * blockModel);
 
 enum /* possible values for <action> of renderSetSelectionPoint */
@@ -89,6 +91,7 @@ void renderItems(Item items, int count, float scale);
 #define UBO_MVMATRIX_OFFSET        (sizeof (mat4))
 #define UBO_VECLIGHT_OFFSET        (2 * sizeof (mat4))
 #define UBO_CAMERA_OFFFSET         (2 * sizeof (mat4) + sizeof (vec4))
+#define UBO_NORMALS                (2 * sizeof (mat4) + sizeof (vec4) * 2)
 #define UBO_SHADING_OFFSET         (2 * sizeof (mat4) + sizeof (vec4) * 8)
 
 #ifdef RENDER_IMPL /* private */
@@ -169,6 +172,7 @@ struct RenderWorld_t
 	int        custMax;            /* custLoc[] array capacity (in attributes = 4 floats) */
 	APTR       nvgCtx;             /* nanovg context */
 	int        compass;            /* image id from nanovg */
+	float      compassOffset;      /* pixel offset from right border to start drawing compass */
 	float      yaw, pitch;
 	float      scale;
 	uint8_t    debug;              /* 1 if debug info is displayed (chunk boundaries) */

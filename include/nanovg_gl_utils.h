@@ -86,13 +86,23 @@ NVGLUframebuffer* nvgluCreateFramebuffer(NVGcontext* ctx, int w, int h, int imag
 	// render buffer object
 	glGenRenderbuffers(1, &fb->rbo);
 	glBindRenderbuffer(GL_RENDERBUFFER, fb->rbo);
-	glRenderbufferStorage(GL_RENDERBUFFER, GL_STENCIL_INDEX8, w, h);
 
 	// combine all
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fb->texture, 0);
-	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, fb->rbo);
-
-	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+	if (imageFlags & NVG_IMAGE_DEPTH)
+	{
+		/* also add a depth buffer to be used by opengl command (nanovg don't need this at all) */
+		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, w, h);
+		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, fb->rbo);
+	}
+	else
+	{
+		glRenderbufferStorage(GL_RENDERBUFFER, GL_STENCIL_INDEX8, w, h);
+		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, fb->rbo);
+	}
+	int ret = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+	if (ret != GL_FRAMEBUFFER_COMPLETE)
+	{
 #ifdef GL_DEPTH24_STENCIL8
 		// If GL_STENCIL_INDEX8 is not supported, try GL_DEPTH24_STENCIL8 as a fallback.
 		// Some graphics cards require a depth buffer along with a stencil.

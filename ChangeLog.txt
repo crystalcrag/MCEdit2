@@ -1,4 +1,20 @@
-=========== Week 34 ===========
+=========== Week 36 ===========
+Fri Sep 10:
+	* copy brush library mostly done.
+
+Thu Sep 9:
+	* render a brush into a FBO.
+
+Wed Sep 8:
+	* more SITGL fixes.
+
+Tue Sep 7:
+	* SITGL geometry debug.
+
+Mon Sep 6:
+	* started copy brush library.
+
+=========== Week 35 ===========
 Sun Sep 5:
 	* half-block meshing didn't take tex rotation into account.
 	* roll brush seems working for now.

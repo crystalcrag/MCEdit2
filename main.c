@@ -22,6 +22,7 @@
 #include "blockUpdate.h"
 #include "mapUpdate.h"
 #include "interface.h"
+#include "library.h"
 #include "entities.h"
 #include "SIT.h"
 
@@ -169,6 +170,21 @@ static int mceditGoto(SIT_Widget w, APTR cd, APTR ud)
 	return 1;
 }
 
+/* Ctrl+C: copy current brush to library */
+static int mceditCopyToLibrary(SIT_Widget w, APTR cd, APTR ud)
+{
+	if (mcedit.selection == 3)
+	{
+		Map brush = selectionCopy(mcedit.level);
+		if (brush)
+		{
+			libraryCopySelection(mcedit.app, brush);
+			return 1;
+		}
+	}
+	return 0;
+}
+
 /* handle extended selection toolbar actions */
 static int mceditCommands(int cmd)
 {
@@ -250,8 +266,6 @@ int main(int nb, char * argv[])
 
 	prefsInit();
 
-	//fprintf(stderr, "SDL_SetVideo()\n");
-
     SDL_Surface * screen = SDL_SetVideoMode(mcedit.width, mcedit.height, 32, SDL_HWSURFACE | SDL_GL_DOUBLEBUFFER | SDL_OPENGL | SDL_RESIZABLE);
     if (screen == NULL)
     {
@@ -285,6 +299,7 @@ int main(int nb, char * argv[])
 		{SITK_FlagCapture + SITK_FlagCtrl + 's',    SITE_OnActivate, NULL, mceditSaveChanges},
 
 		{SITK_FlagCtrl + 'g', SITE_OnActivate, NULL, mceditGoto},
+		{SITK_FlagCtrl + 'c', SITE_OnActivate, NULL, mceditCopyToLibrary},
 		{SITK_FlagCtrl + 'd', SITE_OnActivate, NULL, mceditClearSelection},
 		{0}
 	};

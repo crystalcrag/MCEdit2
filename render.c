@@ -439,6 +439,36 @@ static int renderGetSize(SIT_Widget w, APTR cd, APTR ud)
 	return 1;
 }
 
+/* init a Uniform Buffer Object to quickly transmit data to shaders */
+int renderInitUBO(void)
+{
+	/* normals vector for cube as ordered in blocks.vsh */
+	static float normals[] = {
+		0,0,1,1,  1,0,0,1,  0,0,-1,1,  -1,0,0,1,  0,1,0,1,  0,-1,0,1
+	};
+
+	/*
+	 * uniform buffer object: shared among all shaders (uniformBlock.glsl):
+	 * mat4 projMatrix;
+	 * mat4 mvMatrix;
+	 * vec4 lightPos;
+	 * vec4 camera;
+	 * vec4 normals[6];
+	 * float shading[6];
+	 */
+	GLuint buffer;
+	glGenBuffers(1, &buffer);
+	glBindBuffer(GL_UNIFORM_BUFFER, buffer);
+	glBufferData(GL_UNIFORM_BUFFER, sizeof (mat4) * 2 + sizeof (vec4) * (2+6+6), NULL, GL_STATIC_DRAW);
+
+	/* these should rarely change */
+	glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof (mat4), render.matPerspective);
+	glBufferSubData(GL_UNIFORM_BUFFER, UBO_NORMALS, sizeof normals, normals);
+	glBufferSubData(GL_UNIFORM_BUFFER, UBO_SHADING_OFFSET, sizeof shading, shading);
+	glBindBuffer(GL_UNIFORM_BUFFER, 0);
+	return buffer;
+}
+
 /* init static tables and objects */
 Bool renderInitStatic(int width, int height, APTR sitRoot)
 {
@@ -572,29 +602,8 @@ Bool renderInitStatic(int width, int height, APTR sitRoot)
 	shading[1] = render.width / (float) render.height;
 	matPerspective(render.matPerspective, DEF_FOV, shading[1], NEAR_PLANE, 1000);
 
-	/* normals vector for cube as ordered in blocks.vsh */
-	static float normals[] = {
-		0,0,1,1,  1,0,0,1,  0,0,-1,1,  -1,0,0,1,  0,1,0,1,  0,-1,0,1
-	};
-
-	/*
-	 * uniform buffer object: shared among all shaders (uniformBlock.glsl):
-	 * mat4 projMatrix;
-	 * mat4 mvMatrix;
-	 * vec4 lightPos;
-	 * vec4 normals[6];
-	 * float shading[6];
-	 */
-	glGenBuffers(1, &render.uboShader);
-	glBindBuffer(GL_UNIFORM_BUFFER, render.uboShader);
-	glBufferData(GL_UNIFORM_BUFFER, sizeof (mat4) * 2 + sizeof (vec4) * (2+6+6), NULL, GL_STATIC_DRAW);
-
-	/* these should rarely change */
-	glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof (mat4), render.matPerspective);
-	glBufferSubData(GL_UNIFORM_BUFFER, 2 * sizeof (mat4) + 2 * sizeof (vec4), sizeof normals, normals);
-	glBufferSubData(GL_UNIFORM_BUFFER, UBO_SHADING_OFFSET, sizeof shading, shading);
+	render.uboShader = renderInitUBO();
 	glBindBufferBase(GL_UNIFORM_BUFFER, UBO_BUFFER_INDEX, render.uboShader);
-	glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
 	/* HUD resources */
 	SIT_GetValues(sitRoot, SIT_NVGcontext, &render.nvgCtx, NULL);
@@ -617,6 +626,12 @@ void renderSetInventory(Inventory inventory)
 	if (inventory->texture == 0)
 		inventory->texture = nvgCreateImage(render.nvgCtx, RESDIR "widgets.png", NVG_IMAGE_NEAREST);
     inventory->update = 1;
+}
+
+void renderSetCompassOffset(float offset)
+{
+	fprintf(stderr, "offset = %g\n", offset);
+	render.compassOffset = offset > 0 ? render.width - offset : 0;
 }
 
 #if 0
@@ -700,7 +715,7 @@ void renderSetViewMat(vec4 pos, vec4 lookat, float * yawPitch)
 
 	mapMoveCenter(render.level, old, render.camera);
 
-	matLookAt(render.matModel, render.camera[VX], render.camera[VY], render.camera[VZ], lookat[VX], lookat[VY], lookat[VZ], 0, 1, 0);
+	matLookAt(render.matModel, render.camera, lookat, (float[3]) {0, 1, 0});
 	/* must be same as the one used in the vertex shader */
 	matMult(render.matMVP, render.matPerspective, render.matModel);
 	/* we will need that matrix sooner or later */
@@ -1390,7 +1405,6 @@ void renderWorld(void)
 	glFrontFace(GL_CCW);
 	glDepthMask(GL_TRUE);
 
-//	glBufferSubData(GL_UNIFORM_BUFFER, UBO_MVMATRIX_OFFSET, sizeof (mat4), render.matModel);
 	glUseProgram(render.shaderBlocks);
 
 	static float biomeColor[] = {0.411765, 0.768627, 0.294118};
@@ -1455,7 +1469,7 @@ void renderWorld(void)
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
 	/* draw the compass */
-	float scale = render.height * 0.15;
+	float scale = render.height * (render.compassOffset > 0 ? 0.11 : 0.15);
 	APTR  vg = render.nvgCtx;
 
 	nvgBeginFrame(vg, render.width, render.height, 1);
@@ -1463,7 +1477,7 @@ void renderWorld(void)
 	nvgFontSize(vg, FONTSIZE);
 	nvgTextAlign(vg, NVG_ALIGN_TOP);
 	nvgSave(vg);
-	nvgTranslate(vg, render.width - scale, scale); scale -= 20;
+	nvgTranslate(vg, render.width - scale - render.compassOffset, scale); scale -= 20;
 	nvgRotate(vg, M_PI - render.yaw);
 	nvgBeginPath(vg);
 	nvgRect(vg, -scale, -scale, scale*2, scale*2);
@@ -1555,7 +1569,21 @@ void renderDrawMap(Map map)
 	GPUBank bank;
 	renderPrepVisibleChunks(map);
 
+	glCullFace(GL_BACK);
+	glEnable(GL_CULL_FACE);
+	glEnable(GL_DEPTH_TEST);
+	glEnable(GL_BLEND);
+	glDisable(GL_SCISSOR_TEST);
+	glDisable(GL_STENCIL_TEST);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glDepthFunc(GL_LEQUAL);
+	glFrontFace(GL_CCW);
+	glDepthMask(GL_TRUE);
 	glUseProgram(render.shaderBlocks);
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, render.texBlock);
+
 	for (bank = HEAD(map->gpuBanks); bank; NEXT(bank))
 	{
 		if (bank->cmdTotal > 0)
@@ -1581,6 +1609,8 @@ void renderDrawMap(Map map)
 			glMultiDrawArraysIndirect(GL_POINTS, (void*)(bank->cmdTotal*16), bank->cmdAlpha, 0);
 		}
 	}
+	/* XXX modified by libraryGenThumb() */
+	glBindBufferBase(GL_UNIFORM_BUFFER, UBO_BUFFER_INDEX, render.uboShader);
 }
 
 /*
@@ -2011,7 +2041,7 @@ void renderFinishMesh(Map map, Bool updateVtxSize)
 }
 
 /* free all VBO allocated for map */
-void renderFreeMesh(Map map)
+void renderFreeMesh(Map map, Bool clear)
 {
 	GPUBank bank, next;
 	for (bank = next = HEAD(map->gpuBanks); bank; bank = next)
@@ -2021,6 +2051,12 @@ void renderFreeMesh(Map map)
 		glDeleteBuffers(3, &bank->vboTerrain);
 		free(bank->usedList);
 		free(bank);
+	}
+	if (clear)
+	{
+		ChunkData cd;
+		for (cd = map->firstVisible; cd; cd->glBank = NULL, cd = cd->visible);
+		ListNew(&map->gpuBanks);
 	}
 }
 

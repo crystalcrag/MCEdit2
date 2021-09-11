@@ -464,7 +464,7 @@ static void playerSetMVMat(PickupBlock pickup)
 	}
 	matScale(tmp, 0.8, 0.8, 0.8);
 	matMult(pickup->model, pickup->model, tmp);
-	matLookAt(view, 0, 0, 0, 0, 0, 1, 0, 1, 0);
+//	matLookAt(view, 0, 0, 0, 0, 0, 1, 0, 1, 0);
 	matMult(pickup->model, view, pickup->model);
 }
 

@@ -791,15 +791,13 @@ void matOrtho(mat4 res, float left, float right, float bottom, float top, float 
 }
 
 /* similar to gluLookAt */
-void matLookAt(mat4 res, float eyeX,  float eyeY,  float eyeZ, float centerX, float centerY, float centerZ, float upX, float upY, float upZ)
+void matLookAt(mat4 res, vec4 eye, vec4 center, vec4 up)
 {
-	vec4 fwd = {centerX - eyeX, centerY - eyeY, centerZ - eyeZ};
-	vec4 up = {upX, upY, upZ};
+	vec4 fwd = {center[VX] - eye[VX], center[VY] - eye[VY], center[VZ] - eye[VZ]};
 	vec4 side;
 
 	memset(res, 0, sizeof (mat4));
 
-	vec4 eye = {eyeX, eyeY, eyeZ};
 	vecNormalize(fwd, fwd);
 	vecCrossProduct(side, fwd, up);
 	vecNormalize(side, side);
@@ -939,7 +937,7 @@ void vecCrossProduct(vec4 res, vec4 A, vec4 B)
 	tmp[VY] = A[VZ]*B[VX] - A[VX]*B[VZ];
 	tmp[VZ] = A[VX]*B[VY] - A[VY]*B[VX];
 
-	memcpy(res, tmp, sizeof tmp);
+	memcpy(res, tmp, 12);
 }
 
 /* compiler without builtin support for popcount */

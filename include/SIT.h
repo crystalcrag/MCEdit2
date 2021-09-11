@@ -296,6 +296,7 @@ enum
 	SIT_CellPaint        = 97,   /* CSG: SIT_CallProc */
 	// SIT_ItemCount     = 117,  /* __G: Int (defined in ComboBox: same datatype, same semantic) */
 	SIT_ViewMode         = 98,   /* C__: Enum */
+	SIT_RowMaxVisible    = 111,  /* _SG: Int */
 
 	/* Scrollbar, Slider and Progress */
 	SIT_MinValue         = 99,   /* CSG: Int */
@@ -310,7 +311,6 @@ enum
 	SIT_GaugePadding     = 108,  /* CSG: Int */
 	SIT_BuddyEdit        = 109,  /* C__: SIT_Widget */
 	SIT_IsDragged        = 110,  /* __G: Bool */
-	// SIT_Private2      = 111,
 	SIT_ArrowType        = 112,  /* C__: Enum */
 	SIT_WheelMult        = 113,  /* CSG: Int */
 

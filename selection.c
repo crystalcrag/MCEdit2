@@ -310,9 +310,9 @@ vec selectionGetPoints(void)
 	return selection.firstPt;
 }
 
-Bool selectionHasClone(void)
+Map selectionHasClone(void)
 {
-	return selection.brush != NULL;
+	return selection.brush;
 }
 
 /* draw selection point/boxes */
@@ -360,7 +360,7 @@ void selectionRender(void)
 		        selectionDrawPoint(selection.secondPt, 1);
 		        selectionDrawPoint(selection.regionPt, 2);
 		}
-		if (selection.hasClone)
+		if (selection.brush)
 		{
 			/* draw the brush (only once, no matter how many repeats there are) */
 			glDepthMask(GL_TRUE);
@@ -547,8 +547,11 @@ static Map selectionAllocBrush(uint16_t sizes[3])
 
 		brush->chunkOffsets = (DATAS16) brush->path;
 		brush->chunks = (Chunk) (brush + 1);
-		brush->GPUMaxChunk = 512 * 1024;
-		brush->maxDist = 1e6;
+		brush->GPUMaxChunk = grid * chunks[VY] * (16 * 1024);
+		if (brush->GPUMaxChunk > 512 * 1024)
+			brush->GPUMaxChunk = 512 * 1024;
+		/* numbers for these fields don't matter, as long as center won't be relocated */
+		brush->maxDist = total;
 		brush->mapArea = -1;
 		cd = (ChunkData) (brush->chunks + grid);
 		blocks = (DATA8) (cd + grid * chunks[VY]);
@@ -605,11 +608,12 @@ static Map selectionAllocBrush(uint16_t sizes[3])
 }
 
 /* destructor */
-static void selectionFreeBrush(Map brush)
+void selectionFreeBrush(Map brush)
 {
 	Chunk chunk;
 	int   count;
-	renderFreeMesh(brush);
+	if (! brush->sharedBanks)
+		renderFreeMesh(brush, False);
 	/* clear tile entites per chunk */
 	for (chunk = brush->chunks, count = ((brush->size[VX] + 15) >> 4) * ((brush->size[VZ] + 15) >> 4); count > 0; count --, chunk ++)
 		if (chunk->tileEntities) free(chunk->tileEntities);
@@ -618,19 +622,21 @@ static void selectionFreeBrush(Map brush)
 
 
 /* copy selected blocks into a mini-map */
-void selectionClone(APTR sitRoot, Map map, vec4 pos, int side)
+Map selectionClone(APTR sitRoot, Map map, vec4 pos, int side)
 {
-	selection.cloneSize[VX] = fabsf(selection.firstPt[VX] - selection.secondPt[VX]) + 1 + 0.01;
-	selection.cloneSize[VY] = fabsf(selection.firstPt[VY] - selection.secondPt[VY]) + 1 + 0.01;
-	selection.cloneSize[VZ] = fabsf(selection.firstPt[VZ] - selection.secondPt[VZ]) + 1 + 0.01;
+	if (selection.hasPoint != 3)
+		return NULL;
 
-	if (! selection.hasClone)
+	if (sitRoot)
 	{
+		selection.cloneSize[VX] = fabsf(selection.firstPt[VX] - selection.secondPt[VX]) + 1 + 0.01;
+		selection.cloneSize[VY] = fabsf(selection.firstPt[VY] - selection.secondPt[VY]) + 1 + 0.01;
+		selection.cloneSize[VZ] = fabsf(selection.firstPt[VZ] - selection.secondPt[VZ]) + 1 + 0.01;
+
 		selectionSetRect(SEL_POINT_CLONE);
-		selection.hasClone = 1;
 	}
 
-	if (! selection.editBrush)
+	if (sitRoot && ! selection.editBrush)
 	{
 		TEXT buffer[64];
 		SIT_Widget diag = selection.editBrush = SIT_CreateWidget("brush.mc", SIT_DIALOG, sitRoot,
@@ -694,7 +700,7 @@ void selectionClone(APTR sitRoot, Map map, vec4 pos, int side)
 
 	if (selection.brush)
 	{
-		renderFreeMesh(selection.brush);
+		renderFreeMesh(selection.brush, False);
 		free(selection.brush);
 	}
 
@@ -705,7 +711,7 @@ void selectionClone(APTR sitRoot, Map map, vec4 pos, int side)
 	};
 
 	/* the only data structure that can be relocated in the chunk grid */
-	Map brush = selection.brush = selectionAllocBrush(sizes);
+	Map brush = selectionAllocBrush(sizes);
 
 	if (brush)
 	{
@@ -764,8 +770,44 @@ void selectionClone(APTR sitRoot, Map map, vec4 pos, int side)
 		}
 		renderAllocCmdBuffer(brush);
 	}
-	selectionSetClonePt(pos, side);
+	if (pos)
+	{
+		selection.brush = brush;
+		selectionSetClonePt(pos, side);
+	}
+	return brush;
 }
+
+Map selectionCopy(Map map)
+{
+	Map brush;
+ 	if (selection.brush)
+ 	{
+		map = selection.brush;
+
+		/* copy blocks, but reuse mesh */
+		brush = selectionAllocBrush(map->size);
+		ChunkData src, dst;
+
+		for (src = map->firstVisible, dst = brush->firstVisible; src && dst; src = src->visible, dst = dst->visible)
+		{
+			memcpy(dst->blockIds, src->blockIds, SKYLIGHT_OFFSET);
+			dst->glBank  = src->glBank;
+			dst->glSize  = src->glSize;
+			dst->glAlpha = src->glAlpha;
+			dst->glSlot  = src->glSlot;
+		}
+
+		brush->gpuBanks = map->gpuBanks;
+		brush->sharedBanks = 1;
+	}
+	else /* create on the fly */
+	{
+		brush = selectionClone(NULL, map, NULL, 0);
+	}
+	return brush;
+}
+
 
 /* remove everything related to cloned selection */
 int selectionCancelClone(SIT_Widget w, APTR cd, APTR ud)
@@ -783,7 +825,6 @@ int selectionCancelClone(SIT_Widget w, APTR cd, APTR ud)
 		selection.editBrush = NULL;
 		ret = 1;
 	}
-	selection.hasClone = 0;
 	return ret;
 }
 

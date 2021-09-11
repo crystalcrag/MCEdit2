@@ -1364,6 +1364,7 @@ void mcuiFillOrReplace(SIT_Widget parent, Map map, Bool fillWithBrush)
 
 	SIT_Widget diag = SIT_CreateWidget("fillblock.bg", SIT_DIALOG + SIT_EXTRA((blockLast - blockStates) * sizeof (ItemBuf)), parent,
 		SIT_DialogStyles, SITV_Plain | SITV_Modal | SITV_Movable,
+		SIT_Style,        "padding-top: 0.2em",
 		NULL
 	);
 
