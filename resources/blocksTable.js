@@ -3257,11 +3257,11 @@
 			191,8,4,16,4,6,0,0,0,0,0,0,0,
 		]},
 		{state: 2, name: "Clone",              tex: [3,31], inv: ITEM2D},
-		{state: 3, name: "Copy",               tex: [6,31], inv: ITEM2D},
+		{state: 3, name: "Library",            tex: [6,31], inv: ITEM2D},
 		{state: 4, name: "Analyze",            tex: [4,31], inv: ITEM2D},
 		{state: 5, name: "Export",             tex: [7,31], inv: ITEM2D},
 		{state: 6, name: "Filter",             tex: [5,31], inv: ITEM2D},
 		{state: 7, name: "Delete selectively", inv: MODEL, model: [
 			191,16,16,16,0,0,0,0,0,0,0,0,0,128,8336,8352,144,128,8336,8352,144,128,8336,8352,144,128,8336,8352,144,144,8352,8368,160,160,8368,8384,176,
 		]},
-		{state: 8, name: "Chunk control", tex: [8,31], inv: ITEM2D},
+		{state: 8, name: "Path creation", tex: [8,31], inv: ITEM2D},

@@ -65,6 +65,7 @@
 		<Unit filename="entities.c">
 			<Option compilerVar="CC" />
 		</Unit>
+		<Unit filename="globals.h" />
 		<Unit filename="halfBlocks.c">
 			<Option compilerVar="CC" />
 		</Unit>

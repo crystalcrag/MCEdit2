@@ -9,8 +9,8 @@
 
 #include "maps.h"
 
-void updateTick(Map map);
-void updateFinished(Map map, DATA8 tile, vec4 dest);
+void updateTick(void);
+void updateFinished(DATA8 tile, vec4 dest);
 void updateAdd(BlockIter iter, int blockId, int nbTick);
 void updateRemove(ChunkData cd, int offset, int clearSorted);
 Bool updateAlloc(int max);

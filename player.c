@@ -13,6 +13,7 @@
 #include "physics.h"
 #include "entities.h"
 #include "SIT.h"
+#include "globals.h"
 
 #define JUMP_STRENGTH          0.25
 #define MAX_SPEED              4.317
@@ -23,9 +24,10 @@
 
 static float sensitivity = 1/1000.;
 
-void playerInit(Player p, NBTFile levelDat)
+void playerInit(Player p)
 {
 	float rotation[2];
+	NBTFile levelDat = &globals.level->levelDat;
 	int player = p->playerBranch = NBT_FindNode(levelDat, 0, "Player");
 
 	memset(p, 0, sizeof *p);
@@ -62,11 +64,12 @@ void playerInit(Player p, NBTFile levelDat)
 }
 
 /* save single player position and orientation in levelDat */
-void playerSaveLocation(Player p, NBTFile levelDat)
+void playerSaveLocation(Player p)
 {
-	float rotation[2];
-	int   player = NBT_FindNode(levelDat, 0, "Player");
-	float select = p->inventory.selected;
+	float   rotation[2];
+	NBTFile levelDat = &globals.level->levelDat;
+	int     player = NBT_FindNode(levelDat, 0, "Player");
+	float   select = p->inventory.selected;
 
 	/* convert radians into degrees */
 	rotation[0] = p->angleh * 180 / M_PI - 90;
@@ -135,7 +138,7 @@ int playerProcessKey(Player p, int key, int mod)
 			playerScrollInventory(p, (key - '1') - p->inventory.selected);
 			return 2;
 		case JUMP:
-			if ((int) curTime - lastTick < 250 && p->pmode <= MODE_CREATIVE)
+			if ((int) globals.curTime - lastTick < 250 && p->pmode <= MODE_CREATIVE)
 			{
 				p->fly ^= 1;
 				if (p->fly)
@@ -145,7 +148,7 @@ int playerProcessKey(Player p, int key, int mod)
 				}
 				else p->keyvec |= PLAYER_FALL;
 			}
-			lastTick = curTime;
+			lastTick = globals.curTime;
 			if (p->fly)
 			{
 				p->keyvec &= ~PLAYER_DOWN;
@@ -174,7 +177,7 @@ int playerProcessKey(Player p, int key, int mod)
 		}
 	}
 	if (keyvec == 0)
-		p->tick = curTime;
+		p->tick = globals.curTime;
 	if (keyvec != (p->keyvec & 15))
 		playerSetDir(p);
 	/* return whether or not the key was processed or not */
@@ -246,14 +249,14 @@ void playerAdjustVelocity(Player p, float delta)
 		p->keyvec &= ~PLAYER_STOPPING;
 }
 
-void playerMove(Player p, Map map)
+void playerMove(Player p)
 {
-	float diff = curTime - p->tick;
+	float diff = globals.curTime - p->tick;
 	int   keyvec = p->keyvec;
 	if (diff == 0) return;
 	if (diff > 100) diff = 100; /* lots of lag :-/ */
 	diff *= 1/1000.;
-	p->tick = curTime;
+	p->tick = globals.curTime;
 	vec4 orig_pos;
 
 	memcpy(orig_pos, p->pos, 16);
@@ -292,7 +295,7 @@ void playerMove(Player p, Map map)
 	if (p->pmode <= MODE_CREATIVE)
 	{
 		/* bounding box of voxels will constraint movement in these modes */
-		int collision = physicsCheckCollision(map, orig_pos, p->pos, entityGetBBox(ENTITY_PLAYER), 0.5);
+		int collision = physicsCheckCollision(globals.level, orig_pos, p->pos, entityGetBBox(ENTITY_PLAYER), 0.5);
 		if (collision & 2)
 		{
 			/* auto-climb */
@@ -302,7 +305,7 @@ void playerMove(Player p, Map map)
 			//fprintf(stderr, "climbing to %g (from %g)\n", p->targetY, p->pos[VY]);
 		}
 		diff = p->onground;
-		p->onground = physicsCheckOnGround(map, p->pos, entityGetBBox(ENTITY_PLAYER));
+		p->onground = physicsCheckOnGround(globals.level, p->pos, entityGetBBox(ENTITY_PLAYER));
 		if (diff != p->onground)
 		{
 			if (diff == 0)
@@ -332,7 +335,7 @@ void playerMove(Player p, Map map)
 	vecAdd(p->lookat, p->lookat, orig_pos);
 }
 
-void playerTeleport(Player p, Map map, vec4 pos)
+void playerTeleport(Player p, vec4 pos)
 {
 	vec4 diff;
 	vecSub(diff, pos, p->pos);
@@ -340,18 +343,18 @@ void playerTeleport(Player p, Map map, vec4 pos)
 	memcpy(p->pos, pos, 12);
 }
 
-void playerSetMode(Player p, Map map, int mode)
+void playerSetMode(Player p, int mode)
 {
 	p->pmode = mode;
 	switch (mode) {
 	case MODE_SURVIVAL:
-		p->onground = physicsCheckOnGround(map, p->pos, entityGetBBox(ENTITY_PLAYER));
+		p->onground = physicsCheckOnGround(globals.level, p->pos, entityGetBBox(ENTITY_PLAYER));
 		p->fly = 0;
 		if (! p->onground)
 			p->keyvec |= PLAYER_FALL;
 		break;
 	case MODE_CREATIVE:
-		p->onground = physicsCheckOnGround(map, p->pos, entityGetBBox(ENTITY_PLAYER));
+		p->onground = physicsCheckOnGround(globals.level, p->pos, entityGetBBox(ENTITY_PLAYER));
 		p->fly = !p->onground;
 		break;
 	case MODE_SPECTATOR:
@@ -390,10 +393,11 @@ static void playerSetInfoTip(Player p)
 	else p->inventory.infoState = INFO_INV_NONE;
 }
 
-void playerUpdateNBT(Player p, NBTFile levelDat)
+void playerUpdateNBT(Player p)
 {
 	struct NBTFile_t inventory = {0};
 
+	NBTFile levelDat = &globals.level->levelDat;
 	if (mapSerializeItems(NULL, "Inventory", p->inventory.items, MAXCOLINV * 4, &inventory))
 	{
 		int offset = NBT_Insert(levelDat, "Player.Inventory", TAG_List_Compound, &inventory);

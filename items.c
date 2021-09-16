@@ -115,7 +115,7 @@ Bool itemCreate(const char * file, STRPTR * keys, int line)
 		keys += 2;
 	}
 
-	/* everything seems, alloc item */
+	/* everything seems ok, alloc item */
 	#define POOLITEMS       128
 	#define POOLMASK        (POOLITEMS-1)
 	if ((items.count & POOLMASK) == 0)
@@ -212,6 +212,22 @@ int itemAddCount(Item dest, int add)
 
 	/* leftovers */
 	return add;
+}
+
+/* get item id that creates the given block id */
+int itemCanCreateBlock(int blockId, STRPTR * name)
+{
+	int i;
+	for (i = 0, blockId >>= 4; i < items.count; i ++)
+	{
+		ItemDesc desc = items.table + i;
+		if (desc->refBlock == blockId)
+		{
+			*name = desc->name;
+			return desc->id;
+		}
+	}
+	return blockId;
 }
 
 float itemDurability(Item item)

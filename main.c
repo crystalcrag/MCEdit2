@@ -27,8 +27,7 @@
 #include "SIT.h"
 
 GameState_t mcedit;
-double      curTime;
-int         breakPoint;   /* easier to place break points :-/ */
+MCGlobals_t globals;
 
 static void takeScreenshot(void)
 {
@@ -150,12 +149,12 @@ static int SDLMtoSIT(int mod)
 
 static int mceditSaveChanges(SIT_Widget w, APTR cd, APTR ud)
 {
-	if (! mapSaveAll(mcedit.level))
+	if (! mapSaveAll(globals.level))
 		SIT_Log(SIT_ERROR, "Fail to save changes: %s\n", GetError());
 	if (mcedit.player.pmode >= MODE_CREATIVE)
 	{
-		playerSaveLocation(&mcedit.player, &mcedit.level->levelDat);
-		mapSaveLevelDat(mcedit.level);
+		playerSaveLocation(&mcedit.player);
+		mapSaveLevelDat(globals.level);
 	}
 	renderAllSaved();
 	return 1;
@@ -173,12 +172,12 @@ static int mceditGoto(SIT_Widget w, APTR cd, APTR ud)
 /* Ctrl+C: copy current brush to library */
 static int mceditCopyToLibrary(SIT_Widget w, APTR cd, APTR ud)
 {
-	if (mcedit.selection == 3)
+	if (globals.selPoints == 3)
 	{
-		Map brush = selectionCopy(mcedit.level);
+		Map brush = selectionCopy();
 		if (brush)
 		{
-			libraryCopySelection(mcedit.app, brush);
+			libraryCopySelection(brush);
 			return 1;
 		}
 	}
@@ -188,7 +187,7 @@ static int mceditCopyToLibrary(SIT_Widget w, APTR cd, APTR ud)
 /* handle extended selection toolbar actions */
 static int mceditCommands(int cmd)
 {
-	if (mcedit.selection == 3)
+	if (globals.selPoints == 3)
 	{
 		if (cmd < MCUI_SEL_CLONE)
 		{
@@ -196,7 +195,7 @@ static int mceditCommands(int cmd)
 			selectionCancelClone(NULL, NULL, NULL);
 			/* will render the slot change */
 			renderWorld();
-			SIT_RenderNodes(curTime);
+			SIT_RenderNodes(globals.curTime);
 			SDL_GL_SwapBuffers();
 			FrameSaveRestoreTime(True);
 			mceditUIOverlay(cmd);
@@ -207,7 +206,7 @@ static int mceditCommands(int cmd)
 			vec4 pos;
 			MapExtraData sel = renderGetSelectedBlock(pos, NULL);
 			if (sel == NULL) return 1;
-			selectionClone(mcedit.app, mcedit.level, pos, sel->side);
+			selectionClone(pos, sel->side);
 		}
 	}
 	return 1;
@@ -215,7 +214,7 @@ static int mceditCommands(int cmd)
 
 static int mceditClearSelection(SIT_Widget w, APTR cd, APTR ud)
 {
-	mcedit.selection = renderSetSelectionPoint(RENDER_SEL_CLEAR);
+	renderSetSelectionPoint(RENDER_SEL_CLEAR);
 	return 1;
 }
 
@@ -245,9 +244,8 @@ static int mceditCancelStuff(SIT_Widget w, APTR cd, APTR ud)
 		;
 	else if (mcedit.state == GAMELOOP_OVERLAY)
 		SIT_Exit(1); /* exit from loop, not app */
-	else if (mcedit.selection)
-		renderSetSelectionPoint(RENDER_SEL_CLEAR),
-		mcedit.selection = 0;
+	else if (globals.selPoints)
+		renderSetSelectionPoint(RENDER_SEL_CLEAR);
 	else
 		SIT_Exit(1);
 	return 1;
@@ -285,9 +283,9 @@ int main(int nb, char * argv[])
 
 	fprintf(stderr, "GL version = %s - vendor = %s\n", (STRPTR) glGetString(GL_VERSION), (STRPTR) glGetString(GL_RENDERER));
 
-	mcedit.app = SIT_Init(SIT_NVG_FLAGS, mcedit.width, mcedit.height, RESDIR INTERFACE "default.css", 1);
+	globals.app = SIT_Init(SIT_NVG_FLAGS, mcedit.width, mcedit.height, RESDIR INTERFACE "default.css", 1);
 
-	if (! mcedit.app)
+	if (! globals.app)
 	{
 		SIT_Log(SIT_ERROR, "failed to initialize SITGL:\n\n%s", SIT_GetError());
 		return 1;
@@ -304,7 +302,7 @@ int main(int nb, char * argv[])
 		{0}
 	};
 
-	SIT_SetValues(mcedit.app,
+	SIT_SetValues(globals.app,
 		SIT_DefSBSize,   SITV_Em(0.5),
 		SIT_RefreshMode, SITV_RefreshAlways,
 		SIT_AddFont,     "sans-serif",      "system",
@@ -313,27 +311,27 @@ int main(int nb, char * argv[])
 		SIT_ExitCode,    &mcedit.exit,
 		NULL
 	);
-	SIT_AddCallback(mcedit.app, SITE_OnFocus, mceditTrackFocus, NULL);
-	SIT_AddCallback(mcedit.app, SITE_OnBlur,  mceditTrackFocus, NULL);
+	SIT_AddCallback(globals.app, SITE_OnFocus, mceditTrackFocus, NULL);
+	SIT_AddCallback(globals.app, SITE_OnBlur,  mceditTrackFocus, NULL);
 
-	if (! renderInitStatic(mcedit.width, mcedit.height, mcedit.app))
+	if (! renderInitStatic(mcedit.width, mcedit.height))
 	{
 		/* shaders compilation failed usually */
 		return 1;
 	}
 
-//	mcedit.level = renderInitWorld("TestMesh", mcedit.maxDist);
-	mcedit.level = renderInitWorld("World1_12", mcedit.maxDist);
-	mcedit.state = GAMELOOP_WORLD;
+//	globals.level = renderInitWorld("TestMesh", mcedit.maxDist);
+	globals.level = renderInitWorld("World1_12", mcedit.maxDist);
+	mcedit.state  = GAMELOOP_WORLD;
 
-	if (mcedit.level == NULL)
+	if (globals.level == NULL)
 	{
 		SIT_Log(SIT_ERROR, "Fail to load level.dat: aborting.");
 		return 1;
 	}
 
 	updateAlloc(32);
-	playerInit(&mcedit.player, &mcedit.level->levelDat);
+	playerInit(&mcedit.player);
 	FrameSetFPS(40);
 
 	while (mcedit.exit != 1)
@@ -398,12 +396,14 @@ void mceditWorld(void)
 					renderDebugBlock();
 					break;
 				case SDLK_F7:
-					breakPoint = ! breakPoint;
+				{	globals.breakPoint = ! globals.breakPoint;
+					// XXX weird bug where tooltip disappear as soon as mouse is moved ... can't find origin :-/
+					void renderDebugTip(void);
 					renderDebugTip();
-					break;
+				}	break;
 				#endif
 				case SDLK_TAB:
-					if (selectionHasClone())
+					if (globals.selPoints & 8)
 					{
 						key = SITK_Tab;
 						goto forwardKeyPress;
@@ -415,7 +415,7 @@ void mceditWorld(void)
 					takeScreenshot();
 					break;
 				case SDLK_DELETE:
-					if (! selectionHasClone())
+					if ((globals.selPoints & 8) == 0)
 						mceditCommands(MCUI_OVERLAY_DELALL);
 					break;
 				case SDLK_F3: // DEBUG
@@ -428,21 +428,21 @@ void mceditWorld(void)
 					break;
 				case SDLK_F5: sunMove |= 1; break;
 				case SDLK_F6: sunMove |= 2; break;
-				case SDLK_F8: playerSetMode(&mcedit.player, mcedit.level, mcedit.player.pmode == MODE_CREATIVE ? MODE_SPECTATOR : MODE_CREATIVE); break;
+				case SDLK_F8: playerSetMode(&mcedit.player, mcedit.player.pmode == MODE_CREATIVE ? MODE_SPECTATOR : MODE_CREATIVE); break;
 				case SDLK_F10: // DEBUG
-					playerSaveLocation(&mcedit.player, &mcedit.level->levelDat);
-					mapSaveLevelDat(mcedit.level);
+					playerSaveLocation(&mcedit.player);
+					mapSaveLevelDat(globals.level);
 					break;
 				case SDLK_EQUALS:
 				case SDLK_PLUS:
-					if (mapSetRenderDist(mcedit.level, mcedit.maxDist+1))
+					if (mapSetRenderDist(globals.level, mcedit.maxDist+1))
 					{
 						renderSetViewMat(mcedit.player.pos, mcedit.player.lookat, &mcedit.player.angleh);
 						mcedit.maxDist ++;
 					}
 					break;
 				case SDLK_MINUS:
-					if (mapSetRenderDist(mcedit.level, mcedit.maxDist-1))
+					if (mapSetRenderDist(globals.level, mcedit.maxDist-1))
 					{
 						renderSetViewMat(mcedit.player.pos, mcedit.player.lookat, &mcedit.player.angleh);
 						mcedit.maxDist --;
@@ -465,14 +465,15 @@ void mceditWorld(void)
 					case 0: goto forwardKeyPress;
 					case 1:
 						/* just switched to offhand */
-						if (mcedit.selection == 0 && (mcedit.player.inventory.offhand & 1))
+						if (globals.selPoints == 0 && (mcedit.player.inventory.offhand & 1))
 							renderSetSelectionPoint(RENDER_SEL_INIT);
 						break;
 					case 2:
 						/* partial extended selection, but switched to main toolbar: cancel selection */
-						if ((mcedit.selection > 0 && mcedit.selection < 3) || (mcedit.selection == 0 && mcedit.player.inventory.offhand & 1))
+						key = globals.selPoints;
+						if ((key > 0 && key < 3) || (key == 0 && mcedit.player.inventory.offhand & 1))
 						{
-							mcedit.selection = renderSetSelectionPoint(RENDER_SEL_CLEAR);
+							renderSetSelectionPoint(RENDER_SEL_CLEAR);
 						}
 						else
 						{
@@ -499,7 +500,7 @@ void mceditWorld(void)
 				case SDLK_F6: sunMove &= ~2; break;
 				case 't': /* throw item */
 					playerAddInventory(&mcedit.player, 0, NULL);
-					playerUpdateNBT(&mcedit.player, &mcedit.level->levelDat);
+					playerUpdateNBT(&mcedit.player);
 					break;
 				default:
 					key = SDLKtoSIT(event.key.keysym.sym);
@@ -546,7 +547,7 @@ void mceditWorld(void)
 					break;
 				case SDL_BUTTON_MIDDLE:
 					#define NO_EXTENDED_SEL_TOOLBAR \
-						(mcedit.player.inventory.offhand & 1) == 0 && mcedit.selection == 0
+						(mcedit.player.inventory.offhand & 1) == 0 && globals.selPoints == 0
 					if (NO_EXTENDED_SEL_TOOLBAR)
 					{
 						/* add block selected to inventory bar */
@@ -556,10 +557,10 @@ void mceditWorld(void)
 						{
 							int XYZ[] = {pos[0] - sel->chunk->X, pos[1], pos[2] - sel->chunk->Z};
 							playerAddInventory(&mcedit.player, sel->blockId, chunkGetTileEntity(sel->chunk, XYZ));
-							playerUpdateNBT(&mcedit.player, &mcedit.level->levelDat);
+							playerUpdateNBT(&mcedit.player);
 						}
 					}
-					else mcedit.selection = renderSetSelectionPoint(RENDER_SEL_AUTO);
+					else renderSetSelectionPoint(RENDER_SEL_AUTO);
 					break;
 				case SDL_BUTTON_WHEELUP:
 					if (NO_EXTENDED_SEL_TOOLBAR)
@@ -606,7 +607,7 @@ void mceditWorld(void)
 		}
 		if (mcedit.player.keyvec)
 		{
-			playerMove(&mcedit.player, mcedit.level);
+			playerMove(&mcedit.player);
 			renderSetViewMat(mcedit.player.pos, mcedit.player.lookat, &mcedit.player.angleh);
 			if (! capture)
 			{
@@ -615,11 +616,11 @@ void mceditWorld(void)
 			}
 		}
 		if (sunMove) skydomeMoveSun(sunMove);
-		curTime = FrameGetTime();
+		globals.curTime = FrameGetTime();
 		renderWorld();
-		entityAnimate(mcedit.level);
-		updateTick(mcedit.level);
-		SIT_RenderNodes(curTime);
+		entityAnimate();
+		updateTick();
+		SIT_RenderNodes(globals.curTime);
 		SDL_GL_SwapBuffers();
 		FrameWaitNext();
 	}
@@ -648,27 +649,29 @@ void mceditPlaceBlock(void)
 		else
 		{
 			playerScrollInventory(p, p->inventory.hoverSlot - p->inventory.selected);
-			mcedit.selection = renderSetSelectionPoint(RENDER_SEL_COMPLETE);
+			renderSetSelectionPoint(RENDER_SEL_COMPLETE);
 		}
-		if (mcedit.selection == 3)
+		if (globals.selPoints == 3)
 			mceditCommands(toolbarCmds[mcedit.player.inventory.selected]);
 		return;
 	}
+
+	MapExtraData sel = renderGetSelectedBlock(pos, &block);
+
+	if (globals.selPoints & 8)
+	{
+		/* move clone brush instead */
+		if (sel) selectionSetClonePt(pos, sel->side|SEL_CLONEMOVE_STOP);
+		return;
+	}
+
 	if (p->inventory.offhand & PLAYER_OFFHAND)
 	{
 		/* off-hand slot selected: set selection point */
-		mcedit.selection = renderSetSelectionPoint(RENDER_SEL_ADDPT);
+		renderSetSelectionPoint(RENDER_SEL_ADDPT);
 		return;
 	}
-	MapExtraData sel = renderGetSelectedBlock(pos, &block);
 	if (sel == NULL) return;
-
-	if (selectionHasClone())
-	{
-		/* move clone brush instead */
-		selectionSetClonePt(pos, sel->side);
-		return;
-	}
 
 	item = &p->inventory.items[p->inventory.selected];
 	id   = mcedit.forceSel ? 0 : item->id;
@@ -689,7 +692,7 @@ void mceditPlaceBlock(void)
 		/* 2 slabs in same block try to convert them in 1 double-slab */
 		if (blockIds[block>>4].special == BLOCK_HALF)
 		{
-			int curId = mapGetBlockId(mcedit.level, pos, NULL);
+			int curId = mapGetBlockId(globals.level, pos, NULL);
 			if ((curId & ~8) == (block & ~8) && (curId & 8) != (block & 8))
 				/* can be combined */
 				block = (block-16) & ~8;
@@ -705,7 +708,7 @@ void mceditPlaceBlock(void)
 		 * udpdate the map and all the tables associated, will also trigger cascading updates
 		 * if needed
 		 */
-		mapUpdate(mcedit.level, pos, block, tile, True);
+		mapUpdate(globals.level, pos, block, tile, True);
 		renderAddModif();
 	}
 }
@@ -719,7 +722,7 @@ Bool mceditActivate(void)
 	MapExtraData sel = renderGetSelectedBlock(pos, &block);
 	if (sel == NULL) return False;
 
-	return mapActivate(mcedit.level, pos);
+	return mapActivate(globals.level, pos);
 }
 
 /*
@@ -735,8 +738,8 @@ void mceditUIOverlay(int type)
 	int       itemConnect;
 	vec4      pos;
 
-	SIT_SetValues(mcedit.app, SIT_RefreshMode, SITV_RefreshAsNeeded, NULL);
-	mcuiTakeSnapshot(mcedit.app, mcedit.width, mcedit.height);
+	SIT_SetValues(globals.app, SIT_RefreshMode, SITV_RefreshAsNeeded, NULL);
+	mcuiTakeSnapshot(mcedit.width, mcedit.height);
 	renderSaveRestoreState(True);
 	mcedit.state = GAMELOOP_OVERLAY;
 
@@ -771,7 +774,7 @@ void mceditUIOverlay(int type)
 			case 0:
 			case 1:
 				/* possibly a double-chest */
-				itemConnect = mapConnectChest(mcedit.level, sel, &link);
+				itemConnect = mapConnectChest(globals.level, sel, &link);
 
 				if (itemConnect > 0)
 				{
@@ -812,7 +815,7 @@ void mceditUIOverlay(int type)
 				break;
 			default:
 				if (b->special == BLOCK_SIGN)
-					mcuiCreateSignEdit(mcedit.level, pos, sel->blockId, &mcedit.exit);
+					mcuiCreateSignEdit(pos, sel->blockId, &mcedit.exit);
 				else
 					mcuiCreateInventory(&mcedit.player.inventory);
 			}
@@ -822,23 +825,23 @@ void mceditUIOverlay(int type)
 
 	case MCUI_OVERLAY_GOTO:
 		memcpy(pos, mcedit.player.pos, sizeof pos);
-		mcuiGoto(mcedit.app, pos);
+		mcuiGoto(pos);
 		break;
 
 	case MCUI_OVERLAY_ANALYZE:
-		mcuiAnalyze(mcedit.app, mcedit.level);
+		mcuiAnalyze();
 		break;
 
 	case MCUI_OVERLAY_REPLACE:
-		mcuiFillOrReplace(mcedit.app, mcedit.level, False);
+		mcuiFillOrReplace(False);
 		break;
 
 	case MCUI_OVERLAY_FILL:
-		mcuiFillOrReplace(mcedit.app, mcedit.level, True);
+		mcuiFillOrReplace(True);
 		break;
 
 	case MCUI_OVERLAY_DELALL:
-		mcuiDeleteAll(mcedit.app, mcedit.level);
+		mcuiDeleteAll();
 	}
 
 	SDL_EnableUNICODE(1);
@@ -922,26 +925,26 @@ void mceditUIOverlay(int type)
 		if (chest.mem)
 		{
 			chunkUpdateNBT(sel->chunk, sel->offset + (sel->cd->Y<<8), &chest);
-			mapAddToSaveList(mcedit.level, sel->chunk);
+			mapAddToSaveList(globals.level, sel->chunk);
 			renderAddModif();
 		}
 		if (mcedit.exit == 2)
 		{
 			/* sign changed */
-			mapAddToSaveList(mcedit.level, sel->chunk);
+			mapAddToSaveList(globals.level, sel->chunk);
 			renderAddModif();
 		}
 
 		if (playerInv.mem)
 		{
-			int offset = NBT_Insert(&mcedit.level->levelDat, "Player.Inventory", TAG_List_Compound, &playerInv);
+			int offset = NBT_Insert(&globals.level->levelDat, "Player.Inventory", TAG_List_Compound, &playerInv);
 			NBT_Free(&playerInv);
 			if (offset >= 0)
-				mapDecodeItems(mcedit.player.inventory.items, MAXCOLINV, NBT_Hdr(&mcedit.level->levelDat, offset));
+				mapDecodeItems(mcedit.player.inventory.items, MAXCOLINV, NBT_Hdr(&globals.level->levelDat, offset));
 		}
 	}	break;
 	case MCUI_OVERLAY_GOTO:
-		playerTeleport(&mcedit.player, mcedit.level, pos);
+		playerTeleport(&mcedit.player, pos);
 		renderSetViewMat(mcedit.player.pos, mcedit.player.lookat, &mcedit.player.angleh);
 		break;
 
@@ -954,7 +957,7 @@ void mceditUIOverlay(int type)
 
 	exit:
 	SIT_Nuke(SITV_NukeCtrl);
-	SIT_SetValues(mcedit.app, SIT_RefreshMode, SITV_RefreshAlways, NULL);
+	SIT_SetValues(globals.app, SIT_RefreshMode, SITV_RefreshAlways, NULL);
 	SDL_EnableUNICODE(0);
 	renderSaveRestoreState(False);
 	mcedit.state = GAMELOOP_WORLD;
@@ -973,7 +976,7 @@ void mceditSideView(void)
 
 	FrameSaveRestoreTime(True);
 	renderSaveRestoreState(True);
-	debugSetPos(mcedit.app, &mcedit.exit);
+	debugSetPos(&mcedit.exit);
 	debugWorld();
 	mx = my = 0;
 	SDL_GL_SwapBuffers();
@@ -990,7 +993,7 @@ void mceditSideView(void)
 					info = 1;
 					break;
 				case SDLK_F3:    debugToggleInfo(DEBUG_CHUNK); break;
-				case SDLK_F7:    breakPoint = ! breakPoint; break;
+				case SDLK_F7:    globals.breakPoint = ! globals.breakPoint; break;
 				case SDLK_TAB:   mcedit.exit = 2; break;
 				case SDLK_e:
 				case SDLK_UP:    debugMoveSlice(1); break;

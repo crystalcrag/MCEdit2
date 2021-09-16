@@ -97,7 +97,7 @@ DLLIMP int    ScanDirInit(ScanDirData * ret, STRPTR path);
 DLLIMP int    ScanDirNext(ScanDirData *);
 DLLIMP void   ScanDirCancel(ScanDirData *);
 DLLIMP Bool   AddPart(STRPTR dir, STRPTR file, int max);
-DLLIMP Bool   ParentDir(STRPTR path);
+DLLIMP int    ParentDir(STRPTR path);
 DLLIMP Bool   IsDir(STRPTR path);
 DLLIMP STRPTR CreatePath(STRPTR path, Bool not_last);
 DLLIMP STRPTR BaseName(STRPTR path);

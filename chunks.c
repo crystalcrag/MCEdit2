@@ -645,7 +645,7 @@ Bool chunkSave(Chunk chunk, const char * path)
 				if (chunkOffset > 0 && fseek(io, hdrOffset, SEEK_SET) == 0)
 				{
 					/* this part is critical: be super cautious around here, because it can corrupt the world save */
-					uint32_t curTime = time(NULL);
+					uint32_t secTime = time(NULL);
 					uint8_t  header[5];
 					uint8_t  oldhdr[5];
 					/* offset and page of chunk in region header */
@@ -659,7 +659,7 @@ Bool chunkSave(Chunk chunk, const char * path)
 					/* timestamp, not sure if this is still used (probably never was...) */
 					if (fseek(io, hdrOffset + 4096, SEEK_SET) == 0)
 						/* don't care if this fails */
-						fwrite(&curTime, 1, 4, io);
+						fwrite(&secTime, 1, 4, io);
 
 					/* finally z-stream content of chunk */
 					x = chunkSize;

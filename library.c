@@ -16,6 +16,7 @@
 #include "SIT.h"
 #include "selection.h"
 #include "library.h"
+#include "globals.h"
 
 static struct MCLibrary_t library;
 
@@ -28,6 +29,11 @@ static int librarySaveCopy(SIT_Widget w, APTR cd, APTR ud)
 /* SITE_OnActivate on "Use" button */
 static int libraryUseCopy(SIT_Widget w, APTR cd, APTR ud)
 {
+	LibBrush brush;
+	int      nth;
+	SIT_GetValues(ud, SIT_SelectedIndex, &nth, NULL);
+	SIT_GetValues(ud, SIT_RowTag(nth), &brush, NULL);
+	selectionUseBrush(brush->data);
 	return 1;
 }
 
@@ -79,7 +85,6 @@ static void libraryGenThumb(LibBrush lib)
 		brush->size[VZ] * brush->size[VY]
 	};
 	int axis = VX;
-	int dir  = renderGetFacingDirection();
 	if (surface[VY] > surface[VX])   axis = VY;
 	if (surface[VZ] > surface[axis]) axis = VZ;
 	/* point the camera to the axis with the biggest surface area */
@@ -87,10 +92,10 @@ static void libraryGenThumb(LibBrush lib)
 	switch (axis) {
 	case VX: camera[VX] = center[VX] * 1.1;
 	         camera[VY] = center[VY] * 1.3;
-	         camera[VZ] = center[VZ] + (dir == 0 ? - center[VX] : center[VX]) * 1.5; break;
+	         camera[VZ] = center[VZ] + (globals.direction == 0 ? - center[VX] : center[VX]) * 1.5; break;
 	case VZ: camera[VZ] = center[VZ] * 1.1;
 	         camera[VY] = center[VY] * 1.3;
-	         camera[VX] = center[VX] + (dir == 1 ? - center[VZ] : center[VZ]) * 1.5; break;
+	         camera[VX] = center[VX] + (globals.direction == 1 ? - center[VZ] : center[VZ]) * 1.5; break;
 	case VY: camera[VX] = center[VX] * 1.1;
 	         camera[VY] = center[VY] + MAX(brush->size[VX], brush->size[VZ]);
 	         camera[VX] = center[VZ] * 1.1;
@@ -175,11 +180,11 @@ static int libraryGetOffset(SIT_Widget w, APTR cd, APTR ud)
 }
 
 /* user just hit Ctrl+C */
-void libraryCopySelection(APTR sitRoot, Map brush)
+void libraryCopySelection(Map brush)
 {
 	if (! library.copyWnd)
 	{
-		SIT_Widget diag = library.copyWnd = SIT_CreateWidget("selcopy.mc", SIT_DIALOG, sitRoot,
+		SIT_Widget diag = library.copyWnd = SIT_CreateWidget("selcopy.mc", SIT_DIALOG, globals.app,
 			SIT_DialogStyles,   SITV_Plain,
 			SIT_Right,          SITV_AttachForm, NULL, SITV_Em(0.5),
 			SIT_Top,            SITV_AttachForm, NULL, SITV_Em(0.5),
@@ -196,11 +201,11 @@ void libraryCopySelection(APTR sitRoot, Map brush)
 		library.save     = SIT_GetById(diag, "save");
 		library.use      = SIT_GetById(diag, "use");
 		library.del      = SIT_GetById(diag, "ko");
-		SIT_GetValues(sitRoot, SIT_NVGcontext, &library.nvgCtx, NULL);
+		SIT_GetValues(globals.app, SIT_NVGcontext, &library.nvgCtx, NULL);
 		SIT_AddCallback(library.save,     SITE_OnActivate, librarySaveCopy, library.copyList);
 		SIT_AddCallback(library.use,      SITE_OnActivate, libraryUseCopy,  library.copyList);
 		SIT_AddCallback(library.del,      SITE_OnActivate, libraryDelCopy,  library.copyList);
-		SIT_AddCallback(library.copyList, SITE_OnActivate, libraryUseCopy,  NULL);
+		SIT_AddCallback(library.copyList, SITE_OnActivate, libraryUseCopy,  library.copyList);
 		SIT_AddCallback(library.copyList, SITE_OnChange,   librarySelItem,  NULL);
 		SIT_AddCallback(library.copyWnd,  SITE_OnResize,   libraryGetOffset, NULL);
 		SIT_ManageWidget(diag);

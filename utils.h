@@ -136,8 +136,6 @@ int  roundToUpperPrime(int n);
 int  roundToLowerPrime(int n);
 void DOS2Unix(STRPTR path);
 
-extern double curTime; /* from main.c */
-
 /* free the entire table (suppose v is stack allocated) */
 #define vectorFree           vector_free
 #define vectorInit           vector_init

@@ -14,6 +14,7 @@
 #include "render.h"
 #include "redstone.h"
 #include "nanovg.h"
+#include "globals.h"
 #include "SIT.h"
 
 extern struct RenderWorld_t render;
@@ -21,13 +22,13 @@ extern struct RenderWorld_t render;
 #define FRUSTUM_DEBUG
 
 /* get info on block being pointed at (dumped on stderr though) */
-void debugBlockVertex(Map map, SelBlock_t * select)
+void debugBlockVertex(SelBlock_t * select)
 {
 	if (select->sel & 1)
 	{
 		struct BlockIter_t iter;
 
-		mapInitIter(map, &iter, select->current, False);
+		mapInitIter(globals.level, &iter, select->current, False);
 		if (iter.blockIds == NULL) return;
 
 		BlockState block = blockGetById(getBlockId(&iter));
@@ -361,13 +362,13 @@ void debugCoord(APTR vg, vec4 camera, int total)
 	TEXT message[256];
 	int  len = sprintf(message, "XYZ: %.2f, %.2f, %.2f (eyes)", camera[0], camera[1] - PLAYER_HEIGHT, camera[2]);
 	int  vis, culled;
-	ChunkData cd = render.level->firstVisible;
+	ChunkData cd = globals.level->firstVisible;
 
 	len += sprintf(message + len, "\nChunk: %d, %d, %d (cnxGraph: 0x%x)", CPOS(camera[0]) << 4, CPOS(camera[1]) << 4, CPOS(camera[2]) << 4, cd ? cd->cnxGraph : 65535);
 	len += sprintf(message + len, "\nTriangles: %d", total);
-	for (cd = render.level->firstVisible, vis = 0, culled = 0; cd; vis ++, cd = cd->visible)
+	for (cd = globals.level->firstVisible, vis = 0, culled = 0; cd; vis ++, cd = cd->visible)
 		if (cd->comingFrom == 0) culled ++;
-	len += sprintf(message + len, "\nChunks: %d/%d (culled: %d)", vis, render.level->GPUchunk, culled);
+	len += sprintf(message + len, "\nChunks: %d/%d (culled: %d)", vis, globals.level->GPUchunk, culled);
 
 	nvgFontSize(vg, FONTSIZE);
 	nvgTextAlign(vg, NVG_ALIGN_TOP);
@@ -419,7 +420,7 @@ static int debugExit(SIT_Widget w, APTR cd, APTR ud)
 }
 
 /* init current pos for side view */
-void debugSetPos(APTR app, int * exitCode)
+void debugSetPos(int * exitCode)
 {
 	float * pos = render.selection.sel ? render.selection.current : render.camera;
 	debug.pos[0] = pos[0];
@@ -427,22 +428,21 @@ void debugSetPos(APTR app, int * exitCode)
 	debug.pos[2] = pos[2];
 	memcpy(debug.orig, debug.pos, sizeof debug.orig);
 
-	debug.sliceDir = render.direction;
-	debug.sliceAxis = render.direction & 1 ? 2 : 0;
+	debug.sliceDir = globals.direction;
+	debug.sliceAxis = globals.direction & 1 ? 2 : 0;
 	debug.sliceSz = roundf(render.width / debug.zoom);
-	debug.vector = debugVector + render.direction * 4;
+	debug.vector = debugVector + globals.direction * 4;
 	debug.slice = 0;
-	debug.app = app;
 
 	/* max coord range */
-	Chunk c = render.level->center;
-	int max = (render.level->maxDist+1) >> 1;
-	int base = render.direction & 1 ? c->Z : c->X;
+	Chunk c = globals.level->center;
+	int max = (globals.level->maxDist+1) >> 1;
+	int base = globals.direction & 1 ? c->Z : c->X;
 	debug.minXZ = base - max * 16;
 	debug.maxXZ = base + max * 16 + 16;
 
 	/* debug info toolbar */
-	SIT_CreateWidgets(app,
+	SIT_CreateWidgets(globals.app,
 		"<canvas name=toolbar left=FORM right=FORM>"
 		" <button name=skylight.left title=SkyLight buttonType=", SITV_ToggleButton, ">"
 		" <button name=blocklight.center title=BlockLight buttonType=", SITV_ToggleButton, "left=WIDGET,skylight,2>"
@@ -455,8 +455,8 @@ void debugSetPos(APTR app, int * exitCode)
 		" <label name=slice right=WIDGET,back,1em top=MIDDLE,back>"
 		"</canvas>"
 	);
-	debug.label = SIT_GetById(app, "slice");
-	debug.showChunk = SIT_GetById(app, "chunk");
+	debug.label = SIT_GetById(globals.app, "slice");
+	debug.showChunk = SIT_GetById(globals.app, "chunk");
 
 	debugMoveSlice(0);
 
@@ -464,7 +464,7 @@ void debugSetPos(APTR app, int * exitCode)
 	for (i = 0; i < 3; i ++)
 	{
 		static STRPTR names[] = {"skylight", "blocklight", "none"};
-		SIT_SetValues(debug.toggles[i] = SIT_GetById(app, names[i]),
+		SIT_SetValues(debug.toggles[i] = SIT_GetById(globals.app, names[i]),
 			SIT_CheckState, debug.showLightValue == i,
 			SIT_RadioGroup, 1,
 			SIT_RadioID,    i,
@@ -473,7 +473,7 @@ void debugSetPos(APTR app, int * exitCode)
 		);
 	}
 
-	SIT_AddCallback(SIT_GetById(app, "back"), SITE_OnActivate, debugExit, exitCode);
+	SIT_AddCallback(SIT_GetById(globals.app, "back"), SITE_OnActivate, debugExit, exitCode);
 }
 
 /* render side view of world */
@@ -505,7 +505,7 @@ void debugWorld(void)
 	top[1] += debug.cellV>>1;
 	memcpy(debug.top, top, sizeof top);
 
-	mapInitIter(render.level, &iter, top, False);
+	mapInitIter(globals.level, &iter, top, False);
 
 	/* zoom = number of tile per screen width, make font size inversely proportionnal to this */
 	i = -12 * debug.zoom / 11 + 560/11;
@@ -673,7 +673,7 @@ void debugWorld(void)
 
 	#ifdef FRUSTUM_DEBUG
 	/* show ChunkData state */
-	mapInitIter(render.level, &iter, top, False);
+	mapInitIter(globals.level, &iter, top, False);
 	nvgFontSize(vg, 20);
 
 	for (j = debug.cellV, y = debug.yoff; j > 0; j --, y += debug.sliceSz)
@@ -691,7 +691,7 @@ void debugWorld(void)
 					{
 						strcpy(message, "NO CHUNKDATA");
 					}
-					else if (iter.ref->chunkFrame == render.level->frame)
+					else if (iter.ref->chunkFrame == globals.level->frame)
 					{
 						if (iter.ref->outflags[iter.yabs>>4] & 0x80)
 						{
@@ -701,7 +701,7 @@ void debugWorld(void)
 							else if (iter.cd->glBank)
 							{
 								ChunkData cd;
-								for (cd = render.level->firstVisible; cd && cd != iter.cd; cd = cd->visible);
+								for (cd = globals.level->firstVisible; cd && cd != iter.cd; cd = cd->visible);
 								if (cd == NULL)
 									strcat(message, "- NOTINLIST");
 							}
@@ -745,8 +745,7 @@ void debugWorld(void)
 
 	nvgEndFrame(vg);
 
-	extern double curTime;
-	SIT_RenderNodes(curTime);
+	SIT_RenderNodes(globals.curTime);
 }
 
 /* this view won't load new chunk */
@@ -811,7 +810,7 @@ void debugBlock(int x, int y)
 	debug.sel.current[debug.sliceAxis] += debug.vector[debug.sliceAxis] * (int) ((x - debug.xoff) / debug.sliceSz);
 
 	debug.sel.blockId = 0;
-	mapGetBlockId(render.level, debug.sel.current, &debug.sel.extra);
+	mapGetBlockId(globals.level, debug.sel.current, &debug.sel.extra);
 	renderBlockInfo(&debug.sel);
 }
 
@@ -866,8 +865,8 @@ void debugRotateView(int dir)
 	debug.vector = debugVector + debug.sliceDir * 4;
 
 	/* max coord range */
-	Chunk c = render.level->center;
-	int max = (render.level->maxDist+1) >> 1;
+	Chunk c = globals.level->center;
+	int max = (globals.level->maxDist+1) >> 1;
 	int base = debug.sliceDir & 1 ? c->Z : c->X;
 	debug.minXZ = base - max * 16;
 	debug.maxXZ = base + max * 16 + 16;

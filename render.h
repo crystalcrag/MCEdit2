@@ -17,7 +17,7 @@
 #define FONTSIZE_MSG   20
 #define ITEMSCALE      1.3
 
-Bool renderInitStatic(int width, int height, APTR sitRoot);
+Bool renderInitStatic(int width, int height);
 Map  renderInitWorld(STRPTR path, int renderDist);
 void renderFreeMesh(Map map, Bool clear);
 void renderWorld();
@@ -37,7 +37,6 @@ void renderDrawMap(Map map);
 void renderSetCompassOffset(float offset);
 int  renderSetSelectionPoint(int action);
 int  renderGetTerrain(int size[2]);
-int  renderGetFacingDirection(void);
 int  renderInitUBO(void);
 MapExtraData renderGetSelectedBlock(vec4 pos, int * blockModel);
 
@@ -48,6 +47,8 @@ enum /* possible values for <action> of renderSetSelectionPoint */
 	RENDER_SEL_COMPLETE = 2,
 	RENDER_SEL_INIT     = 3,
 	RENDER_SEL_AUTO     = 4,
+	RENDER_SEL_AUTOMOVE = 5,
+	RENDER_SEL_STOPMOVE = 6
 };
 
 enum /* possible values for <what> of renderToggleDebug */
@@ -57,7 +58,7 @@ enum /* possible values for <what> of renderToggleDebug */
 };
 
 /* side view */
-void debugSetPos(APTR sitroot, int * exitCode);
+void debugSetPos(int * exitCode);
 void debugWorld(void);
 void debugScrollView(int dx, int dy);
 void debugMoveSlice(int dz);
@@ -121,7 +122,8 @@ enum                               /* bitfield for SelBlock.sel */
 	SEL_FIRST     = 2,
 	SEL_SECOND    = 4,
 	SEL_NOCURRENT = 8,             /* cannot place block */
-	SEL_OFFHAND   = 16
+	SEL_OFFHAND   = 16,
+	SEL_MOVE      = 32,            /* clone selection follow mouse */
 };
 
 #define SEL_BOTH                   (SEL_FIRST|SEL_SECOND)
@@ -136,7 +138,6 @@ struct Message_t
 struct RenderWorld_t
 {
 	int        width, height;      /* glViewport */
-	Map        level;              /* map being rendered */
 	mat4       matModel;           /* MVP mat */
 	mat4       matPerspective;
 	mat4       matMVP;             /* model-view-projection combined matrix */
@@ -177,7 +178,6 @@ struct RenderWorld_t
 	float      scale;
 	uint8_t    debug;              /* 1 if debug info is displayed (chunk boundaries) */
 	uint8_t    debugInfo;          /* tooltip over block highligted */
-	uint8_t    direction;          /* player facing direction: 0:south, 1:east, 2:north, 3:west */
 	uint8_t    setFrustum;         /* recompute chunk visible list */
 	int        debugFont;          /* font id from nanovg (init by SITGL) */
 	int        debugTotalTri;      /* triangle count being drawn */
@@ -193,7 +193,6 @@ struct RenderWorld_t
 	Message_t  message;            /* message at bottom of screen */
 	int        oldblockInfo;
 	APTR       blockInfo;          /* SIT_TOOLTIP */
-	APTR       sitRoot;            /* SIT_APP */
 };
 
 struct MeshBuffer_t                /* temporary buffer used to collect data from chunkUpdate() */
@@ -205,7 +204,7 @@ struct MeshBuffer_t                /* temporary buffer used to collect data from
 };
 
 /* debug info */
-void debugBlockVertex(Map, SelBlock_t *);
+void debugBlockVertex(SelBlock_t *);
 void debugInit(void);
 void debugShowChunkBoundary(Chunk cur, int Y);
 void debugCoord(APTR vg, vec4 camera, int total);

@@ -20,6 +20,7 @@
 #include "redstone.h"
 #include "blockUpdate.h"
 #include "mapUpdate.h"
+#include "globals.h"
 #include "glad.h"
 
 static struct EntitiesPrivate_t entities;
@@ -849,10 +850,10 @@ void entityDelete(Chunk c, DATA8 tile)
 	}
 }
 
-void entityAnimate(Map map)
+void entityAnimate(void)
 {
 	EntityAnim anim;
-	int i, j, time = curTime, finalize = 0;
+	int i, j, time = globals.curTime, finalize = 0;
 	for (i = entities.animCount, anim = entities.animate; i > 0; i --)
 	{
 		Entity entity = anim->entity;
@@ -876,15 +877,15 @@ void entityAnimate(Map map)
 			memcpy(dest, entity->motion, 12);
 			entities.animCount --;
 			/* remove from list */
-			Chunk c = mapGetChunk(map, dest);
+			Chunk c = mapGetChunk(globals.level, dest);
 			memmove(anim, anim + 1, (i - 1) * sizeof *anim);
 			entityDelete(c, tile);
-			updateFinished(map, tile, dest);
+			updateFinished(tile, dest);
 			finalize = 1;
 		}
 	}
 	if (finalize)
-		updateFinished(map, NULL, NULL);
+		updateFinished(NULL, NULL);
 }
 
 /* block entity */
@@ -924,7 +925,7 @@ void entityUpdateOrCreate(Chunk c, vec4 pos, int blockId, vec4 dest, int ticks, 
 	}
 	anim = entities.animate + entities.animCount;
 	entities.animCount ++;
-	anim->prevTime = (int) curTime;
+	anim->prevTime = (int) globals.curTime;
 	anim->stopTime =
 	#ifdef DEBUG
 		anim->prevTime + ticks * 10 * (1000 / TICK_PER_SECOND);

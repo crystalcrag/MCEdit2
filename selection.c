@@ -16,6 +16,7 @@
 #include "blockUpdate.h"
 #include "player.h"
 #include "render.h"
+#include "globals.h"
 #include "SIT.h"
 
 struct Selection_t selection;
@@ -27,11 +28,10 @@ extern uint8_t texCoord[];
  */
 
 /* init VBO and VAO */
-void selectionInitStatic(int shader, DATA8 direction)
+void selectionInitStatic(int shader)
 {
 	selection.shader = shader;
 	selection.infoLoc = glGetUniformLocation(shader, "info");
-	selection.direction = direction;
 	selection.cloneRepeat = 1;
 	selection.copyAir = 1;
 	selection.copyWater = 1;
@@ -80,7 +80,7 @@ void selectionSetSize(void)
 			(int) fabsf(selection.firstPt[VZ] - selection.secondPt[VZ]) + 1,
 			(int) fabsf(selection.firstPt[VY] - selection.secondPt[VY]) + 1
 		};
-		if (renderGetFacingDirection() & 1)
+		if (globals.direction & 1)
 			swap(size[0], size[1]);
 		sprintf(buffer, "%dW x %dL x %dH", size[0], size[1], size[2]);
 		SIT_SetValues(selection.nudgeSize, SIT_Title, buffer, NULL);
@@ -90,7 +90,7 @@ void selectionSetSize(void)
 		/* show the orientattion of roll command (way too complicated to make it follow all orientations) */
 		SIT_Widget w = SIT_GetById(selection.editBrush, "roll");
 		TEXT buffer[64];
-		sprintf(buffer, "<pchar src=roll%s.png> Roll", selection.ext[selection.direction[0]]);
+		sprintf(buffer, "<pchar src=roll%s.png> Roll", selection.ext[globals.direction]);
 		SIT_SetValues(w, SIT_Title, buffer, NULL);
 	}
 }
@@ -212,7 +212,7 @@ Bool selectionProcessKey(int key, int mod)
 		static int8_t axisMain[] = {1,1,-1,-1};
 		static int8_t axisRot[]  = {1,-1,-1,1};
 		int8_t axis = 0;
-		int8_t dir  = selection.direction[0]; /* S,E,N,W */
+		int8_t dir  = globals.direction; /* S,E,N,W */
 
 		/* selection is being cloned: can't move first and second point (but can move clone) */
 		if (selection.brush && selection.nudgePoint < 4)
@@ -250,26 +250,26 @@ Bool selectionProcessKey(int key, int mod)
 		default: return False;
 		}
 		/* highlight button used */
-		double curTime = FrameGetTime();
+		double timeMS = FrameGetTime();
 		SIT_Widget w = SIT_GetById(selection.editBrush, ctrlName[ctrl]);
 		SIT_SetValues(w, SIT_CheckState, True, NULL);
-		SIT_ActionAdd(w, curTime + 100, curTime + 100, cancelActivation, NULL);
+		SIT_ActionAdd(w, timeMS + 100, timeMS + 100, cancelActivation, NULL);
 	}
 	return False;
 }
 
 /* set the position of one of the 2 extended selection point */
-void selectionSetPoint(APTR sitRoot, float scale, vec4 pos, int point)
+void selectionSetPoint(float scale, vec4 pos, int point)
 {
 	memcpy(point ? selection.secondPt : selection.firstPt, pos, 16);
 
-	selection.hasPoint |= 1<<point;
+	globals.selPoints |= 1<<point;
 
-	if (selection.hasPoint == 3)
+	if (globals.selPoints == 3)
 	{
 		if (selection.nudgeDiag == NULL)
 		{
-			SIT_Widget diag = selection.nudgeDiag = SIT_CreateWidget("selection.mc", SIT_DIALOG, sitRoot,
+			SIT_Widget diag = selection.nudgeDiag = SIT_CreateWidget("selection.mc", SIT_DIALOG, globals.app,
 				SIT_DialogStyles,  SITV_Plain,
 				SIT_Bottom,        SITV_AttachForm, NULL, (int) (24 * scale),
 				SIT_TopAttachment, SITV_AttachNone,
@@ -302,17 +302,12 @@ void selectionCancel(void)
 	}
 	if (selection.brush)
 		selectionCancelClone(NULL, NULL, NULL);
-	selection.hasPoint = 0;
+	globals.selPoints = 0;
 }
 
 vec selectionGetPoints(void)
 {
 	return selection.firstPt;
-}
-
-Map selectionHasClone(void)
-{
-	return selection.brush;
 }
 
 /* draw selection point/boxes */
@@ -346,21 +341,21 @@ static void selectionDrawPoint(vec4 point, int pointId)
 /* render everything related to selection: points, box, brush */
 void selectionRender(void)
 {
-	if (selection.hasPoint)
+	if (globals.selPoints)
 	{
 		glDepthMask(GL_FALSE);
 		glUseProgram(selection.shader);
 		glBindVertexArray(selection.vao);
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, selection.vboIndex);
 
-		switch (selection.hasPoint & 3) {
+		switch (globals.selPoints & 3) {
 		case 1: selectionDrawPoint(selection.firstPt,  0); break;
 		case 2: selectionDrawPoint(selection.secondPt, 1); break;
 		case 3: selectionDrawPoint(selection.firstPt,  0);
 		        selectionDrawPoint(selection.secondPt, 1);
 		        selectionDrawPoint(selection.regionPt, 2);
 		}
-		if (selection.brush)
+		if (globals.selPoints & 8)
 		{
 			/* draw the brush (only once, no matter how many repeats there are) */
 			glDepthMask(GL_TRUE);
@@ -393,7 +388,7 @@ void selectionSetClonePt(vec4 pos, int side)
 		0, 2, 1,  1,
 	};
 
-	DATA8 off = axis + side * 4;
+	DATA8 off = axis + (side&7) * 4;
 	int i, j;
 
 	if (side >= 0)
@@ -436,6 +431,12 @@ void selectionSetClonePt(vec4 pos, int side)
 		brush->cy = pos[1] - 1;
 		brush->cz = pos[2] - 1;
 	}
+
+	if (selection.autoMove && (side & SEL_CLONEMOVE_STOP))
+	{
+		renderSetSelectionPoint(RENDER_SEL_STOPMOVE);
+		selection.autoMove = 0;
+	}
 }
 
 /* SITE_OnChange on brush offsets */
@@ -455,12 +456,14 @@ static int selectionRepeat(SIT_Widget w, APTR cd, APTR ud)
 }
 
 /* copy blocks from brush into map */
-static int selectionCopyBlocks(SIT_Widget w, APTR cd, APTR map)
+static int selectionCopyBlocks(SIT_Widget w, APTR cd, APTR ud)
 {
 	struct BlockIter_t dst;
 	struct BlockIter_t src;
-	Map brush = selection.brush;
+	Map  brush = selection.brush;
+	Map  map   = globals.level;
 	vec4 pos;
+
 	memcpy(pos, selection.clonePt, sizeof pos);
 	mapInitIter(map, &dst, selection.clonePt, True);
 	mapInitIterOffset(&src, brush->firstVisible, 256+16+1);
@@ -620,43 +623,33 @@ void selectionFreeBrush(Map brush)
 	free(brush);
 }
 
-
-/* copy selected blocks into a mini-map */
-Map selectionClone(APTR sitRoot, Map map, vec4 pos, int side)
+/* dialog to manipulate selection clone */
+void selectionEditBrush(Bool simplified)
 {
-	if (selection.hasPoint != 3)
-		return NULL;
+	TEXT buffer[64];
+	SIT_Widget diag = selection.editBrush = SIT_CreateWidget("brush.mc", SIT_DIALOG, globals.app,
+		SIT_DialogStyles,  SITV_Plain,
+		SIT_Left,          SITV_AttachForm, NULL, SITV_Em(0.5),
+		SIT_TopAttachment, SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter,
+		NULL
+	);
+	sprintf(buffer, "<pchar src=roll%s.png> Roll", selection.ext[globals.direction]);
+	SIT_CreateWidgets(diag,
+		"<label name=brotate title=R:>"
+		"<button name=rotate.act title='<xchar src=rotate.png> Rotate' left=WIDGET,brotate,0.3em>"
+		"<label name=broll title=T: left=WIDGET,rotate,1em>"
+		"<button maxWidth=rotate name=roll.act title=", buffer, "left=WIDGET,broll,0.3em>"
+		"<label name=bflip maxWidth=brotate title=L:>"
+		"<button name=flip.act title='<pchar src=flip.png> Flip' maxWidth=roll top=WIDGET,broll,0.5em left=WIDGET,bflip,0.3em>"
+		"<label name=bmirror maxWidth=broll title=M: left=WIDGET,flip,1em>"
+		"<button name=mirror.act title='<xchar src=mirror.png> Mirror' maxWidth=flip top=WIDGET,broll,0.5em left=WIDGET,bmirror,0.3em>"
 
-	if (sitRoot)
+		"<button name=nudge title=Nudge nextCtrl=NONE right=FORM maxWidth=mirror>"
+	);
+
+	if (! simplified)
 	{
-		selection.cloneSize[VX] = fabsf(selection.firstPt[VX] - selection.secondPt[VX]) + 1 + 0.01;
-		selection.cloneSize[VY] = fabsf(selection.firstPt[VY] - selection.secondPt[VY]) + 1 + 0.01;
-		selection.cloneSize[VZ] = fabsf(selection.firstPt[VZ] - selection.secondPt[VZ]) + 1 + 0.01;
-
-		selectionSetRect(SEL_POINT_CLONE);
-	}
-
-	if (sitRoot && ! selection.editBrush)
-	{
-		TEXT buffer[64];
-		SIT_Widget diag = selection.editBrush = SIT_CreateWidget("brush.mc", SIT_DIALOG, sitRoot,
-			SIT_DialogStyles,  SITV_Plain,
-			SIT_Left,          SITV_AttachForm, NULL, SITV_Em(0.5),
-			SIT_TopAttachment, SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter,
-			NULL
-		);
-		sprintf(buffer, "<pchar src=roll%s.png> Roll", selection.ext[selection.direction[0]]);
 		SIT_CreateWidgets(diag,
-			"<label name=brotate title=R:>"
-			"<button name=rotate.act title='<xchar src=rotate.png> Rotate' left=WIDGET,brotate,0.3em>"
-			"<label name=broll title=T: left=WIDGET,rotate,1em>"
-			"<button maxWidth=rotate name=roll.act title=", buffer, "left=WIDGET,broll,0.3em>"
-			"<label name=bflip maxWidth=brotate title=L:>"
-			"<button name=flip.act title='<pchar src=flip.png> Flip' maxWidth=roll top=WIDGET,broll,0.5em left=WIDGET,bflip,0.3em>"
-			"<label name=bmirror maxWidth=broll title=M: left=WIDGET,flip,1em>"
-			"<button name=mirror.act title='<xchar src=mirror.png> Mirror' maxWidth=flip top=WIDGET,broll,0.5em left=WIDGET,bmirror,0.3em>"
-
-			"<button name=nudge title=Nudge nextCtrl=NONE right=FORM maxWidth=mirror>"
 			"<label name=xlab title=X:><editbox name=xcoord curValue=", selection.cloneOff, "editType=", SITV_Integer,
 			" right=WIDGET,nudge,1em left=WIDGET,xlab,0.3em top=WIDGET,mirror,1em>"
 			"<label name=ylab title=Y: maxWidth=xlab><editbox name=ycoord curValue=", selection.cloneOff+1, "editType=", SITV_Integer,
@@ -668,40 +661,67 @@ Map selectionClone(APTR sitRoot, Map map, vec4 pos, int side)
 			"<editbox name=repeat curValue=", &selection.cloneRepeat, "editType=", SITV_Integer, "left=OPPOSITE,zcoord minValue=1 maxValue=128"
 			" right=OPPOSITE,zcoord top=WIDGET,zcoord,1em>"
 			"<label name=brep title=(Repeat) top=MIDDLE,repeat left=WIDGET,repeat,1em>"
-
-			"<button name=copyair title='Copy air'    curValue=", &selection.copyAir,    "top=WIDGET,repeat,1em    buttonType=", SITV_CheckBox, ">"
-			"<button name=copywat title='Copy water'  curValue=", &selection.copyWater,  "top=WIDGET,copyair,0.5em buttonType=", SITV_CheckBox, ">"
-			"<button name=copyent title='Copy entity' curValue=", &selection.copyEntity, "top=WIDGET,copywat,0.5em buttonType=", SITV_CheckBox, ">"
-
-			"<button name=ko.act title=Cancel right=FORM top=WIDGET,copyent,1em>"
-			"<button name=ok.act title=Clone  right=WIDGET,ko,0.5em top=OPPOSITE,ko buttonType=", SITV_DefaultButton, ">"
 		);
 		SIT_SetAttributes(diag,
-			"<brotate top=MIDDLE,rotate><broll top=MIDDLE,roll><bflip top=MIDDLE,flip><bmirror top=MIDDLE,mirror>"
 			"<xlab top=MIDDLE,xcoord><ylab top=MIDDLE,ycoord><zlab top=MIDDLE,zcoord>"
 			"<nudge top=MIDDLE,ycoord><tlab top=MIDDLE,repeat>"
 		);
-		int i;
-		for (i = 0; i < 3; i ++)
-		{
-			static STRPTR editBoxes[] = {"xcoord", "ycoord", "zcoord"};
-			SIT_AddCallback(selection.brushOff[i] = SIT_GetById(diag, editBoxes[i]), SITE_OnChange, selectionChangeCoord, (APTR) i);
-		}
-		SIT_AddCallback(SIT_GetById(diag, "nudge"), SITE_OnClick, selectionNudge, (APTR) 4);
-		SIT_AddCallback(SIT_GetById(diag, "repeat"), SITE_OnChange, selectionRepeat, NULL);
-		SIT_AddCallback(SIT_GetById(diag, "ok"), SITE_OnActivate, selectionCopyBlocks, map);
-		SIT_AddCallback(SIT_GetById(diag, "ko"), SITE_OnActivate, selectionCancelClone, map);
-		SIT_AddCallback(SIT_GetById(diag, "rotate"), SITE_OnActivate, selectionTransform, NULL);
-		SIT_AddCallback(SIT_GetById(diag, "roll"), SITE_OnActivate, selectionTransform, (APTR) 1);
-		SIT_AddCallback(SIT_GetById(diag, "flip"), SITE_OnActivate, selectionTransform, (APTR) 2);
-		SIT_AddCallback(SIT_GetById(diag, "mirror"), SITE_OnActivate, selectionTransform, (APTR) 3);
-		SIT_ManageWidget(diag);
+	}
+	else SIT_SetAttributes(diag, "<nudge left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, "right=NONE top=WIDGET,mirror,0.5em>");
+
+	SIT_CreateWidgets(diag,
+		"<button name=copyair title='Copy air'    curValue=", &selection.copyAir,    "top=WIDGET,repeat,1em    buttonType=", SITV_CheckBox, ">"
+		"<button name=copywat title='Copy water'  curValue=", &selection.copyWater,  "top=WIDGET,copyair,0.5em buttonType=", SITV_CheckBox, ">"
+		"<button name=copyent title='Copy entity' curValue=", &selection.copyEntity, "top=WIDGET,copywat,0.5em buttonType=", SITV_CheckBox, ">"
+
+		"<button name=ko.act title=Cancel right=FORM top=WIDGET,copyent,1em>"
+		"<button name=ok.act title=Clone  right=WIDGET,ko,0.5em top=OPPOSITE,ko buttonType=", SITV_DefaultButton, ">"
+	);
+	SIT_SetAttributes(diag,
+		"<brotate top=MIDDLE,rotate><broll top=MIDDLE,roll><bflip top=MIDDLE,flip><bmirror top=MIDDLE,mirror>"
+	);
+	if (simplified) SIT_SetAttributes(diag, "<copyair topObject=nudge>");
+	int i;
+	for (i = 0; i < 3; i ++)
+	{
+		static STRPTR editBoxes[] = {"xcoord", "ycoord", "zcoord"};
+		SIT_AddCallback(selection.brushOff[i] = SIT_GetById(diag, editBoxes[i]), SITE_OnChange, selectionChangeCoord, (APTR) i);
+	}
+	SIT_AddCallback(SIT_GetById(diag, "nudge"), SITE_OnClick, selectionNudge, (APTR) 4);
+	SIT_AddCallback(SIT_GetById(diag, "repeat"), SITE_OnChange, selectionRepeat, NULL);
+	SIT_AddCallback(SIT_GetById(diag, "ok"), SITE_OnActivate, selectionCopyBlocks, NULL);
+	SIT_AddCallback(SIT_GetById(diag, "ko"), SITE_OnActivate, selectionCancelClone, NULL);
+	SIT_AddCallback(SIT_GetById(diag, "rotate"), SITE_OnActivate, selectionTransform, NULL);
+	SIT_AddCallback(SIT_GetById(diag, "roll"), SITE_OnActivate, selectionTransform, (APTR) 1);
+	SIT_AddCallback(SIT_GetById(diag, "flip"), SITE_OnActivate, selectionTransform, (APTR) 2);
+	SIT_AddCallback(SIT_GetById(diag, "mirror"), SITE_OnActivate, selectionTransform, (APTR) 3);
+	SIT_ManageWidget(diag);
+}
+
+/* copy selected blocks into a mini-map */
+Map selectionClone(vec4 pos, int side)
+{
+	if (globals.selPoints != 3)
+		return NULL;
+
+	Map map = globals.level;
+
+	if (pos)
+	{
+		selection.cloneSize[VX] = fabsf(selection.firstPt[VX] - selection.secondPt[VX]) + 1;
+		selection.cloneSize[VY] = fabsf(selection.firstPt[VY] - selection.secondPt[VY]) + 1;
+		selection.cloneSize[VZ] = fabsf(selection.firstPt[VZ] - selection.secondPt[VZ]) + 1;
+
+		selectionSetRect(SEL_POINT_CLONE);
+
+		if (! selection.editBrush)
+			selectionEditBrush(False);
 	}
 
 	if (selection.brush)
 	{
-		renderFreeMesh(selection.brush, False);
-		free(selection.brush);
+		if (pos) selectionSetClonePt(pos, side);
+		return selection.brush;
 	}
 
 	uint16_t sizes[] = {
@@ -773,17 +793,19 @@ Map selectionClone(APTR sitRoot, Map map, vec4 pos, int side)
 	if (pos)
 	{
 		selection.brush = brush;
+		globals.selPoints |= 8;
 		selectionSetClonePt(pos, side);
 	}
 	return brush;
 }
 
-Map selectionCopy(Map map)
+/* copy selection to library */
+Map selectionCopy(void)
 {
 	Map brush;
  	if (selection.brush)
  	{
-		map = selection.brush;
+		Map map = selection.brush;
 
 		/* copy blocks, but reuse mesh */
 		brush = selectionAllocBrush(map->size);
@@ -803,9 +825,57 @@ Map selectionCopy(Map map)
 	}
 	else /* create on the fly */
 	{
-		brush = selectionClone(NULL, map, NULL, 0);
+		brush = selectionClone(NULL, 0);
 	}
 	return brush;
+}
+
+/* copy library brush to selection */
+void selectionUseBrush(Map lib)
+{
+	Map brush = selectionAllocBrush(lib->size);
+
+	if (brush == NULL)
+		return;
+
+	ChunkData src, dst;
+	for (src = lib->firstVisible, dst = brush->firstVisible; src && dst; src = src->visible, dst = dst->visible)
+		memcpy(dst->blockIds, src->blockIds, SKYLIGHT_OFFSET);
+
+	Chunk chunk;
+	int chunksZ = (brush->size[VZ] + 15) >> 4;
+	int chunksX = (brush->size[VX] + 15) >> 4;
+	int x, y, z;
+	for (z = 0, chunk = brush->chunks; z < chunksZ; z ++)
+	{
+		for (x = 0; x < chunksX; x ++, chunk ++)
+		{
+			for (y = 0; y < chunk->maxy; y ++)
+			{
+				chunkUpdate(chunk, chunkAir, brush->chunkOffsets, y);
+				renderFinishMesh(brush, True);
+			}
+		}
+	}
+	renderAllocCmdBuffer(brush);
+
+	if (selection.brush)
+		selectionFreeBrush(selection.brush);
+
+	selection.brush = brush;
+	selection.autoMove = 1;
+
+	selection.cloneSize[VX] = lib->size[VX] - 2;
+	selection.cloneSize[VY] = lib->size[VY] - 2;
+	selection.cloneSize[VZ] = lib->size[VZ] - 2;
+
+	/* cancel selection */
+	if (globals.selPoints)
+		renderSetSelectionPoint(RENDER_SEL_CLEAR);
+
+	selectionSetRect(SEL_POINT_CLONE);
+	selectionEditBrush(True);
+	renderSetSelectionPoint(RENDER_SEL_AUTOMOVE);
 }
 
 
@@ -825,6 +895,7 @@ int selectionCancelClone(SIT_Widget w, APTR cd, APTR ud)
 		selection.editBrush = NULL;
 		ret = 1;
 	}
+	globals.selPoints &= ~8;
 	return ret;
 }
 
@@ -965,7 +1036,7 @@ static void selectionBrushRoll(void)
 
 	/* way too many things to relocate when doing in place modifications: WAY TOO MANY */
 	Map roll;
-	if (selection.direction[0] & 1)
+	if (globals.direction & 1)
 		roll = selectionAllocBrush((uint16_t[3]) {dx+2, dz+2, dy+2});
 	else
 		roll = selectionAllocBrush((uint16_t[3]) {dy+2, dx+2, dz+2});
@@ -974,7 +1045,7 @@ static void selectionBrushRoll(void)
 	dst.nbor = roll->chunkOffsets;
 
 	/* relocate blocks + data */
-	if (selection.direction[0] & 1)
+	if (globals.direction & 1)
 	{
 		int oz = 1, oy = 1;
 		fprintf(stderr, "roll on X axis\n");
@@ -1151,7 +1222,7 @@ static void selectionBrushMirror(void)
 	dy = brush->size[VY] - 2;
 	dz = brush->size[VZ] - 2;
 	/* mirror will be done perdendicular to camera viewing direction */
-	axisEW = (selection.direction[0] & 1) == 0;
+	axisEW = (globals.direction & 1) == 0;
 
 	struct BlockIter_t iterMIN;
 	struct BlockIter_t iterMAX;
@@ -1229,19 +1300,19 @@ static void selectionBrushMirror(void)
 /*
  * select similar blocks
  */
-void selectionAutoSelect(Map map, vec4 pos, APTR sitRoot, float scale)
+void selectionAutoSelect(vec4 pos, float scale)
 {
 	DATA8  visited = calloc(1, 4096); /* bitfield for a 32x32x32 area */
 	int8_t minMax[8];
 
 	/* work is done in mapUpdate.c because of that ring buffer */
-	mapUpdateFloodFill(map, pos, visited, minMax);
+	mapUpdateFloodFill(globals.level, pos, visited, minMax);
 	free(visited);
 
 	vec4 pt1 = {pos[VX] + minMax[VX],   pos[VY] + minMax[VY],   pos[VZ] + minMax[VZ]};
 	vec4 pt2 = {pos[VX] + minMax[VX+4], pos[VY] + minMax[VY+4], pos[VZ] + minMax[VZ+4]};
-	selectionSetPoint(sitRoot, scale, pt1, SEL_POINT_1);
-	selectionSetPoint(sitRoot, scale, pt2, SEL_POINT_2);
+	selectionSetPoint(scale, pt1, SEL_POINT_1);
+	selectionSetPoint(scale, pt2, SEL_POINT_2);
 }
 
 /*
@@ -1250,7 +1321,6 @@ void selectionAutoSelect(Map map, vec4 pos, APTR sitRoot, float scale)
 static struct
 {
 	DATA32 progress;
-	Map    map;
 	int    blockId;
 	int    side;
 	int    facing;
@@ -1274,7 +1344,7 @@ void selectionProcessFill(void * unused)
 	dy = selection.regionSize[VY];
 	dz = selection.regionSize[VZ];
 
-	map = selectionAsync.map;
+	map = globals.level;
 	blockId = selectionAsync.blockId;
 	mapInitIter(map, &iter, pos, blockId > 0);
 
@@ -1378,13 +1448,12 @@ void selectionProcessFill(void * unused)
 }
 
 /* this only starts selection processing */
-int selectionFill(Map map, DATA32 progress, int blockId, int side, int direction)
+int selectionFill(DATA32 progress, int blockId, int side, int direction)
 {
 	selectionAsync.progress = progress;
 	selectionAsync.blockId  = blockId;
 	selectionAsync.side     = side;
 	selectionAsync.facing   = direction;
-	selectionAsync.map      = map;
 	selectionAsync.cancel   = 0;
 
 	/* have to be careful with thread: don't call any opengl or SITGL function in them */
@@ -1462,7 +1531,7 @@ static void selectionProcessReplace(void * unsued)
 
 	MutexEnter(selection.wait);
 
-	map = selectionAsync.map;
+	map = globals.level;
 	replId = selectionAsync.replId;
 	blockId = selectionAsync.blockId;
 	mapInitIter(map, &iter, pos, blockId > 0);
@@ -1530,14 +1599,13 @@ static void selectionProcessReplace(void * unsued)
 }
 
 /* change one type of block with another */
-int selectionReplace(Map map, DATA32 progress, int blockId, int replId, int side, Bool doSimilar)
+int selectionReplace(DATA32 progress, int blockId, int replId, int side, Bool doSimilar)
 {
 	selectionAsync.progress = progress;
 	selectionAsync.blockId  = blockId;
 	selectionAsync.similar  = doSimilar;
 	selectionAsync.replId   = replId;
 	selectionAsync.side     = side;
-	selectionAsync.map      = map;
 	selectionAsync.cancel   = 0;
 
 	ThreadCreate(selectionProcessReplace, NULL);
@@ -1631,7 +1699,7 @@ static void selectionProcessShape(void * unused)
 
 	struct BlockIter_t iter;
 	MutexEnter(selection.wait);
-	mapInitIter(selectionAsync.map, &iter, pos, selectionAsync.blockId > 0);
+	mapInitIter(globals.level, &iter, pos, selectionAsync.blockId > 0);
 	mapUpdateInit(&iter);
 
 	switch (shape) {
@@ -1705,7 +1773,7 @@ static void selectionProcessShape(void * unused)
 					if (vox[VT] >= 1) continue;
 					if (hollow && isInsideShape(shape, vox, pos)) continue;
 				}
-				mapUpdate(selectionAsync.map, NULL, selectionAsync.blockId, NULL, UPDATE_SILENT);
+				mapUpdate(globals.level, NULL, selectionAsync.blockId, NULL, UPDATE_SILENT);
 				/* DEBUG: slow processing down */
 				// ThreadPause(500);
 			}
@@ -1719,13 +1787,12 @@ static void selectionProcessShape(void * unused)
 }
 
 /* start the thread that will do the job */
-int selectionFillWithShape(Map map, DATA32 progress, int blockId, int flags, vec4 size, int direction)
+int selectionFillWithShape(DATA32 progress, int blockId, int flags, vec4 size, int direction)
 {
 	selectionAsync.progress = progress;
 	selectionAsync.blockId  = blockId;
 	selectionAsync.similar  = flags;
 	selectionAsync.facing   = direction;
-	selectionAsync.map      = map;
 	selectionAsync.cancel   = 0;
 
 	memcpy(selectionAsync.size, size, 12);

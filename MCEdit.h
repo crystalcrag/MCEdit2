@@ -10,6 +10,7 @@
 #include "maps.h"
 #include "utils.h"
 #include "player.h"
+#include "globals.h"
 
 #define PREFS_PATH             "MCEdit.ini"
 
@@ -18,15 +19,12 @@ typedef struct GameState_t     GameState_t;
 struct GameState_t
 {
 	Player_t player;           /* current view */
-	APTR     app;              /* SIT_Widget */
-	Map      level;            /* current level being edited */
 	int      state;            /* event loop we currently are */
 	int      width, height;    /* screen size */
 	int      mouseX, mouseY;   /* current mouse pos */
 	int      exit;             /* managed by SITGL */
 	int      maxDist;          /* render distance in chunks */
 	uint8_t  forceSel;         /* don't display inventory item */
-	uint8_t  selection;        /* selection state: &1: first block selected, &2: second */
 	uint8_t  inEditBox;        /* edit box is active: restrict some kbd shortcut */
 	TEXT     capture[128];     /* screenshot directory */
 };

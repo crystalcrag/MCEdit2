@@ -8,7 +8,7 @@
 #ifndef MCLIBRARY_H
 #define MCLIBRARY_H
 
-void libraryCopySelection(APTR sitRoot, Map brush);
+void libraryCopySelection(Map brush);
 
 #ifdef MCLIBRARY_IMPL /* private stuff below */
 #include "NBT2.h"

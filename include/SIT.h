@@ -129,6 +129,7 @@ DLLIMP void       SIT_InsertDialog(SIT_Widget);
 
 DLLIMP Bool       SIT_ListSetCell(SIT_Widget, int row, int col, APTR rowTag, int align, STRPTR text);
 DLLIMP Bool       SIT_ListSetColumn(SIT_Widget, int col, int width, int align, STRPTR label);
+DLLIMP void       SIT_ListSetRowVisibility(SIT_Widget w, int row, Bool visible);
 
 DLLIMP STRPTR     SIT_GetFromClipboard(int * size);
 DLLIMP Bool       SIT_CopyToClipboard(STRPTR text, int size);

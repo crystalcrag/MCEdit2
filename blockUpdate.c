@@ -16,6 +16,7 @@
 #include "blockUpdate.h"
 #include "redstone.h"
 #include "entities.h"
+#include "globals.h"
 
 extern struct BlockSides_t blockSides; /* from blocks.c */
 static struct UpdatePrivate_t updates;
@@ -985,7 +986,7 @@ void updateRemove(ChunkData cd, int offset, int clearSorted)
 
 void updateAdd(BlockIter iter, int blockId, int nbTick)
 {
-	TileTick update = updateInsert(iter->cd, iter->offset, curTime + nbTick * (1000 / TICK_PER_SECOND));
+	TileTick update = updateInsert(iter->cd, iter->offset, globals.curTime + nbTick * (1000 / TICK_PER_SECOND));
 	update->blockId = blockId;
 
 	fprintf(stderr, "adding block update in %d tick at %d, %d, %d to %d:%d [%d]\n", nbTick,
@@ -993,9 +994,9 @@ void updateAdd(BlockIter iter, int blockId, int nbTick)
 }
 
 /* usually redstone devices (repeater, torch) update surrounding blocks after a delay */
-void updateTick(Map map)
+void updateTick(void)
 {
-	int i, time = curTime, count;
+	int i, time = globals.curTime, count;
 	/* more tile ticks can be added while scanning this list */
 	for (i = 0, count = updates.count; i < count; )
 	{
@@ -1012,7 +1013,7 @@ void updateTick(Map map)
 		updates.start ++;
 
 		i ++;
-		mapUpdate(map, pos, list->blockId, NULL, i == count || updates.list[updates.sorted[i]].tick > time);
+		mapUpdate(globals.level, pos, list->blockId, NULL, i == count || updates.list[updates.sorted[i]].tick > time);
 		updateRemove(cd, list->offset, 0);
 	}
 	if (i > 0)
@@ -1024,10 +1025,11 @@ void updateTick(Map map)
 }
 
 /* entity animation done (typical: piston and blocks moved in the process) */
-void updateFinished(Map map, DATA8 tile, vec4 dest)
+void updateFinished(DATA8 tile, vec4 dest)
 {
 	NBTFile_t nbt = {.mem = tile};
 	NBTIter_t iter;
+	Map       map = globals.level;
 	float     src[3];
 	int       blockId, i;
 	uint8_t   flags = 0;

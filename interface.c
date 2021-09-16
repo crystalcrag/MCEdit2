@@ -19,6 +19,7 @@
 #include "render.h"
 #include "player.h"
 #include "sign.h"
+#include "globals.h"
 
 static struct MCInterface_t mcui;
 static struct MCInventory_t selfinv = {.invRow = 3, .invCol = MAXCOLINV, .groupId = 1, .itemsNb = MAXCOLINV * 3};
@@ -29,9 +30,9 @@ static int category[] = {BUILD, DECO, REDSTONE, CROPS, RAILS, 0};
  * before displaying a user interface, take a snapshot of current framebuffer and
  * use this as a background: prevent from continuously rendering the same frame
  */
-void mcuiTakeSnapshot(SIT_Widget app, int width, int height)
+void mcuiTakeSnapshot(int width, int height)
 {
-	SIT_GetValues(app, SIT_NVGcontext, &mcui.nvgCtx, NULL);
+	SIT_GetValues(globals.app, SIT_NVGcontext, &mcui.nvgCtx, NULL);
 	if (mcui.glBack == 0)
 		glGenTextures(1, &mcui.glBack);
 
@@ -51,13 +52,12 @@ void mcuiTakeSnapshot(SIT_Widget app, int width, int height)
 	if (mcui.nvgImage == 0)
 		mcui.nvgImage = nvgCreateImage(mcui.nvgCtx, (const char *) mcui.glBack, NVG_IMAGE_FLIPY | NVG_IMAGE_GLTEX);
 
-	mcui.app = app;
 	mcui.width = width;
 	mcui.height = height;
 
 	TEXT style[32];
 	sprintf(style, "background: id(%d)", mcui.nvgImage);
-	SIT_SetValues(app, SIT_Style|XfMt, style, NULL);
+	SIT_SetValues(globals.app, SIT_Style|XfMt, style, NULL);
 }
 
 /*
@@ -288,8 +288,8 @@ static void mcuiGrabAllItems(MCInventory inv, int index)
 	if (inv->movable & INV_PICK_ONLY)
 		return;
 
-	double curTime = FrameGetTime();
-	if (lastSlot == index && curTime - lastClick < 500)
+	double timeMS = FrameGetTime();
+	if (lastSlot == index && timeMS - lastClick < 500)
 	{
 		//uint8_t groupId = inv->groupId;
 		Item item, end;
@@ -302,7 +302,7 @@ static void mcuiGrabAllItems(MCInventory inv, int index)
 		}
 	}
 	lastSlot = index;
-	lastClick = curTime;
+	lastClick = timeMS;
 }
 
 
@@ -717,7 +717,7 @@ void mcuiCreateInventory(Inventory player)
 	if (mcui.cellSz * (6 + 3 + 2 + 3) > mcui.height)
 		mcui.cellSz = mcui.height / (6 + 3 + 2 + 2 + 3);
 
-	SIT_Widget diag = SIT_CreateWidget("inventory", SIT_DIALOG + SIT_EXTRA(itemGetInventoryByCat(NULL, 0) * sizeof (ItemBuf)), mcui.app,
+	SIT_Widget diag = SIT_CreateWidget("inventory", SIT_DIALOG + SIT_EXTRA(itemGetInventoryByCat(NULL, 0) * sizeof (ItemBuf)), globals.app,
 		SIT_DialogStyles, SITV_Plain | SITV_Modal,
 		NULL
 	);
@@ -847,7 +847,7 @@ void mcuiEditChestInventory(Inventory player, Item items, int count)
 	if (mcui.cellSz * (3 + 3 + 2) > mcui.height)
 		mcui.cellSz = mcui.height / (3 + 3 + 2);
 
-	SIT_Widget diag = SIT_CreateWidget("container", SIT_DIALOG, mcui.app,
+	SIT_Widget diag = SIT_CreateWidget("container", SIT_DIALOG, globals.app,
 		SIT_DialogStyles, SITV_Plain | SITV_Modal,
 		NULL
 	);
@@ -923,9 +923,9 @@ static int mcuiFontSize(SIT_Widget app, DATA8 text, int maxWidth, int fontSize)
 	return fontSize * maxWidth / textWidth;
 }
 
-void mcuiCreateSignEdit(Map map, vec4 pos, int blockId, int * exit)
+void mcuiCreateSignEdit(vec4 pos, int blockId, int * exit)
 {
-	SIT_Widget diag = SIT_CreateWidget("sign", SIT_DIALOG, mcui.app,
+	SIT_Widget diag = SIT_CreateWidget("sign", SIT_DIALOG, globals.app,
 		SIT_DialogStyles, SITV_Plain | SITV_Modal,
 		NULL
 	);
@@ -939,7 +939,7 @@ void mcuiCreateSignEdit(Map map, vec4 pos, int blockId, int * exit)
 	signText = STRDUPA(styles);
 
 	memcpy(mcui.signPos, pos, sizeof mcui.signPos);
-	mcui.signChunk = mapGetChunk(map, pos);
+	mcui.signChunk = mapGetChunk(globals.level, pos);
 	mcui.exitCode = exit;
 
 	if (uv[0] > uv[2]) swap(uv[0], uv[2]);
@@ -949,7 +949,7 @@ void mcuiCreateSignEdit(Map map, vec4 pos, int blockId, int * exit)
 	int height = mcui.height / 4;
 	int width  = height * (uv[2] - uv[0]) / (uv[3] - uv[1]);
 	int image  = renderGetTerrain(sz);
-	int fontsz = mcuiFontSize(mcui.app, signText, width, (height - height / 10) / 4);
+	int fontsz = mcuiFontSize(globals.app, signText, width, (height - height / 10) / 4);
 	height = (fontsz * 4) * 14 / 10 + 20;
 	width += 20;
 	int fullw  = sz[0] * width  / (uv[2] - uv[0]);
@@ -984,9 +984,9 @@ static int mcuiGetCoord(SIT_Widget w, APTR cd, APTR ud)
 	return 1;
 }
 
-void mcuiGoto(SIT_Widget parent, vec4 pos)
+void mcuiGoto(vec4 pos)
 {
-	SIT_Widget diag = SIT_CreateWidget("goto.bg", SIT_DIALOG, parent,
+	SIT_Widget diag = SIT_CreateWidget("goto.bg", SIT_DIALOG, globals.app,
 		SIT_DialogStyles, SITV_Plain | SITV_Movable,
 		NULL
 	);
@@ -1076,9 +1076,9 @@ static int mcuiExitWnd(SIT_Widget w, APTR cd, APTR ud)
 	return 1;
 }
 
-void mcuiAnalyze(SIT_Widget parent, Map map)
+void mcuiAnalyze(void)
 {
-	SIT_Widget diag = SIT_CreateWidget("analyze.bg", SIT_DIALOG, parent,
+	SIT_Widget diag = SIT_CreateWidget("analyze.bg", SIT_DIALOG, globals.app,
 		SIT_DialogStyles, SITV_Plain | SITV_Modal | SITV_Movable,
 		NULL
 	);
@@ -1108,14 +1108,38 @@ void mcuiAnalyze(SIT_Widget parent, Map map)
 
 	int * statistics = calloc(blockLast - blockStates, sizeof (int));
 	struct BlockIter_t iter;
-	for (mapInitIter(map, &iter, pos, False); dy > 0; dy --)
+	for (mapInitIter(globals.level, &iter, pos, False); dy > 0; dy --)
 	{
 		for (j = 0; j < dz; j ++, mapIter(&iter, -dx, 0, 1))
 		{
 			for (i = 0; i < dx; i ++, mapIter(&iter, 1, 0, 0))
 			{
 				BlockState b = blockGetById(getBlockId(&iter));
-				if (b->inventory == 0) continue;
+				if (b->inventory == 0)
+				{
+					uint8_t data = b->id & 15;
+					/* check if we can use alternative block state */
+					switch (blockIds[iter.blockIds[iter.offset]].orientHint) {
+					case ORIENT_LOG:
+						if (4 <= data && data < 12) b -= data & ~3;
+						break;
+					case ORIENT_SLAB:
+						b -= data & ~7;
+						break;
+					case ORIENT_SNOW:
+						b -= data;
+						break;
+					case ORIENT_SWNE:
+						b -= data & 3;
+						break;
+					case ORIENT_DOOR:
+						if (data >= 8) continue;
+						b -= data;
+						break;
+					case ORIENT_BED:
+						b -= data;
+					}
+				}
 				statistics[b - blockStates] ++;
 			}
 		}
@@ -1126,12 +1150,20 @@ void mcuiAnalyze(SIT_Widget parent, Map map)
 	{
 		if (statistics[i] == 0) continue;
 		dx += statistics[i];
-		TEXT count[16];
-		TEXT id[16];
+		STRPTR desc;
+		TEXT   count[16];
+		TEXT   id[16];
+		int    itemId;
 		BlockState b = blockStates + i;
 		sprintf(count, "%d", statistics[i]);
-		sprintf(id, "%d:%d", b->id >> 4, b->id & 15);
-		SIT_ListInsertItem(w, -1, (APTR) (int) b->id, "", count, b->name, id);
+		itemId = b->id;
+		desc   = b->name;
+		if (b->inventory == 0)
+			/* check if there is an item that generate these type of block */
+			itemId = itemCanCreateBlock(itemId, &desc);
+
+		sprintf(id, "%d:%d", itemId >> 4, itemId & 15);
+		SIT_ListInsertItem(w, -1, (APTR) itemId, "", count, desc, id);
 	}
 	free(statistics);
 	SIT_ListReorgColumns(w, "**-*");
@@ -1173,7 +1205,7 @@ static struct
 	int         isHollow;
 	int         shape;
 	int         outerArea;
-	int         useHalfBlock;
+	int         fillAir;
 	int         axisCylinder;
 	vec4        size;
 	SIT_Widget  XYZ[3];
@@ -1227,19 +1259,19 @@ static int mcuiFillCheckProgress(SIT_Widget w, APTR cd, APTR ud)
 		/* will cancel the timer */
 		return -1;
 	}
-	double curTime = FrameGetTime();
-	if (curTime - mcuiRepWnd.processStart > 250)
+	double timeMS = FrameGetTime();
+	if (timeMS - mcuiRepWnd.processStart > 250)
 	{
 		/* wait a bit before showing/updating progress bar */
 		SIT_SetValues(mcuiRepWnd.prog, SIT_Visible, True, SIT_ProgressPos, (int)
 			(uint64_t) mcuiRepWnd.processCurrent * 100 / mcuiRepWnd.processTotal, NULL);
-		mcuiRepWnd.processStart = curTime;
+		mcuiRepWnd.processStart = timeMS;
 	}
 	return 0;
 }
 
 /* OnActivate on fill button */
-static int mcuiFillBlocks(SIT_Widget w, APTR cd, APTR map)
+static int mcuiFillBlocks(SIT_Widget w, APTR cd, APTR ud)
 {
 	/* these functions will start a thread: processing the entire selection can be long, so don't hang the interface in the meantime */
 	int block = mcuiRepWnd.invFill->items->id;
@@ -1248,24 +1280,24 @@ static int mcuiFillBlocks(SIT_Widget w, APTR cd, APTR map)
 	{
 		/* geometric brush fill */
 		int shape = mcuiRepWnd.shape | (1 << (mcuiRepWnd.axisCylinder + 8));
-		if (mcuiRepWnd.isHollow)     shape |= SHAPE_HOLLOW;
-		if (mcuiRepWnd.useHalfBlock) shape |= SHAPE_HALFSLAB;
-		if (mcuiRepWnd.outerArea)    shape |= SHAPE_OUTER;
-		mcuiRepWnd.processTotal = selectionFillWithShape(map, &mcuiRepWnd.processCurrent, block, shape,
-			mcuiRepWnd.size, renderGetFacingDirection());
+		if (mcuiRepWnd.isHollow)  shape |= SHAPE_HOLLOW;
+		if (mcuiRepWnd.fillAir)   shape |= SHAPE_FILLAIR;
+		if (mcuiRepWnd.outerArea) shape |= SHAPE_OUTER;
+		mcuiRepWnd.processTotal = selectionFillWithShape(&mcuiRepWnd.processCurrent, block, shape,
+			mcuiRepWnd.size, globals.direction);
 	}
 	else if (! mcuiRepWnd.doReplace)
 	{
 		/* fill entire selection */
-		mcuiRepWnd.processTotal = selectionFill(map, &mcuiRepWnd.processCurrent, block, mcuiRepWnd.side, renderGetFacingDirection());
+		mcuiRepWnd.processTotal = selectionFill(&mcuiRepWnd.processCurrent, block, mcuiRepWnd.side, globals.direction);
 	}
-	else mcuiRepWnd.processTotal = selectionReplace(map, &mcuiRepWnd.processCurrent, block, mcuiRepWnd.invRepl->items->id, mcuiRepWnd.side, mcuiRepWnd.doSimilar);
+	else mcuiRepWnd.processTotal = selectionReplace(&mcuiRepWnd.processCurrent, block, mcuiRepWnd.invRepl->items->id, mcuiRepWnd.side, mcuiRepWnd.doSimilar);
 
 	/* better not to click twice on this button */
 	SIT_SetValues(w, SIT_Enabled, False, NULL);
 
 	/* this function will monitor the thread progress */
-	mcuiRepWnd.asyncCheck = SIT_ActionAdd(w, mcuiRepWnd.processStart = curTime, curTime + 1e9, mcuiFillCheckProgress, map);
+	mcuiRepWnd.asyncCheck = SIT_ActionAdd(w, mcuiRepWnd.processStart = globals.curTime, globals.curTime + 1e9, mcuiFillCheckProgress, NULL);
 
 	renderAddModif();
 
@@ -1344,12 +1376,12 @@ static int mcuiFillStop(SIT_Widget w, APTR cd, APTR ud)
 		SIT_ActionReschedule(mcuiRepWnd.asyncCheck, -1, -1);
 		mcuiRepWnd.asyncCheck = NULL;
 		/* show what's been modified */
-		mapUpdateEnd(ud);
+		mapUpdateEnd(globals.level);
 	}
 	return 1;
 }
 
-void mcuiFillOrReplace(SIT_Widget parent, Map map, Bool fillWithBrush)
+void mcuiFillOrReplace(Bool fillWithBrush)
 {
 	static struct MCInventory_t mcinv   = {.invRow = 6, .invCol = MAXCOLINV, .movable = INV_PICK_ONLY};
 	static struct MCInventory_t fillinv = {.invRow = 1, .invCol = 1, .groupId = 1, .itemsNb = 1, .movable = INV_SINGLE_DROP};
@@ -1360,9 +1392,9 @@ void mcuiFillOrReplace(SIT_Widget parent, Map map, Bool fillWithBrush)
 	mcui.cellSz = roundf(mcui.width * 17 * ITEMSCALE / (3 * 182.));
 
 	/* if the interface is stopped early, we need to be notified */
-	SIT_AddCallback(parent, SITE_OnFinalize, mcuiFillStop, map);
+	SIT_AddCallback(globals.app, SITE_OnFinalize, mcuiFillStop, NULL);
 
-	SIT_Widget diag = SIT_CreateWidget("fillblock.bg", SIT_DIALOG + SIT_EXTRA((blockLast - blockStates) * sizeof (ItemBuf)), parent,
+	SIT_Widget diag = SIT_CreateWidget("fillblock.bg", SIT_DIALOG + SIT_EXTRA((blockLast - blockStates) * sizeof (ItemBuf)), globals.app,
 		SIT_DialogStyles, SITV_Plain | SITV_Modal | SITV_Movable,
 		SIT_Style,        "padding-top: 0.2em",
 		NULL
@@ -1392,17 +1424,16 @@ void mcuiFillOrReplace(SIT_Widget parent, Map map, Bool fillWithBrush)
 		TEXT cylinder[32];
 		vec points = selectionGetPoints();
 		vec size   = mcuiRepWnd.size;
-		int dir    = renderGetFacingDirection();
 		size[0] = (int) fabsf(points[VX] - points[VX+4]) + 1;
 		size[1] = (int) fabsf(points[VZ] - points[VZ+4]) + 1;
 		size[2] = (int) fabsf(points[VY] - points[VY+4]) + 1;
-		if (dir & 1)
+		if (globals.direction & 1)
 		{
 			float tmp = size[0];
 			size[0] = size[1];
 			size[1] = tmp;
 		}
-		mcuiRepWnd.axisCylinder = selectionCylinderAxis(size, dir);
+		mcuiRepWnd.axisCylinder = selectionCylinderAxis(size, globals.direction);
 		sprintf(cylinder, "Cylinder (%c)", "WLH"[mcuiRepWnd.axisCylinder]);
 
 		SIT_CreateWidgets(diag,
@@ -1416,10 +1447,10 @@ void mcuiFillOrReplace(SIT_Widget parent, Map map, Bool fillWithBrush)
 
 			"<button name=outside title='Fill outer area' curValue=", &mcuiRepWnd.outerArea, "buttonType=", SITV_CheckBox,
 			" left=WIDGET,shape1,1em top=OPPOSITE,fill>"
-			"<button name=half title='Half-block' curValue=", &mcuiRepWnd.useHalfBlock, "buttonType=", SITV_CheckBox,
-			" left=WIDGET,shape1,1em top=WIDGET,outside,0.3em>"
 			"<button name=hollow curValue=", &mcuiRepWnd.isHollow, "buttonType=", SITV_CheckBox, "title=Hollow"
-			" left=WIDGET,shape1,1em top=WIDGET,half,0.3em>"
+			" left=WIDGET,shape1,1em top=WIDGET,outside,0.3em>"
+			"<button name=half title='Fill with air' tooltip='Only if hollow' curValue=", &mcuiRepWnd.fillAir, "buttonType=", SITV_CheckBox,
+			" left=WIDGET,shape1,1em top=WIDGET,hollow,0.3em>"
 
 			"<frame name=title2 title='<b>Size:</b> (clipped by selection)' left=FORM right=FORM top=WIDGET,shape3,0.5em/>"
 			"<label name=label2.big title=W: right=WIDGET,fill,0.5em>"
@@ -1477,9 +1508,9 @@ void mcuiFillOrReplace(SIT_Widget parent, Map map, Bool fillWithBrush)
 	mcuiRepWnd.processTotal = 0;
 
 	mcuiFillSyncRadioSide();
-	SIT_AddCallback(SIT_GetById(diag, "cancel"), SITE_OnActivate, mcuiFillStop, map);
+	SIT_AddCallback(SIT_GetById(diag, "cancel"), SITE_OnActivate, mcuiFillStop, NULL);
 	SIT_AddCallback(SIT_GetById(diag, "doreplace"), SITE_OnActivate, mcuiFillShowAction, NULL);
-	SIT_AddCallback(mcuiRepWnd.accept,  SITE_OnActivate, mcuiFillBlocks, map);
+	SIT_AddCallback(mcuiRepWnd.accept,  SITE_OnActivate, mcuiFillBlocks, NULL);
 	SIT_AddCallback(mcuiRepWnd.fill,    SITE_OnChange,   mcuiCheckForSlab, 0);
 	SIT_AddCallback(mcuiRepWnd.replace, SITE_OnChange,   mcuiCheckForSlab, (APTR) 1);
 
@@ -1539,8 +1570,8 @@ static int mcuiDeleteProgress(SIT_Widget w, APTR cd, APTR ud)
 		/* will cancel the timer */
 		return -1;
 	}
-	double curTime = FrameGetTime();
-	if (curTime - mcuiRepWnd.processStart > 250)
+	double timeMS = FrameGetTime();
+	if (timeMS - mcuiRepWnd.processStart > 250)
 	{
 		if (mcuiRepWnd.replace == NULL)
 		{
@@ -1555,28 +1586,28 @@ static int mcuiDeleteProgress(SIT_Widget w, APTR cd, APTR ud)
 			);
 			mcuiRepWnd.replace = dialog;
 			mcuiRepWnd.prog = SIT_GetById(dialog, "prog");
-			SIT_AddCallback(SIT_GetById(dialog, "cancel"), SITE_OnActivate, mcuiFillStop, ud);
+			SIT_AddCallback(SIT_GetById(dialog, "cancel"), SITE_OnActivate, mcuiFillStop, NULL);
 			SIT_ManageWidget(dialog);
 		}
 		/* show a progress bar dialog and a way to cancel the action */
 		SIT_SetValues(mcuiRepWnd.prog, SIT_ProgressPos, (int)
 			(uint64_t) mcuiRepWnd.processCurrent * 100 / mcuiRepWnd.processTotal, NULL);
-		mcuiRepWnd.processStart = curTime;
+		mcuiRepWnd.processStart = timeMS;
 	}
 	return 0;
 }
 
-void mcuiDeleteAll(SIT_Widget parent, Map map)
+void mcuiDeleteAll(void)
 {
 	/* delete all the blocks and entities in the selection */
 	mcuiRepWnd.processCurrent = 0;
 	mcuiRepWnd.replace = NULL;
-	mcuiRepWnd.processTotal = selectionFill(map, &mcuiRepWnd.processCurrent, 0, 0, 0);
+	mcuiRepWnd.processTotal = selectionFill(&mcuiRepWnd.processCurrent, 0, 0, 0);
 	renderAddModif();
 
 	/* if the interface is stopped early, we need to be notified */
-	SIT_AddCallback(parent, SITE_OnFinalize, mcuiFillStop, map);
+	SIT_AddCallback(globals.app, SITE_OnFinalize, mcuiFillStop, NULL);
 
 	/* this function will monitor the thread progress */
-	mcuiRepWnd.asyncCheck = SIT_ActionAdd(parent, mcuiRepWnd.processStart = curTime, curTime + 1e9, mcuiDeleteProgress, map);
+	mcuiRepWnd.asyncCheck = SIT_ActionAdd(globals.app, mcuiRepWnd.processStart = globals.curTime, globals.curTime + 1e9, mcuiDeleteProgress, NULL);
 }

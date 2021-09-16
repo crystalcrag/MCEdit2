@@ -10,22 +10,24 @@
 #include "maps.h"
 #include "SIT.h"
 
-void selectionInitStatic(int shader, DATA8 direction);
-void selectionSetPoint(APTR sitRoot, float scale, vec4 pos, int point);
+void selectionInitStatic(int shader);
+void selectionSetPoint(float scale, vec4 pos, int point);
 void selectionSetSize(void);
 void selectionRender(void);
 void selectionCancel(void);
 void selectionCancelOperation(void);
 vec  selectionGetPoints(void);
+int  selectionHasPoints(void);
 Map  selectionHasClone(void);
 Bool selectionProcessKey(int key, int mod);
-void selectionAutoSelect(Map map, vec4 pos, APTR sitRoot, float scale);
-int  selectionFill(Map map, DATA32 progress, int blockId, int side, int direction);
-int  selectionReplace(Map map, DATA32 progress, int blockId, int replId, int side, Bool doSimilar);
-int  selectionFillWithShape(Map map, DATA32 progress, int blockId, int shape, vec4 size, int direction);
+void selectionAutoSelect(vec4 pos, float scale);
+int  selectionFill(DATA32 progress, int blockId, int side, int direction);
+int  selectionReplace(DATA32 progress, int blockId, int replId, int side, Bool doSimilar);
+int  selectionFillWithShape(DATA32 progress, int blockId, int shape, vec4 size, int direction);
 int  selectionCylinderAxis(vec4 size, int direction);
-Map  selectionClone(APTR sitRoot, Map map, vec4 toPos, int side);
-Map  selectionCopy(Map map);
+Map  selectionClone(vec4 toPos, int side);
+Map  selectionCopy(void);
+void selectionUseBrush(Map brush);
 void selectionSetClonePt(vec4 pos, int side);
 int  selectionCancelClone(SIT_Widget w, APTR cd, APTR ud);
 void selectionFreeBrush(Map brush);
@@ -39,7 +41,7 @@ enum /* flags for <shape> parameter of function selectionFillWithShape() */
 	/* these flags can be or'ed */
 	SHAPE_HOLLOW   = 0x10,
 	SHAPE_OUTER    = 0x20,
-	SHAPE_HALFSLAB = 0x40,
+	SHAPE_FILLAIR  = 0x40,
 
 	/* used by cylinder shape */
 	SHAPE_AXIS_W   = 0x100,
@@ -51,6 +53,7 @@ enum /* special values for <side> parameter of selectionSetClonePt() */
 {
 	SEL_CLONEPT_IS_SET  = -1,  /* no need to reset clonePt[] */
 	SEL_CLONEOFF_IS_SET = -2,  /* no need to reset editbox offset */
+	SEL_CLONEMOVE_STOP  = 128  /* stop clone selection from following mouse */
 };
 
 enum /* selection pointId */
@@ -73,9 +76,9 @@ struct Selection_t
 	int      vboVertex;
 	int      vboIndex;
 	int      vboLOC;
-	uint8_t  hasPoint;         /* &1: first point set, &2: second point set */
 	uint8_t  nudgePoint;       /* which point is being held in the nudge window */
 	uint8_t  nudgeStep;
+	uint8_t  autoMove;         /* clone selection follows mouse */
 	Mutex    wait;             /* used by asynchronous actions (fill/replace/brush) */
 	vec4     firstPt;          /* coord in world space */
 	vec4     secondPt;
@@ -94,7 +97,6 @@ struct Selection_t
 	APTR     nudgeSize;        /* SIT_LABEL */
 	APTR     brushOff[3];      /* SIT_EDITBOX */
 	Map      brush;            /* mesh for cloned selection */
-	DATA8    direction;        /* from render.c: used by selection nudge */
 };
 
 #define MAX_REPEAT             128

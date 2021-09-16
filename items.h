@@ -31,6 +31,7 @@ float    itemDurability(Item);
 STRPTR   itemGetTechName(int id, STRPTR out, int max);
 void     itemDecodeEnchants(DATA8 nbt, STRPTR title, int max);
 int      itemGetInventoryByCat(Item buffer, int cat);
+int      itemCanCreateBlock(int blockId, STRPTR * name);
 
 struct Item_t              /* for rendering */
 {
@@ -53,7 +54,7 @@ struct ItemDesc_t          /* from itemTable.js */
 	uint8_t  texV;
 	uint16_t next;
 	uint16_t durability;
-	uint16_t refBlock;     /* blockId+meta this item is for */
+	uint16_t refBlock;     /* blockId this item is for */
 	STRPTR   tech;         /* technical name */
 	STRPTR   tile;
 	uint16_t glInvId;      /* vbo slot for inventory */

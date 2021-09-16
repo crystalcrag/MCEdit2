@@ -21,9 +21,9 @@
 #include "entities.h"
 #include "nanovg.h"
 #include "SIT.h"
+#include "globals.h"
 
 struct RenderWorld_t render;
-extern double        curTime;
 static ListHead      meshBanks;    /* MeshBuffer */
 static ListHead      alphaBanks;   /* MeshBuffer */
 
@@ -102,7 +102,7 @@ static void renderSelection(void)
 
 		struct BlockOrient_t info = {
 			.pointToId = render.selection.extra.blockId,
-			.direction = render.direction,
+			.direction = globals.direction,
 			.side      = render.selection.extra.side,
 			.topHalf   = render.selection.extra.topHalf,
 			.yaw       = render.yaw
@@ -121,7 +121,7 @@ static void renderSelection(void)
 				loc[0] = render.selection.current[0] + offset[0];
 				loc[1] = render.selection.current[1] - 1;
 				loc[2] = render.selection.current[2] + offset[2];
-				if (! blockIsSolidSide(mapGetBlockId(render.level, loc, NULL), SIDE_TOP) /* || info.pointToId != 0*/)
+				if (! blockIsSolidSide(mapGetBlockId(globals.level, loc, NULL), SIDE_TOP) /* || info.pointToId != 0*/)
 				{
 					render.selection.sel |= SEL_NOCURRENT;
 					return;
@@ -132,7 +132,7 @@ static void renderSelection(void)
 				loc[0] = render.selection.current[0] + offset[0];
 				loc[1] = render.selection.current[1] + offset[1];
 				loc[2] = render.selection.current[2] + offset[2];
-				if (mapGetBlockId(render.level, loc, NULL) != 0)
+				if (mapGetBlockId(globals.level, loc, NULL) != 0)
 				{
 					render.selection.sel |= SEL_NOCURRENT;
 					return;
@@ -282,11 +282,20 @@ int renderSetSelectionPoint(int action)
 	case RENDER_SEL_AUTO:
 		if (render.selection.sel & SEL_CURRENT)
 		{
-			selectionAutoSelect(render.level, render.selection.current, render.sitRoot, render.scale);
+			selectionAutoSelect(render.selection.current, render.scale);
 			render.selection.sel |= SEL_FIRST|SEL_SECOND;
 			render.invCache ++;
 			return 3;
 		}
+		break;
+
+	case RENDER_SEL_AUTOMOVE:
+		render.debugInfo |= DEBUG_SELECTION;
+		render.selection.sel |= SEL_MOVE;
+		break;
+
+	case RENDER_SEL_STOPMOVE:
+		render.selection.sel &= ~SEL_MOVE;
 		break;
 
 	case RENDER_SEL_ADDPT:
@@ -297,12 +306,12 @@ int renderSetSelectionPoint(int action)
 
 		if ((render.inventory->offhand & PLAYER_ALTPOINT) == 0)
 		{
-			selectionSetPoint(render.sitRoot, render.scale, render.selection.current, SEL_POINT_1);
+			selectionSetPoint(render.scale, render.selection.current, SEL_POINT_1);
 			render.selection.sel |= SEL_FIRST;
 		}
 		else
 		{
-			selectionSetPoint(render.sitRoot, render.scale, render.selection.current, SEL_POINT_2);
+			selectionSetPoint(render.scale, render.selection.current, SEL_POINT_2);
 			render.selection.sel |= SEL_SECOND;
 		}
 		if ((render.selection.sel & SEL_BOTH) == SEL_BOTH);
@@ -320,11 +329,11 @@ void renderPointToBlock(int mx, int my)
 {
 	if (mx < 0) mx = render.mouseX, my = render.mouseY;
 
-	/* hovering toolbar slot: show tooltip of item in slot */
 	vec4 dir = {render.inventory->x - 26 * render.scale, render.height - 22 * render.scale, 208 * render.scale};
 
 	if (dir[VX] <= mx && mx <= dir[VX] + dir[2] && my > dir[VY])
 	{
+		/* hovering toolbar slot: show tooltip of item in slot */
 		Item hover;
 		int  item;
 		if (mx >= render.inventory->x)
@@ -390,10 +399,13 @@ void renderPointToBlock(int mx, int my)
 
 		/* XXX why is the yaw/pitch ray picking off compared to a MVP matrix ??? */
 		//if (mapPointToBlock(render.level, render.camera, &render.yaw, NULL, render.selection.current, &render.selection.extra))
-		if (mapPointToBlock(render.level, render.camera, NULL, dir, render.selection.current, &render.selection.extra))
+		if (mapPointToBlock(globals.level, render.camera, NULL, dir, render.selection.current, &render.selection.extra))
 			render.selection.sel |= SEL_CURRENT;
 		else
 			render.selection.sel &= ~(SEL_CURRENT | SEL_NOCURRENT);
+
+		if (render.selection.sel & SEL_MOVE)
+			selectionSetClonePt(render.selection.current, render.selection.extra.side);
 	}
 
 	render.mouseX = mx;
@@ -470,7 +482,7 @@ int renderInitUBO(void)
 }
 
 /* init static tables and objects */
-Bool renderInitStatic(int width, int height, APTR sitRoot)
+Bool renderInitStatic(int width, int height)
 {
 	vec4 lightPos = {0, 1, 1, 1};
 
@@ -511,7 +523,7 @@ Bool renderInitStatic(int width, int height, APTR sitRoot)
 	blockParseBoundingBox();
 	blockParseInventory(render.vboInventory);
 	particlesInit(render.vboParticles);
-	selectionInitStatic(render.selection.shader, &render.direction);
+	selectionInitStatic(render.selection.shader);
 	if (! entityInitStatic())
 		return False;
 
@@ -606,15 +618,14 @@ Bool renderInitStatic(int width, int height, APTR sitRoot)
 	glBindBufferBase(GL_UNIFORM_BUFFER, UBO_BUFFER_INDEX, render.uboShader);
 
 	/* HUD resources */
-	SIT_GetValues(sitRoot, SIT_NVGcontext, &render.nvgCtx, NULL);
-	render.sitRoot = sitRoot;
+	SIT_GetValues(globals.app, SIT_NVGcontext, &render.nvgCtx, NULL);
 	render.compass = nvgCreateImage(render.nvgCtx, RESDIR INTERFACE "compass.png", 0);
 	render.debugFont = nvgFindFont(render.nvgCtx, "sans-serif"); /* created by SITGL */
 	render.nvgTerrain = nvgCreateImage(render.nvgCtx, (APTR) render.texBlock, NVG_IMAGE_NEAREST | NVG_IMAGE_GLTEX);
 
 	/* scale of inventory items (182 = px width of inventory bar) */
 	render.scale = render.width / (3 * 182.) * ITEMSCALE;
-	SIT_AddCallback(sitRoot, SITE_OnResize, renderGetSize, NULL);
+	SIT_AddCallback(globals.app, SITE_OnResize, renderGetSize, NULL);
 
 	/* will need to measure some stuff before hand */
 	return signInitStatic(render.nvgCtx, render.debugFont);
@@ -630,7 +641,6 @@ void renderSetInventory(Inventory inventory)
 
 void renderSetCompassOffset(float offset)
 {
-	fprintf(stderr, "offset = %g\n", offset);
 	render.compassOffset = offset > 0 ? render.width - offset : 0;
 }
 
@@ -668,15 +678,14 @@ static void renderPickup(void)
 
 Map renderInitWorld(STRPTR path, int renderDist)
 {
-	render.level = mapInitFromPath(path, renderDist);
-	if (render.level)
+	Map ret = mapInitFromPath(path, renderDist);
+	if (ret)
 	{
 		render.debug = 0;
-		render.camera[VX] = render.level->cx;
-		render.camera[VY] = render.level->cy + PLAYER_HEIGHT;
-		render.camera[VZ] = render.level->cz;
-
-		return render.level;
+		render.camera[VX] = ret->cx;
+		render.camera[VY] = ret->cy + PLAYER_HEIGHT;
+		render.camera[VZ] = ret->cz;
+		return ret;
 	}
 	return NULL;
 }
@@ -695,7 +704,7 @@ void renderDebugBlock(void)
 	if (render.selection.extra.entity > 0)
 		entityDebug(render.selection.extra.entity);
 	else
-		debugBlockVertex(render.level, &render.selection);
+		debugBlockVertex(&render.selection);
 	#endif
 }
 
@@ -713,7 +722,7 @@ void renderSetViewMat(vec4 pos, vec4 lookat, float * yawPitch)
 	render.camera[VY] = pos[VY] + PLAYER_HEIGHT;
 	render.camera[VZ] = pos[VZ];
 
-	mapMoveCenter(render.level, old, render.camera);
+	mapMoveCenter(globals.level, old, render.camera);
 
 	matLookAt(render.matModel, render.camera, lookat, (float[3]) {0, 1, 0});
 	/* must be same as the one used in the vertex shader */
@@ -724,15 +733,15 @@ void renderSetViewMat(vec4 pos, vec4 lookat, float * yawPitch)
 	glBindBuffer(GL_UNIFORM_BUFFER, render.uboShader);
 	glBufferSubData(GL_UNIFORM_BUFFER, UBO_CAMERA_OFFFSET, sizeof (vec4), render.camera);
 
-	uint8_t oldDir = render.direction;
+	uint8_t oldDir = globals.direction;
 	render.setFrustum = 1;
 	render.yaw = yawPitch[0];
 	render.pitch = yawPitch[1];
-	render.direction = 1; /* east */
-	if (M_PI_4      <= render.yaw && render.yaw <= M_PI_4 + M_PI_2) render.direction = 0; else /* south:  45 ~ 135 */
-	if (M_PI+M_PI_4 <= render.yaw && render.yaw <= 2*M_PI-M_PI_4)   render.direction = 2; else /* north: 225 ~ 315 */
-	if (M_PI-M_PI_4 <= render.yaw && render.yaw <= M_PI+M_PI_4)     render.direction = 3;      /* west:  135 ~ 225 */
-	if (oldDir != render.direction)
+	globals.direction = 1; /* east */
+	if (M_PI_4      <= render.yaw && render.yaw <= M_PI_4 + M_PI_2) globals.direction = 0; else /* south:  45 ~ 135 */
+	if (M_PI+M_PI_4 <= render.yaw && render.yaw <= 2*M_PI-M_PI_4)   globals.direction = 2; else /* north: 225 ~ 315 */
+	if (M_PI-M_PI_4 <= render.yaw && render.yaw <= M_PI+M_PI_4)     globals.direction = 3;      /* west:  135 ~ 225 */
+	if (oldDir != globals.direction)
 		selectionSetSize();
 }
 
@@ -765,7 +774,7 @@ void renderShowBlockInfo(Bool show, int what)
 		{
 			if (! render.blockInfo)
 			{
-				render.blockInfo = SIT_CreateWidget("blockinfo", SIT_TOOLTIP, render.sitRoot,
+				render.blockInfo = SIT_CreateWidget("blockinfo", SIT_TOOLTIP, globals.app,
 					SIT_ToolTipAnchor, SITV_TooltipFollowMouse,
 					SIT_DelayTime,     SITV_TooltipManualTrigger,
 					SIT_DisplayTime,   100000,
@@ -787,7 +796,7 @@ void renderShowBlockInfo(Bool show, int what)
 
 static inline void renderParticles(void)
 {
-	int count = particlesAnimate(render.level, render.camera);
+	int count = particlesAnimate(globals.level, render.camera);
 	if (count == 0) return;
 
 //	fprintf(stderr, "particles = %d\n", count);
@@ -1257,7 +1266,7 @@ void renderFrustum(Bool snapshot)
 	static int vboFrustumMDAI;
 	static int vboCount;
 
-	Map map = render.level;
+	Map map = globals.level;
 
 	if (vaoFrustum == 0)
 	{
@@ -1363,19 +1372,19 @@ void renderFrustum(Bool snapshot)
  */
 void renderWorld(void)
 {
+	/* generate mesh we didn't have time to do before */
+	if (globals.level->genList.lh_Head)
+	{
+		mapGenerateMesh(globals.level);
+		render.setFrustum = 1;
+	}
+
 	if (render.setFrustum)
 	{
 		/* do it as late as possible */
-		mapViewFrustum(render.level, render.matMVP, render.camera);
-		render.setFrustum = 0;
+		mapViewFrustum(globals.level, render.matMVP, render.camera);
 	}
 
-	/* generate mesh we didn't have time to do before */
-	if (render.level->genList.lh_Head)
-	{
-		mapGenerateMesh(render.level);
-		mapViewFrustum(render.level, render.matMVP, render.camera);
-	}
 
 	/* must be done before glViewport */
 	signPrepare(render.camera);
@@ -1410,13 +1419,13 @@ void renderWorld(void)
 	static float biomeColor[] = {0.411765, 0.768627, 0.294118};
 	setShaderValue(render.shaderBlocks, "biomeColor", 3, biomeColor);
 
-	renderPrepVisibleChunks(render.level);
+	renderPrepVisibleChunks(globals.level);
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, render.texBlock);
 
 	/* first pass: main terrain */
 	GPUBank bank;
-	for (bank = HEAD(render.level->gpuBanks); bank; NEXT(bank))
+	for (bank = HEAD(globals.level->gpuBanks); bank; NEXT(bank))
 	{
 		if (bank->cmdTotal > 0)
 		{
@@ -1433,7 +1442,7 @@ void renderWorld(void)
 	/* third pass: translucent terrain */
 	glUseProgram(render.shaderBlocks);
 //	glDepthMask(GL_FALSE);
-	for (bank = HEAD(render.level->gpuBanks); bank; NEXT(bank))
+	for (bank = HEAD(globals.level->gpuBanks); bank; NEXT(bank))
 	{
 		if (bank->cmdAlpha > 0)
 		{
@@ -1448,7 +1457,7 @@ void renderWorld(void)
 	/* show limit of chunk boundary where player is */
 	if (render.debug & RENDER_DEBUG_CURCHUNK)
 	{
-		debugShowChunkBoundary(render.level->center, CPOS(render.camera[VY]));
+		debugShowChunkBoundary(globals.level->center, CPOS(render.camera[VY]));
 	}
 	if (render.debug & RENDER_DEBUG_FRUSTUM)
 	{
@@ -1515,12 +1524,12 @@ void renderWorld(void)
 	switch (render.inventory->infoState) {
 	case INFO_INV_INIT:
 		render.inventory->infoX = (render.width - nvgTextBounds(vg, 0, 0, render.inventory->infoTxt, NULL, NULL)) / 2;
-		render.inventory->infoTime = curTime + INFO_INV_DURATION * 1000;
+		render.inventory->infoTime = globals.curTime + INFO_INV_DURATION * 1000;
 		render.inventory->infoState = INFO_INV_SHOW;
 		// no break;
 	case INFO_INV_SHOW:
 		renderText(vg, render.inventory->infoX, render.height - 35 * scale, render.inventory->infoTxt, 1);
-		if (curTime > render.inventory->infoTime)
+		if (globals.curTime > render.inventory->infoTime)
 		{
 			render.inventory->infoState = INFO_INV_FADE;
 			render.inventory->infoTime += INFO_INV_FADEOUT * 1000;
@@ -1528,8 +1537,8 @@ void renderWorld(void)
 		break;
 	case INFO_INV_FADE:
 		renderText(vg, render.inventory->infoX, render.height - 35 * scale, render.inventory->infoTxt,
-			(render.inventory->infoTime - curTime) / (INFO_INV_FADEOUT * 1000.));
-		if (curTime > render.inventory->infoTime)
+			(render.inventory->infoTime - globals.curTime) / (INFO_INV_FADEOUT * 1000.));
+		if (globals.curTime > render.inventory->infoTime)
 			render.inventory->infoState = INFO_INV_NONE;
 	}
 
@@ -1619,7 +1628,7 @@ void renderDrawMap(Map map)
 void renderAddModif(void)
 {
 	/* new chunks might have been created */
-	mapViewFrustum(render.level, render.matMVP, render.camera);
+	mapViewFrustum(globals.level, render.matMVP, render.camera);
 	nvgFontSize(render.nvgCtx, FONTSIZE_MSG);
 	render.modifCount ++;
 	render.message.chrLen = sprintf(render.message.text, LangStrPlural(NULL, render.modifCount, "%d unsaved edit", "%d unsaved edits"), render.modifCount);
@@ -1650,7 +1659,7 @@ void renderSaveRestoreState(Bool save)
 	if (save)
 	{
 		/* this will avoid recreaating everything and is pretty cheap trick */
-		wnd = SIT_GetById(render.sitRoot, "selection");
+		wnd = SIT_GetById(globals.app, "selection");
 		if (wnd)
 			SIT_ExtractDialog(wnd);
 	}
@@ -1659,11 +1668,6 @@ void renderSaveRestoreState(Bool save)
 		if (wnd)
 			SIT_InsertDialog(wnd);
 	}
-}
-
-int renderGetFacingDirection(void)
-{
-	return render.direction;
 }
 
 /*

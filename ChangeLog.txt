@@ -1,4 +1,17 @@
+=========== Week 37 ===========
+Wed Sep 15:
+	* move some variables into a global struct: prevent passing around the same var over and over again.
+
+Mon Sep 13:
+	* brush library continued.
+
 =========== Week 36 ===========
+Sun Sep 12:
+	* brush library continued: business logic mostly done.
+
+Sat Sep 11:
+	* started brush library from disk: interface mostly done.
+
 Fri Sep 10:
 	* copy brush library mostly done.
 

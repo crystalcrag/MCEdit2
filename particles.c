@@ -12,10 +12,10 @@
 #include "blocks.h"
 #include "particles.h"
 #include "glad.h"
+#include "globals.h"
 
 struct ParticlePrivate_t particles;
 struct EmitterPrivate_t  emitters;
-extern double curTime;
 
 //#define NOEMITTERS
 //#define SLOW
@@ -176,7 +176,7 @@ void particlesExplode(Map map, int count, int blockId, vec4 pos)
 				#else
 				p->ttl = RandRange(4000, 8000);
 				#endif
-				p->time = curTime + p->ttl;
+				p->time = globals.curTime + p->ttl;
 
 				if (p->dir[VX] < 0) p->size |= 0x80, p->dir[VX] = - p->dir[VX];
 				if (p->dir[VZ] < 0) p->size |= 0x40, p->dir[VZ] = - p->dir[VZ];
@@ -199,7 +199,7 @@ void particlesSmoke(Map map, int blockId, vec4 pos)
 	p->loc[0] = pos[0] + offset[0];
 	p->loc[1] = pos[1] + offset[1];
 	p->loc[2] = pos[2] + offset[2];
-	p->time = curTime + range;
+	p->time = globals.curTime + range;
 	p->ttl  = range;
 	p->dir[VY] = 0.02;
 	p->size = 8 + rand() % 6;
@@ -236,7 +236,7 @@ static Emitter particlesAddEmitter(vec4 pos, int blockId, int type, int interval
 		memcpy(emit->loc, pos, sizeof emit->loc);
 		emit->type = type;
 		emit->interval = interval;
-		emit->time = curTime + 100;
+		emit->time = globals.curTime + 100;
 		emit->blockId = blockId;
 		emit->next = -1;
 
@@ -477,7 +477,7 @@ int particlesAnimate(Map map, vec4 camera)
 	ParticleList list;
 	Particle     p;
 	float *      buf;
-	int          i, count, curTimeMS = curTime;
+	int          i, count, curTimeMS = globals.curTime;
 
 	particleMakeActive(map);
 	if (emitters.dirtyList)
@@ -509,7 +509,7 @@ int particlesAnimate(Map map, vec4 camera)
 
 	if (particles.count == 0)
 	{
-		particles.lastTime = curTime;
+		particles.lastTime = globals.curTime;
 		return 0;
 	}
 
@@ -518,9 +518,9 @@ int particlesAnimate(Map map, vec4 camera)
 
 	/* this scale factor will make particles move at a constant no matter what fps the screen is refreshed */
 	#ifndef SLOW
-	float speed = (curTime - particles.lastTime) / 25.0f;
+	float speed = (globals.curTime - particles.lastTime) / 25.0f;
 	#else
-	float speed = (curTime - particles.lastTime) / 250.0f;
+	float speed = (globals.curTime - particles.lastTime) / 250.0f;
 	#endif
 
 //	fprintf(stderr, "speed = %f, diff = %d\n", speed, time - particles.lastTime);
@@ -554,7 +554,7 @@ int particlesAnimate(Map map, vec4 camera)
 			case PARTICLE_SMOKE:
 				info[1] = p->color;
 				p->UV &= 0x7ffff;
-				p->UV |= ((int) ((curTime - (p->time - p->ttl)) / p->ttl * 7) * 8 + 9 * 16) << 19;
+				p->UV |= ((int) ((globals.curTime - (p->time - p->ttl)) / p->ttl * 7) * 8 + 9 * 16) << 19;
 			}
 			buf += PARTICLES_VBO_SIZE/4;
 			count ++;
@@ -631,7 +631,7 @@ int particlesAnimate(Map map, vec4 camera)
 	break_all:
 	glUnmapBuffer(GL_ARRAY_BUFFER);
 
-	particles.lastTime = curTime;
+	particles.lastTime = globals.curTime;
 
 	return count;
 }

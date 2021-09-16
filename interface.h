@@ -8,20 +8,19 @@
 #ifndef MCUI_H
 #define MCUI_H
 
-#include "SIT.h"
 #include "render.h"
 #include "player.h"
 
-void mcuiTakeSnapshot(SIT_Widget app, int width, int height);
+void mcuiTakeSnapshot(int width, int height);
 void mcuiCreateInventory(Inventory);
 void mcuiEditChestInventory(Inventory, Item items, int count);
-void mcuiCreateSignEdit(Map map, vec4 pos, int blockId, int * exit);
-void mcuiGoto(SIT_Widget parent, vec4 pos);
+void mcuiCreateSignEdit(vec4 pos, int blockId, int * exit);
+void mcuiGoto(vec4 pos);
 void mcuiInitDrawItems(void);
 void mcuiDrawItems(void);
-void mcuiAnalyze(SIT_Widget app, Map map);
-void mcuiFillOrReplace(SIT_Widget parent, Map map, Bool fillWithBrush);
-void mcuiDeleteAll(SIT_Widget parent, Map map);
+void mcuiAnalyze(void);
+void mcuiFillOrReplace(Bool fillWithBrush);
+void mcuiDeleteAll(void);
 
 #ifdef MCUI_IMPL
 
@@ -29,7 +28,6 @@ typedef struct MCInventory_t *       MCInventory;
 
 struct MCInterface_t
 {
-	SIT_Widget   app;
 	SIT_Widget   scroll;
 	SIT_Widget   toolTip;
 	SIT_CallProc cb;

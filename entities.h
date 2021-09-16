@@ -14,7 +14,7 @@
 Bool entityInitStatic(void);
 void entityParse(Chunk, NBTFile nbt, int offset);
 void entityUnload(Chunk);
-void entityAnimate(Map map);
+void entityAnimate(void);
 void entityRender(void);
 void entityDebug(int id);
 void entityUpdateLight(Chunk c);

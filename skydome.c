@@ -12,7 +12,8 @@
 #include <stdio.h>
 #include "skydome.h"
 #include "models.h"
-#include "render.h"
+#include "maps.h"
+#include "globals.h"
 
 static struct SkyDome_t skydome;
 
@@ -95,7 +96,7 @@ void skydomeRender(void)
 	glBindVertexArray(skydome.vao);
 	glUseProgram(skydome.shader);
 
-	float time = curTime * 0.000005;
+	float time = globals.curTime * 0.000005;
 	setShaderValue(skydome.shader, "time", 1, &time);
 
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, skydome.vboIndices);

@@ -75,20 +75,18 @@ enum
 	INFO_INV_FADE
 };
 
-void playerInit(Player, NBTFile levelDat);
-void playerSaveLocation(Player, NBTFile levelDat);
-void playerUpdateNBT(Player, NBTFile levelDat);
+void playerInit(Player);
+void playerSaveLocation(Player);
+void playerUpdateNBT(Player);
 void playerSensitivity(float s);
 void playerLookAt(Player, int mx, int my);
 int  playerProcessKey(Player, int key, int pressed);
 void playerInitPickup(PickupBlock);
 void playerAddInventory(Player, int blockId, DATA8 tileEntity);
 void playerScrollInventory(Player, int dir);
-#ifdef MCMAPS_H
-void playerSetMode(Player, Map, int mode);
-void playerTeleport(Player, Map, vec4 pos);
-void playerMove(Player, Map);
-#endif
+void playerSetMode(Player, int mode);
+void playerTeleport(Player, vec4 pos);
+void playerMove(Player);
 
 struct Player_t
 {
