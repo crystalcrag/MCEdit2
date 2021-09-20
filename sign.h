@@ -9,7 +9,7 @@
 
 #include "chunks.h"
 
-Bool signInitStatic(NVGCTX, int font);
+Bool signInitStatic(int font);
 int  signAddToList(int blockId, DATA8 tile, int prev, uint8_t light);
 void signFillVertex(int blockId, float pt[6], int uv[4]);
 void signPrepare(vec4 camera);
@@ -73,7 +73,6 @@ struct SignPrivate_t
 	int      mdaCount[BANK_MAX];
 	int      font;
 	int      shader;
-	NVGCTX   nvgCtx;
 };
 
 #define RGBA(hex)    (hex >> 16), (hex >> 8) & 0xff, (hex & 0xff), 0xff

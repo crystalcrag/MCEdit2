@@ -33,6 +33,7 @@ void NBT_MarkForUpdate(NBTFile, int offset, int tag);
 void NBT_InitIter(NBTFile, int offset, NBTIter);
 void NBT_IterCompound(NBTIter, DATA8 mem);
 APTR NBT_Payload(NBTFile, int offset);
+APTR NBT_ArrayStart(NBTFile root, int offset, int * size);
 APTR NBT_PayloadFromStream(DATA8 stream, int offset, STRPTR name);
 Bool NBT_SetFloat(NBTFile, int offset, float * array, int nb);
 Bool NBT_SetInt(NBTFile, int offset, int64_t val);

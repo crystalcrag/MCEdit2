@@ -20,6 +20,7 @@
 #include "render.h"
 #include "blocks.h"
 #include "NBT2.h"
+#include "globals.h"
 
 /*
  * TileEntity associated with block (292 bytes):
@@ -59,7 +60,7 @@ static uint8_t colors[] = {
 
 char signMinText[] = "wwwwwwwwwwwwwww";
 
-Bool signInitStatic(NVGCTX vg, int font)
+Bool signInitStatic(int font)
 {
 	signs.shader = createGLSLProgram("sign.vsh", "sign.fsh", NULL);
 
@@ -70,7 +71,6 @@ Bool signInitStatic(NVGCTX vg, int font)
 	for (i = 0; i < BANK_MAX; i ++)
 		signs.mdaCount[i] = 6;
 
-	signs.nvgCtx = vg;
 	signs.font   = font;
 
 	return True;
@@ -196,7 +196,7 @@ static void signUpdateBank(SignText sign)
 
 	int      slot = sign->bank;
 	SignBank bank = signs.banks + (slot & 0xff);
-	NVGCTX   vg   = signs.nvgCtx;
+	NVGCTX   vg   = globals.nvgCtx;
 	float    x, y, ellipse;
 
 	nvgluBindFramebuffer(bank->nvgFBO);
@@ -258,7 +258,7 @@ static void signUpdateBank(SignText sign)
 
 	nvgEndFrame(vg);
 	nvgluBindFramebuffer(NULL);
-	renderResetViewport();
+	glViewport(0, 0, globals.width, globals.height);
 }
 
 
@@ -469,7 +469,7 @@ static void signAddToBank(SignText sign)
 		glBindVertexArray(0);
 	}
 	if (bank->nvgFBO == NULL)
-		bank->nvgFBO = nvgluCreateFramebuffer(signs.nvgCtx, SIGN_WIDTH * BANK_WIDTH, SIGN_HEIGHT * BANK_HEIGHT, NVG_IMAGE_MASK);
+		bank->nvgFBO = nvgluCreateFramebuffer(globals.nvgCtx, SIGN_WIDTH * BANK_WIDTH, SIGN_HEIGHT * BANK_HEIGHT, NVG_IMAGE_MASK);
 
 	bank->inBank ++;
 	bank->update = 1;

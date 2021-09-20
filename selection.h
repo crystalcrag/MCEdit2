@@ -19,6 +19,7 @@ void selectionCancelOperation(void);
 vec  selectionGetPoints(void);
 int  selectionHasPoints(void);
 Map  selectionHasClone(void);
+Map  selectionAllocBrush(uint16_t sizes[3]);
 Bool selectionProcessKey(int key, int mod);
 void selectionAutoSelect(vec4 pos, float scale);
 int  selectionFill(DATA32 progress, int blockId, int side, int direction);
@@ -95,6 +96,7 @@ struct Selection_t
 	APTR     nudgeDiag;        /* SIT_DIALOG */
 	APTR     editBrush;        /* SIT_DIALOG */
 	APTR     nudgeSize;        /* SIT_LABEL */
+	APTR     brushSize;        /* SIT_LABEL */
 	APTR     brushOff[3];      /* SIT_EDITBOX */
 	Map      brush;            /* mesh for cloned selection */
 };

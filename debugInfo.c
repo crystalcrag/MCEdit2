@@ -430,7 +430,7 @@ void debugSetPos(int * exitCode)
 
 	debug.sliceDir = globals.direction;
 	debug.sliceAxis = globals.direction & 1 ? 2 : 0;
-	debug.sliceSz = roundf(render.width / debug.zoom);
+	debug.sliceSz = roundf(globals.width / debug.zoom);
 	debug.vector = debugVector + globals.direction * 4;
 	debug.slice = 0;
 
@@ -485,7 +485,7 @@ void debugWorld(void)
 	static float   dirAngle[]  = {M_PI_2, M_PI, -M_PI_2, 0};
 	static char    skyVal[]    = "0 1 2 3 4 5 6 7 8 9 101112131415";
 	struct BlockIter_t iter;
-	NVGcontext * vg = render.nvgCtx;
+	NVGcontext * vg = globals.nvgCtx;
 
 	int  x, y;
 	int  i, j;
@@ -498,8 +498,8 @@ void debugWorld(void)
 	top[2] = debug.pos[2];
 	memcpy(dir, debug.vector, sizeof dir);
 	memcpy(back, dir, sizeof back);
-	debug.cellH = ceil(render.width / debug.sliceSz) + 1;
-	debug.cellV = ceil(render.height / debug.sliceSz) + 1;
+	debug.cellH = ceil(globals.width / debug.sliceSz) + 1;
+	debug.cellV = ceil(globals.height / debug.sliceSz) + 1;
 	back[debug.sliceAxis] *= - debug.cellH;
 	top[debug.sliceAxis] -= dir[debug.sliceAxis] * (debug.cellH>>1);
 	top[1] += debug.cellV>>1;
@@ -511,7 +511,7 @@ void debugWorld(void)
 	i = -12 * debug.zoom / 11 + 560/11;
 	if (i < 13) i = 13;
 
-	nvgBeginFrame(vg, render.width, render.height, 1);
+	nvgBeginFrame(vg, globals.width, globals.height, 1);
 	nvgFontFaceId(vg, render.debugFont);
 	nvgFontSize(vg, i);
 	nvgTextAlign(vg, NVG_ALIGN_TOP);
@@ -614,11 +614,11 @@ void debugWorld(void)
 			break;
 	}
 	y += debug.sliceSz;
-	if (y < render.height)
+	if (y < globals.height)
 	{
 		nvgFillColorRGBA8(vg, "\0\0\0\xff");
 		nvgBeginPath(vg);
-		nvgRect(vg, 0, y, render.width, render.height - y);
+		nvgRect(vg, 0, y, globals.width, globals.height - y);
 		nvgFill(vg);
 	}
 
@@ -634,23 +634,23 @@ void debugWorld(void)
 		if (y < 0) y += i;
 		nvgStrokeColorRGBA8(vg, chunkSep);
 		nvgStrokeWidth(vg, 1);
-		while (y < render.height)
+		while (y < globals.height)
 		{
 			nvgBeginPath(vg);
 			nvgMoveTo(vg, 0, y);
-			nvgLineTo(vg, render.width, y);
+			nvgLineTo(vg, globals.width, y);
 			nvgStroke(vg);
 			y += i;
 		}
 		i = dir[debug.sliceAxis];
 		if (i < 0) j ++;
-		while (x < render.width)
+		while (x < globals.width)
 		{
 			if ((j & 15) == 0)
 			{
 				nvgBeginPath(vg);
 				nvgMoveTo(vg, x, 0);
-				nvgLineTo(vg, x, render.height);
+				nvgLineTo(vg, x, globals.height);
 				nvgStroke(vg);
 			}
 			x += debug.sliceSz;
@@ -733,9 +733,9 @@ void debugWorld(void)
 	}
 	#endif
 
-	float scale = render.height * 0.15;
+	float scale = globals.height * 0.15;
 	nvgSave(vg);
-	nvgTranslate(vg, render.width - scale, render.height - scale); scale -= 20;
+	nvgTranslate(vg, globals.width - scale, globals.height - scale); scale -= 20;
 	nvgRotate(vg, dirAngle[debug.sliceDir]);
 	nvgBeginPath(vg);
 	nvgRect(vg, -scale, -scale, scale*2, scale*2);
@@ -760,7 +760,7 @@ static void debugClampXZView(void)
 			axis[0] = debug.maxXZ - off - 1, debug.xoff = 0;
 		if (min - debug.cellH < debug.minXZ-1)
 			axis[0] = debug.minXZ + debug.cellH - off - 1,
-			debug.xoff = render.width - debug.cellH * debug.sliceSz;
+			debug.xoff = globals.width - debug.cellH * debug.sliceSz;
 	}
 	else
 	{
@@ -769,7 +769,7 @@ static void debugClampXZView(void)
 			axis[0] = debug.minXZ + off, debug.xoff = 0;
 		if (min + debug.cellH > debug.maxXZ)
 			axis[0] = debug.maxXZ - debug.cellH + off,
-			debug.xoff = render.width - debug.cellH * debug.sliceSz;
+			debug.xoff = globals.width - debug.cellH * debug.sliceSz;
 	}
 }
 
@@ -834,9 +834,9 @@ void debugZoomView(int x, int y, int dir)
 	debug.zoom = debug.zoom * (dir < 0 ? 3/2. : 2/3.);
 	if (debug.zoom < 10)  debug.zoom = 10;
 	if (debug.zoom > 100) debug.zoom = 100;
-	debug.sliceSz = render.width / debug.zoom;
-	debug.cellH = ceil(render.width / debug.sliceSz) + 1;
-	debug.cellV = ceil(render.height / debug.sliceSz) + 1;
+	debug.sliceSz = globals.width / debug.zoom;
+	debug.cellH = ceil(globals.width / debug.sliceSz) + 1;
+	debug.cellV = ceil(globals.height / debug.sliceSz) + 1;
 	debug.xoff %= (int) debug.sliceSz;
 	debug.yoff %= (int) debug.sliceSz;
 	debugClampXZView();

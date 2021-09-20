@@ -29,11 +29,20 @@ typedef struct MCGlobals_t
 	/* map being edited */
 	Map level;
 
+	/* screen/window width/height */
+	int width, height;
+
 	/* SITGL root widget */
 	APTR app;
 
 	/* time in milliseconds for current frame */
 	double curTime;
+
+	/* time spent in a modal UI: can't use curTime */
+	double curTimeUI;
+
+	/* nanovg context */
+	struct NVGcontext * nvgCtx;
 
 	/* easier to place break points :-/ */
 	int breakPoint;

@@ -32,7 +32,6 @@ static int category[] = {BUILD, DECO, REDSTONE, CROPS, RAILS, 0};
  */
 void mcuiTakeSnapshot(int width, int height)
 {
-	SIT_GetValues(globals.app, SIT_NVGcontext, &mcui.nvgCtx, NULL);
 	if (mcui.glBack == 0)
 		glGenTextures(1, &mcui.glBack);
 
@@ -41,7 +40,7 @@ void mcuiTakeSnapshot(int width, int height)
 	{
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
 		if (mcui.nvgImage)
-			nvgUpdateImage(mcui.nvgCtx, mcui.nvgImage, NULL);
+			nvgUpdateImage(globals.nvgCtx, mcui.nvgImage, NULL);
 	}
 	/* copy framebuffer content into texture */
 	glBindTexture(GL_TEXTURE_2D, mcui.glBack);
@@ -50,7 +49,7 @@ void mcuiTakeSnapshot(int width, int height)
 	glGenerateMipmap(GL_TEXTURE_2D);
 
 	if (mcui.nvgImage == 0)
-		mcui.nvgImage = nvgCreateImage(mcui.nvgCtx, (const char *) mcui.glBack, NVG_IMAGE_FLIPY | NVG_IMAGE_GLTEX);
+		mcui.nvgImage = nvgCreateImage(globals.nvgCtx, (const char *) mcui.glBack, NVG_IMAGE_FLIPY | NVG_IMAGE_GLTEX);
 
 	mcui.width = width;
 	mcui.height = height;
@@ -82,10 +81,10 @@ static int mcuiInventoryRender(SIT_Widget w, APTR cd, APTR ud)
 			int y2 = j * sz;
 			if ((i == curX && j == curY) || (max > 0 && item->slot > 0))
 			{
-				nvgBeginPath(mcui.nvgCtx);
-				nvgRect(mcui.nvgCtx, x+x2, y+y2, sz, sz);
-				nvgFillColorRGBA8(mcui.nvgCtx, "\xff\xff\xff\x7f");
-				nvgFill(mcui.nvgCtx);
+				nvgBeginPath(globals.nvgCtx);
+				nvgRect(globals.nvgCtx, x+x2, y+y2, sz, sz);
+				nvgFillColorRGBA8(globals.nvgCtx, "\xff\xff\xff\x7f");
+				nvgFill(globals.nvgCtx);
 			}
 			SIT_SetValues(inv->cell, SIT_X, x2, SIT_Y, y2, SIT_Width, sz, SIT_Height, sz, NULL);
 			SIT_RenderNode(inv->cell);
@@ -853,7 +852,7 @@ void mcuiEditChestInventory(Inventory player, Item items, int count)
 	);
 
 	SIT_CreateWidgets(diag,
-		"<label name=msg title='Chest:'>"
+		"<label name=msg title=", count > 9*3 ? "Double chest:" : "Chest:", ">"
 		"<canvas composited=1 name=inv.inv left=FORM top=WIDGET,msg,0.5em/>"
 		"<label name=msg2 title='Player inventory:' top=WIDGET,inv,0.3em>"
 		"<canvas composited=1 name=player.inv top=WIDGET,msg2,0.3em/>"
@@ -1297,7 +1296,7 @@ static int mcuiFillBlocks(SIT_Widget w, APTR cd, APTR ud)
 	SIT_SetValues(w, SIT_Enabled, False, NULL);
 
 	/* this function will monitor the thread progress */
-	mcuiRepWnd.asyncCheck = SIT_ActionAdd(w, mcuiRepWnd.processStart = globals.curTime, globals.curTime + 1e9, mcuiFillCheckProgress, NULL);
+	mcuiRepWnd.asyncCheck = SIT_ActionAdd(w, mcuiRepWnd.processStart = globals.curTimeUI, globals.curTimeUI + 1e9, mcuiFillCheckProgress, NULL);
 
 	renderAddModif();
 
@@ -1609,5 +1608,5 @@ void mcuiDeleteAll(void)
 	SIT_AddCallback(globals.app, SITE_OnFinalize, mcuiFillStop, NULL);
 
 	/* this function will monitor the thread progress */
-	mcuiRepWnd.asyncCheck = SIT_ActionAdd(globals.app, mcuiRepWnd.processStart = globals.curTime, globals.curTime + 1e9, mcuiDeleteProgress, NULL);
+	mcuiRepWnd.asyncCheck = SIT_ActionAdd(globals.app, mcuiRepWnd.processStart = globals.curTimeUI, globals.curTimeUI + 1e9, mcuiDeleteProgress, NULL);
 }

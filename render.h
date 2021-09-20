@@ -17,7 +17,7 @@
 #define FONTSIZE_MSG   20
 #define ITEMSCALE      1.3
 
-Bool renderInitStatic(int width, int height);
+Bool renderInitStatic(void);
 Map  renderInitWorld(STRPTR path, int renderDist);
 void renderFreeMesh(Map map, Bool clear);
 void renderWorld();
@@ -30,12 +30,11 @@ void renderSetInventory(Inventory);
 void renderAddModif(void);
 void renderAllSaved(void);
 void renderFrustum(Bool snapshot);
-void renderResetViewport(void);
 void renderSaveRestoreState(Bool save);
 void renderResetFrustum(void);
 void renderDrawMap(Map map);
 void renderSetCompassOffset(float offset);
-int  renderSetSelectionPoint(int action);
+void renderSetSelectionPoint(int action);
 int  renderGetTerrain(int size[2]);
 int  renderInitUBO(void);
 MapExtraData renderGetSelectedBlock(vec4 pos, int * blockModel);
@@ -44,11 +43,10 @@ enum /* possible values for <action> of renderSetSelectionPoint */
 {
 	RENDER_SEL_CLEAR    = 0,
 	RENDER_SEL_ADDPT    = 1,
-	RENDER_SEL_COMPLETE = 2,
-	RENDER_SEL_INIT     = 3,
-	RENDER_SEL_AUTO     = 4,
-	RENDER_SEL_AUTOMOVE = 5,
-	RENDER_SEL_STOPMOVE = 6
+	RENDER_SEL_INIT     = 2,
+	RENDER_SEL_AUTO     = 3,
+	RENDER_SEL_AUTOMOVE = 4,
+	RENDER_SEL_STOPMOVE = 5
 };
 
 enum /* possible values for <what> of renderToggleDebug */
@@ -118,15 +116,11 @@ struct SelBlock_t
 
 enum                               /* bitfield for SelBlock.sel */
 {
-	SEL_CURRENT   = 1,
-	SEL_FIRST     = 2,
-	SEL_SECOND    = 4,
-	SEL_NOCURRENT = 8,             /* cannot place block */
-	SEL_OFFHAND   = 16,
-	SEL_MOVE      = 32,            /* clone selection follow mouse */
+	SEL_POINTTO   = 1,             /* a block is point to with the mouse */
+	SEL_NOCURRENT = 2,             /* cannot place block */
+	SEL_OFFHAND   = 4,             /* mouse hovering offhand */
+	SEL_MOVE      = 8,             /* clone selection follow mouse */
 };
-
-#define SEL_BOTH                   (SEL_FIRST|SEL_SECOND)
 
 struct Message_t
 {
@@ -137,7 +131,6 @@ struct Message_t
 
 struct RenderWorld_t
 {
-	int        width, height;      /* glViewport */
 	mat4       matModel;           /* MVP mat */
 	mat4       matPerspective;
 	mat4       matMVP;             /* model-view-projection combined matrix */
@@ -171,7 +164,6 @@ struct RenderWorld_t
 	int        instanceSize;       /* size in bytes of both arrays */
 	float *    custLoc;            /* vertex attrib divisor 1 array for cust models */
 	int        custMax;            /* custLoc[] array capacity (in attributes = 4 floats) */
-	APTR       nvgCtx;             /* nanovg context */
 	int        compass;            /* image id from nanovg */
 	float      compassOffset;      /* pixel offset from right border to start drawing compass */
 	float      yaw, pitch;

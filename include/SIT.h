@@ -298,6 +298,7 @@ enum
 	// SIT_ItemCount     = 117,  /* __G: Int (defined in ComboBox: same datatype, same semantic) */
 	SIT_ViewMode         = 98,   /* C__: Enum */
 	SIT_RowMaxVisible    = 111,  /* _SG: Int */
+	SIT_FinalizeItem     = 133,  /* _SG: SIT_CallProc */
 
 	/* Scrollbar, Slider and Progress */
 	SIT_MinValue         = 99,   /* CSG: Int */

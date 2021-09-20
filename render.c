@@ -247,45 +247,33 @@ static void renderSelection(void)
 			glDepthFunc(GL_LEQUAL);
 		}
 
-		if (render.selection.sel & (SEL_FIRST|SEL_SECOND))
-			selectionRender();
-
 		glDepthMask(GL_TRUE);
 	}
 	glBindVertexArray(0);
 }
 
 /* left click in off-hand mode: add selection point */
-int renderSetSelectionPoint(int action)
+void renderSetSelectionPoint(int action)
 {
-	int ret = 0;
 	switch (action) {
 	case RENDER_SEL_INIT:
 		/* force block selection (avoid block preview) */
 		render.debugInfo |= DEBUG_SELECTION;
-		return 0;
-
-	case RENDER_SEL_COMPLETE:
-		/* switch to an inventory slot: check if selection is complete */
-		if ((render.selection.sel & SEL_BOTH) == SEL_BOTH)
-			return 3;
-		/* else no break: clear selection */
+		break;
 
 	case RENDER_SEL_CLEAR:
-		render.selection.sel &= ~(SEL_FIRST|SEL_SECOND);
 		render.inventory->offhand &= ~(PLAYER_ALTPOINT | PLAYER_OFFHAND);
 		render.debugInfo &= ~DEBUG_SELECTION;
+		render.selection.sel &= ~SEL_MOVE;
 		render.invCache ++;
 		selectionCancel();
 		break;
 
 	case RENDER_SEL_AUTO:
-		if (render.selection.sel & SEL_CURRENT)
+		if (render.selection.sel & SEL_POINTTO)
 		{
 			selectionAutoSelect(render.selection.current, render.scale);
-			render.selection.sel |= SEL_FIRST|SEL_SECOND;
 			render.invCache ++;
-			return 3;
 		}
 		break;
 
@@ -300,26 +288,17 @@ int renderSetSelectionPoint(int action)
 
 	case RENDER_SEL_ADDPT:
 		/* click on a block */
-		if ((render.selection.sel & SEL_CURRENT) == 0)
+		if ((render.selection.sel & SEL_POINTTO) == 0)
 			/* need a block being pointed at */
 			break;
 
-		if ((render.inventory->offhand & PLAYER_ALTPOINT) == 0)
-		{
-			selectionSetPoint(render.scale, render.selection.current, SEL_POINT_1);
-			render.selection.sel |= SEL_FIRST;
-		}
-		else
-		{
-			selectionSetPoint(render.scale, render.selection.current, SEL_POINT_2);
-			render.selection.sel |= SEL_SECOND;
-		}
-		if ((render.selection.sel & SEL_BOTH) == SEL_BOTH);
+		selectionSetPoint(render.scale, render.selection.current,
+			(render.inventory->offhand & PLAYER_ALTPOINT) == 0 ? SEL_POINT_1 : SEL_POINT_2);
+		if ((globals.selPoints & 3) == 3)
 			render.invCache ++;
-		ret = (render.selection.sel>>1) & 3;
-		if (ret != 3) render.inventory->offhand ^= PLAYER_ALTPOINT;
+		else
+			render.inventory->offhand ^= PLAYER_ALTPOINT;
 	}
-	return ret;
 }
 
 void mcuiSetTooltip(SIT_Widget toolTip, Item item, STRPTR extra);
@@ -329,7 +308,7 @@ void renderPointToBlock(int mx, int my)
 {
 	if (mx < 0) mx = render.mouseX, my = render.mouseY;
 
-	vec4 dir = {render.inventory->x - 26 * render.scale, render.height - 22 * render.scale, 208 * render.scale};
+	vec4 dir = {render.inventory->x - 26 * render.scale, globals.height - 22 * render.scale, 208 * render.scale};
 
 	if (dir[VX] <= mx && mx <= dir[VX] + dir[2] && my > dir[VY])
 	{
@@ -341,14 +320,14 @@ void renderPointToBlock(int mx, int my)
 			item = (mx - render.inventory->x) / (20*render.scale);
 			if (item > 8) item = 8;
 
-			if ((render.selection.sel & SEL_BOTH) != SEL_BOTH)
+			if ((globals.selPoints & 3) != 3)
 				hover = &render.inventory->items[item];
 			else
 				hover = &extendedSelItems[item];
 		}
 		else hover = &extendedSelItems[9], item = 9;
 
-		render.selection.sel &= ~(SEL_CURRENT | SEL_NOCURRENT);
+		render.selection.sel &= ~(SEL_POINTTO | SEL_NOCURRENT);
 		render.selection.sel |= SEL_OFFHAND;
 		render.inventory->offhand |= PLAYER_TOOLBAR;
 		render.inventory->hoverSlot = item;
@@ -389,7 +368,7 @@ void renderPointToBlock(int mx, int my)
 		}
 
 		/* this method has been ripped off from: https://stackoverflow.com/questions/2093096/implementing-ray-picking */
-		vec4 clip = {mx * 2. / render.width - 1, 1 - my * 2. / render.height, 0, 1};
+		vec4 clip = {mx * 2. / globals.width - 1, 1 - my * 2. / globals.height, 0, 1};
 
 		matMultByVec(dir, render.matInvMVP, clip);
 
@@ -400,9 +379,9 @@ void renderPointToBlock(int mx, int my)
 		/* XXX why is the yaw/pitch ray picking off compared to a MVP matrix ??? */
 		//if (mapPointToBlock(render.level, render.camera, &render.yaw, NULL, render.selection.current, &render.selection.extra))
 		if (mapPointToBlock(globals.level, render.camera, NULL, dir, render.selection.current, &render.selection.extra))
-			render.selection.sel |= SEL_CURRENT;
+			render.selection.sel |= SEL_POINTTO;
 		else
-			render.selection.sel &= ~(SEL_CURRENT | SEL_NOCURRENT);
+			render.selection.sel &= ~(SEL_POINTTO | SEL_NOCURRENT);
 
 		if (render.selection.sel & SEL_MOVE)
 			selectionSetClonePt(render.selection.current, render.selection.extra.side);
@@ -414,7 +393,7 @@ void renderPointToBlock(int mx, int my)
 
 MapExtraData renderGetSelectedBlock(vec4 pos, int * blockModel)
 {
-	if ((render.selection.sel & (SEL_CURRENT|SEL_NOCURRENT)) == SEL_CURRENT)
+	if ((render.selection.sel & (SEL_POINTTO|SEL_NOCURRENT)) == SEL_POINTTO)
 	{
 		if (pos)
 		{
@@ -433,16 +412,13 @@ MapExtraData renderGetSelectedBlock(vec4 pos, int * blockModel)
 /* SITE_OnResize on root widget */
 static int renderGetSize(SIT_Widget w, APTR cd, APTR ud)
 {
-	float * size = cd;
-	render.width  = size[0];
-	render.height = size[1];
-	render.scale = render.width / (3 * 182.) * ITEMSCALE;
+	render.scale = globals.width / (3 * 182.) * ITEMSCALE;
 	render.inventory->update ++;
 
 	/* aspect ratio (needed by particle.gsh) */
-	shading[1] = render.width / (float) render.height;
+	shading[1] = globals.width / (float) globals.height;
 	matPerspective(render.matPerspective, DEF_FOV, shading[1], NEAR_PLANE, 1000);
-	glViewport(0, 0, render.width, render.height);
+	glViewport(0, 0, globals.width, globals.height);
 
 	glBindBuffer(GL_UNIFORM_BUFFER, render.uboShader);
 	glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof (mat4), render.matPerspective);
@@ -482,7 +458,7 @@ int renderInitUBO(void)
 }
 
 /* init static tables and objects */
-Bool renderInitStatic(int width, int height)
+Bool renderInitStatic(void)
 {
 	vec4 lightPos = {0, 1, 1, 1};
 
@@ -609,39 +585,36 @@ Bool renderInitStatic(int width, int height)
 	}
 
 	/* pre-conpute perspective projection matrix */
-	render.width = width;
-	render.height = height;
-	shading[1] = render.width / (float) render.height;
+	shading[1] = globals.width / (float) globals.height;
 	matPerspective(render.matPerspective, DEF_FOV, shading[1], NEAR_PLANE, 1000);
 
 	render.uboShader = renderInitUBO();
 	glBindBufferBase(GL_UNIFORM_BUFFER, UBO_BUFFER_INDEX, render.uboShader);
 
 	/* HUD resources */
-	SIT_GetValues(globals.app, SIT_NVGcontext, &render.nvgCtx, NULL);
-	render.compass = nvgCreateImage(render.nvgCtx, RESDIR INTERFACE "compass.png", 0);
-	render.debugFont = nvgFindFont(render.nvgCtx, "sans-serif"); /* created by SITGL */
-	render.nvgTerrain = nvgCreateImage(render.nvgCtx, (APTR) render.texBlock, NVG_IMAGE_NEAREST | NVG_IMAGE_GLTEX);
+	render.compass = nvgCreateImage(globals.nvgCtx, RESDIR INTERFACE "compass.png", 0);
+	render.debugFont = nvgFindFont(globals.nvgCtx, "sans-serif"); /* created by SITGL */
+	render.nvgTerrain = nvgCreateImage(globals.nvgCtx, (APTR) render.texBlock, NVG_IMAGE_NEAREST | NVG_IMAGE_GLTEX);
 
 	/* scale of inventory items (182 = px width of inventory bar) */
-	render.scale = render.width / (3 * 182.) * ITEMSCALE;
+	render.scale = globals.width / (3 * 182.) * ITEMSCALE;
 	SIT_AddCallback(globals.app, SITE_OnResize, renderGetSize, NULL);
 
 	/* will need to measure some stuff before hand */
-	return signInitStatic(render.nvgCtx, render.debugFont);
+	return signInitStatic(render.debugFont);
 }
 
 void renderSetInventory(Inventory inventory)
 {
 	render.inventory = inventory;
 	if (inventory->texture == 0)
-		inventory->texture = nvgCreateImage(render.nvgCtx, RESDIR "widgets.png", NVG_IMAGE_NEAREST);
+		inventory->texture = nvgCreateImage(globals.nvgCtx, RESDIR "widgets.png", NVG_IMAGE_NEAREST);
     inventory->update = 1;
 }
 
 void renderSetCompassOffset(float offset)
 {
-	render.compassOffset = offset > 0 ? render.width - offset : 0;
+	render.compassOffset = offset > 0 ? globals.width - offset : 0;
 }
 
 #if 0
@@ -710,7 +683,7 @@ void renderDebugBlock(void)
 
 void renderResetViewport(void)
 {
-	glViewport(0, 0, render.width, render.height);
+	glViewport(0, 0, globals.width, globals.height);
 }
 
 /* view matrix change (pos and/or angle) */
@@ -789,7 +762,7 @@ void renderShowBlockInfo(Bool show, int what)
 	{
 		render.debugInfo &= ~what;
 		SIT_SetValues(render.blockInfo, SIT_Visible, False, NULL);
-		if (render.selection.sel & SEL_BOTH)
+		if (globals.selPoints & 3)
 			render.debugInfo |= DEBUG_SELECTION;
 	}
 }
@@ -822,7 +795,7 @@ static void renderDrawItems(int count)
 {
 	mat4 ortho;
 
-	matOrtho(ortho, 0, render.width, 0, render.height, 0, 100);
+	matOrtho(ortho, 0, globals.width, 0, globals.height, 0, 100);
 
 	glClear(GL_DEPTH_BUFFER_BIT);
 	glEnable(GL_CULL_FACE);
@@ -859,12 +832,12 @@ static void renderDrawItems(int count)
 static void renderDrawExtInv(Item items, float scale, int count)
 {
 	/* need to add extra info on top of items */
-	NVGcontext * vg = render.nvgCtx;
+	NVGcontext * vg = globals.nvgCtx;
 	int fh = roundf(scale * 0.4);
 	int sz = roundf(scale * 0.0625);
 	int i;
 
-	nvgBeginFrame(vg, render.width, render.height, 1);
+	nvgBeginFrame(vg, globals.width, globals.height, 1);
 	nvgFontFaceId(vg, render.debugFont);
 	nvgFontSize(vg, fh);
 	nvgTextAlign(vg, NVG_ALIGN_TOP);
@@ -883,7 +856,7 @@ static void renderDrawExtInv(Item items, float scale, int count)
 			TEXT number[] = {res.quot == 0 ? ' ' : res.quot + '0', res.rem + '0'};
 
 			int x = roundf(items->x + scale - nvgTextBounds(vg, 0, 0, number, number+2, NULL));
-			int y = render.height - items->y - fh;
+			int y = globals.height - items->y - fh;
 			nvgFillColorRGBAS8(vg, "\0\0\0\xff");
 			nvgText(vg, x + 2, y + 2, number, number + 2);
 			nvgFillColorRGBAS8(vg, "\xff\xff\xff\xff");
@@ -893,7 +866,7 @@ static void renderDrawExtInv(Item items, float scale, int count)
 		{
 			nvgBeginPath(vg);
 			float dura = itemDurability(items);
-			int y = render.height - items->y - sz * 2;
+			int y = globals.height - items->y - sz * 2;
 			nvgRect(vg, items->x, y, scale, sz*2);
 			nvgFillColorRGBAS8(vg, "\0\0\0\xff");
 			nvgFill(vg);
@@ -918,7 +891,7 @@ static void renderInventoryItems(float scale)
 		float *   loc;
 		int       count, i, ext;
 
-		item = (render.selection.sel & SEL_BOTH) == SEL_BOTH ? extendedSelItems : render.inventory->items;
+		item = (globals.selPoints & 3) == 3 ? extendedSelItems : render.inventory->items;
 
 		/* inventory has changed: update all GL buffers */
 		for (i = count = ext = 0, cmd = commands, loc = location; i < MAXCOLINV; i ++, item ++)
@@ -1389,7 +1362,7 @@ void renderWorld(void)
 	/* must be done before glViewport */
 	signPrepare(render.camera);
 
-	glViewport(0, 0, render.width, render.height);
+	glViewport(0, 0, globals.width, globals.height);
 	glClearColor(0.5, 0.5, 0.8, 1);
 	glClear(GL_DEPTH_BUFFER_BIT);
 
@@ -1475,18 +1448,25 @@ void renderWorld(void)
 	if (render.selection.sel)
 		renderSelection();
 
+	if (globals.selPoints)
+	{
+		glUseProgram(render.selection.shader);
+		glBindBuffer(GL_UNIFORM_BUFFER, render.uboShader);
+		selectionRender();
+	}
+
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
 	/* draw the compass */
-	float scale = render.height * (render.compassOffset > 0 ? 0.11 : 0.15);
-	APTR  vg = render.nvgCtx;
+	float scale = globals.height * (render.compassOffset > 0 ? 0.11 : 0.15);
+	NVGcontext * vg = globals.nvgCtx;
 
-	nvgBeginFrame(vg, render.width, render.height, 1);
+	nvgBeginFrame(vg, globals.width, globals.height, 1);
 	nvgFontFaceId(vg, render.debugFont);
 	nvgFontSize(vg, FONTSIZE);
 	nvgTextAlign(vg, NVG_ALIGN_TOP);
 	nvgSave(vg);
-	nvgTranslate(vg, render.width - scale - render.compassOffset, scale); scale -= 20;
+	nvgTranslate(vg, globals.width - scale - render.compassOffset, scale); scale -= 20;
 	nvgRotate(vg, M_PI - render.yaw);
 	nvgBeginPath(vg);
 	nvgRect(vg, -scale, -scale, scale*2, scale*2);
@@ -1496,19 +1476,19 @@ void renderWorld(void)
 
 	/* draw inventory bar */
 	scale = render.scale;
-	render.inventory->x = (render.width - scale * 182) * 0.5 + 3 * scale;
+	render.inventory->x = (globals.width - scale * 182) * 0.5 + 3 * scale;
 	render.inventory->y = 3 * scale;
 	nvgSave(vg);
 	nvgScale(vg, scale, scale);
-	nvgTranslate(vg, render.width / (2 * scale) - 182 / 2, render.height / scale - 22);
+	nvgTranslate(vg, globals.width / (2 * scale) - 182 / 2, globals.height / scale - 22);
 	nvgBeginPath(vg);
 	nvgRect(vg, 0, 0, 182, 22);
-	nvgFillPaint(vg, nvgImagePattern(render.nvgCtx, 0, 0, 253, 24, 0, render.inventory->texture, 1));
+	nvgFillPaint(vg, nvgImagePattern(vg, 0, 0, 253, 24, 0, render.inventory->texture, 1));
 	nvgFill(vg);
 
 	nvgBeginPath(vg);
 	nvgRect(vg, -26, 0, 22, 22);
-	nvgFillPaint(vg, nvgImagePattern(render.nvgCtx, render.inventory->offhand & 2 ? -208-26-23 : -208-26, 0, 253, 24, 0, render.inventory->texture, 1));
+	nvgFillPaint(vg, nvgImagePattern(vg, render.inventory->offhand & 2 ? -208-26-23 : -208-26, 0, 253, 24, 0, render.inventory->texture, 1));
 	nvgFill(vg);
 
 	int pos = render.inventory->offhand & 1 ? -26 : render.inventory->selected * 20 - 1;
@@ -1523,12 +1503,12 @@ void renderWorld(void)
 	/* message above inventory bar */
 	switch (render.inventory->infoState) {
 	case INFO_INV_INIT:
-		render.inventory->infoX = (render.width - nvgTextBounds(vg, 0, 0, render.inventory->infoTxt, NULL, NULL)) / 2;
+		render.inventory->infoX = (globals.width - nvgTextBounds(vg, 0, 0, render.inventory->infoTxt, NULL, NULL)) / 2;
 		render.inventory->infoTime = globals.curTime + INFO_INV_DURATION * 1000;
 		render.inventory->infoState = INFO_INV_SHOW;
 		// no break;
 	case INFO_INV_SHOW:
-		renderText(vg, render.inventory->infoX, render.height - 35 * scale, render.inventory->infoTxt, 1);
+		renderText(vg, render.inventory->infoX, globals.height - 35 * scale, render.inventory->infoTxt, 1);
 		if (globals.curTime > render.inventory->infoTime)
 		{
 			render.inventory->infoState = INFO_INV_FADE;
@@ -1536,7 +1516,7 @@ void renderWorld(void)
 		}
 		break;
 	case INFO_INV_FADE:
-		renderText(vg, render.inventory->infoX, render.height - 35 * scale, render.inventory->infoTxt,
+		renderText(vg, render.inventory->infoX, globals.height - 35 * scale, render.inventory->infoTxt,
 			(render.inventory->infoTime - globals.curTime) / (INFO_INV_FADEOUT * 1000.));
 		if (globals.curTime > render.inventory->infoTime)
 			render.inventory->infoState = INFO_INV_NONE;
@@ -1547,11 +1527,11 @@ void renderWorld(void)
 	{
 		nvgFontSize(vg, FONTSIZE_MSG);
 		nvgBeginPath(vg);
-		nvgRect(vg, FONTSIZE, render.height - FONTSIZE * 2, render.message.pxLen + FONTSIZE_MSG, FONTSIZE);
+		nvgRect(vg, FONTSIZE, globals.height - FONTSIZE * 2, render.message.pxLen + FONTSIZE_MSG, FONTSIZE);
 		nvgFillColorRGBAS8(vg, "\0\0\0\xaa");
 		nvgFill(vg);
 		nvgFillColorRGBAS8(vg, "\xff\xff\xff\xff");
-		nvgText(vg, FONTSIZE+FONTSIZE_MSG/2, render.height - FONTSIZE*2+(FONTSIZE-FONTSIZE_MSG)/2, render.message.text, render.message.text + render.message.chrLen);
+		nvgText(vg, FONTSIZE+FONTSIZE_MSG/2, globals.height - FONTSIZE*2+(FONTSIZE-FONTSIZE_MSG)/2, render.message.text, render.message.text + render.message.chrLen);
 	}
 
 	/* debug info */
@@ -1566,7 +1546,7 @@ void renderWorld(void)
 
 	if (render.debugInfo & DEBUG_BLOCK)
 	{
-		if (render.selection.extra.entity > 0 || (render.selection.sel & SEL_CURRENT))
+		if (render.selection.extra.entity > 0 || (render.selection.sel & SEL_POINTTO))
 			/* tooltip about block being pointed at */
 			renderBlockInfo(&render.selection);
 	}
@@ -1629,10 +1609,10 @@ void renderAddModif(void)
 {
 	/* new chunks might have been created */
 	mapViewFrustum(globals.level, render.matMVP, render.camera);
-	nvgFontSize(render.nvgCtx, FONTSIZE_MSG);
+	nvgFontSize(globals.nvgCtx, FONTSIZE_MSG);
 	render.modifCount ++;
 	render.message.chrLen = sprintf(render.message.text, LangStrPlural(NULL, render.modifCount, "%d unsaved edit", "%d unsaved edits"), render.modifCount);
-	render.message.pxLen  = nvgTextBounds(render.nvgCtx, 0, 0, render.message.text, render.message.text + render.message.chrLen, NULL);
+	render.message.pxLen  = nvgTextBounds(globals.nvgCtx, 0, 0, render.message.text, render.message.text + render.message.chrLen, NULL);
 }
 
 void renderAllSaved(void)
@@ -1655,18 +1635,22 @@ void renderResetFrustum(void)
 /* SIT_Nuke is about to be called */
 void renderSaveRestoreState(Bool save)
 {
-	static SIT_Widget wnd;
+	static SIT_Widget selWnd, libWnd, editWnd;
 	if (save)
 	{
 		/* this will avoid recreaating everything and is pretty cheap trick */
-		wnd = SIT_GetById(globals.app, "selection");
-		if (wnd)
-			SIT_ExtractDialog(wnd);
+		selWnd  = SIT_GetById(globals.app, "selection"); /* selection nudge */
+		libWnd  = SIT_GetById(globals.app, "selcopy");   /* copied selection window */
+		editWnd = SIT_GetById(globals.app, "editbrush");
+		if (selWnd)  SIT_ExtractDialog(selWnd);
+		if (libWnd)  SIT_ExtractDialog(libWnd);
+		if (editWnd) SIT_ExtractDialog(editWnd);
 	}
 	else
 	{
-		if (wnd)
-			SIT_InsertDialog(wnd);
+		if (selWnd)  SIT_InsertDialog(selWnd);
+		if (libWnd)  SIT_InsertDialog(libWnd);
+		if (editWnd) SIT_InsertDialog(editWnd);
 	}
 }
 
@@ -1764,6 +1748,8 @@ static int renderStoreArrays(Map map, ChunkData cd, int size)
 
 	if (bank == NULL)
 	{
+		if (map->GPUMaxChunk < size)
+			map->GPUMaxChunk = (size * 2 + 16384) & ~16383;
 		bank = calloc(sizeof *bank, 1);
 		bank->memAvail = map->GPUMaxChunk;
 		bank->maxItems = MEMITEM;

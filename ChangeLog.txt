@@ -1,4 +1,14 @@
 =========== Week 37 ===========
+Sun Sep 19:
+	* schematics library many bug fixes.
+	* final touches for schematic library.
+
+Sat Sep 18:
+	* read/write/preview schematic files.
+
+Fri Sep 17:
+	* integration of FSView for schematics library.
+
 Wed Sep 15:
 	* move some variables into a global struct: prevent passing around the same var over and over again.
 

@@ -101,6 +101,7 @@ DLLIMP int    ParentDir(STRPTR path);
 DLLIMP Bool   IsDir(STRPTR path);
 DLLIMP STRPTR CreatePath(STRPTR path, Bool not_last);
 DLLIMP STRPTR BaseName(STRPTR path);
+DLLIMP void   SafePath(STRPTR path);
 DLLIMP ULONG  TimeStamp(STRPTR path, int type);
 DLLIMP int    Execute(STRPTR cmd, int timeout);
 DLLIMP int    OpenDocument(STRPTR filename);
@@ -121,7 +122,14 @@ DLLIMP void * fopen_enc(const char * file, const char * mode);
 DLLIMP void   GetSelectionColor(DATA8 fg, DATA8 bg);
 DLLIMP ULONG  TimeMS(void);
 DLLIMP float  RandRange(float min, float max);
+DLLIMP int    GetDefaultPath(int type, STRPTR out, int max);
 
+enum /* possible values for <type> parameter of GetDefaultPath() */
+{
+	FOLDER_APPDATA,
+	FOLDER_MYDOCUMENTS,
+	FOLDER_MYPICTURES
+};
 
 /* String.c */
 DLLIMP void   CopyString(STRPTR destination, STRPTR source, int max);

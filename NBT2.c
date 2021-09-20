@@ -347,11 +347,11 @@ static int NBT_ParseFile(NBTFile nbt, ZStream in, int flags)
 Bool NBT_Add(NBTFile nbt, ...)
 {
 	va_list args;
-	int     type;
+	int     type, nested;
 	DATA8   mem;
 	NBTHdr  hdr;
 
-	for (va_start(args, nbt); ; )
+	for (va_start(args, nbt), nested = 0; ; )
 	{
 		type = va_arg(args, int);
 		if (type == TAG_End)
@@ -361,8 +361,10 @@ Bool NBT_Add(NBTFile nbt, ...)
 		else if (type == TAG_Compound_End)
 		{
 			mem = NBT_AddBytes(nbt, 1);
+			nested --;
 			SET_NULL(mem);
-			break;
+			if (nested == 0) break;
+			else continue;
 		}
 		else if (type == TAG_Raw_Data)
 		{
@@ -437,6 +439,7 @@ Bool NBT_Add(NBTFile nbt, ...)
 				return False;
 			case TAG_Compound:
 				hdr->count = va_arg(args, int);
+				if (hdr->count > 0) nested ++;
 				/* will need a terminator at some point */
 				nbt->alloc = 4;
 				break;
@@ -445,6 +448,7 @@ Bool NBT_Add(NBTFile nbt, ...)
 			break;
 		case TAG_Compound:
 			nbt->alloc = 4;
+			nested ++;
 			break;
 		case TAG_Raw_Ptr:
 			/* tile entity pushed by pistons */
@@ -607,6 +611,14 @@ APTR NBT_Payload(NBTFile root, int offset)
 {
 	if (offset < 0) return NULL;
 	NBTHdr hdr = HDR(root, offset);
+	return hdr->name + ((hdr->minNameSz + 4) & ~3);
+}
+
+APTR NBT_ArrayStart(NBTFile root, int offset, int * size)
+{
+	if (offset < 0) return NULL;
+	NBTHdr hdr = HDR(root, offset);
+	if (size) *size = hdr->count;
 	return hdr->name + ((hdr->minNameSz + 4) & ~3);
 }
 

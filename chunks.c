@@ -1004,10 +1004,10 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 	/* 6 surrounding chunks (+center) */
 	neighbors[5] = layer > 0 ? c->layer[layer-1] : NULL;
 	neighbors[4] = layer+1 < c->maxy ? c->layer[layer+1] : empty;
-	for (i = 0; i < 4; i ++)
+	for (i = 0, pos = 1; i < 4; i ++, pos <<= 1)
 	{
-		neighbors[i] = (c + chunkOffsets[c->neighbor + (1<<i)])->layer[layer];
-		if (neighbors[i] == NULL || (c->noChunks & (1 << i)))
+		neighbors[i] = c->noChunks & pos ? empty : (c + chunkOffsets[c->neighbor + pos])->layer[layer];
+		if (neighbors[i] == NULL)
 			neighbors[i] = empty;
 	}
 	if (cur->emitters)
@@ -1396,6 +1396,7 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 			struct BlockIter_t iter;
 			int8_t * normal = normals + norm * 4;
 			mapInitIterOffset(&iter, neighbors[6], pos);
+			iter.nbor = chunkOffsets;
 			mapIter(&iter, normal[0], normal[1], normal[2]);
 
 			if (blockIsSideHidden(getBlockId(&iter), model, opp[norm]))

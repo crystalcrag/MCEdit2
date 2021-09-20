@@ -20,7 +20,6 @@ struct GameState_t
 {
 	Player_t player;           /* current view */
 	int      state;            /* event loop we currently are */
-	int      width, height;    /* screen size */
 	int      mouseX, mouseY;   /* current mouse pos */
 	int      exit;             /* managed by SITGL */
 	int      maxDist;          /* render distance in chunks */
@@ -52,8 +51,9 @@ enum /* possible value for parameter mceditUIOverlay() */
 	MCUI_OVERLAY_REPLACE,
 	MCUI_OVERLAY_FILL,
 	MCUI_OVERLAY_DELALL,
-	MCUI_SEL_CLONE,
-	MCUI_SEL_COPY
+	MCUI_OVERLAY_LIBRARY,
+	MCUI_OVERLAY_SAVESEL,
+	MCUI_SEL_CLONE
 };
 
 /* ID string */

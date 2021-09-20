@@ -72,7 +72,8 @@ void selectionInitStatic(int shader)
 /* show size of selection in the "nudge" window */
 void selectionSetSize(void)
 {
-	if (selection.nudgeSize)
+	SIT_Widget w;
+	if ((w = selection.nudgeSize))
 	{
 		TEXT buffer[32];
 		int size[] = {
@@ -83,12 +84,22 @@ void selectionSetSize(void)
 		if (globals.direction & 1)
 			swap(size[0], size[1]);
 		sprintf(buffer, "%dW x %dL x %dH", size[0], size[1], size[2]);
-		SIT_SetValues(selection.nudgeSize, SIT_Title, buffer, NULL);
+		SIT_SetValues(w, SIT_Title, buffer, NULL);
+	}
+	if ((w = selection.brushSize))
+	{
+		TEXT buffer[32];
+		Map brush = selection.brush;
+		int size[] = {brush->size[VX]-2, brush->size[VZ]-2, brush->size[VY]-2};
+		if (globals.direction & 1)
+			swap(size[0], size[1]);
+		sprintf(buffer, "%dW x %dL x %dH", size[0], size[1], size[2]);
+		SIT_SetValues(w, SIT_Title, buffer, NULL);
 	}
 	if (selection.editBrush)
 	{
 		/* show the orientattion of roll command (way too complicated to make it follow all orientations) */
-		SIT_Widget w = SIT_GetById(selection.editBrush, "roll");
+		w = SIT_GetById(selection.editBrush, "roll");
 		TEXT buffer[64];
 		sprintf(buffer, "<pchar src=roll%s.png> Roll", selection.ext[globals.direction]);
 		SIT_SetValues(w, SIT_Title, buffer, NULL);
@@ -355,7 +366,7 @@ void selectionRender(void)
 		        selectionDrawPoint(selection.secondPt, 1);
 		        selectionDrawPoint(selection.regionPt, 2);
 		}
-		if (globals.selPoints & 8)
+		if (globals.selPoints & (1 << SEL_POINT_CLONE))
 		{
 			/* draw the brush (only once, no matter how many repeats there are) */
 			glDepthMask(GL_TRUE);
@@ -371,6 +382,7 @@ void selectionRender(void)
 		}
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 		glEnable(GL_DEPTH_TEST);
+		glDepthMask(GL_TRUE);
 	}
 }
 
@@ -528,7 +540,7 @@ static int selectionTransform(SIT_Widget w, APTR cd, APTR ud)
 }
 
 /* constructor */
-static Map selectionAllocBrush(uint16_t sizes[3])
+Map selectionAllocBrush(uint16_t sizes[3])
 {
 	uint16_t chunks[] = {
 		(sizes[VX] + 15) >> 4,
@@ -626,8 +638,8 @@ void selectionFreeBrush(Map brush)
 /* dialog to manipulate selection clone */
 void selectionEditBrush(Bool simplified)
 {
-	TEXT buffer[64];
-	SIT_Widget diag = selection.editBrush = SIT_CreateWidget("brush.mc", SIT_DIALOG, globals.app,
+	TEXT buffer[32];
+	SIT_Widget diag = selection.editBrush = SIT_CreateWidget("editbrush.mc", SIT_DIALOG, globals.app,
 		SIT_DialogStyles,  SITV_Plain,
 		SIT_Left,          SITV_AttachForm, NULL, SITV_Em(0.5),
 		SIT_TopAttachment, SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter,
@@ -667,7 +679,13 @@ void selectionEditBrush(Bool simplified)
 			"<nudge top=MIDDLE,ycoord><tlab top=MIDDLE,repeat>"
 		);
 	}
-	else SIT_SetAttributes(diag, "<nudge left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, "right=NONE top=WIDGET,mirror,0.5em>");
+	else
+	{
+		SIT_CreateWidgets(diag, "<label name=size top=WIDGET,nudge,1em left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, ">");
+		SIT_SetAttributes(diag, "<nudge left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, "right=NONE top=WIDGET,mirror,0.5em>");
+		selection.brushSize = SIT_GetById(diag, "size");
+		selectionSetSize();
+	}
 
 	SIT_CreateWidgets(diag,
 		"<button name=copyair title='Copy air'    curValue=", &selection.copyAir,    "top=WIDGET,repeat,1em    buttonType=", SITV_CheckBox, ">"
@@ -680,7 +698,7 @@ void selectionEditBrush(Bool simplified)
 	SIT_SetAttributes(diag,
 		"<brotate top=MIDDLE,rotate><broll top=MIDDLE,roll><bflip top=MIDDLE,flip><bmirror top=MIDDLE,mirror>"
 	);
-	if (simplified) SIT_SetAttributes(diag, "<copyair topObject=nudge>");
+	if (simplified) SIT_SetAttributes(diag, "<copyair topObject=size>");
 	int i;
 	for (i = 0; i < 3; i ++)
 	{
@@ -859,8 +877,7 @@ void selectionUseBrush(Map lib)
 	}
 	renderAllocCmdBuffer(brush);
 
-	if (selection.brush)
-		selectionFreeBrush(selection.brush);
+	selectionCancel();
 
 	selection.brush = brush;
 	selection.autoMove = 1;
@@ -869,9 +886,7 @@ void selectionUseBrush(Map lib)
 	selection.cloneSize[VY] = lib->size[VY] - 2;
 	selection.cloneSize[VZ] = lib->size[VZ] - 2;
 
-	/* cancel selection */
-	if (globals.selPoints)
-		renderSetSelectionPoint(RENDER_SEL_CLEAR);
+	globals.selPoints |= 1 << SEL_POINT_CLONE;
 
 	selectionSetRect(SEL_POINT_CLONE);
 	selectionEditBrush(True);
@@ -893,6 +908,7 @@ int selectionCancelClone(SIT_Widget w, APTR cd, APTR ud)
 	{
 		SIT_CloseDialog(selection.editBrush);
 		selection.editBrush = NULL;
+		selection.brushSize = NULL;
 		ret = 1;
 	}
 	globals.selPoints &= ~8;

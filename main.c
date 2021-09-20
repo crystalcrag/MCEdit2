@@ -33,11 +33,11 @@ static void takeScreenshot(void)
 {
 	time_t      now = time(NULL);
 	struct tm * local = localtime(&now);
-	DATA8       buffer = malloc(mcedit.width * mcedit.height * 3);
+	DATA8       buffer = malloc(globals.width * globals.height * 3);
 	STRPTR      path = alloca(strlen(mcedit.capture) + 64);
 	int         len, num = 2;
 
-	glReadPixels(0, 0, mcedit.width, mcedit.height, GL_RGB, GL_UNSIGNED_BYTE, buffer);
+	glReadPixels(0, 0, globals.width, globals.height, GL_RGB, GL_UNSIGNED_BYTE, buffer);
 
 	len = sprintf(path, "%s/%d-%02d-%02d_%02d.%02d.%02d.png", mcedit.capture, local->tm_year+1900, local->tm_mon+1, local->tm_mday,
 		local->tm_hour, local->tm_min, local->tm_sec);
@@ -50,7 +50,7 @@ static void takeScreenshot(void)
 		sprintf(path + len - 4, "_%d.png", num);
 		num ++;
 	}
-	textureSaveSTB(path, mcedit.width, mcedit.height, 3, buffer, mcedit.width*3);
+	textureSaveSTB(path, globals.width, globals.height, 3, buffer, globals.width*3);
 	fprintf(stderr, "screenshot saved in %s\n", path);
 	free(buffer);
 }
@@ -59,8 +59,8 @@ static void prefsInit(void)
 {
 	INIFile ini = ParseINI(PREFS_PATH);
 
-	mcedit.width   = GetINIValueInt(ini, "WndWidth",   1600);
-	mcedit.height  = GetINIValueInt(ini, "WndHeight",  1080);
+	globals.width  = GetINIValueInt(ini, "WndWidth",   1600);
+	globals.height = GetINIValueInt(ini, "WndHeight",  1080);
 	mcedit.maxDist = GetINIValueInt(ini, "RenderDist", 4);
 
 	CopyString(mcedit.capture, GetINIValueStr(ini, "CaptureDir", "screenshots"), sizeof mcedit.capture);
@@ -184,12 +184,21 @@ static int mceditCopyToLibrary(SIT_Widget w, APTR cd, APTR ud)
 	return 0;
 }
 
+/* Ctrl+L: show library */
+static int mceditShowLibrary(SIT_Widget w, APTR cd, APTR ud)
+{
+	FrameSaveRestoreTime(True);
+	mceditUIOverlay(MCUI_OVERLAY_LIBRARY);
+	FrameSaveRestoreTime(False);
+	return 1;
+}
+
 /* handle extended selection toolbar actions */
 static int mceditCommands(int cmd)
 {
 	if (globals.selPoints == 3)
 	{
-		if (cmd < MCUI_SEL_CLONE)
+		if (cmd != MCUI_SEL_CLONE)
 		{
 			/* remove current brush */
 			selectionCancelClone(NULL, NULL, NULL);
@@ -241,7 +250,10 @@ static int mceditTrackFocus(SIT_Widget w, APTR cd, APTR ud)
 static int mceditCancelStuff(SIT_Widget w, APTR cd, APTR ud)
 {
 	if (selectionCancelClone(NULL, NULL, NULL))
-		;
+	{
+		if (globals.selPoints == 0)
+			renderSetSelectionPoint(RENDER_SEL_CLEAR);
+	}
 	else if (mcedit.state == GAMELOOP_OVERLAY)
 		SIT_Exit(1); /* exit from loop, not app */
 	else if (globals.selPoints)
@@ -264,7 +276,7 @@ int main(int nb, char * argv[])
 
 	prefsInit();
 
-    SDL_Surface * screen = SDL_SetVideoMode(mcedit.width, mcedit.height, 32, SDL_HWSURFACE | SDL_GL_DOUBLEBUFFER | SDL_OPENGL | SDL_RESIZABLE);
+    SDL_Surface * screen = SDL_SetVideoMode(globals.width, globals.height, 32, SDL_HWSURFACE | SDL_GL_DOUBLEBUFFER | SDL_OPENGL | SDL_RESIZABLE);
     if (screen == NULL)
     {
 		SIT_Log(SIT_ERROR, "failed to set video mode, aborting.");
@@ -283,7 +295,7 @@ int main(int nb, char * argv[])
 
 	fprintf(stderr, "GL version = %s - vendor = %s\n", (STRPTR) glGetString(GL_VERSION), (STRPTR) glGetString(GL_RENDERER));
 
-	globals.app = SIT_Init(SIT_NVG_FLAGS, mcedit.width, mcedit.height, RESDIR INTERFACE "default.css", 1);
+	globals.app = SIT_Init(SIT_NVG_FLAGS, globals.width, globals.height, RESDIR INTERFACE "default.css", 1);
 
 	if (! globals.app)
 	{
@@ -299,6 +311,7 @@ int main(int nb, char * argv[])
 		{SITK_FlagCtrl + 'g', SITE_OnActivate, NULL, mceditGoto},
 		{SITK_FlagCtrl + 'c', SITE_OnActivate, NULL, mceditCopyToLibrary},
 		{SITK_FlagCtrl + 'd', SITE_OnActivate, NULL, mceditClearSelection},
+		{SITK_FlagCtrl + 'l', SITE_OnActivate, NULL, mceditShowLibrary},
 		{0}
 	};
 
@@ -311,10 +324,11 @@ int main(int nb, char * argv[])
 		SIT_ExitCode,    &mcedit.exit,
 		NULL
 	);
+	SIT_GetValues(globals.app, SIT_NVGcontext, &globals.nvgCtx, NULL);
 	SIT_AddCallback(globals.app, SITE_OnFocus, mceditTrackFocus, NULL);
 	SIT_AddCallback(globals.app, SITE_OnBlur,  mceditTrackFocus, NULL);
 
-	if (! renderInitStatic(mcedit.width, mcedit.height))
+	if (! renderInitStatic())
 	{
 		/* shaders compilation failed usually */
 		return 1;
@@ -350,7 +364,7 @@ int main(int nb, char * argv[])
 }
 
 static uint8_t toolbarCmds[] = {
-	MCUI_OVERLAY_REPLACE, MCUI_OVERLAY_FILL, MCUI_SEL_CLONE, MCUI_SEL_COPY, MCUI_OVERLAY_ANALYZE, 0, 0, 0, 0
+	MCUI_OVERLAY_REPLACE, MCUI_OVERLAY_FILL, MCUI_SEL_CLONE, MCUI_OVERLAY_LIBRARY, MCUI_OVERLAY_ANALYZE, 0, 0, 0, 0
 };
 
 /*
@@ -465,8 +479,8 @@ void mceditWorld(void)
 					case 0: goto forwardKeyPress;
 					case 1:
 						/* just switched to offhand */
-						if (globals.selPoints == 0 && (mcedit.player.inventory.offhand & 1))
-							renderSetSelectionPoint(RENDER_SEL_INIT);
+						if (globals.selPoints == 0)
+							renderSetSelectionPoint(mcedit.player.inventory.offhand & 1 ? RENDER_SEL_INIT : RENDER_SEL_CLEAR);
 						break;
 					case 2:
 						/* partial extended selection, but switched to main toolbar: cancel selection */
@@ -577,7 +591,7 @@ void mceditWorld(void)
 					SDL_WM_GrabInput(SDL_GRAB_OFF);
 					SDL_ShowCursor(SDL_ENABLE);
 					if (capture == 2)
-						SDL_WarpMouse(mcedit.width>>1, mcedit.height>>1);
+						SDL_WarpMouse(globals.width>>1, globals.height>>1);
 					else
 						SDL_WarpMouse(mcedit.mouseX, mcedit.mouseY);
 					capture = ignore = 0;
@@ -586,8 +600,8 @@ void mceditWorld(void)
 					break;
 				break;
 			case SDL_VIDEORESIZE:
-				mcedit.width  = event.resize.w;
-				mcedit.height = event.resize.h;
+				globals.width  = event.resize.w;
+				globals.height = event.resize.h;
 				SIT_ProcessResize(event.resize.w, event.resize.h);
 				break;
 			case SDL_QUIT:
@@ -639,6 +653,7 @@ void mceditPlaceBlock(void)
 		/* click while hovering slot from toolbar */
 		if (p->inventory.hoverSlot == 9)
 		{
+			/* hovering off-hand */
 			if ((p->inventory.offhand & PLAYER_OFFHAND) == 0)
 			{
 				p->inventory.offhand |= PLAYER_OFFHAND;
@@ -649,10 +664,11 @@ void mceditPlaceBlock(void)
 		else
 		{
 			playerScrollInventory(p, p->inventory.hoverSlot - p->inventory.selected);
-			renderSetSelectionPoint(RENDER_SEL_COMPLETE);
+			if (globals.selPoints < 3)
+				renderSetSelectionPoint(RENDER_SEL_CLEAR);
+			else if ((globals.selPoints & 3) == 3)
+				mceditCommands(toolbarCmds[mcedit.player.inventory.selected]);
 		}
-		if (globals.selPoints == 3)
-			mceditCommands(toolbarCmds[mcedit.player.inventory.selected]);
 		return;
 	}
 
@@ -739,7 +755,7 @@ void mceditUIOverlay(int type)
 	vec4      pos;
 
 	SIT_SetValues(globals.app, SIT_RefreshMode, SITV_RefreshAsNeeded, NULL);
-	mcuiTakeSnapshot(mcedit.width, mcedit.height);
+	mcuiTakeSnapshot(globals.width, globals.height);
 	renderSaveRestoreState(True);
 	mcedit.state = GAMELOOP_OVERLAY;
 
@@ -842,6 +858,11 @@ void mceditUIOverlay(int type)
 
 	case MCUI_OVERLAY_DELALL:
 		mcuiDeleteAll();
+		break;
+
+	case MCUI_OVERLAY_LIBRARY:
+	case MCUI_OVERLAY_SAVESEL:
+		libraryShow(type);
 	}
 
 	SDL_EnableUNICODE(1);
@@ -878,9 +899,9 @@ void mceditUIOverlay(int type)
 				SIT_ProcessMouseMove(event.motion.x, event.motion.y);
 				break;
 			case SDL_VIDEORESIZE:
-				mcedit.width  = event.resize.w;
-				mcedit.height = event.resize.h;
-				SIT_ProcessResize(mcedit.width, mcedit.height);
+				globals.width  = event.resize.w;
+				globals.height = event.resize.h;
+				SIT_ProcessResize(globals.width, globals.height);
 				break;
 			case SDL_QUIT:
 				mcedit.exit = 1;
@@ -892,7 +913,8 @@ void mceditUIOverlay(int type)
 
 		/* update and render */
 		mcuiInitDrawItems();
-		switch (SIT_RenderNodes(FrameGetTime())) {
+		glViewport(0, 0, globals.width, globals.height);
+		switch (SIT_RenderNodes(globals.curTimeUI = FrameGetTime())) {
 		case SIT_RenderComposite:
 			mcuiDrawItems();
 			SIT_RenderNodes(0);
@@ -1068,9 +1090,9 @@ void mceditSideView(void)
 				mcedit.exit = 1;
 				break;
 			case SDL_VIDEORESIZE:
-				mcedit.width  = event.resize.w;
-				mcedit.height = event.resize.h;
-				SIT_ProcessResize(mcedit.width, mcedit.height);
+				globals.width  = event.resize.w;
+				globals.height = event.resize.h;
+				SIT_ProcessResize(globals.width, globals.height);
 				refresh = 1;
 			default: break;
 			}

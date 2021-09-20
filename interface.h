@@ -34,7 +34,6 @@ struct MCInterface_t
 	MCInventory  groups[10];
 	int          groupCount;
 	int          groupIdStart;
-	APTR         nvgCtx;
 	int          cellSz;
 	int          itemSz;
 	int          width, height;
