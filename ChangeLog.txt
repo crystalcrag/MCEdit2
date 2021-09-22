@@ -1,3 +1,12 @@
+=========== Week 38 ===========
+Tue Sep 21:
+	* import tile entities from library.
+
+Mon Sep 20:
+	* NBT import was a failure, removed the code for now.
+	* fixed lots of bug reports from Dr Memory.
+	* library schematics: added tile entities in file.
+
 =========== Week 37 ===========
 Sun Sep 19:
 	* schematics library many bug fixes.

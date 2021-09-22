@@ -30,14 +30,13 @@ int       chunkFree(Chunk);
 ChunkData chunkCreateEmpty(Chunk, int layer);
 DATA8     chunkGetTileEntity(Chunk, int * XYZ);
 DATA8     chunkDeleteTileEntity(Chunk, int * XYZ, Bool extract);
+DATA8     chunkIterTileEntity(Chunk, int * XYZ, int * offset);
 Bool      chunkAddTileEntity(Chunk, int * XYZ, DATA8 mem);
 Bool      chunkUpdateNBT(Chunk, int blockOffset, NBTFile nbt);
+Bool      chunkGetTilePosition(Chunk, int * XYZ, DATA8 tile);
 void      chunkUpdateTilePosition(Chunk, int * XYZ, DATA8 tile);
 void      chunkMarkForUpdate(Chunk);
 void      chunkExpandEntities(Chunk);
-
-#define chunkDeleteIterTE(iter,ext)    chunkDeleteTileEntity((iter).ref, (int[3]){(iter).x, (iter).yabs, (iter).z}, ext)
-#define chunkAddIterTE(iter,tile)      chunkAddTileEntity((iter).ref, (int[3]){(iter).x, (iter).yabs, (iter).z}, tile)
 
 struct ChunkData_t                     /* one sub-chunk of 16x16x16 blocks */
 {
@@ -127,7 +126,7 @@ enum /* NBT update tag */
 #ifdef CHUNK_IMPL                      /* private stuff below */
 
 #define STATIC_HASH(hash, min, max)    (min <= (DATA8) hash && (DATA8) hash < max)
-#define TILE_ENTITY_ID(XYZ)            ((XYZ[1] << 8) | (XYZ[0] << 4) | XYZ[2])
+#define TILE_ENTITY_ID(XYZ)            ((XYZ[1] << 8) | (XYZ[2] << 4) | XYZ[0])
 
 typedef struct TileEntityHash_t *      TileEntityHash;
 typedef struct TileEntityEntry_t *     TileEntityEntry;

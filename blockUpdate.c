@@ -609,7 +609,6 @@ static Bool mapUpdateAddPistonExt(Map map, struct BlockIter_t iter, int blockId,
 			TAG_Int,    "source",    1,
 			TAG_Compound_End
 		);
-		//fprintf(stderr, "adding piston extension at %g,%g,%g\n", pos[0], pos[1], pos[2]);
 		if (tile_ret)
 			*tile_ret = ret.mem;
 		else

@@ -1200,7 +1200,7 @@ static struct
 	double      processStart;
 	uint8_t     canUseSpecial[32];
 
-	/* fill with brush part */
+	/* fill with geometric brush part */
 	int         isHollow;
 	int         shape;
 	int         outerArea;
@@ -1558,6 +1558,13 @@ void mcuiFillOrReplace(Bool fillWithBrush)
  * delete all/selective from selection
  */
 
+static struct
+{
+	int blocks;
+	int entity;
+	int tile;
+}	mcuiDelWnd = {True, True, True};
+
 static int mcuiDeleteProgress(SIT_Widget w, APTR cd, APTR ud)
 {
 	if (mcuiRepWnd.processTotal == mcuiRepWnd.processCurrent)
@@ -1609,4 +1616,33 @@ void mcuiDeleteAll(void)
 
 	/* this function will monitor the thread progress */
 	mcuiRepWnd.asyncCheck = SIT_ActionAdd(globals.app, mcuiRepWnd.processStart = globals.curTimeUI, globals.curTimeUI + 1e9, mcuiDeleteProgress, NULL);
+}
+
+static int mcuiStopDelete(SIT_Widget w, APTR cd, APTR ud)
+{
+	SIT_Exit(1);
+	return 1;
+}
+
+void mcuiDeletePartial(void)
+{
+	/* default values for checkboxes */
+	SIT_Widget diag = SIT_CreateWidget("delete.bg", SIT_DIALOG, globals.app,
+		SIT_DialogStyles, SITV_Plain | SITV_Modal | SITV_Movable,
+		SIT_Style,        "padding-top: 0.2em",
+		NULL
+	);
+
+	SIT_CreateWidgets(diag,
+		"<label name=dlgtitle title=", "<b>Partial delete</b>", "left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, ">"
+		"<label name=title title='Select the parts you want to delete:' top=WIDGET,dlgtitle,0.5em>"
+		"<button name=blocks buttonType=", SITV_CheckBox, "curValue=", &mcuiDelWnd.blocks, "title=Blocks top=WIDGET,title,0.5em>"
+		"<button name=entity buttonType=", SITV_CheckBox, "curValue=", &mcuiDelWnd.entity, "title='Entities (mobs, falling blocks, item frame, ...)' top=WIDGET,blocks,0.5em>"
+		"<button name=tile   buttonType=", SITV_CheckBox, "curValue=", &mcuiDelWnd.tile,   "title='Tile entities (chests inventories, ...)' top=WIDGET,entity,0.5em>"
+		"<button name=cancel title=Cancel right=FORM top=WIDGET,tile,1em>"
+		"<button name=ok title=Delete top=OPPOSITE,cancel right=WIDGET,cancel,0.5em>"
+	);
+	SIT_AddCallback(SIT_GetById(diag, "cancel"), SITE_OnActivate, mcuiStopDelete, NULL);
+
+	SIT_ManageWidget(diag);
 }

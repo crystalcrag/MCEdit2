@@ -142,7 +142,7 @@ DLLIMP int    StrToUpper16(STRPTR str, int len); /* UTF-16 */
 DLLIMP int    StrToLower16(STRPTR str, int len); /* UTF-16 */
 DLLIMP int    StrToLower(STRPTR str, int len);
 DLLIMP int    StrCount(STRPTR list, int chr);
-DLLIMP int    FormatNumber(int num, STRPTR buffer, int max);
+DLLIMP int    FormatNumber(STRPTR buffer, int max, STRPTR fmt, int num);
 
 /* Encodings.c */
 DLLIMP int    CP2UTF8(DATA8 dest, int cp);

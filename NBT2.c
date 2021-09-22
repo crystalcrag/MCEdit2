@@ -363,7 +363,7 @@ Bool NBT_Add(NBTFile nbt, ...)
 			mem = NBT_AddBytes(nbt, 1);
 			nested --;
 			SET_NULL(mem);
-			if (nested == 0) break;
+			if (nested <= 0) break;
 			else continue;
 		}
 		else if (type == TAG_Raw_Data)

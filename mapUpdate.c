@@ -404,8 +404,10 @@ static void mapUpdateSkyLightBlock(BlockIter iterator)
 	{
 		struct BlockIter_t initial;
 		struct BlockIter_t neighbor = iter;
-		int8_t * XYZ = track.coord + track.pos;
-		int8_t   dir = (XYZ[0] >> 5) & 7;
+		int8_t XYZ[3], dir;
+
+		memcpy(XYZ, track.coord + track.pos, 3);
+		dir = (XYZ[0] >> 5) & 7;
 
 		mapIter(&neighbor, (XYZ[0] & 31) - MAXSKY, XYZ[1], XYZ[2]);
 		initial = neighbor;
@@ -529,8 +531,9 @@ static void mapUpdateSkyLightUnblock(BlockIter iterator)
 	while (track.usage > 0)
 	{
 		struct BlockIter_t neighbor = iter;
-		int8_t * XYZ = track.coord + track.pos;
-		uint8_t  sky;
+		int8_t XYZ[3];
+		uint8_t sky;
+		memcpy(XYZ, track.coord + track.pos, 3);
 
 		mapIter(&neighbor, XYZ[0], XYZ[1], XYZ[2]);
 		sky = mapGetSky(&neighbor);
@@ -585,9 +588,9 @@ static void mapUpdateAddLight(BlockIter iterator, int intensity /* max: 15 */)
 	while (track.usage > 0)
 	{
 		struct BlockIter_t neighbor = *iterator;
-		int8_t * XYZ = track.coord + track.pos;
-		int8_t   level, i, dim;
+		int8_t XYZ[3], level, i, dim;
 
+		memcpy(XYZ, track.coord + track.pos, 3);
 		mapIter(&neighbor, XYZ[0], XYZ[1], XYZ[2]);
 		level = mapGetLight(&neighbor);
 
@@ -599,10 +602,7 @@ static void mapUpdateAddLight(BlockIter iterator, int intensity /* max: 15 */)
 			if (dim < MAXLIGHT && mapGetLight(&neighbor) < level - dim)
 			{
 				if (level > 1)
-				{
 					trackAdd(XYZ[0] + relx[i], XYZ[1] + rely[i], XYZ[2] + relz[i]);
-					XYZ = track.coord + track.pos;
-				}
 
 				mapUpdateTable(&neighbor, level - dim, BLOCKLIGHT_OFFSET);
 			}
@@ -623,9 +623,9 @@ static void mapUpdateRemLight(BlockIter iterator)
 	{
 		struct BlockIter_t neighbor = *iterator;
 
-		int8_t * XYZ = track.coord + track.pos;
-		int8_t   level, max, i, dir, equal;
+		int8_t XYZ[3], level, max, i, dir, equal;
 
+		memcpy(XYZ, track.coord + track.pos, 3);
 		mapIter(&neighbor, XYZ[0], XYZ[1], XYZ[2]);
 		level = mapGetLight(&neighbor);
 
@@ -705,10 +705,9 @@ static void mapUpdateObstructLight(struct BlockIter_t iter)
 	while (track.usage > 0)
 	{
 		struct BlockIter_t neighbor = iter;
+		int8_t XYZ[3], i, dim, max, k;
 
-		int8_t * XYZ = track.coord + track.pos;
-		int8_t   i, dim, max, k;
-
+		memcpy(XYZ, track.coord + track.pos, 3);
 		mapIter(&neighbor, XYZ[0], XYZ[1], XYZ[2]);
 
 		/* check surrounding blocks if light levels are correct */
@@ -905,8 +904,9 @@ static void mapUpdatePropagateSignal(BlockIter iterator)
 	while (track.usage > 0)
 	{
 		struct BlockIter_t neighbor = *iterator;
-		int8_t * XYZ = track.coord + track.pos;
+		int8_t XYZ[3];
 
+		memcpy(XYZ, track.coord + track.pos, 3);
 		mapIter(&neighbor, XYZ[0], XYZ[1], XYZ[2]);
 
 		signal = redstoneSignalStrength(&neighbor, False);
@@ -963,9 +963,9 @@ void mapUpdateDeleteSignal(BlockIter iterator, int blockId)
 	while (track.usage > 0)
 	{
 		struct BlockIter_t neighbor = *iterator;
-		int8_t * XYZ = track.coord + track.pos;
-		int8_t   max, dir, equal, level;
+		int8_t XYZ[3], max, dir, equal, level;
 
+		memcpy(XYZ, track.coord + track.pos, 3);
 		mapIter(&neighbor, XYZ[0], XYZ[1], XYZ[2]);
 		track.pos += 3;
 		track.usage -= 3;
@@ -1370,9 +1370,10 @@ int mapUpdateGetCnxGraph(ChunkData cd, int start, DATA8 visited)
 
 	while (track.usage > 0)
 	{
-		int8_t * XYZ = track.coord + track.pos;
-		uint8_t  i, x, y, z;
+		int8_t XYZ[3];
+		uint8_t i, x, y, z;
 
+		memcpy(XYZ, track.coord + track.pos, 3);
 		track.pos += 3;
 		track.usage -= 3;
 		if (track.pos == track.max) track.pos = 0;
@@ -1417,9 +1418,9 @@ void mapUpdateFloodFill(Map map, vec4 pos, uint8_t visited[4096], int8_t minMax[
 
 	while (track.usage > 0)
 	{
-		int8_t * XYZ = track.coord + track.pos;
-		uint8_t  i;
+		int8_t XYZ[3], i;
 
+		memcpy(XYZ, track.coord + track.pos, 3);
 		track.pos += 3;
 		track.usage -= 3;
 		if (track.pos == track.max) track.pos = 0;
@@ -1448,8 +1449,6 @@ void mapUpdateFloodFill(Map map, vec4 pos, uint8_t visited[4096], int8_t minMax[
 				int8_t z = XYZ[2] + relz[i];
 				/* that's why it is limited to 16x16x16: <visited> can only hold 4096 bits */
 				int pos = (x & 31) + (z & 31) * 32 + (y & 15) * 1024;
-				if (y >= 32*32*32)
-					puts("no good");
 				if ((visited[pos>>3] & mask8bit[pos&7]) == 0)
 				{
 					visited[pos>>3] |= mask8bit[pos&7];

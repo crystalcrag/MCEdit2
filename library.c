@@ -25,6 +25,7 @@ static struct MCLibrary_t library;
 /* SITE_OnActivate on "Save" button */
 static int librarySaveCopy(SIT_Widget w, APTR cd, APTR ud)
 {
+	library.saveFromLib = True;
 	mceditUIOverlay(MCUI_OVERLAY_SAVESEL);
 	return 1;
 }
@@ -36,7 +37,7 @@ static int libraryUseCopy(SIT_Widget w, APTR cd, APTR ud)
 	int      nth;
 	SIT_GetValues(ud, SIT_SelectedIndex, &nth, NULL);
 	SIT_GetValues(ud, SIT_RowTag(nth), &brush, NULL);
-	selectionUseBrush(brush->data);
+	selectionUseBrush(brush->data, True);
 	return 1;
 }
 
@@ -192,6 +193,7 @@ static void libraryAddBrush(Map brush)
 	}
 }
 
+/* SITE_OnResize on copyWnd */
 static int libraryGetOffset(SIT_Widget w, APTR cd, APTR ud)
 {
 	float x = 0;
@@ -265,6 +267,21 @@ static void libraryGenMesh(LibBrush lib)
 	renderAllocCmdBuffer(brush);
 }
 
+static Bool GetTilePosition(int * XYZ, DATA8 tile)
+{
+	NBTFile_t nbt = {.mem = tile};
+	NBTIter_t iter;
+	uint8_t   flags = 0;
+	int       i;
+	NBT_IterCompound(&iter, tile);
+	while ((i = NBT_Iter(&iter)) >= 0 && flags != 7)
+	{
+		int n = FindInList("X,Y,Z", iter.name, 0);
+		if (n >= 0) XYZ[n] = NBT_ToInt(&nbt, i, 0), flags |= 1 << n;
+	}
+	return flags == 7;
+}
+
 /* parse an MCEdit v1 schematics: it is a simple dump of BlockIds and Data table */
 static Bool libraryParseSchematics(LibBrush lib, DATA16 size)
 {
@@ -292,101 +309,39 @@ static Bool libraryParseSchematics(LibBrush lib, DATA16 size)
 			}
 		}
 	}
-	lib->data = brush;
-	return True;
-}
 
-static inline int topHalf(NBTFile nbt, int offset)
-{
-	STRPTR prop = NBT_Payload(nbt, NBT_FindNode(nbt, offset, "half"));
-	return prop ? strcmp(prop, "top") == 0 : 0;
-}
-
-/* parse a structure file: this format is used by Minecraft to store objects to paste in worldgen */
-static Bool libraryParseStructure(LibBrush lib, DATA16 size)
-{
-	/*
-	 * what a retarded format that is: 52 bytes per voxel: that's 50 bytes of pure noise, or 2600%
-	 * more data than it is necessary. Hopefully, those files usually store small objects.
-	 */
-	int palette = NBT_FindNode(&lib->nbt, 0, "palette");
-	int blocks  = NBT_FindNode(&lib->nbt, 0, "blocks");
-
-	if (palette >= 0 && blocks >= 0)
+	x = NBT_FindNode(&lib->nbt, 0, "TileEntities");
+	if (x > 0)
 	{
-		struct BlockIter_t brushIter;
-		NBTIter_t iter;
-		DATA8 pal;
-		int max, i;
-
-		/* need to parse palette first */
-		NBT_InitIter(&lib->nbt, palette, &iter);
-		if (iter.state <= 0) return False;
-		max = iter.state;
-		pal = alloca(max * 2);
-		i = 0;
-		while ((palette = NBT_Iter(&iter)) > 0)
+		NBTIter_t list;
+		NBT_InitIter(&lib->nbt, x, &list);
+		while ((x = NBT_Iter(&list)) > 0)
 		{
-			static char variantSlabs[] = "stone,sandstone,wooden,cobblestone,brick,stone brick,nether brick,quartz";
-			static char variantLogs[]  = "oak,spruce,birch,jungle";
-			static char facingStairs[] = "east,west,south,north";
-			DATA8 name = NBT_Payload(&lib->nbt, NBT_FindNode(&lib->nbt, palette, "Name"));
-			if (name)
+			int XYZ[3];
+			GetTilePosition(XYZ, lib->nbt.mem + x);
+			mapInitIterOffset(&iter, brush->firstVisible, 256+16+1);
+			if (0 <= XYZ[VX] && XYZ[VX] < size[VX] && 0 <= XYZ[VZ] && XYZ[VZ] <= size[VZ])
 			{
-				int block = strcmp(name, "stone_stairs") == 0 ? 67 /* legacy crap, obviously */ : itemGetByName(name, False);
-				uint8_t data = 0;
-				/* not complete by far */
-				switch (blockIds[block].orientHint) {
-				case ORIENT_STAIRS:
-					if (topHalf(&lib->nbt, palette)) data = 8;
-					data |= FindInList(facingStairs, NBT_Payload(&lib->nbt, NBT_FindNode(&lib->nbt, palette, "facing")), 0);
-					break;
-				case ORIENT_LOG:
-					data = FindInList("y,x,z", NBT_Payload(&lib->nbt, NBT_FindNode(&lib->nbt, palette, "axis")), 0) * 4;
-					data |= FindInList(variantLogs, NBT_Payload(&lib->nbt, NBT_FindNode(&lib->nbt, palette, "variant")), 0);
-					break;
-				case ORIENT_SLAB:
-					if (topHalf(&lib->nbt, palette)) data = 8;
-					data |= FindInList(variantSlabs, NBT_Payload(&lib->nbt, NBT_FindNode(&lib->nbt, palette, "variant")), 0);
-				}
-				pal[i] = block;
-				pal[i+max] = data;
+				mapIter(&iter, XYZ[0], XYZ[1], XYZ[2]);
+				if (iter.cd) /* Y check (XYZ[VY]) */
+					chunkAddTileEntity(iter.ref, (int[3]){iter.x-1, iter.yabs-1, iter.z-1}, NBT_Copy(lib->nbt.mem + x));
 			}
-			i ++;
-		}
-
-		/* now, we can fill the brush */
-		Map brush = selectionAllocBrush((uint16_t[3]){size[VX]+2, size[VY]+2, size[VZ]+2});
-		if (! brush) return False;
-		mapInitIterOffset(&brushIter, brush->firstVisible, 256+16+1);
-		brushIter.nbor = brush->chunkOffsets;
-
-		NBT_InitIter(&lib->nbt, blocks, &iter);
-		while ((blocks = NBT_Iter(&iter)) > 0)
-		{
-			struct BlockIter_t fill = brushIter;
-			float pos[3] = {0, 0, 0};
-			int index = NBT_ToInt(&lib->nbt, NBT_FindNode(&lib->nbt, blocks, "state"), -1);
-			if (index < 0 || index >= max) continue;
-			NBT_ToFloat(&lib->nbt, NBT_FindNode(&lib->nbt, blocks, "pos"), pos, 3);
-			mapIter(&fill, pos[VX], pos[VY], pos[VZ]);
-			fill.blockIds[fill.offset] = pal[index];
-			uint8_t data = pal[index+max];
-			fill.blockIds[DATA_OFFSET + (fill.offset>>1)] |= (fill.offset & 1 ? data << 4 : data);
 		}
 	}
 
-	return False;
+	lib->data = brush;
+	return True;
 }
 
 /* save brush as a MCEdit v1 schematic file */
 static Bool librarySaveSchematics(Map brush, STRPTR path)
 {
-	NBTFile_t nbt = {.page = 512};
+	NBTFile_t nbt = {.page = 511};
 	int size[] = {brush->size[VX] - 2,
 	              brush->size[VY] - 2,
 	              brush->size[VZ] - 2};
 	int bytes = size[VX] * size[VY] * size[VZ];
+	int tileNb = 0;
 	NBT_Add(&nbt,
 		/* MCEdit v1 saved biome information too, here it is omitted */
 		TAG_Compound, "Schematic",
@@ -396,18 +351,17 @@ static Bool librarySaveSchematics(Map brush, STRPTR path)
 			TAG_String, "Materials", "Alpha",
 			TAG_Byte_Array, "Blocks", bytes, 0,
 			TAG_Byte_Array, "Data", bytes, 0,
-			TAG_List_Compound, "Entities", 0,
-			TAG_List_Compound, "TileEntities", 0,
-		TAG_Compound_End
+			TAG_List_Compound, "TileEntities", 0, /* count will be filled later */
+			TAG_End
 	);
+	int TE = NBT_FindNode(&nbt, 0, "TileEntities");
 
 	/* Blocks and Data table are empty: need to copy them from brush to NBT */
 	struct BlockIter_t iter;
-	int x, y, z;
-	DATA8 blocks, data;
+	int x, y, z, blocks, data;
 	mapInitIterOffset(&iter, brush->firstVisible, 256+16+1);
-	blocks = NBT_Payload(&nbt, NBT_FindNode(&nbt, 0, "Blocks"));
-	data   = NBT_Payload(&nbt, NBT_FindNode(&nbt, 0, "Data"));
+	blocks = (DATA8) NBT_Payload(&nbt, NBT_FindNode(&nbt, 0, "Blocks")) - nbt.mem;
+	data   = (DATA8) NBT_Payload(&nbt, NBT_FindNode(&nbt, 0, "Data")) - nbt.mem;
 
 	/* stored XZY, like chunks */
 	for (y = size[VY]; y > 0; y --, mapIter(&iter, 0, 1, -size[VZ]))
@@ -417,11 +371,25 @@ static Bool librarySaveSchematics(Map brush, STRPTR path)
 			for (x = size[VX]; x > 0; x --, mapIter(&iter, 1, 0, 0), blocks ++, data ++)
 			{
 				uint8_t state = iter.blockIds[DATA_OFFSET + (iter.offset >> 1)];
-				blocks[0] = iter.blockIds[iter.offset];
-				data[0] = iter.offset & 1 ? state >> 4 : state & 15;
+				nbt.mem[blocks] = iter.blockIds[iter.offset];
+				nbt.mem[data]   = iter.offset & 1 ? state >> 4 : state & 15;
+				DATA8 tile = chunkGetTileEntity(iter.ref, (int[3]){iter.x, iter.yabs, iter.z});
+				if (tile)
+				{
+					NBTIter_t iter;
+					NBT_IterCompound(&iter, tile);
+					for (tileNb ++; (bytes = NBT_Iter(&iter)) >= 0; )
+						NBT_Add(&nbt, TAG_Raw_Data, NBT_HdrSize(tile+bytes), tile+bytes, TAG_End);
+					NBT_Add(&nbt, TAG_Compound_End);
+				}
 			}
 		}
 	}
+	/* end of TileEntities list */
+	NBT_Hdr(&nbt, TE)->count = tileNb;
+	NBT_Add(&nbt, TAG_List_Compound, "Entities", 0, TAG_Compound_End);
+
+	NBT_Dump(&nbt, 0, 0, 0);
 
 	bytes = NBT_Save(&nbt, path, NULL, NULL);
 	NBT_Free(&nbt);
@@ -438,33 +406,21 @@ static void libraryExtractThumb(LibBrush lib, STRPTR path, DATA16 size)
 {
 	if (NBT_Parse(&lib->nbt, path))
 	{
-		int offset;
 		/* seems to be a valid NBT, check if it is a schematics */
 		size[VY] = NBT_ToInt(&lib->nbt, NBT_FindNode(&lib->nbt, 0, "Height"), 0);
 		size[VZ] = NBT_ToInt(&lib->nbt, NBT_FindNode(&lib->nbt, 0, "Length"), 0);
 		size[VX] = NBT_ToInt(&lib->nbt, NBT_FindNode(&lib->nbt, 0, "Width"), 0);
 		if (size[VY] > 0 && size[VZ] > 0 && size[VX] > 0)
 		{
-			//fprintf(stderr, "parsing %s\n", path);
 			lib->nvgFBO = nvgluCreateFramebuffer(globals.nvgCtx, lib->thumbSz, lib->thumbSz, NVG_IMAGE_DEPTH);
+
+			if (strcasecmp(BaseName(path), "chest.schematic") == 0)
+				puts("here");
 
 			if (libraryParseSchematics(lib, size))
 			{
 				libraryGenMesh(lib);
 				libraryGenThumb(lib);
-			}
-		}
-		else if ((offset = NBT_FindNode(&lib->nbt, 0, "size")) >= 0)
-		{
-			float array[] = {0, 0, 0};
-			NBT_ToFloat(&lib->nbt, offset, array, DIM(array));
-			size[VX] = array[VX];
-			size[VY] = array[VY];
-			size[VZ] = array[VZ];
-			if (size[VX] >= 1 && size[VY] >= 1 && size[VZ] >= 1)
-			{
-			    if (libraryParseStructure(lib, size))
-					libraryGenThumb(lib);
 			}
 		}
 		/* not needed anymore */
@@ -508,7 +464,6 @@ static int libraryGenPreview(SIT_Widget w, APTR cd, APTR ud)
 		path = strcpy(alloca(strlen(path) + strlen(item->name) + 2), path);
 		AddPart(path, item->name, 1e6);
 		lib->thumbSz = thumbSz & 0xfff;
-		lib->staticStruct = 1;
 		if (lib->thumbSz == 0) return 0;
 		libraryExtractThumb(lib, path, size);
 		if (lib->nvgFBO)
@@ -530,6 +485,7 @@ static int libraryFreePreview(SIT_Widget w, APTR cd, APTR ud)
 {
 	LibBrush lib;
 	SIT_GetValues(w, SIT_UserData, &lib, NULL);
+	lib->staticStruct = 1;
 	libraryFreeBrush(lib);
 	return 1;
 }
@@ -542,11 +498,9 @@ static int libraryCreateItem(SIT_Widget td, APTR curDir, APTR ud)
 	FSItem item = ud;
 
 	if (item->type == 0)
-	{
-		FormatNumber((item->size + 1023) >> 10, size, sizeof size);
-		strcat(size, " Kb");
-	}
-	else strcpy(size, "(Directory)");
+		FormatNumber(size, sizeof size, "%d Kb", (item->size + 1023) >> 10);
+	else
+		strcpy(size, "(Directory)");
 
 	int len = strlen(item->name);
 	int max = len >= sizeof display-1 ? sizeof display-1 : len;
@@ -591,16 +545,26 @@ static int librarySelectName(SIT_Widget w, APTR cd, APTR ud)
 	int      sel;
 	if (library.saveBrush)
 	{
-		SIT_GetValues(library.copyList, SIT_SelectedIndex, &sel, NULL);
-		SIT_GetValues(library.copyList, SIT_RowTag(sel), &lib, NULL);
+		Map brush;
+		if (library.saveFromLib)
+		{
+			/* use "Save" on brush library */
+			SIT_GetValues(library.copyList, SIT_SelectedIndex, &sel, NULL);
+			SIT_GetValues(library.copyList, SIT_RowTag(sel), &lib, NULL);
+			brush = lib->data;
+		}
+		else brush = selectionCopyShallow(); /* from toolbar */
 		/* any warning about overwriting files should have been displayed by now */
-		if (! librarySaveSchematics(lib->data, ud))
+		if (brush && ! librarySaveSchematics(brush, ud))
 		{
 			TEXT error[256];
 			snprintf(error, sizeof error, "Failed to save '%s': %s\n", (STRPTR) ud, GetError());
 			FSYesNo(view, error, NULL, False);
 		}
 		else SIT_Exit(1);
+		/* no mesh allocated: only a temporary brush */
+		if (brush->GPUMaxChunk == 0)
+			selectionFreeBrush(brush);
 	}
 	else /* use brush */
 	{
@@ -612,8 +576,9 @@ static int librarySelectName(SIT_Widget w, APTR cd, APTR ud)
 			SIT_GetValues(item->preview, SIT_UserData, &lib, NULL);
 			if (lib->data)
 			{
-				selectionUseBrush(lib->data);
+				selectionUseBrush(lib->data, False);
 				renderSaveRestoreState(True);
+				lib->data = NULL;
 				SIT_Exit(1);
 			}
 		}

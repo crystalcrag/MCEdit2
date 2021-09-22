@@ -214,8 +214,13 @@ static int mceditCommands(int cmd)
 		{
 			vec4 pos;
 			MapExtraData sel = renderGetSelectedBlock(pos, NULL);
-			if (sel == NULL) return 1;
-			selectionClone(pos, sel->side);
+			if (sel == NULL)
+			{
+				memset(pos, 0, sizeof pos);
+				selectionClone(pos, 0, True);
+				renderSetSelectionPoint(RENDER_SEL_AUTOMOVE);
+			}
+			else selectionClone(pos, sel->side, True);
 		}
 	}
 	return 1;
@@ -234,14 +239,14 @@ static int mceditTrackFocus(SIT_Widget w, APTR cd, APTR ud)
 	SIT_GetValues(SIT_GetFocus(), SIT_CtrlType, &type, NULL);
 	if (cd && type == SIT_EDITBOX)
 	{
-		if (mcedit.inEditBox == 0)
+		if (globals.inEditBox == 0)
 			SDL_EnableKeyRepeat(SDL_DEFAULT_REPEAT_DELAY, SDL_DEFAULT_REPEAT_INTERVAL);
-		mcedit.inEditBox = 1;
+		globals.inEditBox = 1;
 	}
-	else if (mcedit.inEditBox)
+	else if (globals.inEditBox)
 	{
 		SDL_EnableKeyRepeat(0, 0);
-		mcedit.inEditBox = 0;
+		globals.inEditBox = 0;
 	}
 	return 0;
 }
@@ -364,7 +369,7 @@ int main(int nb, char * argv[])
 }
 
 static uint8_t toolbarCmds[] = {
-	MCUI_OVERLAY_REPLACE, MCUI_OVERLAY_FILL, MCUI_SEL_CLONE, MCUI_OVERLAY_LIBRARY, MCUI_OVERLAY_ANALYZE, 0, 0, 0, 0
+	MCUI_OVERLAY_REPLACE, MCUI_OVERLAY_FILL, MCUI_SEL_CLONE, MCUI_OVERLAY_LIBRARY, MCUI_OVERLAY_ANALYZE, MCUI_OVERLAY_SAVESEL, 0, MCUI_OVERLAY_DELPARTIAL, 0
 };
 
 /*
@@ -390,7 +395,7 @@ void mceditWorld(void)
 			int key;
 			switch (event.type) {
 			case SDL_KEYDOWN:
-				if (mcedit.inEditBox)
+				if (globals.inEditBox)
 				{
 					key = SDLKtoSIT(event.key.keysym.sym);
 					goto forwardKeyPress;
@@ -471,6 +476,10 @@ void mceditWorld(void)
 					FrameSaveRestoreTime(False);
 					mcedit.player.inventory.update ++;
 					break;
+				case SDLK_RETURN:
+					if (globals.selPoints & 8)
+						selectionCopyBlocks(NULL, NULL, NULL);
+					break;
 				default:
 					key = SDLKtoSIT(event.key.keysym.sym);
 					if (selectionProcessKey(key, SDLMtoSIT(event.key.keysym.mod)))
@@ -500,7 +509,7 @@ void mceditWorld(void)
 				}
 				break;
 			case SDL_KEYUP:
-				if (mcedit.inEditBox)
+				if (globals.inEditBox)
 				{
 					key = SDLKtoSIT(event.key.keysym.sym);
 					goto forwardKeyPress;
@@ -521,8 +530,14 @@ void mceditWorld(void)
 					if (! playerProcessKey(&mcedit.player, key, SITK_FlagUp))
 					{
 						forwardKeyPress:
-						if (key > 0 && SIT_ProcessKey(key, SDLMtoSIT(event.key.keysym.mod), event.type == SDL_KEYDOWN))
-							break;
+						if (key <= 0) break;
+						int mod = SDLMtoSIT(event.key.keysym.mod);
+						if (event.type == SDL_KEYDOWN)
+						{
+							if (SIT_ProcessKey(key, mod, True) == 0 && key < SITK_Home)
+								SIT_ProcessChar(key, mod);
+						}
+						else SIT_ProcessKey(key, mod, False);
 					}
 				}
 				break;
@@ -839,30 +854,15 @@ void mceditUIOverlay(int type)
 		else mcuiCreateInventory(&mcedit.player.inventory);
 		break;
 
-	case MCUI_OVERLAY_GOTO:
-		memcpy(pos, mcedit.player.pos, sizeof pos);
-		mcuiGoto(pos);
-		break;
-
-	case MCUI_OVERLAY_ANALYZE:
-		mcuiAnalyze();
-		break;
-
-	case MCUI_OVERLAY_REPLACE:
-		mcuiFillOrReplace(False);
-		break;
-
-	case MCUI_OVERLAY_FILL:
-		mcuiFillOrReplace(True);
-		break;
-
-	case MCUI_OVERLAY_DELALL:
-		mcuiDeleteAll();
-		break;
-
+	case MCUI_OVERLAY_GOTO:       memcpy(pos, mcedit.player.pos, sizeof pos);
+		                          mcuiGoto(pos); break;
+	case MCUI_OVERLAY_ANALYZE:    mcuiAnalyze(); break;
+	case MCUI_OVERLAY_REPLACE:    mcuiFillOrReplace(False); break;
+	case MCUI_OVERLAY_FILL:       mcuiFillOrReplace(True); break;
+	case MCUI_OVERLAY_DELALL:     mcuiDeleteAll(); break;
 	case MCUI_OVERLAY_LIBRARY:
-	case MCUI_OVERLAY_SAVESEL:
-		libraryShow(type);
+	case MCUI_OVERLAY_SAVESEL:    libraryShow(type); break;
+	case MCUI_OVERLAY_DELPARTIAL: mcuiDeletePartial();
 	}
 
 	SDL_EnableUNICODE(1);

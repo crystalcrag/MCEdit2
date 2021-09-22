@@ -77,7 +77,7 @@ struct NBTHdr_t
 /* use with caution */
 #define NBT_HdrSize(mem)     ((NBTHdr)(mem))->size
 #define NBT_MemPayload(mem)  (((NBTHdr)mem)->name + ((((NBTHdr)mem)->minNameSz + 4) & ~3))
-#define NBT_Hdr(file,off)    ((NBTHdr)((file)->mem + offset))
+#define NBT_Hdr(file,off)    ((NBTHdr)((file)->mem + off))
 
 /* tags for NBT_Add() */
 #define TAG_End              0

@@ -27,9 +27,10 @@ struct MCLibrary_t
 	int        uboShader;
 	int        nbBrushes;
 	uint8_t    saveBrush;       /* action when select callback is triggered */
-	SIT_Widget copyWnd;
-	SIT_Widget copyList, save, use, del;
-	SIT_Widget schematicsWnd;
+	uint8_t    saveFromLib;     /* otherwise save clone selection */
+	SIT_Widget copyWnd;         /* list of copied brush (top right corner of screen) */
+	SIT_Widget copyList, save;
+	SIT_Widget use, del;
 };
 
 struct LibBrush_t

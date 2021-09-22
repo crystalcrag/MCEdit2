@@ -1,5 +1,5 @@
 /*
- * selection.h: public function to manipulate extended selection.
+ * selection.h: public functions to manipulate extended selection.
  *
  * Written by T.Pierron, aug 2021
  */
@@ -18,7 +18,6 @@ void selectionCancel(void);
 void selectionCancelOperation(void);
 vec  selectionGetPoints(void);
 int  selectionHasPoints(void);
-Map  selectionHasClone(void);
 Map  selectionAllocBrush(uint16_t sizes[3]);
 Bool selectionProcessKey(int key, int mod);
 void selectionAutoSelect(vec4 pos, float scale);
@@ -26,11 +25,13 @@ int  selectionFill(DATA32 progress, int blockId, int side, int direction);
 int  selectionReplace(DATA32 progress, int blockId, int replId, int side, Bool doSimilar);
 int  selectionFillWithShape(DATA32 progress, int blockId, int shape, vec4 size, int direction);
 int  selectionCylinderAxis(vec4 size, int direction);
-Map  selectionClone(vec4 toPos, int side);
+Map  selectionClone(vec4 toPos, int side, Bool genMesh);
 Map  selectionCopy(void);
-void selectionUseBrush(Map brush);
+Map  selectionCopyShallow(void);
+void selectionUseBrush(Map brush, Bool dup);
 void selectionSetClonePt(vec4 pos, int side);
 int  selectionCancelClone(SIT_Widget w, APTR cd, APTR ud);
+int  selectionCopyBlocks(SIT_Widget w, APTR cd, APTR ud);
 void selectionFreeBrush(Map brush);
 
 enum /* flags for <shape> parameter of function selectionFillWithShape() */
@@ -79,7 +80,6 @@ struct Selection_t
 	int      vboLOC;
 	uint8_t  nudgePoint;       /* which point is being held in the nudge window */
 	uint8_t  nudgeStep;
-	uint8_t  autoMove;         /* clone selection follows mouse */
 	Mutex    wait;             /* used by asynchronous actions (fill/replace/brush) */
 	vec4     firstPt;          /* coord in world space */
 	vec4     secondPt;

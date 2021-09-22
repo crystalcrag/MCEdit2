@@ -389,6 +389,15 @@ void selectionRender(void)
 /*
  * clone selection tool: create a mini-map from the selected blocks
  */
+#define chunkDeleteIterTE(iter,ext)    chunkDeleteTileEntity((iter).ref, (int[3]){(iter).x-1, (iter).yabs-1, (iter).z-1}, ext)
+#define chunkAddIterTE(iter,tile) \
+{ \
+	int pos[] = {(iter).x-1, (iter).yabs-1, (iter).z-1}; \
+	chunkAddTileEntity((iter).ref, pos, tile); \
+	chunkUpdateTilePosition((iter).ref, pos, tile); \
+}
+
+
 void selectionSetClonePt(vec4 pos, int side)
 {
 	static uint8_t axis[] = { /* S, E, N, W, T, B */
@@ -444,11 +453,8 @@ void selectionSetClonePt(vec4 pos, int side)
 		brush->cz = pos[2] - 1;
 	}
 
-	if (selection.autoMove && (side & SEL_CLONEMOVE_STOP))
-	{
+	if (side & SEL_CLONEMOVE_STOP)
 		renderSetSelectionPoint(RENDER_SEL_STOPMOVE);
-		selection.autoMove = 0;
-	}
 }
 
 /* SITE_OnChange on brush offsets */
@@ -468,7 +474,7 @@ static int selectionRepeat(SIT_Widget w, APTR cd, APTR ud)
 }
 
 /* copy blocks from brush into map */
-static int selectionCopyBlocks(SIT_Widget w, APTR cd, APTR ud)
+int selectionCopyBlocks(SIT_Widget w, APTR cd, APTR ud)
 {
 	struct BlockIter_t dst;
 	struct BlockIter_t src;
@@ -717,7 +723,7 @@ void selectionEditBrush(Bool simplified)
 }
 
 /* copy selected blocks into a mini-map */
-Map selectionClone(vec4 pos, int side)
+Map selectionClone(vec4 pos, int side, Bool genMesh)
 {
 	if (globals.selPoints != 3)
 		return NULL;
@@ -784,29 +790,30 @@ Map selectionClone(vec4 pos, int side)
 
 					/* also need to copy tile entities */
 					DATA8 tile = chunkGetTileEntity(src.ref, (int[3]) {src.x, src.yabs, src.z});
-					if (tile)
-						/* don't relocate coord within tile entity yet (will be done by mapUpdate()) */
-						chunkAddIterTE(dst, NBT_Copy(tile));
+					if (tile) chunkAddIterTE(dst, tile = NBT_Copy(tile));
 				}
 			}
 		}
 
-		/* convert all chunks into meshes */
-		int chunksZ = (sizes[VZ] + 15) >> 4;
-		int chunksX = (sizes[VX] + 15) >> 4;
-		for (z = 0, chunk = brush->chunks; z < chunksZ; z ++)
+		if (genMesh)
 		{
-			for (x = 0; x < chunksX; x ++, chunk ++)
+			/* convert all chunks into meshes */
+			int chunksZ = (sizes[VZ] + 15) >> 4;
+			int chunksX = (sizes[VX] + 15) >> 4;
+			for (z = 0, chunk = brush->chunks; z < chunksZ; z ++)
 			{
-				for (y = 0; y < chunk->maxy; y ++)
+				for (x = 0; x < chunksX; x ++, chunk ++)
 				{
-					chunkUpdate(chunk, chunkAir, brush->chunkOffsets, y);
-					/* transfer chunk to the GPU */
-					renderFinishMesh(brush, True);
+					for (y = 0; y < chunk->maxy; y ++)
+					{
+						chunkUpdate(chunk, chunkAir, brush->chunkOffsets, y);
+						/* transfer chunk to the GPU */
+						renderFinishMesh(brush, True);
+					}
 				}
 			}
+			renderAllocCmdBuffer(brush);
 		}
-		renderAllocCmdBuffer(brush);
 	}
 	if (pos)
 	{
@@ -843,44 +850,67 @@ Map selectionCopy(void)
 	}
 	else /* create on the fly */
 	{
-		brush = selectionClone(NULL, 0);
+		brush = selectionClone(NULL, 0, True);
 	}
 	return brush;
 }
 
-/* copy library brush to selection */
-void selectionUseBrush(Map lib)
+Map selectionCopyShallow(void)
 {
-	Map brush = selectionAllocBrush(lib->size);
+	if (selection.brush)
+		return selection.brush;
 
-	if (brush == NULL)
-		return;
+	Map temp = selectionClone(NULL, 0, False);
+	/* need to be marked as needed to be free()'d, because we won't keep any ref here */
+	temp->GPUMaxChunk = 0;
+	return temp;
+}
 
-	ChunkData src, dst;
-	for (src = lib->firstVisible, dst = brush->firstVisible; src && dst; src = src->visible, dst = dst->visible)
-		memcpy(dst->blockIds, src->blockIds, SKYLIGHT_OFFSET);
+/* copy library brush to selection */
+void selectionUseBrush(Map lib, Bool dup)
+{
+	Map brush;
+	if (dup)
+	{
+		brush = selectionAllocBrush(lib->size);
+		if (brush == NULL) return;
 
-	Chunk chunk;
+		ChunkData src, dst;
+		for (src = lib->firstVisible, dst = brush->firstVisible; src && dst; src = src->visible, dst = dst->visible)
+			memcpy(dst->blockIds, src->blockIds, SKYLIGHT_OFFSET);
+	}
+	else brush = lib;
+
+	Chunk dstChunk;
+	Chunk srcChunk;
 	int chunksZ = (brush->size[VZ] + 15) >> 4;
 	int chunksX = (brush->size[VX] + 15) >> 4;
 	int x, y, z;
-	for (z = 0, chunk = brush->chunks; z < chunksZ; z ++)
+	for (z = 0, dstChunk = brush->chunks, srcChunk = lib->chunks; z < chunksZ; z ++)
 	{
-		for (x = 0; x < chunksX; x ++, chunk ++)
+		for (x = 0; x < chunksX; x ++, dstChunk ++, srcChunk ++)
 		{
-			for (y = 0; y < chunk->maxy; y ++)
+			for (y = 0; y < dstChunk->maxy; y ++)
 			{
-				chunkUpdate(chunk, chunkAir, brush->chunkOffsets, y);
+				if (dup)
+				{
+					DATA8 tile;
+					int   XYZ[3], offset;
+					for (offset = 0; (tile = chunkIterTileEntity(srcChunk, &offset, XYZ)); )
+						chunkAddTileEntity(dstChunk, XYZ, NBT_Copy(tile));
+				}
+				chunkUpdate(dstChunk, chunkAir, brush->chunkOffsets, y);
 				renderFinishMesh(brush, True);
 			}
 		}
 	}
 	renderAllocCmdBuffer(brush);
 
+	/* cancel previous brush if any */
 	selectionCancel();
 
+	/* make the new one active */
 	selection.brush = brush;
-	selection.autoMove = 1;
 
 	selection.cloneSize[VX] = lib->size[VX] - 2;
 	selection.cloneSize[VY] = lib->size[VY] - 2;
@@ -888,7 +918,9 @@ void selectionUseBrush(Map lib)
 
 	globals.selPoints |= 1 << SEL_POINT_CLONE;
 
+	/* green rectangle around brush */
 	selectionSetRect(SEL_POINT_CLONE);
+	/* simplified edit window */
 	selectionEditBrush(True);
 	renderSetSelectionPoint(RENDER_SEL_AUTOMOVE);
 }
@@ -1064,7 +1096,6 @@ static void selectionBrushRoll(void)
 	if (globals.direction & 1)
 	{
 		int oz = 1, oy = 1;
-		fprintf(stderr, "roll on X axis\n");
 		/* rotate along X axis */
 		for (x = 1; x <= dx; x ++, mapIter(&src, 1, -dy, 0), mapIter(&dst, 1, 0, 0))
 		{
@@ -1096,7 +1127,6 @@ static void selectionBrushRoll(void)
 	else /* rotate along Z axis */
 	{
 		int ox = 1, oy = 1;
-		fprintf(stderr, "roll on Z axis\n");
 		/* rotate along X axis: camera viewing direction = axis of rotation */
 		for (z = 1; z <= dz; z ++, mapIter(&src, 0, -dy, 1), mapIter(&dst, 0, 0, 1))
 		{

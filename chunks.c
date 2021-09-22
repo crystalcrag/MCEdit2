@@ -321,6 +321,32 @@ DATA8 chunkDeleteTileEntity(Chunk c, int * XYZ, Bool extract)
 	return data;
 }
 
+/* iterate over all tile entities defined in this chunk (*offset needs to be initially set to 0) */
+DATA8 chunkIterTileEntity(Chunk c, int * XYZ, int * offset)
+{
+	if (! c->tileEntities) return NULL;
+	TileEntityHash  hash = c->tileEntities;
+	TileEntityEntry base = (TileEntityEntry) (hash + 1);
+	TileEntityEntry ent  = base + *offset;
+	int i;
+
+	for (i = *offset; i < hash->max; i ++, ent ++)
+	{
+		if (ent->data)
+		{
+			if (XYZ)
+			{
+				XYZ[0] = ent->xzy & 15;
+				XYZ[1] = ent->xzy >> 8;
+				XYZ[2] = (ent->xzy >> 4) & 15;
+			}
+			*offset = i + 1;
+			return ent->data;
+		}
+	}
+	return NULL;
+}
+
 Bool chunkLoad(Chunk chunk, const char * path, int x, int z)
 {
 	STRPTR region = alloca(strlen(path) + 32);
@@ -998,6 +1024,7 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 	ChunkData neighbors[7];    /* S, E, N, W, T, B, current */
 	ChunkData cur;
 	int i, pos, air;
+	uint8_t hasLights;
 
 	renderInitBuffer(neighbors[6] = cur = c->layer[layer], &opaque, &alpha);
 
@@ -1018,6 +1045,7 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 	cur->pitch = 0;
 
 	memset(visited, 0, sizeof visited);
+	hasLights = (cur->cdFlags & CDFLAG_NOLIGHT) == 0;
 
 //	if (c->X == 192 && cur->Y == 96 && c->Z == 976)
 //		breakPoint = 1;
@@ -1040,7 +1068,7 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 		if (! blockIsFullySolid(state) && (slotsXZ[pos & 0xff] || slotsY[pos >> 8]) && (visited[pos>>3] & mask8bit[pos&7]) == 0)
 			cur->cnxGraph |= mapUpdateGetCnxGraph(cur, pos, visited);
 
-		if (blockIds[block].particle)
+		if (hasLights && blockIds[block].particle)
 			if (block != 55 || data > 0) // XXX needs to be declared in blockTable.js :-/
 				chunkAddEmitters(cur, pos, blockIds[block].particle - 1);
 

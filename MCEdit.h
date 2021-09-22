@@ -24,7 +24,6 @@ struct GameState_t
 	int      exit;             /* managed by SITGL */
 	int      maxDist;          /* render distance in chunks */
 	uint8_t  forceSel;         /* don't display inventory item */
-	uint8_t  inEditBox;        /* edit box is active: restrict some kbd shortcut */
 	TEXT     capture[128];     /* screenshot directory */
 };
 
@@ -51,6 +50,7 @@ enum /* possible value for parameter mceditUIOverlay() */
 	MCUI_OVERLAY_REPLACE,
 	MCUI_OVERLAY_FILL,
 	MCUI_OVERLAY_DELALL,
+	MCUI_OVERLAY_DELPARTIAL,
 	MCUI_OVERLAY_LIBRARY,
 	MCUI_OVERLAY_SAVESEL,
 	MCUI_SEL_CLONE

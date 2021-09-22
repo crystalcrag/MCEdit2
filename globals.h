@@ -26,6 +26,9 @@ typedef struct MCGlobals_t
 	/* cardimal direction player is facing: 0 = south, 1 = east, 2 = north, 3 = west */
 	uint8_t direction;
 
+	/* edit box is active: restrict some kbd shortcut */
+	uint8_t  inEditBox;
+
 	/* map being edited */
 	Map level;
 

@@ -21,6 +21,7 @@ void mcuiDrawItems(void);
 void mcuiAnalyze(void);
 void mcuiFillOrReplace(Bool fillWithBrush);
 void mcuiDeleteAll(void);
+void mcuiDeletePartial(void);
 
 #ifdef MCUI_IMPL
 

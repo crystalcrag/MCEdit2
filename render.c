@@ -2045,7 +2045,7 @@ void renderFreeMesh(Map map, Bool clear)
 	if (clear)
 	{
 		ChunkData cd;
-		for (cd = map->firstVisible; cd; cd->glBank = NULL, cd = cd->visible);
+		for (cd = map->firstVisible; cd; cd->glBank = NULL, cd->glSize = 0, cd->glAlpha = 0, cd = cd->visible);
 		ListNew(&map->gpuBanks);
 	}
 }

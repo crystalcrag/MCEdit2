@@ -1027,7 +1027,7 @@ static int FSDeleteItem(SIT_Widget w, APTR cd, APTR ud)
 			if (nbDir > 0) row = StrCat(warn, sizeof warn, row, " and ");
 			TEXT msg[32];
 			TEXT sizebuf[10];
-			FormatNumber((size + 1023) >> 10, sizebuf, sizeof sizebuf);
+			FormatNumber(sizebuf, sizeof sizebuf, "%d", (size + 1023) >> 10);
 			sprintf(msg, "%d %s (%s Kb)", nbFiles, nbFiles > 1 ? "files" : "file", sizebuf);
 			row = StrCat(warn, sizeof warn, row, msg);
 		}

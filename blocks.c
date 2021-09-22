@@ -2938,6 +2938,8 @@ void blockPostProcessTexture(DATA8 * data, int * width, int * height, int bpp)
 			memcpy(d, s, k);
 	}
 
+	free(image);
+
 	/* durability colors: located in tile 31, 3 */
 	blocks.duraColors = malloc(sz);
 	blocks.duraMax    = sz >> 2;
