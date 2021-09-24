@@ -16,7 +16,7 @@ void updateRemove(ChunkData cd, int offset, int clearSorted);
 Bool updateAlloc(int max);
 
 int  blockRotateX90(BlockIter);
-int  blockRotateY90(BlockIter);
+int  blockRotateY90(int blockId);
 int  blockRotateZ90(BlockIter);
 int  blockMirrorX(BlockIter);
 int  blockMirrorY(BlockIter);

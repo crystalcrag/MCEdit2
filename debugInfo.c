@@ -24,7 +24,7 @@ extern struct RenderWorld_t render;
 /* get info on block being pointed at (dumped on stderr though) */
 void debugBlockVertex(SelBlock_t * select)
 {
-	if (select->sel & 1)
+	if (select->selFlags & 1)
 	{
 		struct BlockIter_t iter;
 
@@ -422,7 +422,7 @@ static int debugExit(SIT_Widget w, APTR cd, APTR ud)
 /* init current pos for side view */
 void debugSetPos(int * exitCode)
 {
-	float * pos = render.selection.sel ? render.selection.current : render.camera;
+	float * pos = render.selection.selFlags ? render.selection.current : render.camera;
 	debug.pos[0] = pos[0];
 	debug.pos[1] = pos[1];
 	debug.pos[2] = pos[2];

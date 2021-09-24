@@ -336,9 +336,9 @@ DATA8 chunkIterTileEntity(Chunk c, int * XYZ, int * offset)
 		{
 			if (XYZ)
 			{
-				XYZ[0] = ent->xzy & 15;
-				XYZ[1] = ent->xzy >> 8;
-				XYZ[2] = (ent->xzy >> 4) & 15;
+				XYZ[VX] = c->X + (ent->xzy & 15);
+				XYZ[VZ] = c->Z + ((ent->xzy >> 4) & 15);
+				XYZ[VY] = ent->xzy >> 8;
 			}
 			*offset = i + 1;
 			return ent->data;

@@ -37,6 +37,7 @@ void renderSetCompassOffset(float offset);
 void renderSetSelectionPoint(int action);
 int  renderGetTerrain(int size[2]);
 int  renderInitUBO(void);
+Bool renderRotatePreview(int dir);
 MapExtraData renderGetSelectedBlock(vec4 pos, int * blockModel);
 
 enum /* possible values for <action> of renderSetSelectionPoint */
@@ -108,13 +109,14 @@ struct SelBlock_t
 	GLuint  shader;                /* compiled shader */
 	vec4    current;               /* cursor pointing to this block */
 	vec4    blockPos;              /* recommended block position */
-	int     sel;                   /* which block is valid: &1 = current, &2 = first, &4 = second */
+	int     selFlags;              /* bitfield, see below */
 	int     blockId;               /* block to show preview of */
 	int     blockVtx;              /* nb of vertex for glDrawArrays() */
+	uint8_t rotationY90;           /* number of Y90 rotation to apply to blockId [0 ~ 3]*/
 	Extra_t extra;
 };
 
-enum                               /* bitfield for SelBlock.sel */
+enum                               /* bitfield for SelBlock.selFlags */
 {
 	SEL_POINTTO   = 1,             /* a block is point to with the mouse */
 	SEL_NOCURRENT = 2,             /* cannot place block */

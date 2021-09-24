@@ -75,6 +75,8 @@ void GLAPIENTRY debugGLError(GLenum source, GLenum type, GLuint id, GLenum sever
 	fprintf(stderr, "src: %d, id: %d, type: %s, sev: %s, %s\n", source, id, str, sev, message);
 }
 
+int blockRotateY90(int);
+
 /* render what's being currently selected */
 static void renderSelection(void)
 {
@@ -84,7 +86,7 @@ static void renderSelection(void)
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LEQUAL);
 
-	render.selection.sel &= ~SEL_NOCURRENT;
+	render.selection.selFlags &= ~SEL_NOCURRENT;
 	if (item->id > 0 && (render.debugInfo & DEBUG_SELECTION) == 0)
 	{
 		/* preview block */
@@ -113,7 +115,7 @@ static void renderSelection(void)
 			switch (blockAdjustPlacement(id, &info)) {
 			case PLACEMENT_NONE:
 				/* placement not possible, cancel everything */
-				render.selection.sel |= SEL_NOCURRENT;
+				render.selection.selFlags |= SEL_NOCURRENT;
 				return;
 			case PLACEMENT_GROUND:
 				/* check if ground is within 1 block reach */
@@ -123,7 +125,7 @@ static void renderSelection(void)
 				loc[2] = render.selection.current[2] + offset[2];
 				if (! blockIsSolidSide(mapGetBlockId(globals.level, loc, NULL), SIDE_TOP) /* || info.pointToId != 0*/)
 				{
-					render.selection.sel |= SEL_NOCURRENT;
+					render.selection.selFlags |= SEL_NOCURRENT;
 					return;
 				}
 				break;
@@ -134,7 +136,7 @@ static void renderSelection(void)
 				loc[2] = render.selection.current[2] + offset[2];
 				if (mapGetBlockId(globals.level, loc, NULL) != 0)
 				{
-					render.selection.sel |= SEL_NOCURRENT;
+					render.selection.selFlags |= SEL_NOCURRENT;
 					return;
 				}
 			}
@@ -148,6 +150,10 @@ static void renderSelection(void)
 			offset = normals + render.selection.extra.side * 4;
 		int blockId = blockAdjustOrient(id, &info, render.selection.extra.inter);
 		if (info.keepPos) offset = normals + 5; /* 0,0,0 */
+		if ((render.selection.blockId & ~15) == (blockId & ~15))
+			for (id = render.selection.rotationY90; id > 0; blockId = blockRotateY90(blockId), id --);
+		else
+			render.selection.rotationY90 = 0;
 
 		#if 0
 		static int oldBlock;
@@ -252,6 +258,23 @@ static void renderSelection(void)
 	glBindVertexArray(0);
 }
 
+Bool renderRotatePreview(int dir)
+{
+	uint8_t r = render.selection.rotationY90 + dir;
+	if (r == 4)   r = 0; else
+	if (r == 255) r = 3;
+	render.selection.rotationY90 = r;
+
+	int blockId = blockRotateY90(render.selection.blockId);
+	if (blockId != render.selection.blockId)
+	{
+		render.selection.blockVtx = blockGenModel(render.vboPreview, blockId);
+		render.selection.blockId  = blockId;
+		return True;
+	}
+	return False;
+}
+
 /* left click in off-hand mode: add selection point */
 void renderSetSelectionPoint(int action)
 {
@@ -264,13 +287,13 @@ void renderSetSelectionPoint(int action)
 	case RENDER_SEL_CLEAR:
 		render.inventory->offhand &= ~(PLAYER_ALTPOINT | PLAYER_OFFHAND);
 		render.debugInfo &= ~DEBUG_SELECTION;
-		render.selection.sel &= ~SEL_MOVE;
+		render.selection.selFlags &= ~SEL_MOVE;
 		render.invCache ++;
 		selectionCancel();
 		break;
 
 	case RENDER_SEL_AUTO:
-		if (render.selection.sel & SEL_POINTTO)
+		if (render.selection.selFlags & SEL_POINTTO)
 		{
 			selectionAutoSelect(render.selection.current, render.scale);
 			render.invCache ++;
@@ -279,16 +302,16 @@ void renderSetSelectionPoint(int action)
 
 	case RENDER_SEL_AUTOMOVE:
 		render.debugInfo |= DEBUG_SELECTION;
-		render.selection.sel |= SEL_MOVE;
+		render.selection.selFlags |= SEL_MOVE;
 		break;
 
 	case RENDER_SEL_STOPMOVE:
-		render.selection.sel &= ~SEL_MOVE;
+		render.selection.selFlags &= ~SEL_MOVE;
 		break;
 
 	case RENDER_SEL_ADDPT:
 		/* click on a block */
-		if ((render.selection.sel & SEL_POINTTO) == 0)
+		if ((render.selection.selFlags & SEL_POINTTO) == 0)
 			/* need a block being pointed at */
 			break;
 
@@ -327,8 +350,8 @@ void renderPointToBlock(int mx, int my)
 		}
 		else hover = &extendedSelItems[9], item = 9;
 
-		render.selection.sel &= ~(SEL_POINTTO | SEL_NOCURRENT);
-		render.selection.sel |= SEL_OFFHAND;
+		render.selection.selFlags &= ~(SEL_POINTTO | SEL_NOCURRENT);
+		render.selection.selFlags |= SEL_OFFHAND;
 		render.inventory->offhand |= PLAYER_TOOLBAR;
 		render.inventory->hoverSlot = item;
 
@@ -359,9 +382,10 @@ void renderPointToBlock(int mx, int my)
 	}
 	else /* use raycasting to get block being pointed at */
 	{
-		if (render.selection.sel & SEL_OFFHAND)
+		if (render.selection.selFlags & SEL_OFFHAND)
 		{
 			/* was hovering toolbar: clear tooltip */
+			render.selection.selFlags &= ~SEL_OFFHAND;
 			renderShowBlockInfo(False, DEBUG_BLOCK);
 			render.inventory->offhand &= ~PLAYER_TOOLBAR;
 			render.toolbarItem = NULL;
@@ -379,11 +403,11 @@ void renderPointToBlock(int mx, int my)
 		/* XXX why is the yaw/pitch ray picking off compared to a MVP matrix ??? */
 		//if (mapPointToBlock(render.level, render.camera, &render.yaw, NULL, render.selection.current, &render.selection.extra))
 		if (mapPointToBlock(globals.level, render.camera, NULL, dir, render.selection.current, &render.selection.extra))
-			render.selection.sel |= SEL_POINTTO;
+			render.selection.selFlags |= SEL_POINTTO;
 		else
-			render.selection.sel &= ~(SEL_POINTTO | SEL_NOCURRENT);
+			render.selection.selFlags &= ~(SEL_POINTTO | SEL_NOCURRENT);
 
-		if (render.selection.sel & SEL_MOVE)
+		if (render.selection.selFlags & SEL_MOVE)
 			selectionSetClonePt(render.selection.current, render.selection.extra.side);
 	}
 
@@ -393,7 +417,7 @@ void renderPointToBlock(int mx, int my)
 
 MapExtraData renderGetSelectedBlock(vec4 pos, int * blockModel)
 {
-	if ((render.selection.sel & (SEL_POINTTO|SEL_NOCURRENT)) == SEL_POINTTO)
+	if ((render.selection.selFlags & (SEL_POINTTO|SEL_NOCURRENT)) == SEL_POINTTO)
 	{
 		if (pos)
 		{
@@ -724,18 +748,6 @@ static int clearRef(SIT_Widget w, APTR cd, APTR ud)
 	render.blockInfo = NULL;
 	render.oldblockInfo = 0;
 	return 1;
-}
-
-void renderDebugTip(void)
-{
-	if (render.blockInfo)
-	{
-		int display, delay, anchor;
-		STRPTR title;
-		SIT_GetValues(render.blockInfo, SIT_DisplayTime, &display, SIT_DelayTime, &delay, SIT_ToolTipAnchor, &anchor, SIT_Title, &title, NULL);
-		fprintf(stderr, "display = %d\ndelay = %d\nanchor = %d\ntitle = %s\n", display, delay, anchor, title);
-	}
-	else fprintf(stderr, "tooltip not created yet\n");
 }
 
 void renderShowBlockInfo(Bool show, int what)
@@ -1445,7 +1457,7 @@ void renderWorld(void)
 	renderParticles();
 
 	/* selection overlay */
-	if (render.selection.sel)
+	if (render.selection.selFlags)
 		renderSelection();
 
 	if (globals.selPoints)
@@ -1546,7 +1558,7 @@ void renderWorld(void)
 
 	if (render.debugInfo & DEBUG_BLOCK)
 	{
-		if (render.selection.extra.entity > 0 || (render.selection.sel & SEL_POINTTO))
+		if (render.selection.extra.entity > 0 || (render.selection.selFlags & SEL_POINTTO))
 			/* tooltip about block being pointed at */
 			renderBlockInfo(&render.selection);
 	}

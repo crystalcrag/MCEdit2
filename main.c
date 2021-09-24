@@ -403,6 +403,7 @@ void mceditWorld(void)
 
 				switch (event.key.keysym.sym) {
 				case SDLK_LALT:
+					if (capture) break;
 					mcedit.forceSel = 1;
 					renderShowBlockInfo(True, DEBUG_BLOCK|DEBUG_SELECTION);
 					break;
@@ -415,11 +416,8 @@ void mceditWorld(void)
 					renderDebugBlock();
 					break;
 				case SDLK_F7:
-				{	globals.breakPoint = ! globals.breakPoint;
-					// XXX weird bug where tooltip disappear as soon as mouse is moved ... can't find origin :-/
-					void renderDebugTip(void);
-					renderDebugTip();
-				}	break;
+					globals.breakPoint = ! globals.breakPoint;
+					break;
 				#endif
 				case SDLK_TAB:
 					if (globals.selPoints & 8)
@@ -516,6 +514,7 @@ void mceditWorld(void)
 				}
 				switch (event.key.keysym.sym) {
 				case SDLK_LALT:
+					if (! mcedit.forceSel) break;
 					mcedit.forceSel = 0;
 					renderShowBlockInfo(False, DEBUG_BLOCK|DEBUG_SELECTION);
 					break;
@@ -569,6 +568,8 @@ void mceditWorld(void)
 					break;
 				case SDL_BUTTON_RIGHT:
 					mceditActivate();
+					if (mcedit.forceSel)
+						renderShowBlockInfo(False, DEBUG_BLOCK|DEBUG_SELECTION), mcedit.forceSel = 0;
 					/* ignore any pending mouse move */
 					SDL_GetMouseState(&mcedit.mouseX, &mcedit.mouseY);
 					ignore = 2;

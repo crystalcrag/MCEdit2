@@ -1252,7 +1252,7 @@ static int mcuiFillCheckProgress(SIT_Widget w, APTR cd, APTR ud)
 	if (mcuiRepWnd.processTotal == mcuiRepWnd.processCurrent)
 	{
 		/* done */
-		mapUpdateEnd(ud);
+		mapUpdateEnd(globals.level);
 		mcuiRepWnd.asyncCheck = NULL;
 		SIT_Exit(1);
 		/* will cancel the timer */
@@ -1560,17 +1560,18 @@ void mcuiFillOrReplace(Bool fillWithBrush)
 
 static struct
 {
+	SIT_Widget diag;
 	int blocks;
 	int entity;
 	int tile;
-}	mcuiDelWnd = {True, True, True};
+}	mcuiDelWnd = {False, True, True};
 
 static int mcuiDeleteProgress(SIT_Widget w, APTR cd, APTR ud)
 {
 	if (mcuiRepWnd.processTotal == mcuiRepWnd.processCurrent)
 	{
 		/* done */
-		mapUpdateEnd(ud);
+		mapUpdateEnd(globals.level);
 		mcuiRepWnd.asyncCheck = NULL;
 		SIT_Exit(1);
 		/* will cancel the timer */
@@ -1596,13 +1597,14 @@ static int mcuiDeleteProgress(SIT_Widget w, APTR cd, APTR ud)
 			SIT_ManageWidget(dialog);
 		}
 		/* show a progress bar dialog and a way to cancel the action */
-		SIT_SetValues(mcuiRepWnd.prog, SIT_ProgressPos, (int)
+		SIT_SetValues(mcuiRepWnd.prog, SIT_Visible, True, SIT_ProgressPos, (int)
 			(uint64_t) mcuiRepWnd.processCurrent * 100 / mcuiRepWnd.processTotal, NULL);
 		mcuiRepWnd.processStart = timeMS;
 	}
 	return 0;
 }
 
+/* delete key pressed: auto-delete everything in selection */
 void mcuiDeleteAll(void)
 {
 	/* delete all the blocks and entities in the selection */
@@ -1615,12 +1617,88 @@ void mcuiDeleteAll(void)
 	SIT_AddCallback(globals.app, SITE_OnFinalize, mcuiFillStop, NULL);
 
 	/* this function will monitor the thread progress */
+	globals.curTimeUI = FrameGetTime();
 	mcuiRepWnd.asyncCheck = SIT_ActionAdd(globals.app, mcuiRepWnd.processStart = globals.curTimeUI, globals.curTimeUI + 1e9, mcuiDeleteProgress, NULL);
 }
 
 static int mcuiStopDelete(SIT_Widget w, APTR cd, APTR ud)
 {
 	SIT_Exit(1);
+	return 1;
+}
+
+static int mcuiAutoCheck(SIT_Widget w, APTR cd, APTR ud)
+{
+	SIT_SetValues(ud, SIT_Enabled, ! mcuiDelWnd.blocks, NULL);
+	return 1;
+}
+
+void mcuiIterTE(SIT_CallProc cb, APTR data)
+{
+	int dx, dz, i, j;
+	vec points = selectionGetPoints();
+	int pos[6], * p;
+	for (i = 0, p = pos; i < 3; i ++, p ++)
+	{
+		p[0] = points[i];
+		p[3] = points[i+4];
+		if (p[0] > p[3]) swap(p[0], p[3]);
+	}
+	dx = pos[3] - pos[0] + 1;
+	dz = pos[5] - pos[2] + 1;
+
+	struct BlockIter_t iter;
+	mapInitIter(globals.level, &iter, (float[3]){pos[0], pos[1], pos[2]}, False);
+	for (j =  0; j < dz; j ++, mapIter(&iter, -i, 0, 16 - iter.z))
+	{
+		for (i = 0; i < dx; i += 16 - iter.x, mapIter(&iter, 16 - iter.x, 0, 0))
+		{
+			int offset = 0, XYZ[3];
+			while ((iter.blockIds = chunkIterTileEntity(iter.ref, XYZ, &offset)))
+			{
+				if (pos[VX] <= XYZ[VX] && XYZ[VX] <= pos[VX+3] &&
+				    pos[VY] <= XYZ[VY] && XYZ[VY] <= pos[VY+3] &&
+				    pos[VZ] <= XYZ[VZ] && XYZ[VZ] <= pos[VZ+3])
+				{
+					cb((SIT_Widget)&iter, &offset, data);
+				}
+			}
+		}
+	}
+}
+
+static int mcuiDeleteTE(SIT_Widget w, APTR cd, APTR ud)
+{
+	BlockIter iter = (BlockIter) w;
+	chunkDeleteTileEntity(iter->ref, (int[3]){iter->x, iter->yabs, iter->z}, False);
+	chunkMarkForUpdate(iter->ref);
+	((int *)cd)[0] --;
+	((int *)ud)[0] ++;
+	return 1;
+}
+
+static int mcuiDoDelete(SIT_Widget w, APTR cd, APTR ud)
+{
+	if (! mcuiDelWnd.blocks)
+	{
+		/* this doesn't need to be asynchronous */
+		int total = 0;
+		mcuiIterTE(mcuiDeleteTE, &total);
+		if (total > 0) renderAddModif();
+		SIT_Exit(1);
+	}
+	else if (! mcuiRepWnd.asyncCheck)
+	{
+		mcuiDeleteAll();
+		mcuiRepWnd.replace = mcuiDelWnd.diag;
+		SIT_SetValues(w, SIT_Enabled, False, NULL);
+	}
+	return 1;
+}
+
+static int mcuiCountTE(SIT_Widget w, APTR cd, APTR ud)
+{
+	((int *)ud)[0] ++;
 	return 1;
 }
 
@@ -1633,16 +1711,37 @@ void mcuiDeletePartial(void)
 		NULL
 	);
 
+	/* count the number of TileEntities */
+	int tileEntities = 0;
+	mcuiIterTE(mcuiCountTE, &tileEntities);
+
 	SIT_CreateWidgets(diag,
 		"<label name=dlgtitle title=", "<b>Partial delete</b>", "left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, ">"
 		"<label name=title title='Select the parts you want to delete:' top=WIDGET,dlgtitle,0.5em>"
 		"<button name=blocks buttonType=", SITV_CheckBox, "curValue=", &mcuiDelWnd.blocks, "title=Blocks top=WIDGET,title,0.5em>"
 		"<button name=entity buttonType=", SITV_CheckBox, "curValue=", &mcuiDelWnd.entity, "title='Entities (mobs, falling blocks, item frame, ...)' top=WIDGET,blocks,0.5em>"
-		"<button name=tile   buttonType=", SITV_CheckBox, "curValue=", &mcuiDelWnd.tile,   "title='Tile entities (chests inventories, ...)' top=WIDGET,entity,0.5em>"
-		"<button name=cancel title=Cancel right=FORM top=WIDGET,tile,1em>"
-		"<button name=ok title=Delete top=OPPOSITE,cancel right=WIDGET,cancel,0.5em>"
 	);
+	if (tileEntities > 0)
+	{
+		TEXT title[64];
+		sprintf(title, "Currently selected: %d", tileEntities);
+		SIT_CreateWidgets(diag,
+			"<button name=tile enabled=", ! mcuiDelWnd.blocks, "buttonType=", SITV_CheckBox, "curValue=", &mcuiDelWnd.tile,
+			" title='Tile entities (chests inventories, ...)' top=WIDGET,entity,0.5em>"
+			"<label name=tilenb style='font-weight:bold' title=", title, "left=FORM,,1.5em top=WIDGET,tile,0.3em>"
+		);
+	}
+	SIT_CreateWidgets(diag,
+		"<button name=cancel title=Cancel right=FORM top=WIDGET,#LAST,1em>"
+		"<button name=ok title=Delete top=OPPOSITE,cancel right=WIDGET,cancel,0.5em>"
+		"<progress name=prog title=%d%% visible=0 left=FORM right=WIDGET,ok,1em top=MIDDLE,ok>"
+	);
+	SIT_AddCallback(SIT_GetById(diag, "blocks"), SITE_OnActivate, mcuiAutoCheck, SIT_GetById(diag, "tile"));
 	SIT_AddCallback(SIT_GetById(diag, "cancel"), SITE_OnActivate, mcuiStopDelete, NULL);
+	SIT_AddCallback(SIT_GetById(diag, "ok"),     SITE_OnActivate, mcuiDoDelete, NULL);
+
+	mcuiDelWnd.diag = diag;
+	mcuiRepWnd.prog = SIT_GetById(diag, "prog");
 
 	SIT_ManageWidget(diag);
 }

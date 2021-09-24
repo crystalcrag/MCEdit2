@@ -1,4 +1,10 @@
 =========== Week 38 ===========
+Thu Sep 23:
+	* geometric brush filled with slab added: mostly works with ellipses in XY or YZ planes.
+
+Wed Sep 22:
+	* partial delete command.
+
 Tue Sep 21:
 	* import tile entities from library.
 

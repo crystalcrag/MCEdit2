@@ -1098,7 +1098,7 @@ void updateFinished(DATA8 tile, vec4 dest)
  */
 
 /* adjust data part to reorient the block 90deg CW on Y axis */
-int blockRotateY90(BlockIter iter)
+int blockRotateY90(int blockId)
 {
 	/* rotate data value directly */
 	static uint8_t rotateFull[] = {0, 1, 5, 3, 4, 2, 6, 7};
@@ -1111,7 +1111,6 @@ int blockRotateY90(BlockIter iter)
 	static uint8_t rotateLever[] = {7, 3, 4, 2, 1, 6, 5, 0};
 	static uint8_t rotateTrapD[] = {3, 2, 0, 1};
 
-	int blockId = getBlockId(iter);
 	Block b = &blockIds[blockId>>4];
 	switch (b->orientHint) {
 	case ORIENT_FULL:   return (blockId & ~7) | rotateFull[blockId & 7];

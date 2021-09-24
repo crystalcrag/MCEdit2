@@ -1,5 +1,7 @@
 /*
  * selection.c: handle extended selection and operations that can be done with it.
+ *              (fill, replace, geometrc brush, delete, clone, copy, ...)
+ *              note: import/export is done in library.c
  *
  * Written by T.Pierron, aug 2021.
  */
@@ -265,6 +267,10 @@ Bool selectionProcessKey(int key, int mod)
 		SIT_Widget w = SIT_GetById(selection.editBrush, ctrlName[ctrl]);
 		SIT_SetValues(w, SIT_CheckState, True, NULL);
 		SIT_ActionAdd(w, timeMS + 100, timeMS + 100, cancelActivation, NULL);
+	}
+	else if (key == 'r' && renderRotatePreview(mod & SITK_FlagShift ? -1 : 1))
+	{
+		return True;
 	}
 	return False;
 }
@@ -1002,7 +1008,7 @@ static void selectionBrushRotate(void)
 				if (x2 > 15) off += 384 * (x2 >> 4), x2 &= 15;
 				if (z2 > 15) off += 384 * chunkX * (z2 >> 4), z2 &= 15;
 				off += z2*16 + x2;
-				int blockId = blockRotateY90(&iter);
+				int blockId = blockRotateY90(getBlockId(&iter));
 				layer[off] = blockId >> 4; blockId &= 15;
 				layer[256 + (off >> 1)] |= off & 1 ? blockId << 4 : blockId;
 			}
@@ -1665,7 +1671,7 @@ int selectionReplace(DATA32 progress, int blockId, int replId, int side, Bool do
 /*
  * fill selection with a geometric brush
  */
-static Bool isInsideShape(int shape, vec4 voxelPos, vec4 sqRxyz)
+static Bool isInInnerShape(int shape, vec4 voxelPos, vec4 sqRxyz)
 {
 	vec4 voxel;
 	int  i, axis1, axis2;
@@ -1771,6 +1777,8 @@ static void selectionProcessShape(void * unused)
 	uint8_t hollow = flags & SHAPE_HOLLOW;
 	uint8_t axis1 = 0;
 	uint8_t axis2 = 0;
+	uint8_t axisS = 0;
+	uint8_t slab  = blockIds[selectionAsync.blockId>>4].orientHint == ORIENT_SLAB;
 	if (shape == SHAPE_CYLINDER)
 	{
 		/* get the 2 axis where the disk of the cylinder will be located */
@@ -1781,6 +1789,8 @@ static void selectionProcessShape(void * unused)
 		else                      axis1 = axis[1], axis2 = 1;
 		pos[VT] = axis1 | (axis2 << 2);
 	}
+	if (slab) hollow = 0;
+	if (selectionAsync.facing & 1) axisS = 2;
 	flags &= 15;
 
 	for (y = 0; y < selSize[VY]; y ++, mapIter(&iter, 0, 1, -selSize[VZ]))
@@ -1790,36 +1800,77 @@ static void selectionProcessShape(void * unused)
 			for (x = 0; x < selSize[VX]; x ++, mapIter(&iter, 1, 0, 0))
 			{
 				/*
-				 * add a voxel if its center is within the object (this is also what was done in MCEdit v1)
-				 * this might not rasterize the object as perfectly as it should, but the result is kind
-				 * of esthetically pleasing, which is all what matter.
+				 * XXX yeah, this is a gcc extension :-/ alternatives are:
+				 * - functions with way too many parameters
+				 * - macro hell
+				 * good luck to anyone trying to port this for another compiler
 				 */
-				vec4 vox = {
-					iter.ref->X + iter.x + 0.5 - center[VX],
-					iter.yabs + 0.5 - center[VY] - yoff,
-					iter.ref->Z + iter.z + 0.5 - center[VZ]
-				};
-				switch (shape) {
-				case SHAPE_SPHERE:
-					vox[VT] = vox[VX]*vox[VX]*pos[VX] + vox[VY]*vox[VY]*pos[VY] + vox[VZ]*vox[VZ]*pos[VZ];
-					break;
-				case SHAPE_CYLINDER:
-					vox[VT] = vox[axis1]*vox[axis1]*pos[axis1] + vox[axis2]*vox[axis2]*pos[axis2];
-					break;
-				case SHAPE_DIAMOND:
-					vox[VT] = fabsf(vox[VX])*pos[VX] + fabsf(vox[VY])*pos[VY] + fabsf(vox[VZ])*pos[VZ] - EPSILON;
-				}
-				if (outer)
+				int isInShape(vec4 vox) /* this function can access all local vars declared up to this point */
 				{
-					/* don't care about hollow */
-					if (vox[VT] < 1) continue;
+					/*
+					 * add a voxel if its center is within the object (this is also what was done in MCEdit v1)
+					 * this might not rasterize the object as perfectly as it should, but the result is kind
+					 * of esthetically pleasing, which is all what matter.
+					 */
+					switch (shape) {
+					case SHAPE_SPHERE:
+						vox[VT] = vox[VX]*vox[VX]*pos[VX] + vox[VY]*vox[VY]*pos[VY] + vox[VZ]*vox[VZ]*pos[VZ];
+						break;
+					case SHAPE_CYLINDER:
+						vox[VT] = vox[axis1]*vox[axis1]*pos[axis1] + vox[axis2]*vox[axis2]*pos[axis2];
+						break;
+					case SHAPE_DIAMOND:
+						vox[VT] = fabsf(vox[VX])*pos[VX] + fabsf(vox[VY])*pos[VY] + fabsf(vox[VZ])*pos[VZ] - EPSILON;
+					}
+					if (outer)
+					{
+						/* don't care about hollow */
+						if (vox[VT] < 1) return 0;
+					}
+					else
+					{
+						if (vox[VT] >= 1) return 0;
+						if (hollow && isInInnerShape(shape, vox, pos)) return 2;
+					}
+					return 1;
+				}
+
+				if (slab)
+				{
+					vec4 vox = {
+						iter.ref->X + iter.x + 0.5 - center[VX],
+						iter.yabs + 0.25 - center[VY] - yoff,
+						iter.ref->Z + iter.z + 0.5 - center[VZ]
+					};
+					uint8_t slab;
+					/* hmmm: unsing 0.25 and 0.75 as center for axisS looks slightly off: uses 0.3 and 0.7 instead :-/ */
+					vox[axisS] -= 0.2; slab  = isInShape(vox);
+					vox[axisS] += 0.4; slab |= isInShape(vox) << 1;
+					vox[VY] += 0.5;
+					vox[axisS] -= 0.4; slab |= isInShape(vox) << 2;
+					vox[axisS] += 0.4; slab |= isInShape(vox) << 3;
+					int blockId = selectionAsync.blockId;
+					switch (slab) {
+					default: continue;
+					case 3:  case 3+4: case 3+8: break;
+					case 12: case 12+1: case 12+2: blockId |= 8; break; /* top slab */
+					case 15: blockId -= 16; break; /* double slab */
+					}
+					mapUpdate(globals.level, NULL, blockId, NULL, UPDATE_SILENT);
 				}
 				else
 				{
-					if (vox[VT] >= 1) continue;
-					if (hollow && isInsideShape(shape, vox, pos)) continue;
+					vec4 vox = {
+						iter.ref->X + iter.x + 0.5 - center[VX],
+						iter.yabs + 0.5 - center[VY] - yoff,
+						iter.ref->Z + iter.z + 0.5 - center[VZ]
+					};
+					switch (isInShape(vox)) {
+					case 1: mapUpdate(globals.level, NULL, selectionAsync.blockId, NULL, UPDATE_SILENT); break;
+					case 2: mapUpdate(globals.level, NULL, 0, NULL, UPDATE_SILENT);
+					}
 				}
-				mapUpdate(globals.level, NULL, selectionAsync.blockId, NULL, UPDATE_SILENT);
+
 				/* DEBUG: slow processing down */
 				// ThreadPause(500);
 			}
