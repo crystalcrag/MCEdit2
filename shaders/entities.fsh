@@ -22,6 +22,9 @@ void main(void)
 	else
 		color = texture(mobTex, texcoord);
 
+	if (color.a < 0.004)
+		discard;
+
 	float sky = 0.9 * skyLight * skyLight + 0.1; if (sky < 0) sky = 0;
 	float block = blockLight * blockLight * (1 - sky);
 	color *= vec4(sky, sky, sky, 1) + vec4(1.5 * block, 1.2 * block, 1 * block, 0);

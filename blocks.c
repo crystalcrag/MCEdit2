@@ -57,7 +57,6 @@ static uint8_t texCoordRevU[] = {
 	0,1,    0,0,    1,0,    1,1,
 	0,0,    1,0,    1,1,    0,1,
 };
-extern uint8_t texCoord[];
 
 /* pre-defined bounding box models for some common blocks */
 static float bboxModels[] = {
@@ -88,6 +87,8 @@ static float bboxModels[] = {
 	 318+BHDR_INCFACEID, 4,24, 6,  6, 0, 0,
 	  61+BHDR_INCFACEID, 6,24, 4,  0, 0, 6,
 };
+
+uint8_t blockTexResol;
 
 /* convert some common block data into SIDE_* enum */
 struct BlockSides_t blockSides = {
@@ -2788,6 +2789,8 @@ void blockPostProcessTexture(DATA8 * data, int * width, int * height, int bpp)
 
 	if (dst == NULL) return;
 
+	blockTexResol = sz;
+
 	/* copy tex 31, 31 in the bottom half (it is an unused tex: if something goes wrong we will get something predictable) */
 	for (i = 0, *data = dst, *height = h*2, sz *= bpp, s = dst + 31 * sz * w + 31 * sz, d = dst + stride * h; i < sz; i += bpp, s += stride)
 	{
@@ -2878,7 +2881,7 @@ void blockPostProcessTexture(DATA8 * data, int * width, int * height, int bpp)
 	}
 
 	/*
-	 * generated connected texture for various glass types
+	 * generate connected texture for various glass types
 	 * this information was gathered in blockParseConnectedTexture()
 	 */
 	for (i = 0; i < blocks.cnxCount; i ++)
@@ -2918,7 +2921,7 @@ void blockPostProcessTexture(DATA8 * data, int * width, int * height, int bpp)
 	/* also load item texture */
 	DATA8 image = stbi_load(RESDIR "items.png", &w, &h, &bpp, 4);
 
-	/* image must be 16x15 tiles, of same size than terrain.png */
+	/* image must be 16x15 tiles, using the same resolution than terrain.png */
 	if (sz == (w / 16) * bpp && sz == (h / 15) * bpp)
 	{
 		/* it is the size we expect, copy into tex */
@@ -2940,10 +2943,39 @@ void blockPostProcessTexture(DATA8 * data, int * width, int * height, int bpp)
 
 	free(image);
 
+	/* convert alpha part of texture into a bitmap */
+	w = *width;
+	h = *height;
+	blocks.alphaTex = calloc((w+7) >> 3, h*2);
+
+	for (d = blocks.alphaTex, s = dst, j = h, k = blocks.alphaStride = (w+7) >> 3; j > 0; j --, d += k)
+	{
+		for (i = 0; i < w; i ++, s += bpp)
+			if (s[3] >= 248) d[i>>3] |= mask8bit[i&7];
+	}
+
 	/* durability colors: located in tile 31, 3 */
 	blocks.duraColors = malloc(sz);
 	blocks.duraMax    = sz >> 2;
 	memcpy(blocks.duraColors, dst + 31 * sz + 3 * sz * *width, sz);
+}
+
+/* extract texture alpha for U, V coord from <terrain.png> */
+Bool blockGetAlphaTex(DATA8 bitmap, int U, int V)
+{
+	/* <bitmap> must be at least blockTexResol x blockTexResol bytes */
+	DATA8 src;
+	int   i, j;
+	if (0 <= U && U < 31 && 0 <= V && V < 63)
+	{
+		for (j = blockTexResol, U *= j, V *= j, src = blocks.alphaTex + V * blocks.alphaStride; j > 0; j --, src += blocks.alphaStride)
+		{
+			for (i = 0; i < blockTexResol; i ++, bitmap ++)
+				bitmap[0] = src[(i+U)>>3] & mask8bit[i&7] ? 255 : 0;
+		}
+		return True;
+	}
+	return False;
 }
 
 /*

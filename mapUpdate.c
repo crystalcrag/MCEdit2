@@ -36,7 +36,6 @@ extern uint8_t  updateChunk[];
 extern uint8_t  updateLength[];
 extern uint16_t updateMore[];
 extern uint8_t  updateChunks[];
-extern uint8_t  mask8bit[];
 
 /* track iteratively blocks that needs change for blocklight/skylight */
 static struct MapUpdate_t track;

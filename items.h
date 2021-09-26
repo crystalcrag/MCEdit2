@@ -7,7 +7,7 @@
 #ifndef MCITEMS_H
 #define MCITEMS_H
 
-#include "UtilityLibLite.h"
+#include "utils.h"
 
 #define ITEMID(id, data)     ((id<<4)|data)
 #define ITEMMETA(id)         (id & 15)
@@ -32,6 +32,7 @@ STRPTR   itemGetTechName(int id, STRPTR out, int max);
 void     itemDecodeEnchants(DATA8 nbt, STRPTR title, int max);
 int      itemGetInventoryByCat(Item buffer, int cat);
 int      itemCanCreateBlock(int blockId, STRPTR * name);
+int      itemGenMesh(int blockId, DATA16 vertex);
 
 struct Item_t              /* for rendering */
 {

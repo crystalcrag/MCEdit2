@@ -1,4 +1,10 @@
 =========== Week 38 ===========
+Sat Sep 25:
+	* first item (skeleton head) rendered.
+
+Fri Sep 24:
+	* started entity item rendering.
+
 Thu Sep 23:
 	* geometric brush filled with slab added: mostly works with ellipses in XY or YZ planes.
 

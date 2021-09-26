@@ -527,7 +527,7 @@ Bool renderInitStatic(void)
 	if (! entityInitStatic())
 		return False;
 
-	/* main texture file */
+	/* load main texture file (note: will require some tables from earlier static init functions) */
 	render.texBlock = textureLoad(RESDIR, "terrain.png", 1, blockPostProcessTexture);
 
 	memcpy(render.lightPos, lightPos, sizeof lightPos);

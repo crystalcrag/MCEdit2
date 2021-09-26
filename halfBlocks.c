@@ -90,7 +90,6 @@ static uint16_t vtxAdjust[] = {
 static uint8_t modelsSize0[DIM(modelsSize2)];
 
 extern uint8_t skyBlockOffset[];
-extern uint8_t texCoord[];
 extern int8_t  normals[];
 
 /* keep a cache of models surrounding a given blocks */

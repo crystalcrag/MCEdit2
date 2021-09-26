@@ -77,7 +77,7 @@ struct Entity_t
 	uint16_t next;                 /* first ENTITY_SHIFT bits: index in buffer, remain: buffer index  */
 	uint16_t VBObank;              /* first 6bits: bank index, remain: model index */
 	uint16_t mdaiSlot;             /* GL draw index in VBObank */
-	uint16_t blockId;
+	int      blockId;
 	float    motion[3];
 	float    pos[4];
 	float    rotation[2];
@@ -109,19 +109,19 @@ struct EntityBuffer_t              /* entity allocated in batch (avoid realloc) 
 
 struct EntityModel_t               /* where model data is and bounding box info */
 {
-	VTXBBox  bbox;
-	uint16_t first;
+	VTXBBox  bbox;                 /* from block models */
+	uint16_t first;                /* position in vboModel */
 	uint16_t count;
 };
 
 struct EntityBank_t
 {
 	ListNode    node;
-	EntityModel models;
-	int         modelCount;
+	EntityModel models;            /* array, capacity in modelCount */
+	int         modelCount;        /* item in array */
 	uint16_t    vtxCount;
 	uint8_t     dirty;
-	int         vao;
+	int         vao;               /* gl buffers needed by glMultiDrawArraysIndirect() */
 	int         vboModel;
 	int         vboLoc;
 	int         vboMDAI;
@@ -166,6 +166,9 @@ struct BBoxBuffer_t
 	struct VTXBBox_t bbox[ENTITY_BATCH];
 	int              count;
 };
+
+/* differentiate item from block entity */
+#define ENTITY_ITEM        0x1000000
 
 #endif
 #endif

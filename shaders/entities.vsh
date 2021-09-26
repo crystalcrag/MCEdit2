@@ -18,6 +18,9 @@ flat out int   isSelected;
      out float skyLight;
      out float blockLight;
 
+/* not dark enough with shading[] because of the absence of AO */
+const float shadingPerFace[6] = float[6](0.8, 0.7, 0.8, 0.7, 1.0, 0.6);
+
 void main(void)
 {
 	vec3 pos = vec3(
@@ -26,21 +29,30 @@ void main(void)
 		float(position.z - ORIGINVTX) * BASEVTX
 	);
 
+	int   norm  = (info.y >> 3) & 7;
+	float shade = shadingPerFace[norm].x;
+
 	if (rotation.x > 0.001)
 	{
 		/* yaw: rotate along Y axis actually :-/ */
 		float ca = cos(rotation.x);
 		float sa = sin(rotation.x);
-		pos = (vec4(pos, 1) * mat4(
+		mat4 rotate = mat4(
 			ca, 0, sa, 0,
 			0, 1, 0, 0,
 			-sa, 0, ca, 0,
 			0, 0, 0, 1
-		)).xyz;
+		);
+		pos = (vec4(pos, 1) * rotate).xyz;
+
+		vec4 normal = normals[norm] * rotate;
+
+		// distribute shading per face
+		shade = shadingPerFace[normal.x < 0 ? 3 : 1].x * abs(normal.x) +
+		        shadingPerFace[normal.z < 0 ? 2 : 0].x * abs(normal.z) +
+				shadingPerFace[normal.y < 0 ? 5 : 4].x * abs(normal.y);
 	}
 
-	int   norm  = (info.y >> 3) & 7;
-	float shade = shading[norm].x;
 	gl_Position = projMatrix * mvMatrix * vec4(pos + offsets.xyz, 1);
 	float U = float(info.x & 511);
 	float V = float(((info.x >> 6) & ~7) | (info.y & 7));

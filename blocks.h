@@ -42,6 +42,7 @@ void    blockGetEmitterLocation(int blockId, float offset[5]);
 int     blockInvCountVertex(DATA16 model, int faceId);
 int     blockInvCopyFromModel(DATA16 ret, DATA16 model, int faceId);
 int     blockAdjustInventory(int blockId);
+Bool    blockGetAlphaTex(DATA8 bitmap, int U, int V);
 
 void    halfBlockGenMesh(WriteBuffer, DATA8 model, int size /* 2 or 8 */, DATA8 xyz, BlockState, DATA16 blockIds, DATA8 skyBlock, int genSides);
 DATA8   halfBlockGetModel(BlockState, int size /* 1, 2 or 8 */, DATA16 blockIds);
@@ -380,6 +381,8 @@ struct BlockPrivate_t      /* static info kept in blocks.c */
 	int      maxVtxCust;   /* max number of vertices for custom models */
 	int      curVtxCount;  /* vertex count stored in lastModel */
 	STRPTR   curFile;      /* current file being parsed in blockParse() (mostly for error reporting) */
+	DATA8    alphaTex;     /* keep a bitmap version of alpha part of terrain.png */
+	int      alphaStride;  /* width of alphaTex in bytes */
 	DATA8    duraColors;   /* durability color from terrain.png (RGBA) */
 	int      duraMax;
 	float *  lastModel;
@@ -427,9 +430,12 @@ extern struct Block_t            blockIds[];
 extern struct BlockState_t *     blockStates;
 extern struct BlockState_t *     blockLast;
 extern uint16_t                  blockStateIndex[];
+extern uint8_t                   blockTexResol;   /* resolution of textures in terrain.png; default is 16 */
 
 extern uint8_t vertex[];
 extern uint8_t cubeIndices[];
 extern int8_t  normals[];
+extern uint8_t mask8bit[];
+extern uint8_t texCoord[];
 
 #endif

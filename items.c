@@ -412,6 +412,175 @@ int itemGetInventoryByCat(Item buffer, int cat)
 	return item - buffer;
 }
 
+/*
+ * generate a mesh from an item suitable for entity shader.
+ * note: <vertex> can be NULL to first get number of vertices to alloc.
+ */
+
+#define QUAD_VERTEX      (INT_PER_VERTEX * 6)
+
+static void itemGenQuad(DATA16 out, int x1, int z1, int x2, int z2, int norm, DATA8 texUV)
+{
+	static uint8_t texCoords[] = { /* S, E, N, W, T, B */
+		0,0,    0,0,    1,0,    1,0,
+		0,0,    0,0,    0,1,    0,1,
+		1,0,    1,0,    0,0,    0,0,
+		0,0,    0,0,    0,1,    0,1,
+		0,0,    0,1,    1,1,    1,0,
+		0,0,    0,1,    1,1,    1,0,
+	};
+	DATA8 index, tex;
+	int   i, U1, V1, U2, V2;
+	/* XXX U,V will only work if blockTexResol is 16 */
+	U1 = texUV[0] * 16 + x1;
+	V1 = texUV[1] * 16 + z1;
+	U2 = U1 + x2 - x1;
+	V2 = V1 + z2 - z1;
+	if (norm == SIDE_SOUTH) V1 --;
+	if (norm == SIDE_EAST)  U1 --;
+	for (i = 0, index = cubeIndices + norm * 4, norm <<= 3, tex = texCoords + norm; i < 4; i ++, out += INT_PER_VERTEX, index ++, tex += 2)
+	{
+		DATA8 point = vertex + index[0];
+		out[VX] = ((point[VX] ? x2 : x1) * BASEVTX) / blockTexResol + ORIGINVTX;
+		out[VZ] = ((point[VZ] ? z2 : z1) * BASEVTX) / blockTexResol + ORIGINVTX;
+		out[VY] = (point[VY]  ? BASEVTX/16 : 0) + ORIGINVTX;
+		{
+			int V = tex[1] ? V2 : V1;
+			out[3] = (tex[0] ? U2 : U1) | ((V & ~7) << 6);
+			out[4] = (V & 7) | norm;
+		}
+		//fprintf(stderr, "%c: %g, %g, %g - %d, %d\n", "SENWTB"[norm>>3], (out[VX] - ORIGINVTX) * (1./BASEVTX), (out[VY] - ORIGINVTX) * (1./BASEVTX),
+		//	(out[VZ] - ORIGINVTX) * (1./BASEVTX), GET_UCOORD(out), GET_VCOORD(out));
+	}
+	/* convert to triangles */
+	memcpy(out,   out - 20, BYTES_PER_VERTEX);
+	memcpy(out+5, out - 10, BYTES_PER_VERTEX);
+}
+
+int itemGenMesh(int blockId, DATA16 vertex)
+{
+	uint8_t texUV[2];
+	DATA8   bitmap = alloca(blockTexResol * blockTexResol);
+	int     count  = 12;
+
+	blockId = ID(397, 0);
+
+	if (blockId >= ID(256, 0))
+	{
+		ItemDesc item = itemGetById(blockId);
+		if (item)
+		{
+			texUV[0] = item->texU + ITEM_ADDTEXU;
+			texUV[1] = item->texV + ITEM_ADDTEXV;
+		}
+		else return 0;
+	}
+	else
+	{
+		BlockState state = blockGetById(blockId);
+		texUV[0] = state->nzU;
+		texUV[1] = state->nzV;
+	}
+
+	if (blockGetAlphaTex(bitmap, texUV[0], texUV[1]))
+	{
+		uint8_t i, j, max, rect[4];
+		DATA8   src;
+
+		//for (i = 0, src = bitmap; i < blockTexResol; i ++, putc('\n', stderr))
+		//	for (j = 0; j < blockTexResol; j ++, src ++)
+		//		putc(src[0] ? '#' : ' ', stderr);
+
+		rect[0] = rect[1] = 255;
+		rect[2] = rect[3] = 0;
+
+		/* horizontal spans (ie: N/S bands) */
+		for (i = 0, src = bitmap, max = blockTexResol-1; i < blockTexResol; src += blockTexResol, i ++)
+		{
+			uint8_t minN, maxN;
+			uint8_t minS, maxS;
+			DATA8   s;
+			for (minN = minS = 255, maxN = maxS = 0, s = src, j = 0; j < blockTexResol; j ++, s ++)
+			{
+				if (s[0] == 0) continue;
+				if (i == 0 || s[-blockTexResol] == 0) {
+					if (minN > j) minN = j;
+					if (maxN < j) maxN = j;
+				}
+				if (i == max || s[blockTexResol] == 0) {
+					if (minS > j) minS = j;
+					if (maxS < j) maxS = j;
+				}
+			}
+			if (minN <= maxN)
+			{
+				maxN ++;
+				if (rect[1] > minN) rect[1] = minN;
+				if (rect[3] < maxN) rect[3] = maxN;
+				if (vertex)
+					itemGenQuad(vertex, minN, i, maxN, i, SIDE_NORTH, texUV), vertex += QUAD_VERTEX;
+				count += 6;
+			}
+			if (minS <= maxS)
+			{
+				maxS ++;
+				if (rect[1] > minS) rect[1] = minS;
+				if (rect[3] < maxS) rect[3] = maxS;
+				if (vertex)
+					itemGenQuad(vertex, minS, i+1, maxS, i+1, SIDE_SOUTH, texUV), vertex += QUAD_VERTEX;
+				count += 6;
+			}
+		}
+
+		/* vertical spans (ie: E/W bands) */
+		for (i = 0, src = bitmap, max = blockTexResol-1; i < blockTexResol; src ++, i ++)
+		{
+			uint8_t minW, maxW;
+			uint8_t minE, maxE;
+			DATA8   s;
+			for (minE = minW = 255, maxE = maxW = 0, s = src, j = 0; j < blockTexResol; j ++, s += blockTexResol)
+			{
+				if (s[0] == 0) continue;
+				if (i == 0 || s[-1] == 0) {
+					if (minW > j) minW = j;
+					if (maxW < j) maxW = j;
+				}
+				if (i == max || s[1] == 0) {
+					if (minE > j) minE = j;
+					if (maxE < j) maxE = j;
+				}
+			}
+			if (minW < maxW)
+			{
+				maxW ++;
+				if (rect[0] > minW) rect[0] = minW;
+				if (rect[2] < maxW) rect[2] = maxW;
+				if (vertex)
+					itemGenQuad(vertex, i, minW, i, maxW, SIDE_WEST, texUV), vertex += QUAD_VERTEX;
+				count += 6;
+			}
+			if (minE < maxE)
+			{
+				maxE ++;
+				if (rect[0] > minE) rect[0] = minE;
+				if (rect[2] < maxE) rect[2] = maxE;
+				if (vertex)
+					itemGenQuad(vertex, i+1, minE, i+1, maxE, SIDE_EAST, texUV), vertex += QUAD_VERTEX;
+				count += 6;
+			}
+		}
+		/* top and bottom quad */
+		if (vertex)
+		{
+			//rect[2] ++;
+			//rect[3] ++;
+			itemGenQuad(vertex, rect[0], rect[1], rect[2], rect[3], SIDE_TOP, texUV); vertex += QUAD_VERTEX;
+			itemGenQuad(vertex, rect[0], rect[1], rect[2], rect[3], SIDE_BOTTOM, texUV);
+		}
+	}
+	return count;
+}
+
 /* Q'n'D enchantment decoder */
 struct Enchant_t
 {

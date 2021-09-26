@@ -23,7 +23,6 @@
 
 struct Selection_t selection;
 extern uint8_t bboxIndices[]; /* from blocks.c */
-extern uint8_t texCoord[];
 
 /*
  * selection render / nudge

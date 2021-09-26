@@ -215,6 +215,8 @@ extern int blockInvModelCube(DATA16 ret, BlockState b, DATA8 texCoord);
 /* get vertex count for entity id */
 static int entityModelCount(int id, int cnx)
 {
+	if (id & ENTITY_ITEM) /* same as normal block/item */
+		id &= ~ENTITY_ITEM;
 	if (id < ID(256, 0))
 	{
 		/* normal block */
@@ -222,6 +224,13 @@ static int entityModelCount(int id, int cnx)
 		if (id == 0) return 36; /* unknown entity: a cube */
 		switch (b->type) {
 		case SOLID:
+			if (b->special == BLOCK_STAIRS)
+			{
+				/* use inventory item for this */
+				DATA16 model = blockIds[id>>4].model;
+				return model ? model[-1] : 0;
+			}
+			// else no break;
 		case TRANS: return 36;
 		case CUST:
 			if (b->custModel == NULL) return 36; /* assume cube, if no model */
@@ -235,6 +244,10 @@ static int entityModelCount(int id, int cnx)
 			return id;
 		}
 	}
+	else
+	{
+		return itemGenMesh(id, NULL);
+	}
 	return 0;
 }
 
@@ -244,11 +257,12 @@ static int entityGenModel(EntityBank bank, int id, int cnx, CustModel cust)
 	DATA16  buffer = glMapBuffer(GL_ARRAY_BUFFER, GL_READ_WRITE);
 	VTXBBox bbox   = NULL;
 	int     count  = 0;
+	int     item   = id & ENTITY_ITEM;
+	id &= ~ENTITY_ITEM;
 
 	buffer += bank->vtxCount * INT_PER_VERTEX;
 	if (id < ID(256, 0))
 	{
-		extern uint8_t texCoord[];
 		/* normal block */
 		BlockState b = blockGetById(id);
 		if (id == 0)
@@ -263,6 +277,17 @@ static int entityGenModel(EntityBank bank, int id, int cnx, CustModel cust)
 		}
 		else switch (b->type) {
 		case SOLID:
+			if (b->special == BLOCK_STAIRS)
+			{
+				/* use inventory item for this */
+				DATA16 model = blockIds[id>>4].model;
+				if (model)
+				{
+					count = model[-1];
+					memcpy(buffer, model, count * BYTES_PER_VERTEX);
+					break;
+				}
+			}
 		case TRANS:
 			count = blockInvModelCube(buffer, b, texCoord);
 			bbox  = blockGetBBox(b);
@@ -292,6 +317,17 @@ static int entityGenModel(EntityBank bank, int id, int cnx, CustModel cust)
 		count = blockCountModelVertex(cust->model, cust->vertex);
 		blockParseModel(cust->model, cust->vertex, buffer);
 		blockCenterModel(buffer, count, cust->U, cust->V, bbox = cust->bbox);
+	}
+	else
+	{
+		count = itemGenMesh(id, buffer);
+	}
+	if (item)
+	{
+		/* reduce size to distinguish them from normal blocks */
+		DATA16 v;
+		for (v = buffer, item = count; item > 0; item --, v += INT_PER_VERTEX)
+			v[0] = (v[0] + ORIGINVTX) >> 1, v[1] = (v[1] + ORIGINVTX) >> 1, v[2] = (v[2] + ORIGINVTX) >> 1;
 	}
 	glUnmapBuffer(GL_ARRAY_BUFFER);
 	bank->vtxCount += count;
@@ -441,6 +477,18 @@ static int entityGetModelId(Entity entity)
 		{
 			off = FindInList(entities.paintings, NBT_Payload(&nbt, off), 0);
 			if (off >= 0) return hashSearch(ENTITY_PAINTINGID + off);
+		}
+	}
+	else if (strcmp(id, "item") == 0)
+	{
+		int desc = NBT_FindNode(&nbt, 0, "Item");
+//		int count = NBT_ToInt(&nbt, NBT_FindNode(&nbt, desc, "Count"), 1);
+		int data = NBT_ToInt(&nbt, NBT_FindNode(&nbt, desc, "Damage"), 0);
+		int blockId = itemGetByName(NBT_Payload(&nbt, NBT_FindNode(&nbt, desc, "id")), False);
+
+		if (blockId >= 0)
+		{
+			return entityAddModel(entity->blockId = blockId | data | ENTITY_ITEM, 0, NULL);
 		}
 	}
 	return ENTITY_UNKNOWN;
@@ -622,7 +670,7 @@ static EntityModel entityGetModelById(Entity entity)
 #ifdef DEBUG /* stderr not available in release build */
 void entityDebug(int id)
 {
-	Entity entity = entityGetById(id);
+	Entity entity = entityGetById(id-1);
 
 	fprintf(stderr, "entity %s at %g, %g, %g. NBT data:\n", entity->name, entity->pos[0], entity->pos[1], entity->pos[2]);
 	NBTFile_t nbt = {.mem = entity->tile};
@@ -640,7 +688,7 @@ void entityDebug(int id)
 /* used by tooltip */
 void entityInfo(int id, STRPTR buffer, int max)
 {
-	Entity entity = entityGetById(id);
+	Entity entity = entityGetById(id-1);
 	STRPTR name;
 	int    count;
 
@@ -648,6 +696,7 @@ void entityInfo(int id, STRPTR buffer, int max)
 
 	if ((id = entity->blockId) > 0)
 	{
+		id &= ~ENTITY_ITEM;
 		BlockState b = blockGetById(id);
 		if (b == NULL)
 			name = NULL;
