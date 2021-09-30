@@ -185,7 +185,7 @@ void mapIter(BlockIter iter, int dx, int dy, int dz)
 
 	if (cd == NULL)
 	{
-		/* XXX check if above or below build limit */
+		/* XXX need to check if above or below build limit */
 		if (iter->alloc)
 			cd = chunkCreateEmpty(ref, iter->yabs>>4), renderResetFrustum();
 		else

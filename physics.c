@@ -90,9 +90,9 @@ int physicsCheckCollision(Map map, vec4 start, vec4 end, VTXBBox bbox, float aut
 	int8_t dy = (int) broad[VY+3] - (int) broad[VY];
 	int8_t dz = (int) broad[VZ+3] - (int) broad[VZ];
 
-	vecSub(dir, end, start);
-	vecAdd(minMax,   minMax,   start);
-	vecAdd(minMax+3, minMax+3, start);
+	vecSub(dir, end, start);           /* dir = end - start */
+	vecAdd(minMax,   minMax,   start); /* minMax += start */
+	vecAdd(minMax+3, minMax+3, start); /* minMax+3 += start */
 	elevation = 0;
 	ret = 0;
 
@@ -257,4 +257,131 @@ Bool physicsCheckOnGround(Map map, vec4 start, VTXBBox bbox)
 		mapIter(&iter, -dx, 0, 1);
 	}
 	return False;
+}
+
+void physicsInitEntity(PhysicsEntity entity, int blockId)
+{
+	float density = blockIds[blockId>>4].density - blockIds[0].density;
+
+	entity->friction[VX] = 0.0001;
+	entity->friction[VZ] = 0.0001;
+	/* gravity: material heavier than air will "sink", lighter than air will rise */
+	entity->friction[VY] = 0.02 * (1/5.) * density;
+	/* note: 1/5 because 0.02 was calibrated for stone */
+	entity->density = density;
+
+	/* avoid dealing with negative numbers */
+	if (entity->dir[VX] < 0) entity->negXZ |= 1, entity->dir[VX] = - entity->dir[VX];
+	if (entity->dir[VZ] < 0) entity->negXZ |= 2, entity->dir[VZ] = - entity->dir[VZ];
+}
+
+static void physicsChangeEntityDir(PhysicsEntity entity)
+{
+	float angle = RandRange(0, 2 * M_PI);
+	entity->dir[VY] = 0;
+	entity->dir[VX] = cosf(angle) * 0.01;
+	entity->dir[VZ] = sinf(angle) * 0.01;
+	entity->friction[VZ] = -0.001;
+	entity->friction[VX] = -0.001;
+	if (entity->dir[VX] < 0) entity->negXZ |= 1, entity->dir[VX] = - entity->dir[VX];
+	if (entity->dir[VZ] < 0) entity->negXZ |= 2, entity->dir[VZ] = - entity->dir[VZ];
+}
+
+
+/* move particles according to their parameters */
+void physicsMoveEntity(Map map, PhysicsEntity entity, float speed)
+{
+	float inc, oldLoc[3], DY;
+	memcpy(oldLoc, entity->loc, sizeof oldLoc);
+
+	inc = entity->dir[VX] * speed; entity->loc[VX] += entity->negXZ & 1 ? -inc : inc;
+	inc = entity->dir[VZ] * speed; entity->loc[VZ] += entity->negXZ & 2 ? -inc : inc;
+	entity->loc[VY] += DY = entity->dir[VY] * speed;
+
+	/* that's why we don't want to deal with negative values in <dir> */
+	entity->dir[VX] -= entity->friction[VX] * speed; if (entity->dir[VX] < 0) entity->dir[VX] = 0;
+	entity->dir[VZ] -= entity->friction[VZ] * speed; if (entity->dir[VZ] < 0) entity->dir[VZ] = 0;
+	entity->dir[VY] -= entity->friction[VY] * speed;
+
+	if (entity->VYblocked)
+	{
+		/* increase friction if sliding on ground */
+		entity->friction[VX] += 0.0005 * speed;
+		entity->friction[VZ] += 0.0005 * speed;
+	}
+	else entity->friction[VY] += 0.003 * speed * entity->density;
+
+	/* check collision */
+	int axis = physicsCheckCollision(map, oldLoc, entity->loc, entity->bbox, False);
+
+	if (axis & 2)
+	{
+		if (! entity->VYblocked)
+		{
+			entity->VYblocked = 1;
+			if (DY > 0)
+			{
+				/* hit a ceiling */
+				if (entity->density > blockIds[0].density)
+					/* make it fall down */
+					entity->friction[VY] = 0.02;
+				else /* find a hole in the ceiling */
+					physicsChangeEntityDir(entity);
+			}
+			else /* hit the ground */
+			{
+				entity->dir[VY] = -0.1 * speed;
+				entity->friction[VY] = 0.02 * (1/5.) * (entity->density - blockIds[0].density);
+			}
+		}
+	}
+	else entity->VYblocked = 0;
+
+	#if 0
+	vec4 pos = {floorf(p->loc[VX]), floorf(p->loc[VY]), floorf(p->loc[VZ])};
+	if (pos[VX] != old[VX] ||
+		pos[VY] != old[VY] ||
+		pos[VZ] != old[VZ])
+	{
+		uint8_t light;
+		Block b = blockIds + particlesGetBlockInfo(map, pos, &light);
+		if (! (b->type == SOLID || b->type == TRANS || b->type == CUST) || b->bboxPlayer == BBOX_NONE)
+		{
+			p->light = light;
+			if (! p->onGround)
+			{
+				/* check if block above has changed */
+				pos[VY] += 1;
+				Block b = blockIds + particlesGetBlockInfo(map, pos, &light);
+				if (p->dir[VY] >= 0)
+				if (! (b->type == SOLID || b->type == TRANS || b->type == CUST) || b->bboxPlayer == BBOX_NONE)
+					p->brake[VX] = p->brake[VZ] = 0.001, p->dir[VY] = 0.02;
+			}
+			else p->brake[VY] = 0.02;
+			continue;
+		}
+		/* inside a solid block: light will be 0 */
+
+		if (pos[VX] != old[VX]) p->dir[VX] = p->brake[VX] = 0, p->loc[VX] = buf[-5]; else
+		if (pos[VZ] != old[VZ]) p->dir[VZ] = p->brake[VZ] = 0, p->loc[VZ] = buf[-3]; else
+		if (pos[VY] >  old[VY])
+		{
+			/* hit a ceiling */
+			p->dir[VY] = 0;
+			p->loc[VY] = buf[-4];
+			if (type != PARTICLE_SMOKE)
+				p->brake[VY] = 0.02;
+			else
+				particleChangeDir(p);
+		}
+		else if (pos[VY] < old[VY])
+		{
+			/* hit the ground */
+			p->dir[VY] = 0;
+			p->loc[VY] = buf[-4]; // = pos[VY]+0.95;
+			p->brake[VY] = 0;
+			p->onGround = 1;
+		}
+	}
+	#endif
 }

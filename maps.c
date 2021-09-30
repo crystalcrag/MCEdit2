@@ -320,7 +320,7 @@ int intersectRayPlane(vec4 P0, vec4 u, vec4 V0, vec norm, vec4 I)
 
 	/* they are not parallel: compute intersect param */
 	float sI = N / D;
-	/* XXX we will check later if intersection is within plane */
+	/* we will check later if intersection is within plane */
 	// if (sI < 0) return 0;
 
 	I[0] = P0[0] + sI * u[0];

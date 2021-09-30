@@ -44,6 +44,9 @@ typedef struct MCGlobals_t
 	/* time spent in a modal UI: can't use curTime */
 	double curTimeUI;
 
+	/* 2 floats containing player angular looking direction (in radians) */
+	float * yawPitch;
+
 	/* nanovg context */
 	struct NVGcontext * nvgCtx;
 

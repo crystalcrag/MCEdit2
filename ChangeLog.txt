@@ -1,4 +1,17 @@
+=========== Week 39 ===========
+Wed Sep 29:
+	* particle physics mostly redone.
+
+Tue Sep 28:
+	* particle movement based on entity collision detection.
+
+Mon Sep 27:
+	* started refactoring particles physics based on material density.
+
 =========== Week 38 ===========
+Sun Sep 26:
+	* entity items rendered correctly and ray picking takes rotation into account.
+
 Sat Sep 25:
 	* first item (skeleton head) rendered.
 

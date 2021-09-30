@@ -1381,6 +1381,66 @@ static struct
 	vec4   size;
 }	selectionAsync;
 
+/* globals.direction only look at S,E,N,W: this one check for S,E,N,W,T,B */
+static int extendedDir(void)
+{
+	float pitch = globals.yawPitch[1];
+
+	if (pitch > M_PI_4)
+		return SIDE_BOTTOM;
+	else if (pitch < - M_PI_4)
+		return SIDE_TOP;
+	else
+		return selectionAsync.facing;
+}
+
+static int selectionAdjustOrient(int blockId, int orient, int dx, int dy, int dz)
+{
+	switch (orient) {
+	case ORIENT_LOG:
+		if (dy == 1)
+		{
+			if (dz == 1 && dx > 1) blockId |= 4; /* E/W beam */
+			if (dx == 1 && dz > 1) blockId |= 8; /* N/S */
+		}
+		/* else upward beam */
+		break;
+	case ORIENT_RAILS:
+		if (dy == 1)
+		{
+			if (dz == 1 && dx > 1) blockId |= 1; /* E/W */
+			/* else N/S is 0 */
+		}
+		break;
+	case ORIENT_NSWE: /* ladder, furnace, jack-o-lantern ... */
+		{
+			static uint8_t dir2nswe[] = {2, 4, 3, 5};
+			blockId |= dir2nswe[selectionAsync.facing];
+		}
+		break;
+	case ORIENT_STAIRS:
+		{
+			static uint8_t dir2stairs[] = {2, 0, 3, 1};
+			blockId |= dir2stairs[selectionAsync.facing];
+		}
+		break;
+	case ORIENT_FULL: /* piston */
+		{
+			static uint8_t dir2full[] = {2, 4, 3, 5, 1, 0};
+			blockId &= ~15;
+			blockId |= dir2full[extendedDir()];
+		}
+		break;
+	case ORIENT_SWNE:
+		{
+			static uint8_t dir2swne[] = {2, 1, 0, 3};
+			blockId |= dir2swne[selectionAsync.facing];
+		}
+		break;
+	}
+	return blockId;
+}
+
 /* thread to process fill command */
 void selectionProcessFill(void * unused)
 {
@@ -1415,40 +1475,10 @@ void selectionProcessFill(void * unused)
 	}
 	else yinc = 1;
 
-	if ((b->special == BLOCK_HALF || b->special == BLOCK_STAIRS) && selectionAsync.side > 0)
+	if ((b->special == BLOCK_HALF || b->special == BLOCK_STAIRS) && selectionAsync.side > 0 /* top/bottom option */)
 		blockId |= 8;
 
-	switch (b->orientHint) {
-	case ORIENT_LOG:
-		if (dy == 1)
-		{
-			if (dz == 1 && dx > 1) blockId |= 4; /* E/W beam */
-			if (dx == 1 && dz > 1) blockId |= 8; /* N/S */
-		}
-		/* else upward beam */
-		break;
-	case ORIENT_RAILS:
-		if (dy == 1)
-		{
-			if (dz == 1 && dx > 1) blockId |= 1; /* E/W */
-			/* else N/S is 0 */
-		}
-		break;
-	case ORIENT_NSWE: /* ladder, furnace, jack-o-lantern ... */
-		{
-			static uint8_t dir2data[] = {2, 4, 3, 5};
-			blockId |= dir2data[selectionAsync.facing];
-		}
-		break;
-	case ORIENT_STAIRS:
-		{
-			static uint8_t dir2stairs[] = {2, 0, 3, 1};
-			blockId |= dir2stairs[selectionAsync.facing];
-		}
-		break;
-	case ORIENT_SWNE:
-		break;
-	}
+	blockId = selectionAdjustOrient(blockId, b->orientHint, dx, dy, dz);
 
 	if (dy == 1 && dx > 2 && dz > 2 && b->special == BLOCK_STAIRS)
 	{
@@ -1744,9 +1774,11 @@ static void selectionProcessShape(void * unused)
 		pos[VZ] + selSize[VZ] * 0.5,
 	};
 
-	int x, y, z;
-	int flags = selectionAsync.similar;
-	uint8_t shape = flags & 15;
+	int   x, y, z;
+	int   flags = selectionAsync.similar;
+	Block block = &blockIds[selectionAsync.blockId>>4];
+	char  shape = flags & 15;
+	int   blockId = selectionAdjustOrient(selectionAsync.blockId, block->orientHint, selSize[VX], selSize[VY], selSize[VZ]);
 
 	struct BlockIter_t iter;
 	MutexEnter(selection.wait);
@@ -1777,7 +1809,7 @@ static void selectionProcessShape(void * unused)
 	uint8_t axis1 = 0;
 	uint8_t axis2 = 0;
 	uint8_t axisS = 0;
-	uint8_t slab  = blockIds[selectionAsync.blockId>>4].orientHint == ORIENT_SLAB;
+	uint8_t slab  = block->orientHint == ORIENT_SLAB;
 	if (shape == SHAPE_CYLINDER)
 	{
 		/* get the 2 axis where the disk of the cylinder will be located */
@@ -1848,14 +1880,14 @@ static void selectionProcessShape(void * unused)
 					vox[VY] += 0.5;
 					vox[axisS] -= 0.4; slab |= isInShape(vox) << 2;
 					vox[axisS] += 0.4; slab |= isInShape(vox) << 3;
-					int blockId = selectionAsync.blockId;
+					int id = blockId;
 					switch (slab) {
 					default: continue;
 					case 3:  case 3+4: case 3+8: break;
-					case 12: case 12+1: case 12+2: blockId |= 8; break; /* top slab */
-					case 15: blockId -= 16; break; /* double slab */
+					case 12: case 12+1: case 12+2: id |= 8; break; /* top slab */
+					case 15: id -= 16; break; /* double slab */
 					}
-					mapUpdate(globals.level, NULL, blockId, NULL, UPDATE_SILENT);
+					mapUpdate(globals.level, NULL, id, NULL, UPDATE_SILENT);
 				}
 				else
 				{
@@ -1865,7 +1897,7 @@ static void selectionProcessShape(void * unused)
 						iter.ref->Z + iter.z + 0.5 - center[VZ]
 					};
 					switch (isInShape(vox)) {
-					case 1: mapUpdate(globals.level, NULL, selectionAsync.blockId, NULL, UPDATE_SILENT); break;
+					case 1: mapUpdate(globals.level, NULL, blockId, NULL, UPDATE_SILENT); break;
 					case 2: mapUpdate(globals.level, NULL, 0, NULL, UPDATE_SILENT);
 					}
 				}

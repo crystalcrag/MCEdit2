@@ -171,7 +171,7 @@ struct RenderWorld_t
 	float      yaw, pitch;
 	float      scale;
 	uint8_t    debug;              /* 1 if debug info is displayed (chunk boundaries) */
-	uint8_t    debugInfo;          /* tooltip over block highligted */
+	uint8_t    debugInfo;          /* tooltip over block highligted (DEBUG_*) */
 	uint8_t    setFrustum;         /* recompute chunk visible list */
 	int        debugFont;          /* font id from nanovg (init by SITGL) */
 	int        debugTotalTri;      /* triangle count being drawn */

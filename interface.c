@@ -1087,7 +1087,7 @@ void mcuiAnalyze(void)
 		"<label name=total>"
 		"<listbox name=list columnNames='\xC2\xA0\xC2\xA0\xC2\xA0\xC2\xA0\tCount\tName\tID' width=20em height=15em top=WIDGET,total,0.5em"
 		" composited=1 cellPaint=", mcuiGrabItem, ">"
-		"<button name=ok title=Ok top=WIDGET,list,1em right=FORM>"
+		"<button name=ok title=Ok top=WIDGET,list,1em right=FORM buttonType=", SITV_DefaultButton, ">"
 		"<button name=save title='Copy to clipboard' right=WIDGET,ok,0.5em top=OPPOSITE,ok>"
 	);
 	SIT_Widget w = SIT_GetById(diag, "list");
@@ -1470,7 +1470,7 @@ void mcuiFillOrReplace(Bool fillWithBrush)
 		SIT_SetAttributes(diag,
 			"<label2 top=MIDDLE,xcoord><label3 top=MIDDLE,xcoord><label4 top=MIDDLE,xcoord>"
 			"<label5 right=WIDGET,thick,0.5em top=MIDDLE,thick>"
-			"<ok right=WIDGET,cancel,0.5em top=OPPOSITE,cancel>"
+			"<ok right=WIDGET,cancel,0.5em top=OPPOSITE,cancel buttonType=", SITV_DefaultButton, ">"
 		);
 		mcuiRepWnd.XYZ[0] = SIT_GetById(diag, "xcoord");
 		mcuiRepWnd.XYZ[1] = SIT_GetById(diag, "zcoord");
@@ -1486,7 +1486,7 @@ void mcuiFillOrReplace(Bool fillWithBrush)
 			"<button name=similar enabled=", mcuiRepWnd.doReplace, "curValue=", &mcuiRepWnd.doSimilar, "title='Replace similar blocks (strairs, slabs)'"
 			" buttonType=", SITV_CheckBox, "left=OPPOSITE,doreplace top=WIDGET,fill,0.5em>"
 			"<button name=cancel title=Cancel right=FORM top=WIDGET,similar,1em>"
-			"<button name=ok title=", mcuiRepWnd.doReplace ? "Replace" : "Fill", "top=OPPOSITE,cancel right=WIDGET,cancel,0.5em>"
+			"<button name=ok title=", mcuiRepWnd.doReplace ? "Replace" : "Fill", "top=OPPOSITE,cancel right=WIDGET,cancel,0.5em buttonType=", SITV_DefaultButton, ">"
 			"<progress name=prog visible=0 title='%d%%' left=FORM right=WIDGET,ok,1em top=MIDDLE,ok>"
 			"<tooltip name=info delayTime=", SITV_TooltipManualTrigger, "displayTime=10000 toolTipAnchor=", SITV_TooltipFollowMouse, ">"
 		);

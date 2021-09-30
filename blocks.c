@@ -321,7 +321,7 @@ static void blockSetUVAndNormals(DATA16 vert, int inv, int setUV, float * vertex
 }
 
 /* needed by entity models */
-void blockCenterModel(DATA16 vertex, int count, int dU, int dV, VTXBBox bbox)
+void blockCenterModel(DATA16 vertex, int count, int dU, int dV, Bool shiftY, VTXBBox bbox)
 {
 	DATA16 start = vertex;
 	DATA16 min, max;
@@ -348,6 +348,7 @@ void blockCenterModel(DATA16 vertex, int count, int dU, int dV, VTXBBox bbox)
 		(max[1] - min[1]) >> 1,
 		(max[2] - min[2]) >> 1
 	};
+	if (! shiftY) shift[VY] = 0;
 
 	/* center vertex around 0, 0 */
 	for (i = 0, vertex = start; i < count; i ++, vertex += INT_PER_VERTEX)
@@ -906,6 +907,28 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 		value = jsonValue(keys, "particle");
 		block.particle = FindInList("BITS,SMOKE,NETHER", value, 0) + 1;
 
+		/* density (g/cm³): used by particles and entity physics */
+		value = jsonValue(keys, "density");
+		if (value)
+		{
+			if (isdigit(value[0]))
+			{
+				block.density = strtod(value, NULL);
+			}
+			else switch (FindInList("WOOD,IRON,PLANTS,ICE,WATER,GLASS", value, 0)) {
+			case 0: block.density =  0.8; break;
+			case 1: block.density = 10.0; break;
+			case 2: block.density =  0.7; break;
+			case 3: block.density =  0.9; break;
+			case 4: block.density =  1.0; break;
+			case 5: block.density =  2.5; break;
+			default:
+				SIT_Log(SIT_ERROR, "%s: unknown density value '%s' specified on line %d", file, value, line);
+				return False;
+			}
+		}
+		else block.density = 5; /* stone */
+
 		/* chunk meshing optization: mark block that will *automatically* update nearby blocks */
 		switch (block.type) {
 		case CUST:
@@ -933,7 +956,7 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 		while (*keys)
 		{
 			if (FindInList(
-				"id,name,type,inv,invstate,cat,special,tech,bbox,orient,keepModel,particle,rsupdate,"
+				"id,name,type,inv,invstate,cat,special,tech,bbox,orient,keepModel,particle,rsupdate,density,"
 				"emitLight,opacSky,opacLight,tile,invmodel,rswire,placement,bboxPlayer,gravity,pushable", *keys, 0) < 0)
 			{
 				SIT_Log(SIT_ERROR, "%s: unknown property \"%s\" on line %d\n", file, *keys, line);
@@ -1486,9 +1509,9 @@ void blockParseInventory(int vbo)
 	{
 		int vtx;
 		switch (state->inventory & MODELFLAGS) {
-		case CUBE: vtx = 36; break;
-		case ITEM: vtx = 6;  break;
-		case MODL:
+		case CUBE3D: vtx = 36; break;
+		case ITEM2D: vtx = 6;  break;
+		case MODEL:
 			b = &blockIds[state->id>>4];
 			if (b->orientHint == ORIENT_BED && b->model)
 				vtx = b->model[-1];
@@ -1531,13 +1554,13 @@ void blockParseInventory(int vbo)
 	for (state = blockStates, vtx = 0, j = 0; state < blockLast; state ++)
 	{
 		switch (state->inventory & MODELFLAGS) {
-		case CUBE:
+		case CUBE3D:
 			total = blockInvModelCube(vertex, state, texCoordRevU);
 			break;
-		case ITEM:
+		case ITEM2D:
 			total = blockInvModelQuad(vertex, &state->nzU);
 			break;
-		case MODL:
+		case MODEL:
 			b = &blockIds[state->id>>4];
 			if (b->orientHint == ORIENT_BED && b->model)
 				total = blockInvCopyFromModel(vertex, b->model, 1 << ((state->id & 15)-1));

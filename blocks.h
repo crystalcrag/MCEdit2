@@ -20,7 +20,7 @@ void    blockParseConnectedTexture(void);
 void    blockParseBoundingBox(void);
 void    blockParseInventory(int vbo);
 void    blockPostProcessTexture(DATA8 * data, int * w, int * h, int bpp);
-void    blockCenterModel(DATA16 vertex, int count, int U, int V, VTXBBox bbox);
+void    blockCenterModel(DATA16 vertex, int count, int U, int V, Bool shiftY, VTXBBox bbox);
 int     blockGetConnect(BlockState, DATA8 neighbors);
 VTXBBox blockGetBBox(BlockState);
 VTXBBox blockGetBBoxForVertex(BlockState);
@@ -79,6 +79,7 @@ struct Block_t                   /* per id information */
 	uint8_t  pushable;           /* can be pushed by piston or /retracted by sticky piston */
 	uint8_t  updateNearby;       /* 6 nearby blocks can be changed if block is placed/deleted (chunk meshing optimization if not) */
 
+	float    density;            /* entity/particle physics */
 	STRPTR   name;               /* description as displayed to user */
 	STRPTR   tech;               /* technical name as stored in NBT */
 	DATA16   model;              /* custom inventory model */
@@ -313,9 +314,9 @@ enum                       /* values for Block.bbox */
 
 enum                       /* flags for Block.inventory (render type) */
 {
-	CUBE = 1<<4,           /* unit cube */
-	ITEM = 2<<4,           /* flat quad */
-	MODL = 3<<4,           /* dedicated object */
+	CUBE3D = 1<<4,         /* unit cube */
+	ITEM2D = 2<<4,         /* flat quad */
+	MODEL  = 3<<4,         /* dedicated object */
 };
 
 enum                       /* flags for Block.inventory (category) */

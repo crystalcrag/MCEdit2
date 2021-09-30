@@ -265,6 +265,8 @@ Bool renderRotatePreview(int dir)
 	if (r == 255) r = 3;
 	render.selection.rotationY90 = r;
 
+	fprintf(stderr, "rotation = %d\n", r);
+
 	int blockId = blockRotateY90(render.selection.blockId);
 	if (blockId != render.selection.blockId)
 	{
@@ -1610,7 +1612,7 @@ void renderDrawMap(Map map)
 			glMultiDrawArraysIndirect(GL_POINTS, (void*)(bank->cmdTotal*16), bank->cmdAlpha, 0);
 		}
 	}
-	/* XXX modified by libraryGenThumb() */
+	/* it can be reset by libraryGenThumb() */
 	glBindBufferBase(GL_UNIFORM_BUFFER, UBO_BUFFER_INDEX, render.uboShader);
 }
 

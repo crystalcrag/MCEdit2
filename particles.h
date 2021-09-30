@@ -9,7 +9,7 @@
 
 #include "UtilityLibLite.h"
 #include "utils.h"
-#include "maps.h"
+#include "physics.h"
 
 void particlesInit(int vbo);
 void particlesExplode(Map map, int count, int blockId, vec4 pos);
@@ -26,19 +26,16 @@ typedef struct Particle_t *       Particle;
 typedef struct Particle_t         Particle_t;
 typedef struct ParticleList_t *   ParticleList;
 typedef struct Emitter_t *        Emitter;
+typedef struct PhysicsEntity_t    PHYSENT_t;
 
 struct Particle_t
 {
-	float    dir[3];
-	float    loc[3];
-	float    brake[3];
-	uint32_t UV;
-	uint8_t  light;
-	uint8_t  size;
-	uint8_t  onGround;
-	uint16_t ttl;
-	uint16_t color;
-	int      time;
+	PHYSENT_t physics;
+	uint32_t  UV;
+	uint8_t   size;
+	uint16_t  ttl;
+	uint16_t  color;
+	int       time;
 };
 
 struct Emitter_t

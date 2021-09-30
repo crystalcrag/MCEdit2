@@ -19,7 +19,9 @@ flat out int   isSelected;
      out float blockLight;
 
 /* not dark enough with shading[] because of the absence of AO */
-const float shadingPerFace[6] = float[6](0.8, 0.7, 0.8, 0.7, 1.0, 0.6);
+const float shadingPerFace[6] = float[6](0.75, 0.65, 0.75, 0.65, 1.0, 0.6);
+
+uniform float curtime;
 
 void main(void)
 {
@@ -32,11 +34,13 @@ void main(void)
 	int   norm  = (info.y >> 3) & 7;
 	float shade = shadingPerFace[norm].x;
 
-	if (rotation.x > 0.001)
+	float angle = /*curtime * 0.001 +*/ rotation.x;
+
+	if (angle > 0.001)
 	{
 		/* yaw: rotate along Y axis actually :-/ */
-		float ca = cos(rotation.x);
-		float sa = sin(rotation.x);
+		float ca = cos(angle);
+		float sa = sin(angle);
 		mat4 rotate = mat4(
 			ca, 0, sa, 0,
 			0, 1, 0, 0,

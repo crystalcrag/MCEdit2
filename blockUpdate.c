@@ -1101,7 +1101,7 @@ void updateFinished(DATA8 tile, vec4 dest)
 int blockRotateY90(int blockId)
 {
 	/* rotate data value directly */
-	static uint8_t rotateFull[] = {0, 1, 5, 3, 4, 2, 6, 7};
+	static uint8_t rotateFull[] = {0, 1, 5, 4, 2, 3, 6, 7};
 	static uint8_t rotateSWNE[] = {1, 2, 3, 0};
 	static uint8_t rotateNSWE[] = {5, 1, 5, 4, 2, 3, 6, 7};
 	static uint8_t rotateRail[] = {1, 1, 5, 4, 2, 3, 7, 8, 9, 6, 10, 11, 12, 13, 14, 15};

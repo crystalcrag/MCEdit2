@@ -84,6 +84,7 @@ void matAdd(mat4 res, mat4 A, mat4 B);
 void matMult(mat4 res, mat4 A, mat4 B);
 void matMultByVec(vec4 res, mat4 A, vec4 B);
 void matMultByVec3(vec4 res, mat4 A, vec4 B);
+void matMultByVec3UsingCenter(vec4 res, mat4 A, vec4 B, vec4 center);
 void matInverseTranspose(mat4 res, mat4 A);
 Bool matInverse(mat4 res, mat4 A);
 

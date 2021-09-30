@@ -341,6 +341,7 @@ int main(int nb, char * argv[])
 
 //	globals.level = renderInitWorld("TestMesh", mcedit.maxDist);
 	globals.level = renderInitWorld("World1_12", mcedit.maxDist);
+	globals.yawPitch = &mcedit.player.angleh;
 	mcedit.state  = GAMELOOP_WORLD;
 
 	if (globals.level == NULL)
@@ -413,10 +414,13 @@ void mceditWorld(void)
 					FramePauseUnpause(paused);
 					break;
 				case SDLK_F1:
+					SDL_GetMouseState(&mcedit.mouseX, &mcedit.mouseY);
+					//fprintf(stderr, "mouse pos = %d, %d\n", mcedit.mouseX, mcedit.mouseY);
 					renderDebugBlock();
 					break;
 				case SDLK_F7:
 					globals.breakPoint = ! globals.breakPoint;
+					renderPointToBlock(828, 540);
 					break;
 				#endif
 				case SDLK_TAB:
@@ -491,18 +495,14 @@ void mceditWorld(void)
 						break;
 					case 2:
 						/* partial extended selection, but switched to main toolbar: cancel selection */
-						key = globals.selPoints;
-						if ((key > 0 && key < 3) || (key == 0 && mcedit.player.inventory.offhand & 1))
-						{
-							renderSetSelectionPoint(RENDER_SEL_CLEAR);
-						}
-						else
+						if (globals.selPoints == 3)
 						{
 							SDL_WM_GrabInput(SDL_GRAB_OFF);
 							SDL_ShowCursor(SDL_ENABLE);
 							capture = ignore = 0;
 							mceditCommands(toolbarCmds[mcedit.player.inventory.selected]);
 						}
+						else renderSetSelectionPoint(RENDER_SEL_CLEAR);
 					}
 				}
 				break;

@@ -16,6 +16,10 @@
 
 struct ParticlePrivate_t particles;
 struct EmitterPrivate_t  emitters;
+static struct VTXBBox_t  particleBBox = {
+	.pt1 = {VERTEX(0), VERTEX(0), VERTEX(0)},
+	.pt2 = {VERTEX(0.05), VERTEX(0.05), VERTEX(0.05)}
+};
 
 //#define NOEMITTERS
 //#define SLOW
@@ -58,6 +62,7 @@ static Particle particlesAlloc(void)
 			/* try at end of array */
 			particles.count ++;
 			list->count ++;
+			memset(list->buffer + nth, 0, sizeof list->buffer[0]);
 			return list->buffer + nth;
 		}
 	}
@@ -150,19 +155,18 @@ void particlesExplode(Map map, int count, int blockId, vec4 pos)
 				 */
 				p = particlesAlloc();
 				if (p == NULL) return;
-				p->dir[VX] = cosf(yaw) * cp * 0.1;
-				p->dir[VZ] = sinf(yaw) * cp * 0.1;
-				p->dir[VY] = sinf(pitch) * 0.1;
+				p->physics.dir[VX] = cosf(yaw) * cp * 0.1;
+				p->physics.dir[VZ] = sinf(yaw) * cp * 0.1;
+				p->physics.dir[VY] = sinf(pitch) * 0.1;
 
-				p->loc[VX] = xp;
-				p->loc[VY] = yp;
-				p->loc[VZ] = zp;
+				p->physics.loc[VX] = xp;
+				p->physics.loc[VY] = yp;
+				p->physics.loc[VZ] = zp;
 
-				p->brake[VX] = 0.0001;
-				p->brake[VZ] = 0.0001;
-				p->brake[VY] = 0.02;
-				p->light = light;
-				p->onGround = 0;
+				physicsInitEntity(&p->physics, blockId);
+
+				p->physics.light = light;
+				p->physics.bbox = &particleBBox;
 
 				int V = b->nzV;
 				int U = b->nzU;
@@ -174,12 +178,9 @@ void particlesExplode(Map map, int count, int blockId, vec4 pos)
 				#ifndef SLOW
 				p->ttl = RandRange(1000, 1500);
 				#else
-				p->ttl = RandRange(4000, 8000);
+				p->ttl = 8000;
 				#endif
 				p->time = globals.curTime + p->ttl;
-
-				if (p->dir[VX] < 0) p->size |= 0x80, p->dir[VX] = - p->dir[VX];
-				if (p->dir[VZ] < 0) p->size |= 0x40, p->dir[VZ] = - p->dir[VZ];
 			}
 		}
 	}
@@ -196,16 +197,17 @@ void particlesSmoke(Map map, int blockId, vec4 pos)
 	blockGetEmitterLocation(blockId, offset);
 
 	memset(p, 0, sizeof *p);
-	p->loc[0] = pos[0] + offset[0];
-	p->loc[1] = pos[1] + offset[1];
-	p->loc[2] = pos[2] + offset[2];
+	p->physics.loc[0] = pos[0] + offset[0];
+	p->physics.loc[1] = pos[1] + offset[1];
+	p->physics.loc[2] = pos[2] + offset[2];
 	p->time = globals.curTime + range;
-	p->ttl  = range;
-	p->dir[VY] = 0.02;
+	/* will rise in the air */
+	p->physics.dir[VY] = 0.01;
+	p->physics.bbox = &particleBBox;
+	p->ttl = range;
+
 	p->size = 8 + rand() % 6;
 	p->UV = PARTICLE_SMOKE | (UV << 10) | (p->size << 6);
-	p->onGround = 0;
-	p->light = 0;
 
 	Block b = blockIds + (blockId >> 4);
 
@@ -214,7 +216,8 @@ void particlesSmoke(Map map, int blockId, vec4 pos)
 		int8_t color = (blockId & 15) - (rand() & 3);
 		if (color < 0) color = 0;
 		p->color = color + (56 << 4),
-		p->dir[VY] = 0.005;
+		/* way slower */
+		p->physics.dir[VY] = 0.005;
 	}
 	else if (b->category == REDSTONE)
 	{
@@ -380,9 +383,6 @@ void particlesChunkUpdate(Map map, ChunkData cd)
 				((int) oldEmit->loc[1] - cd->Y)    * 256;
 			int newOffset = *newIds & 0xfff;
 
-			if (oldOffset > 4096)
-				puts("here");
-
 			if (newOffset < oldOffset)
 			{
 				/* new emitter */
@@ -459,18 +459,6 @@ static void particleSortEmitters(void)
 	//debugEmitters();
 }
 
-static void particleChangeDir(Particle p)
-{
-	float angle = RandRange(0, 2 * M_PI);
-	p->dir[VY] = 0;
-	p->dir[VX] = cosf(angle) * 0.01;
-	p->dir[VZ] = sinf(angle) * 0.01;
-	p->brake[VZ] = -0.001;
-	p->brake[VX] = -0.001;
-	if (p->dir[VX] < 0) p->size |= 0x80, p->dir[VX] = - p->dir[VX];
-	if (p->dir[VZ] < 0) p->size |= 0x40, p->dir[VZ] = - p->dir[VZ];
-}
-
 /* move particles */
 int particlesAnimate(Map map, vec4 camera)
 {
@@ -516,7 +504,7 @@ int particlesAnimate(Map map, vec4 camera)
 	glBindBuffer(GL_ARRAY_BUFFER, particles.vbo);
 	buf = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
 
-	/* this scale factor will make particles move at a constant no matter what fps the screen is refreshed */
+	/* this scale factor will make particles move at a constant no matter at what fps the screen is refreshed */
 	#ifndef SLOW
 	float speed = (globals.curTime - particles.lastTime) / 25.0f;
 	#else
@@ -541,90 +529,26 @@ int particlesAnimate(Map map, vec4 camera)
 				continue;
 			}
 			DATA32 info = (DATA32) buf + 3;
-			vec4   old = {floorf(p->loc[VX]), floorf(p->loc[VY]), floorf(p->loc[VZ])};
-			buf[0]  = p->loc[VX];
-			buf[1]  = p->loc[VY];
-			buf[2]  = p->loc[VZ];
+			buf[0]  = p->physics.loc[VX];
+			buf[1]  = p->physics.loc[VY];
+			buf[2]  = p->physics.loc[VZ];
 			info[0] = p->UV;
 			type = p->UV&63;
 			switch (type) {
 			case PARTICLE_BITS:
-				info[1] = p->light;
+				info[1] = p->physics.light;
 				break;
 			case PARTICLE_SMOKE:
 				info[1] = p->color;
+				/* color will get darker over time */
 				p->UV &= 0x7ffff;
 				p->UV |= ((int) ((globals.curTime - (p->time - p->ttl)) / p->ttl * 7) * 8 + 9 * 16) << 19;
 			}
 			buf += PARTICLES_VBO_SIZE/4;
 			count ++;
 
-			float inc;
-			inc = p->dir[VX] * speed; p->loc[VX] += p->size & 0x80 ? -inc : inc;
-			inc = p->dir[VZ] * speed; p->loc[VZ] += p->size & 0x40 ? -inc : inc;
-			p->loc[VY] += p->dir[VY] * speed;
+			physicsMoveEntity(map, &p->physics, speed);
 
-			p->dir[VX] -= p->brake[VX] * speed; if (p->dir[VX] < 0) p->dir[VX] = 0;
-			p->dir[VZ] -= p->brake[VZ] * speed; if (p->dir[VZ] < 0) p->dir[VZ] = 0;
-			p->dir[VY] -= p->brake[VY] * speed;
-
-			if (p->brake[VY] == 0)
-			{
-				if (p->onGround)
-				{
-					/* increase friction if sliding on ground */
-					p->brake[VX] += 0.0005 * speed;
-					p->brake[VZ] += 0.0005 * speed;
-				}
-			}
-			else p->brake[VY] += 0.0015 * speed;
-
-			/* check collision */
-			vec4 pos = {floorf(p->loc[VX]), floorf(p->loc[VY]), floorf(p->loc[VZ])};
-			if (pos[VX] != old[VX] ||
-			    pos[VY] != old[VY] ||
-			    pos[VZ] != old[VZ])
-			{
-				uint8_t light;
-				Block b = blockIds + particlesGetBlockInfo(map, pos, &light);
-				if (! (b->type == SOLID || b->type == TRANS || b->type == CUST) || b->bboxPlayer == BBOX_NONE)
-				{
-					p->light = light;
-					if (! p->onGround)
-					{
-						/* check if block above has changed */
-						pos[VY] += 1;
-						Block b = blockIds + particlesGetBlockInfo(map, pos, &light);
-						if (p->dir[VY] >= 0)
-						if (! (b->type == SOLID || b->type == TRANS || b->type == CUST) || b->bboxPlayer == BBOX_NONE)
-							p->brake[VX] = p->brake[VZ] = 0.001, p->dir[VY] = 0.02;
-					}
-					else p->brake[VY] = 0.02;
-					continue;
-				}
-				/* inside a solid block: light will be 0 */
-
-				if (pos[VX] != old[VX]) p->dir[VX] = p->brake[VX] = 0, p->loc[VX] = buf[-5]; else
-				if (pos[VZ] != old[VZ]) p->dir[VZ] = p->brake[VZ] = 0, p->loc[VZ] = buf[-3]; else
-				if (pos[VY] >  old[VY])
-				{
-					/* hit a ceiling */
-					p->dir[VY] = 0;
-					p->loc[VY] = buf[-4];
-					if (type != PARTICLE_SMOKE)
-						p->brake[VY] = 0.02;
-					else
-						particleChangeDir(p);
-				}
-				else if (pos[VY] < old[VY])
-				{
-					/* hit the ground */
-					p->dir[VY] = 0;
-					p->loc[VY] = buf[-4]; // = pos[VY]+0.95;
-					p->brake[VY] = 0;
-					p->onGround = 1;
-				}
-			}
 			if (count == 1000) goto break_all;
 		}
 	}

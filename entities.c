@@ -244,10 +244,7 @@ static int entityModelCount(int id, int cnx)
 			return id;
 		}
 	}
-	else
-	{
-		return itemGenMesh(id, NULL);
-	}
+	else return itemGenMesh(id, NULL);
 	return 0;
 }
 
@@ -269,11 +266,15 @@ static int entityGenModel(EntityBank bank, int id, int cnx, CustModel cust)
 		{
 			/* used by unknown entity */
 			static struct BlockState_t unknownEntity = {
-				0, CUBE, 0, NULL, 31,13,31,13,31,13,31,13,31,13,31,13
+				0, CUBE3D, 0, NULL, 31,13,31,13,31,13,31,13,31,13,31,13
 			};
 			count = blockInvModelCube(buffer, &unknownEntity, texCoord);
 			bbox  = entityAllocBBox();
-			blockCenterModel(buffer, count, 0, 0, bbox);
+			blockCenterModel(buffer, count, 0, 0, True, bbox);
+		}
+		else if ((b->inventory & MODELFLAGS) == ITEM2D)
+		{
+			goto item2D;
 		}
 		else switch (b->type) {
 		case SOLID:
@@ -316,11 +317,15 @@ static int entityGenModel(EntityBank bank, int id, int cnx, CustModel cust)
 	{
 		count = blockCountModelVertex(cust->model, cust->vertex);
 		blockParseModel(cust->model, cust->vertex, buffer);
-		blockCenterModel(buffer, count, cust->U, cust->V, bbox = cust->bbox);
+		blockCenterModel(buffer, count, cust->U, cust->V, True, bbox = cust->bbox);
 	}
 	else
 	{
+		item2D:
+		bbox = entityAllocBBox();
 		count = itemGenMesh(id, buffer);
+		blockCenterModel(buffer, count, 0, 0, False, bbox);
+		item = 0;
 	}
 	if (item)
 	{
@@ -328,6 +333,9 @@ static int entityGenModel(EntityBank bank, int id, int cnx, CustModel cust)
 		DATA16 v;
 		for (v = buffer, item = count; item > 0; item --, v += INT_PER_VERTEX)
 			v[0] = (v[0] + ORIGINVTX) >> 1, v[1] = (v[1] + ORIGINVTX) >> 1, v[2] = (v[2] + ORIGINVTX) >> 1;
+
+		bbox = entityAllocBBox();
+		blockCenterModel(buffer, count, 0, 0, False, bbox);
 	}
 	glUnmapBuffer(GL_ARRAY_BUFFER);
 	bank->vtxCount += count;
@@ -762,6 +770,38 @@ static void fillNormal(vec4 norm, int side)
 	norm[VT] = 1;
 }
 
+/*
+ * Given a AABB rect:
+ *  A +--------+ B
+ *    |        |
+ *  D +--------+ C
+ * blockGetBoundsForFace() will give points A and C. We want A, B and D.
+ */
+static void AABBSplit(vec A, vec C, vec D, int norm)
+{
+	static uint8_t axisY[] = {VY, VY, VY, VY, VZ, VZ};
+	uint8_t axis = axisY[norm];
+	memcpy(D, A, 12);
+	D[axis] = C[axis];
+	C[axis] = A[axis];
+}
+
+/* check if <pos> is within rectangle formed by the 3 <points> */
+static Bool pointIsInRect(vec points, vec4 pos)
+{
+	/* rect is not axis-aligned; method quoted from https://math.stackexchange.com/a/190373 */
+	vec4 AM, AB, AD;
+	vecSub(AM, pos,      points);
+	vecSub(AB, points+3, points);
+	vecSub(AD, points+6, points);
+
+	float AMdotAB = vecDotProduct(AM, AB);
+	float AMdotAD = vecDotProduct(AM, AD);
+
+	return 0 <= AMdotAB && AMdotAB <= vecDotProduct(AB, AB) &&
+	       0 <= AMdotAD && AMdotAD <= vecDotProduct(AD, AD);
+}
+
 int intersectRayPlane(vec4 P0, vec4 u, vec4 V0, vec norm, vec4 I);
 
 /* check if vector <dir> intersects an entity bounding box (from position <camera>) */
@@ -792,27 +832,34 @@ int entityRaycast(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos)
 			/* just a quick heuristic to get rid of most entities */
 			if (vecDistSquare(camera, list->pos) < maxDist * 1.5)
 			{
-				float points[6];
+				float points[9];
+				mat4  rotation;
 				vec4  norm, inter;
 				int   j;
 				/* assume rectangular bounding box (not necessarily axis aligned though) */
+				matRotate(rotation, list->rotation[0], VY);
 				for (j = 0; j < 6; j ++)
 				{
-					/* XXX need to rely on cross-product instead */
-					if ((flags & (1 << j)) == 0) continue;
-
+					//if (globals.breakPoint)
+					//	puts("here");
 					fillNormal(norm, j);
+					matMultByVec3(norm, rotation, norm);
+					/* back-face culling */
+					if (vecDotProduct(dir, norm) > 0) continue;
+
 					EntityModel model = entityGetModelById(list);
 					blockGetBoundsForFace(model->bbox, j, points, points+3, list->pos, 0);
-					if (intersectRayPlane(camera, dir, points, norm, inter))
+					AABBSplit(points, points + 3, points + 6, j);
+					matMultByVec3UsingCenter(points,   rotation, points,   list->pos);
+					matMultByVec3UsingCenter(points+3, rotation, points+3, list->pos);
+					matMultByVec3UsingCenter(points+6, rotation, points+6, list->pos);
+
+					if (intersectRayPlane(camera, dir, points, norm, inter) &&
+					    pointIsInRect(points, inter))
 					{
-						/* check if points is contained within the face */
-						float dist;
-						if (points[VX] <= inter[VX] && inter[VX] <= points[VX+3] &&
-							points[VY] <= inter[VY] && inter[VY] <= points[VY+3] &&
-							points[VZ] <= inter[VZ] && inter[VZ] <= points[VZ+3] &&
-							/* <inter> is the exact coordinate */
-							(dist = vecDistSquare(camera, inter)) < maxDist)
+						/* check if points are contained within the face */
+						float dist = vecDistSquare(camera, inter);
+						if (dist < maxDist)
 						{
 							maxDist = dist;
 							memcpy(ret_pos, list->pos, 12);
@@ -1114,6 +1161,8 @@ void entityRender(void)
 		glEnable(GL_POLYGON_OFFSET_FILL);
 		glPolygonOffset(-1.0, 1.0);
 
+		float curtime = globals.curTime;
+		setShaderValue(entities.shader, "curtime", 1, &curtime);
 		glEnable(GL_CULL_FACE);
 		glCullFace(GL_BACK);
 		glUseProgram(entities.shader);

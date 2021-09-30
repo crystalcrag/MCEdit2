@@ -320,13 +320,7 @@ STRPTR itemGetTechName(int itemId, STRPTR out, int max)
 
 		if (desc) tech = desc->tech;
 	}
-	else
-	{
-		// XXX not sure why this was needed
-		// BlockState b = blockGetById(itemId);
-		// if (b && b->inventory == 0) itemId &= ~15;
-		tech = blockIds[itemId>>4].tech;
-	}
+	else tech = blockIds[itemId>>4].tech;
 
 	if (tech) i = StrCat(out, max, i, tech);
 	else      i = StrCat(out, max, i, "unknown");
@@ -423,7 +417,7 @@ static void itemGenQuad(DATA16 out, int x1, int z1, int x2, int z2, int norm, DA
 {
 	static uint8_t texCoords[] = { /* S, E, N, W, T, B */
 		0,0,    0,0,    1,0,    1,0,
-		0,0,    0,0,    0,1,    0,1,
+		0,1,    0,1,    0,0,    0,0,
 		1,0,    1,0,    0,0,    0,0,
 		0,0,    0,0,    0,1,    0,1,
 		0,0,    0,1,    1,1,    1,0,
@@ -443,7 +437,7 @@ static void itemGenQuad(DATA16 out, int x1, int z1, int x2, int z2, int norm, DA
 		DATA8 point = vertex + index[0];
 		out[VX] = ((point[VX] ? x2 : x1) * BASEVTX) / blockTexResol + ORIGINVTX;
 		out[VZ] = ((point[VZ] ? z2 : z1) * BASEVTX) / blockTexResol + ORIGINVTX;
-		out[VY] = (point[VY]  ? BASEVTX/16 : 0) + ORIGINVTX;
+		out[VY] = (point[VY]  ? BASEVTX/12 : 0) + ORIGINVTX;
 		{
 			int V = tex[1] ? V2 : V1;
 			out[3] = (tex[0] ? U2 : U1) | ((V & ~7) << 6);
@@ -457,13 +451,12 @@ static void itemGenQuad(DATA16 out, int x1, int z1, int x2, int z2, int norm, DA
 	memcpy(out+5, out - 10, BYTES_PER_VERTEX);
 }
 
-int itemGenMesh(int blockId, DATA16 vertex)
+int itemGenMesh(int blockId, DATA16 out)
 {
 	uint8_t texUV[2];
+	DATA16  vertex = out;
 	DATA8   bitmap = alloca(blockTexResol * blockTexResol);
-	int     count  = 12;
-
-	blockId = ID(397, 0);
+	int     count  = 6;
 
 	if (blockId >= ID(256, 0))
 	{
@@ -487,7 +480,8 @@ int itemGenMesh(int blockId, DATA16 vertex)
 		uint8_t i, j, max, rect[4];
 		DATA8   src;
 
-		//for (i = 0, src = bitmap; i < blockTexResol; i ++, putc('\n', stderr))
+		//fprintf(stderr, "================+\n");
+		//for (i = 0, src = bitmap; i < blockTexResol; i ++, fputs("|\n", stderr))
 		//	for (j = 0; j < blockTexResol; j ++, src ++)
 		//		putc(src[0] ? '#' : ' ', stderr);
 
@@ -515,8 +509,8 @@ int itemGenMesh(int blockId, DATA16 vertex)
 			if (minN <= maxN)
 			{
 				maxN ++;
-				if (rect[1] > minN) rect[1] = minN;
-				if (rect[3] < maxN) rect[3] = maxN;
+				if (rect[0] > minN) rect[0] = minN;
+				if (rect[2] < maxN) rect[2] = maxN;
 				if (vertex)
 					itemGenQuad(vertex, minN, i, maxN, i, SIDE_NORTH, texUV), vertex += QUAD_VERTEX;
 				count += 6;
@@ -524,8 +518,8 @@ int itemGenMesh(int blockId, DATA16 vertex)
 			if (minS <= maxS)
 			{
 				maxS ++;
-				if (rect[1] > minS) rect[1] = minS;
-				if (rect[3] < maxS) rect[3] = maxS;
+				if (rect[0] > minS) rect[0] = minS;
+				if (rect[2] < maxS) rect[2] = maxS;
 				if (vertex)
 					itemGenQuad(vertex, minS, i+1, maxS, i+1, SIDE_SOUTH, texUV), vertex += QUAD_VERTEX;
 				count += 6;
@@ -550,20 +544,20 @@ int itemGenMesh(int blockId, DATA16 vertex)
 					if (maxE < j) maxE = j;
 				}
 			}
-			if (minW < maxW)
+			if (minW <= maxW)
 			{
 				maxW ++;
-				if (rect[0] > minW) rect[0] = minW;
-				if (rect[2] < maxW) rect[2] = maxW;
+				if (rect[1] > minW) rect[1] = minW;
+				if (rect[3] < maxW) rect[3] = maxW;
 				if (vertex)
 					itemGenQuad(vertex, i, minW, i, maxW, SIDE_WEST, texUV), vertex += QUAD_VERTEX;
 				count += 6;
 			}
-			if (minE < maxE)
+			if (minE <= maxE)
 			{
 				maxE ++;
-				if (rect[0] > minE) rect[0] = minE;
-				if (rect[2] < maxE) rect[2] = maxE;
+				if (rect[1] > minE) rect[1] = minE;
+				if (rect[3] < maxE) rect[3] = maxE;
 				if (vertex)
 					itemGenQuad(vertex, i+1, minE, i+1, maxE, SIDE_EAST, texUV), vertex += QUAD_VERTEX;
 				count += 6;
@@ -572,10 +566,15 @@ int itemGenMesh(int blockId, DATA16 vertex)
 		/* top and bottom quad */
 		if (vertex)
 		{
-			//rect[2] ++;
-			//rect[3] ++;
 			itemGenQuad(vertex, rect[0], rect[1], rect[2], rect[3], SIDE_TOP, texUV); vertex += QUAD_VERTEX;
-			itemGenQuad(vertex, rect[0], rect[1], rect[2], rect[3], SIDE_BOTTOM, texUV);
+			//itemGenQuad(vertex, rect[0], rect[1], rect[2], rect[3], SIDE_BOTTOM, texUV);
+
+			/* need to shift vertex by -rect[0], -rect[1] */
+			uint16_t dx = (rect[0] * BASEVTX) / blockTexResol;
+			uint16_t dz = (rect[1] * BASEVTX) / blockTexResol;
+			int i;
+			for (vertex = out, i = count; i > 0; i --, vertex += INT_PER_VERTEX)
+				vertex[VX] -= dx, vertex[VZ] -= dz;
 		}
 	}
 	return count;
@@ -587,7 +586,6 @@ struct Enchant_t
 	int    id;
 	STRPTR name;
 	int    max;
-
 };
 
 static struct Enchant_t enchantments[] = {
