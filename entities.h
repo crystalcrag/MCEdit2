@@ -28,6 +28,9 @@ VTXBBox entityGetBBox(int id);
 #define PAINTING_ADDTEXU   16
 #define PAINTING_ADDTEXV   (32+15)
 #define ENTITY_PAINTINGID  0x10000
+#define ENTITY_ITEMFRAME   0x20000
+#define ENTITY_ITEM        0x1000000  /* differentiate item from block entity */
+
 
 enum /* entity id and models */
 {
@@ -50,7 +53,7 @@ enum /* entity id and models */
 /* private stuff below */
 #ifdef ENTITY_IMPL
 #define BANK_SIZE          65536
-#define INFO_SIZE          48
+#define INFO_SIZE          56
 #define LIGHT_SIZE         24
 #define ENTITY_SHIFT       8
 #define ENTITY_BATCH       (1 << ENTITY_SHIFT)
@@ -80,9 +83,10 @@ struct Entity_t
 	int      blockId;
 	float    motion[3];
 	float    pos[4];
-	float    rotation[2];
+	float    rotation[4];
 	uint32_t light[6];
 	DATA8    tile;
+	Entity   ref;
 	STRPTR   name;                 /* from NBT */
 };
 
@@ -166,9 +170,6 @@ struct BBoxBuffer_t
 	struct VTXBBox_t bbox[ENTITY_BATCH];
 	int              count;
 };
-
-/* differentiate item from block entity */
-#define ENTITY_ITEM        0x1000000
 
 #endif
 #endif

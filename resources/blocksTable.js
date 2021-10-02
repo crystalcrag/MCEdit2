@@ -763,7 +763,7 @@
 
 	{id: 69, name: "Lever", type: CUST, inv: ITEM2D, invState: 0, cat: REDSTONE, bbox: FULL, bboxPlayer: NONE, rswire: ALLDIR, orient: LEVER,
 		placement: "solid", rsupdate: GENERATE, keepModel: 1, pushable: DROPITEM},
-		{state: 0, name: "-(attached_bottom)", tex: [8, 11, 8, 11, 8, 11, 8, 11], model: [
+		{state: 0, name: "-(attached_bottom)", tex: [13, 10, 13, 10, 13, 10, 13, 10], model: [
 			815,6,3,8,5,13,4,0,0,0,0,0,0,49264,50803,50797,49258,49258,50797,50789,49250,49264,50803,50797,49258,49258,50797,50789,49250,50803,54907,54901,50797,
 			574,2,2,10,7,11,0,-30,0,0,0,0,0,57465,57463,52333,52335,52335,53361,53359,52333,52333,52335,57465,57463,52335,57465,57463,52333,52335,57465,57463,52333,
 		]},

@@ -110,6 +110,9 @@ void  vecSub(vec4 res, vec4 A, vec4 B);
 void  vecAdd(vec4 res, vec4 A, vec4 B);
 float vecDistSquare(vec4 A, vec4 B);
 
+#define vecAddNum(A, num) \
+	(A)[VX] += num, (A)[VY] += num, (A)[VZ] += num
+
 /* dynamic array */
 #define vectorNth    vector_nth
 void * vectorPush(vector, void * item);

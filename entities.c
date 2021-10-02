@@ -78,7 +78,7 @@ static Bool entityCreateModel(const char * file, STRPTR * keys, int lineNum)
 	index = StrCount(model, ',') + 1;
 	struct CustModel_t cust = {.vertex = index, .model = alloca(index * 4)};
 
-	switch (FindInList("painting", id, 0)) {
+	switch (FindInList("painting,item_frame", id, 0)) {
 	case 0:
 		name = jsonValue(keys, "name");
 		if (! name) return False;
@@ -88,6 +88,10 @@ static Bool entityCreateModel(const char * file, STRPTR * keys, int lineNum)
 		entities.paintingNum ++;
 		cust.U = PAINTING_ADDTEXU * 16;
 		cust.V = PAINTING_ADDTEXV * 16;
+		cust.bbox = entityAllocBBox();
+		break;
+	case 1:
+		modelId = ENTITY_ITEMFRAME;
 		cust.bbox = entityAllocBBox();
 		break;
 	default:
@@ -251,12 +255,14 @@ static int entityModelCount(int id, int cnx)
 static int entityGenModel(EntityBank bank, int id, int cnx, CustModel cust)
 {
 	glBindBuffer(GL_ARRAY_BUFFER, bank->vboModel);
-	DATA16  buffer = glMapBuffer(GL_ARRAY_BUFFER, GL_READ_WRITE);
-	VTXBBox bbox   = NULL;
-	int     count  = 0;
-	int     item   = id & ENTITY_ITEM;
+	DATA16   buffer = glMapBuffer(GL_ARRAY_BUFFER, GL_READ_WRITE);
+	VTXBBox  bbox   = NULL;
+	int      count  = 0;
+	int      item   = 0;
+	uint16_t U, V;
 	id &= ~ENTITY_ITEM;
 
+	U = V = 0;
 	buffer += bank->vtxCount * INT_PER_VERTEX;
 	if (id < ID(256, 0))
 	{
@@ -269,12 +275,10 @@ static int entityGenModel(EntityBank bank, int id, int cnx, CustModel cust)
 				0, CUBE3D, 0, NULL, 31,13,31,13,31,13,31,13,31,13,31,13
 			};
 			count = blockInvModelCube(buffer, &unknownEntity, texCoord);
-			bbox  = entityAllocBBox();
-			blockCenterModel(buffer, count, 0, 0, True, bbox);
 		}
 		else if ((b->inventory & MODELFLAGS) == ITEM2D)
 		{
-			goto item2D;
+			count = itemGenMesh(id, buffer);
 		}
 		else switch (b->type) {
 		case SOLID:
@@ -317,26 +321,17 @@ static int entityGenModel(EntityBank bank, int id, int cnx, CustModel cust)
 	{
 		count = blockCountModelVertex(cust->model, cust->vertex);
 		blockParseModel(cust->model, cust->vertex, buffer);
-		blockCenterModel(buffer, count, cust->U, cust->V, True, bbox = cust->bbox);
+		bbox = cust->bbox;
+		U = cust->U;
+		V = cust->V;
 	}
-	else
-	{
-		item2D:
-		bbox = entityAllocBBox();
-		count = itemGenMesh(id, buffer);
-		blockCenterModel(buffer, count, 0, 0, False, bbox);
-		item = 0;
-	}
-	if (item)
-	{
-		/* reduce size to distinguish them from normal blocks */
-		DATA16 v;
-		for (v = buffer, item = count; item > 0; item --, v += INT_PER_VERTEX)
-			v[0] = (v[0] + ORIGINVTX) >> 1, v[1] = (v[1] + ORIGINVTX) >> 1, v[2] = (v[2] + ORIGINVTX) >> 1;
+	else count = itemGenMesh(id, buffer), item = 1;
 
+	if (! bbox)
 		bbox = entityAllocBBox();
-		blockCenterModel(buffer, count, 0, 0, False, bbox);
-	}
+
+	/* entities have their position centered in the middle of their bbox */
+	blockCenterModel(buffer, count, U, V, ! item, bbox);
 	glUnmapBuffer(GL_ARRAY_BUFFER);
 	bank->vtxCount += count;
 
@@ -406,16 +401,16 @@ static int entityAddModel(int id, int cnx, CustModel cust)
 		glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, INFO_SIZE, 0);
 		glEnableVertexAttribArray(2);
 		glVertexAttribDivisor(2, 1);
-		/* 2 floats for rotation */
-		glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, INFO_SIZE, (void *) 16);
+		/* 9 floats for 3x3 model matrix */
+		glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, INFO_SIZE, (void *) 16);
 		glEnableVertexAttribArray(3);
 		glVertexAttribDivisor(3, 1);
 		/* 24 uint8_t for lighting */
-		glVertexAttribIPointer(4, 3, GL_UNSIGNED_INT, INFO_SIZE, (void *) 24);
+		glVertexAttribIPointer(4, 3, GL_UNSIGNED_INT, INFO_SIZE, (void *) 32);
 		glEnableVertexAttribArray(4);
 		glVertexAttribDivisor(4, 1);
 
-		glVertexAttribIPointer(5, 3, GL_UNSIGNED_INT, INFO_SIZE, (void *) 36);
+		glVertexAttribIPointer(5, 3, GL_UNSIGNED_INT, INFO_SIZE, (void *) 44);
 		glEnableVertexAttribArray(5);
 		glVertexAttribDivisor(5, 1);
 		glBindVertexArray(0);
@@ -455,7 +450,7 @@ static int entityGetModelId(Entity entity)
 
 	/* block pushed by piston */
 	if (entity->blockId > 0)
-		return entityAddModel(entity->blockId, NBT_ToInt(&nbt, NBT_FindNode(&nbt, 0, "blockCnx"), 0), NULL);
+		return entityAddModel(entity->blockId, nbt.mem ? NBT_ToInt(&nbt, NBT_FindNode(&nbt, 0, "blockCnx"), 0) : 0, NULL);
 
 	if (strncmp(id, "minecraft:", 10) == 0)
 		id += 10;
@@ -467,6 +462,7 @@ static int entityGetModelId(Entity entity)
 		int    off;
 
 		NBTIter_t prop;
+		entity->pos[VY] += 0.5; // XXX not sure why
 		NBT_IterCompound(&prop, entity->tile);
 		while ((off = NBT_Iter(&prop)) >= 0)
 		{
@@ -487,8 +483,27 @@ static int entityGetModelId(Entity entity)
 			if (off >= 0) return hashSearch(ENTITY_PAINTINGID + off);
 		}
 	}
+	else if (strcmp(id, "item_frame") == 0)
+	{
+		int item = NBT_FindNode(&nbt, 0, "Item");
+		if (item >= 0)
+		{
+			STRPTR  id = NBT_Payload(&nbt, NBT_FindNode(&nbt, item, "id"));
+			uint8_t data = NBT_ToInt(&nbt, NBT_FindNode(&nbt, item, "Damage"), 0);
+			int blockId = itemGetByName(id, True);
+
+			if (blockId > 0)
+			{
+				/* we will have to alloc another entity for the item in the frame */
+				entity->blockId = ENTITY_ITEMFRAME | ENTITY_ITEM | ID(276, 0); //blockId | data;
+			}
+		}
+		/* item will be allocated later */
+		return hashSearch(ENTITY_ITEMFRAME);
+	}
 	else if (strcmp(id, "item") == 0)
 	{
+		/* item laying in the world */
 		int desc = NBT_FindNode(&nbt, 0, "Item");
 //		int count = NBT_ToInt(&nbt, NBT_FindNode(&nbt, desc, "Count"), 1);
 		int data = NBT_ToInt(&nbt, NBT_FindNode(&nbt, desc, "Damage"), 0);
@@ -496,7 +511,10 @@ static int entityGetModelId(Entity entity)
 
 		if (blockId >= 0)
 		{
-			return entityAddModel(entity->blockId = blockId | data | ENTITY_ITEM, 0, NULL);
+			entity->rotation[3] = 0.5; /* scale actually */
+			if (blockId < ID(256, 0))
+				entity->pos[VY] += 0.25;
+			return entityAddModel(entity->blockId = blockId | data, 0, NULL);
 		}
 	}
 	return ENTITY_UNKNOWN;
@@ -608,24 +626,25 @@ void entityParse(Chunk c, NBTFile nbt, int offset)
 	while ((offset = NBT_Iter(&list)) >= 0)
 	{
 		STRPTR id;
-		float  pos[8];
+		float  pos[11];
 		int    off;
 
 		/* iterate over the properties of one entity */
 		NBTIter_t entity;
 		NBT_InitIter(nbt, offset, &entity);
 		memset(pos, 0, sizeof pos); id = NULL;
+		pos[10] = 1;
 		while ((off = NBT_Iter(&entity)) >= 0)
 		{
-			switch (FindInList("Pos,Motion,Rotation,id", entity.name, 0)) {
+			switch (FindInList("Motion,Pos,Rotation,id", entity.name, 0)) {
 			case 0: NBT_ToFloat(nbt, off, pos,   3); break;
 			case 1: NBT_ToFloat(nbt, off, pos+3, 3); break;
-			case 2: NBT_ToFloat(nbt, off, pos+6, 2); break;
+			case 2: NBT_ToFloat(nbt, off, pos+7, 2); break;
 			case 3: id = NBT_Payload(nbt, off);
 			}
 		}
 
-		if (id && !(pos[0] == 0 && pos[1] == 0 && pos[2] == 0))
+		if (id && !(pos[3] == 0 && pos[4] == 0 && pos[6] == 0))
 		{
 			uint16_t next;
 			Entity entity = entityAlloc(&next);
@@ -636,10 +655,12 @@ void entityParse(Chunk c, NBTFile nbt, int offset)
 			if (c->entityList == ENTITY_END)
 				c->entityList = next;
 
-			memcpy(entity->pos, pos, 6 * 4);
+			/* set entity->pos as well */
+			memcpy(entity->motion, pos, sizeof pos);
 
-			entity->rotation[0] = pos[6] * M_PI / 180;
-			entity->rotation[1] = - pos[7] * (2*M_PI / 360);
+			/* rotation also depends on how the initial model is oriented :-/ */
+			entity->rotation[0] = fmod((360 - pos[7]) * M_PI / 180, 2*M_PI);
+			entity->rotation[1] = - pos[8] * (2*M_PI / 360);
 			if (entity->rotation[1] < 0) entity->rotation[1] += 2*M_PI;
 
 			entity->tile = nbt->mem + offset;
@@ -649,8 +670,28 @@ void entityParse(Chunk c, NBTFile nbt, int offset)
 			entity->VBObank = entityGetModelId(entity);
 			if (entity->VBObank == 0) /* unknwon entity */
 				entity->pos[1] += 0.5;
-			entityGetLight(c, pos, entity->light, entity->blockId > 0);
+			entityGetLight(c, pos+3, entity->light, entity->blockId > 0);
 			entityAddToCommandList(entity);
+
+			/* alloc an entity for the item in the frame */
+			if (entity->blockId & ENTITY_ITEMFRAME)
+			{
+				Entity item = entityAlloc(&next);
+				prev->next = next;
+				item->ref = entity;
+				item->next = ENTITY_END;
+				item->blockId = entity->blockId & ~ENTITY_ITEMFRAME;
+				item->tile = entity->tile;
+				entity->blockId = 0;
+				memcpy(item->motion, entity->motion, INFO_SIZE + 12);
+				item->rotation[3] = 0.4; /* scaling */
+				if (item->blockId >= ID(256, 0))
+					/* items are rendered in XZ plane, item frame are oriented in XY or ZY plane */
+					item->rotation[1] = M_PI_2;
+				item->VBObank = entityGetModelId(item);
+				entityAddToCommandList(item);
+				prev = item;
+			}
 		}
 	}
 }
@@ -1009,6 +1050,8 @@ void entityUpdateOrCreate(Chunk c, vec4 pos, int blockId, vec4 dest, int ticks, 
 	memcpy(entity->motion, dest, 12);
 	entity->blockId = blockId;
 	entity->tile = tile;
+	vecAddNum(entity->pos,    0.5);
+	vecAddNum(entity->motion, 0.5);
 	entity->VBObank = entityGetModelId(entity);
 	entityGetLight(c, pos, entity->light, True);
 	entityAddToCommandList(entity);
@@ -1050,7 +1093,7 @@ void entityUpdateLight(Chunk c)
 			memcpy(entity->light, light, LIGHT_SIZE);
 			for (j = entity->VBObank & 63, bank = HEAD(entities.banks); j > 0; j --, NEXT(bank));
 			glBindBuffer(GL_ARRAY_BUFFER, bank->vboLoc);
-			glBufferSubData(GL_ARRAY_BUFFER, entity->mdaiSlot * INFO_SIZE + 24, LIGHT_SIZE, light);
+			glBufferSubData(GL_ARRAY_BUFFER, entity->mdaiSlot * INFO_SIZE + INFO_SIZE-LIGHT_SIZE, LIGHT_SIZE, light);
 		}
 	}
 }

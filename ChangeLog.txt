@@ -1,4 +1,10 @@
 =========== Week 39 ===========
+Fri Oct 1:
+	* more item support in item frames.
+
+Thu Sep 30:
+	* items in item frames are now rendered.
+
 Wed Sep 29:
 	* particle physics mostly redone.
 

@@ -5,8 +5,8 @@
  */
 layout (location=0) in ivec3 position;
 layout (location=1) in ivec2 info;
-layout (location=2) in vec4  offsets;
-layout (location=3) in vec2  rotation;
+layout (location=2) in vec4  offsets; /* divisor = 1 starting from here */
+layout (location=3) in vec4  rotation;
 layout (location=4) in uvec3 lightSEN;
 layout (location=5) in uvec3 lightWTB;
 
@@ -19,7 +19,7 @@ flat out int   isSelected;
      out float blockLight;
 
 /* not dark enough with shading[] because of the absence of AO */
-const float shadingPerFace[6] = float[6](0.75, 0.65, 0.75, 0.65, 1.0, 0.6);
+const float shadingPerFace[6] = float[6](0.8, 0.7, 0.8, 0.7, 1.0, 0.6);
 
 uniform float curtime;
 
@@ -29,33 +29,41 @@ void main(void)
 		float(position.x - ORIGINVTX) * BASEVTX,
 		float(position.y - ORIGINVTX) * BASEVTX,
 		float(position.z - ORIGINVTX) * BASEVTX
-	);
+	) * rotation.w;
 
-	int   norm  = (info.y >> 3) & 7;
-	float shade = shadingPerFace[norm].x;
-
-	float angle = /*curtime * 0.001 +*/ rotation.x;
+	float angle  = rotation.y;
+	int   norm   = (info.y >> 3) & 7;
+	vec3  normal = normals[norm].xyz;
 
 	if (angle > 0.001)
 	{
 		/* yaw: rotate along Y axis actually :-/ */
 		float ca = cos(angle);
 		float sa = sin(angle);
-		mat4 rotate = mat4(
-			ca, 0, sa, 0,
-			0, 1, 0, 0,
-			-sa, 0, ca, 0,
-			0, 0, 0, 1
-		);
-		pos = (vec4(pos, 1) * rotate).xyz;
+		mat3 rotate = mat3(1, 0, 0, 0, ca, -sa, 0, sa, ca);
 
-		vec4 normal = normals[norm] * rotate;
-
-		// distribute shading per face
-		shade = shadingPerFace[normal.x < 0 ? 3 : 1].x * abs(normal.x) +
-		        shadingPerFace[normal.z < 0 ? 2 : 0].x * abs(normal.z) +
-				shadingPerFace[normal.y < 0 ? 5 : 4].x * abs(normal.y);
+		/* rotation.w == scaling */
+		pos = pos * rotate;
+		normal = normal * rotate;
 	}
+
+	angle = /*curtime * 0.001 +*/ rotation.x;
+	if (angle > 0.001)
+	{
+		/* yaw: rotate along Y axis actually :-/ */
+		float ca = cos(angle);
+		float sa = sin(angle);
+		mat3 rotate = mat3(ca, 0, sa, 0, 1, 0, -sa, 0, ca);
+
+		/* rotation.w == scaling */
+		pos = pos * rotate;
+		normal = normal * rotate;
+	}
+
+	// distribute shading per face
+	float shade = shadingPerFace[normal.x < 0 ? 3 : 1].x * abs(normal.x) +
+	              shadingPerFace[normal.z < 0 ? 2 : 0].x * abs(normal.z) +
+	              shadingPerFace[normal.y < 0 ? 5 : 4].x * abs(normal.y);
 
 	gl_Position = projMatrix * mvMatrix * vec4(pos + offsets.xyz, 1);
 	float U = float(info.x & 511);

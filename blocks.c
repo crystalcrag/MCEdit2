@@ -344,9 +344,9 @@ void blockCenterModel(DATA16 vertex, int count, int dU, int dV, Bool shiftY, VTX
 		CHG_UVCOORD(vertex, U, V);
 	}
 	uint16_t shift[] = {
-		(max[0] - min[0]) >> 1,
-		(max[1] - min[1]) >> 1,
-		(max[2] - min[2]) >> 1
+		((max[0] - min[0]) >> 1) + (min[0] - ORIGINVTX),
+		((max[1] - min[1]) >> 1) + (min[1] - ORIGINVTX),
+		((max[2] - min[2]) >> 1) + (min[2] - ORIGINVTX)
 	};
 	if (! shiftY) shift[VY] = 0;
 
@@ -2945,7 +2945,7 @@ void blockPostProcessTexture(DATA8 * data, int * width, int * height, int bpp)
 	DATA8 image = stbi_load(RESDIR "items.png", &w, &h, &bpp, 4);
 
 	/* image must be 16x15 tiles, using the same resolution than terrain.png */
-	if (sz == (w / 16) * bpp && sz == (h / 15) * bpp)
+	if (sz == (w / 16) * bpp && sz == (h / 14) * bpp)
 	{
 		/* it is the size we expect, copy into tex */
 		for (s = image, k = w * bpp, d = dst + (ITEM_ADDTEXV * sz * *width) + ITEM_ADDTEXU * sz; h > 0; h --, s += k, d += stride)

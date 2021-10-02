@@ -87,7 +87,7 @@ static void renderSelection(void)
 	glDepthFunc(GL_LEQUAL);
 
 	render.selection.selFlags &= ~SEL_NOCURRENT;
-	if (item->id > 0 && (render.debugInfo & DEBUG_SELECTION) == 0)
+	if (item->id > 0 && (render.debugInfo & DEBUG_SELECTION) == 0 && render.selection.extra.entity == 0)
 	{
 		/* preview block */
 		int8_t * offset;
@@ -1212,10 +1212,11 @@ static void renderText(NVGcontext * vg, int x, int y, STRPTR text, float a)
 /* show tooltip near mouse cursor containing some info on the block selected */
 void renderBlockInfo(SelBlock_t * sel)
 {
-	if (render.oldblockInfo != sel->extra.blockId)
+	int blockId = sel->extra.entity > 0 ? sel->extra.entity : sel->extra.blockId;
+	if (render.oldblockInfo != blockId)
 	{
 		TEXT msg[256];
-		render.oldblockInfo = sel->extra.blockId;
+		render.oldblockInfo = blockId;
 		if (sel->extra.entity == 0)
 		{
 			int id    = sel->extra.blockId;
