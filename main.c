@@ -420,7 +420,7 @@ void mceditWorld(void)
 					break;
 				case SDLK_F7:
 					globals.breakPoint = ! globals.breakPoint;
-					renderPointToBlock(828, 540);
+					renderPointToBlock(globals.width>>1, globals.height>>1);
 					break;
 				#endif
 				case SDLK_TAB:
@@ -719,7 +719,15 @@ void mceditPlaceBlock(void)
 				id = block = (desc->refBlock << 4) | (block & 15);
 		}
 	}
-	if (id < ID(256, 0))
+	if (sel->entity > 0) /* pointing at an entity */
+	{
+		if (id == 0 /* no block selected in inventory bar */)
+		{
+			entityDeleteById(globals.level, sel->entity - 1);
+			renderAddModif();
+		}
+	}
+	else if (id < ID(256, 0))
 	{
 		/* 2 slabs in same block try to convert them in 1 double-slab */
 		if (blockIds[block>>4].special == BLOCK_HALF)
@@ -743,6 +751,8 @@ void mceditPlaceBlock(void)
 		mapUpdate(globals.level, pos, block, tile, True);
 		renderAddModif();
 	}
+	else /* selected an item: check if we can create an entity instead */
+		entityCreate(globals.level, id, pos, sel->side);
 }
 
 /* right click */
@@ -863,7 +873,8 @@ void mceditUIOverlay(int type)
 	case MCUI_OVERLAY_DELALL:     mcuiDeleteAll(); break;
 	case MCUI_OVERLAY_LIBRARY:
 	case MCUI_OVERLAY_SAVESEL:    libraryShow(type); break;
-	case MCUI_OVERLAY_DELPARTIAL: mcuiDeletePartial();
+	case MCUI_OVERLAY_DELPARTIAL: mcuiDeletePartial(); break;
+	case MCUI_OVERLAY_PAINTING:   mcuiShowPaintings();
 	}
 
 	SDL_EnableUNICODE(1);

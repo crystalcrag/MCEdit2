@@ -109,19 +109,20 @@ struct SelBlock_t
 	GLuint  shader;                /* compiled shader */
 	vec4    current;               /* cursor pointing to this block */
 	vec4    blockPos;              /* recommended block position */
-	int     selFlags;              /* bitfield, see below */
 	int     blockId;               /* block to show preview of */
 	int     blockVtx;              /* nb of vertex for glDrawArrays() */
+	uint8_t selFlags;              /* bitfield, see below */
 	uint8_t rotationY90;           /* number of Y90 rotation to apply to blockId [0 ~ 3]*/
 	Extra_t extra;
 };
 
 enum                               /* bitfield for SelBlock.selFlags */
 {
-	SEL_POINTTO   = 1,             /* a block is point to with the mouse */
+	SEL_POINTTO   = 1,             /* point to a block with the mouse */
 	SEL_NOCURRENT = 2,             /* cannot place block */
 	SEL_OFFHAND   = 4,             /* mouse hovering offhand */
 	SEL_MOVE      = 8,             /* clone selection follow mouse */
+	SEL_BLOCKPOS  = 16,            /* use selection.blockPos to place block */
 };
 
 struct Message_t
@@ -185,7 +186,7 @@ struct RenderWorld_t
 	Item       toolbarItem;        /* item being hovered by mouse */
 	int        modifCount;         /* displayed at bottom of screen */
 	Message_t  message;            /* message at bottom of screen */
-	int        oldblockInfo;
+	int        oldBlockPos[3];
 	APTR       blockInfo;          /* SIT_TOOLTIP */
 };
 

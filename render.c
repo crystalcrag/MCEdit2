@@ -86,7 +86,7 @@ static void renderSelection(void)
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LEQUAL);
 
-	render.selection.selFlags &= ~SEL_NOCURRENT;
+	render.selection.selFlags &= ~(SEL_NOCURRENT|SEL_BLOCKPOS);
 	if (item->id > 0 && (render.debugInfo & DEBUG_SELECTION) == 0 && render.selection.extra.entity == 0)
 	{
 		/* preview block */
@@ -96,6 +96,7 @@ static void renderSelection(void)
 
 		if (id >= ID(256, 0))
 		{
+			/* check if this item is used to create a block */
 			ItemDesc desc = itemGetById(item->id);
 			if (desc == NULL || (id = desc->refBlock) == 0)
 				goto highlight_bbox;
@@ -171,6 +172,7 @@ static void renderSelection(void)
 		loc[1] = render.selection.current[1] + offset[1];
 		loc[2] = render.selection.current[2] + offset[2];
 		loc[3] = 255;
+		render.selection.selFlags |= SEL_BLOCKPOS;
 		memcpy(render.selection.blockPos, loc, sizeof loc);
 		int vtx = render.selection.blockVtx;
 		int wire = vtx >> 10;
@@ -424,12 +426,12 @@ MapExtraData renderGetSelectedBlock(vec4 pos, int * blockModel)
 		if (pos)
 		{
 			Item item = &render.inventory->items[render.inventory->selected];
-			memcpy(pos, item->id > 0 && (render.debugInfo & DEBUG_SELECTION) == 0 ? render.selection.blockPos : render.selection.current, sizeof (vec4));
+			memcpy(pos, item->id > 0 && (render.debugInfo & DEBUG_SELECTION) == 0 && (render.selection.selFlags & SEL_BLOCKPOS) ?
+				render.selection.blockPos : render.selection.current, sizeof (vec4));
 		}
 		if (blockModel)
-		{
 			*blockModel = render.selection.blockId;
-		}
+
 		return &render.selection.extra;
 	}
 	return NULL;
@@ -748,7 +750,7 @@ void renderSetViewMat(vec4 pos, vec4 lookat, float * yawPitch)
 static int clearRef(SIT_Widget w, APTR cd, APTR ud)
 {
 	render.blockInfo = NULL;
-	render.oldblockInfo = 0;
+	memset(render.oldBlockPos, 0, sizeof render.oldBlockPos);
 	return 1;
 }
 
@@ -1212,15 +1214,18 @@ static void renderText(NVGcontext * vg, int x, int y, STRPTR text, float a)
 /* show tooltip near mouse cursor containing some info on the block selected */
 void renderBlockInfo(SelBlock_t * sel)
 {
-	int blockId = sel->extra.entity > 0 ? sel->extra.entity : sel->extra.blockId;
-	if (render.oldblockInfo != blockId)
+	int XYZ[3];
+	if (sel->extra.entity > 0)
+		XYZ[0] = sel->extra.entity, XYZ[1] = XYZ[2] = 0;
+	else
+		XYZ[0] = sel->current[0], XYZ[1] = sel->current[1], XYZ[2] = sel->current[2];
+	if (memcmp(render.oldBlockPos, XYZ, sizeof XYZ))
 	{
 		TEXT msg[256];
-		render.oldblockInfo = blockId;
+		memcpy(render.oldBlockPos, XYZ, sizeof XYZ);
 		if (sel->extra.entity == 0)
 		{
-			int id    = sel->extra.blockId;
-			int XYZ[] = {sel->current[0], sel->current[1], sel->current[2]};
+			int id = sel->extra.blockId;
 
 			if (sel->extra.special == BLOCK_BED)
 			{

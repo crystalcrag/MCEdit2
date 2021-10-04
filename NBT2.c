@@ -430,9 +430,11 @@ Bool NBT_Add(NBTFile nbt, ...)
 			case TAG_Float:
 			case TAG_Long:
 			case TAG_Double:
-				hdr->count = va_arg(args, int);
+				len = va_arg(args, int);
+				hdr->count = len & (NBT_WithInit-1);
 				mem = NBT_AddBytes(nbt, hdr->count * sizeof_type[type]);
-				memset(mem, 0, nbt->alloc);
+				if (len >= NBT_WithInit) memcpy(mem, va_arg(args, APTR), nbt->alloc);
+				else memset(mem, 0, nbt->alloc);
 				break;
 			case TAG_String:
 				// TODO
@@ -535,6 +537,7 @@ Bool NBT_Delete(NBTFile nbt, int offset, int nth)
 		if (nth > hdr->count) return False;
 		for (i = nth - 1; i > 0; i --)
 		{
+			/* there are no TAG_Compound headers: only properties separated by TAG_End, therefore no hdr->size */
 			for (;;)
 			{
 				NBTHdr sub = (NBTHdr) mem;
@@ -542,7 +545,6 @@ Bool NBT_Delete(NBTFile nbt, int offset, int nth)
 				mem += sub->size;
 			}
 		}
-		/* size in compound list is not known :-/ */
 		offset = mem - nbt->mem;
 		DATA8 p;
 		for (size = 0, p = mem;;)
@@ -569,26 +571,14 @@ void NBT_MarkForUpdate(NBTFile nbt, int offset, int tag)
 
 	NBTHdr hdr = HDR(nbt, offset);
 
-	offset += sizeof *hdr - 4 + ((hdr->minNameSz + 4) & ~3);
-
 	if (hdr->type == TAG_List_Compound)
 	{
-		int i;
-
-		/* add at end of list */
-		for (i = hdr->count; i > 0; i --)
-		{
-			for (;;)
-			{
-				NBTHdr sub = HDR(nbt, offset);
-				if (sub->type == TAG_End) { offset += 4; break; }
-				offset += sub->size;
-			}
-		}
-		offset -= 4;
+		offset += hdr->size - 4;
 	}
 	else if (hdr->type == TAG_Compound)
 	{
+		offset += sizeof *hdr - 4 + ((hdr->minNameSz + 4) & ~3);
+
 		/* add at end of compound */
 		for (;;)
 		{
@@ -668,6 +658,17 @@ int NBT_Iter(NBTIter iter)
 	return ret;
 }
 
+/* return the size (in bytes) of fragment (usually an NBT_Compound) */
+int NBT_Size(DATA8 fragment)
+{
+	NBTIter_t iter;
+	int i, size = 0;
+	NBT_IterCompound(&iter, fragment);
+	while ((i = NBT_Iter(&iter)) >= 0)
+		size += NBT_HdrSize(fragment+i);
+
+	return size;
+}
 
 /* update NBTHdr.size of TAG_Compound and TAG_List_Compound nodes */
 int NBT_SetHdrSize(NBTFile nbt, int offset)
@@ -1158,6 +1159,7 @@ static int NBT_WriteFile(NBTFile nbt, APTR out, int offset, NBTWriteParam param)
 		{
 			/* node has been modified: ask callback for NBT stream of each item */
 			struct NBTFile_t sub = {0};
+			/* get count first */
 			dword = param->cb((p[-2] << 8) | p[-1], param->cbdata, NULL);
 			putc(out, type);
 			puts(out, &dword, 4, 1);

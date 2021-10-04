@@ -28,6 +28,7 @@ int NBT_FormatSection(DATA8 mem, int y);
 int NBT_SetHdrSize(NBTFile, int offset);
 int NBT_Insert(NBTFile, STRPTR loc, int type, NBTFile fragment);
 int NBT_ToInt(NBTFile, int offset, int def);
+int NBT_Size(DATA8 fragment);
 Bool NBT_ToFloat(NBTFile, int offset, float * array, int nb);
 void NBT_MarkForUpdate(NBTFile, int offset, int tag);
 void NBT_InitIter(NBTFile, int offset, NBTIter);
@@ -38,6 +39,7 @@ APTR NBT_PayloadFromStream(DATA8 stream, int offset, STRPTR name);
 Bool NBT_SetFloat(NBTFile, int offset, float * array, int nb);
 Bool NBT_SetInt(NBTFile, int offset, int64_t val);
 Bool NBT_Add(NBTFile nbt, ...);
+Bool NBT_Delete(NBTFile nbt, int offset, int nth);
 DATA8 NBT_Copy(DATA8 mem);
 DATA8 NBT_Compress(NBTFile, int * size, int page, NBT_WriteCb_t cb, APTR cbparam);
 
@@ -103,6 +105,7 @@ struct NBTHdr_t
 #define	TAG_List_Double      (TAG_List | (TAG_Double << 4))
 #define	TAG_List_String      (TAG_List | (TAG_String << 4))
 #define	TAG_List_Compound    (TAG_List | (TAG_Compound << 4))
+#define NBT_WithInit         0x1000000
 
 #ifdef NBT_IMPL			     /* private stuff below */
 #define DATA_OFFSET          4112 /* size of all (previous table + previous NBTHdr) */

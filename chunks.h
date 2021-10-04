@@ -36,7 +36,9 @@ Bool      chunkUpdateNBT(Chunk, int blockOffset, NBTFile nbt);
 Bool      chunkGetTilePosition(Chunk, int * XYZ, DATA8 tile);
 void      chunkUpdateTilePosition(Chunk, int * XYZ, DATA8 tile);
 void      chunkMarkForUpdate(Chunk);
+void      chunkUpdateEntities(Chunk);
 void      chunkExpandEntities(Chunk);
+void      chunkDeleteTile(Chunk, DATA8 tile);
 
 struct ChunkData_t                     /* one sub-chunk of 16x16x16 blocks */
 {
@@ -97,12 +99,13 @@ extern ChunkData chunkAir;             /* chunk entirely made of air, skylight =
 
 enum /* flags for Chunk.cflags */
 {
-	CFLAG_GOTDATA   = 0x01,            /* data has been retrieved */
-	CFLAG_HASMESH   = 0x02,            /* mesh generated and pushed to GPU */
-	CFLAG_NEEDSAVE  = 0x04,            /* modifications need to be saved on disk */
-	CFLAG_HASENTITY = 0x08,            /* entity transfered in active list */
-	CFLAG_REBUILDTE = 0x10,            /* mark TileEntity list as needing to be rebuilt */
-	CFLAG_ETTLIGHT  = 0x20,            /* update entity light for this chunk */
+	CFLAG_GOTDATA    = 0x01,           /* data has been retrieved */
+	CFLAG_HASMESH    = 0x02,           /* mesh generated and pushed to GPU */
+	CFLAG_NEEDSAVE   = 0x04,           /* modifications need to be saved on disk */
+	CFLAG_HASENTITY  = 0x08,           /* entity transfered in active list */
+	CFLAG_REBUILDTE  = 0x10,           /* mark TileEntity list as needing to be rebuilt (the NBT part) */
+	CFLAG_ETTLIGHT   = 0x20,           /* update entity light for this chunk */
+	CFLAG_REBUILDETT = 0x40,           /* mark Entity list for rebuilt when saved */
 };
 
 enum /* flags for ChunkData.cdFlags */

@@ -1,4 +1,11 @@
 =========== Week 39 ===========
+Sun Oct 4:
+	* create entity (paintings and item frame so far).
+	* interface to select a painting.
+
+Sat Oct 2:
+	* delete entity in world.
+
 Fri Oct 1:
 	* more item support in item frames.
 

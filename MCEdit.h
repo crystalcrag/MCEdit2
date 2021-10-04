@@ -53,6 +53,7 @@ enum /* possible value for parameter mceditUIOverlay() */
 	MCUI_OVERLAY_DELPARTIAL,
 	MCUI_OVERLAY_LIBRARY,
 	MCUI_OVERLAY_SAVESEL,
+	MCUI_OVERLAY_PAINTING,
 	MCUI_SEL_CLONE
 };
 

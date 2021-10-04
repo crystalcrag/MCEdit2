@@ -577,19 +577,6 @@ void matMultByVec3(vec4 res, mat4 A, vec4 B)
 	memcpy(res, tmp, 3 * sizeof (float));
 }
 
-void matMultByVec3UsingCenter(vec4 res, mat4 A, vec4 B, vec4 center)
-{
-	vec4 pt = {
-		B[VX] - center[VX],
-		B[VY] - center[VY],
-		B[VZ] - center[VZ]
-	};
-
-	res[VX] = A[A00]*pt[VX] + A[A01]*pt[VY] + A[A02]*pt[VZ] + center[VX];
-	res[VY] = A[A10]*pt[VX] + A[A11]*pt[VY] + A[A12]*pt[VZ] + center[VY];
-	res[VZ] = A[A20]*pt[VX] + A[A21]*pt[VY] + A[A22]*pt[VZ] + center[VZ];
-}
-
 /*
  * taken from glm library: convert a matrix intended for vertex so that it can be applied to a vector
  * (has to ignore translation); note: normalization will still be required if used on a normal.

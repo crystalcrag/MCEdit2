@@ -18,15 +18,18 @@ void entityAnimate(void);
 void entityRender(void);
 void entityDebug(int id);
 void entityUpdateLight(Chunk c);
+void entityDeleteById(Map map, int id);
 void entityInfo(int id, STRPTR buffer, int max);
 int  entityRaycast(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos);
 void entityUpdateOrCreate(Chunk c, vec4 pos, int blockId, vec4 dest, int ticks, DATA8 tile);
 void entityDebugCmd(Chunk c);
+int  entityCount(int start);
+void entityCreate(Map map, int itemId, vec4 pos, int side);
+void entityCreatePainting(Map map, int id);
+
 VTXBBox entityGetBBox(int id);
 
 #define ENTITY_END         0xffff
-#define PAINTING_ADDTEXU   16
-#define PAINTING_ADDTEXV   (32+15)
 #define ENTITY_PAINTINGID  0x10000
 #define ENTITY_ITEMFRAME   0x20000
 #define ENTITY_ITEM        0x1000000  /* differentiate item from block entity */
@@ -49,6 +52,23 @@ enum /* entity id and models */
 	ENTITY_ENDERMAN,
 	ENTITY_FALLING
 };
+
+typedef struct Paintings_t     Paintings_t;
+typedef union EntityUUID_t     EntityUUID_t;
+struct Paintings_t
+{
+	TEXT    names[256];
+	uint8_t location[128];
+	int     count;
+};
+
+union EntityUUID_t
+{
+	uint8_t  uuid8[16];
+	uint64_t uuid64[2];
+};
+
+extern Paintings_t paintings;    /* convert painting id to models id */
 
 /* private stuff below */
 #ifdef ENTITY_IMPL
@@ -145,8 +165,8 @@ struct EntitiesPrivate_t
 	int          animMax;
 	int          shader;
 	Entity       selected;
-	TEXT         paintings[256]; /* convert painting id to models id */
-	uint8_t      paintingNum;
+	vec4         createPos;
+	uint8_t      createSide;
 };
 
 struct EntityAnim_t

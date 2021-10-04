@@ -88,9 +88,7 @@ static uint16_t vtxAdjust[] = {
 
 /* auto-generated from modelsSize2[] */
 static uint8_t modelsSize0[DIM(modelsSize2)];
-
 extern uint8_t skyBlockOffset[];
-extern int8_t  normals[];
 
 /* keep a cache of models surrounding a given blocks */
 struct ModelCache_t

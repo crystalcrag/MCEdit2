@@ -10,9 +10,9 @@
 #include <string.h>
 #include <math.h>
 #include <stdio.h>
-#include "blocks.h"
 #include "nanovg.h"
 #include "SIT.h"
+#include "entities.h"
 #include "interface.h"
 #include "selection.h"
 #include "mapUpdate.h"
@@ -1745,3 +1745,118 @@ void mcuiDeletePartial(void)
 
 	SIT_ManageWidget(diag);
 }
+
+/*
+ * interface to select a painting
+ */
+struct
+{
+	SIT_Widget view;
+	DATA8      lastHover;
+	float      scale;
+	double     lastClick;
+
+}	mcuiPaintings;
+
+static int mcuiRenderPaintings(SIT_Widget w, APTR cd, APTR ud)
+{
+	SIT_OnPaint * paint = cd;
+	NVGcontext *  vg = paint->nvg;
+	int size[2];
+	int image = renderGetTerrain(size);
+	float scale = mcuiPaintings.scale = (paint->w / (PAINTINGS_TILE_W * 16));
+
+	nvgBeginPath(vg);
+	nvgRect(vg, paint->x, paint->y, paint->w, paint->h);
+	nvgFillPaint(vg, nvgImagePattern(vg, paint->x - (PAINTINGS_TILE_X * 16) * scale, paint->y - (PAINTINGS_TILE_Y * 16) * scale,
+		size[0] * scale, size[1] * scale, 0, image, 1));
+	nvgFill(vg);
+
+	DATA8 hover = mcuiPaintings.lastHover;
+	if (hover)
+	{
+		scale *= 16;
+		nvgBeginPath(vg);
+		nvgRect(vg, paint->x + hover[0] * scale, paint->y + hover[1] * scale, (hover[2] - hover[0]) * scale, (hover[3] - hover[1]) * scale);
+		nvgStrokeColorRGBA8(vg, "\xff\xff\xff\xaf");
+		nvgStrokeWidth(vg, 4);
+		nvgStroke(vg);
+	}
+
+	return 1;
+}
+
+static DATA8 mcuiPaitingHovered(int x, int y)
+{
+	x = x / (mcuiPaintings.scale * 16); /* <scale> is a float, can't use /= operator */
+	y = y / (mcuiPaintings.scale * 16);
+
+	int i;
+	for (i = 0; i < paintings.count; i ++)
+	{
+		DATA8 pos = paintings.location + i * 4;
+
+		if (pos[0] <= x && x < pos[2] && pos[1] <= y && y < pos[3])
+			return pos;
+	}
+	return NULL;
+}
+
+/* SITE_OnMouseMove over paintings */
+static int mcuiSelectPaintings(SIT_Widget w, APTR cd, APTR ud)
+{
+	SIT_OnMouse * msg = cd;
+	DATA8 hover;
+	switch (msg->state) {
+	case SITOM_Move:
+		hover = mcuiPaitingHovered(msg->x, msg->y);
+		if (hover != mcuiPaintings.lastHover)
+		{
+			mcuiPaintings.lastHover = hover;
+			mcuiPaintings.lastClick = 0;
+			SIT_ForceRefresh();
+		}
+		break;
+	case SITOM_ButtonPressed:
+		if (msg->button == SITOM_ButtonLeft && mcuiPaintings.lastHover)
+		{
+			double curTime = FrameGetTime();
+			if ((curTime - mcuiPaintings.lastClick) < 750)
+			{
+				entityCreatePainting(globals.level, (mcuiPaintings.lastHover - paintings.location) >> 2);
+				SIT_Exit(1);
+			}
+			else mcuiPaintings.lastClick = curTime;
+		}
+	}
+	return 1;
+}
+
+void mcuiShowPaintings(void)
+{
+	SIT_Widget diag = SIT_CreateWidget("paintings.bg", SIT_DIALOG, globals.app,
+		SIT_DialogStyles, SITV_Plain | SITV_Modal | SITV_Movable,
+		SIT_Style,        "padding-top: 0.2em",
+		NULL
+	);
+
+	int tiles = (globals.height >> 1) / PAINTINGS_TILE_H;
+
+	SIT_CreateWidgets(diag,
+		"<label name=dlgtitle title=", "<b>Select painting</b>", "left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, ">"
+		"<label name=title title='Double-click on the painting you want to add:' top=WIDGET,dlgtitle,0.5em>"
+		"<canvas name=view#table left=FORM right=FORM top=WIDGET,title,0.5em height=", tiles * PAINTINGS_TILE_H, "width=", tiles * PAINTINGS_TILE_W, "/>"
+		"<button name=ko title=Cancel top=WIDGET,view,0.5em right=FORM>"
+	);
+
+	SIT_Widget view = SIT_GetById(diag, "view");
+	SIT_AddCallback(view, SITE_OnPaint,     mcuiRenderPaintings, NULL);
+	SIT_AddCallback(view, SITE_OnClickMove, mcuiSelectPaintings, NULL);
+	SIT_AddCallback(SIT_GetById(diag, "ko"), SITE_OnActivate, mcuiExitWnd, NULL);
+
+	mcuiPaintings.lastHover = NULL;
+	mcuiPaintings.lastClick = 0;
+
+	SIT_ManageWidget(diag);
+}
+

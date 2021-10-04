@@ -84,7 +84,6 @@ void matAdd(mat4 res, mat4 A, mat4 B);
 void matMult(mat4 res, mat4 A, mat4 B);
 void matMultByVec(vec4 res, mat4 A, vec4 B);
 void matMultByVec3(vec4 res, mat4 A, vec4 B);
-void matMultByVec3UsingCenter(vec4 res, mat4 A, vec4 B, vec4 center);
 void matInverseTranspose(mat4 res, mat4 A);
 Bool matInverse(mat4 res, mat4 A);
 
@@ -112,6 +111,11 @@ float vecDistSquare(vec4 A, vec4 B);
 
 #define vecAddNum(A, num) \
 	(A)[VX] += num, (A)[VY] += num, (A)[VZ] += num
+
+#define vec3AddMult(A, B, num) \
+	(A)[VX] = ((A)[VX] * num) + (B)[VX], \
+	(A)[VY] = ((A)[VY] * num) + (B)[VY], \
+	(A)[VZ] = ((A)[VZ] * num) + (B)[VZ]
 
 /* dynamic array */
 #define vectorNth    vector_nth

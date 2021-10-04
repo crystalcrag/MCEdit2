@@ -321,6 +321,13 @@ DATA8 chunkDeleteTileEntity(Chunk c, int * XYZ, Bool extract)
 	return data;
 }
 
+/* only free memory related to tile/entity */
+void chunkDeleteTile(Chunk c, DATA8 tile)
+{
+	if (! (c->nbt.mem <= tile && tile < c->nbt.mem + c->nbt.usage))
+		free(tile);
+}
+
 /* iterate over all tile entities defined in this chunk (*offset needs to be initially set to 0) */
 DATA8 chunkIterTileEntity(Chunk c, int * XYZ, int * offset)
 {
@@ -409,7 +416,15 @@ Bool chunkLoad(Chunk chunk, const char * path, int x, int z)
 void chunkMarkForUpdate(Chunk c)
 {
 	NBT_MarkForUpdate(&c->nbt, c->teOffset < 0 ? NBT_FindNode(&c->nbt, 0, "Level") : c->teOffset, CHUNK_NBT_TILEENTITES);
+	/* don't call this function again, until this flag is cleared */
 	c->cflags |= CFLAG_REBUILDTE;
+}
+
+/* same with Entities compound list */
+void chunkUpdateEntities(Chunk c)
+{
+	NBT_MarkForUpdate(&c->nbt, c->entOffset < 0 ? NBT_FindNode(&c->nbt, 0, "Level") : c->entOffset, CHUNK_NBT_ENTITES);
+	c->cflags |= CFLAG_REBUILDETT;
 }
 
 /* insert <nbt> fragment at the location of tile entity pointed by <blockOffset> (ie: coord of tile entity within chunk) */
@@ -453,7 +468,7 @@ Bool chunkUpdateNBT(Chunk c, int blockOffset, NBTFile nbt)
  * saving chunk to disk
  */
 
-/* find a place inside a region file to allocate the number of requested 4Kb pages */
+/* find a place inside a region (.mca) file to allocate the number of requested 4Kb pages */
 static int chunkAllocSpace(FILE * in, int pages)
 {
 	uint32_t usedSpace[1024]; /* worst case scenario: each chunk has its own slot */
@@ -531,6 +546,8 @@ static int chunkAllocSpace(FILE * in, int pages)
 	return -1;
 }
 
+Bool entityGetNBT(NBTFile, int * id);
+
 /* save all the extra NBT tags we added to a chunk */
 static int chunkSaveExtra(int tag, APTR cbparam, NBTFile nbt)
 {
@@ -552,6 +569,7 @@ static int chunkSaveExtra(int tag, APTR cbparam, NBTFile nbt)
 		{
 			if (chunk->teOffset < 0)
 			{
+				/* MCEditv1 doesn't like when this is missing, even if it is empty :-/ */
 				static NBTFile_t header;
 				static uint8_t   content[64];
 				if (header.mem == NULL)
@@ -572,7 +590,7 @@ static int chunkSaveExtra(int tag, APTR cbparam, NBTFile nbt)
 			else hash->save ++;
 		}
 
-		/* this will certainly change the order of tile entities each time it is saved :-/ */
+		/* this will certainly change the order of tile entities each time it is saved (not that big of a deal though) */
 		for (i = hash->save - 1, ent = (TileEntityEntry) (hash + 1) + i; i < hash->max; i ++, ent ++)
 		{
 			if (ent->data == NULL) continue;
@@ -584,6 +602,20 @@ static int chunkSaveExtra(int tag, APTR cbparam, NBTFile nbt)
 			hash->save = i + 2;
 			return 1;
 		}
+		break;
+
+	case CHUNK_NBT_ENTITES:
+		#define curEntity    nbt.alloc
+		/* list of entities modified */
+		if (nbt == NULL)
+		{
+			/* total count of entities for this chunk */
+			chunk->curEntity = chunk->entityList;
+			return entityCount(chunk->entityList);
+		}
+		if (entityGetNBT(nbt, &chunk->curEntity))
+			return 1;
+		#undef curEntity
 		break;
 
 	case CHUNK_NBT_SECTION:
@@ -604,6 +636,7 @@ static int chunkSaveExtra(int tag, APTR cbparam, NBTFile nbt)
 	return 0;
 }
 
+/* write chunk into region file */
 Bool chunkSave(Chunk chunk, const char * path)
 {
 	STRPTR region = alloca(strlen(path) + 32);
@@ -649,6 +682,7 @@ Bool chunkSave(Chunk chunk, const char * path)
 				((TileEntityHash)chunk->tileEntities)->save = 0;
 			chunk->cdIndex = 0;
 
+			/* compress file in memory first, then write it to disk */
 			chunkOffset = BE24(offset) << 12;
 			zstream     = NBT_Compress(&chunk->nbt, &chunkSize, offset[3], chunkSaveExtra, chunk);
 			chunkPage   = (chunkSize + 4100) >> 12;

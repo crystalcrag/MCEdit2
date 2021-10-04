@@ -363,6 +363,10 @@ enum                       /* special values for Block_t.rswire */
 #define MODELFLAGS         0xf0
 #define FACEIDSHIFT        8
 #define ALLFACEIDS         0xffffff
+#define PAINTINGS_TILE_W   16
+#define PAINTINGS_TILE_H   9
+#define PAINTINGS_TILE_X   16
+#define PAINTINGS_TILE_Y   (32+14)
 
 /*
  * mostly private stuff below that point

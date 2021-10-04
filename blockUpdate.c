@@ -676,6 +676,7 @@ void mapUpdateToBlock36(Map map, RSWire list, int count, int dir, BlockIter iter
 			cnx = 1;
 		}
 
+		/* XXX shouldn't this be an entity instead of a tile entity ? */
 		DATA8 compound = chunkDeleteTileEntity(iter.ref, (int[3]){iter.x, iter.yabs, iter.z}, True);
 
 		NBT_Add(&tile,

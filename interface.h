@@ -22,6 +22,7 @@ void mcuiAnalyze(void);
 void mcuiFillOrReplace(Bool fillWithBrush);
 void mcuiDeleteAll(void);
 void mcuiDeletePartial(void);
+void mcuiShowPaintings(void);
 
 #ifdef MCUI_IMPL
 

@@ -2958,9 +2958,9 @@ void blockPostProcessTexture(DATA8 * data, int * width, int * height, int bpp)
 	image = stbi_load(RESDIR "paintings.png", &w, &h, &bpp, 4);
 
 	/* image must be 16x9 tiles */
-	if (sz == (w / 16) * bpp && sz == (h / 9) * bpp)
+	if (sz == (w / PAINTINGS_TILE_W) * bpp && sz == (h / PAINTINGS_TILE_H) * bpp)
 	{
-		for (s = image, k = w * bpp, d = dst + ((ITEM_ADDTEXV+15) * sz * *width) + ITEM_ADDTEXU * sz; h > 0; h --, s += k, d += stride)
+		for (s = image, k = w * bpp, d = dst + ((PAINTINGS_TILE_Y) * sz * *width) + PAINTINGS_TILE_X * sz; h > 0; h --, s += k, d += stride)
 			memcpy(d, s, k);
 	}
 

@@ -149,7 +149,6 @@
 	{id: 380, state: 0, name: "Cauldron",             stack:64, cat: REDSTONE, tex: [ 7, 7], createBlock: 118},
 	{id: 381, state: 0, name: "Eye of Ender",         stack:64, cat: ALLCAT,   tex: [ 9, 8], tech: "ender_eye"},
 	{id: 382, state: 0, name: "Glistering Melon",     stack:64, cat: ALLCAT,   tex: [13, 3], tech: "speckled_melon"},
-	{id: 383, state: 0, name: "Spawn Egg",            stack: 1, cat: ALLCAT,   tex: [ 0,14]}, // XXX
 	{id: 384, state: 0, name: "Bottle of XP",         stack:64, cat: ALLCAT,   tex: [11, 8], tech: "experience_bottle"},
 	{id: 385, state: 0, name: "Fire Charge",          stack:64, cat: ALLCAT,   tex: [ 8, 6]},
 	{id: 386, state: 0, name: "Book and Quill",       stack: 1, cat: ALLCAT,   tex: [15,10], tech: "writable_book"},
@@ -157,7 +156,7 @@
 	/* minecraft 1.3 */
 	{id: 388, state: 0, name: "Emerald",              stack:64, cat: ALLCAT,   tex: [ 8, 0]},
 	{id: 389, state: 0, name: "Item Frame",           stack:64, cat: ALLCAT,   tex: [13,10]},
-	{id: 390, state: 0, name: "Flower Pot",           stack:64, cat: ALLCAT,   tex: [15, 3]},
+	{id: 390, state: 0, name: "Flower Pot",           stack:64, cat: ALLCAT,   tex: [15, 3], createBlock: 140},
 	{id: 391, state: 0, name: "Carrot",               stack:64, cat: CROPS,    tex: [12, 1], createBlock: 141},
 	{id: 392, state: 0, name: "Potato",               stack:64, cat: CROPS,    tex: [12, 2], createBlock: 142},
 	{id: 393, state: 0, name: "Baked potato",         stack:64, cat: CROPS,    tex: [13, 2]},

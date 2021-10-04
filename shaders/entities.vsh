@@ -18,31 +18,25 @@ flat out int   isSelected;
      out float skyLight;
      out float blockLight;
 
-/* not dark enough with shading[] because of the absence of AO */
-const float shadingPerFace[6] = float[6](0.8, 0.7, 0.8, 0.7, 1.0, 0.6);
-
-uniform float curtime;
-
 void main(void)
 {
 	vec3 pos = vec3(
 		float(position.x - ORIGINVTX) * BASEVTX,
 		float(position.y - ORIGINVTX) * BASEVTX,
 		float(position.z - ORIGINVTX) * BASEVTX
-	) * rotation.w;
+	) * rotation.w; /* rotation.w == scaling */
 
-	float angle  = rotation.y;
 	int   norm   = (info.y >> 3) & 7;
 	vec3  normal = normals[norm].xyz;
+	float angle  = rotation.y;
 
 	if (angle > 0.001)
 	{
-		/* yaw: rotate along Y axis actually :-/ */
+		/* pitch: rotate along X axis actually :-/ */
 		float ca = cos(angle);
 		float sa = sin(angle);
 		mat3 rotate = mat3(1, 0, 0, 0, ca, -sa, 0, sa, ca);
 
-		/* rotation.w == scaling */
 		pos = pos * rotate;
 		normal = normal * rotate;
 	}
@@ -55,15 +49,14 @@ void main(void)
 		float sa = sin(angle);
 		mat3 rotate = mat3(ca, 0, sa, 0, 1, 0, -sa, 0, ca);
 
-		/* rotation.w == scaling */
 		pos = pos * rotate;
 		normal = normal * rotate;
 	}
 
 	// distribute shading per face
-	float shade = shadingPerFace[normal.x < 0 ? 3 : 1].x * abs(normal.x) +
-	              shadingPerFace[normal.z < 0 ? 2 : 0].x * abs(normal.z) +
-	              shadingPerFace[normal.y < 0 ? 5 : 4].x * abs(normal.y);
+	float shade = shading[normal.x < 0 ? 3 : 1].x * abs(normal.x) +
+	              shading[normal.z < 0 ? 2 : 0].x * abs(normal.z) +
+	              shading[normal.y < 0 ? 5 : 4].x * abs(normal.y);
 
 	gl_Position = projMatrix * mvMatrix * vec4(pos + offsets.xyz, 1);
 	float U = float(info.x & 511);
