@@ -585,8 +585,12 @@ void mceditWorld(void)
 						MapExtraData sel = renderGetSelectedBlock(pos, NULL);
 						if (sel)
 						{
-							int XYZ[] = {pos[0] - sel->chunk->X, pos[1], pos[2] - sel->chunk->Z};
-							playerAddInventory(&mcedit.player, sel->blockId, chunkGetTileEntity(sel->chunk, XYZ));
+							if (sel->entity == 0)
+							{
+								int XYZ[] = {pos[0] - sel->chunk->X, pos[1], pos[2] - sel->chunk->Z};
+								playerAddInventory(&mcedit.player, sel->blockId, chunkGetTileEntity(sel->chunk, XYZ));
+							}
+							else playerAddInventory(&mcedit.player, entityGetBlockId(sel->entity), NULL);
 							playerUpdateNBT(&mcedit.player);
 						}
 					}
@@ -726,6 +730,7 @@ void mceditPlaceBlock(void)
 			entityDeleteById(globals.level, sel->entity - 1);
 			renderAddModif();
 		}
+		else entityUseItemOn(globals.level, sel->entity, item->id, pos, sel->side);
 	}
 	else if (id < ID(256, 0))
 	{

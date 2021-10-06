@@ -1,5 +1,12 @@
+=========== Week 40 ===========
+Tue Oct 5:
+	* add/remove items from item frame.
+
+Mon Oct 4:
+	* keyboard driven inventories.
+
 =========== Week 39 ===========
-Sun Oct 4:
+Sun Oct 3:
 	* create entity (paintings and item frame so far).
 	* interface to select a painting.
 

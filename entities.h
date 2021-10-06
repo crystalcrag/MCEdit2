@@ -22,10 +22,12 @@ void entityDeleteById(Map map, int id);
 void entityInfo(int id, STRPTR buffer, int max);
 int  entityRaycast(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos);
 void entityUpdateOrCreate(Chunk c, vec4 pos, int blockId, vec4 dest, int ticks, DATA8 tile);
+void entityUseItemOn(Map, int entityId, int itemId, vec4 pos, int side);
 void entityDebugCmd(Chunk c);
 int  entityCount(int start);
 void entityCreate(Map map, int itemId, vec4 pos, int side);
 void entityCreatePainting(Map map, int id);
+int  entityGetBlockId(int id);
 
 VTXBBox entityGetBBox(int id);
 
@@ -102,12 +104,12 @@ struct Entity_t
 	uint16_t mdaiSlot;             /* GL draw index in VBObank */
 	int      blockId;
 	float    motion[3];
-	float    pos[4];
-	float    rotation[4];
+	float    pos[4];               /* X, Y, Z and extra info for shader */
+	float    rotation[4];          /* rotation in Y, X, Z and scaling */
 	uint32_t light[6];
-	DATA8    tile;
+	DATA8    tile;                 /* start of NBT Compound for this entity */
 	Entity   ref;
-	STRPTR   name;                 /* from NBT */
+	STRPTR   name;                 /* from NBT ("id" key) */
 };
 
 struct EntityEntry_t               /* HashTable entry */

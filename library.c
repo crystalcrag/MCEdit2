@@ -389,7 +389,7 @@ static Bool librarySaveSchematics(Map brush, STRPTR path)
 	NBT_Hdr(&nbt, TE)->count = tileNb;
 	NBT_Add(&nbt, TAG_List_Compound, "Entities", 0, TAG_Compound_End);
 
-	NBT_Dump(&nbt, 0, 0, 0);
+	//NBT_Dump(&nbt, 0, 0, 0);
 
 	bytes = NBT_Save(&nbt, path, NULL, NULL);
 	NBT_Free(&nbt);
@@ -413,9 +413,6 @@ static void libraryExtractThumb(LibBrush lib, STRPTR path, DATA16 size)
 		if (size[VY] > 0 && size[VZ] > 0 && size[VX] > 0)
 		{
 			lib->nvgFBO = nvgluCreateFramebuffer(globals.nvgCtx, lib->thumbSz, lib->thumbSz, NVG_IMAGE_DEPTH);
-
-			if (strcasecmp(BaseName(path), "chest.schematic") == 0)
-				puts("here");
 
 			if (libraryParseSchematics(lib, size))
 			{

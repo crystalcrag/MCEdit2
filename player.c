@@ -435,7 +435,7 @@ void playerAddInventory(Player p, int blockId, DATA8 tileEntity)
 		item->id = blockId;
 		item->count = 1;
 		item->uses = 0;
-		item->extra = tileEntity;
+		item->extra = tileEntity; /* XXX raw pointer to NBT from world map, can be freed at any time :-/ */
 		p->inventory.update ++;
 		playerSetInfoTip(p);
 	}

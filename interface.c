@@ -186,7 +186,7 @@ void mcuiSetTooltip(SIT_Widget toolTip, Item item, STRPTR extra)
 /* show info about block hovered in a tooltip */
 static void mcuiRefreshTooltip(MCInventory inv)
 {
-	int  index = inv->top + inv->curX + inv->curY * inv->invCol;
+	int index = inv->top + inv->curX + inv->curY * inv->invCol;
 	if (index >= inv->itemsNb)
 	{
 		SIT_SetValues(mcui.toolTip, SIT_Visible, False, NULL);
@@ -578,7 +578,9 @@ static int mcuiSetTop(SIT_Widget w, APTR cd, APTR ud)
 {
 	MCInventory inv = ud;
 	inv->top = (int) cd * inv->invCol;
-	if (inv->curX >= 0) mcuiRefreshTooltip(inv);
+	int visible = 0;
+	SIT_GetValues(mcui.toolTip, SIT_Visible, &visible, NULL);
+	if (inv->curX >= 0 && visible) mcuiRefreshTooltip(inv);
 	return 1;
 }
 
@@ -643,6 +645,159 @@ static int mcuiFilterItems(SIT_Widget w, APTR cd, APTR ud)
 	return 1;
 }
 
+static void mcuiAddToInventory(MCInventory inv)
+{
+	int pos = inv->top + inv->curX + inv->curY * inv->invCol;
+
+	if (pos < inv->itemsNb)
+	{
+		int id = inv->items[pos].id, i, j;
+		Item free;
+		if (id == 0) return;
+
+		/* check first if this item is already in the inventory */
+		for (i = mcui.groupCount - 1, free = NULL; i >= 0; i --)
+		{
+			MCInventory copyTo = mcui.groups[i];
+			for (j = 0; j < copyTo->itemsNb; j ++)
+			{
+				Item cur = copyTo->items + j;
+				if (cur->id == 0)
+				{
+					if (free == NULL)
+						free = cur;
+				}
+				else if (cur->id == id)
+				{
+					ItemDesc desc = itemGetById(id);
+					if (cur->count < (desc ? desc->stack : 64))
+					{
+						cur->count ++;
+						SIT_ForceRefresh();
+						return;
+					}
+				}
+			}
+		}
+		/* use first free slot in inventory */
+		if (free)
+		{
+			free[0] = inv->items[pos];
+			SIT_ForceRefresh();
+		}
+	}
+}
+
+static void mcuiDelFromInventory(MCInventory inv)
+{
+	int pos = inv->top + inv->curX + inv->curY * inv->invCol;
+	if (pos < inv->itemsNb)
+	{
+		Item item = inv->items + pos;
+		if (item->count > 0)
+		{
+			item->count --;
+			if (item->count == 0)
+				item->id = 0;
+			SIT_ForceRefresh();
+		}
+	}
+}
+
+/* handle inventory selection using keyboard */
+static int mcuiInventoryKeyboard(SIT_Widget w, APTR cd, APTR ud)
+{
+	MCInventory inv = ud;
+	SIT_OnKey * msg = cd;
+
+	if ((msg->flags & SITK_FlagUp) == 0)
+	{
+		int top = inv->top / inv->invCol;
+		int x = inv->curX;
+		int y = inv->curY + top;
+		int max = (inv->itemsNb + inv->invCol + 1) / inv->invCol - 1;
+		int row;
+		if (max <= inv->invRow)
+			max = inv->invRow - 1;
+		switch (msg->keycode) {
+		case SITK_Up:
+			y --; if (y < 0) y = 0;
+			reset_y:
+			row = y * inv->invCol;
+			if (row < inv->top)
+				SIT_SetValues(mcui.scroll, SIT_ScrollPos, y, NULL), y = 0, top = 0;
+			else if (row >= inv->top + inv->invRow * inv->invCol)
+				SIT_SetValues(mcui.scroll, SIT_ScrollPos, y - inv->invRow + 1, NULL), y = inv->invRow - 1, top = 0;
+			break;
+		case SITK_Down:
+			y ++; if (y > max) y = max;
+			goto reset_y;
+		case SITK_PrevPage:
+			if (max < inv->invRow) return 0;
+			y -= inv->invRow;
+			goto reset_y;
+		case SITK_NextPage:
+			if (max < inv->invRow) return 0;
+			y += inv->invRow;
+			goto reset_y;
+		case SITK_Left:
+			x --; if (x < 0) x = 0;
+			break;
+		case SITK_Right:
+			x ++; if (x >= inv->invCol) x = inv->invCol - 1;
+			break;
+		case SITK_Home:
+			if (msg->flags & SITK_FlagCtrl)
+			{
+				if (inv->top > 0)
+					SIT_SetValues(mcui.scroll, SIT_ScrollPos, 0, NULL);
+				y = x = top = 0;
+			}
+			else x = 0;
+			break;
+		case SITK_End:
+			if (msg->flags & SITK_FlagCtrl)
+			{
+				if (max >= inv->invRow)
+					SIT_SetValues(mcui.scroll, SIT_ScrollPos, max - inv->invRow + 1, NULL);
+				top = 0;
+				x = inv->invCol - 1;
+				y = inv->invRow - 1;
+			}
+			else x = inv->invCol - 1;
+			break;
+		case SITK_Space:
+			if (inv->movable == INV_PICK_ONLY)
+				mcuiAddToInventory(inv);
+			else
+				mcuiDelFromInventory(inv);
+			return 0;
+		default: return 0;
+		}
+		inv->curX = x;
+		inv->curY = y - top;
+		SIT_ForceRefresh();
+	}
+	return 0;
+}
+
+static int mcuiInventoryFocus(SIT_Widget w, APTR cd, APTR ud)
+{
+	MCInventory inv = ud;
+	if (cd)
+	{
+		if (inv->curX < 0)
+			inv->curX = inv->curY = 0, SIT_ForceRefresh();
+	}
+	else if (inv->curX >= 0)
+	{
+		inv->curX = -1;
+		SIT_ForceRefresh();
+	}
+	return 0;
+}
+
+
 static void mcuiInitInventory(SIT_Widget canvas, MCInventory inv)
 {
 	inv->cell = SIT_CreateWidget("td", SIT_HTMLTAG, canvas, SIT_Visible, False, NULL);
@@ -652,6 +807,9 @@ static void mcuiInitInventory(SIT_Widget canvas, MCInventory inv)
 	SIT_AddCallback(canvas, SITE_OnPaint,     mcuiInventoryRender,   inv);
 	SIT_AddCallback(canvas, SITE_OnClickMove, mcuiInventoryMouse,    inv);
 	SIT_AddCallback(canvas, SITE_OnMouseOut,  mcuiInventoryMouseOut, inv);
+	SIT_AddCallback(canvas, SITE_OnRawKey,    mcuiInventoryKeyboard, inv);
+	SIT_AddCallback(canvas, SITE_OnFocus,     mcuiInventoryFocus,    inv);
+	SIT_AddCallback(canvas, SITE_OnBlur,      mcuiInventoryFocus,    inv);
 
 	SIT_SetValues(canvas, SIT_Width, inv->invCol * mcui.cellSz, SIT_Height, inv->invRow * mcui.cellSz, NULL);
 
@@ -725,15 +883,15 @@ void mcuiCreateInventory(Inventory player)
 		"<tab name=items left=FORM right=FORM top=FORM bottom=FORM tabSpace=4 tabActive=", mcui.curTab, "tabStr=", "\t\t\t\t\t", ">"
 		" <label name=searchtxt title='Search:'>"
 		" <editbox name=search left=WIDGET,searchtxt,0.5em right=FORM>"
-		" <canvas composited=1 name=inv.inv left=FORM top=WIDGET,search,0.5em/>"
+		" <canvas composited=1 name=inv.inv left=FORM top=WIDGET,search,0.5em nextCtrl=LAST/>"
 		" <scrollbar width=1.2em name=scroll.inv wheelMult=1 top=OPPOSITE,inv,0 bottom=OPPOSITE,inv,0 right=FORM>"
 		" <label name=msg title='Player inventory:' top=WIDGET,inv,0.3em>"
-		" <canvas composited=1 name=player.inv top=WIDGET,msg,0.3em/>"
-		" <canvas composited=1 name=tb.inv left=FORM top=WIDGET,player,0.5em/>"
-		" <button name=exch1.exch top=OPPOSITE,player right=FORM tooltip=", tip, "maxWidth=scroll height=", mcui.cellSz, ">"
-		" <button name=exch2.exch top=WIDGET,exch1 right=FORM tooltip=", tip, "maxWidth=exch1 height=", mcui.cellSz, ">"
-		" <button name=exch3.exch top=WIDGET,exch2 right=FORM tooltip=", tip, "maxWidth=exch2 height=", mcui.cellSz, ">"
-		" <button name=del.exch   top=OPPOSITE,tb right=FORM title=X tooltip='Clear inventory' maxWidth=exch3 height=", mcui.cellSz, ">"
+		" <canvas composited=1 name=player.inv top=WIDGET,msg,0.3em  nextCtrl=LAST/>"
+		" <canvas composited=1 name=tb.inv left=FORM top=WIDGET,player,0.5em  nextCtrl=LAST/>"
+		" <button name=exch1.exch nextCtrl=NONE top=OPPOSITE,player right=FORM tooltip=", tip, "maxWidth=scroll height=", mcui.cellSz, ">"
+		" <button name=exch2.exch nextCtrl=NONE top=WIDGET,exch1 right=FORM tooltip=", tip, "maxWidth=exch1 height=", mcui.cellSz, ">"
+		" <button name=exch3.exch nextCtrl=NONE top=WIDGET,exch2 right=FORM tooltip=", tip, "maxWidth=exch2 height=", mcui.cellSz, ">"
+		" <button name=del.exch   nextCtrl=NONE top=OPPOSITE,tb right=FORM title=X tooltip='Clear inventory' maxWidth=exch3 height=", mcui.cellSz, ">"
 		"</tab>"
 		"<tooltip name=info delayTime=", SITV_TooltipManualTrigger, " displayTime=10000 toolTipAnchor=", SITV_TooltipFollowMouse, ">"
 	);
@@ -853,10 +1011,10 @@ void mcuiEditChestInventory(Inventory player, Item items, int count)
 
 	SIT_CreateWidgets(diag,
 		"<label name=msg title=", count > 9*3 ? "Double chest:" : "Chest:", ">"
-		"<canvas composited=1 name=inv.inv left=FORM top=WIDGET,msg,0.5em/>"
+		"<canvas composited=1 name=inv.inv left=FORM top=WIDGET,msg,0.5em nextCtrl=LAST/>"
 		"<label name=msg2 title='Player inventory:' top=WIDGET,inv,0.3em>"
-		"<canvas composited=1 name=player.inv top=WIDGET,msg2,0.3em/>"
-		"<canvas composited=1 name=tb.inv left=FORM top=WIDGET,player,0.5em/>"
+		"<canvas composited=1 name=player.inv top=WIDGET,msg2,0.3em nextCtrl=LAST/>"
+		"<canvas composited=1 name=tb.inv left=FORM top=WIDGET,player,0.5em nextCtrl=LAST/>"
 		"<tooltip name=info delayTime=", SITV_TooltipManualTrigger, "displayTime=10000 toolTipAnchor=", SITV_TooltipFollowMouse, ">"
 	);
 
@@ -1411,10 +1569,10 @@ void mcuiFillOrReplace(Bool fillWithBrush)
 		" left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, ">"
 		"<label name=searchtxt title='Search:'>"
 		"<editbox name=search left=WIDGET,searchtxt,0.5em right=FORM top=WIDGET,dlgtitle,0.3em>"
-		"<canvas composited=1 name=inv.inv left=FORM top=WIDGET,search,0.5em/>"
+		"<canvas composited=1 name=inv.inv left=FORM top=WIDGET,search,0.5em nextCtrl=LAST/>"
 		"<scrollbar width=1.2em name=scroll.inv wheelMult=1 top=OPPOSITE,inv,0 bottom=OPPOSITE,inv,0 right=FORM>"
 		"<label name=msg title='Fill:'>"
-		"<canvas composited=1 name=fill.inv left=WIDGET,msg,0.5em top=WIDGET,inv,0.5em/>"
+		"<canvas composited=1 name=fill.inv left=WIDGET,msg,0.5em top=WIDGET,inv,0.5em nextCtrl=LAST/>"
 	);
 
 	if (fillWithBrush)
@@ -1704,7 +1862,6 @@ static int mcuiCountTE(SIT_Widget w, APTR cd, APTR ud)
 
 void mcuiDeletePartial(void)
 {
-	/* default values for checkboxes */
 	SIT_Widget diag = SIT_CreateWidget("delete.bg", SIT_DIALOG, globals.app,
 		SIT_DialogStyles, SITV_Plain | SITV_Modal | SITV_Movable,
 		SIT_Style,        "padding-top: 0.2em",

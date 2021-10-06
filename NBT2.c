@@ -347,10 +347,12 @@ static int NBT_ParseFile(NBTFile nbt, ZStream in, int flags)
 Bool NBT_Add(NBTFile nbt, ...)
 {
 	va_list args;
-	int     type, nested;
+	int     type, nested, compound;
 	DATA8   mem;
 	NBTHdr  hdr;
 
+	/* opened compound that needs closing */
+	compound = nbt->alloc;
 	for (va_start(args, nbt), nested = 0; ; )
 	{
 		type = va_arg(args, int);
@@ -361,6 +363,10 @@ Bool NBT_Add(NBTFile nbt, ...)
 		else if (type == TAG_Compound_End)
 		{
 			mem = NBT_AddBytes(nbt, 1);
+			NBTHdr hdr = NBT_Hdr(nbt, compound);
+			if (hdr->type == TAG_Compound)
+				hdr->size = nbt->usage - compound;
+			compound = 0;
 			nested --;
 			SET_NULL(mem);
 			if (nested <= 0) break;
@@ -449,6 +455,7 @@ Bool NBT_Add(NBTFile nbt, ...)
 			}
 			break;
 		case TAG_Compound:
+			compound = (DATA8) hdr - nbt->mem;
 			nbt->alloc = 4;
 			nested ++;
 			break;
@@ -460,6 +467,7 @@ Bool NBT_Add(NBTFile nbt, ...)
 		}
 		HDR(nbt, off)->size += nbt->alloc;
 	}
+	nbt->alloc = compound;
 	return True;
 }
 
@@ -1417,6 +1425,16 @@ int NBT_Dump(NBTFile root, int offset, int level, FILE * out)
 		fprintf(out, ", ...}\n");
 	}
 	return offset + ((sz + 3) & ~3) - old;
+}
+
+void NBT_DumpCompound(NBTFile nbt)
+{
+	NBTIter_t iter;
+	int off;
+	NBT_InitIter(nbt, 0, &iter);
+
+	while ((off = NBT_Iter(&iter)) >= 0)
+		NBT_Dump(nbt, off, 0, 0);
 }
 #endif
 

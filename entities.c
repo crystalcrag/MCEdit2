@@ -412,7 +412,7 @@ static int entityAddModel(int id, int cnx, CustModel cust)
 		glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, INFO_SIZE, 0);
 		glEnableVertexAttribArray(2);
 		glVertexAttribDivisor(2, 1);
-		/* 9 floats for 3x3 model matrix */
+		/* 4 floats for 3 rotations and 1 scaling */
 		glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, INFO_SIZE, (void *) 16);
 		glEnableVertexAttribArray(3);
 		glVertexAttribDivisor(3, 1);
@@ -627,6 +627,27 @@ static void entityGetLight(Chunk c, vec4 pos, DATA32 light, Bool full)
 	}
 }
 
+static Entity entityItemFrameAddItem(Entity frame)
+{
+	uint16_t next;
+	Entity item = entityAlloc(&next);
+	frame->next = next;
+	item->ref = frame;
+	item->next = ENTITY_END;
+	item->blockId = frame->blockId & ~ENTITY_ITEMFRAME;
+	item->tile = frame->tile;
+	frame->blockId = 0;
+	memcpy(item->motion, frame->motion, INFO_SIZE + 12);
+	item->pos[VT] = 0; /* selection */
+	item->rotation[3] = 0.4; /* scaling */
+	if (item->blockId >= ID(256, 0))
+		/* items are rendered in XZ plane, item frame are oriented in XY or ZY plane */
+		item->rotation[1] = M_PI_2 - frame->rotation[1];
+	item->VBObank = entityGetModelId(item);
+	entityAddToCommandList(item);
+	return item;
+}
+
 /* extract information from NBT records */
 void entityParse(Chunk c, NBTFile nbt, int offset)
 {
@@ -686,23 +707,7 @@ void entityParse(Chunk c, NBTFile nbt, int offset)
 
 			/* alloc an entity for the item in the frame */
 			if (entity->blockId & ENTITY_ITEMFRAME)
-			{
-				Entity item = entityAlloc(&next);
-				prev->next = next;
-				item->ref = entity;
-				item->next = ENTITY_END;
-				item->blockId = entity->blockId & ~ENTITY_ITEMFRAME;
-				item->tile = entity->tile;
-				entity->blockId = 0;
-				memcpy(item->motion, entity->motion, INFO_SIZE + 12);
-				item->rotation[3] = 0.4; /* scaling */
-				if (item->blockId >= ID(256, 0))
-					/* items are rendered in XZ plane, item frame are oriented in XY or ZY plane */
-					item->rotation[1] = M_PI_2;
-				item->VBObank = entityGetModelId(item);
-				entityAddToCommandList(item);
-				prev = item;
-			}
+				prev = entityItemFrameAddItem(entity);
 		}
 	}
 }
@@ -893,8 +898,6 @@ int entityRaycast(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos)
 				for (j = 0; j < 6; j ++)
 				{
 					static float pos_000[3];
-					//if (globals.breakPoint)
-					//	puts("here");
 					fillNormal(norm, j);
 					matMultByVec3(norm, rotation, norm);
 					/* back-face culling */
@@ -1052,6 +1055,13 @@ void entityDeleteById(Map map, int id)
 				prev = &buffer->entities[slot & (ENTITY_BATCH-1)].next;
 			}
 			*prev = entity->next;
+			/* item in item frame: delete */
+			if (entity->next != ENTITY_END)
+			{
+				Entity item = entityGetById(entity->next);
+				if (item && item->ref == entity)
+					entityClear(buffer, entity->next);
+			}
 		}
 
 		chunkDeleteTile(c, entity->tile);
@@ -1088,7 +1098,7 @@ Bool entityGetNBT(NBTFile nbt, int * id)
 }
 
 /* add the pre-defined fields of entities in the <nbt> fragment */
-static void entityCreateGeneric(NBTFile nbt, Entity entity, int itemId, int side)
+static void entityCreateGeneric(NBTFile nbt, Entity entity, int itemId, int side, int orientX)
 {
 	static float orient[] = {0, 270, 180, 90, 0, 0};
 	EntityUUID_t uuid;
@@ -1099,8 +1109,8 @@ static void entityCreateGeneric(NBTFile nbt, Entity entity, int itemId, int side
 	pos64[VX] = entity->pos[VX];
 	pos64[VY] = entity->pos[VY];
 	pos64[VZ] = entity->pos[VZ];
-	entity->rotation[0] = orient[side];
-	entity->rotation[1] = 0;
+	entity->rotation[0] = orient[side >= SIDE_TOP ? globals.direction : side];
+	entity->rotation[1] = orientX;
 	for (p = uuid.uuid8, e = p + sizeof uuid.uuid8; p < e; *p++ = rand());
 	itemGetTechName(itemId, id, sizeof id);
 	NBT_Add(nbt,
@@ -1108,15 +1118,17 @@ static void entityCreateGeneric(NBTFile nbt, Entity entity, int itemId, int side
 		TAG_Byte,        "Facing", 0,
 		TAG_Long,        "UUIDLeast", uuid.uuid64[0],
 		TAG_Long,        "UUIDMost",  uuid.uuid64[1],
-		TAG_Int,         "Dimension", 1,
+		TAG_Int,         "Dimension", 0,
 		TAG_List_Float,  "Rotation", 2 | NBT_WithInit, entity->rotation,
 		TAG_List_Double, "Pos", 3 | NBT_WithInit, pos64,
 		TAG_String,      "id", id,
 		TAG_End
 	);
 	/* convert rotation back to trigonometric */
-	entity->rotation[0] = (360 - entity->rotation[0]) * M_PI / 180;
-	entity->rotation[1] = - entity->rotation[1] * (2*M_PI / 360);
+	entity->rotation[0] = (360 - entity->rotation[0]) * (M_PI / 180);
+	entity->rotation[1] = - entity->rotation[1] * (M_PI / 180);
+	if (entity->rotation[1] < 0)
+		entity->rotation[1] += 2*M_PI;
 }
 
 static void entityFillPos(vec4 dest, vec4 src, int side, vec size)
@@ -1128,15 +1140,15 @@ static void entityFillPos(vec4 dest, vec4 src, int side, vec size)
 		MINUSVZ
 	};
 	#define SHIFT(x, y, z)   (x | (y << 2) | (z << 4))
-	static uint8_t shifts[] = {
-		SHIFT(HALFVX,  HALFVY, PLUSVZ),
-		SHIFT(PLUSVZ,  HALFVY, HALFVX),
-		SHIFT(HALFVX,  HALFVY, MINUSVZ),
-		SHIFT(MINUSVZ, HALFVY, HALFVX)
+	static uint8_t shifts[] = { /* S, E, N, W, T, B */
+		SHIFT(HALFVX,  HALFVY,  PLUSVZ),
+		SHIFT(PLUSVZ,  HALFVY,  HALFVX),
+		SHIFT(HALFVX,  HALFVY,  MINUSVZ),
+		SHIFT(MINUSVZ, HALFVY,  HALFVX),
+		SHIFT(HALFVX,  PLUSVZ,  HALFVY),
+		SHIFT(HALFVX,  MINUSVZ, HALFVY),
 	};
 	#undef SHIFT
-
-	fprintf(stderr, "side = %d\n", side);
 
 	int8_t * norm = normals + side * 4, i;
 	uint8_t  shift = shifts[side];
@@ -1178,7 +1190,7 @@ void entityCreatePainting(Map map, int id)
 	entityFillPos(entity->pos, entities.createPos, entities.createSide, size);
 	c = mapGetChunk(map, entity->pos);
 	if (c == NULL) return; /* outside map? */
-	entityCreateGeneric(&nbt, entity, ID(321, 0), entities.createSide);
+	entityCreateGeneric(&nbt, entity, ID(321, 0), entities.createSide, 0);
 	NBT_Add(&nbt,
 		TAG_String, "Motive", buffer,
 		TAG_Compound_End
@@ -1211,7 +1223,7 @@ static void entityCreateItemFrame(Map map, vec4 pos, int side)
 	entityFillPos(entity->pos, pos, side, size);
 	c = mapGetChunk(map, entity->pos);
 	if (c == NULL) return; /* outside map? */
-	entityCreateGeneric(&nbt, entity, ID(389, 0), side);
+	entityCreateGeneric(&nbt, entity, ID(389, 0), side, side == SIDE_TOP ? 90 : side == SIDE_BOTTOM ? -90 : 0);
 	NBT_Add(&nbt, TAG_Compound_End);
 
 	entity->next = c->entityList;
@@ -1240,6 +1252,54 @@ void entityCreate(Map map, int itemId, vec4 pos, int side)
 		entities.createSide = side;
 		mceditUIOverlay(MCUI_OVERLAY_PAINTING);
 	}
+}
+
+/* action on entity */
+void entityUseItemOn(Map map, int entityId, int itemId, vec4 pos, int side)
+{
+	Entity entity = entityGetById(entityId - 1);
+
+	if (entity && itemGetByName(entity->name, True) == ID(389, 0))
+	{
+		Entity item;
+		Chunk  c = mapGetChunk(map, entity->pos);
+		/* check if there is already an item in it */
+		if (c && entity->next != ENTITY_END && (item = entityGetById(entity->next)) && item->ref == NULL)
+		{
+			/* no: add it to the item frame */
+			TEXT buffer[64];
+			NBTFile_t tile = {.page = 127};
+			NBT_Add(&tile,
+				TAG_Raw_Data, NBT_Size(entity->tile), entity->tile,
+				TAG_Compound, "Item",
+					TAG_String, "id", itemGetTechName(itemId & ~15, buffer, sizeof buffer),
+					TAG_Byte,   "Count", 1,
+					TAG_Short,  "Damage", itemId & 15,
+					TAG_Compound_End
+			);
+			NBT_Add(&tile, TAG_Compound_End); /* end of whole entity */
+			//NBT_DumpCompound(&tile);
+			chunkDeleteTile(c, entity->tile);
+			entity->tile = tile.mem;
+			entity->blockId = itemId | ENTITY_ITEM;
+			uint16_t next = entity->next;
+			entity = entityItemFrameAddItem(entity);
+			entity->next = next;
+		}
+	}
+}
+
+/* get the block id (if any) stored in this entity */
+int entityGetBlockId(int id)
+{
+	Entity entity = entityGetById(id-1);
+
+	if (entity)
+	{
+		if (entity->blockId > 0) return entity->blockId & 0xffff;
+		return itemGetByName(entity->name, True);
+	}
+	return 0;
 }
 
 void entityAnimate(void)

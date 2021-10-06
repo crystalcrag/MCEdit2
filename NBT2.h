@@ -44,7 +44,8 @@ DATA8 NBT_Copy(DATA8 mem);
 DATA8 NBT_Compress(NBTFile, int * size, int page, NBT_WriteCb_t cb, APTR cbparam);
 
 /* only available in debug */
-int NBT_Dump(NBTFile, int offset, int level, FILE * out);
+int  NBT_Dump(NBTFile, int offset, int level, FILE * out);
+void NBT_DumpCompound(NBTFile);
 
 #define NBT_Free(ptr)        free((ptr)->mem)
 #define MIN_SECTION_MEM      10328
