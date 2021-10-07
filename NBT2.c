@@ -1344,7 +1344,7 @@ int NBT_Dump(NBTFile root, int offset, int level, FILE * out)
 	case TAG_Short:  fprintf(out, "TAG_Short(\"%s\"): %d [%d]\n", p, val->word, hdr->size);    sz = 2; break;
 	case TAG_Int:    fprintf(out, "TAG_Int(\"%s\"): %d [%d]\n", p, val->dword, hdr->size);     sz = 4; break;
 	case TAG_Long:   fprintf(out, "TAG_Long(\"%s\"): %I64d [%d]\n", p, val->qword, hdr->size); sz = 8; break;
-	case TAG_Float:  fprintf(out, "TAG_Float(\"%s\"): %f [%d]\n", p, val->real32, hdr->size);  sz = 4; break;
+	case TAG_Float:  fprintf(out, "TAG_Float(\"%s\"): %f [%d]\n", p, (double) val->real32, hdr->size);  sz = 4; break;
 	case TAG_Double: fprintf(out, "TAG_Double(\"%s\"): %g [%d]\n", p, val->real64, hdr->size); sz = 8; break;
 	case TAG_String: fprintf(out, "TAG_String(\"%s\"): %s [%d]\n", p, mem, hdr->size);         sz = strlen(mem) + 1; break;
 	case TAG_Byte_Array:
@@ -1375,7 +1375,7 @@ int NBT_Dump(NBTFile root, int offset, int level, FILE * out)
 				case 1: fprintf(out, "%u", p[0]); break;
 				case 2: fprintf(out, "%u", ((uint16_t *)p)[0]); break;
 				case 4:
-					if (type == TAG_Float) fprintf(out, "%g", ((float *)p)[0]);
+					if (type == TAG_Float) fprintf(out, "%g", (double) ((float *)p)[0]);
 					else fprintf(out, "%d", ((uint32_t *)p)[0]);
 					break;
 				case 8:

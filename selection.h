@@ -105,7 +105,7 @@ struct Selection_t
 #define MAX_SELECTION          1024 /* blocks */
 #define MAX_VERTEX             (8*2+(36+24)*2)
 #define MAX_INDEX              ((24 + 36)*2)
-#define VTX_EPSILON            0.005
+#define VTX_EPSILON            0.005f
 
 #endif
 #endif

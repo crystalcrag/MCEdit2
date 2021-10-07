@@ -357,6 +357,7 @@ enum                       /* special values for Block_t.rswire */
 #define RELDY(x)           (VERTEX(x) + MIDVTX - Y1)
 #define RELDZ(x)           (VERTEX(x) + MIDVTX - Z1)
 #define VERTEX(x)          ((x) * BASEVTX + ORIGINVTX)
+#define FROMVERTEX(x)      (((x) - ORIGINVTX) * (1.f/BASEVTX))
 #define STATEFLAG(b,x)     ((b)->rotate & x)
 #define SPECIALSTATE(b)    ((b)->special & 31)
 #define CATFLAGS           0x0f
@@ -418,7 +419,7 @@ struct BlockVertex_t       /* store custom block model vertex data (needed by ch
 #define BHDR_DETAILFACES         11
 #define BHDR_INCFACEID           (1<<17)
 #define SAME_AS                  -100
-#define COPY_MODEL               1e6
+#define COPY_MODEL               1e6f
 
 #define GET_UCOORD(vertex)       ((vertex)[3] & 511)
 #define GET_VCOORD(vertex)       ((((vertex)[3] & (127<<9)) >> 6) | ((vertex)[4] & 7))

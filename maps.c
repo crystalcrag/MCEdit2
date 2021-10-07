@@ -315,7 +315,7 @@ int intersectRayPlane(vec4 P0, vec4 u, vec4 V0, vec norm, vec4 I)
 	float D =  vecDotProduct(norm, u);
 	float N = -vecDotProduct(norm, w);
 
-	if (fabs(D) < EPSILON) /* segment is parallel to plane */
+	if (fabsf(D) < EPSILON) /* segment is parallel to plane */
 		return 0;
 
 	/* they are not parallel: compute intersect param */
@@ -435,7 +435,7 @@ Bool mapPointToBlock(Map map, vec4 camera, float * yawPitch, vec4 dir, vec4 ret,
 						memcpy(ret, plane, 3*sizeof *ret);
 						memcpy(data->inter, inter, sizeof data->inter);
 						data->side = opposite[i];
-						data->topHalf = data->side < 4 && inter[1] - (int) inter[1] >= 0.5;
+						data->topHalf = data->side < 4 && inter[1] - (int) inter[1] >= 0.5f;
 						ret[3] = 1;
 						if (b->bboxId > 1)
 						{

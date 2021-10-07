@@ -50,10 +50,10 @@ Model modelSphere(float size, int subdiv)
 	{
 		for (j = 0; j <= subdiv; j ++)
 		{
-			float y = cos(M_PI - i * M_PI / subdiv);
-			float a = fabs(cos(asin(y)));
-			float x = - cos(j * 2 * M_PI / subdiv) * a;
-			float z = sin(j * 2 * M_PI / subdiv) * a;
+			float y = cosf(M_PIf - i * M_PIf / subdiv);
+			float a = fabsf(cosf(asinf(y)));
+			float x = - cosf(j * 2 * M_PIf / subdiv) * a;
+			float z = sinf(j * 2 * M_PIf / subdiv) * a;
 
 			*v++ = x * size;
 			*v++ = y * size;
@@ -80,7 +80,6 @@ Model modelSphere(float size, int subdiv)
 	return ret;
 }
 
-#define D_TO_R     (M_PI/180)
 Model modelTorus(int sides, int cs_sides, float radius, float cs_radius)
 {
 	int numVertices = (sides+1) * (cs_sides+1);
@@ -109,14 +108,14 @@ Model modelTorus(int sides, int cs_sides, float radius, float cs_radius)
 	/* iterate cs_sides: inner ring */
 	for (j = 0; j <= 360; j += cs_angleincs)
 	{
-		currentradius = radius + (cs_radius * cosf(j * D_TO_R));
-		zval = cs_radius * sinf(j * D_TO_R);
+		currentradius = radius + (cs_radius * cosf(j * DEG_TO_RAD));
+		zval = cs_radius * sinf(j * DEG_TO_RAD);
 
 		/* iterate sides: outer ring */
 		for (i = 0; i <= 360; i += angleincs, Vertices += 3, TexCoord += 2)
 		{
-			Vertices[0] = currentradius * cosf(i * D_TO_R);
-			Vertices[1] = currentradius * sinf(i * D_TO_R);
+			Vertices[0] = currentradius * cosf(i * DEG_TO_RAD);
+			Vertices[1] = currentradius * sinf(i * DEG_TO_RAD);
 			Vertices[2] = zval;
 
 			float u = i / 360.;
@@ -132,8 +131,8 @@ Model modelTorus(int sides, int cs_sides, float radius, float cs_radius)
 	{
 		float * vert;
 		float * norm;
-		float xc = radius * cos(i * D_TO_R);
-		float yc = radius * sin(i * D_TO_R);
+		float xc = radius * cosf(i * DEG_TO_RAD);
+		float yc = radius * sinf(i * DEG_TO_RAD);
 		for (j = 0, vert = Vertices, norm = Normals; j <= 360; j += cs_angleincs, norm += nextrow, vert += nextrow)
 		{
 			norm[0] = vert[0] - xc;

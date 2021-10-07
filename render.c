@@ -739,9 +739,9 @@ void renderSetViewMat(vec4 pos, vec4 lookat, float * yawPitch)
 	render.yaw = yawPitch[0];
 	render.pitch = yawPitch[1];
 	globals.direction = 1; /* east */
-	if (M_PI_4      <= render.yaw && render.yaw <= M_PI_4 + M_PI_2) globals.direction = 0; else /* south:  45 ~ 135 */
-	if (M_PI+M_PI_4 <= render.yaw && render.yaw <= 2*M_PI-M_PI_4)   globals.direction = 2; else /* north: 225 ~ 315 */
-	if (M_PI-M_PI_4 <= render.yaw && render.yaw <= M_PI+M_PI_4)     globals.direction = 3;      /* west:  135 ~ 225 */
+	if (M_PI_4f       <= render.yaw && render.yaw <= M_PI_4f+M_PI_2f) globals.direction = 0; else /* south:  45 ~ 135 */
+	if (M_PIf+M_PI_4f <= render.yaw && render.yaw <= 2*M_PIf-M_PI_4f) globals.direction = 2; else /* north: 225 ~ 315 */
+	if (M_PIf-M_PI_4f <= render.yaw && render.yaw <= M_PIf+M_PI_4f)   globals.direction = 3;      /* west:  135 ~ 225 */
 	if (oldDir != globals.direction)
 		selectionSetSize();
 }
@@ -849,8 +849,8 @@ static void renderDrawExtInv(Item items, float scale, int count)
 {
 	/* need to add extra info on top of items */
 	NVGcontext * vg = globals.nvgCtx;
-	int fh = roundf(scale * 0.4);
-	int sz = roundf(scale * 0.0625);
+	int fh = roundf(scale * 0.4f);
+	int sz = roundf(scale * 0.0625f);
 	int i;
 
 	nvgBeginFrame(vg, globals.width, globals.height, 1);
@@ -1183,8 +1183,8 @@ static void renderPrepVisibleChunks(Map map)
 					alphaIndex --;
 
 					/* check if we need to sort vertex: this is costly but should not be done very often */
-					if ((fabsf(render.yaw - cd->yaw) > M_PI_4 && fabsf(render.yaw - cd->yaw - 2*M_PI) > M_PI_4) ||
-					     fabsf(render.pitch - cd->pitch) > M_PI_4 ||
+					if ((fabsf(render.yaw - cd->yaw) > M_PI_4f && fabsf(render.yaw - cd->yaw - 2*M_PIf) > M_PI_4f) ||
+					     fabsf(render.pitch - cd->pitch) > M_PI_4f ||
 					     (player == cd && renderHasPlayerMoved(map, cd)))
 					{
 						renderSortVertex(bank, cd);
@@ -1487,7 +1487,7 @@ void renderWorld(void)
 	nvgTextAlign(vg, NVG_ALIGN_TOP);
 	nvgSave(vg);
 	nvgTranslate(vg, globals.width - scale - render.compassOffset, scale); scale -= 20;
-	nvgRotate(vg, M_PI - render.yaw);
+	nvgRotate(vg, M_PIf - render.yaw);
 	nvgBeginPath(vg);
 	nvgRect(vg, -scale, -scale, scale*2, scale*2);
 	nvgFillPaint(vg, nvgImagePattern(vg, -scale, -scale, scale*2, scale*2, 0, render.compass, 1));
@@ -1496,7 +1496,7 @@ void renderWorld(void)
 
 	/* draw inventory bar */
 	scale = render.scale;
-	render.inventory->x = (globals.width - scale * 182) * 0.5 + 3 * scale;
+	render.inventory->x = (globals.width - scale * 182) * 0.5f + 3 * scale;
 	render.inventory->y = 3 * scale;
 	nvgSave(vg);
 	nvgScale(vg, scale, scale);

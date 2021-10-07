@@ -645,6 +645,7 @@ static int mcuiFilterItems(SIT_Widget w, APTR cd, APTR ud)
 	return 1;
 }
 
+/* add/remove items from inventory using the keyboard */
 static void mcuiAddToInventory(MCInventory inv)
 {
 	int pos = inv->top + inv->curX + inv->curY * inv->invCol;
@@ -688,17 +689,43 @@ static void mcuiAddToInventory(MCInventory inv)
 	}
 }
 
-static void mcuiDelFromInventory(MCInventory inv)
+/* try to move item into another inventory (delete if can't) */
+static void mcuiTransferFromInventory(MCInventory inv)
 {
 	int pos = inv->top + inv->curX + inv->curY * inv->invCol;
 	if (pos < inv->itemsNb)
 	{
+		/* check if there is another inventory group */
+		Item transfer = NULL;
+		int  i, j;
+		for (i = 0; i < mcui.groupCount; i ++)
+		{
+			MCInventory dest = mcui.groups[i];
+			if (dest->movable != INV_PICK_ONLY && dest->groupId != inv->groupId)
+			{
+				for (j = 0; j < dest->itemsNb && dest->items[j].id > 0; j ++);
+				if (j < dest->itemsNb)
+				{
+					transfer = dest->items + j;
+					break;
+				}
+			}
+			dest = NULL;
+		}
 		Item item = inv->items + pos;
 		if (item->count > 0)
 		{
-			item->count --;
-			if (item->count == 0)
-				item->id = 0;
+			if (transfer)
+			{
+				transfer[0] = item[0];
+				memset(item, 0, sizeof item);
+			}
+			else
+			{
+				item->count --;
+				if (item->count == 0)
+					item->id = 0;
+			}
 			SIT_ForceRefresh();
 		}
 	}
@@ -770,7 +797,7 @@ static int mcuiInventoryKeyboard(SIT_Widget w, APTR cd, APTR ud)
 			if (inv->movable == INV_PICK_ONLY)
 				mcuiAddToInventory(inv);
 			else
-				mcuiDelFromInventory(inv);
+				mcuiTransferFromInventory(inv);
 			return 0;
 		default: return 0;
 		}
@@ -995,6 +1022,9 @@ static int mcuiTransferItems(SIT_Widget w, APTR cd, APTR ud)
 	return 1;
 }
 
+/*
+ * single/double chest inventory editing (ender, shulker or normal)
+ */
 void mcuiEditChestInventory(Inventory player, Item items, int count)
 {
 	/* same scale than player toolbar... */
@@ -1032,8 +1062,8 @@ void mcuiEditChestInventory(Inventory player, Item items, int count)
 	toolbar.items = player->items;
 
 	mcuiInitInventory(SIT_GetById(diag, "inv"),    &chest);
-	mcuiInitInventory(SIT_GetById(diag, "player"), &selfinv);
 	mcuiInitInventory(SIT_GetById(diag, "tb"),     &toolbar);
+	mcuiInitInventory(SIT_GetById(diag, "player"), &selfinv);
 
 	SIT_GetValues(chest.cell, SIT_Padding, mcui.padding, NULL);
 	mcui.itemSz = mcui.cellSz - mcui.padding[0] - mcui.padding[2];
@@ -1505,10 +1535,10 @@ static int mcuiFillDisabled(SIT_Widget w, APTR cd, APTR ud)
 	if (enabled == 0)
 	{
 		NVGcontext * vg = paint->nvg;
-		float dist = floorf(paint->fontSize * 0.4);
+		float dist = floorf(paint->fontSize * 0.4f);
 		float x1   = paint->x + dist, x2 = paint->x + paint->w - dist;
 		float y1   = paint->y + dist, y2 = paint->y + paint->h - dist;
-		nvgStrokeWidth(vg, dist * 0.6);
+		nvgStrokeWidth(vg, dist * 0.6f);
 		nvgStrokeColorRGBA8(vg, "\xff\x00\x00\xff");
 		nvgBeginPath(vg);
 		nvgMoveTo(vg, x1, y1); nvgLineTo(vg, x2, y2);

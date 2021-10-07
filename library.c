@@ -111,15 +111,15 @@ static void libraryGenThumb(LibBrush lib)
 	/* point the camera to the axis with the biggest surface area */
 
 	switch (axis) {
-	case VX: camera[VX] = center[VX] * 1.1;
-	         camera[VY] = center[VY] * 1.3;
-	         camera[VZ] = center[VZ] + (globals.direction == 0 ? - center[VX] : center[VX]) * 1.5; break;
-	case VZ: camera[VZ] = center[VZ] * 1.1;
-	         camera[VY] = center[VY] * 1.3;
-	         camera[VX] = center[VX] + (globals.direction == 1 ? - center[VZ] : center[VZ]) * 1.5; break;
-	case VY: camera[VX] = center[VX] * 1.1;
+	case VX: camera[VX] = center[VX] * 1.1f;
+	         camera[VY] = center[VY] * 1.3f;
+	         camera[VZ] = center[VZ] + (globals.direction == 0 ? - center[VX] : center[VX]) * 1.5f; break;
+	case VZ: camera[VZ] = center[VZ] * 1.1f;
+	         camera[VY] = center[VY] * 1.3f;
+	         camera[VX] = center[VX] + (globals.direction == 1 ? - center[VZ] : center[VZ]) * 1.5f; break;
+	case VY: camera[VX] = center[VX] * 1.1f;
 	         camera[VY] = center[VY] + MAX(brush->size[VX], brush->size[VZ]);
-	         camera[VZ] = center[VZ] * 1.1;
+	         camera[VZ] = center[VZ] * 1.1f;
 	}
 
 	if (library.uboShader == 0)

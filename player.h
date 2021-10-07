@@ -37,7 +37,7 @@ enum /* possible values for PickBuf.state */
 #define MAXCOLINV             9
 #define INFO_INV_DURATION     3
 #define INFO_INV_FADEOUT      2
-#define PLAYER_HEIGHT         1.6
+#define PLAYER_HEIGHT         1.6f
 
 #define LEFT      's'
 #define RIGHT     'f'

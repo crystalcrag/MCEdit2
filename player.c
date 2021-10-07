@@ -15,12 +15,12 @@
 #include "SIT.h"
 #include "globals.h"
 
-#define JUMP_STRENGTH          0.25
-#define MAX_SPEED              4.317
-#define FLY_SPEED             10.000
-#define FALL_SPEED            10.0
-#define MAX_FALL              10.000
-#define BASE_ACCEL            24.0
+#define JUMP_STRENGTH          0.25f
+#define MAX_SPEED              4.317f
+#define FLY_SPEED             10.000f
+#define FALL_SPEED            10.0f
+#define MAX_FALL              10.000f
+#define BASE_ACCEL            24.0f
 
 static float sensitivity = 1/1000.;
 
@@ -46,9 +46,9 @@ void playerInit(Player p)
 	 * rotation[0]: yaw, clockwise, degrees, where 0 = south.
 	 * rotation[1]: pitch, degrees, +/- 90. negative = up, positive = down
 	 */
-	p->angleh = fmod((rotation[0] + 90) * (M_PI / 180), 2*M_PI);
-	p->anglev = - rotation[1] * (2*M_PI / 360);
-	if (p->angleh < 0) p->angleh += 2*M_PI;
+	p->angleh = fmodf((rotation[0] + 90) * DEG_TO_RAD, 2*M_PIf);
+	p->anglev = - rotation[1] * DEG_TO_RAD;
+	if (p->angleh < 0) p->angleh += 2*M_PIf;
 
 	float cv = cosf(p->anglev);
 	p->lookat[VX] = p->pos[VX] + 8 * cosf(p->angleh) * cv;
@@ -72,8 +72,8 @@ void playerSaveLocation(Player p)
 	float   select = p->inventory.selected;
 
 	/* convert radians into degrees */
-	rotation[0] = p->angleh * 180 / M_PI - 90;
-	rotation[1] = - p->anglev * 180 / M_PI;
+	rotation[0] = p->angleh * RAD_TO_DEG - 90;
+	rotation[1] = - p->anglev * RAD_TO_DEG;
 	if (rotation[0] < 0) rotation[0] += 360;
 
 	NBT_SetFloat(levelDat, NBT_FindNode(levelDat, player, "Pos"), p->pos, 3);
@@ -93,17 +93,17 @@ static void playerSetDir(Player p)
 	float angle = p->angleh;
 	switch (p->keyvec & 15) {
 	case PLAYER_MOVE_FORWARD: break;
-	case PLAYER_MOVE_BACK:    angle += M_PI; break;
-	case PLAYER_STRAFE_LEFT:  angle -= M_PI_2; break;
-	case PLAYER_STRAFE_RIGHT: angle += M_PI_2; break;
+	case PLAYER_MOVE_BACK:    angle += M_PIf; break;
+	case PLAYER_STRAFE_LEFT:  angle -= M_PI_2f; break;
+	case PLAYER_STRAFE_RIGHT: angle += M_PI_2f; break;
 	case PLAYER_MOVE_FORWARD |
-	     PLAYER_STRAFE_LEFT:  angle -= M_PI_4; break;
+	     PLAYER_STRAFE_LEFT:  angle -= M_PI_4f; break;
 	case PLAYER_MOVE_BACK |
-	     PLAYER_STRAFE_LEFT:  angle -= M_PI_2 + M_PI_4; break;
+	     PLAYER_STRAFE_LEFT:  angle -= M_PI_2f + M_PI_4f; break;
 	case PLAYER_MOVE_FORWARD |
-	     PLAYER_STRAFE_RIGHT: angle += M_PI_4; break;
+	     PLAYER_STRAFE_RIGHT: angle += M_PI_4f; break;
 	case PLAYER_MOVE_BACK |
-	     PLAYER_STRAFE_RIGHT: angle += M_PI_2 + M_PI_4; break;
+	     PLAYER_STRAFE_RIGHT: angle += M_PI_2f + M_PI_4f; break;
 	default:
 		p->dir[VX] = p->dir[VZ] = 0;
 		p->keyvec |= PLAYER_STOPPING;
@@ -190,10 +190,10 @@ void playerLookAt(Player p, int dx, int dy)
 	/* keep yaw between 0 and 2 * pi */
 	float yaw = fmod(p->angleh + dx * sensitivity, 2*M_PI);
 	float pitch = p->anglev - dy * sensitivity;
-	if (yaw < 0) yaw += 2*M_PI;
+	if (yaw < 0) yaw += 2*M_PIf;
 	/* and pitch between -pi and pi */
-	if (pitch < -M_PI_2+EPSILON) pitch = -M_PI_2+EPSILON;
-	if (pitch >  M_PI_2-EPSILON) pitch =  M_PI_2-EPSILON;
+	if (pitch < -M_PI_2f+EPSILON) pitch = -M_PI_2f+EPSILON;
+	if (pitch >  M_PI_2f-EPSILON) pitch =  M_PI_2f-EPSILON;
 	p->angleh = yaw;
 	p->anglev = pitch;
 	float cv = cosf(pitch);
@@ -225,9 +225,9 @@ void playerAdjustVelocity(Player p, float delta)
 		max = BASE_ACCEL * delta / max;
 		if (! p->fly)
 		{
-			if (p->onground == 0) max *= 0.15;
+			if (p->onground == 0) max *= 0.15f;
 		}
-		else if (p->keyvec & PLAYER_STOPPING) max *= 0.75;
+		else if (p->keyvec & PLAYER_STOPPING) max *= 0.75f;
 		for (i = VX; i <= VZ; i += 2)
 		{
 			float d = diff[i] * max;
@@ -255,7 +255,7 @@ void playerMove(Player p)
 	int   keyvec = p->keyvec;
 	if (diff == 0) return;
 	if (diff > 100) diff = 100; /* lots of lag :-/ */
-	diff *= 1/1000.;
+	diff *= 1/1000.f;
 	p->tick = globals.curTime;
 	vec4 orig_pos;
 

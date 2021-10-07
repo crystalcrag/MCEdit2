@@ -240,19 +240,19 @@ static void signUpdateBank(SignText sign)
 				 */
 				nvgFontSize(vg, fontsz);
 				width = nvgTextBounds(vg, 0, 0, text, text + len, NULL);
-				float ypos = y + (SIGN_HEIGHT/4 - fontsz) * 0.5;
+				float ypos = y + (SIGN_HEIGHT/4 - fontsz) * 0.5f;
 				if (width > SIGN_WIDTH)
 				{
 					/* argh, still too big: write text with ellipsis */
 					float pos;
 					len = nvgTextFit(vg, text, text + len, SIGN_WIDTH - ellipse, &width);
-					pos = nvgText(vg, x + (SIGN_WIDTH - width - ellipse) * 0.5, ypos, text, text + len);
+					pos = nvgText(vg, x + (SIGN_WIDTH - width - ellipse) * 0.5f, ypos, text, text + len);
 					nvgText(vg, pos, ypos, ellipsis, ellipsis + 3);
 				}
-				else nvgText(vg, x + (SIGN_WIDTH - width) * 0.5, ypos, text, text + len);
+				else nvgText(vg, x + (SIGN_WIDTH - width) * 0.5f, ypos, text, text + len);
 				nvgFontSize(vg, SIGN_HEIGHT/4);
 			}
-			else nvgText(vg, x + (SIGN_WIDTH - width) * 0.5, y, text, text + len);
+			else nvgText(vg, x + (SIGN_WIDTH - width) * 0.5f, y, text, text + len);
 		}
 	}
 

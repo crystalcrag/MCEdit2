@@ -122,8 +122,8 @@ int physicsCheckCollision(Map map, vec4 start, vec4 end, VTXBBox bbox, float aut
 
 						for (m = 0; m < 3; m ++)
 						{
-							bboxFloat[m]   = (blockBBox->pt1[m] - ORIGINVTX) * (1./BASEVTX) + rel[m];
-							bboxFloat[3+m] = (blockBBox->pt2[m] - ORIGINVTX) * (1./BASEVTX) + rel[m];
+							bboxFloat[m]   = (blockBBox->pt1[m] - ORIGINVTX) * (1.f/BASEVTX) + rel[m];
+							bboxFloat[3+m] = (blockBBox->pt2[m] - ORIGINVTX) * (1.f/BASEVTX) + rel[m];
 						}
 						/* bounding box not intersecting broad rect: ignore bbox */
 						if (bboxFloat[VX] >= broad[VX+3] || bboxFloat[VX+3] <= broad[VX] ||
@@ -206,8 +206,8 @@ static Bool intersectBBox(BlockIter iter, VTXBBox bbox, float minMax[6], float i
 
 	for (i = 0; i < 3; i ++)
 	{
-		float boxmin = (bbox->pt1[i] - ORIGINVTX) * (1./BASEVTX) + pt[i];
-		float boxmax = (bbox->pt2[i] - ORIGINVTX) * (1./BASEVTX) + pt[i];
+		float boxmin = FROMVERTEX(bbox->pt1[i]) + pt[i];
+		float boxmax = FROMVERTEX(bbox->pt2[i]) + pt[i];
 
 		inter[i]   = boxmin > minMax[i]   ? boxmin : minMax[i];
 		inter[3+i] = boxmax < minMax[3+i] ? boxmax : minMax[3+i];
@@ -223,8 +223,8 @@ Bool physicsCheckOnGround(Map map, vec4 start, VTXBBox bbox)
 
 	for (i = 0; i < 3; i ++)
 	{
-		minMax[i]   = (bbox->pt1[i] - ORIGINVTX) * (1./BASEVTX) + start[i];
-		minMax[3+i] = (bbox->pt2[i] - ORIGINVTX) * (1./BASEVTX) + start[i];
+		minMax[i]   = FROMVERTEX(bbox->pt1[i]) + start[i];
+		minMax[3+i] = FROMVERTEX(bbox->pt2[i]) + start[i];
 	}
 
 	int8_t dx = (int) minMax[VX+3] - (int) minMax[VX];
@@ -266,7 +266,7 @@ void physicsInitEntity(PhysicsEntity entity, int blockId)
 	entity->friction[VX] = 0.0001;
 	entity->friction[VZ] = 0.0001;
 	/* gravity: material heavier than air will "sink", lighter than air will rise */
-	entity->friction[VY] = 0.02 * (1/5.) * density;
+	entity->friction[VY] = 0.02f * (1/5.f) * density;
 	/* note: 1/5 because 0.02 was calibrated for stone */
 	entity->density = density;
 
@@ -279,8 +279,8 @@ static void physicsChangeEntityDir(PhysicsEntity entity)
 {
 	float angle = RandRange(0, 2 * M_PI);
 	entity->dir[VY] = 0;
-	entity->dir[VX] = cosf(angle) * 0.01;
-	entity->dir[VZ] = sinf(angle) * 0.01;
+	entity->dir[VX] = cosf(angle) * 0.01f;
+	entity->dir[VZ] = sinf(angle) * 0.01f;
 	entity->friction[VZ] = -0.001;
 	entity->friction[VX] = -0.001;
 	if (entity->dir[VX] < 0) entity->negXZ |= 1, entity->dir[VX] = - entity->dir[VX];
@@ -306,10 +306,10 @@ void physicsMoveEntity(Map map, PhysicsEntity entity, float speed)
 	if (entity->VYblocked)
 	{
 		/* increase friction if sliding on ground */
-		entity->friction[VX] += 0.0005 * speed;
-		entity->friction[VZ] += 0.0005 * speed;
+		entity->friction[VX] += 0.0005f * speed;
+		entity->friction[VZ] += 0.0005f * speed;
 	}
-	else entity->friction[VY] += 0.003 * speed * entity->density;
+	else entity->friction[VY] += 0.003f * speed * entity->density;
 
 	/* check collision */
 	int axis = physicsCheckCollision(map, oldLoc, entity->loc, entity->bbox, False);
@@ -330,8 +330,8 @@ void physicsMoveEntity(Map map, PhysicsEntity entity, float speed)
 			}
 			else /* hit the ground */
 			{
-				entity->dir[VY] = -0.1 * speed;
-				entity->friction[VY] = 0.02 * (1/5.) * (entity->density - blockIds[0].density);
+				entity->dir[VY] = -0.1f * speed;
+				entity->friction[VY] = 0.02f * (1/5.f) * (entity->density - blockIds[0].density);
 			}
 		}
 	}

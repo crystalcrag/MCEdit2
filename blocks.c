@@ -430,7 +430,7 @@ DATA16 blockParseModel(float * values, int count, DATA16 buffer)
 			float v = vert[10+cont];
 			if (v != 0)
 			{
-				matRotate(tmp, v * M_PI / 180, cont);
+				matRotate(tmp, v * DEG_TO_RAD, cont);
 				matMult(rotCascade, rotCascade, tmp);
 				rotCas ++;
 			}
@@ -449,11 +449,11 @@ DATA16 blockParseModel(float * values, int count, DATA16 buffer)
 
 		/* first 12 floats encodes: dimension, translation, rotation, and model rotation */
 		if (vert[6] != 0)
-			matRotate(rotation, vert[6] * M_PI / 180, 0), nbRot ++;
+			matRotate(rotation, vert[6] * DEG_TO_RAD, 0), nbRot ++;
 
 		if (vert[7] != 0)
 		{
-			matRotate(tmp, vert[7] * M_PI / 180, 1), nbRot ++;
+			matRotate(tmp, vert[7] * DEG_TO_RAD, 1), nbRot ++;
 			if (nbRot == 1)
 				memcpy(rotation, tmp, sizeof tmp);
 			else
@@ -462,7 +462,7 @@ DATA16 blockParseModel(float * values, int count, DATA16 buffer)
 
 		if (vert[8] != 0)
 		{
-			matRotate(tmp, vert[8] * M_PI / 180, 2), nbRot ++;
+			matRotate(tmp, vert[8] * DEG_TO_RAD, 2), nbRot ++;
 			if (nbRot == 1)
 				memcpy(rotation, tmp, sizeof tmp);
 			else
@@ -475,9 +475,9 @@ DATA16 blockParseModel(float * values, int count, DATA16 buffer)
 		case 3: matRotate(rot90, M_PI+M_PI_2, 1);
 		}
 
-		trans[0] = vert[3] / 16 - 0.5;
-		trans[1] = vert[4] / 16 - 0.5;
-		trans[2] = vert[5] / 16 - 0.5;
+		trans[0] = vert[3] / 16 - 0.5f;
+		trans[1] = vert[4] / 16 - 0.5f;
+		trans[2] = vert[5] / 16 - 0.5f;
 
 		for (j = idx = 0, start = p; faces; j ++, faces >>= 1, detail >>= 1)
 		{
@@ -512,13 +512,13 @@ DATA16 blockParseModel(float * values, int count, DATA16 buffer)
 				 * X, Y, Z can vary between -7.5 and 23.5; each mapped to [0 - 65535];
 				 * coord[] is centered around 0,0,0 (a cube of unit 1 has vertices of +/- 0.5)
 				 */
-				val = roundf((coord[0] + 0.5) * BASEVTX) + ORIGINVTX; p[0] = MIN(val, 65535);
-				val = roundf((coord[1] + 0.5) * BASEVTX) + ORIGINVTX; p[1] = MIN(val, 65535);
-				val = roundf((coord[2] + 0.5) * BASEVTX) + ORIGINVTX; p[2] = MIN(val, 65535);
+				val = roundf((coord[0] + 0.5f) * BASEVTX) + ORIGINVTX; p[0] = MIN(val, 65535);
+				val = roundf((coord[1] + 0.5f) * BASEVTX) + ORIGINVTX; p[1] = MIN(val, 65535);
+				val = roundf((coord[2] + 0.5f) * BASEVTX) + ORIGINVTX; p[2] = MIN(val, 65535);
 				/* needed for blockSetUVAndNormals() */
-				coord[0] += 0.5;
-				coord[1] += 0.5;
-				coord[2] += 0.5;
+				coord[0] += 0.5f;
+				coord[1] += 0.5f;
+				coord[2] += 0.5f;
 				if (cubeMap == 0 || (detail & 1))
 				{
 					div_t res = div(tex[0], 513);
@@ -1922,9 +1922,9 @@ int blockGenVertexBBox(BlockState b, VTXBBox box, int flag, int * vbo, int texCo
 			/* get normal vector */
 			vecCrossProduct(pts, pts+3, pts+6);
 			vecNormalize(pts, pts);
-			shift[0] = pts[0] * 0.01;
-			shift[1] = pts[1] * 0.01;
-			shift[2] = pts[2] * 0.01;
+			shift[0] = pts[0] * 0.01f;
+			shift[1] = pts[1] * 0.01f;
+			shift[2] = pts[2] * 0.01f;
 
 			/* shift vertex by normal */
 			for (j = 0; j < 4; j ++, lines += 2)
@@ -2418,7 +2418,7 @@ int blockAdjustOrient(int blockId, BlockOrient info, vec4 inter)
 		case BLOCK_SIGN:
 			if (side >= 4)
 			{
-				int data = (info->yaw + M_PI_2 + M_PI/16) / (M_PI/8);
+				int data = (info->yaw + M_PI_2f + M_PIf/16) / (M_PIf/8);
 				if (data > 15) data -= 16;
 				return ID(63, data);
 			}
@@ -3014,9 +3014,9 @@ void blockGetEmitterLocation(int blockId, float loc[3])
 		if (bbox[0] > 0)
 		{
 			bbox += bbox[0];
-			loc[0] = RandRange(bbox[0], bbox[3]) * 0.0625;
-			loc[1] = RandRange(bbox[1], bbox[4]) * 0.0625;
-			loc[2] = RandRange(bbox[2], bbox[5]&31) * 0.0625;
+			loc[0] = RandRange(bbox[0], bbox[3]) * 0.0625f;
+			loc[1] = RandRange(bbox[1], bbox[4]) * 0.0625f;
+			loc[2] = RandRange(bbox[2], bbox[5]&31) * 0.0625f;
 			return;
 		}
 	}
@@ -3026,9 +3026,9 @@ void blockGetEmitterLocation(int blockId, float loc[3])
 
 	VTXBBox bbox = blocks.bbox + state->bboxId;
 
-	loc[0] = (RandRange(bbox->pt1[0], bbox->pt2[0]) - ORIGINVTX) * (1./BASEVTX);
-	loc[2] = (RandRange(bbox->pt1[2], bbox->pt2[2]) - ORIGINVTX) * (1./BASEVTX);
-	loc[1] = (bbox->pt2[1] - ORIGINVTX) * (1./BASEVTX);
+	loc[0] = (RandRange(bbox->pt1[0], bbox->pt2[0]) - ORIGINVTX) * (1.f/BASEVTX);
+	loc[2] = (RandRange(bbox->pt1[2], bbox->pt2[2]) - ORIGINVTX) * (1.f/BASEVTX);
+	loc[1] = (bbox->pt2[1] - ORIGINVTX) * (1.f/BASEVTX);
 }
 
 

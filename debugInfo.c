@@ -44,8 +44,8 @@ void debugBlockVertex(SelBlock_t * select)
 			(int) select->current[0], (int) select->current[1], (int) select->current[2],
 			iter.offset, xyz[0], xyz[1], xyz[2], iter.ref->X, iter.cd->Y, iter.ref->Z
 		);
-		fprintf(stderr, "intersection at %g,%g,%g, mouse at %d,%d\n", render.selection.extra.inter[0],
-			render.selection.extra.inter[1], render.selection.extra.inter[2], render.mouseX, render.mouseY);
+		fprintf(stderr, "intersection at %g,%g,%g, mouse at %d,%d\n", (double) render.selection.extra.inter[0],
+			(double) render.selection.extra.inter[1], (double) render.selection.extra.inter[2], render.mouseX, render.mouseY);
 		i = redstoneIsPowered(iter, RSSAMEBLOCK, POW_NONE);
 		if (i)
 		{
@@ -87,18 +87,18 @@ void debugBlockVertex(SelBlock_t * select)
 
 			for (i = mem->size, p = buffer; i > 0; i -= VERTEX_DATA_SIZE, p += VERTEX_INT_SIZE)
 			{
-				#define FROMVERTEX(x)       (((x) - ORIGINVTX) >> 10)
+				#define INTVERTEX(x)       (((x) - ORIGINVTX) >> 10)
 				/* need to decode vertex buffer */
 				uint16_t V1[] = {p[0], p[0] >> 16, p[1]};
 				uint16_t V2[] = {
-					FROMVERTEX(V1[0] + bitfieldExtract(p[1], 16, 14) - MIDVTX),
-					FROMVERTEX(V1[1] + bitfieldExtract(p[2],  0, 14) - MIDVTX),
-					FROMVERTEX(V1[2] + bitfieldExtract(p[2], 14, 14) - MIDVTX)
+					INTVERTEX(V1[0] + bitfieldExtract(p[1], 16, 14) - MIDVTX),
+					INTVERTEX(V1[1] + bitfieldExtract(p[2],  0, 14) - MIDVTX),
+					INTVERTEX(V1[2] + bitfieldExtract(p[2], 14, 14) - MIDVTX)
 				};
 				uint16_t V3[] = {
-					FROMVERTEX(V1[0] + bitfieldExtract(p[3],  0, 14) - MIDVTX),
-					FROMVERTEX(V1[1] + bitfieldExtract(p[3], 14, 14) - MIDVTX),
-					FROMVERTEX(V1[2] + bitfieldExtract(p[4],  0, 14) - MIDVTX)
+					INTVERTEX(V1[0] + bitfieldExtract(p[3],  0, 14) - MIDVTX),
+					INTVERTEX(V1[1] + bitfieldExtract(p[3], 14, 14) - MIDVTX),
+					INTVERTEX(V1[2] + bitfieldExtract(p[4],  0, 14) - MIDVTX)
 				};
 				uint8_t side = bitfieldExtract(p[5], 9, 3);
 
@@ -360,7 +360,7 @@ static void nvgMultiLineText(NVGcontext * vg, float x, float y, STRPTR start, ST
 void debugCoord(APTR vg, vec4 camera, int total)
 {
 	TEXT message[256];
-	int  len = sprintf(message, "XYZ: %.2f, %.2f, %.2f (eyes)", camera[0], camera[1] - PLAYER_HEIGHT, camera[2]);
+	int  len = sprintf(message, "XYZ: %.2f, %.2f, %.2f (eyes)", (double) camera[0], (double)(camera[1] - PLAYER_HEIGHT), (double) camera[2]);
 	int  vis, culled;
 	ChunkData cd = globals.level->firstVisible;
 
@@ -516,8 +516,8 @@ void debugWorld(void)
 	nvgFontSize(vg, i);
 	nvgTextAlign(vg, NVG_ALIGN_TOP);
 	nvgStrokeWidth(vg, 1);
-	float tile = debug.sliceSz / 16.;
-	int   xoff = (debug.sliceSz - nvgTextBounds(vg, 0, 0, "99", NULL, NULL)) * 0.5;
+	float tile = debug.sliceSz / 16.f;
+	int   xoff = (debug.sliceSz - nvgTextBounds(vg, 0, 0, "99", NULL, NULL)) * 0.5f;
 
 	for (j = debug.cellV, y = debug.yoff; j > 0; j --, y += debug.sliceSz)
 	{

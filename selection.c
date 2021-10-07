@@ -149,8 +149,8 @@ static void selectionSetRect(int pointId)
 		vtx[0] = p[VX] * pad[VX];
 		vtx[1] = p[VY] * pad[VY];
 		vtx[2] = p[VZ] * pad[VZ];
-		vtx[3] = uv[0] * size[coordU[i>>2]]; if (vtx[3] > 0) vtx[3] -= 0.01;
-		vtx[4] = uv[1] * size[coordV[i>>2]]; if (vtx[4] > 0) vtx[4] -= 0.01;
+		vtx[3] = uv[0] * size[coordU[i>>2]]; if (vtx[3] > 0) vtx[3] -= 0.01f;
+		vtx[4] = uv[1] * size[coordV[i>>2]]; if (vtx[4] > 0) vtx[4] -= 0.01f;
 		vtx[3] /= 16;
 		vtx[4] /= 32;
 		if ((i & 3) == 3)
@@ -419,8 +419,8 @@ void selectionSetClonePt(vec4 pos, int side)
 
 	if (side >= 0)
 	{
-		i = off[0]; selection.clonePt[i] = pos[i] - floorf(selection.cloneSize[i] * 0.5);
-		i = off[1]; selection.clonePt[i] = pos[i] - floorf(selection.cloneSize[i] * 0.5);
+		i = off[0]; selection.clonePt[i] = pos[i] - floorf(selection.cloneSize[i] * 0.5f);
+		i = off[1]; selection.clonePt[i] = pos[i] - floorf(selection.cloneSize[i] * 0.5f);
 		i = off[2]; selection.clonePt[i] = pos[i] + (off[3] ? -floorf(selection.cloneSize[i]) : 1);
 	}
 
@@ -1032,7 +1032,7 @@ static void selectionBrushRotate(void)
 
 	/* relocate chunk coord and regenerate mesh */
 	swap(chunkX, chunkZ);
-	float diff = (selection.cloneSize[VX] - selection.cloneSize[VZ]) * 0.5;
+	float diff = (selection.cloneSize[VX] - selection.cloneSize[VZ]) * 0.5f;
 	selection.clonePt[VX] += roundf(diff);
 	selection.clonePt[VZ] += roundf(-diff);
 	/* chunk grid will be the same size */
@@ -1122,7 +1122,7 @@ static void selectionBrushRoll(void)
 			}
 		}
 		/* center the new brush in the center of the old */
-		float diff = (selection.cloneSize[VZ] - selection.cloneSize[VY]) * 0.5;
+		float diff = (selection.cloneSize[VZ] - selection.cloneSize[VY]) * 0.5f;
 		selection.clonePt[VZ] += roundf(diff);
 		selection.clonePt[VY] += roundf(-diff);
 		diff = selection.cloneSize[VZ];
@@ -1152,7 +1152,7 @@ static void selectionBrushRoll(void)
 				}
 			}
 		}
-		float diff = (selection.cloneSize[VX] - selection.cloneSize[VY]) * 0.5;
+		float diff = (selection.cloneSize[VX] - selection.cloneSize[VY]) * 0.5f;
 		selection.clonePt[VX] += roundf(diff);
 		selection.clonePt[VY] += roundf(-diff);
 		diff = selection.cloneSize[VX];
@@ -1386,9 +1386,9 @@ static int extendedDir(void)
 {
 	float pitch = globals.yawPitch[1];
 
-	if (pitch > M_PI_4)
+	if (pitch > M_PI_4f)
 		return SIDE_BOTTOM;
-	else if (pitch < - M_PI_4)
+	else if (pitch < - M_PI_4f)
 		return SIDE_TOP;
 	else
 		return selectionAsync.facing;
@@ -1769,9 +1769,9 @@ static void selectionProcessShape(void * unused)
 		swap(selSize[VX], selSize[VZ]);
 
 	vec4 center = {
-		pos[VX] + selSize[VX] * 0.5,
-		pos[VY] + selSize[VY] * 0.5,
-		pos[VZ] + selSize[VZ] * 0.5,
+		pos[VX] + selSize[VX] * 0.5f,
+		pos[VY] + selSize[VY] * 0.5f,
+		pos[VZ] + selSize[VZ] * 0.5f,
 	};
 
 	int   x, y, z;
@@ -1789,9 +1789,9 @@ static void selectionProcessShape(void * unused)
 	case SHAPE_SPHERE:
 	case SHAPE_CYLINDER:
 		/* equation of an ellipse is (x - center[VX])² / Rx² + (y - center[VY])² / Ry² + (z - center[VZ])² / Rz² <= 1 */
-		pos[VX] = 1 / (selSize[VX] * selSize[VX] * 0.25); /* == 1 / Rx.y.z² (selSize == diameter) */
-		pos[VY] = 1 / (selSize[VY] * selSize[VY] * 0.25);
-		pos[VZ] = 1 / (selSize[VZ] * selSize[VZ] * 0.25);
+		pos[VX] = 1 / (selSize[VX] * selSize[VX] * 0.25f); /* == 1 / Rx.y.z² (selSize == diameter) */
+		pos[VY] = 1 / (selSize[VY] * selSize[VY] * 0.25f);
+		pos[VZ] = 1 / (selSize[VZ] * selSize[VZ] * 0.25f);
 		break;
 	case SHAPE_DIAMOND:
 		/* equation of a diamond: |x - center[VX]| / Rx + |y - center[VY]| / Ry + |z - center[VZ]| / Rz <= 1 */
@@ -1869,17 +1869,17 @@ static void selectionProcessShape(void * unused)
 				if (slab)
 				{
 					vec4 vox = {
-						iter.ref->X + iter.x + 0.5 - center[VX],
-						iter.yabs + 0.25 - center[VY] - yoff,
-						iter.ref->Z + iter.z + 0.5 - center[VZ]
+						iter.ref->X + iter.x + 0.5f - center[VX],
+						iter.yabs + 0.25f - center[VY] - yoff,
+						iter.ref->Z + iter.z + 0.5f - center[VZ]
 					};
 					uint8_t slab;
 					/* hmmm: unsing 0.25 and 0.75 as center for axisS looks slightly off: uses 0.3 and 0.7 instead :-/ */
-					vox[axisS] -= 0.2; slab  = isInShape(vox);
-					vox[axisS] += 0.4; slab |= isInShape(vox) << 1;
-					vox[VY] += 0.5;
-					vox[axisS] -= 0.4; slab |= isInShape(vox) << 2;
-					vox[axisS] += 0.4; slab |= isInShape(vox) << 3;
+					vox[axisS] -= 0.2f; slab  = isInShape(vox);
+					vox[axisS] += 0.4f; slab |= isInShape(vox) << 1;
+					vox[VY] += 0.5f;
+					vox[axisS] -= 0.4f; slab |= isInShape(vox) << 2;
+					vox[axisS] += 0.4f; slab |= isInShape(vox) << 3;
 					int id = blockId;
 					switch (slab) {
 					default: continue;
@@ -1892,9 +1892,9 @@ static void selectionProcessShape(void * unused)
 				else
 				{
 					vec4 vox = {
-						iter.ref->X + iter.x + 0.5 - center[VX],
-						iter.yabs + 0.5 - center[VY] - yoff,
-						iter.ref->Z + iter.z + 0.5 - center[VZ]
+						iter.ref->X + iter.x + 0.5f - center[VX],
+						iter.yabs + 0.5f - center[VY] - yoff,
+						iter.ref->Z + iter.z + 0.5f - center[VZ]
 					};
 					switch (isInShape(vox)) {
 					case 1: mapUpdate(globals.level, NULL, blockId, NULL, UPDATE_SILENT); break;

@@ -146,8 +146,8 @@ void particlesExplode(Map map, int count, int blockId, vec4 pos)
 				float pitch = RandRange(M_PI/6, M_PI_2);
 				float yaw   = RandRange(0, M_PI_2);
 				float cp    = cosf(pitch);
-				if (xp < pos[VX] + 0.5) yaw = M_PI - yaw;
-				if (zp < pos[VZ] + 0.5) yaw = M_PI*2 - yaw;
+				if (xp < pos[VX] + 0.5f) yaw = M_PIf - yaw;
+				if (zp < pos[VZ] + 0.5f) yaw = M_PIf*2 - yaw;
 
 				/*
 				 * the speed of particles have been calibrated with 40fps
@@ -155,9 +155,9 @@ void particlesExplode(Map map, int count, int blockId, vec4 pos)
 				 */
 				p = particlesAlloc();
 				if (p == NULL) return;
-				p->physics.dir[VX] = cosf(yaw) * cp * 0.1;
-				p->physics.dir[VZ] = sinf(yaw) * cp * 0.1;
-				p->physics.dir[VY] = sinf(pitch) * 0.1;
+				p->physics.dir[VX] = cosf(yaw) * cp * 0.1f;
+				p->physics.dir[VZ] = sinf(yaw) * cp * 0.1f;
+				p->physics.dir[VY] = sinf(pitch) * 0.1f;
 
 				p->physics.loc[VX] = xp;
 				p->physics.loc[VY] = yp;
@@ -506,9 +506,9 @@ int particlesAnimate(Map map, vec4 camera)
 
 	/* this scale factor will make particles move at a constant no matter at what fps the screen is refreshed */
 	#ifndef SLOW
-	float speed = (globals.curTime - particles.lastTime) / 25.0f;
+	float speed = (float) ((globals.curTime - particles.lastTime) / 25);
 	#else
-	float speed = (globals.curTime - particles.lastTime) / 250.0f;
+	float speed = (float) ((globals.curTime - particles.lastTime) / 250);
 	#endif
 
 //	fprintf(stderr, "speed = %f, diff = %d\n", speed, time - particles.lastTime);

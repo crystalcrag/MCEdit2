@@ -757,7 +757,7 @@ Bool matInverse(mat4 res, mat4 m)
 	if (det == 0)
 		return False;
 
-	det = 1.0 / det;
+	det = 1.0f / det;
 
 	for (i = 0; i < 16; i++)
         res[i] = inv[i] * det;
@@ -769,7 +769,7 @@ Bool matInverse(mat4 res, mat4 m)
 void matPerspective(mat4 res, float fov_deg, float aspect, float znear, float zfar)
 {
 	memset(res, 0, sizeof (mat4));
-	double q = 1 / tan(fov_deg * M_PI / 360);
+	float q = 1 / tanf(fov_deg * DEG_TO_RAD * 0.5f);
 	res[A00] = q / aspect;
 	res[A11] = q;
 	res[A22] = (znear + zfar) / (znear - zfar);
@@ -877,7 +877,7 @@ void matPrint(mat4 A)
 	fputc('[', stderr);
 	for (i = 0; i < 16; i ++)
 	{
-		fprintf(stderr, "\t%g", A[num[i]]);
+		fprintf(stderr, "\t%g", (double) A[num[i]]);
 		if ((i & 3) == 3) fputc('\n', stderr);
 	}
 	fputs("];\n", stderr);

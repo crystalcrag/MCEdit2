@@ -81,7 +81,7 @@ Bool skydomeInit(mat4 mvp)
 void skydomeMoveSun(int sunMove)
 {
 	vec4 sunPos;
-	skydome.sunAngle += sunMove & 1 ? -0.01 : 0.01;
+	skydome.sunAngle += sunMove & 1 ? -0.01f : 0.01f;
 	skydomeGetSunPos(sunPos);
 	setShaderValue(skydome.shader, "sun_pos", 4, sunPos);
 }

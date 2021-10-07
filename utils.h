@@ -71,6 +71,11 @@ void setShaderValue(int prog, const char * field, int args, float * array);
 
 #define bitfieldExtract(num, start, length)    ((num >> start) & ((1 << length)-1))
 #define ROT4(num)                              (((num << 1) & 15) | ((num & 8) >> 3))
+#define M_PIf                                  3.1415926535f
+#define M_PI_2f                                1.5707963267f
+#define M_PI_4f                                0.7853981633f
+#define DEG_TO_RAD                             (M_PIf / 180)
+#define RAD_TO_DEG                             (180 / M_PIf)
 
 /* Q'n'D JSON parser */
 typedef Bool (*JSONParseCb_t)(const char * file, STRPTR * keys, int line);

@@ -108,8 +108,8 @@ static Bool entityCreateModel(const char * file, STRPTR * keys, int lineNum)
 		index = cust.model[13];
 		loc[0] = (index % 513 >> 4);
 		loc[1] = (index / 513 >> 4);
-		loc[2] = cust.model[1] * 0.0625 + loc[0];
-		loc[3] = cust.model[2] * 0.0625 + loc[1];
+		loc[2] = cust.model[1] * 0.0625f + loc[0];
+		loc[3] = cust.model[2] * 0.0625f + loc[1];
 		break;
 	case 1:
 		modelId = ENTITY_ITEMFRAME;
@@ -473,7 +473,7 @@ static int entityGetModelId(Entity entity)
 		int    off;
 
 		NBTIter_t prop;
-		entity->pos[VY] += 0.5; // XXX not sure why
+		entity->pos[VY] += 0.5f; // XXX not sure why
 		NBT_IterCompound(&prop, entity->tile);
 		while ((off = NBT_Iter(&prop)) >= 0)
 		{
@@ -524,7 +524,7 @@ static int entityGetModelId(Entity entity)
 		{
 			entity->rotation[3] = 0.5; /* scale actually */
 			if (blockId < ID(256, 0))
-				entity->pos[VY] += 0.25;
+				entity->pos[VY] += 0.25f;
 			return entityAddModel(entity->blockId = blockId | data, 0, NULL);
 		}
 	}
@@ -642,7 +642,7 @@ static Entity entityItemFrameAddItem(Entity frame)
 	item->rotation[3] = 0.4; /* scaling */
 	if (item->blockId >= ID(256, 0))
 		/* items are rendered in XZ plane, item frame are oriented in XY or ZY plane */
-		item->rotation[1] = M_PI_2 - frame->rotation[1];
+		item->rotation[1] = M_PI_2f - frame->rotation[1];
 	item->VBObank = entityGetModelId(item);
 	entityAddToCommandList(item);
 	return item;
@@ -691,9 +691,9 @@ void entityParse(Chunk c, NBTFile nbt, int offset)
 			memcpy(entity->motion, pos, sizeof pos);
 
 			/* rotation also depends on how the initial model is oriented :-/ */
-			entity->rotation[0] = fmod((360 - pos[7]) * M_PI / 180, 2*M_PI);
-			entity->rotation[1] = - pos[8] * (2*M_PI / 360);
-			if (entity->rotation[1] < 0) entity->rotation[1] += 2*M_PI;
+			entity->rotation[0] = fmod((360 - pos[7]) * M_PIf / 180, 2*M_PIf);
+			entity->rotation[1] = - pos[8] * (2*M_PIf / 360);
+			if (entity->rotation[1] < 0) entity->rotation[1] += 2*M_PIf;
 
 			entity->tile = nbt->mem + offset;
 			entity->next = ENTITY_END;
@@ -701,7 +701,7 @@ void entityParse(Chunk c, NBTFile nbt, int offset)
 			entity->name = id;
 			entity->VBObank = entityGetModelId(entity);
 			if (entity->VBObank == 0) /* unknwon entity */
-				entity->pos[1] += 0.5;
+				entity->pos[1] += 0.5f;
 			entityGetLight(c, pos+3, entity->light, entity->blockId > 0);
 			entityAddToCommandList(entity);
 
@@ -737,7 +737,7 @@ void entityDebug(int id)
 {
 	Entity entity = entityGetById(id-1);
 
-	fprintf(stderr, "entity %s at %g, %g, %g. NBT data:\n", entity->name, entity->pos[0], entity->pos[1], entity->pos[2]);
+	fprintf(stderr, "entity %s at %g, %g, %g. NBT data:\n", entity->name, (double) entity->pos[0], (double) entity->pos[1], (double) entity->pos[2]);
 	NBTFile_t nbt = {.mem = entity->tile};
 	NBTIter_t iter;
 	int       off;
@@ -757,7 +757,7 @@ void entityInfo(int id, STRPTR buffer, int max)
 	STRPTR name;
 	int    count;
 
-	count = sprintf(buffer, "<b>Entity</b>\nX: %g\nY: %g\nZ: %g\n", entity->pos[0], entity->pos[1], entity->pos[2]);
+	count = sprintf(buffer, "<b>Entity</b>\nX: %g\nY: %g\nZ: %g\n", (double) entity->pos[0], (double) entity->pos[1], (double) entity->pos[2]);
 
 	if ((id = entity->blockId) > 0)
 	{
@@ -778,7 +778,7 @@ void entityInfo(int id, STRPTR buffer, int max)
 		count += sprintf(buffer + count, " <dim>(%d:%d)</dim>", id >> 4, id&15);
 
 	if (fabsf(entity->rotation[0]) > EPSILON)
-		sprintf(buffer + count, "\n<dim>Rotation:</dim> %g\n", entity->rotation[0] * 180 / M_PI);
+		sprintf(buffer + count, "\n<dim>Rotation:</dim> %g\n", (double) (entity->rotation[0] * RAD_TO_DEG));
 }
 
 /* mark new entity as selected and unselect old if any */
@@ -864,7 +864,7 @@ int intersectRayPlane(vec4 P0, vec4 u, vec4 V0, vec norm, vec4 I);
 /* check if vector <dir> intersects an entity bounding box (from position <camera>) */
 int entityRaycast(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos)
 {
-	float maxDist = cur ? vecDistSquare(camera, cur) : 1e6;
+	float maxDist = cur ? vecDistSquare(camera, cur) : 1e6f;
 	int   flags = (dir[VX] < 0 ? 2 : 8) | (dir[VY] < 0 ? 16 : 32) | (dir[VZ] < 0 ? 1 : 4);
 	int   i, id, curId;
 	Chunk chunks[4];
@@ -887,7 +887,7 @@ int entityRaycast(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos)
 		for (;;)
 		{
 			/* just a quick heuristic to get rid of most entities */
-			if (vecDistSquare(camera, list->pos) < maxDist * 1.5)
+			if (vecDistSquare(camera, list->pos) < maxDist * 1.5f)
 			{
 				float points[9];
 				mat4  rotation;
@@ -1125,10 +1125,10 @@ static void entityCreateGeneric(NBTFile nbt, Entity entity, int itemId, int side
 		TAG_End
 	);
 	/* convert rotation back to trigonometric */
-	entity->rotation[0] = (360 - entity->rotation[0]) * (M_PI / 180);
-	entity->rotation[1] = - entity->rotation[1] * (M_PI / 180);
+	entity->rotation[0] = (360 - entity->rotation[0]) * DEG_TO_RAD;
+	entity->rotation[1] = - entity->rotation[1] * DEG_TO_RAD;
 	if (entity->rotation[1] < 0)
-		entity->rotation[1] += 2*M_PI;
+		entity->rotation[1] += 2*M_PIf;
 }
 
 static void entityFillPos(vec4 dest, vec4 src, int side, vec size)
@@ -1159,10 +1159,10 @@ static void entityFillPos(vec4 dest, vec4 src, int side, vec size)
 	for (i = 0; i < 3; i ++, shift >>= 2)
 	{
 		switch (shift & 3) {
-		case HALFVX:  dest[i] += size[VX] * 0.5; break;
-		case HALFVY:  dest[i] += size[VY] * 0.5; break;
-		case PLUSVZ:  dest[i] += size[VZ] * 0.5; break;
-		case MINUSVZ: dest[i] -= size[VZ] * 0.5;
+		case HALFVX:  dest[i] += size[VX] * 0.5f; break;
+		case HALFVY:  dest[i] += size[VY] * 0.5f; break;
+		case PLUSVZ:  dest[i] += size[VZ] * 0.5f; break;
+		case MINUSVZ: dest[i] -= size[VZ] * 0.5f;
 		}
 	}
 }
@@ -1366,8 +1366,8 @@ void entityUpdateOrCreate(Chunk c, vec4 pos, int blockId, vec4 dest, int ticks, 
 	entity->blockId = blockId;
 	entity->tile = tile;
 	entity->rotation[3] = 1;
-	vecAddNum(entity->pos,    0.5);
-	vecAddNum(entity->motion, 0.5);
+	vecAddNum(entity->pos,    0.5f);
+	vecAddNum(entity->motion, 0.5f);
 	entity->VBObank = entityGetModelId(entity);
 	entityGetLight(c, pos, entity->light, True);
 	entityAddToCommandList(entity);
@@ -1423,7 +1423,7 @@ void entityDebugCmd(Chunk c)
 	{
 		entity = entityGetById(id);
 
-		fprintf(stderr, "entity %d at %g, %g, %g: %s\n", id, entity->pos[0], entity->pos[1], entity->pos[2], entity->name);
+		fprintf(stderr, "entity %d at %g, %g, %g: %s\n", id, (double) entity->pos[0], (double) entity->pos[1], (double) entity->pos[2], entity->name);
 
 		if (entity->blockId != ID(1, 0)) continue;
 		#if 0
