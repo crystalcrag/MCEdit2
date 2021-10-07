@@ -148,7 +148,7 @@ static void mapUpdateNearbyRails(Map map, vec4 pos, int blockId, DATA16 nbors)
 		memcpy(loc, pos, sizeof loc);
 
 		/* check if rail in direction <i> can connect to our position <pos> */
-		normal = normals + i * 4;
+		normal = cubeNormals + i * 4;
 		loc[VX] += normal[VX];
 		loc[VY] += normal[VY];
 		loc[VZ] += normal[VZ];
@@ -285,7 +285,7 @@ void mapUpdateBlock(Map map, vec4 pos, int blockId, int oldBlockId, DATA8 tile)
 					if (norm == i)
 					{
 						/* no solid block attached: delete current block */
-						int8_t * normal = normals + norm * 4;
+						int8_t * normal = cubeNormals + norm * 4;
 						vec4     loc;
 						loc[VX] = pos[VX] + normal[VX];
 						loc[VY] = pos[VY] + normal[VY];
@@ -321,7 +321,7 @@ void mapUpdateBlock(Map map, vec4 pos, int blockId, int oldBlockId, DATA8 tile)
 						break;
 					}
 					/* constraint not satisfied: delete neighbor block */
-					int8_t * normal = normals + i * 4;
+					int8_t * normal = cubeNormals + i * 4;
 					vec4     loc;
 					loc[VX] = pos[VX] + normal[VX];
 					loc[VY] = pos[VY] + normal[VY];
@@ -1227,10 +1227,10 @@ static int mirrorDoor(BlockIter iter, int offset, int blockId)
 	if ((blockId & 8) == 0)
 	{
 		/* would have been much simpler if hinge and orient were in the same data value :-/ */
-		static uint8_t mirrorDoor[]  = {6, 5, 4, 7, 2, 1, 0, 3,    4, 7, 6, 5, 0, 3, 2, 1};
+		static uint8_t mirrorDoorData[]  = {6, 5, 4, 7, 2, 1, 0, 3,    4, 7, 6, 5, 0, 3, 2, 1};
 		uint8_t top, data;
 		mapIter(iter, 0,  1, 0); top  = getBlockId(iter) & 15;
-		mapIter(iter, 0, -1, 0); data = mirrorDoor[offset + ((blockId & 3) | ((top & 1) << 2))];
+		mapIter(iter, 0, -1, 0); data = mirrorDoorData[offset + ((blockId & 3) | ((top & 1) << 2))];
 		DATA8 p = iter->blockIds + DATA_OFFSET + 128 + (iter->offset >> 1);
 		if (iter->offset & 1) p[0] = (p[0] & 0xef) | ((data & 4) << 2);
 		else                  p[0] = (p[0] & 0xfe) | ((data & 4) >> 2);

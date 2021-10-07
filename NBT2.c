@@ -363,7 +363,7 @@ Bool NBT_Add(NBTFile nbt, ...)
 		else if (type == TAG_Compound_End)
 		{
 			mem = NBT_AddBytes(nbt, 1);
-			NBTHdr hdr = NBT_Hdr(nbt, compound);
+			hdr = NBT_Hdr(nbt, compound);
 			if (hdr->type == TAG_Compound)
 				hdr->size = nbt->usage - compound;
 			compound = 0;
@@ -1064,11 +1064,11 @@ static int NBT_WriteToZip(APTR out, APTR buffer, int size, int be)
 			deflate(zip, Z_NO_FLUSH);
 			if (zip->avail_out == 0)
 			{
-				DATA8 buffer = zip->next_out - zip->total_out;
-				buffer = realloc(buffer, zip->total_out + 4096);
-				if (buffer == NULL) return -1;
+				DATA8 outbuf = zip->next_out - zip->total_out;
+				outbuf = realloc(outbuf, zip->total_out + 4096);
+				if (outbuf == NULL) return -1;
 				zip->avail_out = 4096;
-				zip->next_out = buffer + zip->total_out;
+				zip->next_out = outbuf + zip->total_out;
 			}
 			memmove(start, zip->next_in, zip->avail_in);
 			zip->next_in = start;
@@ -1368,19 +1368,19 @@ int NBT_Dump(NBTFile root, int offset, int level, FILE * out)
 			sz = hdr->count * sizeof_type[type];
 			for (i = 0; i < hdr->count; i ++)
 			{
-				DATA8 p = mem + i * sizeof_type[type];
+				DATA8 data = mem + i * sizeof_type[type];
 				fprintf(out, "%*s%s: ", level + 3, "", tagNames[type]);
 				/* arrays are left encoded as big endian */
 				switch (sizeof_type[type]) {
-				case 1: fprintf(out, "%u", p[0]); break;
-				case 2: fprintf(out, "%u", ((uint16_t *)p)[0]); break;
+				case 1: fprintf(out, "%u", data[0]); break;
+				case 2: fprintf(out, "%u", ((uint16_t *)data)[0]); break;
 				case 4:
-					if (type == TAG_Float) fprintf(out, "%g", (double) ((float *)p)[0]);
-					else fprintf(out, "%d", ((uint32_t *)p)[0]);
+					if (type == TAG_Float) fprintf(out, "%g", (double) ((float *)data)[0]);
+					else fprintf(out, "%d", ((uint32_t *)data)[0]);
 					break;
 				case 8:
-					if (type == TAG_Double) fprintf(out, "%g", ((double *)p)[0]);
-					else fprintf(out, "%I64d", ((uint64_t *)p)[0]);
+					if (type == TAG_Double) fprintf(out, "%g", ((double *)data)[0]);
+					else fprintf(out, "%I64d", ((uint64_t *)data)[0]);
 				}
 				fputc('\n', out);
 			}
@@ -1419,8 +1419,8 @@ int NBT_Dump(NBTFile root, int offset, int level, FILE * out)
 		sz = hdr->count * 4;
 		for (i = 0; i < 10 && i < hdr->count; i ++)
 		{
-			DATA8 p = mem + i * 4;
-			fprintf(out, "%s%u", i ? ", " : "", (((((p[0]<<8)|p[1])<<8)|p[2])<<8)|p[3]);
+			DATA8 data = mem + i * 4;
+			fprintf(out, "%s%u", i ? ", " : "", (((((data[0]<<8)|data[1])<<8)|data[2])<<8)|data[3]);
 		}
 		fprintf(out, ", ...}\n");
 	}

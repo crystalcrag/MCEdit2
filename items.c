@@ -434,7 +434,7 @@ static void itemGenQuad(DATA16 out, int x1, int z1, int x2, int z2, int norm, DA
 	if (norm == SIDE_EAST)  U1 --;
 	for (i = 0, index = cubeIndices + norm * 4, norm <<= 3, tex = texCoords + norm; i < 4; i ++, out += INT_PER_VERTEX, index ++, tex += 2)
 	{
-		DATA8 point = vertex + index[0];
+		DATA8 point = cubeVertex + index[0];
 		out[VX] = ((point[VX] ? x2 : x1) * BASEVTX) / blockTexResol + ORIGINVTX;
 		out[VZ] = ((point[VZ] ? z2 : z1) * BASEVTX) / blockTexResol + ORIGINVTX;
 		out[VY] = (point[VY]  ? BASEVTX/12 : 0) + ORIGINVTX;
@@ -572,8 +572,8 @@ int itemGenMesh(int blockId, DATA16 out)
 			/* need to shift vertex by -rect[0], -rect[1] */
 			uint16_t dx = (rect[0] * BASEVTX) / blockTexResol;
 			uint16_t dz = (rect[1] * BASEVTX) / blockTexResol;
-			int i;
-			for (vertex = out, i = count; i > 0; i --, vertex += INT_PER_VERTEX)
+			int nb;
+			for (vertex = out, nb = count; nb > 0; nb --, vertex += INT_PER_VERTEX)
 				vertex[VX] -= dx, vertex[VZ] -= dz;
 		}
 	}

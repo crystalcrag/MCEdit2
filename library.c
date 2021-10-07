@@ -376,9 +376,9 @@ static Bool librarySaveSchematics(Map brush, STRPTR path)
 				DATA8 tile = chunkGetTileEntity(iter.ref, (int[3]){iter.x, iter.yabs, iter.z});
 				if (tile)
 				{
-					NBTIter_t iter;
-					NBT_IterCompound(&iter, tile);
-					for (tileNb ++; (bytes = NBT_Iter(&iter)) >= 0; )
+					NBTIter_t iterTE;
+					NBT_IterCompound(&iterTE, tile);
+					for (tileNb ++; (bytes = NBT_Iter(&iterTE)) >= 0; )
 						NBT_Add(&nbt, TAG_Raw_Data, NBT_HdrSize(tile+bytes), tile+bytes, TAG_End);
 					NBT_Add(&nbt, TAG_Compound_End);
 				}

@@ -1468,7 +1468,7 @@ static Bool mapCullCave(ChunkData cur, vec4 camera)
 
 		if (neighbor && neighbor->comingFrom > 0 /* can be visited */ && neighbor->slot == 0 /* non-fake chunk */ && neighbor->glBank /* non-empty chunk */)
 		{
-			static uint8_t opp[] = {4,  8,  1,  2, 16,  32};
+			static uint8_t oppBits[] = {4,  8,  1,  2, 16,  32};
 			extern uint16_t hasCnx[]; /* from chunks.c */
 			if (neighbor->comingFrom == 255)
 			{
@@ -1483,7 +1483,7 @@ static Bool mapCullCave(ChunkData cur, vec4 camera)
 					return True;
 				}
 			}
-			else if (neighbor->cnxGraph & hasCnx[opp[oppSide] | neighbor->comingFrom])
+			else if (neighbor->cnxGraph & hasCnx[oppBits[oppSide] | neighbor->comingFrom])
 			{
 				cur->comingFrom = 1 << oppSide;
 				return True;
@@ -1612,7 +1612,6 @@ void mapViewFrustum(Map map, mat4 mvp, vec4 camera)
 	for (last = cur; cur; cur = cur->visible)
 	{
 		uint8_t outflags[9];
-		Chunk   chunk;
 		int     i, neighbors;
 
 		/* 1st pass: check if chunk corners are in frustum */

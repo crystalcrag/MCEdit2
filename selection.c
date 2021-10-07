@@ -144,7 +144,7 @@ static void selectionSetRect(int pointId)
 	{
 		static uint8_t coordU[] = {0, 2, 0, 2, 0, 0};
 		static uint8_t coordV[] = {1, 1, 1, 1, 2, 2};
-		DATA8 p  = vertex + cubeIndices[i];
+		DATA8 p  = cubeVertex + cubeIndices[i];
 		DATA8 uv = texCoord + (i & 3) * 2;
 		vtx[0] = p[VX] * pad[VX];
 		vtx[1] = p[VY] * pad[VY];
@@ -164,7 +164,7 @@ static void selectionSetRect(int pointId)
 	/* lines around the box */
 	for (i = 36; i < 36+24; i ++, vtx += 5)
 	{
-		DATA8 p = vertex + bboxIndices[i] * 3;
+		DATA8 p = cubeVertex + bboxIndices[i] * 3;
 		vtx[0] = p[VX] * pad[VX];
 		vtx[1] = p[VY] * pad[VY];
 		vtx[2] = p[VZ] * pad[VZ];
@@ -397,9 +397,9 @@ void selectionRender(void)
 #define chunkDeleteIterTE(iter,ext)    chunkDeleteTileEntity((iter).ref, (int[3]){(iter).x-1, (iter).yabs-1, (iter).z-1}, ext)
 #define chunkAddIterTE(iter,tile) \
 { \
-	int pos[] = {(iter).x-1, (iter).yabs-1, (iter).z-1}; \
-	chunkAddTileEntity((iter).ref, pos, tile); \
-	chunkUpdateTilePosition((iter).ref, pos, tile); \
+	int xyz[] = {(iter).x-1, (iter).yabs-1, (iter).z-1}; \
+	chunkAddTileEntity((iter).ref, xyz, tile); \
+	chunkUpdateTilePosition((iter).ref, xyz, tile); \
 }
 
 
@@ -1803,7 +1803,7 @@ static void selectionProcessShape(void * unused)
 	selSize[VX] = fabsf(selection.firstPt[VX] - selection.secondPt[VX]) + 1;
 	selSize[VY] = fabsf(selection.firstPt[VY] - selection.secondPt[VY]) + 1;
 	selSize[VZ] = fabsf(selection.firstPt[VZ] - selection.secondPt[VZ]) + 1;
-	float   yoff = selSize[VY] - selectionAsync.size[2];
+	float   yoffset = selSize[VY] - selectionAsync.size[2];
 	uint8_t outer = flags & SHAPE_OUTER;
 	uint8_t hollow = flags & SHAPE_HOLLOW;
 	uint8_t axis1 = 0;
@@ -1870,18 +1870,18 @@ static void selectionProcessShape(void * unused)
 				{
 					vec4 vox = {
 						iter.ref->X + iter.x + 0.5f - center[VX],
-						iter.yabs + 0.25f - center[VY] - yoff,
+						iter.yabs + 0.25f - center[VY] - yoffset,
 						iter.ref->Z + iter.z + 0.5f - center[VZ]
 					};
-					uint8_t slab;
+					uint8_t quadrant;
 					/* hmmm: unsing 0.25 and 0.75 as center for axisS looks slightly off: uses 0.3 and 0.7 instead :-/ */
-					vox[axisS] -= 0.2f; slab  = isInShape(vox);
-					vox[axisS] += 0.4f; slab |= isInShape(vox) << 1;
+					vox[axisS] -= 0.2f; quadrant  = isInShape(vox);
+					vox[axisS] += 0.4f; quadrant |= isInShape(vox) << 1;
 					vox[VY] += 0.5f;
-					vox[axisS] -= 0.4f; slab |= isInShape(vox) << 2;
-					vox[axisS] += 0.4f; slab |= isInShape(vox) << 3;
+					vox[axisS] -= 0.4f; quadrant |= isInShape(vox) << 2;
+					vox[axisS] += 0.4f; quadrant |= isInShape(vox) << 3;
 					int id = blockId;
-					switch (slab) {
+					switch (quadrant) {
 					default: continue;
 					case 3:  case 3+4: case 3+8: break;
 					case 12: case 12+1: case 12+2: id |= 8; break; /* top slab */
@@ -1893,7 +1893,7 @@ static void selectionProcessShape(void * unused)
 				{
 					vec4 vox = {
 						iter.ref->X + iter.x + 0.5f - center[VX],
-						iter.yabs + 0.5f - center[VY] - yoff,
+						iter.yabs + 0.5f - center[VY] - yoffset,
 						iter.ref->Z + iter.z + 0.5f - center[VZ]
 					};
 					switch (isInShape(vox)) {

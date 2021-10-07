@@ -1,4 +1,8 @@
 =========== Week 40 ===========
+Wed Oct 6:
+	* cleanup SITGL and MCEdit with -Wdouble-precision and -Wshadow.
+	* SITLG lexer mostly done, including doc.
+
 Tue Oct 5:
 	* add/remove items from item frame.
 

@@ -777,7 +777,7 @@ Bool chunkSave(Chunk chunk, const char * path)
  * Reader warning: Look up table hell.
  */
 
-uint8_t vertex[] = { /* 8 vertices of a 1x1x1 cube */
+uint8_t cubeVertex[] = { /* 8 vertices of a 1x1x1 cube */
 	0,0,1,  1,0,1,  1,1,1,  0,1,1,
 	0,0,0,  1,0,0,  1,1,0,  0,1,0,
 };
@@ -824,7 +824,7 @@ static uint8_t offsetConnected[] = { /* S, E, N, W, T, B (4 coords per face) */
 	9+13, 1+13, -9+13, -1+13,     9+13, -3+13, -9+13,  3+13,    9+13, -1+13, -9+13,  1+13,
 	9+13, 3+13, -9+13, -3+13,    -3+13,  1+13,  3+13, -1+13,    3+13,  1+13, -3+13, -1+13
 };
-int8_t normals[] = { /* normal per face */
+int8_t cubeNormals[] = { /* normal per face */
 	 0,  0,  1, 0,
 	 1,  0,  0, 0,
 	 0,  0, -1, 0,
@@ -1219,7 +1219,7 @@ static void chunkGenQuad(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 			uint16_t U, V, X1, Y1, Z1;
 			DATA8    coord;
 
-			coord = vertex + quadIndices[side*4+indices[0]];
+			coord = cubeVertex + quadIndices[side*4+indices[0]];
 
 			/* first vertex */
 			X1 = VERTEX(coord[0] + x);
@@ -1231,11 +1231,11 @@ static void chunkGenQuad(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 			V = (texCoord[j+1] + tex[1]) << 4;
 
 			/* second and third vertex */
-			coord  = vertex + quadIndices[side*4+indices[1]];
+			coord  = cubeVertex + quadIndices[side*4+indices[1]];
 			out[0] = X1 | (Y1 << 16);
 			out[1] = Z1 | (RELDX(coord[0] + x) << 16) | ((V & 512) << 21);
 			out[2] = RELDY(coord[1] + y) | (RELDZ(coord[2] + z) << 14);
-			coord  = vertex + quadIndices[side*4+indices[2]];
+			coord  = cubeVertex + quadIndices[side*4+indices[2]];
 			out[3] = RELDX(coord[0] + x) | (RELDY(coord[1] + y) << 14);
 			out[4] = RELDZ(coord[2] + z) | (U << 14) | (V << 23);
 
@@ -1259,7 +1259,7 @@ static void chunkGenQuad(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 			else if (norm < 6)
 			{
 				/* offset 1/16 of a block in the direction of their normal */
-				int8_t * normal = normals + norm * 4;
+				int8_t * normal = cubeNormals + norm * 4;
 				out[0] += normal[0] * (BASEVTX/16);
 				out[0] += normal[1] * (BASEVTX/16) << 16;
 				out[1] += normal[2] * (BASEVTX/16);
@@ -1286,7 +1286,6 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 		/*B*/7, 5, 1, 3, 4,   /*M*/16, 14, 10, 12,   /*T*/25, 23, 19, 21, 22
 	};
 
-	uint8_t blockIds[14 * 2];
 	Chunk   c = neighbors[6]->chunk;
 	DATA32  out;
 	DATA16  model;
@@ -1406,8 +1405,9 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 
 	if (count > 0)
 	{
+		uint8_t blockIdAndData[14 * 2];
 		DATA8 ids;
-		for (ids = blockIds; count > 0; p ++, ids += 2, count --)
+		for (ids = blockIdAndData; count > 0; p ++, ids += 2, count --)
 		{
 			uint8_t ocs = occlusionSides[side = *p] & ~sides;
 			int     off = pos;
@@ -1434,7 +1434,7 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 			if (off & 1) ids[1] >>= 4;
 			else         ids[1] &= 15;
 		}
-		connect = blockGetConnect(b, blockIds);
+		connect = blockGetConnect(b, blockIdAndData);
 	}
 
 	x *= BASEVTX;
@@ -1456,7 +1456,7 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 		{
 			extern int8_t opp[];
 			struct BlockIter_t iter;
-			int8_t * normal = normals + norm * 4;
+			int8_t * normal = cubeNormals + norm * 4;
 			mapInitIterOffset(&iter, neighbors[6], pos);
 			iter.nbor = chunkOffsets;
 			mapIter(&iter, normal[0], normal[1], normal[2]);
@@ -1559,7 +1559,7 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 	for (i = 0, side = 1, occlusion = -1, tex = &b->nzU, rotate = b->rotate, j = (rotate&3) * 8, slab = 0; i < DIM(cubeIndices);
 		 i += 4, side <<= 1, rotate >>= 2, tex += 2, j = (rotate&3) * 8)
 	{
-		BlockState t;
+		BlockState state;
 		n = pos;
 
 		if (b->special != BLOCK_LEAVES)
@@ -1573,7 +1573,7 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 					continue; /* edge of map */
 				n += blockOffset[side];
 				data = META(cd, n>>1);
-				t = blockGetByIdData(cd->blockIds[n], n & 1 ? data >> 4 : data & 0xf);
+				state = blockGetByIdData(cd->blockIds[n], n & 1 ? data >> 4 : data & 0xf);
 			}
 			else
 			{
@@ -1582,16 +1582,16 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 				};
 				n += offsets[i>>2];
 				data = blocks[DATA_OFFSET + (n >> 1)];
-				t = blockGetByIdData(blocks[n], n & 1 ? data >> 4 : data & 0xf);
+				state = blockGetByIdData(blocks[n], n & 1 ? data >> 4 : data & 0xf);
 			}
 
 			/* face hidden by another opaque block: 75% of SOLID blocks will be culled by this test */
-			switch (t->type) {
+			switch (state->type) {
 			case SOLID:
-				switch (t->special) {
+				switch (state->special) {
 				case BLOCK_HALF:
 				case BLOCK_STAIRS:
-					if (oppositeMask[*halfBlockGetModel(t, 0, NULL)] & side) continue;
+					if (oppositeMask[*halfBlockGetModel(state, 0, NULL)] & side) continue;
 					break;
 				default: continue;
 				}
@@ -1610,11 +1610,10 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 			/* only compute that info if block is visible (highly likely it is not) */
 			for (k = occlusion = 0; k < DIM(occlusionNeighbors); k ++)
 			{
-				BlockState t;
-				ChunkData  cd;
-				uint8_t    ocs = occlusionSides[k] & ~sides;
-				int        off = pos;
-				int        id;
+				ChunkData cd;
+				uint8_t   ocs = occlusionSides[k] & ~sides;
+				int       off = pos;
+				int       id;
 
 				if (ocs > 0)
 				{
@@ -1651,11 +1650,11 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 					data = blocks[DATA_OFFSET + (off >> 1)];
 					id   = blocks[off];
 				}
-				t = blockGetByIdData(id, off & 1 ? data >> 4 : data & 0xf);
-				blockIds3x3[k] = t->id;
-				if (t->type == SOLID || (t->type == CUST && t->special == BLOCK_SOLIDOUTER))
+				state = blockGetByIdData(id, off & 1 ? data >> 4 : data & 0xf);
+				blockIds3x3[k] = state->id;
+				if (state->type == SOLID || (state->type == CUST && state->special == BLOCK_SOLIDOUTER))
 				{
-					if (t->special == BLOCK_HALF || t->special == BLOCK_STAIRS)
+					if (state->special == BLOCK_HALF || state->special == BLOCK_STAIRS)
 					{
 						if (hasLights)
 						{
@@ -1698,30 +1697,28 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 
 		if (b->special == BLOCK_HALF || b->special == BLOCK_STAIRS)
 		{
-			uint8_t pos[3] = {x<<1, y<<1, z<<1};
+			uint8_t xyz[3] = {x<<1, y<<1, z<<1};
 			//fprintf(stderr, "meshing %s at pos %d, %d, %d\n", b->name, x, y, z);
-			halfBlockGenMesh(buffer, halfBlockGetModel(b, 2, blockIds3x3), 2, pos, b, blockIds3x3, skyBlock, 63);
+			halfBlockGenMesh(buffer, halfBlockGetModel(b, 2, blockIds3x3), 2, xyz, b, blockIds3x3, skyBlock, 63);
 			break;
 		}
-		#if 1
 		if (occlusionIfSlab[i>>2] & slab)
 		{
-			uint8_t pos[3] = {x<<1, y<<1, z<<1};
+			uint8_t xyz[3] = {x<<1, y<<1, z<<1};
 			DATA8 model = halfBlockGetModel(b, 2, blockIds3x3);
 			if (model)
 			{
-				halfBlockGenMesh(buffer, model, 2, pos, b, blockIds3x3, skyBlock, 1 << (i>>2));
+				halfBlockGenMesh(buffer, model, 2, xyz, b, blockIds3x3, skyBlock, 1 << (i>>2));
 				continue;
 			}
 		}
-		#endif
 
 		if (BUF_LESS_THAN(buffer, VERTEX_DATA_SIZE))
 			buffer->flush(buffer);
 
 		/* generate one quad (see internals.html for format) */
 		{
-			DATA8    coord = vertex + cubeIndices[i+3];
+			DATA8    coord = cubeVertex + cubeIndices[i+3];
 			uint16_t texU  = (texCoord[j]   + tex[0]) << 4;
 			uint16_t texV  = (texCoord[j+1] + tex[1]) << 4;
 			uint16_t X1, Y1, Z1;
@@ -1732,11 +1729,11 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 			out = buffer->cur;
 
 			/* write one quad */
-			coord  = vertex + cubeIndices[i];
+			coord  = cubeVertex + cubeIndices[i];
 			out[0] = X1 | (Y1 << 16);
 			out[1] = Z1 | (RELDX(coord[0]+x) << 16) | ((texV & 512) << 21);
 			out[2] = RELDY(coord[1]+y) | (RELDZ(coord[2]+z) << 14);
-			coord  = vertex + cubeIndices[i+2];
+			coord  = cubeVertex + cubeIndices[i+2];
 			out[3] = RELDX(coord[0]+x) | (RELDY(coord[1]+y) << 14);
 			out[4] = RELDZ(coord[2]+z) | (texU << 14) | (texV << 23);
 			out[5] = (((texCoord[j+4] + tex[0]) * 16 + 128 - texU) << 16) |

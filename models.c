@@ -277,14 +277,14 @@ Bool modelGetTangent(Model model)
 {
 	DATA16  pos;
 	float * tex;
-	float * vec;
+	float * vert;
 	float * norm;
 	float * tan;
 	int     i, cnt, type;
 
 	pos  = model->indices;
 	tex  = model->tex;
-	vec  = model->vertices;
+	vert = model->vertices;
 	norm = model->normals;
 	if (! norm || ! tex) return False;
 
@@ -303,19 +303,19 @@ Bool modelGetTangent(Model model)
 		switch (type) {
 		case 0: /* triangle index */
 		case 1: /* triangle strip index */
-			pos1 = vec + pos[0]*3;    tan1 = tan + pos[0]*3;      uv1 = tex + pos[0]*2;
-			pos2 = vec + pos[1]*3;    tan2 = tan + pos[1]*3;      uv2 = tex + pos[1]*2;
-			pos3 = vec + pos[2]*3;    tan3 = tan + pos[2]*3;      uv3 = tex + pos[2]*2;
+			pos1 = vert + pos[0]*3;    tan1 = tan + pos[0]*3;      uv1 = tex + pos[0]*2;
+			pos2 = vert + pos[1]*3;    tan2 = tan + pos[1]*3;      uv2 = tex + pos[1]*2;
+			pos3 = vert + pos[2]*3;    tan3 = tan + pos[2]*3;      uv3 = tex + pos[2]*2;
 			if (type == 1)
 				pos += 3, i += 3;
 			else
 				pos ++, i ++;
 			break;
 		case 2: /* triangles */
-			pos1 = vec;       tan1 = tan;         uv1 = tex;
-			pos2 = vec + 3;   tan2 = tan + 3;     uv2 = tex + 2;
-			pos3 = vec + 6;   tan3 = tan + 6;     uv3 = tex + 4;
-			vec += 9; i += 3; tex += 4;
+			pos1 = vert;      tan1 = tan;         uv1 = tex;
+			pos2 = vert + 3;  tan2 = tan + 3;     uv2 = tex + 2;
+			pos3 = vert + 6;  tan3 = tan + 6;     uv3 = tex + 4;
+			vert += 9; i += 3; tex += 4;
 		}
 
 		float deltaV1[]  = {pos2[VX] - pos1[VX], pos2[VY] - pos1[VY], pos2[VZ] - pos1[VZ]};

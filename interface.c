@@ -338,8 +338,8 @@ static int mcuiInventoryMouse(SIT_Widget w, APTR cd, APTR ud)
 			int i;
 			for (i = 0; i < mcui.groupCount; i ++)
 			{
-				MCInventory inv = mcui.groups[i];
 				Item list, eof;
+				inv = mcui.groups[i];
 				for (list = inv->items, eof = list + inv->itemsNb; list < eof; list->slot = 0, list ++);
 			}
 			mcui.selCount = 0;

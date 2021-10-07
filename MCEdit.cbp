@@ -32,6 +32,7 @@
 		</Build>
 		<Compiler>
 			<Add option="-Wall" />
+			<Add option="-Wdouble-promotion -Wshadow" />
 			<Add directory="..\external\includes" />
 			<Add directory="include" />
 		</Compiler>

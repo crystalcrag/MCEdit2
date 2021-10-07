@@ -120,7 +120,7 @@ static void renderSelection(void)
 				return;
 			case PLACEMENT_GROUND:
 				/* check if ground is within 1 block reach */
-				offset = normals + render.selection.extra.side * 4;
+				offset = cubeNormals + render.selection.extra.side * 4;
 				loc[0] = render.selection.current[0] + offset[0];
 				loc[1] = render.selection.current[1] - 1;
 				loc[2] = render.selection.current[2] + offset[2];
@@ -131,7 +131,7 @@ static void renderSelection(void)
 				}
 				break;
 			case PLACEMENT_OK:
-				offset = normals + render.selection.extra.side * 4;
+				offset = cubeNormals + render.selection.extra.side * 4;
 				loc[0] = render.selection.current[0] + offset[0];
 				loc[1] = render.selection.current[1] + offset[1];
 				loc[2] = render.selection.current[2] + offset[2];
@@ -146,11 +146,11 @@ static void renderSelection(void)
 		/* show a preview of what is going to be placed if left-clicked */
 		BlockState b = blockGetById(render.selection.extra.blockId);
 		if ((b->inventory & CATFLAGS) == DECO && b->type == QUAD)
-			offset = normals + 5; /* 0,0,0 */
+			offset = cubeNormals + 5; /* 0,0,0 */
 		else
-			offset = normals + render.selection.extra.side * 4;
+			offset = cubeNormals + render.selection.extra.side * 4;
 		int blockId = blockAdjustOrient(id, &info, render.selection.extra.inter);
-		if (info.keepPos) offset = normals + 5; /* 0,0,0 */
+		if (info.keepPos) offset = cubeNormals + 5; /* 0,0,0 */
 		if ((render.selection.blockId & ~15) == (blockId & ~15))
 			for (id = render.selection.rotationY90; id > 0; blockId = blockRotateY90(blockId), id --);
 		else
@@ -860,14 +860,14 @@ static void renderDrawExtInv(Item items, float scale, int count)
 
 	for (i = 0; i < count; i ++, items ++)
 	{
-		int count = items->count;
-		if (count > 1)
+		int stack = items->count;
+		if (stack > 1)
 		{
 			div_t res;
-			if (count < 100)
-				res = div(items->count, 10);
+			if (stack < 100)
+				res = div(stack, 10);
 			else
-				res.quot = res.rem = 9;
+				res.quot = res.rem = 9; /* more than 100 in a stack :-/ cap it out at 99 */
 
 			TEXT number[] = {res.quot == 0 ? ' ' : res.quot + '0', res.rem + '0'};
 
@@ -1291,7 +1291,7 @@ void renderFrustum(Bool snapshot)
 		int i;
 		for (i = 0; i < DIM(edges); i ++, vtx += INT_PER_VERTEX)
 		{
-			DATA8 p = &vertex[edges[i] * 3];
+			DATA8 p = &cubeVertex[edges[i] * 3];
 			vtx[0] = VERTEX(p[0]*16);
 			vtx[1] = VERTEX(p[1]*16);
 			vtx[2] = VERTEX(p[2]*16);
@@ -1302,7 +1302,7 @@ void renderFrustum(Bool snapshot)
 		for (i = 0; i < DIM(edges); i ++, vtx += INT_PER_VERTEX)
 		{
 			#define GAP      (BASEVTX/32)
-			DATA8 p = &vertex[edges[i] * 3];
+			DATA8 p = &cubeVertex[edges[i] * 3];
 			vtx[0] = p[0] ? VERTEX(16) - GAP : VERTEX(0) + GAP;
 			vtx[1] = p[1] ? VERTEX(16) - GAP : VERTEX(0) + GAP;
 			vtx[2] = p[2] ? VERTEX(16) - GAP : VERTEX(0) + GAP;

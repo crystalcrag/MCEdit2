@@ -499,9 +499,9 @@ static int entityGetModelId(Entity entity)
 		int item = NBT_FindNode(&nbt, 0, "Item");
 		if (item >= 0)
 		{
-			STRPTR  id = NBT_Payload(&nbt, NBT_FindNode(&nbt, item, "id"));
+			STRPTR  tech = NBT_Payload(&nbt, NBT_FindNode(&nbt, item, "id"));
 			uint8_t data = NBT_ToInt(&nbt, NBT_FindNode(&nbt, item, "Damage"), 0);
-			int blockId = itemGetByName(id, True);
+			int blockId = itemGetByName(tech, True);
 
 			if (blockId > 0)
 			{
@@ -662,13 +662,13 @@ void entityParse(Chunk c, NBTFile nbt, int offset)
 		int    off;
 
 		/* iterate over the properties of one entity */
-		NBTIter_t entity;
-		NBT_InitIter(nbt, offset, &entity);
+		NBTIter_t iter;
+		NBT_InitIter(nbt, offset, &iter);
 		memset(pos, 0, sizeof pos); id = NULL;
 		pos[10] = 1;
-		while ((off = NBT_Iter(&entity)) >= 0)
+		while ((off = NBT_Iter(&iter)) >= 0)
 		{
-			switch (FindInList("Motion,Pos,Rotation,id", entity.name, 0)) {
+			switch (FindInList("Motion,Pos,Rotation,id", iter.name, 0)) {
 			case 0: NBT_ToFloat(nbt, off, pos,   3); break;
 			case 1: NBT_ToFloat(nbt, off, pos+3, 3); break;
 			case 2: NBT_ToFloat(nbt, off, pos+7, 2); break;
@@ -754,7 +754,7 @@ void entityDebug(int id)
 void entityInfo(int id, STRPTR buffer, int max)
 {
 	Entity entity = entityGetById(id-1);
-	STRPTR name;
+	STRPTR name = NULL;
 	int    count;
 
 	count = sprintf(buffer, "<b>Entity</b>\nX: %g\nY: %g\nZ: %g\n", (double) entity->pos[0], (double) entity->pos[1], (double) entity->pos[2]);
@@ -762,11 +762,16 @@ void entityInfo(int id, STRPTR buffer, int max)
 	if ((id = entity->blockId) > 0)
 	{
 		id &= ~ENTITY_ITEM;
-		BlockState b = blockGetById(id);
-		if (b == NULL)
-			name = NULL;
-		else
-			name = b->name;
+		if (id < ID(256, 0))
+		{
+			BlockState b = blockGetById(id);
+			if (b) name = b->name;
+		}
+		else /* item */
+		{
+			ItemDesc desc = itemGetById(id);
+			if (desc) name = desc->name;
+		}
 	}
 	else if ((name = entity->name) == NULL)
 	{
@@ -820,7 +825,7 @@ static void entitySetSelection(Entity entity)
 
 static void fillNormal(vec4 norm, int side)
 {
-	int8_t * normal = normals + side * 4;
+	int8_t * normal = cubeNormals + side * 4;
 	norm[VX] = normal[VX];
 	norm[VY] = normal[VY];
 	norm[VZ] = normal[VZ];
@@ -1150,7 +1155,7 @@ static void entityFillPos(vec4 dest, vec4 src, int side, vec size)
 	};
 	#undef SHIFT
 
-	int8_t * norm = normals + side * 4, i;
+	int8_t * norm = cubeNormals + side * 4, i;
 	uint8_t  shift = shifts[side];
 
 	for (i = 0; i < 3; i ++)

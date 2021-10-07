@@ -854,15 +854,15 @@ static void mapUpdateAddRSUpdate(BlockIter iterator, RSWire cnx)
 			/* we cannot perform the update yet, we need the signal to be updated all the way :-/ */
 			mapIter(&iter, xoff[i], yoff[i], zoff[i]);
 			int id = getBlockId(&iter);
-			Block b = &blockIds[id>>4];
-			switch (b->orientHint) {
+			Block neighbor = &blockIds[id>>4];
+			switch (neighbor->orientHint) {
 			case ORIENT_TORCH:
 				if (blockSides.torch[id&7] != opp[i]) continue;
 				break;
 			case ORIENT_SWNE: /* repeater */
 				if (i > 4 || blockSides.repeater[id&3] != opp[i]) continue;
 			}
-			if (b->rsupdate & RSUPDATE_RECV)
+			if (neighbor->rsupdate & RSUPDATE_RECV)
 				trackAddUpdate(&iter, 0xffff, NULL);
 		}
 	}
@@ -1447,10 +1447,10 @@ void mapUpdateFloodFill(Map map, vec4 pos, uint8_t visited[4096], int8_t minMax[
 				int8_t y = XYZ[1] + rely[i];
 				int8_t z = XYZ[2] + relz[i];
 				/* that's why it is limited to 16x16x16: <visited> can only hold 4096 bits */
-				int pos = (x & 31) + (z & 31) * 32 + (y & 15) * 1024;
-				if ((visited[pos>>3] & mask8bit[pos&7]) == 0)
+				int xzy = (x & 31) + (z & 31) * 32 + (y & 15) * 1024;
+				if ((visited[xzy>>3] & mask8bit[xzy&7]) == 0)
 				{
-					visited[pos>>3] |= mask8bit[pos&7];
+					visited[xzy>>3] |= mask8bit[xzy&7];
 					trackAdd(x, y, z);
 				}
 			}

@@ -485,7 +485,7 @@ DATA16 blockParseModel(float * values, int count, DATA16 buffer)
 
 			for (k = 0, coord = tmp; k < 4; k ++, idx ++, p += INT_PER_VERTEX, coord += 3)
 			{
-				DATA8 v = vertex + cubeIndices[idx];
+				DATA8 v = cubeVertex + cubeIndices[idx];
 				int val;
 				coord[0] = v[0] * vert[0]/16;
 				coord[1] = v[1] * vert[1]/16;
@@ -536,13 +536,13 @@ DATA16 blockParseModel(float * values, int count, DATA16 buffer)
 			if (inv)
 			{
 				/* invert normals */
-				uint8_t buffer[BYTES_PER_VERTEX*2];
+				uint8_t tmpbuf[BYTES_PER_VERTEX*2];
 				/* triangles for faces (vertex index): from 0, 1, 2, 3, <p> to 3, 2, 1, 0, 2, 0 */
-				memcpy(buffer, p - 20, 2*BYTES_PER_VERTEX); /* save 0-1 */
+				memcpy(tmpbuf, p - 20, 2*BYTES_PER_VERTEX); /* save 0-1 */
 				memcpy(p - 20, p - 5,  BYTES_PER_VERTEX);   /* 3 -> 0 */
 				memcpy(p - 15, p - 10, BYTES_PER_VERTEX);   /* 2 -> 1 */
-				memcpy(p - 5,  buffer, BYTES_PER_VERTEX);
-				memcpy(p - 10, buffer+10, BYTES_PER_VERTEX);
+				memcpy(p - 5,  tmpbuf, BYTES_PER_VERTEX);
+				memcpy(p - 10, tmpbuf+10, BYTES_PER_VERTEX);
 			}
 			memcpy(p,   p - 20, BYTES_PER_VERTEX);
 			memcpy(p+5, p - 10, BYTES_PER_VERTEX);
@@ -1393,13 +1393,13 @@ void blockParseConnectedTexture(void)
  * somewhat similar to normal block models, but all models will be rendered
  * using an othogonal projection.
  */
-int blockInvModelCube(DATA16 ret, BlockState b, DATA8 texCoord)
+int blockInvModelCube(DATA16 ret, BlockState b, DATA8 textureCoord)
 {
 	DATA8 uv = &b->nzU;
 	int   rotate, i, j;
 	for (i = 0, rotate = b->rotate; i < 6; i ++, rotate >>= 2, uv += 2)
 	{
-		DATA8   tex = texCoord + (rotate&3) * 8;
+		DATA8   tex = textureCoord + (rotate&3) * 8;
 		uint8_t U   = uv[0];
 		uint8_t V   = uv[1];
 		if (V == 62) V = 63; /* biome dependent color: line below will contain sample tex with a default biome color */
@@ -1407,7 +1407,7 @@ int blockInvModelCube(DATA16 ret, BlockState b, DATA8 texCoord)
 		/* 4 vertex per face (QUAD) */
 		for (j = 0; j < 4; j ++, tex += 2, ret += INT_PER_VERTEX)
 		{
-			DATA8 vtx = vertex + cubeIndices[i*4+j];
+			DATA8 vtx = cubeVertex + cubeIndices[i*4+j];
 			ret[0] = VERTEX(vtx[0]);
 			ret[1] = VERTEX(vtx[1]);
 			ret[2] = VERTEX(vtx[2]);
@@ -1451,7 +1451,7 @@ static int blockInvModelQuad(DATA16 ret, DATA8 UV)
 
 	for (j = 0, tex = texCoordRevU; j < 4; j ++, tex += 2, ret += INT_PER_VERTEX)
 	{
-		DATA8 vtx = vertex + cubeIndices[8+j];
+		DATA8 vtx = cubeVertex + cubeIndices[8+j];
 		ret[0] = VERTEX(vtx[0]);
 		ret[1] = VERTEX(vtx[1]);
 		ret[2] = VERTEX(vtx[2]); /* Z value doesn't really matter: we'll use a 2d projection on XY planes */
@@ -1507,7 +1507,6 @@ void blockParseInventory(int vbo)
 	/* first: count vertex needed for inventory models */
 	for (state = blockStates, total = 0; state < blockLast; state ++)
 	{
-		int vtx;
 		switch (state->inventory & MODELFLAGS) {
 		case CUBE3D: vtx = 36; break;
 		case ITEM2D: vtx = 6;  break;
@@ -1774,7 +1773,7 @@ static int blockGenCommonBBox(float * bbox)
 
 			for (j = 0; j < 4; j ++, i ++, p += INT_PER_VERTEX)
 			{
-				DATA8 v = vertex + cubeIndices[i];
+				DATA8 v = cubeVertex + cubeIndices[i];
 				float x = (v[0] * bbox[0] + bbox[3]) / 16;
 				float y = (v[1] * bbox[1] + bbox[4]) / 16;
 				float z = (v[2] * bbox[2] + bbox[5]) / 16;
@@ -1847,7 +1846,7 @@ static int blockBBoxFuse(BlockState b, VTXBBox list, int cnxFlags, DATA16 buffer
 }
 
 /* fill vertex buffers for selection shader */
-int blockGenVertexBBox(BlockState b, VTXBBox box, int flag, int * vbo, int texCoord, int offsets)
+int blockGenVertexBBox(BlockState b, VTXBBox box, int flag, int * vbo, int textureCoord, int offsets)
 {
 	glBindBuffer(GL_ARRAY_BUFFER, vbo[0]);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vbo[1]);
@@ -1868,8 +1867,8 @@ int blockGenVertexBBox(BlockState b, VTXBBox box, int flag, int * vbo, int texCo
 		PT1X, PT2Y, PT1Z, PTU, PTV,
 	};
 	int idx;
-	float U = ((texCoord >> 4) * 16 + 8) / 512.;
-	float V = ((texCoord & 15) * 16 + 8) / 1024.;
+	float U = ((textureCoord >> 4) * 16 + 8) / 512.;
+	float V = ((textureCoord & 15) * 16 + 8) / 1024.;
 
 	index  += offsets & 0xffff; offsets >>= 16;
 	vertex += offsets;
@@ -2268,7 +2267,7 @@ static int blockModelQuad(BlockState b, DATA16 buffer)
 		uint8_t i, j, tex, side = quadSides[*sides];
 		for (i = 0, j = *sides * 4, tex = b->rotate * 8; i < 4; i ++, j ++, p += INT_PER_VERTEX, tex += 2)
 		{
-			DATA8 coord = vertex + quadIndices[j];
+			DATA8 coord = cubeVertex + quadIndices[j];
 			int   U = b->nzU;
 			int   V = b->nzV;
 			if (V == 62 && U < 17) V = 63; /* biome dependent color */
@@ -2283,7 +2282,7 @@ static int blockModelQuad(BlockState b, DATA16 buffer)
 
 			if (side < 6 && *sides >= QUAD_NORTH)
 			{
-				int8_t * normal = normals + side * 4;
+				int8_t * normal = cubeNormals + side * 4;
 				p[0] += normal[0] * (BASEVTX/16);
 				p[1] += normal[1] * (BASEVTX/16);
 				p[2] += normal[2] * (BASEVTX/16);
@@ -2832,8 +2831,8 @@ void blockPostProcessTexture(DATA8 * data, int * width, int * height, int bpp)
 	{
 		for (i = 0; i < 32; i ++, k ++)
 		{
-			DATA8 s = dst + sz * i + j * sz * w;
-			int   x, y;
+			int x, y;
+			s = dst + sz * i + j * sz * w;
 			for (y = 0; y < sz; y += bpp, s += stride)
 			{
 				for (x = 3; x < sz; x += bpp)

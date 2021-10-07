@@ -130,7 +130,7 @@ void halfBlockInit(void)
 }
 
 /* connected stairs model */
-static DATA8 halfBlockGetConnectedModel(BlockState b, DATA16 blockIds)
+static DATA8 halfBlockGetConnectedModel(BlockState b, DATA16 neighborBlockIds)
 {
 	/* only need the 4 surrounding blocks (S, E, N, w) */
 	#define ANDOR(and, or)      ((((~and)&15)<<4) | or)
@@ -148,12 +148,12 @@ static DATA8 halfBlockGetConnectedModel(BlockState b, DATA16 blockIds)
 	int     up    = b->id & 4;
 	int     i;
 
-	if (! blockIds) return model;
+	if (! neighborBlockIds) return model;
 	if (! up) bits >>= 4;
 
 	for (i = 0; i < 4; i ++, cnx += 3)
 	{
-		BlockState n = blockGetById(blockIds[cnx[0]]);
+		BlockState n = blockGetById(neighborBlockIds[cnx[0]]);
 
 		if (n->special == BLOCK_STAIRS && (n->id&4) == up && (n->id&3) == cnx[1])
 		{
@@ -171,7 +171,7 @@ static DATA8 halfBlockGetConnectedModel(BlockState b, DATA16 blockIds)
 	return model;
 }
 
-DATA8 halfBlockGetModel(BlockState b, int size, DATA16 blockIds)
+DATA8 halfBlockGetModel(BlockState b, int size, DATA16 neighborBlockIds)
 {
 	static uint8_t fullySolid = 0xff;
 	switch (size) {
@@ -186,7 +186,7 @@ DATA8 halfBlockGetModel(BlockState b, int size, DATA16 blockIds)
 	case 2:
 		switch (b->special) {
 		case BLOCK_HALF:   return &modelsSize2[(b->id&15) > 7];
-		case BLOCK_STAIRS: return halfBlockGetConnectedModel(b, blockIds);
+		case BLOCK_STAIRS: return halfBlockGetConnectedModel(b, neighborBlockIds);
 		default: return b->type == SOLID ? &fullySolid : NULL;
 		}
 	case 8: /* TODO */
@@ -195,7 +195,7 @@ DATA8 halfBlockGetModel(BlockState b, int size, DATA16 blockIds)
 	return NULL;
 }
 
-static DATA16 halfBlockRelocCenter(int center, DATA16 blockIds, DATA16 buffer)
+static DATA16 halfBlockRelocCenter(int center, DATA16 neighborBlockIds, DATA16 buffer)
 {
 	static int8_t NWES[] = {0, -1, -1, 0, 1, 0, 0, 1};
 	int8_t i, x, z, y;
@@ -207,7 +207,7 @@ static DATA16 halfBlockRelocCenter(int center, DATA16 blockIds, DATA16 buffer)
 	{
 		int8_t x2 = x + NWES[i];
 		int8_t z2 = z + NWES[i+1];
-		buffer[i] = x2 < 0 || x2 > 2 || z2 < 0 || z2 > 2 ? 0 : blockIds[x2+z2*3+y];
+		buffer[i] = x2 < 0 || x2 > 2 || z2 < 0 || z2 > 2 ? 0 : neighborBlockIds[x2+z2*3+y];
 	}
 
 	/* looks dangerous, but first 10 items are not read */
@@ -215,7 +215,7 @@ static DATA16 halfBlockRelocCenter(int center, DATA16 blockIds, DATA16 buffer)
 }
 
 /* compute ambient occlusion for half slab (only one quad here) */
-static uint32_t halfBlockGetOCS(DATA16 blockIds, DATA8 ocsval, uint8_t pos[3], int norm, int quadrant, ModelCache models)
+static uint32_t halfBlockGetOCS(DATA16 neighborBlockIds, DATA8 ocsval, uint8_t pos[3], int norm, int quadrant, ModelCache models)
 {
 	uint32_t occlusion;
 	uint8_t  i, j;
@@ -239,7 +239,7 @@ static uint32_t halfBlockGetOCS(DATA16 blockIds, DATA8 ocsval, uint8_t pos[3], i
 
 			if ((models->set & (1 << off)) == 0)
 			{
-				DATA8 model2x2 = halfBlockGetModel(blockGetById(blockIds[off]), 2, halfBlockRelocCenter(off, blockIds, buffer));
+				DATA8 model2x2 = halfBlockGetModel(blockGetById(neighborBlockIds[off]), 2, halfBlockRelocCenter(off, neighborBlockIds, buffer));
 				models->set |= 1<<off;
 				models->cache[off] = model2x2 ? model2x2[0] : 0;
 			}
@@ -251,7 +251,7 @@ static uint32_t halfBlockGetOCS(DATA16 blockIds, DATA8 ocsval, uint8_t pos[3], i
 				if (corner == i)
 				{
 					/* check if occlusion is 1 or 2 sub-voxel high */
-					int8_t * normal = normals + norm * 4;
+					int8_t * normal = cubeNormals + norm * 4;
 					uint8_t  flag = corner * 3 + j;
 					xc += normal[0];
 					yc += normal[1];
@@ -261,7 +261,7 @@ static uint32_t halfBlockGetOCS(DATA16 blockIds, DATA8 ocsval, uint8_t pos[3], i
 
 					if ((models->set & (1 << off)) == 0)
 					{
-						DATA8 model2x2 = halfBlockGetModel(blockGetById(blockIds[off]), 2, halfBlockRelocCenter(off, blockIds, buffer));
+						DATA8 model2x2 = halfBlockGetModel(blockGetById(neighborBlockIds[off]), 2, halfBlockRelocCenter(off, neighborBlockIds, buffer));
 						models->set |= 1<<off;
 						models->cache[off] = model2x2 ? model2x2[0] : 0;
 					}
@@ -305,7 +305,7 @@ static int halfBlockSkyOffset(DATA8 vtx, int vertex, int xyz, int adjust)
 	return (pos[0]>>1) + (pos[2]>>1) * 3 + (pos[1]>>1) * 9;
 }
 
-static Bool isVisible(DATA16 blockIds, ModelCache models, DATA8 pos, int dir)
+static Bool isVisible(DATA16 neighborBlockIds, ModelCache models, DATA8 pos, int dir)
 {
 	static int offsets[] = {-2, -1, 2, 1, -4, 4};
 	static uint8_t blockIndex[] = {16, 14, 10, 12, 22, 4};
@@ -314,7 +314,7 @@ static Bool isVisible(DATA16 blockIds, ModelCache models, DATA8 pos, int dir)
 	if ((models->set & (1 << off)) == 0)
 	{
 		DATA16 buffer = alloca(14);
-		DATA8 model2x2 = halfBlockGetModel(blockGetById(blockIds[off]), 2, halfBlockRelocCenter(off, blockIds, buffer));
+		DATA8 model2x2 = halfBlockGetModel(blockGetById(neighborBlockIds[off]), 2, halfBlockRelocCenter(off, neighborBlockIds, buffer));
 		models->set |= 1<<off;
 		models->cache[off] = model2x2 ? model2x2[0] : 0;
 	}
@@ -327,7 +327,7 @@ static Bool isVisible(DATA16 blockIds, ModelCache models, DATA8 pos, int dir)
  * Main function to convert a detail block metadata into a triangle mesh:
  * contrary to chunk meshing, we try harder to make triangles as big as possible.
  */
-void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DATA8 xyz, BlockState b, DATA16 blockIds, DATA8 skyBlock, int genSides)
+void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DATA8 xyz, BlockState b, DATA16 neighborBlockIds, DATA8 skyBlock, int genSides)
 {
 	static uint8_t xsides[] = { 2, 8};
 	static uint8_t ysides[] = {16,32};
@@ -379,7 +379,7 @@ void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DAT
 			if (flags & mask) continue;
 
 			/* is face visible (empty space in neighbor block) */
-			if ((sides & mask) ? face[offset[j]] < 255 : !isVisible(blockIds, &models, pos, j)) { *face |= mask; continue; }
+			if ((sides & mask) ? face[offset[j]] < 255 : !isVisible(neighborBlockIds, &models, pos, j)) { *face |= mask; continue; }
 
 			/* check if we can expand in one of 2 directions */
 			memset(rect, 1, 4);
@@ -402,7 +402,7 @@ void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DAT
 			faceOff[1] = offset[dirV] - faceOff[0];
 			memcpy(cur, pos, 4);
 			memcpy(ocs+4, dummyVal, sizeof dummyVal);
-			occlusion = halfBlockGetOCS(blockIds, ocs, cur, j, 0, &models);
+			occlusion = halfBlockGetOCS(neighborBlockIds, ocs, cur, j, 0, &models);
 
 			for (k = 0, face2 = face; k < 3; k ++)
 			{
@@ -411,8 +411,8 @@ void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DAT
 				cur[axisV] += subVoxel[k+3];
 				face2 += faceOff[k];
 				if (cur[axisU] == 2 || cur[axisV] == 2 || (*face2 & mask)) continue;
-				if ((sides & mask) ? face2[offset[j]] < 255 : !isVisible(blockIds, &models, cur, j)) continue;
-				occlusion |= halfBlockGetOCS(blockIds, ocs + 4 + (k<<2), cur, j, k+1, &models);
+				if ((sides & mask) ? face2[offset[j]] < 255 : !isVisible(neighborBlockIds, &models, cur, j)) continue;
+				occlusion |= halfBlockGetOCS(neighborBlockIds, ocs + 4 + (k<<2), cur, j, k+1, &models);
 			}
 
 			uint16_t ocsval = 0;
@@ -501,7 +501,7 @@ void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DAT
 				#define texSz    3
 
 				face2 = cubeIndices + j * 4;
-				DATA8 idx = vertex + face2[3];
+				DATA8 idx = cubeVertex + face2[3];
 				/* first vertex */
 				vtx[0] = pos[0] + idx[0] * rect[0];
 				vtx[1] = pos[1] + idx[1] * rect[1];
@@ -512,7 +512,7 @@ void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DAT
 				out[0] = X1 | (Y1 << 16);
 
 				/* second vertex */
-				idx = vertex + face2[0];
+				idx = cubeVertex + face2[0];
 				vtx[4] = pos[0] + (idx[0] * rect[0]);
 				vtx[5] = pos[1] + (idx[1] * rect[1]);
 				vtx[6] = pos[2] + (idx[2] * rect[2]);
@@ -522,7 +522,7 @@ void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DAT
 				base = vtx[4+coordV[j]] << texSz; V = (UV[1] << 4) + (rev != 2 ? 16 - base : base);
 
 				/* third vertex */
-				idx = vertex + face2[2];
+				idx = cubeVertex + face2[2];
 				vtx[8]  = pos[0] + (idx[0] * rect[0]);
 				vtx[9]  = pos[1] + (idx[1] * rect[1]);
 				vtx[10] = pos[2] + (idx[2] * rect[2]);
@@ -575,7 +575,7 @@ void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DAT
 /*
  * generate accurate bounding box from half-blocks
  */
-void halfBlockGetBBox(DATA16 blockIds, VTXBBox array, int max)
+void halfBlockGetBBox(DATA16 neighborBlockIds, VTXBBox array, int max)
 {
 	uint8_t visited[8];
 	uint8_t pos[4];
@@ -587,7 +587,7 @@ void halfBlockGetBBox(DATA16 blockIds, VTXBBox array, int max)
 	total = size * size * size;
 	array->cont = 0;
 
-	DATA8 model = halfBlockGetModel(blockGetById(blockIds[13]), 2, blockIds);
+	DATA8 model = halfBlockGetModel(blockGetById(neighborBlockIds[13]), 2, neighborBlockIds);
 	DATA8 faces = alloca(total + size);
 	DATA8 zero  = faces + total;
 	DATA8 face;

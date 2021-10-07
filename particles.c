@@ -347,9 +347,9 @@ static void particleMakeActive(Map map)
 		if (cd->emitters)
 		for (emit = cd->emitters + 2, j = emit[-2]; j > 0; j --, emit ++)
 		{
-			int  pos = *emit & 0xfff;
-			vec4 loc = {c->X + (pos & 15), cd->Y + (pos >> 8), c->Z + ((pos >> 4) & 15)};
-			Emitter e = particlesAddEmitter(loc, particleGetBlockId(cd, pos), (*emit >> 12) + 1, 750);
+			int  xzy = *emit & 0xfff;
+			vec4 loc = {c->X + (xzy & 15), cd->Y + (xzy >> 8), c->Z + ((xzy >> 4) & 15)};
+			Emitter e = particlesAddEmitter(loc, particleGetBlockId(cd, xzy), (*emit >> 12) + 1, 750);
 			*cur = e - emitters.buffer;
 			cur = &e->next;
 		}

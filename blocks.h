@@ -438,9 +438,9 @@ extern struct BlockState_t *     blockLast;
 extern uint16_t                  blockStateIndex[];
 extern uint8_t                   blockTexResol;   /* resolution of textures in terrain.png; default is 16 */
 
-extern uint8_t vertex[];
+extern uint8_t cubeVertex[];
 extern uint8_t cubeIndices[];
-extern int8_t  normals[];
+extern int8_t  cubeNormals[];
 extern uint8_t mask8bit[];
 extern uint8_t texCoord[];
 

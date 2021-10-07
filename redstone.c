@@ -339,11 +339,11 @@ int redstonePushedByPiston(struct BlockIter_t iter, RSWire list)
 			{
 				/* check for connected blocks */
 				struct BlockIter_t slime = iter;
-				uint8_t i, dir;
-				for (i = 0, dir = flags; i < 6 && dir; i ++, dir >>= 1)
+				uint8_t i, dirBits;
+				for (i = 0, dirBits = flags; i < 6 && dirBits; i ++, dirBits >>= 1)
 				{
 					mapIter(&slime, xoff[i], yoff[i], zoff[i]);
-					if ((dir & 1) == 0) continue;
+					if ((dirBits & 1) == 0) continue;
 					b = blockIds + slime.blockIds[slime.offset];
 					if (b->pushable == PUSH_AND_RETRACT)
 					{

@@ -55,14 +55,11 @@ void debugBlockVertex(SelBlock_t * select)
 
 		#ifdef DEBUG
 		xyz[1] += iter.cd->Y;
-		NBTHdr hdr = (NBTHdr) chunkGetTileEntity(iter.ref, xyz);
-		if (hdr)
+		DATA8 tile = chunkGetTileEntity(iter.ref, xyz);
+		if (tile)
 		{
-			struct NBTIter_t iter;
-			NBT_IterCompound(&iter, (DATA8) hdr);
-			while (NBT_Iter(&iter) >= 0);
-			fprintf(stderr, "TileEntity associated with block (%d bytes):\n", iter.offset);
-			struct NBTFile_t nbt = {.mem = (DATA8) hdr};
+			fprintf(stderr, "TileEntity associated with block (%d bytes):\n", NBT_Size(tile));
+			struct NBTFile_t nbt = {.mem = tile};
 			while ((i = NBT_Dump(&nbt, nbt.alloc, 3, stderr)) >= 0)
 				nbt.alloc += i;
 		}
@@ -128,9 +125,9 @@ void debugBlockVertex(SelBlock_t * select)
 					if (p[5] & 256)
 					{
 						uint8_t ocsext = ocsmap >> 9;
-						uint8_t i;
+						uint8_t j;
 						fprintf(stderr, ", EXT: ");
-						for (i = 0; i < 8; i ++, ocsext <<= 1)
+						for (j = 0; j < 8; j ++, ocsext <<= 1)
 							fputc(ocsext & 128 ? '1' : '0', stderr);
 					}
 					fputc('\n', stderr);
@@ -517,7 +514,7 @@ void debugWorld(void)
 	nvgTextAlign(vg, NVG_ALIGN_TOP);
 	nvgStrokeWidth(vg, 1);
 	float tile = debug.sliceSz / 16.f;
-	int   xoff = (debug.sliceSz - nvgTextBounds(vg, 0, 0, "99", NULL, NULL)) * 0.5f;
+	int   xtxt = (debug.sliceSz - nvgTextBounds(vg, 0, 0, "99", NULL, NULL)) * 0.5f;
 
 	for (j = debug.cellV, y = debug.yoff; j > 0; j --, y += debug.sliceSz)
 	{
@@ -581,7 +578,7 @@ void debugWorld(void)
 					showSky:
 					skyTxt = skyVal + sky*2;
 					nvgFillColorRGBA8(vg, debug.showLightValue ? "\xff\xff\x88\xff" : "\xff\xff\xff\xff");
-					nvgText(vg, x + xoff, y + 3, skyTxt, skyTxt+2);
+					nvgText(vg, x + xtxt, y + 3, skyTxt, skyTxt+2);
 				}
 				if (chunkGetTileEntity(iter.ref, (int[3]) {iter.x, iter.yabs, iter.z}))
 				{
