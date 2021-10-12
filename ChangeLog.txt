@@ -1,4 +1,22 @@
+=========== Week 41 ===========
+Mon Oct 11:
+	* entity business logic continued.
+	* in-game maps logic mostly done.
+
 =========== Week 40 ===========
+Sun Oct 10:
+	* nasty bug fix: entity.c was modifying global VTXBBox, which screwed collision detection :-/
+	* entity business logic continued.
+
+Sat Oct 9:
+	* first map in item frame rendered.
+
+Fri Oct 8:
+	* maps boilerplate continued.
+
+Thu Oct 7:
+	* started boilerplate to render in-game maps within item frame.
+
 Wed Oct 6:
 	* cleanup SITGL and MCEdit with -Wdouble-precision and -Wshadow.
 	* SITLG lexer mostly done, including doc.

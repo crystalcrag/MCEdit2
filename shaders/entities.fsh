@@ -1,11 +1,10 @@
-#version 430
-
 /*
  * fragment shader for entities
  */
+#version 430
 
-flat in  int   isBlock;
-flat in  int   isSelected;
+flat in int isBlock;
+flat in int isSelected;
 
 out vec4  color;
 in  vec2  texcoord;

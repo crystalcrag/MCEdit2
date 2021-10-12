@@ -57,6 +57,9 @@
 			<Option compilerVar="CC" />
 		</Unit>
 		<Unit filename="blocks.h" />
+		<Unit filename="cartograph.c">
+			<Option compilerVar="CC" />
+		</Unit>
 		<Unit filename="chunks.c">
 			<Option compilerVar="CC" />
 		</Unit>

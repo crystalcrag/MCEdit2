@@ -567,7 +567,8 @@ Bool NBT_Delete(NBTFile nbt, int offset, int nth)
 
 	nbt->usage -= size;
 	memmove(mem, mem + size, nbt->usage - offset);
-	NBT_UpdateHdrSize(nbt, -size, offset);
+	if (nth >= 0)
+		NBT_UpdateHdrSize(nbt, -size, offset);
 
 	return True;
 }
@@ -1462,10 +1463,33 @@ int NBT_ParseIO(NBTFile file, FILE * in, int offset)
 	memset(file, 0, sizeof *file);
 	if (io)
 	{
+		/*
+		 * small trick to avoid relocating potentially huge memory segments when reading region chunks:
+		 * - we initially alloc a rather big memory chunk to be sure it is not allocated in the middle
+		 *   of a free heap list (ie: end of heap).
+		 * - at the end of heap, enlarging a chunk is basically free (no memmove needed).
+		 * - if we allocated too much, we reduce the size of the chunk (which, again, should not cuase
+		 *   a pointer relocation).
+		 * - next chunk allocation will reuse that last chunk, without risking relocation either.
+		 * With this simple trick, there should be *NO* pointer relocation when reading chunks.
+		 */
+		file->max = 100 * 1024;
 		file->page = 4095;
-		NBT_ParseFile(file, io, NBT_REGION_FLAG);
-		gzClose(io);
-		return 1;
+		file->mem = malloc(file->max);
+		if (file->mem)
+		{
+			NBT_ParseFile(file, io, NBT_REGION_FLAG);
+			/* round to nearest page number, to avoid wasting too much memory */
+			int max = (file->usage + 4095) & ~4095;
+			if (max < file->max)
+			{
+				/* we are reducing the size of the block */
+				file->mem = realloc(file->mem, max);
+				file->max = max;
+			}
+			gzClose(io);
+			return 1;
+		}
 	}
 	return 0;
 }

@@ -1110,6 +1110,7 @@ static int mcuiFontSize(SIT_Widget app, DATA8 text, int maxWidth, int fontSize)
 	return fontSize * maxWidth / textWidth;
 }
 
+/* create interface for sign editing */
 void mcuiCreateSignEdit(vec4 pos, int blockId, int * exit)
 {
 	SIT_Widget diag = SIT_CreateWidget("sign", SIT_DIALOG, globals.app,
@@ -1141,6 +1142,7 @@ void mcuiCreateSignEdit(vec4 pos, int blockId, int * exit)
 	width += 20;
 	int fullw  = sz[0] * width  / (uv[2] - uv[0]);
 	int fullh  = sz[1] * height / (uv[3] - uv[1]);
+	/* quote the texture for background plank from main terrain.png texture */
 	sprintf(styles, "background: id(%d); background-size: %dpx %dpx; background-position: %dpx %dpx; padding: 10px; line-height: 1.3; font-size: %dpx",
 		image, fullw, fullh, - fullw * uv[0] / sz[0] - 1, - fullh * uv[1] / sz[1] - 1, fontsz);
 

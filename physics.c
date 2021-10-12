@@ -77,8 +77,8 @@ int physicsCheckCollision(Map map, vec4 start, vec4 end, VTXBBox bbox, float aut
 
 	for (i = 0; i < 3; i ++)
 	{
-		minMax[i]   = (bbox->pt1[i] - ORIGINVTX) * (1./BASEVTX);
-		minMax[3+i] = (bbox->pt2[i] - ORIGINVTX) * (1./BASEVTX);
+		minMax[i]   = FROMVERTEX(bbox->pt1[i]);
+		minMax[3+i] = FROMVERTEX(bbox->pt2[i]);
 	}
 
 	/* compute broad phase box */
@@ -122,8 +122,8 @@ int physicsCheckCollision(Map map, vec4 start, vec4 end, VTXBBox bbox, float aut
 
 						for (m = 0; m < 3; m ++)
 						{
-							bboxFloat[m]   = (blockBBox->pt1[m] - ORIGINVTX) * (1.f/BASEVTX) + rel[m];
-							bboxFloat[3+m] = (blockBBox->pt2[m] - ORIGINVTX) * (1.f/BASEVTX) + rel[m];
+							bboxFloat[m]   = FROMVERTEX(blockBBox->pt1[m]) + rel[m];
+							bboxFloat[3+m] = FROMVERTEX(blockBBox->pt2[m]) + rel[m];
 						}
 						/* bounding box not intersecting broad rect: ignore bbox */
 						if (bboxFloat[VX] >= broad[VX+3] || bboxFloat[VX+3] <= broad[VX] ||
@@ -336,52 +336,4 @@ void physicsMoveEntity(Map map, PhysicsEntity entity, float speed)
 		}
 	}
 	else entity->VYblocked = 0;
-
-	#if 0
-	vec4 pos = {floorf(p->loc[VX]), floorf(p->loc[VY]), floorf(p->loc[VZ])};
-	if (pos[VX] != old[VX] ||
-		pos[VY] != old[VY] ||
-		pos[VZ] != old[VZ])
-	{
-		uint8_t light;
-		Block b = blockIds + particlesGetBlockInfo(map, pos, &light);
-		if (! (b->type == SOLID || b->type == TRANS || b->type == CUST) || b->bboxPlayer == BBOX_NONE)
-		{
-			p->light = light;
-			if (! p->onGround)
-			{
-				/* check if block above has changed */
-				pos[VY] += 1;
-				Block b = blockIds + particlesGetBlockInfo(map, pos, &light);
-				if (p->dir[VY] >= 0)
-				if (! (b->type == SOLID || b->type == TRANS || b->type == CUST) || b->bboxPlayer == BBOX_NONE)
-					p->brake[VX] = p->brake[VZ] = 0.001, p->dir[VY] = 0.02;
-			}
-			else p->brake[VY] = 0.02;
-			continue;
-		}
-		/* inside a solid block: light will be 0 */
-
-		if (pos[VX] != old[VX]) p->dir[VX] = p->brake[VX] = 0, p->loc[VX] = buf[-5]; else
-		if (pos[VZ] != old[VZ]) p->dir[VZ] = p->brake[VZ] = 0, p->loc[VZ] = buf[-3]; else
-		if (pos[VY] >  old[VY])
-		{
-			/* hit a ceiling */
-			p->dir[VY] = 0;
-			p->loc[VY] = buf[-4];
-			if (type != PARTICLE_SMOKE)
-				p->brake[VY] = 0.02;
-			else
-				particleChangeDir(p);
-		}
-		else if (pos[VY] < old[VY])
-		{
-			/* hit the ground */
-			p->dir[VY] = 0;
-			p->loc[VY] = buf[-4]; // = pos[VY]+0.95;
-			p->brake[VY] = 0;
-			p->onGround = 1;
-		}
-	}
-	#endif
 }

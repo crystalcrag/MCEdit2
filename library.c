@@ -462,6 +462,7 @@ static int libraryGenPreview(SIT_Widget w, APTR cd, APTR ud)
 		AddPart(path, item->name, 1e6);
 		lib->thumbSz = thumbSz & 0xfff;
 		if (lib->thumbSz == 0) return 0;
+		memset(size, 0, sizeof size);
 		libraryExtractThumb(lib, path, size);
 		if (lib->nvgFBO)
 		{

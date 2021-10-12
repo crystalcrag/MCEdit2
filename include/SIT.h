@@ -45,6 +45,7 @@ typedef struct SIT_OnSort_t      SIT_OnSort;     /* OnSortItem */
 typedef struct SIT_OnPaint_t     SIT_OnPaint;    /* OnPaint */
 typedef struct SIT_OnVal_t       SIT_OnVal;      /* OnSetOrGet */
 typedef struct SIT_OnChange_t    SIT_OnChange;   /* OnChange on root widget */
+typedef struct SIT_OnEditBox_t   SIT_OnEditBox;  /* custom lexer for SIT_EDITBOX */
 typedef struct SIT_OnCellPaint_t SIT_OnCellPaint;
 
 /* generic callback prototype for events */
@@ -126,6 +127,7 @@ DLLIMP Bool       SIT_GetCSSValue(SIT_Widget, STRPTR property, APTR mem);
 DLLIMP float      SIT_EmToReal(SIT_Widget, uint32_t val);
 DLLIMP void       SIT_ExtractDialog(SIT_Widget);
 DLLIMP void       SIT_InsertDialog(SIT_Widget);
+DLLIMP int        SIT_TextEditLineLength(SIT_Widget, int line);
 
 DLLIMP Bool       SIT_ListSetCell(SIT_Widget, int row, int col, APTR rowTag, int align, STRPTR text);
 DLLIMP Bool       SIT_ListSetColumn(SIT_Widget, int col, int width, int align, STRPTR label);
@@ -281,6 +283,10 @@ enum
 	SIT_WordWrap         = 85,   /* C__: Enum (SITV_WW*) */
 	SIT_RoundTo          = 95,   /* _SG: Int */
 	// SIT_TabStyle      = 118,  /* _SG: Int (defined for Tab: see enum SITV_TabEdit* */
+	SIT_ColorMap         = 134,  /* _SG: DATA8 */
+	SIT_Lexer            = 135,  /* _SG: SIT_CallProc */
+	SIT_LexerData        = 136,  /* _SG: APTR */
+	SIT_EditAddText      = 137,  /* _S_: STRPTR */
 
 	/* List box */
 	SIT_ListBoxFlags     = 86,   /* C__: Enum */
@@ -585,6 +591,17 @@ struct SIT_OnSort_t
 	APTR item1;    /* rowTag parameter of SIT_ListInsertItem() */
 	APTR item2;
 	int  column;   /* 0 based */
+};
+
+struct SIT_OnEditBox_t   /* custom lexer for SIT_EDITBOX */
+{
+	DATA8 lexerCMap;     /* callback must fill <length> bytes into this ... */
+	DATA8 textBuffer;    /* ... according to the content of this buffer */
+	DATA8 cmap;          /* colormap from user */
+	int   length;        /* size in bytes of both buffers */
+	int   line;          /* 0-based line number being rendered */
+	int   byte;          /* byte offset within SIT_Title */
+	int   totalRow;      /* total rows of text */
 };
 
 struct SIT_TextShadow_t

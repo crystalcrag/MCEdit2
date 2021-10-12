@@ -420,7 +420,7 @@ void mceditWorld(void)
 					break;
 				case SDLK_F7:
 					globals.breakPoint = ! globals.breakPoint;
-					renderPointToBlock(globals.width>>1, globals.height>>1);
+					entityDebugCmd(globals.level->center);
 					break;
 				#endif
 				case SDLK_TAB:
@@ -726,11 +726,9 @@ void mceditPlaceBlock(void)
 	if (sel->entity > 0) /* pointing at an entity */
 	{
 		if (id == 0 /* no block selected in inventory bar */)
-		{
 			entityDeleteById(globals.level, sel->entity - 1);
-			renderAddModif();
-		}
-		else entityUseItemOn(globals.level, sel->entity, item->id, pos, sel->side);
+		else
+			entityUseItemOn(globals.level, sel->entity, item->id, pos, sel->side);
 	}
 	else if (id < ID(256, 0))
 	{

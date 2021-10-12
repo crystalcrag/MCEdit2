@@ -2143,13 +2143,13 @@ Bool blockGetBoundsForFace(VTXBBox box, int face, vec4 V0, vec4 V1, vec4 offset,
 
 		if (dir[3]) t += 3;
 		/* same as vertex shader blocks.vsh */
-		pt[0] = (box->pt1[0] - ORIGINVTX) * (1./BASEVTX);
-		pt[1] = (box->pt1[1] - ORIGINVTX) * (1./BASEVTX);
-		pt[2] = (box->pt1[2] - ORIGINVTX) * (1./BASEVTX);
+		pt[0] = FROMVERTEX(box->pt1[0]);
+		pt[1] = FROMVERTEX(box->pt1[1]);
+		pt[2] = FROMVERTEX(box->pt1[2]);
 
-		pt[3] = (box->pt2[0] - ORIGINVTX) * (1./BASEVTX);
-		pt[4] = (box->pt2[1] - ORIGINVTX) * (1./BASEVTX);
-		pt[5] = (box->pt2[2] - ORIGINVTX) * (1./BASEVTX);
+		pt[3] = FROMVERTEX(box->pt2[0]);
+		pt[4] = FROMVERTEX(box->pt2[1]);
+		pt[5] = FROMVERTEX(box->pt2[2]);
 
 		V0[x] = offset[x] + pt[x];
 		V0[y] = offset[y] + pt[y];

@@ -39,7 +39,7 @@ typedef struct NVGLUframebuffer *  NVGFBO;
 
 struct SignText_t
 {
-	int      XYZ[3];               /* coord of block */
+	int      XYZ[3];               /* coord of tile entity */
 	uint8_t  light;                /* unused since tex is black :-/ */
 	DATA8    tile;                 /* raw ptr to tile entity */
 	int16_t  next;                 /* linked list for signs of a chunk */
@@ -70,7 +70,7 @@ struct SignPrivate_t
 	int      toRender;             /* signs in render dist */
 	int      listDirty;
 	int      curXYZ[3];
-	int      mdaCount[BANK_MAX];
+	int      mdaCount[BANK_MAX];   /* should be property of SignBank, but will always be 6 */
 	int      font;
 	int      shader;
 };

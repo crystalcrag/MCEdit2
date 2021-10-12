@@ -1015,8 +1015,6 @@ PFNGLGENVERTEXARRAYSPROC glad_glGenVertexArrays;
 PFNGLGENBUFFERSPROC glad_glGenBuffers;
 PFNGLUNIFORMBLOCKBINDINGPROC glad_glUniformBlockBinding;
 PFNGLGENERATEMIPMAPPROC glad_glGenerateMipmap;
-PFNGLBINDBUFFERRANGEPROC glad_glBindBufferRange;
-PFNGLSTENCILOPSEPARATEPROC glad_glStencilOpSeparate;
 PFNGLUSEPROGRAMPROC glad_glUseProgram;
 PFNGLACTIVETEXTUREPROC glad_glActiveTexture;
 PFNGLBINDBUFFERPROC glad_glBindBuffer;
@@ -1026,14 +1024,11 @@ PFNGLENABLEVERTEXATTRIBARRAYPROC glad_glEnableVertexAttribArray;
 PFNGLVERTEXATTRIBPOINTERPROC glad_glVertexAttribPointer;
 PFNGLUNIFORM1IPROC glad_glUniform1i;
 PFNGLUNIFORM2FVPROC glad_glUniform2fv;
-PFNGLDISABLEVERTEXATTRIBARRAYPROC glad_glDisableVertexAttribArray;
 PFNGLDELETEBUFFERSPROC glad_glDeleteBuffers;
 PFNGLDELETEVERTEXARRAYSPROC glad_glDeleteVertexArrays;
 PFNGLMAPBUFFERRANGEPROC glad_glMapBufferRange;
 
 PFNGLBINDTEXTUREPROC glad_glBindTexture;
-PFNGLSTENCILMASKPROC glad_glStencilMask;
-PFNGLSTENCILFUNCPROC glad_glStencilFunc;
 PFNGLDELETETEXTURESPROC glad_glDeleteTextures;
 PFNGLGETERRORPROC glad_glGetError;
 PFNGLGETINTEGERVPROC glad_glGetIntegerv;
@@ -1045,30 +1040,17 @@ PFNGLTEXIMAGE2DPROC glad_glTexImage2D;
 PFNGLTEXPARAMETERIPROC glad_glTexParameteri;
 PFNGLTEXSUBIMAGE2DPROC glad_glTexSubImage2D;
 PFNGLENABLEPROC glad_glEnable;
-PFNGLCOLORMASKPROC glad_glColorMask;
 PFNGLDISABLEPROC glad_glDisable;
 PFNGLDRAWARRAYSPROC glad_glDrawArrays;
-PFNGLSTENCILOPPROC glad_glStencilOp;
 PFNGLCULLFACEPROC glad_glCullFace;
 PFNGLFRONTFACEPROC glad_glFrontFace;
 PFNGLVIEWPORTPROC glad_glViewport;
 PFNGLCLEARCOLORPROC glad_glClearColor;
 PFNGLCLEARPROC glad_glClear;
 PFNGLGETSTRINGPROC glad_glGetString;
-PFNGLGENFRAMEBUFFERSPROC glad_glGenFramebuffers;
-PFNGLBINDFRAMEBUFFERPROC glad_glBindFramebuffer;
-PFNGLGENRENDERBUFFERSPROC glad_glGenRenderbuffers;
-PFNGLBINDRENDERBUFFERPROC glad_glBindRenderbuffer;
-PFNGLRENDERBUFFERSTORAGEPROC glad_glRenderbufferStorage;
-PFNGLFRAMEBUFFERTEXTURE2DPROC glad_glFramebufferTexture2D;
-PFNGLFRAMEBUFFERRENDERBUFFERPROC glad_glFramebufferRenderbuffer;
-PFNGLCHECKFRAMEBUFFERSTATUSPROC glad_glCheckFramebufferStatus;
-PFNGLDELETEFRAMEBUFFERSPROC glad_glDeleteFramebuffers;
-PFNGLDELETERENDERBUFFERSPROC glad_glDeleteRenderbuffers;
 PFNGLMULTIDRAWARRAYSPROC glad_glMultiDrawArrays;
 PFNGLPOLYGONOFFSETPROC glad_glPolygonOffset;
 PFNGLGETTEXIMAGEPROC glad_glGetTexImage;
-PFNGLTEXBUFFERPROC glad_glTexBuffer;
 
 PFNGLBUFFERSUBDATAPROC glad_glBufferSubData;
 PFNGLDEBUGMESSAGECALLBACKPROC glad_glDebugMessageCallback;
@@ -1092,7 +1074,6 @@ PFNGLMAPBUFFERPROC glad_glMapBuffer;
 PFNGLUNMAPBUFFERPROC glad_glUnmapBuffer;
 PFNGLCOPYTEXIMAGE2DPROC glad_glCopyTexImage2D;
 PFNGLREADBUFFERPROC glad_glReadBuffer;
-PFNGLBINDIMAGETEXTUREPROC glad_glBindImageTexture;
 PFNGLDRAWARRAYSINSTANCEDPROC glad_glDrawArraysInstanced;
 
 typedef void* (APIENTRYP PFNGLXGETPROCADDRESSPROC_PRIVATE)(const char*);
@@ -1136,8 +1117,6 @@ int gladLoadGL(void)
 		 && (glad_glGenVertexArrays    = load(name = "glGenVertexArrays"))
 		 && (glad_glGenBuffers         = load(name = "glGenBuffers"))
 		 && (glad_glGenerateMipmap     = load(name = "glGenerateMipmap"))
-		 && (glad_glBindBufferRange    = load(name = "glBindBufferRange"))
-		 && (glad_glStencilOpSeparate  = load(name = "glStencilOpSeparate"))
 		 && (glad_glUseProgram         = load(name = "glUseProgram"))
 		 && (glad_glActiveTexture      = load(name = "glActiveTexture"))
 		 && (glad_glBindBuffer         = load(name = "glBindBuffer"))
@@ -1148,8 +1127,6 @@ int gladLoadGL(void)
 		 && (glad_glDeleteBuffers      = load(name = "glDeleteBuffers"))
 		 && (glad_glDeleteVertexArrays = load(name = "glDeleteVertexArrays"))
 		 && (glad_glBindTexture        = load(name = "glBindTexture"))
-		 && (glad_glStencilMask        = load(name = "glStencilMask"))
-		 && (glad_glStencilFunc        = load(name = "glStencilFunc"))
 		 && (glad_glDeleteTextures     = load(name = "glDeleteTextures"))
 		 && (glad_glGetError           = load(name = "glGetError"))
 		 && (glad_glGetIntegerv        = load(name = "glGetIntegerv"))
@@ -1161,10 +1138,8 @@ int gladLoadGL(void)
 		 && (glad_glTexParameteri      = load(name = "glTexParameteri"))
 		 && (glad_glTexSubImage2D      = load(name = "glTexSubImage2D"))
 		 && (glad_glEnable             = load(name = "glEnable"))
-		 && (glad_glColorMask          = load(name = "glColorMask"))
 		 && (glad_glDisable            = load(name = "glDisable"))
 		 && (glad_glDrawArrays         = load(name = "glDrawArrays"))
-		 && (glad_glStencilOp          = load(name = "glStencilOp"))
 		 && (glad_glCullFace           = load(name = "glCullFace"))
 		 && (glad_glFrontFace          = load(name = "glFrontFace"))
 		 && (glad_glViewport           = load(name = "glViewport"))
@@ -1187,24 +1162,11 @@ int gladLoadGL(void)
 		 && (glad_glPolygonOffset      = load(name = "glPolygonOffset"))
 		 && (glad_glMultiDrawArrays    = load(name = "glMultiDrawArrays"))
 		 && (glad_glGetTexImage        = load(name = "glGetTexImage"))
-		 && (glad_glBindImageTexture   = load(name = "glBindImageTexture"))
-		 && (glad_glTexBuffer          = load(name = "glTexBuffer"))
 		 && (glad_glMapBufferRange     = load(name = "glMapBufferRange"))
 		 && (glad_glGetUniformBlockIndex     = load(name = "glGetUniformBlockIndex"))
 		 && (glad_glUniformBlockBinding      = load(name = "glUniformBlockBinding"))
 		 && (glad_glEnableVertexAttribArray  = load(name = "glEnableVertexAttribArray"))
 		 && (glad_glVertexAttribPointer      = load(name = "glVertexAttribPointer"))
-		 && (glad_glDisableVertexAttribArray = load(name = "glDisableVertexAttribArray"))
-		 && (glad_glGenFramebuffers          = load(name = "glGenFramebuffers"))
-		 && (glad_glBindFramebuffer          = load(name = "glBindFramebuffer"))
-		 && (glad_glGenRenderbuffers         = load(name = "glGenRenderbuffers"))
-		 && (glad_glBindRenderbuffer         = load(name = "glBindRenderbuffer"))
-		 && (glad_glRenderbufferStorage      = load(name = "glRenderbufferStorage"))
-		 && (glad_glFramebufferTexture2D     = load(name = "glFramebufferTexture2D"))
-		 && (glad_glFramebufferRenderbuffer  = load(name = "glFramebufferRenderbuffer"))
-		 && (glad_glCheckFramebufferStatus   = load(name = "glCheckFramebufferStatus"))
-		 && (glad_glDeleteFramebuffers       = load(name = "glDeleteFramebuffers"))
-		 && (glad_glDeleteRenderbuffers      = load(name = "glDeleteRenderbuffers"))
 		 && (glad_glDebugMessageCallback     = load(name = "glDebugMessageCallback"))
 		 && (glad_glVertexAttribIPointer     = load(name = "glVertexAttribIPointer"))
 		 && (glad_glVertexAttribDivisor      = load(name = "glVertexAttribDivisor"))

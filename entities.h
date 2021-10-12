@@ -31,10 +31,11 @@ int  entityGetBlockId(int id);
 
 VTXBBox entityGetBBox(int id);
 
-#define ENTITY_END         0xffff
-#define ENTITY_PAINTINGID  0x10000
-#define ENTITY_ITEMFRAME   0x20000
-#define ENTITY_ITEM        0x1000000  /* differentiate item from block entity */
+#define ENTITY_END                 0xffff
+#define ENTITY_PAINTINGID          0x10000
+#define ENTITY_ITEMFRAME           0x20000
+#define ENTITY_ITEMFRAME_FULL      0x40000
+#define ENTITY_ITEM                0x1000000  /* differentiate item from block entity */
 
 
 enum /* entity id and models */
@@ -55,8 +56,8 @@ enum /* entity id and models */
 	ENTITY_FALLING
 };
 
-typedef struct Paintings_t     Paintings_t;
-typedef union EntityUUID_t     EntityUUID_t;
+typedef struct Paintings_t         Paintings_t;
+typedef union EntityUUID_t         EntityUUID_t;
 struct Paintings_t
 {
 	TEXT    names[256];
@@ -70,7 +71,7 @@ union EntityUUID_t
 	uint64_t uuid64[2];
 };
 
-extern Paintings_t paintings;    /* convert painting id to models id */
+extern Paintings_t paintings;      /* convert painting id to model id */
 
 /* private stuff below */
 #ifdef ENTITY_IMPL
@@ -79,6 +80,8 @@ extern Paintings_t paintings;    /* convert painting id to models id */
 #define LIGHT_SIZE         24
 #define ENTITY_SHIFT       8
 #define ENTITY_BATCH       (1 << ENTITY_SHIFT)
+#define BANK_NUM(vbo)      ((vbo) & 63)
+#define MDAI_INVALID_SLOT  0xffff
 #define BOX(szx,szy,szz)   \
 	{-szx/2 * BASEVTX + ORIGINVTX, -szy/2 * BASEVTX + ORIGINVTX, -szz/2 * BASEVTX + ORIGINVTX}, \
 	{ szx/2 * BASEVTX + ORIGINVTX,  szy/2 * BASEVTX + ORIGINVTX,  szz/2 * BASEVTX + ORIGINVTX}
@@ -99,17 +102,17 @@ typedef struct BBoxBuffer_t *      BBoxBuffer;
 
 struct Entity_t
 {
-	uint16_t next;                 /* first ENTITY_SHIFT bits: index in buffer, remain: buffer index  */
-	uint16_t VBObank;              /* first 6bits: bank index, remain: model index */
-	uint16_t mdaiSlot;             /* GL draw index in VBObank */
-	int      blockId;
-	float    motion[3];
-	float    pos[4];               /* X, Y, Z and extra info for shader */
-	float    rotation[4];          /* rotation in Y, X, Z and scaling */
-	uint32_t light[6];
-	DATA8    tile;                 /* start of NBT Compound for this entity */
-	Entity   ref;
-	STRPTR   name;                 /* from NBT ("id" key) */
+	uint16_t    next;              /* first ENTITY_SHIFT bits: index in buffer, remain: buffer index (linked list within chunk) */
+	uint16_t    VBObank;           /* first 6bits: bank index, remain: model index */
+	uint16_t    mdaiSlot;          /* GL draw index in VBObank */
+	int         blockId;
+	float       motion[3];
+	float       pos[4];            /* X, Y, Z and extra info for shader */
+	float       rotation[4];       /* rotation in Y, X, Z axis (radians) and scaling */
+	uint32_t    light[6];
+	DATA8       tile;              /* start of NBT Compound for this entity */
+	Entity      ref;
+	STRPTR      name;              /* from NBT ("id" key) */
 };
 
 struct EntityEntry_t               /* HashTable entry */
@@ -140,33 +143,34 @@ struct EntityModel_t               /* where model data is and bounding box info 
 	uint16_t count;
 };
 
-struct EntityBank_t
+struct EntityBank_t                /* contains models up to 65536 vertices (BANK_SIZE) */
 {
 	ListNode    node;
 	EntityModel models;            /* array, capacity in modelCount */
 	int         modelCount;        /* item in array */
-	uint16_t    vtxCount;
-	uint8_t     dirty;
+	uint16_t    vtxCount;          /* current nb of vertices in vboModel */
+	uint8_t     dirty;             /* vboLoc and vboMDAI need to be redone for this bank */
 	int         vao;               /* gl buffers needed by glMultiDrawArraysIndirect() */
-	int         vboModel;
-	int         vboLoc;
-	int         vboMDAI;
+	int         vboModel;          /* VBO to quote models from */
+	int         vboLoc;            /* meta data for entity (glAttribDivisor == 1) */
+	int         vboMDAI;           /* MultiDrawArrayIndirect command buffer */
 	int         mdaiCount;
 	int         mdaiMax;
 	DATA32      mdaiUsage;
 };
 
-struct EntitiesPrivate_t
+struct EntitiesPrivate_t           /* static vars for entity.c */
 {
 	EntityHash_t hash;
-	ListHead     list;         /* EntityBuffer */
-	ListHead     banks;        /* EntityBank */
-	ListHead     bbox;         /* BBoxBuffer */
+	ListHead     list;             /* EntityBuffer */
+	ListHead     banks;            /* EntityBank */
+	ListHead     bbox;             /* BBoxBuffer */
 	EntityAnim   animate;
 	int          animCount;
 	int          animMax;
 	int          shader;
 	Entity       selected;
+	int          selectedId;
 	vec4         createPos;
 	uint8_t      createSide;
 };

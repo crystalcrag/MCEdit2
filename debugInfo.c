@@ -357,7 +357,7 @@ static void nvgMultiLineText(NVGcontext * vg, float x, float y, STRPTR start, ST
 void debugCoord(APTR vg, vec4 camera, int total)
 {
 	TEXT message[256];
-	int  len = sprintf(message, "XYZ: %.2f, %.2f, %.2f (eyes)", (double) camera[0], (double)(camera[1] - PLAYER_HEIGHT), (double) camera[2]);
+	int  len = sprintf(message, "XYZ: %.2f, %.2f, %.2f (feet)", (double) camera[0], (double)(camera[1] - PLAYER_HEIGHT), (double) camera[2]);
 	int  vis, culled;
 	ChunkData cd = globals.level->firstVisible;
 

@@ -1,5 +1,6 @@
 /*
- * vertex shader for drawing selection.
+ * vertex shader for drawing selection (rectangular highlight).
+ * note: cloned selection is rendered using blocks shader (this is just for the rectangular highlight).
  */
 #version 430
 

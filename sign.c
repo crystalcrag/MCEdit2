@@ -1,7 +1,9 @@
 /*
- * sign.c : logic to render text of signs (post or standing): draw the text into
- *          a GL texture and use that texture as a decal on the sign.
- *          note: sign model is handled in the chunk meshing phase.
+ * sign.c : logic to render text of signs (post or standing): draw the text into a GL texture and
+ *          use that texture as a decal on the sign. Texture will contain up to 128 signs (8x16),
+ *          so lots of boilerplate code will ne needed to keep track of everything.
+ *
+ *          note: the sign model itself is handled in the chunk meshing phase.
  *
  * Written by T.Pierron, jan 2021
  */
@@ -62,16 +64,20 @@ char signMinText[] = "wwwwwwwwwwwwwww";
 
 Bool signInitStatic(int font)
 {
-	signs.shader = createGLSLProgram("sign.vsh", "sign.fsh", NULL);
+	signs.shader = createGLSLProgram("decals.vsh", "decals.fsh", NULL);
 
 	if (! signs.shader)
 		return False;
 
+	/* since we are only rendering quad, count will always be 6 for all glMultiDrawArrays() objects */
 	int i;
 	for (i = 0; i < BANK_MAX; i ++)
 		signs.mdaCount[i] = 6;
 
-	signs.font   = font;
+	signs.font = font;
+
+	void cartoInitStatic(int shader, int * mdaCount);
+	cartoInitStatic(signs.shader, signs.mdaCount);
 
 	return True;
 }
@@ -162,7 +168,7 @@ void signGetText(vec4 pos, DATA8 text, int max)
 	}
 }
 
-/* extract all information from NBT */
+/* extract all the information we need from NBT */
 static void signParseEntity(SignText sign)
 {
 	struct NBTFile_t nbt = {.mem = sign->tile};
@@ -170,6 +176,7 @@ static void signParseEntity(SignText sign)
 	int i;
 
 	if (! nbt.mem) return;
+	memset(sign->text, 0, sizeof sign->text);
 	NBT_IterCompound(&iter, nbt.mem);
 	while ((i = NBT_Iter(&iter)) >= 0)
 	{
@@ -199,6 +206,10 @@ static void signUpdateBank(SignText sign)
 	NVGCTX   vg   = globals.nvgCtx;
 	float    x, y, ellipse;
 
+	/*
+	 * /!\ despite origin of coordinate system of nanovg being top left corner, texture
+	 * inside FBO will fliped vertically :-/
+	 */
 	nvgluBindFramebuffer(bank->nvgFBO);
 	glViewport(0, 0, SIGN_WIDTH * BANK_WIDTH, SIGN_HEIGHT * BANK_HEIGHT);
 	nvgBeginFrame(vg, SIGN_WIDTH * BANK_WIDTH, SIGN_HEIGHT * BANK_HEIGHT, 1);
@@ -276,7 +287,7 @@ void signSetText(Chunk chunk, vec4 pos, DATA8 msg)
 		tile = text[i];
 		if (IsDef(tile))
 		{
-			/* has to convert this crap to json */
+			/* has to convert this crap back to json */
 			STRPTR buffer = text[i] = alloca(16 + strlen(tile) + StrCount(tile, '\\') + StrCount(tile, '\"'));
 			for (strcpy(buffer, "\"text\":\""), buffer += 8; *tile; tile ++)
 			{
@@ -383,10 +394,9 @@ void signDel(DATA8 tile)
 	if (i < signs.count)
 	{
 		int slot = sign->bank;
+		sign->tile = NULL;
 		signs.usage[i >> 5] ^= 1 << (i & 31);
 		signs.count --;
-		if (i < signs.count)
-			memmove(signs.list + i, signs.list + i + 1, (signs.count - i) * sizeof *signs.list);
 
 		if (slot >= 0)
 		{
@@ -498,20 +508,22 @@ void signPrepare(vec4 camera)
 
 	for (sign = signs.list, count = signs.count; count > 0; count --, sign ++)
 	{
+		if (sign->tile == NULL) continue;
 		int dx = sign->XYZ[0] - pos[0];
 		int dy = sign->XYZ[1] - pos[1];
 		int dz = sign->XYZ[2] - pos[2];
 
 		if (dx*dx + dy*dy + dz*dz < SIGN_MAX_DIST*SIGN_MAX_DIST)
 		{
+			/* generate one quad per sign: need 6 vec4 */
 			static uint8_t vtx[] = {
 				0,1,2,10,   0,4,2,11,   3,4,5,12,
 				3,1,5,13,   0,1,2,10,   3,4,5,12
 			};
 			static float addMeta[] = {
-				0, 1<<12, (1<<12)|(1<<8), 1<<8
+				0, -(1<<14), (1<<10)-(1<<14), 1<<10
 			};
-			float vertices[16*6], meta;
+			float vertices[4*6], meta;
 			uint8_t slot;
 			/* include in rendering */
 			if (sign->bank < 0)
@@ -519,9 +531,10 @@ void signPrepare(vec4 camera)
 				/* not yet rendered: do it now */
 				signAddToBank(sign);
 			}
+			/* nanovg texture will be fliped vertically: modify vertical slot accordingly here */
 			slot = sign->bank >> 8;
 			bank = signs.banks + (sign->bank & 0xff);
-			meta = ((slot / BANK_WIDTH) << 12) | ((slot & (BANK_WIDTH-1)) << 8) | sign->light;
+			meta = ((BANK_HEIGHT - slot / BANK_WIDTH) << 14) | ((slot & (BANK_WIDTH-1)) << 10) | sign->light;
 
 			int i;
 			for (i = 0; i < DIM(vtx); i ++)
@@ -529,7 +542,7 @@ void signPrepare(vec4 camera)
 				uint8_t id = vtx[i];
 				vertices[i] = id >= 10 ? meta + addMeta[id-10] : sign->XYZ[i&3] + sign->pt1[id];
 			}
-			i = (sign->bank >> 8) * 6;
+			i = slot * 6;
 			glBindBuffer(GL_ARRAY_BUFFER, bank->vbo);
 			glBufferSubData(GL_ARRAY_BUFFER, i * 16, sizeof vertices, vertices);
 			bank->mdaFirst[bank->inMDA++] = i;

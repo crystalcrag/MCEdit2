@@ -35,6 +35,8 @@ typedef struct              /* structure needed by glMultiDrawArraysIndirect() *
 
 typedef MDAICmd_t *    MDAICmd;
 
+#define MDAI_SIZE           16
+
 
 enum /* stored column first like GLSL */
 {

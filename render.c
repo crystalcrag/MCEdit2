@@ -19,6 +19,7 @@
 #include "sign.h"
 #include "skydome.h"
 #include "entities.h"
+#include "cartograph.h"
 #include "nanovg.h"
 #include "SIT.h"
 #include "globals.h"
@@ -1429,7 +1430,11 @@ void renderWorld(void)
 		}
 	}
 
+	/* text signs and map in item frame */
+	signRender();
+	cartoRender();
 	/* second: entities */
+	glBindTexture(GL_TEXTURE_2D, render.texBlock);
 	entityRender();
 
 	/* third pass: translucent terrain */
@@ -1456,10 +1461,6 @@ void renderWorld(void)
 	{
 		renderFrustum(False);
 	}
-
-	/* text signs */
-	signRender();
-	glBindTexture(GL_TEXTURE_2D, render.texBlock);
 
 	/* particles */
 	renderParticles();

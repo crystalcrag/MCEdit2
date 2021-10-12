@@ -66,7 +66,7 @@ void main(void)
 		else pos = pos * vec4(scale,scale,1,1) + vec4(offsets.x, offsets.y, 20, 0); /* quad */
 		gl_Position = projMatrix * pos;
 	}
-	else
+	else /* world items */
 	{
 		gl_Position = projMatrix * mvMatrix * (pos + vec4(offsets, 0));
 	}
