@@ -25,7 +25,7 @@ static void skydomeGetSunPos(vec4 pos)
 	pos[3] = 1;
 }
 
-Bool skydomeInit(mat4 mvp)
+Bool skydomeInit(void)
 {
 	/* sky dome */
 	Model model = modelSphere(1, 40);
@@ -39,7 +39,6 @@ Bool skydomeInit(mat4 mvp)
 	glBindVertexArray(skydome.vao);
 	skydome.vertex  = model->vertex;
 	skydome.indices = model->index;
-	skydome.mvp = mvp;
 	skydome.sunAngle = M_PI_2;
 
 	/* vertex data */

@@ -1041,7 +1041,6 @@ static void chunkAddEmitters(ChunkData cd, int pos, int type)
 	list[0] ++;
 }
 
-extern int breakPoint;
 static void chunkGenQuad(ChunkData neighbors[], WriteBuffer buffer, BlockState b, int pos);
 static void chunkGenCust(ChunkData neighbors[], WriteBuffer opaque, BlockState b, DATAS16 chunkOffsets, int pos);
 static void chunkGenCube(ChunkData neighbors[], WriteBuffer opaque, BlockState b, DATAS16 chunkOffsets, int pos);
@@ -1082,7 +1081,7 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 	hasLights = (cur->cdFlags & CDFLAG_NOLIGHT) == 0;
 
 //	if (c->X == 192 && cur->Y == 96 && c->Z == 976)
-//		breakPoint = 1;
+//		globals.breakPoint = 1;
 
 	for (pos = air = 0; pos < 16*16*16; pos ++)
 	{
@@ -1095,8 +1094,8 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 		block = blocks[pos];
 		state = blockGetById(ID(block, data));
 
-//		if (breakPoint && pos == 2868)
-//			breakPoint = 2;
+//		if (globals.breakPoint && pos == 2868)
+//			globals.breakPoint = 2;
 
 		/* 3d flood fill for cave culling */
 		if (! blockIsFullySolid(state) && (slotsXZ[pos & 0xff] || slotsY[pos >> 8]) && (visited[pos>>3] & mask8bit[pos&7]) == 0)

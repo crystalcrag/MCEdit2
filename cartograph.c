@@ -11,6 +11,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <math.h>
 #include "NBT2.h"
 #include "maps.h"
 #include "cartograph.h"
@@ -125,7 +126,11 @@ void cartoGenBitmap(Cartograph map, int texId)
 			{
 				for (i = 0; i < CARTO_WIDTH; i ++, dst += 4, src ++)
 				{
+					#if 1
+					uint8_t s = (12<<2)|2; /* used to debug lighting: map will be blue (water) */
+					#else
 					uint8_t s = *src;
+					#endif
 					if (s >= DIM(mapRGB)) s = 0; /* black */
 					DATA8 rgb = mapRGB + (s & ~3);
 					uint8_t shader = mapShading[s & 3];
@@ -151,9 +156,12 @@ static void cartoGenVertex(Cartograph map, CartoBank bank)
 {
 	#define COLOR_DECAL   (1<<8)
 	/* generate one quad per map: need 6 vec4 */
-	static uint8_t vtx[] = {
-		0,1,2,10,   0,4,2,11,   3,4,5,12,
-		3,1,5,13,   0,1,2,10,   3,4,5,12
+	static uint8_t mapVtx[] = {
+		0,4,2,11,   0,1,2,10,   3,4,5,12,
+		3,1,5,13,   3,4,5,12,   0,1,2,10,
+		/* top/bottom: VY and VY+3 has same value */
+		0,1,2,10,   0,1,5,11,   3,1,5,12,
+		3,1,2,13,   0,1,2,10,   3,1,5,12
 	};
 	static float addMeta[] = {
 		COLOR_DECAL + ((2<<14)|(1<<10)), COLOR_DECAL + (1<<10), COLOR_DECAL, COLOR_DECAL + (2<<14),
@@ -166,7 +174,10 @@ static void cartoGenVertex(Cartograph map, CartoBank bank)
 	meta = ((slot / CBANK_HEIGHT) << 15) | ((slot & (CBANK_WIDTH-1)) << 10) | map->light[0];
 
 	int i;
-	for (i = 0; i < DIM(vtx); i ++)
+	if (map->normal >= SIDE_TOP)
+		puts("here");
+	DATA8 vtx = map->normal >= SIDE_TOP ? mapVtx + 24 : mapVtx;
+	for (i = 0; i < 4 * 6; i ++)
 	{
 		uint8_t id = vtx[i];
 		vertices[i] = id >= 10 ? meta + addMeta[id-10] : map->points[id];
@@ -187,6 +198,10 @@ static void cartoAddToBank(Cartograph map)
 	CartoBank bank;
 	int       i, slot;
 
+	/*
+	 * we could check if map->mapId has already been processed: in practice it is way TOO MUCH
+	 * boilerplate work, for something that should not happen very often.
+	 */
 	for (i = 0, slot = -1, bank = cartograph.banks; i < cartograph.maxBank; i ++, bank ++)
 	{
 		if (bank->inBank < CBANK_MAX)
@@ -205,7 +220,7 @@ static void cartoAddToBank(Cartograph map)
 		bank += cartograph.maxBank - 1;
 		memset(bank, 0, sizeof *bank);
 		/* array is of fixed size, but don't want to be included in struct: too many bytes to relocate */
-		bank->mdaFirst = malloc(4 * CBANK_MAX);
+		bank->mdaFirst = calloc(4, CBANK_MAX);
 		bank->usage[0] = 1;
 		slot = 0;
 	}
@@ -239,8 +254,8 @@ static void cartoAddToBank(Cartograph map)
 		bank->glTex = texId;
 	}
 
-	bank->inBank ++;
 	bank->update = 1;
+	bank->inBank ++;
 	map->bank = (slot << 10) | i;
 
 	/* update bitmap */
@@ -248,7 +263,7 @@ static void cartoAddToBank(Cartograph map)
 	cartoGenVertex(map, bank);
 }
 
-void cartoAddMap(int entityId, float coord[6], int mapId)
+void cartoAddMap(int entityId, float coord[6], int mapId, DATA32 light)
 {
 	struct Cartograph_t map = {.entityId = entityId, .bank = -1, .mapId = mapId};
 
@@ -268,6 +283,18 @@ void cartoAddMap(int entityId, float coord[6], int mapId)
 		}
 		cartograph.usage[old>>5] = 0;
 	}
+	/* try to find which side coord[] is closest to */
+	if (fabsf(coord[VX] - coord[VX+3]) < EPSILON)
+	{
+		/* VX same: must be east or west */
+		map.normal = coord[VX] - (int) coord[VX] < 0.5f ? SIDE_EAST : SIDE_WEST;
+	}
+	else if (fabsf(coord[VZ] - coord[VZ+3]) < EPSILON)
+	{
+		/* VZ same: either south or north */
+		map.normal = coord[VZ] - (int) coord[VZ] < 0.5f ? SIDE_SOUTH : SIDE_NORTH;
+	}
+	else map.normal = coord[VY] - (int) coord[VY] < 0.5f ? SIDE_TOP : SIDE_BOTTOM;
 
 	/* check for a free place */
 	int i = mapFirstFree(cartograph.usage, cartograph.max >> 5);
@@ -320,7 +347,7 @@ void cartoDelMap(int entityId)
 }
 
 /* toggle selection flag in vertex buffer */
-void cartoToggleSelect(int entityId)
+void cartoSetSelect(int entityId, Bool set)
 {
 	Cartograph carto;
 	int        i;
@@ -333,8 +360,16 @@ void cartoToggleSelect(int entityId)
 		glBindBuffer(GL_ARRAY_BUFFER, bank->vbo);
 		vec array = glMapBuffer(GL_ARRAY_BUFFER, GL_READ_WRITE);
 		array += CBANK_SLOT(carto->bank) * 4 * 6;
-		for (i = 0; i < 6; i ++, array += 4)
-			array[3] = (int) array[3] ^ (1 << 9);
+		if (set)
+		{
+			for (i = 0; i < 6; i ++, array += 4)
+				array[3] = (int) array[3] | (1 << 9);
+		}
+		else /* clear selection flag */
+		{
+			for (i = 0; i < 6; i ++, array += 4)
+				array[3] = (int) array[3] & ~(1 << 9);
+		}
 		glUnmapBuffer(GL_ARRAY_BUFFER);
 	}
 }

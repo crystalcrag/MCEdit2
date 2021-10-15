@@ -529,7 +529,8 @@ static int entityGetModelId(Entity entity)
 				 * filled map will use a slightly bigger model and need a cartograph entry to render the map bitmap
 				 * note: data in this case refers to id in data/map_%d.dat, this number can be arbitrary large.
 				 */
-				entity->blockId = ENTITY_ITEMFRAME_FULL | ENTITY_ITEM | data;
+				entity->map = 1;
+				entity->blockId = ENTITY_ITEMFRAME | ENTITY_ITEM | data;
 				return hashSearch(ENTITY_ITEMFRAME_FULL);
 			}
 			else if (blockId > 0)
@@ -601,13 +602,13 @@ static void entityGetLight(Chunk c, vec4 pos, DATA32 light, Bool full)
 	}
 	else if (Y >= c->maxy)
 	{
-		memset(light, 240, LIGHT_SIZE);
+		memset(light, 0xf0, LIGHT_SIZE);
 	}
 	else if (full) /* grab the 27 block/sky light value and get max value on each corner */
 	{
 		extern uint8_t skyBlockOffset[];
 		static uint8_t shiftValues[] = { /* 4 entries per face, ordered S,E,N,W,T,B */
-			0,8,24,16, 0,8,24,16, 0,8,24,16, 0,8,24,16, 0,16,24,8, 16,0,8,25
+			0,8,24,16, 0,8,24,16, 0,8,24,16, 0,8,24,16, 0,16,24,8, 16,0,8,24
 		};
 		struct BlockIter_t iter;
 		uint8_t skyBlockLight[27];
@@ -675,36 +676,58 @@ static void entityGetFrameCoord(Entity entity, float vertex[6])
 
 	blockGetBoundsForFace(model->bbox, SIDE_SOUTH, vertex, vertex+3, pos_000, 0);
 
+	mat4 rotate;
+	if (entity->rotation[0] > 0)
+		matRotate(rotate, entity->rotation[0], VY);
+	else
+		matIdent(rotate);
+
 	/* need to use the same transformation order than entity.vsh */
 	if (entity->rotation[1] > 0)
 	{
-		mat4 rotate;
-		matRotate(rotate, entity->rotation[1], VX);
-		matMultByVec3(vertex,   rotate, vertex);
-		matMultByVec3(vertex+3, rotate, vertex+3);
+		mat4 RX;
+		matRotate(RX, - entity->rotation[1], VX); // XXX why - ?
+		matMult3(rotate, rotate, RX);
 	}
-
-	if (entity->rotation[0] > 0)
-	{
-		mat4 rotate;
-		matRotate(rotate, - entity->rotation[0], VY); // XXX why opposite ?
-		matMultByVec3(vertex,   rotate, vertex);
-		matMultByVec3(vertex+3, rotate, vertex+3);
-	}
+	matMultByVec3(vertex,   rotate, vertex);
+	matMultByVec3(vertex+3, rotate, vertex+3);
 
 	float num = entity->rotation[3];
 	vec3AddMult(vertex,   entity->pos, num);
 	vec3AddMult(vertex+3, entity->pos, num);
 
-	if (vertex[VX] > vertex[VX+3]) swap_tmp(vertex[VX], vertex[VX+3], num);
+/*	if (vertex[VX] > vertex[VX+3]) swap_tmp(vertex[VX], vertex[VX+3], num);
 	if (vertex[VY] > vertex[VY+3]) swap_tmp(vertex[VY], vertex[VY+3], num);
-	if (vertex[VZ] > vertex[VZ+3]) swap_tmp(vertex[VZ], vertex[VZ+3], num);
+	if (vertex[VZ] > vertex[VZ+3]) swap_tmp(vertex[VZ], vertex[VZ+3], num); */
+}
+
+/* change model used by an entity (update MDAI VBO) */
+static void entityResetModel(Entity entity)
+{
+	int VBObank = entityGetModelId(entity);
+	int curBank = BANK_NUM(entity->VBObank);
+	int newBank = BANK_NUM(VBObank);
+
+	if (curBank != newBank)
+	{
+		/* argh, need to dereference old model :-/ */
+		EntityBank bank;
+		int i;
+		for (i = curBank, bank = HEAD(entities.banks); BANK_NUM(i); i --, NEXT(bank));
+		glBindBuffer(GL_ARRAY_BUFFER, bank->vboMDAI);
+		glBufferSubData(GL_ARRAY_BUFFER, entity->mdaiSlot * MDAI_SIZE, MDAI_SIZE, pos_000 /* set to 0 */);
+		/* mark slot as free */
+		i = entity->mdaiSlot;
+		bank->mdaiUsage[i>>5] ^= 1 << (i & 31);
+		entity->mdaiSlot = MDAI_INVALID_SLOT;
+	}
+	entityAddToCommandList(entity);
 }
 
 /* add the item within the frame in the list of entities to render */
 static Entity entityItemFrameAddItem(Entity frame, int entityId)
 {
-	if ((frame->blockId & ENTITY_ITEMFRAME_FULL) == 0)
+	if (frame->map == 0)
 	{
 		uint16_t next;
 		/* normal item in frame */
@@ -712,7 +735,7 @@ static Entity entityItemFrameAddItem(Entity frame, int entityId)
 		frame->next = next;
 		item->ref = frame;
 		item->next = ENTITY_END;
-		item->blockId = frame->blockId & ~(ENTITY_ITEMFRAME | ENTITY_ITEMFRAME_FULL | ENTITY_ITEM);
+		item->blockId = frame->blockId & ~(ENTITY_ITEMFRAME | ENTITY_ITEM);
 		item->tile = frame->tile;
 		frame->blockId = 0;
 		memcpy(item->motion, frame->motion, INFO_SIZE + 12);
@@ -728,8 +751,15 @@ static Entity entityItemFrameAddItem(Entity frame, int entityId)
 	else /* filled map in frame */
 	{
 		float coord[6];
+		int   VBObank = hashSearch(ENTITY_ITEMFRAME_FULL);
+		if (frame->VBObank != VBObank)
+		{
+			/* map was placed in item frame: need to change frame model */
+			frame->VBObank = VBObank;
+			entityResetModel(frame);
+		}
 		entityGetFrameCoord(frame, coord);
-		cartoAddMap(entityId, coord, frame->blockId & 0xffff);
+		cartoAddMap(entityId, coord, frame->blockId & 0xffff, frame->light);
 	}
 	return frame;
 }
@@ -792,7 +822,7 @@ void entityParse(Chunk c, NBTFile nbt, int offset)
 			entityAddToCommandList(entity);
 
 			/* alloc an entity for the item in the frame */
-			if (entity->blockId & (ENTITY_ITEMFRAME | ENTITY_ITEMFRAME_FULL))
+			if (entity->blockId & ENTITY_ITEMFRAME)
 				prev = entityItemFrameAddItem(entity, next+1);
 		}
 	}
@@ -858,7 +888,10 @@ void entityInfo(int id, STRPTR buffer, int max)
 		count += sprintf(buffer + count, " <dim>(%d:%d)</dim>", id >> 4, id&15);
 
 	if (fabsf(entity->rotation[0]) > EPSILON)
-		sprintf(buffer + count, "\n<dim>Rotation:</dim> %g\n", (double) (entity->rotation[0] * RAD_TO_DEG));
+		count += sprintf(buffer + count, "\n<dim>Rotation Y:</dim> %g", (double) (entity->rotation[0] * RAD_TO_DEG));
+
+	if (fabsf(entity->rotation[1]) > EPSILON)
+		sprintf(buffer + count, "\n<dim>Rotation X:</dim> %g\n", (double) (entity->rotation[1] * RAD_TO_DEG));
 }
 
 /* mark new entity as selected and unselect old if any */
@@ -880,8 +913,8 @@ static void entitySetSelection(Entity entity, int entityId)
 				glBufferSubData(GL_ARRAY_BUFFER, entities.selected->mdaiSlot * INFO_SIZE + 12, 4, &val);
 			}
 			entities.selected->pos[VT] = 0;
-			if (entities.selected->blockId & ENTITY_ITEMFRAME_FULL)
-				cartoToggleSelect(entities.selectedId);
+			if (entities.selected->map)
+				cartoSetSelect(entities.selectedId, False);
 		}
 
 		if (entity)
@@ -895,8 +928,8 @@ static void entitySetSelection(Entity entity, int entityId)
 				glBindBuffer(GL_ARRAY_BUFFER, bank->vboLoc);
 				glBufferSubData(GL_ARRAY_BUFFER, entity->mdaiSlot * INFO_SIZE + 12, 4, &val);
 			}
-			if (entity->blockId & ENTITY_ITEMFRAME_FULL)
-				cartoToggleSelect(entityId);
+			if (entity->map)
+				cartoSetSelect(entityId, True);
 			entity->pos[VT] = 1;
 		}
 		entities.selected = entity;
@@ -947,6 +980,16 @@ static Bool pointIsInRect(vec points, vec4 pos)
 
 int intersectRayPlane(vec4 P0, vec4 u, vec4 V0, vec norm, vec4 I);
 
+static Bool entityInFrustum(vec4 pos)
+{
+	vec4 point;
+	memcpy(point, pos, 12); point[VT] = 1;
+	matMultByVec(point, globals.matMVP, point);
+	return point[0] > -point[3] && point[0] < point[3] &&
+	       point[1] > -point[3] && point[1] < point[3] &&
+	       point[2] > -point[3] && point[2] < point[3];
+}
+
 /* check if vector <dir> intersects an entity bounding box (from position <camera>) */
 int entityRaycast(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos)
 {
@@ -973,14 +1016,27 @@ int entityRaycast(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos)
 		for (;;)
 		{
 			/* just a quick heuristic to get rid of most entities */
-			if (vecDistSquare(camera, list->pos) < maxDist * 1.5f)
+			if (vecDistSquare(camera, list->pos) < maxDist * 1.5f && entityInFrustum(list->pos))
 			{
 				float points[9];
 				mat4  rotation;
 				vec4  norm, inter;
 				int   j;
+
+				//if (globals.breakPoint)
+				//	puts("here");
+				/* order must be the same than entity.vsh */
+				if (list->rotation[0] > 0)
+					matRotate(rotation, list->rotation[0], VY);
+				else
+					matIdent(rotation);
+				if (list->rotation[1] > 0)
+				{
+					mat4 RX;
+					matRotate(RX, list->rotation[1], VX);
+					matMult3(rotation, rotation, RX);
+				}
 				/* assume rectangular bounding box (not necessarily axis aligned though) */
-				matRotate(rotation, list->rotation[0], VY);
 				for (j = 0; j < 6; j ++)
 				{
 					fillNormal(norm, j);
@@ -1094,29 +1150,6 @@ void entityDelete(Chunk c, DATA8 tile)
 	}
 }
 
-/* change model used by an entity (update MDAI VBO) */
-static void entityResetModel(Entity entity)
-{
-	int VBObank = entityGetModelId(entity);
-	int curBank = BANK_NUM(entity->VBObank);
-	int newBank = BANK_NUM(VBObank);
-
-	if (curBank != newBank)
-	{
-		/* argh, need to dereference old model :-/ */
-		EntityBank bank;
-		int i;
-		for (i = curBank, bank = HEAD(entities.banks); BANK_NUM(i); i --, NEXT(bank));
-		glBindBuffer(GL_ARRAY_BUFFER, bank->vboMDAI);
-		glBufferSubData(GL_ARRAY_BUFFER, entity->mdaiSlot * MDAI_SIZE, MDAI_SIZE, pos_000 /* set to 0 */);
-		/* mark slot as free */
-		i = entity->mdaiSlot;
-		bank->mdaiUsage[i>>5] ^= 1 << (i & 31);
-		entity->mdaiSlot = MDAI_INVALID_SLOT;
-	}
-	entityAddToCommandList(entity);
-}
-
 /* used to unlink entity from chunk's active list */
 static DATA16 entityGetPrev(Chunk c, Entity entity, int id)
 {
@@ -1161,7 +1194,7 @@ void entityDeleteById(Map map, int id)
 		entityMarkListAsModified(map, c);
 
 		/* unlink from chunk active entities */
-		if (entity->ref || (entity->blockId & ENTITY_ITEMFRAME_FULL))
+		if (entity->ref || entity->map)
 		{
 			/* item in item frame: only delete this item */
 			NBTFile_t nbt = {.mem = entity->tile};
@@ -1169,34 +1202,39 @@ void entityDeleteById(Map map, int id)
 			if (item >= 0)
 			{
 				/* unlink from chunk linked list */
-				prev = entityGetPrev(c, entity, id);
-				*prev = entity->next;
+				if (! entity->map)
+				{
+					prev = entityGetPrev(c, entity, id);
+					*prev = entity->next;
+				}
 
 				nbt.mem = NBT_Copy(entity->tile);
 				nbt.usage = NBT_Size(nbt.mem)+4; /* XXX want TAG_EndCompound too */
 				NBT_Delete(&nbt, item, -1);
 				// NBT_DumpCompound(&nbt);
 				chunkDeleteTile(c, entity->tile);
-				entityClear(buffer, id);
+				entity->name = NBT_Payload(&nbt, NBT_FindNode(&nbt, 0, "id"));
 				/* item in frame is about to be deleted, modify item frame entity then */
 				if (entity->ref)
 					entity = entity->ref;
 				/* NBT compound from item and frame is the same */
 				entity->tile = nbt.mem;
-				if (entity->blockId & ENTITY_ITEMFRAME_FULL)
+				if (entity->map)
 				{
-					entity->blockId &= ~ ENTITY_ITEMFRAME_FULL;
-					entity->blockId |=   ENTITY_ITEMFRAME;
+					/* map removed from item frame: reset frame model to normal */
+					entity->VBObank = hashSearch(ENTITY_ITEMFRAME);
+					entity->map = 0;
 					entityResetModel(entity);
 					cartoDelMap(id+1);
 				}
+				else entityClear(buffer, id);
 			}
 		}
 		else
 		{
 			prev = entityGetPrev(c, entity, id);
 			*prev = entity->next;
-			/* item in item frame: delete */
+			/* item in item frame: also delete */
 			if (entity->next != ENTITY_END)
 			{
 				Entity item = entityGetById(entity->next);
@@ -1313,10 +1351,10 @@ static void entityFillPos(vec4 dest, vec4 src, int side, int orientX, vec size)
 	}
 
 	/* also fill rotation value */
-	dest[3] = dest[7] = 1;
-	dest[6] = 0;
+	dest[3] = dest[6] = 0;
+	dest[7] = 1;
 	dest[4] = orientY[side >= SIDE_TOP ? globals.direction : side];
-	dest[5] = - orientX * DEG_TO_RAD;
+	dest[5] = orientX * DEG_TO_RAD;
 	if (dest[5] < 0)
 		dest[5] += 2*M_PIf;
 }
@@ -1414,8 +1452,10 @@ void entityCreatePainting(Map map, int id)
 	Chunk     c;
 	STRPTR    buffer;
 	float     size[3];
+	float     posAndRot[8];
 	DATA8     loc;
 
+	/* .location contains 4 bytes of each painting where they are location in terrain.png (in tile coord) */
 	loc = paintings.location + id * 4;
 	for (name = paintings.names; id > 0; name = strchr(name, ',') + 1, id --);
 	buffer = name; name = strchr(name, ','); if (name) *name = 0;
@@ -1424,10 +1464,18 @@ void entityCreatePainting(Map map, int id)
 	size[VY] = loc[3] - loc[1];
 	size[VZ] = 1/16.;
 
-	entity = entityAlloc(&slot);
-	entityFillPos(entity->pos, entities.createPos, entities.createSide, 0, size);
-	c = mapGetChunk(map, entity->pos);
+	entityFillPos(posAndRot, entities.createPos, entities.createSide, 0, size);
+	c = mapGetChunk(map, posAndRot);
 	if (c == NULL) return; /* outside map? */
+	if (! entityFitIn(c->entityList, posAndRot, entityGetModelById(hashSearch(ENTITY_ITEMFRAME))->bbox))
+	{
+		/* does not fit: cancel creation */
+		fprintf(stderr, "can't fit painting in %g, %g, %g\n", (double) posAndRot[VX], (double) posAndRot[VY], (double) posAndRot[VZ]);
+		return;
+	}
+
+	entity = entityAlloc(&slot);
+	memcpy(entity->pos, posAndRot, sizeof posAndRot);
 	entityCreateGeneric(&nbt, entity, ID(321, 0), entities.createSide);
 	NBT_Add(&nbt,
 		TAG_String, "Motive", buffer,
@@ -1450,13 +1498,12 @@ void entityCreatePainting(Map map, int id)
 
 static void entityCreateItemFrame(Map map, vec4 pos, int side)
 {
-	EntityModel model = entityGetModelById(hashSearch(ENTITY_ITEMFRAME));
-	NBTFile_t   nbt = {.page = 127};
-	Entity      entity;
-	uint16_t    slot;
-	Chunk       c;
-	float       size[3];
-	float       posAndRot[8];
+	NBTFile_t nbt = {.page = 127};
+	Entity    entity;
+	uint16_t  slot;
+	Chunk     c;
+	float     size[3];
+	float     posAndRot[8];
 
 	size[VX] = 1;
 	size[VY] = 1;
@@ -1465,7 +1512,7 @@ static void entityCreateItemFrame(Map map, vec4 pos, int side)
 	entityFillPos(posAndRot, pos, side, side == SIDE_TOP ? 90 : side == SIDE_BOTTOM ? -90 : 0, size);
 	c = mapGetChunk(map, posAndRot);
 
-	if (! entityFitIn(c->entityList, posAndRot, model->bbox))
+	if (! entityFitIn(c->entityList, posAndRot, entityGetModelById(hashSearch(ENTITY_ITEMFRAME))->bbox))
 	{
 		/* does not fit: cancel creation */
 		fprintf(stderr, "can't fit item frame in %g, %g, %g\n", (double) posAndRot[VX], (double) posAndRot[VY], (double) posAndRot[VZ]);
@@ -1514,14 +1561,16 @@ void entityUseItemOn(Map map, int entityId, int itemId, vec4 pos, int side)
 
 	if (entity && itemGetByName(entity->name, True) == ID(389, 0) /* item frame */)
 	{
-		Entity item;
-		Chunk  c = mapGetChunk(map, entity->pos);
+		NBTFile_t tile  = {.mem = entity->tile};
+		int       item  = NBT_FindNode(&tile, 0, "Item");
+		Chunk     chunk = mapGetChunk(map, entity->pos);
 		/* check if there is already an item in it */
-		if (c && entity->next != ENTITY_END && (item = entityGetById(entity->next)) && item->ref == NULL)
+		if (chunk && item < 0)
 		{
 			/* no: add it to the item frame */
 			TEXT buffer[64];
-			NBTFile_t tile = {.page = 127};
+			tile.mem = NULL;
+			tile.page = 127;
 			NBT_Add(&tile,
 				TAG_Raw_Data, NBT_Size(entity->tile), entity->tile,
 				TAG_Compound, "Item",
@@ -1532,13 +1581,16 @@ void entityUseItemOn(Map map, int entityId, int itemId, vec4 pos, int side)
 			);
 			NBT_Add(&tile, TAG_Compound_End); /* end of whole entity */
 			//NBT_DumpCompound(&tile);
-			chunkDeleteTile(c, entity->tile);
+			chunkDeleteTile(chunk, entity->tile);
+			entity->name = NBT_Payload(&tile, NBT_FindNode(&tile, 0, "id"));
 			entity->tile = tile.mem;
 			entity->blockId = itemId | ENTITY_ITEM;
+			entity->map = (itemId >> 4) == 358; /* filled map XXX need a better mechanism */
+			if (entity->map) entity->blockId &= ~0xfff0;
 			uint16_t next = entity->next;
 			entity = entityItemFrameAddItem(entity, entityId);
 			entity->next = next;
-			entityMarkListAsModified(map, c);
+			entityMarkListAsModified(map, chunk);
 		}
 	}
 }
@@ -1656,7 +1708,7 @@ void entityUpdateLight(Chunk c)
 		uint32_t light[LIGHT_SIZE/4];
 		entity = entityGetById(id);
 		entityGetLight(c, entity->pos, light, entity->blockId > 0);
-		if (memcmp(light, entity->light, LIGHT_SIZE) == 0)
+		if (memcmp(light, entity->light, LIGHT_SIZE))
 		{
 			EntityBank bank;
 			int j;
@@ -1689,7 +1741,7 @@ void entityDebugCmd(Chunk c)
 		else
 		{
 			fprintf(stderr, "%s", entity->name);
-			if (entity->blockId & ENTITY_ITEMFRAME_FULL)
+			if (entity->map)
 				fprintf(stderr, " (map)");
 			fputc('\n', stderr);
 		}

@@ -102,17 +102,18 @@ typedef struct BBoxBuffer_t *      BBoxBuffer;
 
 struct Entity_t
 {
-	uint16_t    next;              /* first ENTITY_SHIFT bits: index in buffer, remain: buffer index (linked list within chunk) */
-	uint16_t    VBObank;           /* first 6bits: bank index, remain: model index */
-	uint16_t    mdaiSlot;          /* GL draw index in VBObank */
-	int         blockId;
-	float       motion[3];
-	float       pos[4];            /* X, Y, Z and extra info for shader */
-	float       rotation[4];       /* rotation in Y, X, Z axis (radians) and scaling */
-	uint32_t    light[6];
-	DATA8       tile;              /* start of NBT Compound for this entity */
-	Entity      ref;
-	STRPTR      name;              /* from NBT ("id" key) */
+	uint16_t next;                 /* first ENTITY_SHIFT bits: index in buffer, remain: buffer index (linked list within chunk) */
+	uint16_t VBObank;              /* first 6bits: bank index, remain: model index */
+	uint16_t mdaiSlot;             /* GL draw index in VBObank */
+	uint8_t  map;                  /* 1 if it contains a map (uses a different model) */
+	int      blockId;
+	float    motion[3];
+	float    pos[4];               /* X, Y, Z and extra info for shader */
+	float    rotation[4];          /* rotation in Y, X, Z axis (radians) and scaling */
+	uint32_t light[6];
+	DATA8    tile;                 /* start of NBT Compound for this entity */
+	Entity   ref;
+	STRPTR   name;                 /* from NBT ("id" key) */
 };
 
 struct EntityEntry_t               /* HashTable entry */

@@ -529,6 +529,7 @@ void matAdd(mat4 res, mat4 A, mat4 B)
 		res[i] = A[i] + B[i];
 }
 
+/* res = A x B */
 void matMult(mat4 res, mat4 A, mat4 B)
 {
 	mat4 tmp;
@@ -553,6 +554,27 @@ void matMult(mat4 res, mat4 A, mat4 B)
 	memcpy(res, tmp, sizeof tmp);
 }
 
+/* ame as matMult, but only consider 3x3 elements */
+void matMult3(mat4 res, mat4 A, mat4 B)
+{
+	mat4 tmp;
+	tmp[A00] = A[A00]*B[A00] + A[A01]*B[A10] + A[A02]*B[A20];
+	tmp[A10] = A[A10]*B[A00] + A[A11]*B[A10] + A[A12]*B[A20];
+	tmp[A20] = A[A20]*B[A00] + A[A21]*B[A10] + A[A22]*B[A20];
+	tmp[A30] = 0;
+	tmp[A01] = A[A00]*B[A01] + A[A01]*B[A11] + A[A02]*B[A21];
+	tmp[A11] = A[A10]*B[A01] + A[A11]*B[A11] + A[A12]*B[A21];
+	tmp[A21] = A[A20]*B[A01] + A[A21]*B[A11] + A[A22]*B[A21];
+	tmp[A31] = 0;
+	tmp[A02] = A[A00]*B[A02] + A[A01]*B[A12] + A[A02]*B[A22];
+	tmp[A12] = A[A10]*B[A02] + A[A11]*B[A12] + A[A12]*B[A22];
+	tmp[A22] = A[A20]*B[A02] + A[A21]*B[A12] + A[A22]*B[A22];
+	tmp[A32] = 0;
+	/* don't copy last column */
+	memcpy(res, tmp, sizeof tmp - 16);
+}
+
+/* res = A x B */
 void matMultByVec(vec4 res, mat4 A, vec4 B)
 {
 	vec4 tmp;

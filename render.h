@@ -136,8 +136,6 @@ struct RenderWorld_t
 {
 	mat4       matModel;           /* MVP mat */
 	mat4       matPerspective;
-	mat4       matMVP;             /* model-view-projection combined matrix */
-	mat4       matInvMVP;          /* inverse of matMVP (raypicking and frustum culling will need this) */
 	mat4       matInventoryItem;   /* ortho matrix for rendering blocks in inventory */
 	vec4       lightPos;
 	vec4       curLightPos;

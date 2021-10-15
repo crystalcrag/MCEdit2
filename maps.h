@@ -59,7 +59,6 @@ struct Frustum_t                   /* frustum culling static tables (see doc/int
 	int8_t *  spiral;
 	int8_t *  lazy;
 	uint16_t  lazyCount;
-	float *   mvp;                 /* model-view-projection matrix (4x4) */
 };
 
 struct MapExtraData_t              /* extra info returned from mapPointToBlock() and mapGetBlockId() */
@@ -101,7 +100,7 @@ NBTHdr  mapLocateItems(MapExtraData);
 void    mapDecodeItems(Item item, int count, NBTHdr nbtItems);
 Bool    mapSerializeItems(MapExtraData sel, STRPTR listName, Item items, int count, NBTFile ret);
 Bool    mapUpdateNBT(MapExtraData sel, NBTFile nbt);
-void    mapViewFrustum(Map, mat4 mvp, vec4 camera);
+void    mapViewFrustum(Map, vec4 camera);
 int     mapFirstFree(uint32_t * usage, int count);
 Chunk   mapGetChunk(Map, vec4 pos);
 VTXBBox mapGetBBox(BlockIter iterator, int * count, int * cnxFlags);

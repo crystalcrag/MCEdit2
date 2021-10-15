@@ -399,7 +399,7 @@ void renderPointToBlock(int mx, int my)
 		/* this method has been ripped off from: https://stackoverflow.com/questions/2093096/implementing-ray-picking */
 		vec4 clip = {mx * 2. / globals.width - 1, 1 - my * 2. / globals.height, 0, 1};
 
-		matMultByVec(dir, render.matInvMVP, clip);
+		matMultByVec(dir, globals.matInvMVP, clip);
 
 		dir[VX] = dir[VX] / dir[VT] - render.camera[VX];
 		dir[VY] = dir[VY] / dir[VT] - render.camera[VY];
@@ -521,7 +521,7 @@ Bool renderInitStatic(void)
 		return False;
 	if (! jsonParse(RESDIR "itemsTable.js", itemCreate))
 		return False;
-	if (! skydomeInit(render.matMVP))
+	if (! skydomeInit())
 		return False;
 	itemInitHash();
 	blockParseConnectedTexture();
@@ -728,9 +728,9 @@ void renderSetViewMat(vec4 pos, vec4 lookat, float * yawPitch)
 
 	matLookAt(render.matModel, render.camera, lookat, (float[3]) {0, 1, 0});
 	/* must be same as the one used in the vertex shader */
-	matMult(render.matMVP, render.matPerspective, render.matModel);
+	matMult(globals.matMVP, render.matPerspective, render.matModel);
 	/* we will need that matrix sooner or later */
-	matInverse(render.matInvMVP, render.matMVP);
+	matInverse(globals.matInvMVP, globals.matMVP);
 
 	glBindBuffer(GL_UNIFORM_BUFFER, render.uboShader);
 	glBufferSubData(GL_UNIFORM_BUFFER, UBO_CAMERA_OFFFSET, sizeof (vec4), render.camera);
@@ -1376,7 +1376,7 @@ void renderWorld(void)
 	if (render.setFrustum)
 	{
 		/* do it as late as possible */
-		mapViewFrustum(globals.level, render.matMVP, render.camera);
+		mapViewFrustum(globals.level, render.camera);
 	}
 
 
@@ -1629,7 +1629,7 @@ void renderDrawMap(Map map)
 void renderAddModif(void)
 {
 	/* new chunks might have been created */
-	mapViewFrustum(globals.level, render.matMVP, render.camera);
+	mapViewFrustum(globals.level, render.camera);
 	nvgFontSize(globals.nvgCtx, FONTSIZE_MSG);
 	render.modifCount ++;
 	render.message.chrLen = sprintf(render.message.text, LangStrPlural(NULL, render.modifCount, "%d unsaved edit", "%d unsaved edits"), render.modifCount);

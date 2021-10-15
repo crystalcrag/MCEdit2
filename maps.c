@@ -16,6 +16,7 @@
 #include "NBT2.h"
 #include "particles.h"
 #include "entities.h"
+#include "globals.h"
 
 
 //#define SLOW_CHUNK_LOAD   /* load 1 chunk (entire column) per second */
@@ -1324,7 +1325,7 @@ static int mapGetOutFlags(Map map, ChunkData cur, DATA8 outflags, int max)
 
 			sector &= ~0x7f;
 			/* XXX global var for MVP, should be a function param */
-			matMultByVec(point, frustum.mvp, point);
+			matMultByVec(point, globals.matMVP, point);
 			if (point[0] <= -point[3]) sector |= 1;  /* to the left of left plane */
 			if (point[0] >=  point[3]) sector |= 2;  /* to the right of right plane */
 			if (point[1] <= -point[3]) sector |= 4;  /* below the bottom plane */
@@ -1493,7 +1494,7 @@ static Bool mapCullCave(ChunkData cur, vec4 camera)
 	return False;
 }
 
-void mapViewFrustum(Map map, mat4 mvp, vec4 camera)
+void mapViewFrustum(Map map, vec4 camera)
 {
 	ChunkData * prev;
 	ChunkData   cur, last;
@@ -1502,7 +1503,6 @@ void mapViewFrustum(Map map, mat4 mvp, vec4 camera)
 	int         center[3];
 
 	chunk = map->center;
-	frustum.mvp = mvp;
 
 	center[1] = CPOS(camera[1]);
 	center[0] = chunk->X;
@@ -1554,8 +1554,7 @@ void mapViewFrustum(Map map, mat4 mvp, vec4 camera)
 
 			center[1] = CHUNK_LIMIT-1;
 
-			/* inverse MVP matrix is stored just after MVP matrix :-/ */
-			matMultByVec(dir, mvp + 16, dir);
+			matMultByVec(dir, globals.matInvMVP, dir);
 
 			/* dir is now the vector coplanar with bottom plane (anglev - FOV/2 doesn't seem to work: slightly off :-/) */
 			if (dir[1] >= 0)

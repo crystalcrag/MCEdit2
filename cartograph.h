@@ -9,9 +9,9 @@
 
 #include "utils.h"
 
-void cartoAddMap(int entityId, float coord[6], int mapId);
+void cartoAddMap(int entityId, float coord[6], int mapId, DATA32 light);
 void cartoDelMap(int entityId);
-void cartoToggleSelect(int entityId);
+void cartoSetSelect(int entityId, Bool set);
 void cartoRender(void);
 
 
@@ -30,8 +30,9 @@ typedef struct CartoBank_t *       CartoBank;
 struct Cartograph_t                /* one in-game map */
 {
 	int      entityId;             /* reference entity */
-	int      mapId;
+	int      mapId;                /* id used to locate file on disk */
 	uint8_t  light[4];             /* sky+block light */
+	uint8_t  normal;               /* S,E,N,W,T,B */
 	int16_t  bank;                 /* first 10bits: index of bank in cartograph.banks, next: [0-63] slot in bank */
 	float    points[6];            /* coord of quad in world space (2 * vec3) */
 };

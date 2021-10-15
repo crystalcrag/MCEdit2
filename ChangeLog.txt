@@ -1,4 +1,10 @@
 =========== Week 41 ===========
+Thu Oct 14:
+	* god damn matrix multiply: entity raycasting matches entity.vsh rotation matrix multiplication.
+
+Wed Oct 13:
+	* entity lighting bug fixes.
+
 Mon Oct 11:
 	* entity business logic continued.
 	* in-game maps logic mostly done.

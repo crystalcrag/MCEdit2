@@ -47,6 +47,12 @@ typedef struct MCGlobals_t
 	/* 2 floats containing player angular looking direction (in radians) */
 	float * yawPitch;
 
+	/* model-view-projection matrix (4x4) */
+	mat4 matMVP;
+
+	/* inverse of matMVP (raypicking and frustum culling will need this) */
+	mat4 matInvMVP;
+
 	/* nanovg context */
 	struct NVGcontext * nvgCtx;
 

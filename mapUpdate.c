@@ -796,7 +796,7 @@ static void mapUpdateBlockLight(Map map, BlockIter iter, int oldId, int newId)
 	}
 	else
 	{
-		uint8_t opac = blockIds[newId>>4].opacLight, i;
+		uint8_t opac = blockIds[newId>>4].opacLight;
 		uint8_t light = mapGetLight(iter);
 		if (opac == blockIds[oldId>>4].opacLight)
 		{
@@ -808,23 +808,7 @@ static void mapUpdateBlockLight(Map map, BlockIter iter, int oldId, int newId)
 			/* a light has been removed */
 			mapUpdateRemLight(iter);
 		}
-		else if (opac > 0 || light == 0)
-		{
-			/* check if this block was blocking propagation of a light source */
-			struct BlockIter_t neighbor = *iter;
-			neighbor.alloc = False;
-			for (i = 0; i < 6; i ++)
-			{
-				mapIter(&neighbor, xoff[i], yoff[i], zoff[i]);
-				/* extremely likely that nearby light source == 0 */
-				if (neighbor.cd && mapGetLight(&neighbor) > 1)
-				{
-					mapUpdateRestoreLight(*iter);
-					break;
-				}
-			}
-		}
-		else if (newLight != light)
+		else if (light > 0)
 		{
 			mapUpdateObstructLight(*iter);
 		}

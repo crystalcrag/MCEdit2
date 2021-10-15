@@ -28,30 +28,29 @@ void main(void)
 
 	int   norm   = (info.y >> 3) & 7;
 	vec3  normal = normals[norm].xyz;
-	float angle  = rotation.y;
+	float angle  = rotation.x;
+	mat3  rotate;
 
-	if (angle > 0.001)
-	{
-		/* pitch: rotate along X axis actually :-/ */
-		float ca = cos(angle);
-		float sa = sin(angle);
-		mat3 rotate = mat3(1, 0, 0, 0, ca, -sa, 0, sa, ca);
-
-		pos = pos * rotate;
-		normal = normal * rotate;
-	}
-
-	angle = /*curtime * 0.001 +*/ rotation.x;
 	if (angle > 0.001)
 	{
 		/* yaw: rotate along Y axis actually :-/ */
 		float ca = cos(angle);
 		float sa = sin(angle);
-		mat3 rotate = mat3(ca, 0, sa, 0, 1, 0, -sa, 0, ca);
-
-		pos = pos * rotate;
-		normal = normal * rotate;
+		rotate = mat3(ca, 0, sa, 0, 1, 0, -sa, 0, ca);
 	}
+	else rotate = mat3(1, 0, 0, 0, 1, 0, 0, 0, 1);
+
+	angle = /*curtime * 0.001 +*/ rotation.y;
+	if (angle > 0.001)
+	{
+		/* pitch: rotate along X axis actually :-/ */
+		float ca = cos(angle);
+		float sa = sin(angle);
+		rotate *= mat3(1, 0, 0, 0, ca, -sa, 0, sa, ca);
+	}
+
+	pos = rotate * pos;
+	normal = rotate * normal;
 
 	// distribute shading per face
 	float shade = shading[normal.x < 0 ? 3 : 1].x * abs(normal.x) +
