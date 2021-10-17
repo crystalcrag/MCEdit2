@@ -608,8 +608,8 @@ Bool renderInitStatic(void)
 	/* model matrix for inventory items */
 	{
 		mat4 temp;
-		matRotate(render.matInventoryItem, -M_PI_4-M_PI_2, 1);
-		matRotate(temp, -M_PI_4/2, 0);
+		matRotate(render.matInventoryItem, M_PI_2+M_PI_4, VY);
+		matRotate(temp, -M_PI_4/2, VX);
 		matMult(render.matInventoryItem, temp, render.matInventoryItem);
 	}
 

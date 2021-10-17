@@ -608,7 +608,7 @@ static void entityGetLight(Chunk c, vec4 pos, DATA32 light, Bool full)
 	{
 		extern uint8_t skyBlockOffset[];
 		static uint8_t shiftValues[] = { /* 4 entries per face, ordered S,E,N,W,T,B */
-			0,8,24,16, 0,8,24,16, 0,8,24,16, 0,8,24,16, 0,16,24,8, 16,0,8,24
+			16,0,8,24, 16,0,8,24, 16,0,8,24, 16,0,8,24, 0,16,24,8, 16,0,8,24
 		};
 		struct BlockIter_t iter;
 		uint8_t skyBlockLight[27];
@@ -670,11 +670,15 @@ static EntityModel entityGetModelById(int modelBank)
 }
 
 /* model for full frame is oriented in the XY plane: grab coord of south face and apply entity transformation */
-static void entityGetFrameCoord(Entity entity, float vertex[6])
+static void entityGetFrameCoord(Entity entity, float vertex[12])
 {
 	EntityModel model = entityGetModelById(entity->VBObank);
 
 	blockGetBoundsForFace(model->bbox, SIDE_SOUTH, vertex, vertex+3, pos_000, 0);
+	/* we need 3 points because rotation will move them, and we need to preserve backface orientation */
+	vertex[6] = vertex[0];
+	vertex[7] = vertex[4];
+	vertex[8] = vertex[5];
 
 	mat4 rotate;
 	if (entity->rotation[0] > 0)
@@ -686,19 +690,25 @@ static void entityGetFrameCoord(Entity entity, float vertex[6])
 	if (entity->rotation[1] > 0)
 	{
 		mat4 RX;
-		matRotate(RX, - entity->rotation[1], VX); // XXX why - ?
+		matRotate(RX, entity->rotation[1], VX);
 		matMult3(rotate, rotate, RX);
 	}
 	matMultByVec3(vertex,   rotate, vertex);
 	matMultByVec3(vertex+3, rotate, vertex+3);
+	matMultByVec3(vertex+6, rotate, vertex+6);
 
 	float num = entity->rotation[3];
 	vec3AddMult(vertex,   entity->pos, num);
 	vec3AddMult(vertex+3, entity->pos, num);
+	vec3AddMult(vertex+6, entity->pos, num);
 
-/*	if (vertex[VX] > vertex[VX+3]) swap_tmp(vertex[VX], vertex[VX+3], num);
-	if (vertex[VY] > vertex[VY+3]) swap_tmp(vertex[VY], vertex[VY+3], num);
-	if (vertex[VZ] > vertex[VZ+3]) swap_tmp(vertex[VZ], vertex[VZ+3], num); */
+	/* 4th point: simple geometry from previous 3 points */
+	vertex[VX+9] = vertex[VX] + (vertex[VX+3] - vertex[VX+6]);
+	vertex[VY+9] = vertex[VY] + (vertex[VY+3] - vertex[VY+6]);
+	vertex[VZ+9] = vertex[VZ] + (vertex[VZ+3] - vertex[VZ+6]);
+
+//	fprintf(stderr, "coord = %g,%g,%g - %g,%g,%g\n", vertex[VX], vertex[VY], vertex[VZ], vertex[VX+3], vertex[VY+3], vertex[VZ+3]);
+//	fprintf(stderr, "        %g,%g,%g - %g,%g,%g\n", vertex[VX+6], vertex[VY+6], vertex[VZ+6], vertex[VX+9], vertex[VY+9], vertex[VZ+9]);
 }
 
 /* change model used by an entity (update MDAI VBO) */
@@ -750,7 +760,7 @@ static Entity entityItemFrameAddItem(Entity frame, int entityId)
 	}
 	else /* filled map in frame */
 	{
-		float coord[6];
+		float coord[12];
 		int   VBObank = hashSearch(ENTITY_ITEMFRAME_FULL);
 		if (frame->VBObank != VBObank)
 		{
@@ -818,7 +828,7 @@ void entityParse(Chunk c, NBTFile nbt, int offset)
 			entity->VBObank = entityGetModelId(entity);
 			if (entity->VBObank == 0) /* unknwon entity */
 				entity->pos[VY] += 0.5f;
-			entityGetLight(c, pos+3, entity->light, entity->blockId > 0);
+			entityGetLight(c, pos+3, entity->light, entity->fullLight = entity->blockId > 0);
 			entityAddToCommandList(entity);
 
 			/* alloc an entity for the item in the frame */
@@ -1023,10 +1033,11 @@ int entityRaycast(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos)
 				vec4  norm, inter;
 				int   j;
 
-				//if (globals.breakPoint)
-				//	puts("here");
+				if (globals.breakPoint)
+					puts("here");
 				/* order must be the same than entity.vsh */
 				if (list->rotation[0] > 0)
+					/* rotation along VY is CW, we want trigo here, hence the +3 */
 					matRotate(rotation, list->rotation[0], VY);
 				else
 					matIdent(rotation);
@@ -1353,7 +1364,7 @@ static void entityFillPos(vec4 dest, vec4 src, int side, int orientX, vec size)
 	/* also fill rotation value */
 	dest[3] = dest[6] = 0;
 	dest[7] = 1;
-	dest[4] = orientY[side >= SIDE_TOP ? globals.direction : side];
+	dest[4] = orientY[side >= SIDE_TOP ? opp[globals.direction] : side];
 	dest[5] = orientX * DEG_TO_RAD;
 	if (dest[5] < 0)
 		dest[5] += 2*M_PIf;
@@ -1489,7 +1500,7 @@ void entityCreatePainting(Map map, int id)
 	entity->tile = nbt.mem;
 	entity->rotation[3] = 1;
 	entity->VBObank = entityGetModelId(entity);
-	entityGetLight(c, entity->pos, entity->light, True);
+	entityGetLight(c, entity->pos, entity->light, entity->fullLight = False);
 	entityAddToCommandList(entity);
 
 	/* flag chunk for saving later */
@@ -1509,7 +1520,7 @@ static void entityCreateItemFrame(Map map, vec4 pos, int side)
 	size[VY] = 1;
 	size[VZ] = 1/16.;
 
-	entityFillPos(posAndRot, pos, side, side == SIDE_TOP ? 90 : side == SIDE_BOTTOM ? -90 : 0, size);
+	entityFillPos(posAndRot, pos, side, side == SIDE_TOP ? -90 : side == SIDE_BOTTOM ? 90 : 0, size);
 	c = mapGetChunk(map, posAndRot);
 
 	if (! entityFitIn(c->entityList, posAndRot, entityGetModelById(hashSearch(ENTITY_ITEMFRAME))->bbox))
@@ -1532,7 +1543,7 @@ static void entityCreateItemFrame(Map map, vec4 pos, int side)
 	entity->tile = nbt.mem;
 	entity->rotation[3] = 1;
 	entity->VBObank = entityGetModelId(entity);
-	entityGetLight(c, entity->pos, entity->light, True);
+	entityGetLight(c, entity->pos, entity->light, entity->fullLight = True);
 	entityAddToCommandList(entity);
 	entityMarkListAsModified(map, c);
 }
@@ -1675,7 +1686,7 @@ void entityUpdateOrCreate(Chunk c, vec4 pos, int blockId, vec4 dest, int ticks, 
 	vecAddNum(entity->pos,    0.5f);
 	vecAddNum(entity->motion, 0.5f);
 	entity->VBObank = entityGetModelId(entity);
-	entityGetLight(c, pos, entity->light, True);
+	entityGetLight(c, pos, entity->light, entity->fullLight = True);
 	entityAddToCommandList(entity);
 
 	/* push it into the animate list */
@@ -1707,7 +1718,10 @@ void entityUpdateLight(Chunk c)
 	{
 		uint32_t light[LIGHT_SIZE/4];
 		entity = entityGetById(id);
-		entityGetLight(c, entity->pos, light, entity->blockId > 0);
+		if (entity->ref)
+			memcpy(light, entity->ref->light, sizeof light);
+		else
+			entityGetLight(c, entity->pos, light, entity->fullLight);
 		if (memcmp(light, entity->light, LIGHT_SIZE))
 		{
 			EntityBank bank;
@@ -1716,6 +1730,8 @@ void entityUpdateLight(Chunk c)
 			for (j = BANK_NUM(entity->VBObank), bank = HEAD(entities.banks); j > 0; j --, NEXT(bank));
 			glBindBuffer(GL_ARRAY_BUFFER, bank->vboLoc);
 			glBufferSubData(GL_ARRAY_BUFFER, entity->mdaiSlot * INFO_SIZE + INFO_SIZE-LIGHT_SIZE, LIGHT_SIZE, light);
+			if (entity->map)
+				cartoUpdateLight(id, entity->light);
 		}
 	}
 }

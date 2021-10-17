@@ -8,10 +8,11 @@
 
 layout (location=0) in vec4 position;
 
-flat out float shade;
 flat out uint  colorDecal;
 flat out uint  selected;
      out vec2  tex;
+     out float skyLight;
+     out float blockLight;
 
 void main(void)
 {
@@ -26,12 +27,11 @@ void main(void)
 	 * - bit10~13: x coord [0-15] * 128 (in px)
 	 * - bit14~18: y coord [0-31] * 64 (in px)
 	 */
-	int slot  = int(position.w);
-	int sky   = bitfieldExtract(slot, 4, 4);
-	int light = bitfieldExtract(slot, 0, 4);
+	uint slot = uint(position.w);
 
 	colorDecal = bitfieldExtract(slot, 8, 1);
 	selected   = bitfieldExtract(slot, 9, 1);
 	tex        = vec2(float(bitfieldExtract(slot, 10, 4)) * 0.125, float(slot >> 14) * 0.0625);
-	shade      = float(max(sky, light)) * 0.0625;
+	skyLight   = float(bitfieldExtract(slot, 4, 4)) * 0.0625;
+	blockLight = float(bitfieldExtract(slot, 0, 4)) * 0.0625;
 }

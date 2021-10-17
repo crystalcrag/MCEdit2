@@ -38,7 +38,7 @@ typedef MDAICmd_t *    MDAICmd;
 #define MDAI_SIZE           16
 
 
-enum /* stored column first like GLSL */
+enum /* stored column first like GLSL [A<row><col>] */
 {
 	A00 = 0,
 	A10 = 1,

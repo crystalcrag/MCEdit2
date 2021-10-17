@@ -1,6 +1,13 @@
 =========== Week 41 ===========
+Sat Oct 16:
+	* 2 hours to fix a tex coord issue in decals.vsh: needed to change "int" into "uint".
+	* in-game map lighting cleanup.
+
+Fri Oct 15:
+	* matRotate produced incorrect rotation: almost 2 years to notice the problem :-/
+
 Thu Oct 14:
-	* god damn matrix multiply: entity raycasting matches entity.vsh rotation matrix multiplication.
+	* entity raycasting (almost) matches entity.vsh rotation matrix multiplication.
 
 Wed Oct 13:
 	* entity lighting bug fixes.

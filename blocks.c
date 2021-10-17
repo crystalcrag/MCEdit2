@@ -449,11 +449,11 @@ DATA16 blockParseModel(float * values, int count, DATA16 buffer)
 
 		/* first 12 floats encodes: dimension, translation, rotation, and model rotation */
 		if (vert[6] != 0)
-			matRotate(rotation, vert[6] * DEG_TO_RAD, 0), nbRot ++;
+			matRotate(rotation, vert[6] * DEG_TO_RAD, VX), nbRot ++;
 
 		if (vert[7] != 0)
 		{
-			matRotate(tmp, vert[7] * DEG_TO_RAD, 1), nbRot ++;
+			matRotate(tmp, vert[7] * DEG_TO_RAD, VY), nbRot ++;
 			if (nbRot == 1)
 				memcpy(rotation, tmp, sizeof tmp);
 			else
@@ -462,7 +462,7 @@ DATA16 blockParseModel(float * values, int count, DATA16 buffer)
 
 		if (vert[8] != 0)
 		{
-			matRotate(tmp, vert[8] * DEG_TO_RAD, 2), nbRot ++;
+			matRotate(tmp, vert[8] * DEG_TO_RAD, VZ), nbRot ++;
 			if (nbRot == 1)
 				memcpy(rotation, tmp, sizeof tmp);
 			else
@@ -470,9 +470,9 @@ DATA16 blockParseModel(float * values, int count, DATA16 buffer)
 		}
 
 		switch (rot90step) {
-		case 1: matRotate(rot90, M_PI_2, 1); break;
-		case 2: matRotate(rot90, M_PI, 1); break;
-		case 3: matRotate(rot90, M_PI+M_PI_2, 1);
+		case 1: matRotate(rot90, M_PI+M_PI_2, VY); break;
+		case 2: matRotate(rot90, M_PI, VY); break;
+		case 3: matRotate(rot90, M_PI_2, VY);
 		}
 
 		trans[0] = vert[3] / 16 - 0.5f;
@@ -1562,7 +1562,7 @@ void blockParseInventory(int vbo)
 		case MODEL:
 			b = &blockIds[state->id>>4];
 			if (b->orientHint == ORIENT_BED && b->model)
-				total = blockInvCopyFromModel(vertex, b->model, 1 << ((state->id & 15)-1));
+				total = blockInvCopyFromModel(vertex, b->model, 1 << (state->id & 15));
 			else if (b->special == BLOCK_WALL)
 				total = blockInvCopyFromModel(vertex, state->custModel, 2+8+16+32);
 			else if (b->special == BLOCK_CHEST)
@@ -2676,7 +2676,7 @@ static int blockModelStairs(DATA16 buffer, int blockId)
 	return blockConvertVertex(temp, write.cur, buffer, 300);
 }
 
-/* generate vertex data for any block (compatible with blocks.vsh) */
+/* generate vertex data for any block (compatible with item.vsh) */
 int blockGenModel(int vbo, int blockId)
 {
 	BlockState b = blockGetById(blockId & 0xfff);

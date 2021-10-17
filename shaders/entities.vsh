@@ -36,7 +36,7 @@ void main(void)
 		/* yaw: rotate along Y axis actually :-/ */
 		float ca = cos(angle);
 		float sa = sin(angle);
-		rotate = mat3(ca, 0, sa, 0, 1, 0, -sa, 0, ca);
+		rotate = mat3(ca, 0, -sa, 0, 1, 0, sa, 0, ca);
 	}
 	else rotate = mat3(1, 0, 0, 0, 1, 0, 0, 0, 1);
 
@@ -46,16 +46,18 @@ void main(void)
 		/* pitch: rotate along X axis actually :-/ */
 		float ca = cos(angle);
 		float sa = sin(angle);
-		rotate *= mat3(1, 0, 0, 0, ca, -sa, 0, sa, ca);
+		rotate *= mat3(1, 0, 0, 0, ca, sa, 0, -sa, ca);
 	}
 
 	pos = rotate * pos;
 	normal = rotate * normal;
 
-	// distribute shading per face
-	float shade = shading[normal.x < 0 ? 3 : 1].x * abs(normal.x) +
-	              shading[normal.z < 0 ? 2 : 0].x * abs(normal.z) +
-	              shading[normal.y < 0 ? 5 : 4].x * abs(normal.y);
+	/* distribute shading per face */
+	vec3  absNorm = abs(normal);
+	absNorm *= 1 / (absNorm.x + absNorm.y + absNorm.z);
+	float shade = shading[normal.x < 0 ? 3 : 1].x * absNorm.x +
+	              shading[normal.z < 0 ? 2 : 0].x * absNorm.z +
+	              shading[normal.y < 0 ? 5 : 4].x * absNorm.y;
 
 	gl_Position = projMatrix * mvMatrix * vec4(pos + offsets.xyz, 1);
 	float U = float(info.x & 511);
@@ -64,35 +66,25 @@ void main(void)
 	if (U == 511)  U = 512;
 	texcoord = vec2(U * 0.001953125 /* 1/512. */, V * 0.0009765625 /* 1/1024. */);
 
+	/* distribute sky/block light according to normal direction */
 	uint light, corner;
-	switch (norm) {
-	case 0: /* south: varying in XY */
-		corner = ((pos.x < 0.5 ? 0 : 1) + (pos.y < 0.5 ? 0 : 2)) << 3;
-		light = lightSEN.x >> corner;
-		break;
-	case 1: /* east: varying in ZY */
-		corner = ((pos.z < 0.5 ? 0 : 1) + (pos.y < 0.5 ? 0 : 2)) << 3;
-		light = lightSEN.y >> corner;
-		break;
-	case 2: /* north: varying in XY */
-		corner = ((pos.x < 0.5 ? 0 : 1) + (pos.y < 0.5 ? 0 : 2)) << 3;
-		light = lightSEN.z >> corner;
-		break;
-	case 3: /* west: varying in ZY */
-		corner = ((pos.z < 0.5 ? 0 : 1) + (pos.y < 0.5 ? 0 : 2)) << 3;
-		light = lightWTB.x >> corner;
-		break;
-	case 4: /* top: varying in XZ */
-		corner = ((pos.x < 0.5 ? 0 : 1) + (pos.z < 0.5 ? 0 : 2)) << 3;
-		light = lightWTB.y >> corner;
-		break;
-	case 5: /* bottom: varying in XZ */
-		corner = ((pos.x < 0.5 ? 0 : 1) + (pos.z < 0.5 ? 0 : 2)) << 3;
-		light = lightWTB.z >> corner;
-	}
+	/* south/north */
+	corner = ((pos.x < 0.5 ? 0 : 1) + (pos.y < 0.5 ? 0 : 2)) << 3;
+	light  = (normal.z < 0 ? lightSEN.z : lightSEN.x) >> corner;
+	blockLight = float(light & 15)   * (1/15.)  * absNorm.z;
+	skyLight   = float(light & 0xf0) * (1/240.) * absNorm.z;
 
-	blockLight = float(light & 15) / 15.;
-	skyLight = float(light & 0xf0) / 240.;
+	/* east/west */
+	corner = ((pos.z < 0.5 ? 0 : 1) + (pos.y < 0.5 ? 0 : 2)) << 3;
+	light  = (normal.x < 0 ? lightWTB.x : lightSEN.y) >> corner;
+	blockLight += float(light & 15)   * (1/15.)  * absNorm.x;
+	skyLight   += float(light & 0xf0) * (1/240.) * absNorm.x;
+
+	/* top/bottom */
+	corner = ((pos.x < 0.5 ? 0 : 1) + (pos.z < 0.5 ? 0 : 2)) << 3;
+	light  = (normal.y < 0 ? lightWTB.z : lightWTB.y) >> corner;
+	blockLight += float(light & 15)   * (1/15.)  * absNorm.y;
+	skyLight   += float(light & 0xf0) * (1/240.) * absNorm.y;
 
 	/* need to do the same thing than blocks.vsh */
 	if (blockLight > skyLight)

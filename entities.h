@@ -106,6 +106,7 @@ struct Entity_t
 	uint16_t VBObank;              /* first 6bits: bank index, remain: model index */
 	uint16_t mdaiSlot;             /* GL draw index in VBObank */
 	uint8_t  map;                  /* 1 if it contains a map (uses a different model) */
+	uint8_t  fullLight;
 	int      blockId;
 	float    motion[3];
 	float    pos[4];               /* X, Y, Z and extra info for shader */

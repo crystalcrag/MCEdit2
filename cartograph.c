@@ -22,6 +22,7 @@ struct CartoPrivate_t cartograph;
 
 /* these are the 64 base colors used by maps */
 static uint8_t mapShading[] = {180, 220, 255, 135};
+static uint8_t mapLight[] = {2, 0, 3, 1, 3, 0};
 static uint8_t mapRGB[] = {
 	255, 255, 255, 0x00, //  0: unexplored area
 	127, 178, 56,  0xff, //  1: grass
@@ -126,10 +127,10 @@ void cartoGenBitmap(Cartograph map, int texId)
 			{
 				for (i = 0; i < CARTO_WIDTH; i ++, dst += 4, src ++)
 				{
-					#if 1
-					uint8_t s = (12<<2)|2; /* used to debug lighting: map will be blue (water) */
-					#else
+					#if 0
 					uint8_t s = *src;
+					#else /* used to debug lighting: map will be white (snow) */
+					uint8_t s = (8<<2)|2;
 					#endif
 					if (s >= DIM(mapRGB)) s = 0; /* black */
 					DATA8 rgb = mapRGB + (s & ~3);
@@ -152,35 +153,27 @@ void cartoGenBitmap(Cartograph map, int texId)
 }
 
 /* generate vertex for map quad: very similar to sign, except we will use 4 light values instead of 1 */
-static void cartoGenVertex(Cartograph map, CartoBank bank)
+static void cartoGenVertex(Cartograph map, CartoBank bank, float points[12])
 {
 	#define COLOR_DECAL   (1<<8)
 	/* generate one quad per map: need 6 vec4 */
-	static uint8_t mapVtx[] = {
-		0,4,2,11,   0,1,2,10,   3,4,5,12,
-		3,1,5,13,   3,4,5,12,   0,1,2,10,
-		/* top/bottom: VY and VY+3 has same value */
-		0,1,2,10,   0,1,5,11,   3,1,5,12,
-		3,1,2,13,   0,1,2,10,   3,1,5,12
-	};
+	static uint8_t mapVtx[] = {6,0,3, 9,3,0};
 	static float addMeta[] = {
-		COLOR_DECAL + ((2<<14)|(1<<10)), COLOR_DECAL + (1<<10), COLOR_DECAL, COLOR_DECAL + (2<<14),
+		COLOR_DECAL, COLOR_DECAL + (1<<15), COLOR_DECAL + (1<<10), COLOR_DECAL + ((1<<15)|(1<<10)),
+		COLOR_DECAL + (1<<10), COLOR_DECAL + (2<<14)
 	};
 	float vertices[4*6], meta;
 	uint8_t slot;
 
 	/* using 4 light values will provide a smooth transition between corners if there is a light source near the item frames */
 	slot = CBANK_SLOT(map->bank);
-	meta = ((slot / CBANK_HEIGHT) << 15) | ((slot & (CBANK_WIDTH-1)) << 10) | map->light[0];
+	meta = ((slot / CBANK_WIDTH) << 15) | ((slot & (CBANK_WIDTH-1)) << 10);
 
 	int i;
-	if (map->normal >= SIDE_TOP)
-		puts("here");
-	DATA8 vtx = map->normal >= SIDE_TOP ? mapVtx + 24 : mapVtx;
-	for (i = 0; i < 4 * 6; i ++)
+	for (i = 0; i < 6; i ++)
 	{
-		uint8_t id = vtx[i];
-		vertices[i] = id >= 10 ? meta + addMeta[id-10] : map->points[id];
+		memcpy(vertices + i * 4, points + mapVtx[i], 12);
+		vertices[i*4+3] = meta + addMeta[i] + map->light[mapLight[i]];
 	}
 	i = slot * 6;
 	glBindBuffer(GL_ARRAY_BUFFER, bank->vbo);
@@ -191,9 +184,34 @@ static void cartoGenVertex(Cartograph map, CartoBank bank)
 	cartograph.toRender ++;
 }
 
+void cartoUpdateLight(int entityId, DATA32 light)
+{
+	Cartograph map;
+	int i;
+	for (i = 0, map = cartograph.maps; i < cartograph.count && map->entityId != entityId; map ++, i += map->bank >= 0);
+	if (i < cartograph.count)
+	{
+		uint32_t face = light[map->normal];
+		for (i = 0; i < 4; i ++, face >>= 8)
+			map->light[i] = face & 0xff;
+
+		/* need to update VBO, but thankfully there are only 6 vertices */
+		CartoBank bank = cartograph.banks + CBANK_NUM(map->bank);
+
+		glBindBuffer(GL_ARRAY_BUFFER, bank->vbo);
+		vec array = glMapBuffer(GL_ARRAY_BUFFER, GL_READ_WRITE);
+		array += CBANK_SLOT(map->bank) * 4 * 6 + 3;
+
+		for (i = 0; i < 6; i ++, array += 4)
+			array[0] = ((int) array[0] & ~0xff) | map->light[mapLight[i]];
+
+		glUnmapBuffer(GL_ARRAY_BUFFER);
+	}
+}
+
 
 /* group maps into bank for easier rendering later */
-static void cartoAddToBank(Cartograph map)
+static void cartoAddToBank(Cartograph map, float points[12])
 {
 	CartoBank bank;
 	int       i, slot;
@@ -260,10 +278,10 @@ static void cartoAddToBank(Cartograph map)
 
 	/* update bitmap */
 	cartoGenBitmap(map, bank->glTex);
-	cartoGenVertex(map, bank);
+	cartoGenVertex(map, bank, points);
 }
 
-void cartoAddMap(int entityId, float coord[6], int mapId, DATA32 light)
+void cartoAddMap(int entityId, float coord[12], int mapId, DATA32 light)
 {
 	struct Cartograph_t map = {.entityId = entityId, .bank = -1, .mapId = mapId};
 
@@ -296,27 +314,50 @@ void cartoAddMap(int entityId, float coord[6], int mapId, DATA32 light)
 	}
 	else map.normal = coord[VY] - (int) coord[VY] < 0.5f ? SIDE_TOP : SIDE_BOTTOM;
 
-	/* check for a free place */
-	int i = mapFirstFree(cartograph.usage, cartograph.max >> 5);
+	#if 1
+	int i;
+	uint32_t face = light[map.normal];
+	for (i = 0; i < 4; i ++, face >>= 8)
+		map.light[i] = face & 0xff;
+	#else
+	int i, min, max;
+	uint32_t face = light[map.normal];
+	for (i = 0, min = 15, max = 0; i < 4; i ++, face >>= 8)
+	{
+		uint8_t val = face & 0xff;
+		map.light[i] = val;
+		if (min > val) min = val;
+		if (max < val) max = val;
+	}
+	if (min < max)
+		for (i = 0, max -= min; i < 4; i ++)
+			map.light[i] = (map.light[i] - min) * 15 / max;
+	#endif
 
-	memcpy(map.points, coord, sizeof map.points);
+	fprintf(stderr, "%d. light (%d) = %02x, %02x, %02x, %02x\n", entityId, map.normal, map.light[0], map.light[1], map.light[2], map.light[3]);
+
+	/* check for a free place */
+	i = mapFirstFree(cartograph.usage, cartograph.max >> 5);
+
 	cartograph.maps[i] = map;
 	cartograph.count ++;
-	cartoAddToBank(cartograph.maps + i);
+	cartoAddToBank(cartograph.maps + i, coord);
 }
 
 /* item frame deleted: remove map texture */
 void cartoDelMap(int entityId)
 {
-	Cartograph carto;
+	Cartograph map;
 	int        i;
-	for (i = 0, carto = cartograph.maps; i < cartograph.count && carto->entityId != entityId; carto ++, i ++);
+	for (i = 0, map = cartograph.maps; i < cartograph.count && map->entityId != entityId; map ++, i += map->bank >= 0);
+	fprintf(stderr, "deleting map %d: %d / %d\n", entityId, i, cartograph.count);
 	if (i < cartograph.count)
 	{
-		int slot = carto->bank;
+		int slot = map->bank;
 		cartograph.usage[i >> 5] ^= 1 << (i & 31);
 		cartograph.count --;
 		cartograph.toRender --;
+		map->bank = -1;
 
 		CartoBank bank = cartograph.banks + CBANK_NUM(slot);
 
@@ -349,26 +390,26 @@ void cartoDelMap(int entityId)
 /* toggle selection flag in vertex buffer */
 void cartoSetSelect(int entityId, Bool set)
 {
-	Cartograph carto;
+	Cartograph map;
 	int        i;
 	/* not a performance critical path */
-	for (i = 0, carto = cartograph.maps; i < cartograph.count && carto->entityId != entityId; carto ++, i ++);
+	for (i = 0, map = cartograph.maps; i < cartograph.count && map->entityId != entityId; map ++, i += map->bank >= 0);
 	if (i < cartograph.count)
 	{
-		CartoBank bank = cartograph.banks + CBANK_NUM(carto->bank);
+		CartoBank bank = cartograph.banks + CBANK_NUM(map->bank);
 
 		glBindBuffer(GL_ARRAY_BUFFER, bank->vbo);
 		vec array = glMapBuffer(GL_ARRAY_BUFFER, GL_READ_WRITE);
-		array += CBANK_SLOT(carto->bank) * 4 * 6;
+		array += CBANK_SLOT(map->bank) * 4 * 6 + 3;
 		if (set)
 		{
 			for (i = 0; i < 6; i ++, array += 4)
-				array[3] = (int) array[3] | (1 << 9);
+				array[0] = (int) array[0] | (1 << 9);
 		}
 		else /* clear selection flag */
 		{
 			for (i = 0; i < 6; i ++, array += 4)
-				array[3] = (int) array[3] & ~(1 << 9);
+				array[0] = (int) array[0] & ~(1 << 9);
 		}
 		glUnmapBuffer(GL_ARRAY_BUFFER);
 	}
@@ -410,6 +451,8 @@ void cartoRender(void)
 		if (bank->update)
 		{
 			#if 0
+			if (bank->inMDA > 8)
+			{
 			DATA8 data = malloc(1024 * 1024 * 4);
 			glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
 			FILE* out = fopen("dump.ppm", "wb");
@@ -417,11 +460,13 @@ void cartoRender(void)
 			fwrite(data, 1, 1024*1024*4, out);
 			fclose(out);
 			free(data);
+			}
 			#endif
 			glGenerateMipmap(GL_TEXTURE_2D);
 			bank->update = 0;
 		}
 		glMultiDrawArrays(GL_TRIANGLES, bank->mdaFirst, cartograph.mdaCount, bank->inMDA);
+		glBindVertexArray(0);
 	}
 	glDisable(GL_POLYGON_OFFSET_FILL);
 }
