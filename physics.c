@@ -289,7 +289,7 @@ static void physicsChangeEntityDir(PhysicsEntity entity)
 
 
 /* move particles according to their parameters */
-void physicsMoveEntity(Map map, PhysicsEntity entity, float speed)
+Bool physicsMoveEntity(Map map, PhysicsEntity entity, float speed)
 {
 	float inc, oldLoc[3], DY;
 	memcpy(oldLoc, entity->loc, sizeof oldLoc);
@@ -336,4 +336,8 @@ void physicsMoveEntity(Map map, PhysicsEntity entity, float speed)
 		}
 	}
 	else entity->VYblocked = 0;
+
+	return floorf(oldLoc[VX]) != floorf(entity->loc[VX]) ||
+	       floorf(oldLoc[VY]) != floorf(entity->loc[VY]) ||
+	       floorf(oldLoc[VZ]) != floorf(entity->loc[VZ]);
 }

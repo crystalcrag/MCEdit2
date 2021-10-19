@@ -5,10 +5,12 @@
 
 /*
  * info layout:
- * - info.x[bit0  ~  8] : U tex coord (9 bits)
- * - info.x[bit9  ~ 18] : V tex coord (10 bits)
- * - info.x[bit19 ~ 26] : skylight + blocklight
- * - info.x[bit27 - 31] : type
+ * - info.x[bit0  ~  5] : particle type (6bits)
+ * - info.x[bit6  ~  9] : size (4bits)
+ * - info.x[bit10 ~ 18] : U texture coord (9bits, [0~511])
+ * - info.x[bit19 - 28] : V texture coord (10bits, [0~1023])
+ * - info.y[bit0  -  3] : block light
+ * - info.y[bit4  -  7] : sky light
  */
 layout (location=0) in  vec3 position;
 layout (location=1) in ivec2 info;
@@ -21,7 +23,6 @@ flat out int   color;
 
 void main(void)
 {
-	/* encode size and block/sky light */
 	type    = info.x & 63;
 	size    = (info.x >> 6) & 15;
 	texbase = info.x >> 10;

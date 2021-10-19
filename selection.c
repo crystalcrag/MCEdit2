@@ -1,6 +1,6 @@
 /*
  * selection.c: handle extended selection and operations that can be done with it.
- *              (fill, replace, geometrc brush, delete, clone, copy, ...)
+ *              (fill, replace, geometric brush, delete, clone, copy, ...)
  *              note: import/export is done in library.c
  *
  * Written by T.Pierron, aug 2021.
@@ -171,13 +171,13 @@ static void selectionSetRect(int pointId)
 		vtx[3] = (31*16+8) / 512.;
 		vtx[4] = 8 / 1024.;
 	}
-	/* lines around the edges */
 	glUnmapBuffer(GL_ARRAY_BUFFER);
 
 	if (pointId == SEL_POINT_BOX)
 		selectionSetSize();
 }
 
+/* SITE_OnActivate on "Nudge" buttons */
 static int selectionNudge(SIT_Widget w, APTR cd, APTR ud)
 {
 	SIT_OnMouse * msg = cd;
@@ -211,6 +211,7 @@ static void selectionBrushRoll(void);
 /* OnTimer cb */
 static int cancelActivation(SIT_Widget w, APTR cd, APTR ud)
 {
+	/* remove :active state on button activated through kbd shortcut */
 	SIT_SetValues(w, SIT_CheckState, False, NULL);
 	return -1;
 }
@@ -308,6 +309,7 @@ void selectionSetPoint(float scale, vec4 pos, int point)
 	}
 }
 
+/* remove everything about extended selection */
 void selectionCancel(void)
 {
 	if (selection.nudgeDiag)
@@ -690,7 +692,7 @@ void selectionEditBrush(Bool simplified)
 			"<nudge top=MIDDLE,ycoord><tlab top=MIDDLE,repeat>"
 		);
 	}
-	else
+	else /* user selected an object from library.c: there are no extended selection in this case */
 	{
 		SIT_CreateWidgets(diag, "<label name=size top=WIDGET,nudge,1em left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, ">");
 		SIT_SetAttributes(diag, "<nudge left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, "right=NONE top=WIDGET,mirror,0.5em>");
@@ -968,7 +970,7 @@ int selectionCancelClone(SIT_Widget w, APTR cd, APTR ud)
 /* rotate brush along Y axis by 90deg CW */
 static void selectionBrushRotate(void)
 {
-	/* therefore we can rotate the brush Y layer per Y layer */
+	/* we can rotate the brush Y layer per Y layer */
 	Map brush = selection.brush;
 	int chunkX = (brush->size[VX] + 15) >> 4;
 	int chunkZ = (brush->size[VZ] + 15) >> 4;
@@ -1516,7 +1518,7 @@ void selectionProcessFill(void * unused)
 				mapUpdate(map, NULL, blockId, NULL, UPDATE_SILENT);
 			}
 
-			/* O(n³) complexity functions better have a way to be cancelled */
+			/* O(n^3) complexity functions better have a way to be cancelled */
 			if (selectionAsync.cancel) goto break_all;
 			selectionAsync.progress[0] += dx;
 		}
@@ -1788,13 +1790,13 @@ static void selectionProcessShape(void * unused)
 	switch (shape) {
 	case SHAPE_SPHERE:
 	case SHAPE_CYLINDER:
-		/* equation of an ellipse is (x - center[VX])² / Rx² + (y - center[VY])² / Ry² + (z - center[VZ])² / Rz² <= 1 */
+		/* equation of a 3d ellipse is (x - center[VX])² / Rx² + (y - center[VY])² / Ry² + (z - center[VZ])² / Rz² <= 1 */
 		pos[VX] = 1 / (selSize[VX] * selSize[VX] * 0.25f); /* == 1 / Rx.y.z² (selSize == diameter) */
 		pos[VY] = 1 / (selSize[VY] * selSize[VY] * 0.25f);
 		pos[VZ] = 1 / (selSize[VZ] * selSize[VZ] * 0.25f);
 		break;
 	case SHAPE_DIAMOND:
-		/* equation of a diamond: |x - center[VX]| / Rx + |y - center[VY]| / Ry + |z - center[VZ]| / Rz <= 1 */
+		/* equation of a 3d diamond: |x - center[VX]| / Rx + |y - center[VY]| / Ry + |z - center[VZ]| / Rz <= 1 */
 		pos[VX] = 2. / selSize[VX];
 		pos[VY] = 2. / selSize[VY];
 		pos[VZ] = 2. / selSize[VZ];
@@ -1874,7 +1876,7 @@ static void selectionProcessShape(void * unused)
 						iter.ref->Z + iter.z + 0.5f - center[VZ]
 					};
 					uint8_t quadrant;
-					/* hmmm: unsing 0.25 and 0.75 as center for axisS looks slightly off: uses 0.3 and 0.7 instead :-/ */
+					/* hmmm: using 0.25 and 0.75 as center for axisS looks slightly off: uses 0.3 and 0.7 instead :-/ */
 					vox[axisS] -= 0.2f; quadrant  = isInShape(vox);
 					vox[axisS] += 0.4f; quadrant |= isInShape(vox) << 1;
 					vox[VY] += 0.5f;

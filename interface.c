@@ -1143,8 +1143,8 @@ void mcuiCreateSignEdit(vec4 pos, int blockId, int * exit)
 	int fullw  = sz[0] * width  / (uv[2] - uv[0]);
 	int fullh  = sz[1] * height / (uv[3] - uv[1]);
 	/* quote the texture for background plank from main terrain.png texture */
-	sprintf(styles, "background: id(%d); background-size: %dpx %dpx; background-position: %dpx %dpx; padding: 10px; line-height: 1.3; font-size: %dpx",
-		image, fullw, fullh, - fullw * uv[0] / sz[0] - 1, - fullh * uv[1] / sz[1] - 1, fontsz);
+	sprintf(styles, "background: id(%d) %dpx %dpx; background-size: %dpx %dpx; padding: 10px; line-height: 1.3; font-size: %dpx",
+		image, - fullw * uv[0] / sz[0] - 1, - fullh * uv[1] / sz[1] - 1, fullw, fullh, fontsz);
 
 	SIT_CreateWidgets(diag,
 		"<label name=msg title='Edit sign message:' left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, ">"
@@ -1570,6 +1570,35 @@ static int mcuiFillStop(SIT_Widget w, APTR cd, APTR ud)
 	return 1;
 }
 
+static void mcuiReplaceFillItems(SIT_Widget diag, MCInventory inv)
+{
+	/* will filter out some Block_t.special flag */
+	int i;
+	memset(mcuiRepWnd.canUseSpecial, 1, sizeof mcuiRepWnd.canUseSpecial);
+	for (i = 0; i < DIM(cannotFill); i ++)
+		mcuiRepWnd.canUseSpecial[cannotFill[i]] = 0;
+
+	BlockState state;
+	SIT_GetValues(diag, SIT_UserData, &mcui.allItems, NULL);
+	for (state = blockGetById(ID(1, 0)), inv->itemsNb = 0; state < blockLast; state ++)
+	{
+		if ((state->inventory & MODELFLAGS) == 0) continue;
+		if (mcuiRepWnd.canUseSpecial[state->special & 31] == 0) continue;
+		Item item = mcui.allItems + inv->itemsNb;
+		item->id = state->id;
+		item->count = 1;
+		item->uses = 0;
+		inv->itemsNb ++;
+	}
+
+	mcui.scroll = SIT_GetById(diag, "scroll");
+	mcui.toolTip = SIT_GetById(diag, "info");
+	mcui.selCount = 0;
+	mcui.groupCount = 0;
+	mcui.cb = NULL;
+	inv->items = mcui.allItems;
+}
+
 void mcuiFillOrReplace(Bool fillWithBrush)
 {
 	static struct MCInventory_t mcinv   = {.invRow = 6, .invCol = MAXCOLINV, .movable = INV_PICK_ONLY};
@@ -1589,15 +1618,10 @@ void mcuiFillOrReplace(Bool fillWithBrush)
 		NULL
 	);
 
-	int i;
 	mcuiRepWnd.asyncCheck = NULL;
-	/* will filter out some Block_t.special flag */
-	memset(mcuiRepWnd.canUseSpecial, 1, sizeof mcuiRepWnd.canUseSpecial);
-	for (i = 0; i < DIM(cannotFill); i ++)
-		mcuiRepWnd.canUseSpecial[cannotFill[i]] = 0;
 
 	SIT_CreateWidgets(diag,
-		"<label name=dlgtitle title=", fillWithBrush ? "<b>Geometric brush fill</b>" : "<b>Fill or replace selection</b>",
+		"<label name=dlgtitle.big title=", fillWithBrush ? "Geometric brush fill" : "Fill or replace selection",
 		" left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, ">"
 		"<label name=searchtxt title='Search:'>"
 		"<editbox name=search left=WIDGET,searchtxt,0.5em right=FORM top=WIDGET,dlgtitle,0.3em>"
@@ -1703,26 +1727,8 @@ void mcuiFillOrReplace(Bool fillWithBrush)
 	SIT_AddCallback(mcuiRepWnd.fill,    SITE_OnChange,   mcuiCheckForSlab, 0);
 	SIT_AddCallback(mcuiRepWnd.replace, SITE_OnChange,   mcuiCheckForSlab, (APTR) 1);
 
-	BlockState state;
-	SIT_GetValues(diag, SIT_UserData, &mcui.allItems, NULL);
-	for (state = blockGetById(ID(1, 0)), mcinv.itemsNb = 0; state < blockLast; state ++)
-	{
-		if ((state->inventory & MODELFLAGS) == 0) continue;
-		if (mcuiRepWnd.canUseSpecial[state->special & 31] == 0) continue;
-		Item item = mcui.allItems + mcinv.itemsNb;
-		item->id = state->id;
-		item->count = 1;
-		item->uses = 0;
-		mcinv.itemsNb ++;
-	}
+	mcuiReplaceFillItems(diag, &mcinv);
 
-	mcui.scroll = SIT_GetById(diag, "scroll");
-	mcui.toolTip = SIT_GetById(diag, "info");
-	mcui.selCount = 0;
-	mcui.groupCount = 0;
-	mcui.cb = NULL;
-
-	mcinv.items   = mcui.allItems;
 	fillinv.items = fillReplace;
 	replace.items = fillReplace + 1;
 
@@ -1777,7 +1783,7 @@ static int mcuiDeleteProgress(SIT_Widget w, APTR cd, APTR ud)
 				NULL
 			);
 			SIT_CreateWidgets(dialog,
-				"<label name=title title='<b>Delete in progress...</b>' left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, ">"
+				"<label name=title.big title='Delete in progress...' left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, ">"
 				"<progress name=prog title=%d%% width=15em top=WIDGET,title,0.5em>"
 				"<button name=ko.act title=Cancel buttonType=", SITV_CancelButton, "left=WIDGET,prog,1em top=WIDGET,title,0.5em>"
 			);
@@ -1905,7 +1911,7 @@ void mcuiDeletePartial(void)
 	mcuiIterTE(mcuiCountTE, &tileEntities);
 
 	SIT_CreateWidgets(diag,
-		"<label name=dlgtitle title=", "<b>Partial delete</b>", "left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, ">"
+		"<label name=dlgtitle.big title=", "Partial delete", "left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, ">"
 		"<label name=title title='Select the parts you want to delete:' top=WIDGET,dlgtitle,0.5em>"
 		"<button name=blocks buttonType=", SITV_CheckBox, "curValue=", &mcuiDelWnd.blocks, "title=Blocks top=WIDGET,title,0.5em>"
 		"<button name=entity buttonType=", SITV_CheckBox, "curValue=", &mcuiDelWnd.entity, "title='Entities (mobs, falling blocks, item frame, ...)' top=WIDGET,blocks,0.5em>"
@@ -2024,7 +2030,7 @@ static int mcuiSelectPaintings(SIT_Widget w, APTR cd, APTR ud)
 void mcuiShowPaintings(void)
 {
 	SIT_Widget diag = SIT_CreateWidget("paintings.bg", SIT_DIALOG, globals.app,
-		SIT_DialogStyles, SITV_Plain | SITV_Modal | SITV_Movable,
+		SIT_DialogStyles, SITV_Plain | SITV_Modal,
 		SIT_Style,        "padding-top: 0.2em",
 		NULL
 	);
@@ -2032,7 +2038,7 @@ void mcuiShowPaintings(void)
 	int tiles = (globals.height >> 1) / PAINTINGS_TILE_H;
 
 	SIT_CreateWidgets(diag,
-		"<label name=dlgtitle title=", "<b>Select painting</b>", "left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, ">"
+		"<label name=dlgtitle.big title=", "Select painting", "left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, ">"
 		"<label name=title title='Double-click on the painting you want to add:' top=WIDGET,dlgtitle,0.5em>"
 		"<canvas name=view#table left=FORM right=FORM top=WIDGET,title,0.5em height=", tiles * PAINTINGS_TILE_H, "width=", tiles * PAINTINGS_TILE_W, "/>"
 		"<button name=ko title=Cancel top=WIDGET,view,0.5em right=FORM>"
@@ -2049,3 +2055,91 @@ void mcuiShowPaintings(void)
 	SIT_ManageWidget(diag);
 }
 
+/*
+ * pixel art interface
+ */
+struct
+{
+	SIT_Widget image;
+	SIT_Widget palette;
+	SIT_Widget inv;
+	uint8_t    axis1, axis2;
+	int        rasterizeWith;
+	int        dither;
+
+} mcuiPixArt = {
+	/* default values */
+	.dither = 1
+};
+
+void mcuiShowPixelArt(void)
+{
+	static struct MCInventory_t mcinv = {.invRow = 6, .invCol = MAXCOLINV, .movable = INV_SELECT};
+
+	SIT_Widget diag = SIT_CreateWidget("pixelart.bg", SIT_DIALOG + SIT_EXTRA((blockLast - blockStates) * sizeof (ItemBuf)), globals.app,
+		SIT_DialogStyles, SITV_Plain | SITV_Modal,
+		SIT_Style,        "padding-top: 0.2em",
+		NULL
+	);
+
+	/* same scale than player toolbar... */
+	mcui.cellSz = roundf(mcui.width * 17 * ITEMSCALE / (3 * 182.));
+
+	SIT_CreateWidgets(diag,
+		"<label name=dlgtitle.big title=", "Pixel art editor", "left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, ">"
+		"<label name=icon#table top=WIDGET,dlgtitle,0.5em labelSize=", SITV_LabelSize(96,96), ">"
+		"<label name=msg title='Rasterize with:' left=WIDGET,icon,1em top=WIDGET,dlgtitle,0.5em>"
+		"<button name=blocks curValue=", &mcuiPixArt.rasterizeWith, "title=Blocks buttonType=", SITV_RadioButton, "top=WIDGET,msg,0.5em left=WIDGET,icon,1em>"
+		"<button name=maps curValue=", &mcuiPixArt.rasterizeWith, "title=Maps buttonType=", SITV_RadioButton, "top=WIDGET,blocks,0.5em left=WIDGET,icon,1em>"
+		"<button name=dither title=Dither curValue=", &mcuiPixArt.dither, "buttonType=", SITV_CheckBox, "checkState=1 top=OPPOSITE,blocks left=WIDGET,blocks,2em>"
+		"<label name=msg2 title='Palette:' left=WIDGET,dither,1em top=WIDGET,dlgtitle,0.5em>"
+		"<combobox name=palette initialValues='Survival\tCreative\tBlack&white' top=WIDGET,msg2,0.5em left=OPPOSITE,msg2>"
+		"<label name=save.big title='(<a href=#>Save</a>)' bottom=OPPOSITE,msg2 right=OPPOSITE,palette>"
+		"<label name=msg3.big title=Selection: top=WIDGET,icon,0.5em>"
+		"<label name=selinfo top=OPPOSITE,msg3 left=WIDGET,msg3,0.3em>"
+		"<canvas composited=1 name=inv.inv top=WIDGET,msg3,0.5em nextCtrl=LAST/>"
+		"<button name=load title='Load image' top=WIDGET,inv,0.5em>"
+		"<button name=ko title=Cancel buttonType=", SITV_CancelButton, "top=OPPOSITE,load right=FORM>"
+		"<button name=ok title=Fill top=OPPOSITE,ko right=WIDGET,ko,0.5em>"
+		"<scrollbar width=1.2em name=scroll.inv wheelMult=1 top=OPPOSITE,inv,0 bottom=OPPOSITE,inv,0 right=FORM>"
+		"<tooltip name=info delayTime=", SITV_TooltipManualTrigger, "displayTime=10000 toolTipAnchor=", SITV_TooltipFollowMouse, ">"
+	);
+	SIT_SetAttributes(diag, "<inv right=WIDGET,scroll,0.2em>");
+
+	/* show selection info */
+	vec points = selectionGetPoints();
+	int size[] = {
+		fabsf(points[VX] - points[VX+4]) + 1,
+		fabsf(points[VY] - points[VY+4]) + 1,
+		fabsf(points[VZ] - points[VZ+4]) + 1
+	};
+	uint8_t axis1, axis2;
+	TEXT buffer[64];
+
+	axis1 = size[VX] < size[VY] ? 0 : 1;
+	if (size[axis1] < size[VZ]) axis2 = 2;
+	switch (axis1) {
+	case VX: axis1 = VY; axis2 = VZ; break;
+	case VY: axis1 = VX; axis2 = VZ; break;
+	case VZ: axis1 = VX; axis2 = VY;
+	}
+
+	sprintf(buffer, "%d x %d blocks, %c%c plane", size[axis1], size[axis2], "XYZ"[axis1], "XYZ"[axis2]);
+	SIT_SetValues(SIT_GetById(diag, "selinfo"), SIT_Title, buffer, NULL);
+
+	mcuiPixArt.palette = SIT_GetById(diag, "palette");
+	mcuiPixArt.inv     = SIT_GetById(diag, "inv");
+	mcuiPixArt.axis1   = axis1;
+	mcuiPixArt.axis2   = axis2;
+
+	mcuiReplaceFillItems(diag, &mcinv);
+	mcuiInitInventory(mcuiPixArt.inv, &mcinv);
+	mcuiResetScrollbar(&mcinv);
+
+	SIT_GetValues(mcinv.cell, SIT_Padding, mcui.padding, NULL);
+	mcui.itemSz = mcui.cellSz - mcui.padding[0] - mcui.padding[2];
+
+	SIT_AddCallback(mcui.scroll, SITE_OnScroll, mcuiSetTop, &mcinv);
+
+	SIT_ManageWidget(diag);
+}

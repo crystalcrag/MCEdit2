@@ -11,9 +11,10 @@
 #include "utils.h"
 #include "physics.h"
 
-void particlesInit(int vbo);
+Bool particlesInit(void);
+void particlesRender(void);
 void particlesExplode(Map map, int count, int blockId, vec4 pos);
-int  particlesAnimate(Map map, vec4 camera);
+int  particlesAnimate(Map map);
 void particlesChunkUpdate(Map map, ChunkData cd);
 
 #define PARTICLES_VBO_SIZE        (5*4)
@@ -61,9 +62,10 @@ struct ParticlePrivate_t
 {
 	ListHead buffers;          /* ParticleList */
 	int      count;
-	int      vbo;
 	vec4     initpos;
 	double   lastTime;
+	int      shader;           /* OpenGL stuff */
+	int      vao, vbo;
 };
 
 struct EmitterPrivate_t

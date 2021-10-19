@@ -23,6 +23,7 @@ void mcuiFillOrReplace(Bool fillWithBrush);
 void mcuiDeleteAll(void);
 void mcuiDeletePartial(void);
 void mcuiShowPaintings(void);
+void mcuiShowPixelArt(void);
 
 #ifdef MCUI_IMPL
 
@@ -63,10 +64,11 @@ struct MCInventory_t
 	int        itemsNb, top;
 };
 
-enum /* possible flags for <behavior> */
+enum /* possible flags for <movable> */
 {
 	INV_PICK_ONLY   = 1,          /* can only pickup block, not drop them */
 	INV_SINGLE_DROP = 2,          /* can drop item, but only one at most */
+	INV_SELECT      = 3,          /* cells can be select, but no item pickup */
 };
 
 #endif

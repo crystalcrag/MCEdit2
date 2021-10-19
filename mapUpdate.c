@@ -812,6 +812,7 @@ static void mapUpdateBlockLight(Map map, BlockIter iter, int oldId, int newId)
 		{
 			mapUpdateObstructLight(*iter);
 		}
+		else mapUpdateRestoreLight(*iter);
 	}
 }
 

@@ -194,7 +194,7 @@ static int mceditShowLibrary(SIT_Widget w, APTR cd, APTR ud)
 }
 
 /* handle extended selection toolbar actions */
-static int mceditCommands(int cmd)
+static void mceditCommands(int cmd)
 {
 	if (globals.selPoints == 3)
 	{
@@ -223,7 +223,6 @@ static int mceditCommands(int cmd)
 			else selectionClone(pos, sel->side, True);
 		}
 	}
-	return 1;
 }
 
 static int mceditClearSelection(SIT_Widget w, APTR cd, APTR ud)
@@ -268,6 +267,12 @@ static int mceditCancelStuff(SIT_Widget w, APTR cd, APTR ud)
 	return 1;
 }
 
+static int mceditExit(SIT_Widget w, APTR cd, APTR ud)
+{
+	SIT_Exit(2);
+	return 1;
+}
+
 /*
  * main entry point: init and dispatch to high-level event loop
  */
@@ -309,7 +314,7 @@ int main(int nb, char * argv[])
 	}
 
 	static SIT_Accel accels[] = {
-		{SITK_FlagCapture + SITK_FlagAlt + SITK_F4, SITE_OnClose},
+		{SITK_FlagCapture + SITK_FlagAlt + SITK_F4, SITE_OnActivate, NULL, mceditExit},
 		{SITK_FlagCapture + SITK_Escape,            SITE_OnActivate, NULL, mceditCancelStuff},
 		{SITK_FlagCapture + SITK_FlagCtrl + 's',    SITE_OnActivate, NULL, mceditSaveChanges},
 
@@ -370,7 +375,8 @@ int main(int nb, char * argv[])
 }
 
 static uint8_t toolbarCmds[] = {
-	MCUI_OVERLAY_REPLACE, MCUI_OVERLAY_FILL, MCUI_SEL_CLONE, MCUI_OVERLAY_LIBRARY, MCUI_OVERLAY_ANALYZE, MCUI_OVERLAY_SAVESEL, 0, MCUI_OVERLAY_DELPARTIAL, 0
+	MCUI_OVERLAY_REPLACE, MCUI_OVERLAY_FILL, MCUI_SEL_CLONE, MCUI_OVERLAY_LIBRARY, MCUI_OVERLAY_ANALYZE,
+	MCUI_OVERLAY_SAVESEL, 0, MCUI_OVERLAY_DELPARTIAL, MCUI_OVERLAY_PIXELART
 };
 
 /*
@@ -501,6 +507,7 @@ void mceditWorld(void)
 							SDL_ShowCursor(SDL_ENABLE);
 							capture = ignore = 0;
 							mceditCommands(toolbarCmds[mcedit.player.inventory.selected]);
+							if (mcedit.exit) return;
 						}
 						else renderSetSelectionPoint(RENDER_SEL_CLEAR);
 					}
@@ -565,6 +572,7 @@ void mceditWorld(void)
 				switch (event.button.button) {
 				case SDL_BUTTON_LEFT:
 					mceditPlaceBlock();
+					if (mcedit.exit) return;
 					break;
 				case SDL_BUTTON_RIGHT:
 					mceditActivate();
@@ -877,7 +885,8 @@ void mceditUIOverlay(int type)
 	case MCUI_OVERLAY_LIBRARY:
 	case MCUI_OVERLAY_SAVESEL:    libraryShow(type); break;
 	case MCUI_OVERLAY_DELPARTIAL: mcuiDeletePartial(); break;
-	case MCUI_OVERLAY_PAINTING:   mcuiShowPaintings();
+	case MCUI_OVERLAY_PAINTING:   mcuiShowPaintings(); break;
+	case MCUI_OVERLAY_PIXELART:   mcuiShowPixelArt();
 	}
 
 	SDL_EnableUNICODE(1);
@@ -988,9 +997,12 @@ void mceditUIOverlay(int type)
 	case MCUI_OVERLAY_ANALYZE:
 	case MCUI_OVERLAY_REPLACE:
 	case MCUI_OVERLAY_FILL:
+	case MCUI_OVERLAY_PIXELART:
 		mcedit.player.inventory.update ++;
 	}
-	mcedit.exit = 0;
+	if (mcedit.exit > 0)
+		/* exit is 1 if hit ESC (exit from interface) or 2 if alt+F4 (exit app) */
+		mcedit.exit --;
 
 	exit:
 	SIT_Nuke(SITV_NukeCtrl);

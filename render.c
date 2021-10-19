@@ -497,19 +497,18 @@ Bool renderInitStatic(void)
 	#endif
 
 	Bool compiled =
-	(render.shaderParticles  = createGLSLProgram("particles.vsh", "particles.fsh", "particles.gsh")) &&
-	(render.shaderBlocks     = createGLSLProgram("blocks.vsh",    "blocks.fsh",    "blocks.gsh")) &&
+	(render.shaderBlocks     = createGLSLProgram("blocks.vsh",    "blocks.fsh", "blocks.gsh")) &&
 	(render.shaderItems      = createGLSLProgram("items.vsh",     "items.fsh", NULL)) &&
 	(render.selection.shader = createGLSLProgram("selection.vsh", "selection.fsh", NULL));
 
 	if (! compiled)
 		return False;
 
-	/* init VBO for vboInventoryLoc, vboPreview, vboPreviewLoc, vboInventory, vboParticles */
-	glGenBuffers(6, &render.vboInventoryMDAI);
+	/* init VBO for vboInventoryLoc, vboPreview, vboPreviewLoc, vboInventory */
+	glGenBuffers(5, &render.vboInventoryMDAI);
 
-	/* will init vaoInventory, vaoBBox, vaoPreview and vaoParticles */
-	glGenVertexArrays(4, &render.vaoInventory);
+	/* will init vaoInventory, vaoBBox, vaoPreview */
+	glGenVertexArrays(3, &render.vaoInventory);
 
 	/* allocate some vbo to display chunk boundary */
 	debugInit();
@@ -517,6 +516,8 @@ Bool renderInitStatic(void)
 	chunkInitStatic();
 	halfBlockInit();
 	// playerInitPickup(&render.pickup);
+	if (! particlesInit())
+		return False;
 	if (! jsonParse(RESDIR "blocksTable.js", blockCreate))
 		return False;
 	if (! jsonParse(RESDIR "itemsTable.js", itemCreate))
@@ -527,7 +528,6 @@ Bool renderInitStatic(void)
 	blockParseConnectedTexture();
 	blockParseBoundingBox();
 	blockParseInventory(render.vboInventory);
-	particlesInit(render.vboParticles);
 	selectionInitStatic(render.selection.shader);
 	if (! entityInitStatic())
 		return False;
@@ -560,16 +560,6 @@ Bool renderInitStatic(void)
 	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, 0);
 	glEnableVertexAttribArray(2);
 	glVertexAttribDivisor(2, 1);
-
-	/* vao for particles */
-	glBindVertexArray(render.vaoParticles);
-	glBindBuffer(GL_ARRAY_BUFFER, render.vboParticles);
-	glBufferData(GL_ARRAY_BUFFER, PARTICLES_VBO_SIZE * PARTICLES_MAX, NULL, GL_STATIC_DRAW);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, PARTICLES_VBO_SIZE, 0);
-	glEnableVertexAttribArray(0);
-	glVertexAttribIPointer(1, 2, GL_UNSIGNED_INT, PARTICLES_VBO_SIZE, (void *) 12);
-	glEnableVertexAttribArray(1);
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
 
 	/* vao for bbox highlight */
 	glGenBuffers(2, &render.vboBBoxVTX);
@@ -782,30 +772,6 @@ void renderShowBlockInfo(Bool show, int what)
 		if (globals.selPoints & 3)
 			render.debugInfo |= DEBUG_SELECTION;
 	}
-}
-
-static inline void renderParticles(void)
-{
-	int count = particlesAnimate(globals.level, render.camera);
-	if (count == 0) return;
-
-//	fprintf(stderr, "particles = %d\n", count);
-	glDisable(GL_CULL_FACE);
-	glEnable(GL_DEPTH_TEST);
-	glDepthFunc(GL_LEQUAL);
-	glDepthMask(GL_FALSE);
-
-	glUseProgram(render.shaderParticles);
-	glBindBuffer(GL_UNIFORM_BUFFER, render.uboShader);
-
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, render.texBlock);
-	glBindVertexArray(render.vaoParticles);
-
-	setShaderValue(render.shaderParticles, "camera", 3, render.camera);
-
-	glDrawArrays(GL_POINTS, 0, count);
-	glDepthMask(GL_TRUE);
 }
 
 static void renderDrawItems(int count)
@@ -1463,7 +1429,8 @@ void renderWorld(void)
 	}
 
 	/* particles */
-	renderParticles();
+	glBindTexture(GL_TEXTURE_2D, render.texBlock);
+	particlesRender();
 
 	/* selection overlay */
 	if (render.selection.selFlags)

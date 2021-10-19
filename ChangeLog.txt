@@ -1,4 +1,8 @@
 =========== Week 41 ===========
+Sun Oct 17:
+	* particles forgot to update light values from last refactoring.
+	* started pixel art editor (interface mostly done).
+
 Sat Oct 16:
 	* 2 hours to fix a tex coord issue in decals.vsh: needed to change "int" into "uint".
 	* in-game map lighting cleanup.

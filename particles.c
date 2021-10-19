@@ -24,11 +24,26 @@ static struct VTXBBox_t  particleBBox = {
 //#define NOEMITTERS
 //#define SLOW
 
-void particlesInit(int vbo)
+Bool particlesInit(void)
 {
 	ParticleList list = calloc(sizeof *list, 1);
 
-	particles.vbo = vbo;
+	particles.shader = createGLSLProgram("particles.vsh", "particles.fsh", "particles.gsh");
+	if (! particles.shader)
+		/* error message already showed */
+		return False;
+
+	glGenVertexArrays(3, &particles.vao);
+	glGenBuffers(1, &particles.vbo);
+
+	glBindVertexArray(particles.vao);
+	glBindBuffer(GL_ARRAY_BUFFER, particles.vbo);
+	glBufferData(GL_ARRAY_BUFFER, PARTICLES_VBO_SIZE * PARTICLES_MAX, NULL, GL_STATIC_DRAW);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, PARTICLES_VBO_SIZE, 0);
+	glEnableVertexAttribArray(0);
+	glVertexAttribIPointer(1, 2, GL_UNSIGNED_INT, PARTICLES_VBO_SIZE, (void *) 12);
+	glEnableVertexAttribArray(1);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
 
 	ListAddTail(&particles.buffers, &list->node);
 
@@ -45,6 +60,7 @@ void particlesInit(int vbo)
 		}
 	}
 	memset(emitters.startIds, 0xff, sizeof emitters.startIds);
+	return True;
 }
 
 static Particle particlesAlloc(void)
@@ -100,7 +116,7 @@ static Emitter emitterAlloc(void)
 }
 #endif
 
-static int particlesGetBlockInfo(Map map, vec4 pos, DATA8 plight)
+static void particlesGetBlockInfo(Map map, vec4 pos, DATA8 plight)
 {
 	struct BlockIter_t iter;
 	mapInitIter(map, &iter, pos, False);
@@ -111,10 +127,8 @@ static int particlesGetBlockInfo(Map map, vec4 pos, DATA8 plight)
 		if (iter.offset & 1) light = (sky & 0xf0) | (light >> 4);
 		else                 light = (sky << 4) | (light & 0x0f);
 		*plight = light;
-		return iter.blockIds[iter.offset];
 	}
-	*plight = 0xf0;
-	return 0;
+	else *plight = 0xf0;
 }
 
 
@@ -460,7 +474,7 @@ static void particleSortEmitters(void)
 }
 
 /* move particles */
-int particlesAnimate(Map map, vec4 camera)
+int particlesAnimate(Map map)
 {
 	ParticleList list;
 	Particle     p;
@@ -504,7 +518,7 @@ int particlesAnimate(Map map, vec4 camera)
 	glBindBuffer(GL_ARRAY_BUFFER, particles.vbo);
 	buf = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
 
-	/* this scale factor will make particles move at a constant no matter at what fps the screen is refreshed */
+	/* this scale factor will make particles move at a constant speed no matter at what fps the screen is refreshed */
 	#ifndef SLOW
 	float speed = (float) ((globals.curTime - particles.lastTime) / 25);
 	#else
@@ -547,7 +561,12 @@ int particlesAnimate(Map map, vec4 camera)
 			buf += PARTICLES_VBO_SIZE/4;
 			count ++;
 
-			physicsMoveEntity(map, &p->physics, speed);
+			if (physicsMoveEntity(map, &p->physics, speed) && type != PARTICLE_SMOKE)
+			{
+				/* update light values */
+				particlesGetBlockInfo(map, p->physics.loc, &p->physics.light);
+				info[1] = p->physics.light;
+			}
 
 			if (count == 1000) goto break_all;
 		}
@@ -558,4 +577,22 @@ int particlesAnimate(Map map, vec4 camera)
 	particles.lastTime = globals.curTime;
 
 	return count;
+}
+
+void particlesRender(void)
+{
+	int count = particlesAnimate(globals.level);
+	if (count == 0) return;
+
+	glDisable(GL_CULL_FACE);
+	glEnable(GL_DEPTH_TEST);
+	glDepthFunc(GL_LEQUAL);
+	glDepthMask(GL_FALSE);
+
+	glUseProgram(particles.shader);
+//	glBindBuffer(GL_UNIFORM_BUFFER, render.uboShader);
+
+	glBindVertexArray(particles.vao);
+	glDrawArrays(GL_POINTS, 0, count);
+	glDepthMask(GL_TRUE);
 }

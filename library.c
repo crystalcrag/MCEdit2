@@ -202,7 +202,7 @@ static int libraryGetOffset(SIT_Widget w, APTR cd, APTR ud)
 	return 1;
 }
 
-/* user just hit Ctrl+C */
+/* user just hit Ctrl+C in world editor */
 void libraryCopySelection(Map brush)
 {
 	if (! library.copyWnd)
@@ -402,7 +402,7 @@ static Bool librarySaveSchematics(Map brush, STRPTR path)
  */
 
 
-static void libraryExtractThumb(LibBrush lib, STRPTR path, DATA16 size)
+static Bool libraryExtractThumb(LibBrush lib, STRPTR path, DATA16 size)
 {
 	if (NBT_Parse(&lib->nbt, path))
 	{
@@ -424,6 +424,7 @@ static void libraryExtractThumb(LibBrush lib, STRPTR path, DATA16 size)
 		NBT_Free(&lib->nbt);
 		memset(&lib->nbt, 0, sizeof lib->nbt);
 	}
+	return lib->nvgFBO > 0;
 }
 
 #include "extra.h"
@@ -451,20 +452,30 @@ static int libraryGenPreview(SIT_Widget w, APTR cd, APTR ud)
 		SIT_ForceRefresh();
 
 		path = strrchr(item->name, '.');
+		SIT_GetValues(w, SIT_LabelSize, &thumbSz, SIT_UserData, &lib, NULL);
 
 		/* this format is too retarded to generate a preview from it */
 		if (path && strcasecmp(path, ".nbt") == 0)
+		{
+			/* set the icon to show it is unsupported */
+			TEXT  styles[128];
+			int   szTex[2];
+			int   tex = renderGetTerrain(szTex);
+			thumbSz &= 0xfff;
+			/* use unknown entity texture */
+			sprintf(styles, "background: transparent id(%d) %dpx %dpx; background-size: %dpx %dpx",
+				tex, -496 * thumbSz >> 4, -208 * thumbSz >> 4, szTex[0] * thumbSz >> 4, szTex[1] * thumbSz >> 4);
+			SIT_SetValues(w, SIT_Style, styles, NULL);
 			return 0;
+		}
 
-		SIT_GetValues(w, SIT_LabelSize, &thumbSz, SIT_UserData, &lib, NULL);
 		path = (STRPTR) lib->node.ln_Prev;
 		path = strcpy(alloca(strlen(path) + strlen(item->name) + 2), path);
 		AddPart(path, item->name, 1e6);
 		lib->thumbSz = thumbSz & 0xfff;
 		if (lib->thumbSz == 0) return 0;
 		memset(size, 0, sizeof size);
-		libraryExtractThumb(lib, path, size);
-		if (lib->nvgFBO)
+		if (libraryExtractThumb(lib, path, size))
 		{
 			sprintf(bg, "id(%d)", lib->nvgFBO->image);
 			SIT_SetValues(w, SIT_ImagePath, bg, NULL);

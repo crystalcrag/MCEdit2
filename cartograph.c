@@ -127,7 +127,7 @@ void cartoGenBitmap(Cartograph map, int texId)
 			{
 				for (i = 0; i < CARTO_WIDTH; i ++, dst += 4, src ++)
 				{
-					#if 0
+					#if 1
 					uint8_t s = *src;
 					#else /* used to debug lighting: map will be white (snow) */
 					uint8_t s = (8<<2)|2;

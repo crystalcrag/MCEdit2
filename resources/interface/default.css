@@ -21,6 +21,11 @@ form.bg fieldset { border: 0; border-top: 0.3em groove #c5c5c5; border-radius: 0
 form.bg editbox.save { background: #444; color: white; font-weight: bold }
 form.bg button.save { padding: 4px 10px 4px }
 form.bg button.save:active { padding: 6px 12px 6px }
+form.bg combobox { padding: 8px 20px 4px; border-radius: 4px; background: linear-gradient(to bottom, #87cb85, #6da46b); font-weight: bold;
+		 text-shadow: 0 2px rgba(#000,0.5); border: 2px solid #547e53; color: white;
+		 border-color: #94df92 #547e53 #547e53 #94df92; outline: 3px solid black }
+form.bg combobox arrow { background: transparent url(mask:arrowdown.png) 50% 50% no-repeat; background-size: 70% 50% }
+popup { border: 3px solid black; border-width: 2px; background-color: white; color: black; padding: 12px 6px }
 
 /* mcedit style dialog */
 form.mc { background: rgba(black, 0.5); font-size: 0.9em; padding: 0.5em; border-radius: 0.5em }
@@ -125,7 +130,7 @@ slider:kbdfocus { outline: 2px solid blue }
 
 combobox { border: 2px solid #87cb85; background-color: black; padding: 6px }
 combobox arrow { background: #87cb85 url(mask:arrowdown.png) 50% 50% no-repeat; background-size: 70% 50% }
-popup { border: 2px solid #87cb85; border-width: 2px 2px; background-color: black; padding: 6px }
+xpopup { border: 2px solid #87cb85; border-width: 2px; background-color: black; padding: 6px }
 
 frame { border: 2px solid #87cb85; border-radius: 0.5em }
 
