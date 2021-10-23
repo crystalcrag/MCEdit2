@@ -194,11 +194,12 @@ static int selectionNudge(SIT_Widget w, APTR cd, APTR ud)
 			selection.nudgePoint = (int) ud;
 			selection.nudgeStep  = 16;
 			return 2;
+		default: break;
 		}
 		break;
 	case SITOM_ButtonReleased:
 		selection.nudgePoint = 0;
-		break;
+	default: break;
 	}
 	return 1;
 }

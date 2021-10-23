@@ -22,10 +22,10 @@ void entityDeleteById(Map map, int id);
 void entityInfo(int id, STRPTR buffer, int max);
 int  entityRaycast(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos);
 void entityUpdateOrCreate(Chunk c, vec4 pos, int blockId, vec4 dest, int ticks, DATA8 tile);
-void entityUseItemOn(Map, int entityId, int itemId, vec4 pos, int side);
+void entityUseItemOn(Map, int entityId, int itemId, vec4 pos);
 void entityDebugCmd(Chunk c);
 int  entityCount(int start);
-void entityCreate(Map map, int itemId, vec4 pos, int side);
+int  entityCreate(Map map, int itemId, vec4 pos, int side);
 void entityCreatePainting(Map map, int id);
 int  entityGetBlockId(int id);
 

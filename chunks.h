@@ -71,14 +71,16 @@ struct Chunk_t                         /* an entire column of 16x16 blocks */
 	Chunk     save;                    /* next chunk that needs saving */
 	ChunkData layer[CHUNK_LIMIT];      /* sub-chunk array */
 	uint8_t   outflags[CHUNK_LIMIT+1];
-	uint8_t   cflags;                  /* CLFAG_* */
 	uint8_t   neighbor;                /* offset for chunkNeighbor[] table */
+	uint8_t   cflags;                  /* CLFAG_* */
 	uint8_t   maxy;                    /* number of sub-chunks in layer[], starting at 0 */
 
-	uint8_t   lightPopulated;          /* information from NBT */
-	uint8_t   terrainDeco;             /* trees and ores have been generated */
-	uint8_t   cdIndex;                 /* iterate over ChunkData when saving */
 	uint8_t   noChunks;                /* S,E,N,W bitfield: no chunks in this direction */
+	uint8_t   saveFlags;               /* which section of NBT needs saving */
+	uint16_t  entityList;              /* linked list of all entities in this chunk */
+
+	uint16_t  cdIndex;                 /* iterate over ChunkData/Entities/TileEnt when saving */
+	                                   /* uint16_t unsued for now */
 
 	int       X, Z;                    /* coord in blocks unit (not chunk, ie: map coord) */
 	DATA8     biomeMap;                /* XZ map of biome id */
@@ -88,7 +90,6 @@ struct Chunk_t                         /* an entire column of 16x16 blocks */
 	int       teOffset;                /* same with "TileEntities" */
 	int       entOffset;               /* "Entities" offset */
 	int       signList;                /* linked list of all the signs in this chunk */
-	uint16_t  entityList;              /* linked list of all entities in this chunk */
 	NBTFile_t nbt;                     /* keep entire NBT structure, we'll need it to save chunk back to region */
 };
 
@@ -117,9 +118,9 @@ enum /* flags for ChunkData.cdFlags */
 
 enum /* NBT update tag */
 {
-	CHUNK_NBT_SECTION = 1,
-	CHUNK_NBT_TILEENTITES,
-	CHUNK_NBT_ENTITES,
+	CHUNK_NBT_SECTION      = 0x01,
+	CHUNK_NBT_TILEENTITIES = 0x02,
+	CHUNK_NBT_ENTITIES     = 0x04,
 };
 
 /* chunk vertex data */
@@ -146,7 +147,6 @@ struct TileEntityHash_t
 {
 	uint32_t count;
 	uint32_t max;
-	uint32_t save;
 };
 
 #endif

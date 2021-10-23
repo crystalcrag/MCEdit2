@@ -1374,8 +1374,11 @@ static void entityFillPos(vec4 dest, vec4 src, int side, int orientX, vec size)
 static void entityGetCoord(float outCoord[6], float posAndRot[6], VTXBBox bbox)
 {
 	uint8_t i;
-	for (i = 0; i < 6; i ++)
+	for (i = 0; i < 3; i ++)
+	{
 		outCoord[i] = FROMVERTEX(bbox->pt1[i]);
+		outCoord[i+3] = FROMVERTEX(bbox->pt2[i]);
+	}
 
 	if (posAndRot[5] > 0)
 	{
@@ -1507,7 +1510,7 @@ void entityCreatePainting(Map map, int id)
 	entityMarkListAsModified(map, c);
 }
 
-static void entityCreateItemFrame(Map map, vec4 pos, int side)
+static int entityCreateItemFrame(Map map, vec4 pos, int side)
 {
 	NBTFile_t nbt = {.page = 127};
 	Entity    entity;
@@ -1527,12 +1530,12 @@ static void entityCreateItemFrame(Map map, vec4 pos, int side)
 	{
 		/* does not fit: cancel creation */
 		fprintf(stderr, "can't fit item frame in %g, %g, %g\n", (double) posAndRot[VX], (double) posAndRot[VY], (double) posAndRot[VZ]);
-		return;
+		return 0;
 	}
 
 	entity = entityAlloc(&slot);
 	memcpy(entity->pos, posAndRot, sizeof posAndRot);
-	if (c == NULL) return; /* outside map? */
+	if (c == NULL) return 0; /* outside map? */
 	entityCreateGeneric(&nbt, entity, ID(389, 0), side);
 	NBT_Add(&nbt, TAG_Compound_End);
 
@@ -1546,27 +1549,28 @@ static void entityCreateItemFrame(Map map, vec4 pos, int side)
 	entityGetLight(c, entity->pos, entity->light, entity->fullLight = True);
 	entityAddToCommandList(entity);
 	entityMarkListAsModified(map, c);
+	return slot + 1;
 }
 
 /* add some pre-defined entity in the world map */
-void entityCreate(Map map, int itemId, vec4 pos, int side)
+int entityCreate(Map map, int itemId, vec4 pos, int side)
 {
 	ItemDesc desc = itemGetById(itemId);
-	if (desc == NULL) return;
+	if (desc == NULL) return 0;
 	switch (FindInList("item_frame,painting", desc->tech, 0)) {
 	case 0: /* empty item frame */
-		entityCreateItemFrame(map, pos, side);
-		break;
+		return entityCreateItemFrame(map, pos, side);
 	case 1: /* ask for a painting first */
-		if (side >= SIDE_TOP) return;
+		if (side >= SIDE_TOP) break;
 		memcpy(entities.createPos, pos, 12);
 		entities.createSide = side;
 		mceditUIOverlay(MCUI_OVERLAY_PAINTING);
 	}
+	return 0;
 }
 
 /* action on entity */
-void entityUseItemOn(Map map, int entityId, int itemId, vec4 pos, int side)
+void entityUseItemOn(Map map, int entityId, int itemId, vec4 pos)
 {
 	Entity entity = entityGetById(entityId - 1);
 

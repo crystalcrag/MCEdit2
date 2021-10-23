@@ -14,7 +14,7 @@
 void mcuiTakeSnapshot(int width, int height);
 void mcuiCreateInventory(Inventory);
 void mcuiEditChestInventory(Inventory, Item items, int count);
-void mcuiCreateSignEdit(vec4 pos, int blockId, int * exit);
+void mcuiCreateSignEdit(vec4 pos, int blockId);
 void mcuiGoto(vec4 pos);
 void mcuiInitDrawItems(void);
 void mcuiDrawItems(void);
@@ -23,7 +23,7 @@ void mcuiFillOrReplace(Bool fillWithBrush);
 void mcuiDeleteAll(void);
 void mcuiDeletePartial(void);
 void mcuiShowPaintings(void);
-void mcuiShowPixelArt(void);
+void mcuiShowPixelArt(vec4 pos);
 
 #ifdef MCUI_IMPL
 
@@ -31,7 +31,6 @@ typedef struct MCInventory_t *       MCInventory;
 
 struct MCInterface_t
 {
-	SIT_Widget   scroll;
 	SIT_Widget   toolTip;
 	SIT_CallProc cb;
 	MCInventory  groups[10];
@@ -49,27 +48,30 @@ struct MCInterface_t
 	ItemBuf      dragSplit;
 	ItemBuf      drag;
 	ItemBuf      items[128];
-	int *        exitCode;
 	vec4         signPos;
 	Chunk        signChunk;
 };
 
 struct MCInventory_t
 {
-	SIT_Widget cell;
-	int8_t     curX, curY;
-	uint8_t    invCol, invRow;
-	uint8_t    groupId, movable;
-	Item       items;
-	int        itemsNb, top;
+	SIT_Widget   cell;
+	SIT_Widget   scroll;
+	SIT_CallProc customDraw;
+	int8_t       curX, curY;
+	uint8_t      invCol, invRow;
+	uint8_t      groupId, movable;
+	Item         items;
+	int          itemsNb, top;
 };
 
 enum /* possible flags for <movable> */
 {
 	INV_PICK_ONLY   = 1,          /* can only pickup block, not drop them */
 	INV_SINGLE_DROP = 2,          /* can drop item, but only one at most */
-	INV_SELECT      = 3,          /* cells can be select, but no item pickup */
+	INV_SELECT_ONLY = 4,          /* cells can be select, but no item pickup */
 };
+
+void mcuiSetItemSize(SIT_Widget cell, int max);
 
 #endif
 #endif

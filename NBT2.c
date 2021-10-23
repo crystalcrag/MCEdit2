@@ -580,28 +580,12 @@ void NBT_MarkForUpdate(NBTFile nbt, int offset, int tag)
 
 	NBTHdr hdr = HDR(nbt, offset);
 
-	if (hdr->type == TAG_List_Compound)
-	{
-		offset += hdr->size - 4;
-	}
-	else if (hdr->type == TAG_Compound)
-	{
-		offset += sizeof *hdr - 4 + ((hdr->minNameSz + 4) & ~3);
+	if (hdr->type != TAG_List_Compound || hdr->type != TAG_Compound)
+		return;
 
-		/* add at end of compound */
-		for (;;)
-		{
-			NBTHdr sub = HDR(nbt, offset);
-			if (sub->type == TAG_End) break;
-			offset += sub->size;
-		}
-	}
-	else return;
-
-	DATA8 mem = nbt->mem + offset;
-	mem[1] = 1;
-	mem[2] = tag >> 8;
-	mem[3] = tag & 0xff;
+	if (hdr->count < NBT_NODE_CHANGED)
+		hdr->count = NBT_NODE_CHANGED;
+	hdr->count |= tag;
 }
 
 
@@ -1164,15 +1148,15 @@ static int NBT_WriteFile(NBTFile nbt, APTR out, int offset, NBTWriteParam param)
 		type >>= 4;
 		dword = hdr->count;
 		p = (DATA8) hdr + hdr->size;
-		if (hdr->type == TAG_List_Compound && p[-3] && param->cb)
+		if (hdr->type == TAG_List_Compound && hdr->count >= NBT_NODE_CHANGED && param->cb)
 		{
 			/* node has been modified: ask callback for NBT stream of each item */
 			struct NBTFile_t sub = {0};
 			/* get count first */
-			dword = param->cb((p[-2] << 8) | p[-1], param->cbdata, NULL);
+			dword = param->cb(hdr->count & 0xff, param->cbdata, NULL);
 			putc(out, type);
 			puts(out, &dword, 4, 1);
-			while (dword > 0 && param->cb((p[-2] << 8) | p[-1], param->cbdata, &sub))
+			while (dword > 0 && param->cb(hdr->count & 0xff, param->cbdata, &sub))
 			{
 				sub.alloc = 0;
 				do {
@@ -1226,19 +1210,23 @@ static int NBT_WriteFile(NBTFile nbt, APTR out, int offset, NBTWriteParam param)
 			if (p[0] == 0 && p[1]) break;
 		}
 		off += 4;
-		p = mem + off;
-		if (p[-3] && param->cb)
+		if (hdr->count >= NBT_NODE_CHANGED && param->cb)
 		{
 			/* want to extend this node */
 			struct NBTFile_t sub = {0};
-			while (param->cb((p[-2] << 8) | p[-1], param->cbdata, &sub))
+			uint8_t tag, tags;
+			for (tag = 1, tags = hdr->count & ~ NBT_NODE_CHANGED; tags; tags >>= 1, tag <<= 1)
 			{
-				sub.alloc = 0;
-				do {
-					sub.alloc += NBT_WriteFile(&sub, out, sub.alloc, param);
-				} while (sub.alloc < sub.usage);
-				type = 0;
-				puts(out, &type, 1, 0);
+				if ((tags & 1) == 0) continue;
+				while (param->cb(tag, param->cbdata, &sub))
+				{
+					sub.alloc = 0;
+					do {
+						sub.alloc += NBT_WriteFile(&sub, out, sub.alloc, param);
+					} while (sub.alloc < sub.usage);
+					type = 0;
+					puts(out, &type, 1, 0);
+				}
 			}
 		}
 		break;

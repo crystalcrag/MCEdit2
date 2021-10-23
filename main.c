@@ -736,7 +736,7 @@ void mceditPlaceBlock(void)
 		if (id == 0 /* no block selected in inventory bar */)
 			entityDeleteById(globals.level, sel->entity - 1);
 		else
-			entityUseItemOn(globals.level, sel->entity, item->id, pos, sel->side);
+			entityUseItemOn(globals.level, sel->entity, item->id, pos);
 	}
 	else if (id < ID(256, 0))
 	{
@@ -868,7 +868,7 @@ void mceditUIOverlay(int type)
 				break;
 			default:
 				if (b->special == BLOCK_SIGN)
-					mcuiCreateSignEdit(pos, sel->blockId, &mcedit.exit);
+					mcuiCreateSignEdit(pos, sel->blockId);
 				else
 					mcuiCreateInventory(&mcedit.player.inventory);
 			}
@@ -886,7 +886,7 @@ void mceditUIOverlay(int type)
 	case MCUI_OVERLAY_SAVESEL:    libraryShow(type); break;
 	case MCUI_OVERLAY_DELPARTIAL: mcuiDeletePartial(); break;
 	case MCUI_OVERLAY_PAINTING:   mcuiShowPaintings(); break;
-	case MCUI_OVERLAY_PIXELART:   mcuiShowPixelArt();
+	case MCUI_OVERLAY_PIXELART:   mcuiShowPixelArt(mcedit.player.pos);
 	}
 
 	SDL_EnableUNICODE(1);

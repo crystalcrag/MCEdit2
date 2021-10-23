@@ -7,6 +7,7 @@
 #include <glad.h>
 #include <string.h>
 #include <stddef.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <ctype.h>
 #include <malloc.h>
@@ -3135,12 +3136,12 @@ int blockGetConnect(BlockState b, DATA8 neighbors)
 	case BLOCK_GLASS: /* 12 bit parts - glass pane/iron bars */
 		/* middle: bit4~7 */
 		middle = blockGetConnect4(neighbors+10, type);
-		/* bottom: bit0~3 */
+		/* bottom: bit0~3. neighbors[8~9] == block below <b> */
 		n = blockGetById(ID(neighbors[8], neighbors[9]));
 		ret = (n->special == type ? blockGetConnect4(neighbors, type) ^ 15 : 15) & middle;
 		/* bottom center piece cap */
 		if (n->special != type) ret |= 1<<17;
-		/* top: bit8~11 */
+		/* top: bit8~11, neighbors[26~27] == block above <b> */
 		n = blockGetById(ID(neighbors[26], neighbors[27]));
 		ret |= ((n->special == type ? blockGetConnect4(neighbors+18, type) ^ 15 : 15) & middle) << 8;
 		ret |= middle << 4;

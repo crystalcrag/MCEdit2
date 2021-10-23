@@ -136,7 +136,7 @@ frame { border: 2px solid #87cb85; border-radius: 0.5em }
 
 tooltip { background-color: rgba(#000,0.9); color: white; text-shadow: 2px 2px #3f3f3f; padding: 0.7em; padding-bottom: 0.6em;
           outline: 0.15em solid #6e34c6 -0.3em; font-size: 0.9em; white-space: pre; border-radius: 0.3em; line-height: 1.2 }
-tooltip dim { color: #666; text-shadow: none }
+tooltip dim { color: #888; text-shadow: none }
 tooltip ench { color: #aaa }
 tooltip b { color: cyan }
 

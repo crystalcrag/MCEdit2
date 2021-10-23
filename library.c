@@ -604,6 +604,9 @@ static int libraryExitWnd(SIT_Widget w, APTR cd, APTR ud)
 	return 1;
 }
 
+/*
+ * interface for library schematics
+ */
 void libraryShow(int type)
 {
 	TEXT defPath[256];
@@ -616,6 +619,7 @@ void libraryShow(int type)
 		flags |= FSVIEW_SAVE;
 		StrCat(defPath, sizeof defPath, 0, "\tschematic");
 	}
+	/* the interface is actually handled by a FSView widget */
 	SIT_Widget diag = FSInit(globals.app, defPath, flags, libraryCreateItem, librarySelectName);
 
 	/* need a special exit code */

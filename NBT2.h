@@ -72,7 +72,7 @@ struct NBTHdr_t
 {
 	uint8_t  type;           /* TAG_* */
 	uint8_t  minNameSz;      /* min name len: if 255 need to scan up to 0 byte */
-	uint16_t count;          /* number of entries after this node */
+	uint16_t count;          /* number of entries after this node (TAG_List only) */
 	uint32_t size;           /* size of entire hierarchy under this node (including header + name) */
 	uint8_t  name[4];        /* name of node (4-byte alignment) */
 };
@@ -138,6 +138,9 @@ typedef union NBTVariant_t
 #define TAG_Replaced         14
 #define TAG_Int_Array_Conv   15
 #define SZ_CHUNK             4096
+
+/* special value for NBTHdr_t.count */
+#define NBT_NODE_CHANGED     0xff00
 
 #define NBT_REGION_FLAG      1
 #define NBT_SECTION_FLAG     2

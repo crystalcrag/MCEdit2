@@ -24,9 +24,8 @@
 static void chunkFillData(Chunk chunk, int y, int offset)
 {
 	ChunkData cd = calloc(sizeof *cd, 1);
-	DATA8 base = NBT_Payload(&chunk->nbt, NBT_FindNode(&chunk->nbt, offset, "Blocks"));
 
-	cd->blockIds = base;
+	cd->blockIds = NBT_Payload(&chunk->nbt, NBT_FindNode(&chunk->nbt, offset, "Blocks"));
 //	cd->addId    = NBT_Payload(&chunk->nbt, NBT_FindNode(&chunk->nbt, offset, "Add"));
 	cd->chunk    = chunk;
 	cd->Y        = y * 16;
@@ -382,8 +381,8 @@ Bool chunkLoad(Chunk chunk, const char * path, int x, int z)
 			nbt.alloc = 0;
 			chunk->signList       = -1;
 			chunk->nbt            = nbt;
-			chunk->lightPopulated = NBT_ToInt(&nbt, NBT_FindNode(&nbt, 0, "LightPopulated"), 0);
-			chunk->terrainDeco    = NBT_ToInt(&nbt, NBT_FindNode(&nbt, 0, "TerrainPopulated"), 0);
+			//chunk->lightPopulated = NBT_ToInt(&nbt, NBT_FindNode(&nbt, 0, "LightPopulated"), 0);
+			//chunk->terrainDeco    = NBT_ToInt(&nbt, NBT_FindNode(&nbt, 0, "TerrainPopulated"), 0);
 			chunk->heightMap      = NBT_Payload(&nbt, NBT_FindNode(&nbt, 0, "HeightMap"));
 			chunk->biomeMap       = NBT_Payload(&nbt, NBT_FindNode(&nbt, 0, "Biomes"));
 			chunk->entOffset      = NBT_FindNode(&nbt, 0, "Entities");
@@ -415,7 +414,7 @@ Bool chunkLoad(Chunk chunk, const char * path, int x, int z)
 /* will have to do some post-processing when saving this chunk */
 void chunkMarkForUpdate(Chunk c)
 {
-	NBT_MarkForUpdate(&c->nbt, c->teOffset < 0 ? NBT_FindNode(&c->nbt, 0, "Level") : c->teOffset, CHUNK_NBT_TILEENTITES);
+	NBT_MarkForUpdate(&c->nbt, c->teOffset < 0 ? NBT_FindNode(&c->nbt, 0, "Level") : c->teOffset, CHUNK_NBT_TILEENTITIES);
 	/* don't call this function again, until this flag is cleared */
 	c->cflags |= CFLAG_REBUILDTE;
 }
@@ -423,7 +422,7 @@ void chunkMarkForUpdate(Chunk c)
 /* same with Entities compound list */
 void chunkUpdateEntities(Chunk c)
 {
-	NBT_MarkForUpdate(&c->nbt, c->entOffset < 0 ? NBT_FindNode(&c->nbt, 0, "Level") : c->entOffset, CHUNK_NBT_ENTITES);
+	NBT_MarkForUpdate(&c->nbt, c->entOffset < 0 ? NBT_FindNode(&c->nbt, 0, "Level") : c->entOffset, CHUNK_NBT_ENTITIES);
 	c->cflags |= CFLAG_REBUILDETT;
 }
 
@@ -546,6 +545,21 @@ static int chunkAllocSpace(FILE * in, int pages)
 	return -1;
 }
 
+static void chunkAddNBTEntry(NBTFile nbt, STRPTR name, int tag)
+{
+	static uint8_t content[64];
+
+	nbt->mem = content;
+	nbt->max = sizeof content;
+	nbt->usage = 0;
+
+	NBT_Add(nbt,
+		TAG_List_Compound, name, 0,
+		TAG_Compound_End
+	);
+	NBT_MarkForUpdate(nbt, 0, tag);
+}
+
 Bool entityGetNBT(NBTFile, int * id);
 
 /* save all the extra NBT tags we added to a chunk */
@@ -558,40 +572,28 @@ static int chunkSaveExtra(int tag, APTR cbparam, NBTFile nbt)
 	int i;
 
 	switch (tag) {
-	case CHUNK_NBT_TILEENTITES:
+	case CHUNK_NBT_TILEENTITIES:
 		/* list of tile entities modified */
 		hash = chunk->tileEntities;
 		if (nbt == NULL)
 			/* return total count of tile entities */
 			return hash ? hash->count : 0;
 
-		if (hash->save == 0)
+		if ((chunk->saveFlags & CHUNK_NBT_TILEENTITIES) == 0)
 		{
+			/* missing TileEntities entries within NBT: add it now */
+			chunk->saveFlags |= CHUNK_NBT_TILEENTITIES;
+			chunk->cdIndex = 1;
 			if (chunk->teOffset < 0)
 			{
 				/* MCEditv1 doesn't like when this is missing, even if it is empty :-/ */
-				static NBTFile_t header;
-				static uint8_t   content[64];
-				if (header.mem == NULL)
-				{
-					header.mem = content;
-					header.max = sizeof content;
-					NBT_Add(&header,
-						TAG_List_Compound, "TileEntities", 0,
-						TAG_Compound_End
-					);
-					NBT_MarkForUpdate(&header, 0, CHUNK_NBT_TILEENTITES);
-				}
-				nbt->mem = content;
-				nbt->usage = header.usage;
-				hash->save ++;
+				chunkAddNBTEntry(nbt, "TileEntities", CHUNK_NBT_TILEENTITIES);
 				return 1;
 			}
-			else hash->save ++;
 		}
 
 		/* this will certainly change the order of tile entities each time it is saved (not that big of a deal though) */
-		for (i = hash->save - 1, ent = (TileEntityEntry) (hash + 1) + i; i < hash->max; i ++, ent ++)
+		for (i = chunk->cdIndex - 1, ent = (TileEntityEntry) (hash + 1) + i; i < hash->max; i ++, ent ++)
 		{
 			if (ent->data == NULL) continue;
 			NBTIter_t iter;
@@ -599,19 +601,29 @@ static int chunkSaveExtra(int tag, APTR cbparam, NBTFile nbt)
 			while (NBT_Iter(&iter) >= 0);
 			nbt->mem = ent->data;
 			nbt->usage = iter.offset-4;
-			hash->save = i + 2;
+			chunk->cdIndex = i + 2;
 			return 1;
 		}
 		break;
 
-	case CHUNK_NBT_ENTITES:
+	case CHUNK_NBT_ENTITIES:
 		#define curEntity    nbt.alloc
 		/* list of entities modified */
 		if (nbt == NULL)
 		{
 			/* total count of entities for this chunk */
-			chunk->curEntity = chunk->entityList;
 			return entityCount(chunk->entityList);
+		}
+		if ((chunk->saveFlags & CHUNK_NBT_ENTITIES) == 0)
+		{
+			chunk->saveFlags |= CHUNK_NBT_ENTITIES;
+			chunk->curEntity = chunk->entityList;
+			if (chunk->entOffset < 0)
+			{
+				/* missing "Entities" TAG_List_Compound entry in NBT */
+				chunkAddNBTEntry(nbt, "Entities", CHUNK_NBT_ENTITIES);
+				return 1;
+			}
 		}
 		if (entityGetNBT(nbt, &chunk->curEntity))
 			return 1;
@@ -622,6 +634,16 @@ static int chunkSaveExtra(int tag, APTR cbparam, NBTFile nbt)
 		/* has to return TAG_List count */
 		if (nbt == NULL)
 			return chunk->maxy;
+		if ((chunk->saveFlags & CHUNK_NBT_SECTION) == 0)
+		{
+			chunk->saveFlags |= CHUNK_NBT_SECTION;
+			chunk->cdIndex = 0;
+			if (chunk->entOffset < 0)
+			{
+				chunkAddNBTEntry(nbt, "Sections", CHUNK_NBT_SECTION);
+				return 1;
+			}
+		}
 
 		if (chunk->cdIndex < chunk->maxy)
 		{
@@ -678,9 +700,8 @@ Bool chunkSave(Chunk chunk, const char * path)
 			int   chunkPage;
 
 			fprintf(stderr, "saving chunk %d, %d\n", chunk->X, chunk->Z);
-			if (chunk->tileEntities)
-				((TileEntityHash)chunk->tileEntities)->save = 0;
-			chunk->cdIndex = 0;
+			//NBT_Dump(&chunk->nbt, 0, 0, 0);
+			chunk->saveFlags = 0;
 
 			/* compress file in memory first, then write it to disk */
 			chunkOffset = BE24(offset) << 12;
@@ -1046,6 +1067,8 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer opaque, BlockState b
 static void chunkGenCube(ChunkData neighbors[], WriteBuffer opaque, BlockState b, DATAS16 chunkOffsets, int pos);
 int mapUpdateGetCnxGraph(ChunkData, int start, DATA8 visited);
 
+#include "globals.h"
+
 /*
  * transform chunk data into something useful for the vertex shader (blocks.vsh)
  * this is the "meshing" function for our world
@@ -1080,7 +1103,7 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 	memset(visited, 0, sizeof visited);
 	hasLights = (cur->cdFlags & CDFLAG_NOLIGHT) == 0;
 
-//	if (c->X == 192 && cur->Y == 96 && c->Z == 976)
+//	if (c->X == 1024 && cur->Y == 0 && c->Z == -880)
 //		globals.breakPoint = 1;
 
 	for (pos = air = 0; pos < 16*16*16; pos ++)
@@ -1094,7 +1117,7 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 		block = blocks[pos];
 		state = blockGetById(ID(block, data));
 
-//		if (globals.breakPoint && pos == 2868)
+//		if (globals.breakPoint && pos == 1344)
 //			globals.breakPoint = 2;
 
 		/* 3d flood fill for cave culling */
@@ -1404,6 +1427,7 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 
 	if (count > 0)
 	{
+		/* retrieve blockIds for connected models (<p> is pointing to connect6blocks[]) */
 		uint8_t blockIdAndData[14 * 2];
 		DATA8 ids;
 		for (ids = blockIdAndData; count > 0; p ++, ids += 2, count --)
@@ -1444,6 +1468,7 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 	for (count = model[-1]; count > 0; count -= 6, model += 6 * INT_PER_VERTEX)
 	{
 		uint8_t faceId = (model[4] >> FACEIDSHIFT) & 31;
+		/* this is how we discard useless parts of connected models */
 		if (faceId > 0 && (connect & (1 << (faceId-1))) == 0)
 		{
 			/* discard vertex */
@@ -1451,7 +1476,7 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 		}
 		/* check if we can eliminate even more faces */
 		uint8_t norm = GET_NORMAL(model);
-		if (model[axisCheck[norm]] == axisAlign[norm])
+		if (model[axisCheck[norm]] == axisAlign[norm] &&b->special != BLOCK_GLASS /*iron bars and glass pane already have their model culled*/)
 		{
 			extern int8_t opp[];
 			struct BlockIter_t iter;

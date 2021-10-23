@@ -14,6 +14,7 @@ void cartoDelMap(int entityId);
 void cartoUpdateLight(int entityId, DATA32 light);
 void cartoSetSelect(int entityId, Bool set);
 void cartoRender(void);
+int  cartoSaveMap(DATA8 mem, int size);
 
 
 #ifdef CARTOGRAPH_IMPL
@@ -59,6 +60,8 @@ struct CartoPrivate_t              /* mostly the same fields than signs */
 	int        toRender;           /* maps to render */
 	int *      mdaCount;           /* static array for glMultiDrawArrays */
 	int        shader;             /* decals.vsh */
+	int        lastIdCount;
+	int        lastMapId;
 };
 
 

@@ -441,7 +441,7 @@ MapExtraData renderGetSelectedBlock(vec4 pos, int * blockModel)
 /* SITE_OnResize on root widget */
 static int renderGetSize(SIT_Widget w, APTR cd, APTR ud)
 {
-	render.scale = globals.width / (3 * 182.) * ITEMSCALE;
+	render.scale = globals.width / (3 * 182.f) * ITEMSCALE;
 	render.inventory->update ++;
 
 	/* aspect ratio (needed by particle.gsh) */
@@ -616,7 +616,7 @@ Bool renderInitStatic(void)
 	render.nvgTerrain = nvgCreateImage(globals.nvgCtx, (APTR) render.texBlock, NVG_IMAGE_NEAREST | NVG_IMAGE_GLTEX);
 
 	/* scale of inventory items (182 = px width of inventory bar) */
-	render.scale = globals.width / (3 * 182.) * ITEMSCALE;
+	render.scale = globals.width / (3 * 182.f) * ITEMSCALE;
 	SIT_AddCallback(globals.app, SITE_OnResize, renderGetSize, NULL);
 
 	/* will need to measure some stuff before hand */

@@ -11,11 +11,11 @@
 #include "player.h"
 #include "utils.h"
 
-#define NEAR_PLANE     0.1
+#define NEAR_PLANE     0.1f
 #define DEF_FOV        80
 #define FONTSIZE       30
 #define FONTSIZE_MSG   20
-#define ITEMSCALE      1.3
+#define ITEMSCALE      1.3f
 
 Bool renderInitStatic(void);
 Map  renderInitWorld(STRPTR path, int renderDist);

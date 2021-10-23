@@ -1,3 +1,16 @@
+=========== Week 42 ===========
+Thu Oct 21:
+	* implemented a floyd-steinberg dithering for map art.
+
+Wed Oct 20:
+	* pixel art interface continued and slightly changed.
+
+Tue Oct 19:
+	* pixel art editor continued.
+
+Mon Oct 18:
+	* pixel art editor continued (palette tool).
+
 =========== Week 41 ===========
 Sun Oct 17:
 	* particles forgot to update light values from last refactoring.

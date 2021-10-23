@@ -283,7 +283,7 @@ enum
 	SIT_WordWrap         = 85,   /* C__: Enum (SITV_WW*) */
 	SIT_RoundTo          = 95,   /* _SG: Int */
 	// SIT_TabStyle      = 118,  /* _SG: Int (defined for Tab: see enum SITV_TabEdit* */
-	SIT_ColorMap         = 134,  /* _SG: DATA8 */
+	SIT_ColorMap         = 130,  /* _SG: DATA8 */
 	SIT_Lexer            = 135,  /* _SG: SIT_CallProc */
 	SIT_LexerData        = 136,  /* _SG: APTR */
 	SIT_EditAddText      = 137,  /* _S_: STRPTR */
@@ -345,7 +345,6 @@ enum
 	SIT_SelFilter        = 127,  /* CSG: Int */
 	SIT_InitPath         = 128,  /* CSG: String */
 	SIT_DlgFlags         = 129,  /* CSG: Int */
-	SIT_SaveState        = 130,  /* __G: String */
 	SIT_SelPath          = 131,  /* __G: String */
 	SIT_NbSelect         = 132,  /* __G: Int */
 

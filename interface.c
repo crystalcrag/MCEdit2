@@ -67,6 +67,7 @@ static int mcuiInventoryRender(SIT_Widget w, APTR cd, APTR ud)
 	MCInventory inv = ud;
 	float       x, y, curX, curY;
 	int         i, j, sz = mcui.cellSz;
+	uint8_t     select = inv->movable & INV_SELECT_ONLY;
 	Item        item = inv->items + inv->top;
 	int         max = inv->itemsNb - inv->top;
 
@@ -79,8 +80,17 @@ static int mcuiInventoryRender(SIT_Widget w, APTR cd, APTR ud)
 		{
 			int x2 = i * sz;
 			int y2 = j * sz;
+			if (select && item->added)
+			{
+				/* selection underlay */
+				nvgBeginPath(globals.nvgCtx);
+				nvgRect(globals.nvgCtx, x+x2, y+y2, sz, sz);
+				nvgFillColorRGBA8(globals.nvgCtx, "\x20\xff\x20\x7f");
+				nvgFill(globals.nvgCtx);
+			}
 			if ((i == curX && j == curY) || (max > 0 && item->slot > 0))
 			{
+				/* cursor underlay */
 				nvgBeginPath(globals.nvgCtx);
 				nvgRect(globals.nvgCtx, x+x2, y+y2, sz, sz);
 				nvgFillColorRGBA8(globals.nvgCtx, "\xff\xff\xff\x7f");
@@ -91,7 +101,12 @@ static int mcuiInventoryRender(SIT_Widget w, APTR cd, APTR ud)
 			/* grab item to render */
 			if (max > 0)
 			{
-				if (item->id > 0)
+				if (item->id == 0xffff)
+				{
+					/* custom item draw */
+					inv->customDraw(w, (int[3]){x+x2, y+y2, sz}, item);
+				}
+				else if (item->id > 0)
 				{
 					Item render = mcui.items + mcui.itemRender ++;
 					render[0] = item[0];
@@ -187,7 +202,7 @@ void mcuiSetTooltip(SIT_Widget toolTip, Item item, STRPTR extra)
 static void mcuiRefreshTooltip(MCInventory inv)
 {
 	int index = inv->top + inv->curX + inv->curY * inv->invCol;
-	if (index >= inv->itemsNb)
+	if (index >= inv->itemsNb || inv->items[index].id == 0xffff)
 	{
 		SIT_SetValues(mcui.toolTip, SIT_Visible, False, NULL);
 		return;
@@ -315,6 +330,19 @@ static int mcuiInventoryMouse(SIT_Widget w, APTR cd, APTR ud)
 	int cellx = msg->x / mcui.cellSz;
 	int celly = msg->y / mcui.cellSz;
 	switch (msg->state) {
+	case SITOM_CaptureMove:
+		/* drag selection */
+		if (cellx < 0 || cellx >= inv->invCol || celly < 0 || celly >= inv->invRow)
+			return 0;
+		if (inv->curX != cellx || inv->curY != celly)
+		{
+			inv->curX = cellx;
+			inv->curY = celly;
+			old = inv->items + inv->top + cellx + celly * inv->invCol;
+			old->added = mcui.dragOneItem;
+			SIT_ForceRefresh();
+		}
+		break;
 	case SITOM_Move:
 		if (inv->curX != cellx || inv->curY != celly)
 		{
@@ -355,9 +383,10 @@ static int mcuiInventoryMouse(SIT_Widget w, APTR cd, APTR ud)
 		case SITOM_ButtonWheelDown:
 		case SITOM_ButtonWheelUp:
 			/* scroll content of inventory if applicable */
-			SIT_ApplyCallback(mcui.scroll, cd, SITE_OnClick);
+			SIT_ApplyCallback(inv->scroll, cd, SITE_OnClick);
 			break;
 		case SITOM_ButtonMiddle:
+			if (inv->movable & INV_SELECT_ONLY) return 0;
 			/* grab an entire stack */
 			if (inv->items[cellx].id > 0)
 			{
@@ -372,6 +401,7 @@ static int mcuiInventoryMouse(SIT_Widget w, APTR cd, APTR ud)
 			}
 			break;
 		case SITOM_ButtonRight:
+			if (inv->movable & INV_SELECT_ONLY) return 0;
 			if (inv->groupId && inv->items[cellx].count > 0)
 			{
 				/* grab half the stack */
@@ -403,7 +433,19 @@ static int mcuiInventoryMouse(SIT_Widget w, APTR cd, APTR ud)
 			else mcui.drag.id = 0;
 			break;
 		case SITOM_ButtonLeft:
-			if (msg->flags & SITK_FlagShift)
+			if (inv->movable & INV_SELECT_ONLY)
+			{
+				/* toggle selected flag for item hovered */
+				old = &inv->items[cellx];
+				if (old->id > 0)
+				{
+					old->added ^= 1;
+					mcui.dragOneItem = old->added;
+					SIT_ForceRefresh();
+					return 2;
+				}
+			}
+			else if (msg->flags & SITK_FlagShift)
 			{
 				if (mcui.cb)
 				{
@@ -545,7 +587,7 @@ void mcuiDrawItems(void)
 	}
 }
 
-static void mcuiResetScrollbar(MCInventory inv)
+void mcuiResetScrollbar(MCInventory inv)
 {
 	int lines = (inv->itemsNb + inv->invCol - 1) / inv->invCol;
 
@@ -558,9 +600,9 @@ static void mcuiResetScrollbar(MCInventory inv)
 	}
 
 	if (lines < inv->invRow)
-		SIT_SetValues(mcui.scroll, SIT_MaxValue, 1, SIT_PageSize, 1, SIT_ScrollPos, inv->top, NULL);
+		SIT_SetValues(inv->scroll, SIT_MaxValue, 1, SIT_PageSize, 1, SIT_ScrollPos, inv->top, NULL);
 	else
-		SIT_SetValues(mcui.scroll, SIT_MaxValue, lines, SIT_PageSize, inv->invRow, SIT_LineHeight, 1, SIT_ScrollPos, inv->top, NULL);
+		SIT_SetValues(inv->scroll, SIT_MaxValue, lines, SIT_PageSize, inv->invRow, SIT_LineHeight, 1, SIT_ScrollPos, inv->top, NULL);
 }
 
 /* SITE_OnChange on tab: click on a different tab */
@@ -718,7 +760,7 @@ static void mcuiTransferFromInventory(MCInventory inv)
 			if (transfer)
 			{
 				transfer[0] = item[0];
-				memset(item, 0, sizeof item);
+				memset(item, 0, sizeof *item);
 			}
 			else
 			{
@@ -752,9 +794,9 @@ static int mcuiInventoryKeyboard(SIT_Widget w, APTR cd, APTR ud)
 			reset_y:
 			row = y * inv->invCol;
 			if (row < inv->top)
-				SIT_SetValues(mcui.scroll, SIT_ScrollPos, y, NULL), y = 0, top = 0;
+				SIT_SetValues(inv->scroll, SIT_ScrollPos, y, NULL), y = 0, top = 0;
 			else if (row >= inv->top + inv->invRow * inv->invCol)
-				SIT_SetValues(mcui.scroll, SIT_ScrollPos, y - inv->invRow + 1, NULL), y = inv->invRow - 1, top = 0;
+				SIT_SetValues(inv->scroll, SIT_ScrollPos, y - inv->invRow + 1, NULL), y = inv->invRow - 1, top = 0;
 			break;
 		case SITK_Down:
 			y ++; if (y > max) y = max;
@@ -777,7 +819,7 @@ static int mcuiInventoryKeyboard(SIT_Widget w, APTR cd, APTR ud)
 			if (msg->flags & SITK_FlagCtrl)
 			{
 				if (inv->top > 0)
-					SIT_SetValues(mcui.scroll, SIT_ScrollPos, 0, NULL);
+					SIT_SetValues(inv->scroll, SIT_ScrollPos, 0, NULL);
 				y = x = top = 0;
 			}
 			else x = 0;
@@ -786,7 +828,7 @@ static int mcuiInventoryKeyboard(SIT_Widget w, APTR cd, APTR ud)
 			if (msg->flags & SITK_FlagCtrl)
 			{
 				if (max >= inv->invRow)
-					SIT_SetValues(mcui.scroll, SIT_ScrollPos, max - inv->invRow + 1, NULL);
+					SIT_SetValues(inv->scroll, SIT_ScrollPos, max - inv->invRow + 1, NULL);
 				top = 0;
 				x = inv->invCol - 1;
 				y = inv->invRow - 1;
@@ -794,15 +836,19 @@ static int mcuiInventoryKeyboard(SIT_Widget w, APTR cd, APTR ud)
 			else x = inv->invCol - 1;
 			break;
 		case SITK_Space:
-			if (inv->movable == INV_PICK_ONLY)
-				mcuiAddToInventory(inv);
-			else
-				mcuiTransferFromInventory(inv);
+			switch (inv->movable) {
+			case INV_PICK_ONLY:   mcuiAddToInventory(inv); break;
+			case INV_SINGLE_DROP: mcuiTransferFromInventory(inv); break;
+			case INV_SELECT_ONLY:
+				x += y * inv->invCol;
+				if (x < inv->itemsNb) inv->items[x].added ^= 1, SIT_ForceRefresh();;
+			}
 			return 0;
 		default: return 0;
 		}
 		inv->curX = x;
 		inv->curY = y - top;
+		SIT_SetValues(mcui.toolTip, SIT_Visible, False, NULL);
 		SIT_ForceRefresh();
 	}
 	return 0;
@@ -825,7 +871,7 @@ static int mcuiInventoryFocus(SIT_Widget w, APTR cd, APTR ud)
 }
 
 
-static void mcuiInitInventory(SIT_Widget canvas, MCInventory inv)
+void mcuiInitInventory(SIT_Widget canvas, MCInventory inv)
 {
 	inv->cell = SIT_CreateWidget("td", SIT_HTMLTAG, canvas, SIT_Visible, False, NULL);
 	inv->curX = -1;
@@ -839,6 +885,9 @@ static void mcuiInitInventory(SIT_Widget canvas, MCInventory inv)
 	SIT_AddCallback(canvas, SITE_OnBlur,      mcuiInventoryFocus,    inv);
 
 	SIT_SetValues(canvas, SIT_Width, inv->invCol * mcui.cellSz, SIT_Height, inv->invRow * mcui.cellSz, NULL);
+
+	if (inv->scroll)
+		SIT_AddCallback(inv->scroll, SITE_OnScroll, mcuiSetTop, inv);
 
 	if (inv->groupId > 0)
 		mcui.groups[mcui.groupCount++] = inv;
@@ -887,6 +936,17 @@ static int mcuiCancelDrag(SIT_Widget w, APTR cd, APTR ud)
 	return 1;
 }
 
+void mcuiSetItemSize(SIT_Widget cell, int max)
+{
+	SIT_GetValues(cell, SIT_Padding, mcui.padding, NULL);
+	/* same scale than player toolbar... */
+	mcui.cellSz = roundf(mcui.width * 17 * ITEMSCALE / (3 * 182.f));
+	/* ... unless it doesn't fit within window's height */
+	if (max > 0 && mcui.cellSz * max > mcui.height)
+		mcui.cellSz = mcui.height / max;
+	mcui.itemSz = mcui.cellSz - mcui.padding[0] - mcui.padding[2];
+}
+
 /*
  * creative inventory editor
  */
@@ -894,12 +954,7 @@ void mcuiCreateInventory(Inventory player)
 {
 	static TEXT tip[] = "Exchange row with toolbar";
 
-	/* same scale than player toolbar... */
-	mcui.cellSz = roundf(mcui.width * 17 * ITEMSCALE / (3 * 182.));
-
-	/* ... unless it doesn't fit within window's height */
-	if (mcui.cellSz * (6 + 3 + 2 + 3) > mcui.height)
-		mcui.cellSz = mcui.height / (6 + 3 + 2 + 2 + 3);
+	mcuiSetItemSize(NULL, 6 + 3 + 2 + 2 + 3);
 
 	SIT_Widget diag = SIT_CreateWidget("inventory", SIT_DIALOG + SIT_EXTRA(itemGetInventoryByCat(NULL, 0) * sizeof (ItemBuf)), globals.app,
 		SIT_DialogStyles, SITV_Plain | SITV_Modal,
@@ -940,7 +995,6 @@ void mcuiCreateInventory(Inventory player)
 	}
 
 	/* callbacks registration */
-	mcui.scroll = SIT_GetById(diag, "scroll");
 	mcui.toolTip = SIT_GetById(diag, "info");
 	mcui.selCount = 0;
 	mcui.groupCount = 0;
@@ -951,6 +1005,7 @@ void mcuiCreateInventory(Inventory player)
 	SIT_GetValues(diag, SIT_UserData, &mcui.allItems, NULL);
 	mcinv.items   = mcui.allItems;
 	mcinv.itemsNb = itemGetInventoryByCat(mcui.allItems, mcui.curTab+1);
+	mcinv.scroll  = SIT_GetById(diag, "scroll");
 	selfinv.items = player->items + MAXCOLINV;
 	toolbar.items = player->items;
 
@@ -973,7 +1028,6 @@ void mcuiCreateInventory(Inventory player)
 
 	SIT_AddCallback(tab,         SITE_OnChange, mcuiChangeTab,   &mcinv);
 	SIT_AddCallback(find,        SITE_OnChange, mcuiFilterItems, &mcinv);
-	SIT_AddCallback(mcui.scroll, SITE_OnScroll, mcuiSetTop,      &mcinv);
 	SIT_ManageWidget(diag);
 }
 
@@ -1027,13 +1081,6 @@ static int mcuiTransferItems(SIT_Widget w, APTR cd, APTR ud)
  */
 void mcuiEditChestInventory(Inventory player, Item items, int count)
 {
-	/* same scale than player toolbar... */
-	mcui.cellSz = roundf(mcui.width * 17 * ITEMSCALE / (3 * 182.));
-
-	/* ... unless it doesn't fit within window's height */
-	if (mcui.cellSz * (3 + 3 + 2) > mcui.height)
-		mcui.cellSz = mcui.height / (3 + 3 + 2);
-
 	SIT_Widget diag = SIT_CreateWidget("container", SIT_DIALOG, globals.app,
 		SIT_DialogStyles, SITV_Plain | SITV_Modal,
 		NULL
@@ -1065,8 +1112,7 @@ void mcuiEditChestInventory(Inventory player, Item items, int count)
 	mcuiInitInventory(SIT_GetById(diag, "tb"),     &toolbar);
 	mcuiInitInventory(SIT_GetById(diag, "player"), &selfinv);
 
-	SIT_GetValues(chest.cell, SIT_Padding, mcui.padding, NULL);
-	mcui.itemSz = mcui.cellSz - mcui.padding[0] - mcui.padding[2];
+	mcuiSetItemSize(chest.cell, 3 + 3 + 2);
 
 	SIT_ManageWidget(diag);
 }
@@ -1081,8 +1127,8 @@ static int mcuiSaveSign(SIT_Widget w, APTR cd, APTR ud)
 	STRPTR buffer = alloca(len);
 	SIT_TextGetWithSoftline(ud, buffer, len);
 	signSetText(mcui.signChunk, mcui.signPos, buffer);
-	*mcui.exitCode = 2;
 	SIT_CloseDialog(w);
+	SIT_Exit(2);
 	return 1;
 }
 
@@ -1111,7 +1157,7 @@ static int mcuiFontSize(SIT_Widget app, DATA8 text, int maxWidth, int fontSize)
 }
 
 /* create interface for sign editing */
-void mcuiCreateSignEdit(vec4 pos, int blockId, int * exit)
+void mcuiCreateSignEdit(vec4 pos, int blockId)
 {
 	SIT_Widget diag = SIT_CreateWidget("sign", SIT_DIALOG, globals.app,
 		SIT_DialogStyles, SITV_Plain | SITV_Modal,
@@ -1128,7 +1174,6 @@ void mcuiCreateSignEdit(vec4 pos, int blockId, int * exit)
 
 	memcpy(mcui.signPos, pos, sizeof mcui.signPos);
 	mcui.signChunk = mapGetChunk(globals.level, pos);
-	mcui.exitCode = exit;
 
 	if (uv[0] > uv[2]) swap(uv[0], uv[2]);
 	if (uv[1] > uv[3]) swap(uv[1], uv[3]);
@@ -1259,7 +1304,7 @@ static int mcuiGrabItem(SIT_Widget w, APTR cd, APTR ud)
 	return 1;
 }
 
-static int mcuiExitWnd(SIT_Widget w, APTR cd, APTR ud)
+int mcuiExitWnd(SIT_Widget w, APTR cd, APTR ud)
 {
 	SIT_Exit(1);
 	return 1;
@@ -1347,7 +1392,7 @@ void mcuiAnalyze(void)
 		sprintf(count, "%d", statistics[i]);
 		itemId = b->id;
 		desc   = b->name;
-		if (b->inventory == 0)
+		if (b->inventory == 0 && itemId > 0)
 			/* check if there is an item that generate these type of block */
 			itemId = itemCanCreateBlock(itemId, &desc);
 
@@ -1570,7 +1615,7 @@ static int mcuiFillStop(SIT_Widget w, APTR cd, APTR ud)
 	return 1;
 }
 
-static void mcuiReplaceFillItems(SIT_Widget diag, MCInventory inv)
+void mcuiReplaceFillItems(SIT_Widget diag, MCInventory inv)
 {
 	/* will filter out some Block_t.special flag */
 	int i;
@@ -1591,7 +1636,7 @@ static void mcuiReplaceFillItems(SIT_Widget diag, MCInventory inv)
 		inv->itemsNb ++;
 	}
 
-	mcui.scroll = SIT_GetById(diag, "scroll");
+	inv->scroll = SIT_GetById(diag, "scroll");
 	mcui.toolTip = SIT_GetById(diag, "info");
 	mcui.selCount = 0;
 	mcui.groupCount = 0;
@@ -1605,9 +1650,6 @@ void mcuiFillOrReplace(Bool fillWithBrush)
 	static struct MCInventory_t fillinv = {.invRow = 1, .invCol = 1, .groupId = 1, .itemsNb = 1, .movable = INV_SINGLE_DROP};
 	static struct MCInventory_t replace = {.invRow = 1, .invCol = 1, .groupId = 2, .itemsNb = 1, .movable = INV_SINGLE_DROP};
 	static struct Item_t fillReplace[2];
-
-	/* same scale than player toolbar... */
-	mcui.cellSz = roundf(mcui.width * 17 * ITEMSCALE / (3 * 182.));
 
 	/* if the interface is stopped early, we need to be notified */
 	SIT_AddCallback(globals.app, SITE_OnFinalize, mcuiFillStop, NULL);
@@ -1693,10 +1735,13 @@ void mcuiFillOrReplace(Bool fillWithBrush)
 	else /* fill/replace entire selection */
 	{
 		SIT_CreateWidgets(diag,
-			"<button name=doreplace title='Replace by:' curValue=", &mcuiRepWnd.doReplace, "buttonType=", SITV_CheckBox, "left=WIDGET,fill,0.5em top=MIDDLE,fill>"
+			"<button name=doreplace title='Replace by:' curValue=", &mcuiRepWnd.doReplace, "buttonType=", SITV_CheckBox,
+			" left=WIDGET,fill,0.5em top=MIDDLE,fill>"
 			"<canvas composited=1 enabled=", mcuiRepWnd.doReplace, "name=replace.inv left=WIDGET,doreplace,0.5em top=WIDGET,inv,0.5em/>"
-			"<button name=side1 radioID=1 enabled=0 title=Top curValue=", &mcuiRepWnd.side, "buttonType=", SITV_RadioButton, "left=WIDGET,replace,0.5em top=MIDDLE,fill>"
-			"<button name=side0 radioID=0 enabled=0 title=Bottom curValue=", &mcuiRepWnd.side, "buttonType=", SITV_RadioButton, "left=WIDGET,side1,0.5em top=MIDDLE,fill>"
+			"<button name=side1 radioID=1 enabled=0 title=Top curValue=", &mcuiRepWnd.side, "buttonType=", SITV_RadioButton,
+			" left=WIDGET,replace,0.5em top=MIDDLE,fill>"
+			"<button name=side0 radioID=0 enabled=0 title=Bottom curValue=", &mcuiRepWnd.side, "buttonType=", SITV_RadioButton,
+			" left=WIDGET,side1,0.5em top=MIDDLE,fill>"
 			"<button name=similar enabled=", mcuiRepWnd.doReplace, "curValue=", &mcuiRepWnd.doSimilar, "title='Replace similar blocks (strairs, slabs)'"
 			" buttonType=", SITV_CheckBox, "left=OPPOSITE,doreplace top=WIDGET,fill,0.5em>"
 			"<button name=cancel title=Cancel right=FORM top=WIDGET,similar,1em>"
@@ -1732,6 +1777,7 @@ void mcuiFillOrReplace(Bool fillWithBrush)
 	fillinv.items = fillReplace;
 	replace.items = fillReplace + 1;
 
+	mcuiSetItemSize(NULL, 0);
 	mcuiInitInventory(SIT_GetById(diag, "inv"), &mcinv);
 	mcuiInitInventory(mcuiRepWnd.fill, &fillinv);
 	mcuiResetScrollbar(&mcinv);
@@ -1740,11 +1786,12 @@ void mcuiFillOrReplace(Bool fillWithBrush)
 		mcuiInitInventory(mcuiRepWnd.replace, &replace);
 		SIT_AddCallback(mcuiRepWnd.replace, SITE_OnPaint, mcuiFillDisabled, NULL);
 	}
+
 	SIT_GetValues(mcinv.cell, SIT_Padding, mcui.padding, NULL);
 	mcui.itemSz = mcui.cellSz - mcui.padding[0] - mcui.padding[2];
 
 	SIT_AddCallback(mcuiRepWnd.search, SITE_OnChange, mcuiFilterBlocks, &mcinv);
-	SIT_AddCallback(mcui.scroll, SITE_OnScroll, mcuiSetTop, &mcinv);
+	SIT_AddCallback(mcinv.scroll, SITE_OnScroll, mcuiSetTop, &mcinv);
 	SIT_SetFocus(mcuiRepWnd.search);
 
 	SIT_ManageWidget(diag);
@@ -1914,7 +1961,8 @@ void mcuiDeletePartial(void)
 		"<label name=dlgtitle.big title=", "Partial delete", "left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, ">"
 		"<label name=title title='Select the parts you want to delete:' top=WIDGET,dlgtitle,0.5em>"
 		"<button name=blocks buttonType=", SITV_CheckBox, "curValue=", &mcuiDelWnd.blocks, "title=Blocks top=WIDGET,title,0.5em>"
-		"<button name=entity buttonType=", SITV_CheckBox, "curValue=", &mcuiDelWnd.entity, "title='Entities (mobs, falling blocks, item frame, ...)' top=WIDGET,blocks,0.5em>"
+		"<button name=entity buttonType=", SITV_CheckBox, "curValue=", &mcuiDelWnd.entity, "title='Entities (mobs, falling blocks, item frame, ...)'"
+		" top=WIDGET,blocks,0.5em>"
 	);
 	if (tileEntities > 0)
 	{
@@ -2023,6 +2071,7 @@ static int mcuiSelectPaintings(SIT_Widget w, APTR cd, APTR ud)
 			}
 			else mcuiPaintings.lastClick = curTime;
 		}
+	default: break;
 	}
 	return 1;
 }
@@ -2051,95 +2100,6 @@ void mcuiShowPaintings(void)
 
 	mcuiPaintings.lastHover = NULL;
 	mcuiPaintings.lastClick = 0;
-
-	SIT_ManageWidget(diag);
-}
-
-/*
- * pixel art interface
- */
-struct
-{
-	SIT_Widget image;
-	SIT_Widget palette;
-	SIT_Widget inv;
-	uint8_t    axis1, axis2;
-	int        rasterizeWith;
-	int        dither;
-
-} mcuiPixArt = {
-	/* default values */
-	.dither = 1
-};
-
-void mcuiShowPixelArt(void)
-{
-	static struct MCInventory_t mcinv = {.invRow = 6, .invCol = MAXCOLINV, .movable = INV_SELECT};
-
-	SIT_Widget diag = SIT_CreateWidget("pixelart.bg", SIT_DIALOG + SIT_EXTRA((blockLast - blockStates) * sizeof (ItemBuf)), globals.app,
-		SIT_DialogStyles, SITV_Plain | SITV_Modal,
-		SIT_Style,        "padding-top: 0.2em",
-		NULL
-	);
-
-	/* same scale than player toolbar... */
-	mcui.cellSz = roundf(mcui.width * 17 * ITEMSCALE / (3 * 182.));
-
-	SIT_CreateWidgets(diag,
-		"<label name=dlgtitle.big title=", "Pixel art editor", "left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, ">"
-		"<label name=icon#table top=WIDGET,dlgtitle,0.5em labelSize=", SITV_LabelSize(96,96), ">"
-		"<label name=msg title='Rasterize with:' left=WIDGET,icon,1em top=WIDGET,dlgtitle,0.5em>"
-		"<button name=blocks curValue=", &mcuiPixArt.rasterizeWith, "title=Blocks buttonType=", SITV_RadioButton, "top=WIDGET,msg,0.5em left=WIDGET,icon,1em>"
-		"<button name=maps curValue=", &mcuiPixArt.rasterizeWith, "title=Maps buttonType=", SITV_RadioButton, "top=WIDGET,blocks,0.5em left=WIDGET,icon,1em>"
-		"<button name=dither title=Dither curValue=", &mcuiPixArt.dither, "buttonType=", SITV_CheckBox, "checkState=1 top=OPPOSITE,blocks left=WIDGET,blocks,2em>"
-		"<label name=msg2 title='Palette:' left=WIDGET,dither,1em top=WIDGET,dlgtitle,0.5em>"
-		"<combobox name=palette initialValues='Survival\tCreative\tBlack&white' top=WIDGET,msg2,0.5em left=OPPOSITE,msg2>"
-		"<label name=save.big title='(<a href=#>Save</a>)' bottom=OPPOSITE,msg2 right=OPPOSITE,palette>"
-		"<label name=msg3.big title=Selection: top=WIDGET,icon,0.5em>"
-		"<label name=selinfo top=OPPOSITE,msg3 left=WIDGET,msg3,0.3em>"
-		"<canvas composited=1 name=inv.inv top=WIDGET,msg3,0.5em nextCtrl=LAST/>"
-		"<button name=load title='Load image' top=WIDGET,inv,0.5em>"
-		"<button name=ko title=Cancel buttonType=", SITV_CancelButton, "top=OPPOSITE,load right=FORM>"
-		"<button name=ok title=Fill top=OPPOSITE,ko right=WIDGET,ko,0.5em>"
-		"<scrollbar width=1.2em name=scroll.inv wheelMult=1 top=OPPOSITE,inv,0 bottom=OPPOSITE,inv,0 right=FORM>"
-		"<tooltip name=info delayTime=", SITV_TooltipManualTrigger, "displayTime=10000 toolTipAnchor=", SITV_TooltipFollowMouse, ">"
-	);
-	SIT_SetAttributes(diag, "<inv right=WIDGET,scroll,0.2em>");
-
-	/* show selection info */
-	vec points = selectionGetPoints();
-	int size[] = {
-		fabsf(points[VX] - points[VX+4]) + 1,
-		fabsf(points[VY] - points[VY+4]) + 1,
-		fabsf(points[VZ] - points[VZ+4]) + 1
-	};
-	uint8_t axis1, axis2;
-	TEXT buffer[64];
-
-	axis1 = size[VX] < size[VY] ? 0 : 1;
-	if (size[axis1] < size[VZ]) axis2 = 2;
-	switch (axis1) {
-	case VX: axis1 = VY; axis2 = VZ; break;
-	case VY: axis1 = VX; axis2 = VZ; break;
-	case VZ: axis1 = VX; axis2 = VY;
-	}
-
-	sprintf(buffer, "%d x %d blocks, %c%c plane", size[axis1], size[axis2], "XYZ"[axis1], "XYZ"[axis2]);
-	SIT_SetValues(SIT_GetById(diag, "selinfo"), SIT_Title, buffer, NULL);
-
-	mcuiPixArt.palette = SIT_GetById(diag, "palette");
-	mcuiPixArt.inv     = SIT_GetById(diag, "inv");
-	mcuiPixArt.axis1   = axis1;
-	mcuiPixArt.axis2   = axis2;
-
-	mcuiReplaceFillItems(diag, &mcinv);
-	mcuiInitInventory(mcuiPixArt.inv, &mcinv);
-	mcuiResetScrollbar(&mcinv);
-
-	SIT_GetValues(mcinv.cell, SIT_Padding, mcui.padding, NULL);
-	mcui.itemSz = mcui.cellSz - mcui.padding[0] - mcui.padding[2];
-
-	SIT_AddCallback(mcui.scroll, SITE_OnScroll, mcuiSetTop, &mcinv);
 
 	SIT_ManageWidget(diag);
 }

@@ -44,6 +44,7 @@
 	<a class="sub3" href="#meshhalf"><span>Half-block</span></a>
     <a class="sub3" href="#ocs"><span>Occlusion</span></a>
   <a class="sub2" href="#meshcust"><span><tt>CUST</tt> voxel</span></a>
+    <a class="sub3" href="#cnxmodels"><span>Connected models</span></a>
 
 <a class="sub1" href="#nbt2"><span>NBT API</a>
 
@@ -1221,7 +1222,7 @@ increase with positive values.
 
 <hr>
 
-<p>However, this vertex format is <b>not easy to work with</b>: it involves a lot of tedious bit shifting
+<p id="vtx10bytes">However, this vertex format is <b>not easy to work with</b>: it involves a lot of tedious bit shifting
 and code logic to extract all the information about a quad. The mesh of objects have to be analyzed for
 generating bounding box and face visibility for example. That's why this engine uses another <b>vertex data</b>
 format. It is actually used by everything, but terrain information: custom block models, inventory models,
@@ -1411,13 +1412,13 @@ table (24 elements in total). Each group of 4 elements is of course ordered top,
 
 <h4 id="meshhalf"><span>Half-block</span></h4>
 
-<p>Half-block is the native "resolution" of this engine actually. Seems simple enough and might wonder
-what the big deal with these ? Well, you'll have a glimpse of why Mojang has not added (as of writing
-this, in august 2021) vertical slab to <prod>Minecraft</prod>: they introduce <b>a lot</b> of edge cases,
-and it sadly means <b>lots of look-up tables</b>.
+<p>Half-block is actually the native "resolution" of this engine. Seems simple enough and you might wonder
+what the big deal with these ? Well, you'll have a glimpse as to why Mojang has not added vertical slab to
+<prod>Minecraft</prod> yet (as of writingthis, in august 2021): they introduce <b>a lot</b> of edge cases,
+and sadly, it means <b>lots of look-up tables</b>.
 
-<p>The first thing to keep in mind with half-block, is <prod>MinecrafT</prod> treat them as if they were
-a <tt>SOLID</tt> voxel: they completely block light (sky and torch) no matter what their orientation
+<p>The first thing to keep in mind with half-block is, that <prod>MinecrafT</prod> treat them as if they were
+a <tt>SOLID</tt> voxel: they completely block sky light and block light no matter what their orientation
 is. If you attempt to get block or sky light at their coordinate, you'll get 0.
 
 <p>The way half-blocks are meshed is a bit different from full voxel though. In case it wasn't clear up
@@ -1430,11 +1431,54 @@ to the normal if the size can be extended, and generate a quad of this size inst
 the function <tt>halfBlockGenMesh()</tt> in <tt>halfBlocks.c</tt>.
 
 
-
-
 <h4 id="ocs"><span>Ambient occlusion</span></h4>
 
+<p>/* ... */
+
 <h3 id="meshcust"><span><tt>CUST</tt> voxel</span></h3>
+
+<p>Custom voxels are blocks that cannot be represented as a <tt>SOLID</tt> voxel. They can have an
+arbitrary shape, but their lighting is quite simplified compared to <tt>SOLID</tt>. For example they
+usually do not generate ambient occlusion, unless one of their face line up with the voxel grid.
+
+<p>Mesh data is stored in memory and read from the main block description table (<tt>blocksTable.js</tt>).
+These models use the <a href="#vtx10bytes">10 bytes per voxel</a> vertex data. In the meshing phase
+they are converted to 28 bytes per quad. This conversion is pretty straightforward, albeit a bit messy
+to look at with all these bit twiddling hacks.
+
+<p>There is one aspect that is not that trivial to handle though: <b>connected models</b>.
+
+<h4 id="cnxmodels"><span>Connected models</span></h4>
+
+<p>Some models <b>can have optional parts</b> that can be removed based on nearby voxels. The overtypical
+example being fences:
+<div class="image">
+  <img src="images/cnxmodels.png">
+</div>
+
+<p>Yet, if you look at the model definition for every type of fence, you'll see <b>only one model</b>
+being defined for each. The way it is handled is this engine is by tagging each vertex by an integer.
+In the model <a href="#vtx10bytes">vertex data</a>, this ID is stored in the sky/block light information,
+using 5 bits out of the 8 available (lighting information make no sense at this point, that's why it is
+perfectly safe to repurpose those fields). That means each models can have up to <b>32 different connected
+parts</b>. As of writing this, the models that have the most parts are glass panes with 18 parts.
+
+<p>In case of fences, they only have 4 different parts: the 4 extensions around the center piece. In the
+meshing phase we check for blocks around the custom model if those optional parts can connect to. This
+is done in the function <tt>blockGetConnect()</tt>: the return value will be a bitfield of the parts
+that should be included in the chunk's mesh.
+
+<p>Then, in the chunk mesh generation, the unused parts are filtered using this simple test:
+<pre><span class="k">if</span> (faceId &gt; <span class="o">0</span> &amp;&amp; (connect &amp; (<span class="o">1</span> &lt;&lt; (faceId-<span class="o">1</span>))) == <span class="o">0</span>)
+{
+	<span class="k">continue</span>;
+}
+</pre>
+
+<p>Here, <tt>connect</tt> is the bitfield encoding the parts that should be included in the mesh. Since
+it is a 32bits integer, that's where the limit of 32 optional parts comes from. An ID of 0 for a face
+means that the face will always be included (like the central piece of a fence).
+
 
 <p>/* ... */
 
@@ -1456,6 +1500,9 @@ APIs.
 <p>/* ... */
 
 <h2 id="entities">Entities</h2>
+
+<p>Entities in this engine refer to a model that is not aligned to the voxel grid: it can have arbitrary
+position and/or rotation.
 
 <p>This part will describe <b>how entities</b> (mobs, block moved by piston, dropped items, paintings, ...)
 <b>are managed</b> within this engine. This part is not trivial just by looking at the source code, since

@@ -21,9 +21,9 @@
 struct CartoPrivate_t cartograph;
 
 /* these are the 64 base colors used by maps */
-static uint8_t mapShading[] = {180, 220, 255, 135};
-static uint8_t mapLight[] = {2, 0, 3, 1, 3, 0};
-static uint8_t mapRGB[] = {
+uint8_t mapShading[] = {180, 220, 255, 135};
+uint8_t mapLight[] = {2, 0, 3, 1, 3, 0};
+uint8_t mapRGB[] = {
 	255, 255, 255, 0x00, //  0: unexplored area
 	127, 178, 56,  0xff, //  1: grass
 	247, 233, 163, 0xff, //  2: sand
@@ -78,18 +78,20 @@ static uint8_t mapRGB[] = {
 	37,  22,  16,  0xff, // 51: black
 
 	/* minecraft 1.13+ */
-	189, 48,  49,  0xff,
-	148, 63,  97,  0xff,
-	92,  25,  29,  0xff,
-	22,  126, 134, 0xff,
-	58,  142, 140, 0xff,
-	86,  44,  62,  0xff,
-	20,  180, 133, 0xff,
-	100, 100, 100, 0xff,
-	216, 175, 147, 0xff,
-	127, 167, 150, 0xff,
+	189, 48,  49,  0xff, // 52
+	148, 63,  97,  0xff, // 53
+	92,  25,  29,  0xff, // 54
+	22,  126, 134, 0xff, // 55
+	58,  142, 140, 0xff, // 56
+	86,  44,  62,  0xff, // 57
+	20,  180, 133, 0xff, // 58
+	100, 100, 100, 0xff, // 59
+	216, 175, 147, 0xff, // 60
+	127, 167, 150, 0xff, // 61
 
 	/* slots 62~63: unused for now */
+	0,   0,   0,   0x00,
+	0,   0,   0,   0x00
 };
 
 void cartoInitStatic(int shader, int * mdaCount)
@@ -97,6 +99,47 @@ void cartoInitStatic(int shader, int * mdaCount)
 	/* same as signs */
 	cartograph.shader = shader;
 	cartograph.mdaCount = mdaCount;
+	cartograph.lastIdCount = -1;
+}
+
+int cartoSaveMap(DATA8 mem, int size)
+{
+	STRPTR levelDat = globals.level->path;
+	STRPTR path = alloca(strlen(levelDat) + 32);
+	int    lastId = cartograph.lastIdCount;
+	int    len;
+	NBTFile_t nbt = {.page = 127};
+
+	strcpy(path, levelDat);
+	ParentDir(path);
+	len = strlen(path);
+	if (lastId < 0)
+	{
+		AddPart(path, "data/idcounts.dat", 1e6);
+		if (NBT_Parse(&nbt, path))
+		{
+			lastId = NBT_ToInt(&nbt, NBT_FindNode(&nbt, 0, "map"), 0);
+			NBT_Free(&nbt);
+		}
+		else lastId = 0;
+		cartograph.lastIdCount = lastId;
+		cartograph.lastMapId = lastId;
+		path[len] = 0;
+	}
+
+	/* find a free slot */
+	AddPart(path, "data/map_", 1e6);
+	len += strlen(path+len);
+	do {
+		sprintf(path+len, "%d.dat", ++ cartograph.lastMapId);
+	} while (FileExists(path));
+
+	nbt.mem = mem;
+	nbt.usage = size;
+
+	NBT_Save(&nbt, path, NULL, NULL);
+
+	return cartograph.lastMapId;
 }
 
 /* convert map from NBT to GL texture */
