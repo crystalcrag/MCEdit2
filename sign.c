@@ -577,7 +577,7 @@ void signRender(void)
 	glFrontFace(GL_CCW);
 	glActiveTexture(GL_TEXTURE0);
 	/* sign text have same coordinates than the model: offset depth values to prevent z-fighting */
-	glPolygonOffset(-1.0, 1.0);
+	glPolygonOffset(-5.0, -5.0);
 
 	glUseProgram(signs.shader);
 

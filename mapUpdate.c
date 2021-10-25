@@ -183,26 +183,32 @@ void mapIter(BlockIter iter, int dx, int dy, int dz)
 	/* iterate over y axis */
 	ChunkData cd = (iter->yabs>>4) < CHUNK_LIMIT ? ref->layer[iter->yabs>>4] : NULL;
 
+	/* don't alloc a ChunkData yet, will be done if we attempt to write something in it */
 	if (cd == NULL)
-	{
-		/* XXX need to check if above or below build limit */
-		if (iter->alloc)
-			cd = chunkCreateEmpty(ref, iter->yabs>>4), renderResetFrustum();
-		else
-			cd = chunkAir;
-	}
+		cd = chunkAir;
 
+	iter->cd  = cd;
 	iter->ref = ref;
 	iter->y   = pos = (iter->y + dy) & 15;
-	iter->cd  = cd;
 
 	iter->offset   = (pos<<8) + off;
-	iter->blockIds = cd ? cd->blockIds : NULL;
+	iter->blockIds = cd->blockIds;
 }
 
 /* note: val must be between 0 and 15 (included) */
 void mapUpdateTable(BlockIter iter, int val, int table)
 {
+	if (iter->cd == chunkAir)
+	{
+		/* need to be replaced with an actual chunk */
+		ChunkData cd = chunkCreateEmpty(iter->ref, iter->yabs>>4);
+		iter->cd = cd;
+		iter->blockIds = cd->blockIds;
+		cd->cdFlags = chunkAir->cdFlags;
+		chunkAir->cdFlags = CDFLAG_CHUNKAIR;
+		renderResetFrustum();
+	}
+
 	int     off  = iter->offset;
 	DATA8   data = iter->blockIds + table + (off >> 1);
 	uint8_t cur  = *data;
@@ -385,7 +391,6 @@ static void mapUpdateSkyLightBlock(BlockIter iterator)
 
 		mapIter(&iter, 0, -1, 0);
 	}
-	iter.alloc = 0;
 	for (i = 0; i < 4; i ++)
 	{
 		mapIter(&iter, xoff[i], yoff[i], zoff[i]);
@@ -395,7 +400,7 @@ static void mapUpdateSkyLightBlock(BlockIter iterator)
 			trackAdd(MAXSKY + relx[i] + (opp[i] << 5), 0, relz[i]);
 		}
 	}
-	iter.alloc = 1;
+
 	/* get iterator back to original pos */
 	mapIter(&iter, 1, 0, 0);
 
@@ -1276,6 +1281,8 @@ static void mapUpdateListChunk(Map map)
 	for (cd = track.modif; cd; cd = next)
 	{
 		Chunk c = cd->chunk;
+		cd->cdFlags |= CDFLAG_PENDINGMESH;
+		//fprintf(stderr, "pending mesh for chunk %d, %d, layer %d\n", c->X, c->Z, cd->Y);
 		*first = cd;
 		first = &cd->update;
 		next = *first;
@@ -1629,6 +1636,13 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 
 	/* update blockId/metaData tables */
 	//fprintf(stderr, "setting block %g, %g, %g to %d:%d\n", pos[0], pos[1], pos[2], blockId >> 4, blockId & 15);
+	if (iter.cd == chunkAir)
+	{
+		/* force chunk allocation :-/ */
+		mapUpdateTable(&iter, 0, DATA_OFFSET);
+		data = iter.blockIds + DATA_OFFSET + (iter.offset >> 1);
+	}
+
 	iter.blockIds[iter.offset] = blockId >> 4;
 	if (iter.offset & 1) *data = (*data & 0x0f) | ((blockId & 0xf) << 4);
 	else                 *data = (*data & 0xf0) | (blockId & 0xf);

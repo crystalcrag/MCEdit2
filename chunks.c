@@ -50,27 +50,33 @@ static void chunkFillData(Chunk chunk, int y, int offset)
 /* from mapUpdate: create chunk on the fly */
 ChunkData chunkCreateEmpty(Chunk c, int y)
 {
+	ChunkData cd = NULL;
 	if (y >= CHUNK_LIMIT)
 		return NULL;
 
-	ChunkData cd = calloc(1, sizeof *cd + MIN_SECTION_MEM);
+	/* column of sub-chunk must be fully filled with ChunkData from 0 to c->maxy-1 (mostly needed by frustum/cave culling) */
+	int i;
+	for (i = c->maxy; i <= y; i ++)
+	{
+		cd = calloc(1, sizeof *cd + MIN_SECTION_MEM);
 
-	DATA8 base = (DATA8) (cd+1);
+		DATA8 base = (DATA8) (cd+1);
 
-	base += NBT_FormatSection(base, y);
+		base += NBT_FormatSection(base, i);
 
-	cd->blockIds = base;
-	cd->chunk    = c;
-	cd->Y        = y * 16;
-	c->layer[y]  = cd;
+		cd->blockIds = base;
+		cd->cdFlags  = CDFLAG_CHUNKAIR;
+		cd->chunk    = c;
+		cd->Y        = i * 16;
+		c->layer[i]  = cd;
 
-	/* we will have to do add it manually to the NBT strucutre */
+		//fprintf(stderr, "creating air chunk at %d, %d, layer %d\n", c->X, c->Z, cd->Y);
+
+		memset(cd->blockIds + SKYLIGHT_OFFSET, 255, 2048);
+	}
+	/* we will have to do add it manually to the NBT structure */
 	NBT_MarkForUpdate(&c->nbt, c->secOffset, CHUNK_NBT_SECTION);
-
-	memset(cd->blockIds + SKYLIGHT_OFFSET, 255, 2048);
-
-	if (c->maxy <= y)
-		c->maxy =  y+1;
+	c->maxy = i;
 
 	return cd;
 }
@@ -1099,6 +1105,7 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 	/* default sorting for alpha quads */
 	cur->yaw = 3.14926535 * 1.5;
 	cur->pitch = 0;
+	cur->cdFlags &= ~(CDFLAG_CHUNKAIR | CDFLAG_PENDINGMESH);
 
 	memset(visited, 0, sizeof visited);
 	hasLights = (cur->cdFlags & CDFLAG_NOLIGHT) == 0;
@@ -1156,16 +1163,33 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 	{
 		/* block light must be all 0 and skylight be all 15 */
 		if (memcmp(cur->blockIds + BLOCKLIGHT_OFFSET, empty->blockIds + BLOCKLIGHT_OFFSET, 2048) == 0 &&
-			memcmp(cur->blockIds + SKYLIGHT_OFFSET,   empty->blockIds + SKYLIGHT_OFFSET,   2048) == 0 &&
-			(cur->Y >> 4) == c->maxy-1)
+			memcmp(cur->blockIds + SKYLIGHT_OFFSET,   empty->blockIds + SKYLIGHT_OFFSET,   2048) == 0)
 		{
-			/* yes, can be freed */
-			c->layer[cur->Y >> 4] = NULL;
-			c->maxy --;
-			/* cannot delete it now, but will be done after VBO has been cleared */
-			cur->cdFlags = CDFLAG_PENDINGDEL;
-			NBT_MarkForUpdate(&c->nbt, c->secOffset, CHUNK_NBT_SECTION);
-			return;
+			if ((cur->Y >> 4) == c->maxy-1)
+			{
+				/* yes, can be freed */
+				c->layer[cur->Y >> 4] = NULL;
+				c->maxy --;
+				/* cannot delete it now, but will be done after VBO has been cleared */
+				cur->cdFlags = CDFLAG_PENDINGDEL;
+				NBT_MarkForUpdate(&c->nbt, c->secOffset, CHUNK_NBT_SECTION);
+
+				/* check if chunk below are also empty */
+				for (i = c->maxy-1; i >= 0; i --)
+				{
+					cur = c->layer[i];
+					if ((cur->cdFlags & (CDFLAG_CHUNKAIR|CDFLAG_PENDINGMESH)) == CDFLAG_CHUNKAIR)
+					{
+						/* empty chunk with no pending update: it can be deleted now */
+						c->layer[i] = NULL;
+						c->maxy = i;
+						free(cur);
+					}
+					else break;
+				}
+				return;
+			}
+			else cur->cdFlags |= CDFLAG_CHUNKAIR;
 		}
 	}
 

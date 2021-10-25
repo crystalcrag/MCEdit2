@@ -1,4 +1,17 @@
 =========== Week 42 ===========
+Sun Oct 24:
+	* pixel art generation works with blocks.
+	* map pixel art can be spread over multiple maps.
+
+Sat Oct 23:
+	* auto ChunkData allocation reworked (avoid useless allocation).
+	* pixel art interface continued.
+
+Fri Oct 22:
+	* first map art created in-game.
+	* CUST face culling culled too much from glass pane and iron bars.
+	* reworked chunk TAG_List update (Sections, Entities, TileEntities).
+
 Thu Oct 21:
 	* implemented a floyd-steinberg dithering for map art.
 
@@ -9,7 +22,7 @@ Tue Oct 19:
 	* pixel art editor continued.
 
 Mon Oct 18:
-	* pixel art editor continued (palette tool).
+	* pixel art editor continued (palette tool editor done).
 
 =========== Week 41 ===========
 Sun Oct 17:

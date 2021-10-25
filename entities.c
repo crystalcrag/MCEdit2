@@ -1819,9 +1819,9 @@ void entityRender(void)
 			bank->dirty = 0;
 		}
 
-		/* piston head will overdraw piston block causing z-fighting */
-		glEnable(GL_POLYGON_OFFSET_FILL);
-		glPolygonOffset(-1.0, 1.0);
+		/* piston head will overdraw piston block causing z-fighting XXX messes item frame and maps :-/ */
+//		glEnable(GL_POLYGON_OFFSET_FILL);
+//		glPolygonOffset(-1.0, -1.0);
 
 //		float curtime = globals.curTime;
 //		setShaderValue(entities.shader, "curtime", 1, &curtime);

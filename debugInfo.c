@@ -522,7 +522,7 @@ void debugWorld(void)
 		{
 			nvgBeginPath(vg);
 			nvgRect(vg, x, y, debug.sliceSz, debug.sliceSz);
-			if (iter.cd)
+			if (iter.cd && iter.cd != chunkAir)
 			{
 				uint8_t color[4];
 				int block = iter.blockIds[iter.offset];

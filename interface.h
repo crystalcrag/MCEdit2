@@ -71,7 +71,5 @@ enum /* possible flags for <movable> */
 	INV_SELECT_ONLY = 4,          /* cells can be select, but no item pickup */
 };
 
-void mcuiSetItemSize(SIT_Widget cell, int max);
-
 #endif
 #endif

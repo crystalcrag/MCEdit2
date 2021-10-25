@@ -885,6 +885,7 @@ Map mapInitFromPath(STRPTR path, int renderDist)
 
 		/* all tables but skyLight will be 0 */
 		air->blockIds = (DATA8) (air+1);
+		air->cdFlags = CDFLAG_CHUNKAIR;
 		/* fully lit */
 		memset(air->blockIds + SKYLIGHT_OFFSET, 255, 2048);
 
@@ -974,6 +975,8 @@ void mapAddToSaveList(Map map, Chunk chunk)
 	}
 }
 
+void cartoCommitNewMaps(void);
+
 /* save chunks that have been mark as modified */
 Bool mapSaveAll(Map map)
 {
@@ -990,6 +993,7 @@ Bool mapSaveAll(Map map)
 			ret = False;
 		}
 	}
+	cartoCommitNewMaps();
 	*prev = NULL;
 	map->needSave = chunk;
 	return ret;

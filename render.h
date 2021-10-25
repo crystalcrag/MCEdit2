@@ -35,7 +35,7 @@ void renderResetFrustum(void);
 void renderDrawMap(Map map);
 void renderSetCompassOffset(float offset);
 void renderSetSelectionPoint(int action);
-int  renderGetTerrain(int size[2]);
+int  renderGetTerrain(int size[2], int * texId);
 int  renderInitUBO(void);
 Bool renderRotatePreview(int dir);
 MapExtraData renderGetSelectedBlock(vec4 pos, int * blockModel);

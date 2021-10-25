@@ -241,7 +241,11 @@ Bool selectionProcessKey(int key, int mod)
 		case 'z':      axis = 1; dir = -1; break;
 		default:       return False;
 		}
-		dir *= selection.nudgeStep;
+		if (selection.nudgeStep == 16 && selection.nudgePoint == 3)
+		{
+			/* move by integral amount of selection size */
+			dir *= fabsf(selection.firstPt[axis] - selection.secondPt[axis]) + 1;
+		}
 		if (selection.nudgePoint & 1)
 			selection.firstPt[axis] += dir;
 		if (selection.nudgePoint & 2)

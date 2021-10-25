@@ -95,6 +95,9 @@ static void renderSelection(void)
 		int      id = item->id;
 		vec4     loc;
 
+		if ((render.selection.selFlags & SEL_POINTTO) == 0)
+			return;
+
 		if (id >= ID(256, 0))
 		{
 			/* check if this item is used to create a block */
@@ -230,7 +233,6 @@ static void renderSelection(void)
 				count = lastCount = blockGenVertexBBox(b, box, flg, &render.vboBBoxVTX, ID(31,0), 0);
 				lastId = b->id;
 				lastFlag = flg;
-				//fprintf(stderr, "block = %s, cnx = %d\n", b->name, flg);
 			}
 			else count = lastCount;
 
@@ -267,8 +269,6 @@ Bool renderRotatePreview(int dir)
 	if (r == 4)   r = 0; else
 	if (r == 255) r = 3;
 	render.selection.rotationY90 = r;
-
-	fprintf(stderr, "rotation = %d\n", r);
 
 	int blockId = blockRotateY90(render.selection.blockId);
 	if (blockId != render.selection.blockId)
@@ -1609,9 +1609,10 @@ void renderAllSaved(void)
 	render.message.chrLen = 0;
 }
 
-int renderGetTerrain(int size[2])
+int renderGetTerrain(int size[2], int * texId)
 {
 	if (size) size[0] = 512, size[1] = 1024;
+	if (texId) texId[0] = render.texBlock;
 	return render.nvgTerrain;
 }
 

@@ -111,9 +111,11 @@ enum /* flags for Chunk.cflags */
 
 enum /* flags for ChunkData.cdFlags */
 {
-	CDFLAG_PENDINGDEL   = 0x01,        /* chunk is empty: can be deleted */
-	CDFLAG_UPDATENEARBY = 0x02,        /* chunk changed: update nearby chunks if necessary */
-	CDFLAG_NOLIGHT      = 0x04         /* cd->blockIds only contains block and data table (brush) */
+	CDFLAG_CHUNKAIR     = 0x01,        /* chunk is a full of air (sky = 15, light = 0, data = 0) */
+	CDFLAG_PENDINGDEL   = 0x02,        /* chunk is empty: can be deleted */
+	CDFLAG_UPDATENEARBY = 0x04,        /* chunk changed: update nearby chunks if necessary */
+	CDFLAG_NOLIGHT      = 0x08,        /* cd->blockIds only contains block and data table (brush) */
+	CDFLAG_PENDINGMESH  = 0x10,        /* chunk will be processed by chunkUpdate() at some point */
 };
 
 enum /* NBT update tag */

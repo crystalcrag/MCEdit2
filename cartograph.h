@@ -14,6 +14,7 @@ void cartoDelMap(int entityId);
 void cartoUpdateLight(int entityId, DATA32 light);
 void cartoSetSelect(int entityId, Bool set);
 void cartoRender(void);
+void cartoCommitNewMaps(void);
 int  cartoSaveMap(DATA8 mem, int size);
 
 
@@ -35,6 +36,7 @@ struct Cartograph_t                /* one in-game map */
 	int      mapId;                /* id used to locate file on disk */
 	uint8_t  light[4];             /* sky+block light */
 	uint8_t  normal;               /* S,E,N,W,T,B */
+	uint8_t  temp;                 /* entity is only saved in RAM, not disk: delete file if changes are not saved */
 	int16_t  bank;                 /* first 10bits: index of bank in cartograph.banks, next: [0-63] slot in bank */
 };
 

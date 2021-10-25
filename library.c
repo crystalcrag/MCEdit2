@@ -460,7 +460,7 @@ static int libraryGenPreview(SIT_Widget w, APTR cd, APTR ud)
 			/* set the icon to show it is unsupported */
 			TEXT  styles[128];
 			int   szTex[2];
-			int   tex = renderGetTerrain(szTex);
+			int   tex = renderGetTerrain(szTex, NULL);
 			thumbSz &= 0xfff;
 			/* use unknown entity texture */
 			sprintf(styles, "background: transparent id(%d) %dpx %dpx; background-size: %dpx %dpx",

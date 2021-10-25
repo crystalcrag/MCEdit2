@@ -17,38 +17,46 @@
 #include "interface.h"
 #include "selection.h"
 #include "cartograph.h"
+#include "mapUpdate.h"
 #include "globals.h"
 
 struct
 {
 	SIT_Widget image;
 	SIT_Widget palette;
-	SIT_Widget icon;
+	SIT_Widget icon, fill;
 	SIT_Widget selinfo;
 	Item       allItems;
 	uint8_t    axis1, axis2, axisMin;
-	uint8_t    side;
+	uint8_t    side;                    /* S, E, N, W, T, B */
 	int        rasterizeWith;
-	int        dither, stretch;
+	int        fillAir, stretch;
 	int        sizeX, sizeY;
 	int        itemsNb;
+	int        selPalette;
+	TEXT       defImage[128];
 
-} pixArt = {
-	/* default values */
-	.dither = 1
-};
+} pixArt = {.selPalette = 5};
 
 /* from interface.c */
 void mcuiResetScrollbar(MCInventory);
 void mcuiReplaceFillItems(SIT_Widget, MCInventory);
-void mcuiInitInventory(SIT_Widget, MCInventory);
+void mcuiInitInventory(SIT_Widget, MCInventory, int max);
 int  mcuiExitWnd(SIT_Widget, APTR cd, APTR ud);
 
 /* from cartograph.c */
 extern uint8_t mapRGB[];
 extern uint8_t mapShading[];
 
+enum /* rasterizeWith */
+{
+	PIXART_BLOCKS,
+	PIXART_MAPS
+};
+
 #define MAP_SIZEPX  128
+
+static uint8_t minAxis[] = {0, 0, 1, 1, 0, 1};
 
 #define UPTO(x)     (x|0x8000)
 static uint16_t palettes[] = {
@@ -106,7 +114,7 @@ static int pixArtSelInfo(SIT_Widget w, APTR cd, APTR ud)
 	MCInventory inv = ud;
 	TEXT buffer[64];
 	STRPTR plane;
-	if (pixArt.rasterizeWith == 0)
+	if (pixArt.rasterizeWith == PIXART_BLOCKS)
 	{
 		/* blocks: visible from 2 sides */
 		switch (pixArt.axisMin) {
@@ -126,8 +134,9 @@ static int pixArtSelInfo(SIT_Widget w, APTR cd, APTR ud)
 	/* change combobox content */
 	DATA16  palette;
 	uint8_t i;
+	pixArt.selPalette = 0;
 	SIT_SetValues(pixArt.palette, SIT_InitialValues, NULL, NULL);
-	if (pixArt.rasterizeWith == 0)
+	if (pixArt.rasterizeWith == PIXART_BLOCKS)
 	{
 		for (i = 0, palette = palettes; i < DIM(palNames); i ++, palette += palette[0] + 1)
 			SIT_ComboInsertItem(pixArt.palette, -1, palNames[i], palette + 1);
@@ -144,6 +153,7 @@ static int pixArtSelInfo(SIT_Widget w, APTR cd, APTR ud)
 	}
 	mcuiResetScrollbar(inv);
 	SIT_SetValues(pixArt.palette, SIT_SelectedIndex, 0, NULL);
+	SIT_SetValues(SIT_GetById(w, "../fillair"), SIT_Enabled, pixArt.rasterizeWith == PIXART_BLOCKS, NULL);
 
 	return 1;
 }
@@ -186,10 +196,11 @@ static int pixArtChangePalette(SIT_Widget w, APTR cd, APTR ud)
 	Item   item, eof;
 	int    itemId, i, nb;
 
+	pixArt.selPalette = (int) cd;
 	for (item = inv->items, eof = item + inv->itemsNb; item < eof; item->added = 0, item ++);
 	for (i = 0, nb = palette[-1], itemId = palette[0], item = inv->items; ; )
 	{
-		if (pixArt.rasterizeWith == 0)
+		if (pixArt.rasterizeWith == PIXART_BLOCKS)
 		{
 			while (item < eof && item->id != itemId) item ++;
 			if (item < eof) item->added = 1; else break;
@@ -242,6 +253,32 @@ static int pixArtDrawMapColor(SIT_Widget w, APTR cd, APTR ud)
 	return 1;
 }
 
+static int pixArtClearRef(SIT_Widget w, APTR cd, APTR ud)
+{
+	SIT_Widget * ptr = ud;
+	*ptr = NULL;
+	return 1;
+}
+
+static void pixArtSetIcon(STRPTR path)
+{
+	TEXT styles[128];
+	int  image;
+	snprintf(styles, sizeof styles, "background: #8b8b8b url(%s) 50%% 50%% no-repeat; background-size: %s",
+		path, pixArt.stretch ? "100% 100%" : "contain");
+	SIT_SetValues(pixArt.icon, SIT_Style, styles, NULL);
+	if (path != pixArt.defImage)
+	{
+		/* check if image was successfully loaded */
+		if (SIT_GetCSSValue(pixArt.icon, "background-image", &image))
+		{
+			SIT_SetValues(pixArt.fill, SIT_Enabled, True, NULL);
+			CopyString(pixArt.defImage, path, sizeof pixArt.defImage);
+		}
+		else SIT_Log(SIT_INFO, "Failed to load image %s: unsupported format", path);
+	}
+}
+
 static int pixArtLoadImg(SIT_Widget w, APTR cd, APTR ud)
 {
 	static SIT_Widget file;
@@ -254,16 +291,14 @@ static int pixArtLoadImg(SIT_Widget w, APTR cd, APTR ud)
 			SIT_DlgFlags,  SITV_FileMustExist,
 			NULL
 		);
+		SIT_AddCallback(file, SITE_OnFinalize, pixArtClearRef, &file);
 	}
 
 	if (SIT_ManageWidget(file))
 	{
 		STRPTR path;
-		TEXT   styles[128];
 		SIT_GetValues(file, SIT_SelPath, &path, NULL);
-		snprintf(styles, sizeof styles, "background: #8b8b8b url(%s) 50%% 50%% no-repeat; background-size: %s",
-			path, pixArt.stretch ? "100% 100%" : "contain");
-		SIT_SetValues(pixArt.icon, SIT_Style, styles, NULL);
+		pixArtSetIcon(path);
 	}
 	return 1;
 }
@@ -271,39 +306,65 @@ static int pixArtLoadImg(SIT_Widget w, APTR cd, APTR ud)
 #define SPP      4 /* samples per pixel */
 
 /* convert a RGBA image into a palette 8bpp image */
-static void pixArtToPalette(DATA8 pixels, int width, int height)
+static void pixArtToPalette(DATA8 pixels, int width, int height, DATA8 cmapRGB)
 {
 	/*
 	 * use a floyd-steinberg error diffusion matrix (3x2):
 	 *      X  7
 	 *   3  5  1
 	 */
-	uint8_t cmapRGB[256*4];
-	DATA8   s, d, data, cmapEOF;
-	int     stride = width * SPP;
-	int     i, j;
-	Item    item;
+	DATA8 s, d, data, cmapEOF;
+	int   stride = width * SPP;
+	int   i, j;
+	char  withMaps = pixArt.rasterizeWith == PIXART_MAPS;
+	Item  item;
 
-	/* mapRGB[] only contains 64 entries: we need 256 */
-	for (j = 0, d = cmapRGB; j < 4; j ++)
+	if (withMaps)
 	{
-		uint8_t shade = mapShading[j];
-		for (s = mapRGB, i = 0, item = pixArt.allItems + pixArt.itemsNb; i < 64; i ++, s += 4)
+		cmapRGB = alloca(256*4);
+		/* mapRGB[] only contains 64 entries: we need 256 */
+		for (j = 0, d = cmapRGB; j < 4; j ++)
 		{
-			/* alpha == 0 => invisible: don't care */
-			if (item->added == 0 || s[3] == 0x00) continue;
-			d[0] = s[0] * shade / 255;
-			d[1] = s[1] * shade / 255;
-			d[2] = s[2] * shade / 255;
-			d[3] = (i << 2) | j; d += 4;
+			uint8_t shade = mapShading[j];
+			for (s = mapRGB, i = 0, item = pixArt.allItems + pixArt.itemsNb; i < 64; i ++, s += 4)
+			{
+				/* alpha == 0 => invisible: don't care */
+				if (item->added == 0 || s[3] == 0x00) continue;
+				d[0] = s[0] * shade / 255;
+				d[1] = s[1] * shade / 255;
+				d[2] = s[2] * shade / 255;
+				d[3] = (i << 2) | j; d += 4;
+			}
 		}
+		cmapEOF = d;
 	}
-	cmapEOF = d;
+	else /* blocks: build color map from main terrain texture */
+	{
+		DATA8 cmap = cmapRGB + 32 * 32 * 4;
+		DATA8 blockId = cmap + 32 * 32 * 4 - 2;
+		for (item = pixArt.allItems, i = pixArt.itemsNb; i > 0; i --, item ++)
+		{
+			if (item->added == 0) continue;
+			BlockState state = blockGetById(item->id);
+			DATA8 texUV = &state->nzU + pixArt.side * 2;
+			if (texUV[1] >= 32) continue; // XXX glass pane
+			DATA8 color = cmapRGB + (texUV[0] + texUV[1] * 32) * 4;
+			if (color[3] == 0) continue; /* color already used */
+			memcpy(cmap, color, 4);
+			color[3] = 0;
+			blockId[0] = item->id >> 8;
+			blockId[1] = item->id;
+			blockId -= 2;
+			cmap += 4;
+		}
+		cmapRGB += 32*32*4;
+		cmapEOF = cmap;
+	}
 
 	/* perform dithering with a fixed colormap */
 	for (j = height, d = data = pixels; j > 0; j --, data += stride)
 	{
-		for (i = width, s = data; i > 0; i --, s += SPP, d ++)
+		for (i = width, s = data; i > 0; i --, s += SPP)
 		{
 			DATA8 cmap, best;
 			short r, g, b;
@@ -311,6 +372,12 @@ static void pixArtToPalette(DATA8 pixels, int width, int height)
 			r = s[0];
 			g = s[1];
 			b = s[2];
+			if (withMaps == 0 && s[3] < 64)
+			{
+				/* pixel is almost transparent: use air block for this */
+				d[0] = d[1] = 0;
+				continue;
+			}
 			/* find nearest color from colormap that matches RGBA component pointed by <s> */
 			for (cmap = cmapRGB, best = NULL; cmap < cmapEOF; cmap += 4)
 			{
@@ -326,9 +393,6 @@ static void pixArtToPalette(DATA8 pixels, int width, int height)
 			r -= best[0];
 			g -= best[1];
 			b -= best[2];
-
-			//if (r > 0 || g > 0 || b > 0)
-			//	puts("here");
 
 			int16_t tmp;
 			#define CLAMP(x)    (tmp = (x)) > 255 ? 255 : (tmp < 0 ? 0 : tmp)
@@ -361,7 +425,15 @@ static void pixArtToPalette(DATA8 pixels, int width, int height)
 				}
 			}
 			#undef CLAMP
-			*d = best[3];
+			if (! withMaps)
+			{
+				/* 16bpp */
+				DATA8 blockId = cmapRGB + 32*32*4-2 - ((best - cmapRGB) >> 1);
+				d[0] = blockId[0];
+				d[1] = blockId[1];
+				d += 2;
+			}
+			else *d++ = best[3]; /* 8bpp */
 		}
 	}
 }
@@ -397,14 +469,14 @@ static int pixArtCreateMap(DATA8 bitmap, int width, int height, int tileX, int t
 		dstHeight = height - tileY;
 
 	bitmap += tileX + tileY * width;
-	/* texture is upside down */
-	cmap += (tileY + dstHeight - 1) * width;
+	/* <bitmap> is bottom-up, but map is stored top-down */
+	cmap += (dstHeight - 1) * MAP_SIZEPX;
 
 	for (j = 0; j < dstHeight; j ++)
 	{
 		memcpy(cmap, bitmap, dstWidth);
 		cmap -= MAP_SIZEPX;
-		bitmap += dstWidth;
+		bitmap += width;
 	}
 
 	tileX = cartoSaveMap(nbt.mem, nbt.usage);
@@ -412,9 +484,9 @@ static int pixArtCreateMap(DATA8 bitmap, int width, int height, int tileX, int t
 	return tileX;
 }
 
+/* <data> is final image rasterized using map colormap: split it up into individual maps */
 static void pixArtGenerateMaps(DATA8 data, int width, int height)
 {
-	static uint8_t minAxis[] = {0, 0, 1, 1, 0, 1};
 	vec points = selectionGetPoints();
 	int size[] = {
 		fabsf(points[VX] - points[VX+4]) + 1,
@@ -428,10 +500,11 @@ static void pixArtGenerateMaps(DATA8 data, int width, int height)
 
 	pos[axis1] = minAxis[pixArt.side] ? points[axis1] : points[axis1+4];
 	axis1 = pixArt.axis1;
-	pos[axis2] = points[axis2];
+	pos[axis2] = fminf(points[axis2], points[axis2+4]);
+	pos[3]     = fminf(points[axis1], points[axis1+4]);
 	for (j = 0; j < size[axis2]; j ++, pos[axis2] ++)
 	{
-		pos[axis1] = points[axis1];
+		pos[axis1] = pos[3];
 		for (i = 0; i < size[axis1]; i ++, pos[axis1] ++)
 		{
 			int entityId = entityCreate(globals.level, ID(389, 0), pos, pixArt.side);
@@ -439,6 +512,53 @@ static void pixArtGenerateMaps(DATA8 data, int width, int height)
 			entityUseItemOn(globals.level, entityId, ID(358, mapId), pos);
 		}
 	}
+}
+
+/* generate pixel art with blocks */
+static void pixArtGenerateBlocks(DATA8 data, int width, int height)
+{
+	vec points = selectionGetPoints();
+	int size[] = {
+		fabsf(points[VX] - points[VX+4]) + 1,
+		fabsf(points[VY] - points[VY+4]) + 1,
+		fabsf(points[VZ] - points[VZ+4]) + 1
+	};
+	uint8_t axis1 = pixArt.axisMin;
+	uint8_t axis2 = pixArt.axis2;
+	int     dir2[3] = {0, 0, 0};
+	int     dir1[3] = {0, 0, 0};
+	vec4    pos;
+	int     i, j;
+
+	pos[axis1] = minAxis[pixArt.side] ? points[axis1] : points[axis1+4];
+	axis1 = pixArt.axis1;
+	pos[axis1] = fminf(points[axis1], points[axis1+4]);
+	pos[axis2] = fminf(points[axis2], points[axis2+4]);
+	dir2[axis2] = 1;
+	dir2[axis1] = - size[axis1];
+	dir1[axis1] = 1;
+
+	/* be sure the picture remains oriented the way it is displayed in the 3d space */
+	i = pixArt.side >= SIDE_TOP ? globals.direction : opp[pixArt.side];
+	if (i == 0 || i == 3)
+		pos[axis1] += size[axis1]-1, dir1[axis1] = -1, dir2[axis1] = size[axis1];
+	if (pixArt.side >= SIDE_TOP && globals.direction >= SIDE_NORTH)
+		pos[axis2] += size[axis2]-1, dir2[axis2] = -1;
+
+	struct BlockIter_t iter;
+	mapInitIter(globals.level, &iter, pos, True);
+	mapUpdateInit(&iter);
+
+	for (j = size[axis2]; j > 0; j --, mapIter(&iter, dir2[0], dir2[1], dir2[2]))
+	{
+		for (i = size[axis1]; i > 0; i --, mapIter(&iter, dir1[0], dir1[1], dir1[2]), data += 2)
+		{
+			uint16_t blockId = (data[0] << 8) | data[1];
+			if (blockId > 0 || pixArt.fillAir)
+				mapUpdate(globals.level, NULL, blockId, NULL, UPDATE_SILENT);
+		}
+	}
+	mapUpdateEnd(globals.level);
 }
 
 typedef struct NVGLUframebuffer *  NVGFBO;
@@ -458,7 +578,7 @@ static int pixArtGenerate(SIT_Widget w, APTR cd, APTR ud)
 	nvgImageSize(vg, image, &srcWidth, &srcHeight);
 	dstWidth = pixArt.sizeX;
 	dstHeight = pixArt.sizeY;
-	if (pixArt.rasterizeWith == 1)
+	if (pixArt.rasterizeWith == PIXART_MAPS)
 		dstWidth *= MAP_SIZEPX, dstHeight *= MAP_SIZEPX;
 	if (pixArt.stretch == 0)
 	{
@@ -488,10 +608,24 @@ static int pixArtGenerate(SIT_Widget w, APTR cd, APTR ud)
 		nvgluDeleteFramebuffer(fbo);
 
 		/* second: convert the texture to palette using floyd-steinberg dithering */
-		if (pixArt.rasterizeWith == 1)
+		if (pixArt.rasterizeWith == PIXART_MAPS)
 		{
-			pixArtToPalette(data, dstWidth, dstHeight);
+			pixArtToPalette(data, dstWidth, dstHeight, NULL);
 			pixArtGenerateMaps(data, dstWidth, dstHeight);
+		}
+		else
+		{
+			int size[2], level, texId;
+			DATA8 cmap;
+			renderGetTerrain(size, &texId);
+			for (level = 0; size[0] > 32; size[0] >>= 1, size[1] >>= 1, level ++);
+			cmap = malloc(size[0] * size[1] * 4);
+			/* the last mipmap actually contains the colormap of terrain texture */
+			glBindTexture(GL_TEXTURE_2D, texId);
+			glGetTexImage(GL_TEXTURE_2D, level, GL_RGBA, GL_UNSIGNED_BYTE, cmap);
+
+			pixArtToPalette(data, dstWidth, dstHeight, cmap); free(cmap);
+			pixArtGenerateBlocks(data, dstWidth, dstHeight);
 		}
 		free(data);
 	}
@@ -512,7 +646,7 @@ static void pixArtFillMapColors(MCInventory inv)
 }
 
 /* main interface for pixel art editor */
-void mcuiShowPixelArt(vec4 pos)
+void mcuiShowPixelArt(vec4 playerPos)
 {
 	static struct MCInventory_t mcinv = {.invRow = 6, .invCol = MAXCOLINV, .movable = INV_SELECT_ONLY, .customDraw = pixArtDrawMapColor};
 
@@ -530,8 +664,8 @@ void mcuiShowPixelArt(vec4 pos)
 		"<label name=msg title='Rasterize with:' left=WIDGET,icon,1em top=WIDGET,dlgtitle,0.5em>"
 		"<button name=blocks curValue=", &pixArt.rasterizeWith, "title=Blocks buttonType=", SITV_RadioButton, "top=WIDGET,msg,0.5em left=WIDGET,icon,1em>"
 		"<button name=maps curValue=", &pixArt.rasterizeWith, "title=Maps buttonType=", SITV_RadioButton, "top=WIDGET,blocks,0.5em left=WIDGET,icon,1em>"
-		"<button name=dither title=Dither curValue=", &pixArt.dither, "buttonType=", SITV_CheckBox, "checkState=1 top=OPPOSITE,blocks left=WIDGET,blocks,2em>"
-		"<button name=stretch title=Stretch curValue=", &pixArt.stretch, "buttonType=", SITV_CheckBox, "top=WIDGET,dither,0.5em left=WIDGET,blocks,2em>"
+		"<button name=fillair title='Fill with air' curValue=", &pixArt.fillAir, "buttonType=", SITV_CheckBox, "checkState=1 top=OPPOSITE,blocks left=WIDGET,blocks,2em>"
+		"<button name=stretch title=Stretch curValue=", &pixArt.stretch, "buttonType=", SITV_CheckBox, "top=WIDGET,fillair,0.5em left=WIDGET,blocks,2em>"
 		"<label name=msg2 title='Palette:' left=WIDGET,icon,1em top=WIDGET,maps,1em>"
 		"<combobox name=palette top=WIDGET,msg2,0.5em left=OPPOSITE,msg2>"
 		"<label name=save.big title='(<a href=#>Save</a>)' bottom=OPPOSITE,msg2 right=OPPOSITE,palette>"
@@ -540,7 +674,7 @@ void mcuiShowPixelArt(vec4 pos)
 		"<canvas composited=1 name=inv.inv top=WIDGET,msg3,0.5em nextCtrl=LAST/>"
 		"<button name=load title='Load image' top=WIDGET,inv,0.5em>"
 		"<button name=ko title=Cancel buttonType=", SITV_CancelButton, "top=OPPOSITE,load right=FORM>"
-		"<button name=ok title=Fill top=OPPOSITE,ko right=WIDGET,ko,0.5em>"
+		"<button name=ok title=Fill enabled=0 top=OPPOSITE,ko right=WIDGET,ko,0.5em buttonType=", SITV_DefaultButton, ">"
 		"<scrollbar width=1.2em name=scroll.inv wheelMult=1 top=OPPOSITE,inv,0 bottom=OPPOSITE,inv,0 right=FORM>"
 		"<tooltip name=info delayTime=", SITV_TooltipManualTrigger, "displayTime=10000 toolTipAnchor=", SITV_TooltipFollowMouse, ">"
 	);
@@ -560,51 +694,56 @@ void mcuiShowPixelArt(vec4 pos)
 	};
 	uint8_t axis1, axis2;
 
-	if (size[VX] == 1 && size[VY] == 1 && size[VZ] == 1)
+	if (size[VX] == size[VY] && size[VY] == size[VZ])
 	{
-		/* 1 block selected: opposite of viewing direction */
+		/* cube block selected: opposite of viewing direction */
 		axis1 = globals.direction & 1 ? VX : VZ;
 	}
 	else
 	{
-		axis1 = size[VX] < size[VY] ? 0 : 1;
-		if (size[axis1] < size[VZ]) axis2 = 2;
+		axis1 = size[VX] < size[VY] ? VX : VY;
+		if (size[axis1] > size[VZ]) axis1 = VZ;
 	}
 	switch (pixArt.axisMin = axis1) {
 	case VX: /* extend in YZ plane: visible from east and/or west */
-		axis1 = VY; axis2 = VZ;
+		axis1 = VZ; axis2 = VY;
 		pixArt.side =
-			vecDistSquare(pos, (vec4){points[VX],   center[VY], center[VZ]}) <
-			vecDistSquare(pos, (vec4){points[VX]+1, center[VY], center[VZ]}) ? SIDE_WEST : SIDE_EAST;
+			vecDistSquare(playerPos, (vec4){points[VX],   center[VY], center[VZ]}) <
+			vecDistSquare(playerPos, (vec4){points[VX]+1, center[VY], center[VZ]}) ? SIDE_WEST : SIDE_EAST;
 		break;
 	case VY: /* extend in XZ plane: visible from top/bottom */
-		axis1 = VX; axis2 = VZ;
+		if (globals.direction & 1)
+			axis1 = VZ, axis2 = VX;
+		else
+			axis1 = VX, axis2 = VZ;
 		pixArt.side =
-			vecDistSquare(pos, (vec4){center[VX], points[VY],   center[VZ]}) <
-			vecDistSquare(pos, (vec4){center[VX], points[VY+1], center[VZ]}) ? SIDE_TOP : SIDE_BOTTOM;
+			vecDistSquare(playerPos, (vec4){center[VX], points[VY],   center[VZ]}) <
+			vecDistSquare(playerPos, (vec4){center[VX], points[VY]+1, center[VZ]}) ? SIDE_TOP : SIDE_BOTTOM;
 		break;
 	case VZ: /* extend in XY plane: visible from south and/or north */
 		axis1 = VX; axis2 = VY;
 		pixArt.side =
-			vecDistSquare(pos, (vec4){center[VX], center[VY], points[VZ]})   <
-			vecDistSquare(pos, (vec4){center[VX], center[VY], points[VZ+1]}) ? SIDE_NORTH : SIDE_SOUTH;
+			vecDistSquare(playerPos, (vec4){center[VX], center[VY], points[VZ]})   <
+			vecDistSquare(playerPos, (vec4){center[VX], center[VY], points[VZ]+1}) ? SIDE_NORTH : SIDE_SOUTH;
 	}
 
 	SIT_GetValues(diag, SIT_UserData, &pixArt.allItems, NULL);
 	pixArt.palette = SIT_GetById(diag, "palette");
 	pixArt.selinfo = SIT_GetById(diag, "selinfo");
 	pixArt.icon    = SIT_GetById(diag, "icon");
+	pixArt.fill    = SIT_GetById(diag, "ok");
 	pixArt.axis1   = axis1;
 	pixArt.axis2   = axis2;
 	pixArt.sizeX   = size[axis1];
 	pixArt.sizeY   = size[axis2];
 
-	SIT_AddCallback(pixArt.palette, SITE_OnChange, pixArtChangePalette, &mcinv);
+	int old = pixArt.selPalette;
+	SIT_AddCallback(pixArt.palette, SITE_OnChange,   pixArtChangePalette, &mcinv);
+	SIT_AddCallback(pixArt.fill,    SITE_OnActivate, pixArtGenerate,      NULL);
 
 	mcuiReplaceFillItems(diag, &mcinv);
-	mcuiSetItemSize(mcinv.cell, 0);
 	pixArtFillMapColors(&mcinv);
-	mcuiInitInventory(SIT_GetById(diag, "inv"), &mcinv);
+	mcuiInitInventory(SIT_GetById(diag, "inv"), &mcinv, 1);
 	mcuiResetScrollbar(&mcinv);
 
 	SIT_AddCallback(SIT_GetById(diag, "blocks"), SITE_OnActivate, pixArtSelInfo, &mcinv);
@@ -612,10 +751,16 @@ void mcuiShowPixelArt(vec4 pos)
 	SIT_AddCallback(SIT_GetById(diag, "save"),   SITE_OnActivate, pixArtSavePal, &mcinv);
 	SIT_AddCallback(SIT_GetById(diag, "load"),   SITE_OnActivate, pixArtLoadImg, NULL);
 	SIT_AddCallback(SIT_GetById(diag, "ko"),     SITE_OnActivate, mcuiExitWnd, NULL);
-	SIT_AddCallback(SIT_GetById(diag, "ok"),     SITE_OnActivate, pixArtGenerate, NULL);
+
+	if (pixArt.defImage[0])
+	{
+		pixArtSetIcon(pixArt.defImage);
+		SIT_SetValues(pixArt.fill, SIT_Enabled, True, NULL);
+	}
 
 	pixArt.itemsNb = mcinv.itemsNb;
 	pixArtSelInfo(NULL, NULL, &mcinv);
+	SIT_SetValues(pixArt.palette, SIT_SelectedIndex, old, NULL);
 
 	SIT_ManageWidget(diag);
 }

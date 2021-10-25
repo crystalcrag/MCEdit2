@@ -102,6 +102,7 @@ void cartoInitStatic(int shader, int * mdaCount)
 	cartograph.lastIdCount = -1;
 }
 
+/* save a NBT chunk in the map folder of current level */
 int cartoSaveMap(DATA8 mem, int size)
 {
 	STRPTR levelDat = globals.level->path;
@@ -115,24 +116,36 @@ int cartoSaveMap(DATA8 mem, int size)
 	len = strlen(path);
 	if (lastId < 0)
 	{
+		/* this file will contain the last committed map id used */
 		AddPart(path, "data/idcounts.dat", 1e6);
 		if (NBT_Parse(&nbt, path))
 		{
 			lastId = NBT_ToInt(&nbt, NBT_FindNode(&nbt, 0, "map"), 0);
 			NBT_Free(&nbt);
 		}
-		else lastId = 0;
+		else /* hmm, missing or can't read it: let's be cautious */
+		{
+			ScanDirData args;
+			ParentDir(path);
+			lastId = 0;
+			if (ScanDirInit(&args, path))
+			{
+				do {
+					int mapId;
+					if (strncasecmp(args.name, "map_", 4) == 0 && sscanf(args.name + 4, "%d", &mapId) > 0 && mapId > lastId)
+						lastId = mapId;
+				}
+				while (ScanDirNext(&args));
+			}
+		}
 		cartograph.lastIdCount = lastId;
 		cartograph.lastMapId = lastId;
 		path[len] = 0;
 	}
 
-	/* find a free slot */
 	AddPart(path, "data/map_", 1e6);
 	len += strlen(path+len);
-	do {
-		sprintf(path+len, "%d.dat", ++ cartograph.lastMapId);
-	} while (FileExists(path));
+	sprintf(path+len, "%d.dat", ++ cartograph.lastMapId);
 
 	nbt.mem = mem;
 	nbt.usage = size;
@@ -140,6 +153,42 @@ int cartoSaveMap(DATA8 mem, int size)
 	NBT_Save(&nbt, path, NULL, NULL);
 
 	return cartograph.lastMapId;
+}
+
+static FILE * fopen_base(STRPTR base, STRPTR path, STRPTR open)
+{
+	STRPTR buffer = alloca(strlen(base) + strlen(path) + 2);
+	strcpy(buffer, base);
+	AddPart(base, path, 1e6);
+	return fopen(buffer, open);
+}
+
+/* mark all temporary maps as permanent */
+void cartoCommitNewMaps(void)
+{
+	if (cartograph.lastMapId > cartograph.lastIdCount)
+	{
+		/* no need to alloc anything that way */
+		uint8_t buffer[64];
+		struct NBTFile_t nbt = {.mem = buffer, .max = sizeof buffer};
+
+		/* update idcounts.dat */
+		NBT_Add(&nbt,
+			TAG_Compound, "",
+				TAG_Short, "map", cartograph.lastMapId,
+			TAG_Compound_End
+		);
+		FILE * out = fopen_base(globals.level->path, "../data/idcounts.dat", "wb");
+		if (out)
+		{
+			fwrite(buffer, 1, nbt.usage, out);
+			fclose(out);
+		}
+
+		/* clear temp flag */
+		Cartograph map;
+		for (nbt.usage = 0, map = cartograph.maps; nbt.usage < cartograph.count; map->temp = 0, nbt.usage ++, map ++);
+	}
 }
 
 /* convert map from NBT to GL texture */
@@ -158,6 +207,10 @@ void cartoGenBitmap(Cartograph map, int texId)
 	{
 		int cmap = NBT_FindNode(&nbt, 0, "colors");
 		NBTHdr hdr = NBT_Hdr(&nbt, cmap);
+
+		/* this map only exist in memory for now: will have to delete it if changes are not saved */
+		if (cartograph.lastIdCount >= 0 && map->mapId > cartograph.lastIdCount)
+			map->temp = True;
 
 		if (cmap >= 0 && hdr->type == TAG_Byte_Array && hdr->count <= CARTO_WIDTH * CARTO_HEIGHT)
 		{
@@ -213,10 +266,11 @@ static void cartoGenVertex(Cartograph map, CartoBank bank, float points[12])
 	meta = ((slot / CBANK_WIDTH) << 15) | ((slot & (CBANK_WIDTH-1)) << 10);
 
 	int i;
-	for (i = 0; i < 6; i ++)
+	vec vtx;
+	for (i = 0, vtx = vertices; i < 6; i ++, vtx += 4)
 	{
-		memcpy(vertices + i * 4, points + mapVtx[i], 12);
-		vertices[i*4+3] = meta + addMeta[i] + map->light[mapLight[i]];
+		memcpy(vtx, points + mapVtx[i], 12);
+		vtx[3] = meta + addMeta[i] + map->light[mapLight[i]];
 	}
 	i = slot * 6;
 	glBindBuffer(GL_ARRAY_BUFFER, bank->vbo);
@@ -401,6 +455,17 @@ void cartoDelMap(int entityId)
 		cartograph.count --;
 		cartograph.toRender --;
 		map->bank = -1;
+		if (map->temp)
+		{
+			/* delete file too */
+			STRPTR base = globals.level->path;
+			STRPTR buffer = alloca(strlen(base) + 32);
+			TEXT   mapPath[32];
+			strcpy(buffer, base);
+			sprintf(mapPath, "../data/map_%d.dat", map->mapId);
+			AddPart(buffer, mapPath, 1e6);
+			DeleteDOS(buffer);
+		}
 
 		CartoBank bank = cartograph.banks + CBANK_NUM(slot);
 
@@ -469,7 +534,7 @@ void cartoRender(void)
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glEnable(GL_DEPTH_TEST);
-	glEnable(GL_POLYGON_OFFSET_FILL);
+//	glEnable(GL_POLYGON_OFFSET_FILL);
 	glDepthFunc(GL_LEQUAL);
 	glDisable(GL_SCISSOR_TEST);
 	glDisable(GL_STENCIL_TEST);
@@ -479,7 +544,7 @@ void cartoRender(void)
 	 * maps shouldn't have any geometry behind, therefore depth buffer shouldn't interfere
 	 * but let's be safe, and apply the same offset than sign rendering.
 	 */
-	glPolygonOffset(-1.0, 1.0);
+//	glPolygonOffset(-5.0, -5.0);
 
 	/* will use the same shader than signs actually (decals.vsh) */
 	glUseProgram(cartograph.shader);
@@ -493,18 +558,6 @@ void cartoRender(void)
 		glBindTexture(GL_TEXTURE_2D, bank->glTex);
 		if (bank->update)
 		{
-			#if 0
-			if (bank->inMDA > 8)
-			{
-			DATA8 data = malloc(1024 * 1024 * 4);
-			glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-			FILE* out = fopen("dump.ppm", "wb");
-			fprintf(out, "P6\n1024 1024 255\n");
-			fwrite(data, 1, 1024*1024*4, out);
-			fclose(out);
-			free(data);
-			}
-			#endif
 			glGenerateMipmap(GL_TEXTURE_2D);
 			bank->update = 0;
 		}

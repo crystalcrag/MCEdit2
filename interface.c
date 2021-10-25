@@ -871,11 +871,23 @@ static int mcuiInventoryFocus(SIT_Widget w, APTR cd, APTR ud)
 }
 
 
-void mcuiInitInventory(SIT_Widget canvas, MCInventory inv)
+void mcuiInitInventory(SIT_Widget canvas, MCInventory inv, int max)
 {
 	inv->cell = SIT_CreateWidget("td", SIT_HTMLTAG, canvas, SIT_Visible, False, NULL);
 	inv->curX = -1;
 	inv->top  = 0;
+
+	if (max > 0)
+	{
+		/* this inventory will constraint the size of items displayed */
+		SIT_GetValues(inv->cell, SIT_Padding, mcui.padding, NULL);
+		/* same scale than player toolbar... */
+		mcui.cellSz = roundf(mcui.width * 17 * ITEMSCALE / (3 * 182.f));
+		/* ... unless it doesn't fit within window's height */
+		if (mcui.cellSz * max > mcui.height)
+			mcui.cellSz = mcui.height / max;
+		mcui.itemSz = mcui.cellSz - mcui.padding[0] - mcui.padding[2];
+	}
 
 	SIT_AddCallback(canvas, SITE_OnPaint,     mcuiInventoryRender,   inv);
 	SIT_AddCallback(canvas, SITE_OnClickMove, mcuiInventoryMouse,    inv);
@@ -936,25 +948,12 @@ static int mcuiCancelDrag(SIT_Widget w, APTR cd, APTR ud)
 	return 1;
 }
 
-void mcuiSetItemSize(SIT_Widget cell, int max)
-{
-	SIT_GetValues(cell, SIT_Padding, mcui.padding, NULL);
-	/* same scale than player toolbar... */
-	mcui.cellSz = roundf(mcui.width * 17 * ITEMSCALE / (3 * 182.f));
-	/* ... unless it doesn't fit within window's height */
-	if (max > 0 && mcui.cellSz * max > mcui.height)
-		mcui.cellSz = mcui.height / max;
-	mcui.itemSz = mcui.cellSz - mcui.padding[0] - mcui.padding[2];
-}
-
 /*
  * creative inventory editor
  */
 void mcuiCreateInventory(Inventory player)
 {
 	static TEXT tip[] = "Exchange row with toolbar";
-
-	mcuiSetItemSize(NULL, 6 + 3 + 2 + 2 + 3);
 
 	SIT_Widget diag = SIT_CreateWidget("inventory", SIT_DIALOG + SIT_EXTRA(itemGetInventoryByCat(NULL, 0) * sizeof (ItemBuf)), globals.app,
 		SIT_DialogStyles, SITV_Plain | SITV_Modal,
@@ -970,10 +969,10 @@ void mcuiCreateInventory(Inventory player)
 		" <label name=msg title='Player inventory:' top=WIDGET,inv,0.3em>"
 		" <canvas composited=1 name=player.inv top=WIDGET,msg,0.3em  nextCtrl=LAST/>"
 		" <canvas composited=1 name=tb.inv left=FORM top=WIDGET,player,0.5em  nextCtrl=LAST/>"
-		" <button name=exch1.exch nextCtrl=NONE top=OPPOSITE,player right=FORM tooltip=", tip, "maxWidth=scroll height=", mcui.cellSz, ">"
-		" <button name=exch2.exch nextCtrl=NONE top=WIDGET,exch1 right=FORM tooltip=", tip, "maxWidth=exch1 height=", mcui.cellSz, ">"
-		" <button name=exch3.exch nextCtrl=NONE top=WIDGET,exch2 right=FORM tooltip=", tip, "maxWidth=exch2 height=", mcui.cellSz, ">"
-		" <button name=del.exch   nextCtrl=NONE top=OPPOSITE,tb right=FORM title=X tooltip='Clear inventory' maxWidth=exch3 height=", mcui.cellSz, ">"
+		" <button name=exch1.exch nextCtrl=NONE top=OPPOSITE,player right=FORM tooltip=", tip, "maxWidth=scroll>"
+		" <button name=exch2.exch nextCtrl=NONE top=WIDGET,exch1 right=FORM tooltip=", tip, "maxWidth=exch1>"
+		" <button name=exch3.exch nextCtrl=NONE top=WIDGET,exch2 right=FORM tooltip=", tip, "maxWidth=exch2>"
+		" <button name=del.exch   nextCtrl=NONE top=OPPOSITE,tb right=FORM title=X tooltip='Clear inventory' maxWidth=exch3>"
 		"</tab>"
 		"<tooltip name=info delayTime=", SITV_TooltipManualTrigger, " displayTime=10000 toolTipAnchor=", SITV_TooltipFollowMouse, ">"
 	);
@@ -1009,12 +1008,18 @@ void mcuiCreateInventory(Inventory player)
 	selfinv.items = player->items + MAXCOLINV;
 	toolbar.items = player->items;
 
-	mcuiInitInventory(SIT_GetById(diag, "inv"),    &mcinv);
-	mcuiInitInventory(SIT_GetById(diag, "player"), &selfinv);
-	mcuiInitInventory(SIT_GetById(diag, "tb"),     &toolbar);
+	mcuiInitInventory(SIT_GetById(diag, "inv"),    &mcinv,   6 + 3 + 2 + 2 + 3);
+	mcuiInitInventory(SIT_GetById(diag, "player"), &selfinv, 0);
+	mcuiInitInventory(SIT_GetById(diag, "tb"),     &toolbar, 0);
 
 	mcuiResetScrollbar(&mcinv);
 
+	SIT_SetAttributes(diag,
+		"<exch1 height=", mcui.cellSz, ">"
+		"<exch2 height=", mcui.cellSz, ">"
+		"<exch3 height=", mcui.cellSz, ">"
+		"<del   height=", mcui.cellSz, ">"
+	);
 	SIT_GetValues(mcinv.cell, SIT_Padding, mcui.padding, NULL);
 	mcui.itemSz = mcui.cellSz - mcui.padding[0] - mcui.padding[2];
 
@@ -1108,11 +1113,9 @@ void mcuiEditChestInventory(Inventory player, Item items, int count)
 	selfinv.items = player->items + MAXCOLINV;
 	toolbar.items = player->items;
 
-	mcuiInitInventory(SIT_GetById(diag, "inv"),    &chest);
-	mcuiInitInventory(SIT_GetById(diag, "tb"),     &toolbar);
-	mcuiInitInventory(SIT_GetById(diag, "player"), &selfinv);
-
-	mcuiSetItemSize(chest.cell, 3 + 3 + 2);
+	mcuiInitInventory(SIT_GetById(diag, "inv"),    &chest,   3 + 3 + 2);
+	mcuiInitInventory(SIT_GetById(diag, "tb"),     &toolbar, 0);
+	mcuiInitInventory(SIT_GetById(diag, "player"), &selfinv, 0);
 
 	SIT_ManageWidget(diag);
 }
@@ -1128,7 +1131,7 @@ static int mcuiSaveSign(SIT_Widget w, APTR cd, APTR ud)
 	SIT_TextGetWithSoftline(ud, buffer, len);
 	signSetText(mcui.signChunk, mcui.signPos, buffer);
 	SIT_CloseDialog(w);
-	SIT_Exit(2);
+	SIT_Exit(1);
 	return 1;
 }
 
@@ -1181,7 +1184,7 @@ void mcuiCreateSignEdit(vec4 pos, int blockId)
 	int sz[2];
 	int height = mcui.height / 4;
 	int width  = height * (uv[2] - uv[0]) / (uv[3] - uv[1]);
-	int image  = renderGetTerrain(sz);
+	int image  = renderGetTerrain(sz, NULL);
 	int fontsz = mcuiFontSize(globals.app, signText, width, (height - height / 10) / 4);
 	height = (fontsz * 4) * 14 / 10 + 20;
 	width += 20;
@@ -1777,13 +1780,12 @@ void mcuiFillOrReplace(Bool fillWithBrush)
 	fillinv.items = fillReplace;
 	replace.items = fillReplace + 1;
 
-	mcuiSetItemSize(NULL, 0);
-	mcuiInitInventory(SIT_GetById(diag, "inv"), &mcinv);
-	mcuiInitInventory(mcuiRepWnd.fill, &fillinv);
+	mcuiInitInventory(SIT_GetById(diag, "inv"), &mcinv, 1);
+	mcuiInitInventory(mcuiRepWnd.fill, &fillinv, 0);
 	mcuiResetScrollbar(&mcinv);
 	if (! fillWithBrush)
 	{
-		mcuiInitInventory(mcuiRepWnd.replace, &replace);
+		mcuiInitInventory(mcuiRepWnd.replace, &replace, 0);
 		SIT_AddCallback(mcuiRepWnd.replace, SITE_OnPaint, mcuiFillDisabled, NULL);
 	}
 
@@ -2006,7 +2008,7 @@ static int mcuiRenderPaintings(SIT_Widget w, APTR cd, APTR ud)
 	SIT_OnPaint * paint = cd;
 	NVGcontext *  vg = paint->nvg;
 	int size[2];
-	int image = renderGetTerrain(size);
+	int image = renderGetTerrain(size, NULL);
 	float scale = mcuiPaintings.scale = (paint->w / (PAINTINGS_TILE_W * 16));
 
 	nvgBeginPath(vg);

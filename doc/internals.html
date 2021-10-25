@@ -1493,9 +1493,32 @@ rationale for this choice being that most chunks in a map will never be modified
 that will, most of time it is simply a matter of overwriting some tables (<tt>BlockLight</tt>,
 <tt>Blocks</tt>, <tt>Data</tt>, ...).
 
-<p>There are a few lists (<tt>TileEntites</tt>, <tt>Entities</tt>, <tt>TileTicks</tt>, ...) where the
-content can change significantly, and this is where this API will a bit more tedious to use than other
+<p>There are a few lists (<tt>TileEntities</tt>, <tt>Entities</tt>, <tt>TileTicks</tt>, ...) where the
+content can change significantly, and this is where this API will be a bit more tedious to use than other
 APIs.
+
+<p>The gist of how this API works is to serialize the content of a NBT file into a <b>single block</b>
+of memory. This block will reallocated if the first allocation was not enough, but <b>everything</b> will
+be kept into a contiguous block of memory. Therefore the binary representation of the NBT structure in
+memory will actually be <b>very close</b> to how it is stored on disk (if it were uncompressed): save
+a few memory alignment constraints and byte ordering, and you could write the buffer almost directly
+to disk.
+
+<p>Sadly, that also means, in order to use this API, you'll need to have a pretty good understanding
+on how NBT is structured on disk, because that API is a very shallow abstraction over that. A refresher
+will be available in the next section.
+
+<p>NBT files usually contains lots of small blocks, that would be spread all over the memory if allocated
+inidvidually. This API is also particularly efficient with memory when you need a small NBT fragment
+(around hundreds of bytes): it is possible to only use stack memory and therefore perform no allocations.
+
+<!--
+<p>There are a <b>few tricks</b> to avoid reallocation as much as possible, especially when loading chunks
+from disk: for these, we allocate a large chunk (hundreds of Kb) to be somewhat sure it is not going
+to be relocated. Then at the end, if we allocated too much, we simply reduce the size of the memory
+block (most of the time, this block will be allocated at the end of heap, which means resizing will
+be very cheap).
+-->
 
 <p>/* ... */
 
