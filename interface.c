@@ -305,16 +305,23 @@ static void mcuiGrabAllItems(MCInventory inv, int index)
 	double timeMS = FrameGetTime();
 	if (lastSlot == index && timeMS - lastClick < 500)
 	{
-		//uint8_t groupId = inv->groupId;
-		Item item, end;
-		for (item = inv->items, end = item + inv->itemsNb; item < end; item ++)
+		uint8_t groupId = inv->groupId;
+		uint8_t i;
+		for (i = 0; i < mcui.groupCount; i ++)
 		{
-			if (mcui.drag.id != item->id) continue;
-			item->count = itemAddCount(&mcui.drag, item->count);
-			if (item->count == 0) item->id = 0;
-			else break; /* stack full */
+			Item item, end;
+			inv = mcui.groups[i];
+			if (inv->groupId != groupId) continue;
+			for (item = inv->items, end = item + inv->itemsNb; item < end; item ++)
+			{
+				if (mcui.drag.id != item->id) continue;
+				item->count = itemAddCount(&mcui.drag, item->count);
+				if (item->count == 0) item->id = 0;
+				else goto break_all; /* stack full */
+			}
 		}
 	}
+	break_all:
 	lastSlot = index;
 	lastClick = timeMS;
 }
@@ -331,16 +338,23 @@ static int mcuiInventoryMouse(SIT_Widget w, APTR cd, APTR ud)
 	int celly = msg->y / mcui.cellSz;
 	switch (msg->state) {
 	case SITOM_CaptureMove:
-		/* drag selection */
 		if (cellx < 0 || cellx >= inv->invCol || celly < 0 || celly >= inv->invRow)
 			return 0;
-		if (inv->curX != cellx || inv->curY != celly)
+		if (mcui.selCount > 0)
 		{
-			inv->curX = cellx;
-			inv->curY = celly;
-			old = inv->items + inv->top + cellx + celly * inv->invCol;
-			old->added = mcui.dragOneItem;
-			SIT_ForceRefresh();
+			mcuiSplitItems(inv->items + inv->top + cellx + celly * inv->invCol);
+		}
+		else if (inv->movable & INV_SELECT_ONLY)
+		{
+			/* drag selection */
+			if (inv->curX != cellx || inv->curY != celly)
+			{
+				inv->curX = cellx;
+				inv->curY = celly;
+				old = inv->items + inv->top + cellx + celly * inv->invCol;
+				old->added = mcui.dragOneItem;
+				SIT_ForceRefresh();
+			}
 		}
 		break;
 	case SITOM_Move:
@@ -487,6 +501,7 @@ static int mcuiInventoryMouse(SIT_Widget w, APTR cd, APTR ud)
 						mcui.selCount = 1;
 						inv->items[cellx].slot = 1;
 						SIT_ForceRefresh();
+						return 2;
 					}
 					else if (old->id > 0)
 					{
@@ -979,20 +994,6 @@ void mcuiCreateInventory(Inventory player)
 
 	SIT_SetAttributes(diag, "<searchtxt top=MIDDLE,search><inv right=WIDGET,scroll,0.2em>");
 
-	/* icons for tab: will be rendered as MC items */
-	SIT_Widget tab  = SIT_GetById(diag, "items");
-	SIT_Widget find = SIT_GetById(diag, "search");
-	int i;
-	for (i = 0; i < 6; i ++)
-	{
-		/* tab icons:           build     deco        redstone       crops          rails      search/all */
-		static int blockId[] = {ID(45,0), ID(175,15), ITEMID(331,0), ITEMID(260,0), ID(27, 0), ITEMID(345,0)};
-		SIT_Widget w = SIT_TabGetNth(tab, i);
-
-		SIT_SetValues(w, SIT_LabelSize, SITV_LabelSize(mcui.cellSz, mcui.cellSz), SIT_UserData, (APTR) blockId[i], NULL);
-		SIT_AddCallback(w, SITE_OnPaint, mcuiGrabItemCoord, NULL);
-	}
-
 	/* callbacks registration */
 	mcui.toolTip = SIT_GetById(diag, "info");
 	mcui.selCount = 0;
@@ -1013,6 +1014,20 @@ void mcuiCreateInventory(Inventory player)
 	mcuiInitInventory(SIT_GetById(diag, "tb"),     &toolbar, 0);
 
 	mcuiResetScrollbar(&mcinv);
+
+	/* icons for tab: will be rendered as MC items */
+	SIT_Widget tab  = SIT_GetById(diag, "items");
+	SIT_Widget find = SIT_GetById(diag, "search");
+	int i;
+	for (i = 0; i < 6; i ++)
+	{
+		/* tab icons:           build     deco        redstone       crops          rails      search/all */
+		static int blockId[] = {ID(45,0), ID(175,15), ITEMID(331,0), ITEMID(260,0), ID(27, 0), ITEMID(345,0)};
+		SIT_Widget w = SIT_TabGetNth(tab, i);
+
+		SIT_SetValues(w, SIT_LabelSize, SITV_LabelSize(mcui.cellSz, mcui.cellSz), SIT_UserData, (APTR) blockId[i], NULL);
+		SIT_AddCallback(w, SITE_OnPaint, mcuiGrabItemCoord, NULL);
+	}
 
 	SIT_SetAttributes(diag,
 		"<exch1 height=", mcui.cellSz, ">"
@@ -1084,16 +1099,51 @@ static int mcuiTransferItems(SIT_Widget w, APTR cd, APTR ud)
 /*
  * single/double chest inventory editing (ender, shulker or normal)
  */
-void mcuiEditChestInventory(Inventory player, Item items, int count)
+void mcuiEditChestInventory(Inventory player, Item items, int count, int type)
 {
+	static struct MCInventory_t chest = {.invRow = 3, .invCol = MAXCOLINV, .groupId = 2};
+	static struct MCInventory_t slot0 = {.invRow = 1, .invCol = 1, .groupId = 3, .itemsNb = 1};
+	static struct MCInventory_t slot1 = {.invRow = 1, .invCol = 1, .groupId = 4, .itemsNb = 1};
+	static struct MCInventory_t slot2 = {.invRow = 1, .invCol = 1, .groupId = 5, .itemsNb = 1};
+
 	SIT_Widget diag = SIT_CreateWidget("container", SIT_DIALOG, globals.app,
 		SIT_DialogStyles, SITV_Plain | SITV_Modal,
 		NULL
 	);
+	mcui.groupCount = 0;
+
+	if (type == 0)
+	{
+		/* chest interface */
+		SIT_CreateWidgets(diag,
+			"<label name=msg title=", count > 9*3 ? "Double chest:" : "Chest:", ">"
+			"<canvas composited=1 name=inv.inv left=FORM top=WIDGET,msg,0.5em nextCtrl=LAST/>"
+		);
+		chest.invRow  = count / MAXCOLINV;
+		chest.items   = items;
+		chest.itemsNb = count;
+		mcuiInitInventory(SIT_GetById(diag, "inv"), &chest, 3 + 3 + 2);
+	}
+	else /* furnace */
+	{
+		SIT_CreateWidgets(diag,
+			/* fire should be between slot0 and slot1, but who cares? */
+			"<label name=msg title=Furnace: left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, ">"
+			"<label name=furnace imagePath=furnace.png left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, "top=WIDGET,msg,2em>"
+			"<canvas composited=1 name=slot0.inv right=WIDGET,furnace,1em bottom=WIDGET,furnace,-0.5em nextCtrl=LAST/>"
+			"<canvas composited=1 name=inv.inv right=WIDGET,furnace,1em top=WIDGET,furnace,-0.5em nextCtrl=LAST/>"
+			"<canvas composited=1 name=slot2.inv left=WIDGET,furnace,1em top=MIDDLE,furnace nextCtrl=LAST/>"
+		);
+		slot0.items = items;
+		slot1.items = items + 1;
+		slot2.items = items + 2;
+		mcuiInitInventory(SIT_GetById(diag, "slot0"), &slot0, 1);
+		mcuiInitInventory(SIT_GetById(diag, "inv"),   &slot1, 0);
+		mcuiInitInventory(SIT_GetById(diag, "slot2"), &slot2, 0);
+		SIT_SetValues(SIT_GetById(diag, "furnace"), SIT_Height, mcui.cellSz/2, NULL);
+	}
 
 	SIT_CreateWidgets(diag,
-		"<label name=msg title=", count > 9*3 ? "Double chest:" : "Chest:", ">"
-		"<canvas composited=1 name=inv.inv left=FORM top=WIDGET,msg,0.5em nextCtrl=LAST/>"
 		"<label name=msg2 title='Player inventory:' top=WIDGET,inv,0.3em>"
 		"<canvas composited=1 name=player.inv top=WIDGET,msg2,0.3em nextCtrl=LAST/>"
 		"<canvas composited=1 name=tb.inv left=FORM top=WIDGET,player,0.5em nextCtrl=LAST/>"
@@ -1102,23 +1152,17 @@ void mcuiEditChestInventory(Inventory player, Item items, int count)
 
 	mcui.toolTip = SIT_GetById(diag, "info");
 	mcui.selCount = 0;
-	mcui.groupCount = 0;
 	mcui.cb = mcuiTransferItems;
 
-	static struct MCInventory_t chest = {.invRow = 3, .invCol = MAXCOLINV, .groupId = 2};
-
-	chest.invRow  = count / MAXCOLINV;
-	chest.items   = items;
-	chest.itemsNb = count;
 	selfinv.items = player->items + MAXCOLINV;
 	toolbar.items = player->items;
 
-	mcuiInitInventory(SIT_GetById(diag, "inv"),    &chest,   3 + 3 + 2);
 	mcuiInitInventory(SIT_GetById(diag, "tb"),     &toolbar, 0);
 	mcuiInitInventory(SIT_GetById(diag, "player"), &selfinv, 0);
 
 	SIT_ManageWidget(diag);
 }
+
 
 /*
  * interface to edit sign message

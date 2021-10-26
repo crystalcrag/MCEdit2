@@ -64,7 +64,7 @@ struct SignBank_t
 struct SignPrivate_t
 {
 	SignText list;                 /* array of <count> items */
-	DATA32   usage;                /* array of <count>/32+1 items */
+	DATA32   usage;                /* array of <max>/32 items */
 	SignBank banks;                /* array of <maxBank> items */
 	int      count, max, maxBank;
 	int      toRender;             /* signs in render dist */
@@ -74,8 +74,6 @@ struct SignPrivate_t
 	int      font;
 	int      shader;
 };
-
-#define RGBA(hex)    (hex >> 16), (hex >> 8) & 0xff, (hex & 0xff), 0xff
 
 #endif
 #endif

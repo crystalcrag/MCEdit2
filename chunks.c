@@ -107,7 +107,12 @@ static DATA8 chunkInsertTileEntity(TileEntityHash hash, TileEntityEntry ent)
 		free = dest + free->next;
 	}
 	DATA8 prev = free->data;
-	ent->prev = old ? old - dest : EOF_MARKER;
+	if (old)
+	{
+		ent->prev = old - dest;
+		old->next = free - dest;
+	}
+	else ent->prev = EOF_MARKER;
 	ent->next = EOF_MARKER;
 	*free = *ent;
 	return prev;
@@ -164,6 +169,7 @@ Bool chunkAddTileEntity(Chunk c, int * XYZ, DATA8 mem)
 
 		count = roundToUpperPrime(hash->count);
 		reloc = calloc(chunkHashSize(count), 1);
+		fprintf(stderr, "enlarging hash table from %d to %d at %d, %d\n", hash->count, count, c->X, c->Z);
 		if (! reloc) return False;
 		c->tileEntities = reloc;
 
@@ -188,6 +194,7 @@ Bool chunkAddTileEntity(Chunk c, int * XYZ, DATA8 mem)
 			free(mem);
 	}
 	else hash->count ++;
+
 	return True;
 }
 
@@ -1057,11 +1064,11 @@ static void chunkAddEmitters(ChunkData cd, int pos, int type)
 	{
 		if (list == NULL)
 		{
-			list = malloc(32);
+			list = malloc(16 * sizeof *list);
 			list[0] = 0;
 			list[1] = 14;
 		}
-		else list = realloc(list, list[1] + 18), list[1] += 16;
+		else list = realloc(list, (list[1] + 18) * sizeof *list), list[1] += 16;
 		cd->emitters = list;
 	}
 	list[list[0]+2] = pos | (type << 12);
@@ -1110,8 +1117,8 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 	memset(visited, 0, sizeof visited);
 	hasLights = (cur->cdFlags & CDFLAG_NOLIGHT) == 0;
 
-//	if (c->X == 1024 && cur->Y == 0 && c->Z == -880)
-//		globals.breakPoint = 1;
+	if (c->X == 0 && cur->Y == 64 && c->Z == -576)
+		globals.breakPoint = 1;
 
 	for (pos = air = 0; pos < 16*16*16; pos ++)
 	{
@@ -1124,8 +1131,8 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 		block = blocks[pos];
 		state = blockGetById(ID(block, data));
 
-//		if (globals.breakPoint && pos == 1344)
-//			globals.breakPoint = 2;
+		if (globals.breakPoint && pos == 3484)
+			globals.breakPoint = 2;
 
 		/* 3d flood fill for cave culling */
 		if (! blockIsFullySolid(state) && (slotsXZ[pos & 0xff] || slotsY[pos >> 8]) && (visited[pos>>3] & mask8bit[pos&7]) == 0)
@@ -1500,7 +1507,7 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 		}
 		/* check if we can eliminate even more faces */
 		uint8_t norm = GET_NORMAL(model);
-		if (model[axisCheck[norm]] == axisAlign[norm] &&b->special != BLOCK_GLASS /*iron bars and glass pane already have their model culled*/)
+		if (model[axisCheck[norm]] == axisAlign[norm] && b->special != BLOCK_GLASS /*iron bars and glass pane already have their model culled*/)
 		{
 			extern int8_t opp[];
 			struct BlockIter_t iter;
@@ -1607,9 +1614,10 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 	for (i = 0, side = 1, occlusion = -1, tex = &b->nzU, rotate = b->rotate, j = (rotate&3) * 8, slab = 0; i < DIM(cubeIndices);
 		 i += 4, side <<= 1, rotate >>= 2, tex += 2, j = (rotate&3) * 8)
 	{
-		BlockState state;
+		BlockState nbor;
 		n = pos;
 
+		/* face hidden by another opaque block: 75% of SOLID blocks will be culled by this test */
 		if (b->special != BLOCK_LEAVES)
 		{
 			/* check if neighbor is opaque: discard face if yes */
@@ -1621,7 +1629,7 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 					continue; /* edge of map */
 				n += blockOffset[side];
 				data = META(cd, n>>1);
-				state = blockGetByIdData(cd->blockIds[n], n & 1 ? data >> 4 : data & 0xf);
+				nbor = blockGetByIdData(cd->blockIds[n], n & 1 ? data >> 4 : data & 0xf);
 			}
 			else
 			{
@@ -1630,21 +1638,24 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 				};
 				n += offsets[i>>2];
 				data = blocks[DATA_OFFSET + (n >> 1)];
-				state = blockGetByIdData(blocks[n], n & 1 ? data >> 4 : data & 0xf);
+				nbor = blockGetByIdData(blocks[n], n & 1 ? data >> 4 : data & 0xf);
 			}
 
-			/* face hidden by another opaque block: 75% of SOLID blocks will be culled by this test */
-			switch (state->type) {
+			switch (nbor->type) {
 			case SOLID:
-				switch (state->special) {
+				if (b->special == BLOCK_LIQUID && i == SIDE_TOP * 4)
+					/* top of liquid: slightly lower than a full block */
+					break;
+				switch (nbor->special) {
 				case BLOCK_HALF:
 				case BLOCK_STAIRS:
-					if (oppositeMask[*halfBlockGetModel(state, 0, NULL)] & side) continue;
+					if (oppositeMask[*halfBlockGetModel(nbor, 0, NULL)] & side) continue;
 					break;
 				default: continue;
 				}
 				break;
 			case TRANS:
+				if (b->special == BLOCK_LIQUID && nbor->special != BLOCK_LIQUID) break;
 				if (b->type == TRANS) continue;
 			}
 		}
@@ -1698,11 +1709,11 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 					data = blocks[DATA_OFFSET + (off >> 1)];
 					id   = blocks[off];
 				}
-				state = blockGetByIdData(id, off & 1 ? data >> 4 : data & 0xf);
-				blockIds3x3[k] = state->id;
-				if (state->type == SOLID || (state->type == CUST && state->special == BLOCK_SOLIDOUTER))
+				nbor = blockGetByIdData(id, off & 1 ? data >> 4 : data & 0xf);
+				blockIds3x3[k] = nbor->id;
+				if (nbor->type == SOLID || (nbor->type == CUST && nbor->special == BLOCK_SOLIDOUTER))
 				{
-					if (state->special == BLOCK_HALF || state->special == BLOCK_STAIRS)
+					if (nbor->special == BLOCK_HALF || nbor->special == BLOCK_STAIRS)
 					{
 						if (hasLights)
 						{
@@ -1818,10 +1829,25 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 					/* reduce ambient occlusion a bit */
 					static uint8_t lessAmbient[] = {0, 1, 1, 1};
 					ocs = lessAmbient[ocs];
-					/* reduce Y by 0.2 unit */
-					out[0] -= (BASEVTX/32) << 16;
 				}
 				out[5] |= ocs << k*2;
+			}
+			if (b->special == BLOCK_LIQUID)
+			{
+				switch (i >> 2) {
+				case SIDE_SOUTH:
+				case SIDE_NORTH:
+				case SIDE_EAST:
+				case SIDE_WEST: /* reduce Y and texture by 0.2 unit */
+					nbor = blockGetById(blockIds3x3[22]);
+					if (nbor->special == BLOCK_LIQUID) break;
+					out[3] -= (BASEVTX/8) << 14;
+					out[4] += 2 << 23;
+					out[5] -= 2 << 24;
+					// no break;
+				case SIDE_TOP: /* reduce Y by 0.2 unit */
+					out[0] -= (BASEVTX/8) << 16;
+				}
 			}
 		}
 		buffer->cur = out + VERTEX_INT_SIZE;

@@ -152,7 +152,6 @@ enum                             /* values for Block.type */
 	SOLID,                       /* competely opaque: can hide inner blocks */
 	TRANS,                       /* alpha is either 0 or 255 (can be rendered with OPAQUE, but do not hide inner) */
 	QUAD,                        /* block that are 2 quads crossing (flowers, crops, ...) */
-	LIKID,                       /* lava and water XXX need to be removed */
 	CUST                         /* arbitrary triangles: need special models/processing */
 };
 

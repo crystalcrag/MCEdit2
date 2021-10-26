@@ -13,7 +13,7 @@
 
 void mcuiTakeSnapshot(int width, int height);
 void mcuiCreateInventory(Inventory);
-void mcuiEditChestInventory(Inventory, Item items, int count);
+void mcuiEditChestInventory(Inventory, Item items, int count, int type);
 void mcuiCreateSignEdit(vec4 pos, int blockId);
 void mcuiGoto(vec4 pos);
 void mcuiInitDrawItems(void);

@@ -241,9 +241,13 @@ void particlesSmoke(Map map, int blockId, vec4 pos)
 }
 
 #ifndef NOEMITTERS
-static Emitter particlesAddEmitter(vec4 pos, int blockId, int type, int interval)
+static Emitter particlesAddEmitter(vec4 pos, int blockId, int type, int interval, int16_t ** next)
 {
+	Emitter old  = emitters.buffer;
 	Emitter emit = emitterAlloc();
+
+	if (old != emitters.buffer && (DATAS16) old <= *next && *next < (DATAS16) (old + emitters.count-1))
+		*next = (int16_t *) ((DATA8) emitters.buffer + ((DATA8) *next - (DATA8) old));
 
 	if (emit)
 	{
@@ -363,7 +367,7 @@ static void particleMakeActive(Map map)
 		{
 			int  xzy = *emit & 0xfff;
 			vec4 loc = {c->X + (xzy & 15), cd->Y + (xzy >> 8), c->Z + ((xzy >> 4) & 15)};
-			Emitter e = particlesAddEmitter(loc, particleGetBlockId(cd, xzy), (*emit >> 12) + 1, 750);
+			Emitter e = particlesAddEmitter(loc, particleGetBlockId(cd, xzy), (*emit >> 12) + 1, 750, &cur);
 			*cur = e - emitters.buffer;
 			cur = &e->next;
 		}
@@ -401,7 +405,7 @@ void particlesChunkUpdate(Map map, ChunkData cd)
 			{
 				/* new emitter */
 				vec4 loc = {chunk->X + (newOffset & 15), cd->Y + (newOffset >> 8), chunk->Z + ((newOffset >> 4) & 15)};
-				Emitter e = particlesAddEmitter(loc, particleGetBlockId(cd, newOffset), (*newIds >> 12) + 1, 750);
+				Emitter e = particlesAddEmitter(loc, particleGetBlockId(cd, newOffset), (*newIds >> 12) + 1, 750, &start);
 				e->next = oldEmit == NULL ? -1 : oldEmit - emitters.buffer;
 				*start = e - emitters.buffer;
 				start = &e->next;

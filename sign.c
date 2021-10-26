@@ -38,6 +38,7 @@
 
 static struct SignPrivate_t signs;
 #if 0
+#define RGBA(hex)    (hex >> 16), (hex >> 8) & 0xff, (hex & 0xff), 0xff
 /* hmm, maybe later ... */
 static uint8_t colors[] = {
 	RGBA(0x000000),
@@ -58,6 +59,7 @@ static uint8_t colors[] = {
 	RGBA(0xFFFFFF),
 	RGBA(0xDDD605),
 };
+#undef RGBA
 #endif
 
 char signMinText[] = "wwwwwwwwwwwwwww";
@@ -138,7 +140,13 @@ static int signParseText(DATA8 dest, int max, DATA8 json)
 		/* it's not like NBT allow storing arbitrary datatypes like JSON does */
 		return jsonParseString(dest, text + 8, max);
 	}
-	return 0;
+	int i;
+	/* get the whole text (older version (<1.8 ?) didn't use json */
+	for (i = 0; i < max && json[0]; i ++, json ++, dest ++)
+		dest[0] = json[0];
+	if (i < max) dest[0] = 0;
+	else         dest[-1] = 0;
+	return i;
 }
 
 /* convert sign text into a user-editable string for a multi-line text edit */
@@ -175,8 +183,9 @@ static void signParseEntity(SignText sign)
 	struct NBTIter_t iter;
 	int i;
 
-	if (! nbt.mem) return;
 	memset(sign->text, 0, sizeof sign->text);
+	memset(sign->XYZ,  0, sizeof sign->XYZ);
+	if (! nbt.mem) return;
 	NBT_IterCompound(&iter, nbt.mem);
 	while ((i = NBT_Iter(&iter)) >= 0)
 	{
@@ -339,6 +348,8 @@ int signAddToList(int blockId, DATA8 tile, int prev, uint8_t light)
 	/* extract all the information we will need to render the sign from NBT */
 	signParseEntity(&sign);
 
+	//fprintf(stderr, "%d/%d. adding sign at %d, %d, %d: %p\n", signs.count, signs.max, sign.XYZ[0], sign.XYZ[1], sign.XYZ[2], tile);
+
 	/* check if it is already in the list */
 	int first = prev;
 	if (prev >= 0)
@@ -366,7 +377,7 @@ int signAddToList(int blockId, DATA8 tile, int prev, uint8_t light)
 		if (old > 0)
 		{
 			/* usage buffers (in signs.list) */
-			memmove(signs.list + old, signs.usage, 4 * (old >> 5));
+			memmove(signs.usage, signs.list + old, 4 * (old >> 5));
 		}
 		signs.usage[old>>5] = 0;
 	}

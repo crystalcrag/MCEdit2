@@ -1033,8 +1033,6 @@ int entityRaycast(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos)
 				vec4  norm, inter;
 				int   j;
 
-				if (globals.breakPoint)
-					puts("here");
 				/* order must be the same than entity.vsh */
 				if (list->rotation[0] > 0)
 					/* rotation along VY is CW, we want trigo here, hence the +3 */

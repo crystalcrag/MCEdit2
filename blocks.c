@@ -529,7 +529,7 @@ DATA16 blockParseModel(float * values, int count, DATA16 buffer)
 				}
 			}
 			/* recompute normal vector because of rotation */
-			blockSetUVAndNormals(p - 20, inv, cubeMap && (detail & 1) == 0, tmp, /* altTex ? altTex :*/ values + i);
+			blockSetUVAndNormals(p - 20, inv, cubeMap && (detail & 1) == 0, tmp, values + i);
 			/* will allow the vertex shader to discard some faces (blocks with auto-connected parts) */
 			p[-1] |= faceId; p[-11] |= faceId;
 			p[-6] |= faceId; p[-16] |= faceId;
@@ -684,7 +684,7 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 
 		/* main block type for rendering world */
 		value = jsonValue(keys, "type");
-		block.type = FindInList("INVIS,SOLID,TRANS,QUAD,LIKID,CUST", value, 0);
+		block.type = FindInList("INVIS,SOLID,TRANS,QUAD,CUST", value, 0);
 		if (block.type < 0)
 		{
 			SIT_Log(SIT_ERROR, "%s: unknown block type '%s' on line %d\n", file, value, line);
@@ -721,7 +721,7 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 		}
 		/* bounding box for player */
 		value = jsonValue(keys, "bboxPlayer");
-		block.bboxPlayer = value ? FindInList("NONE,AUTO,MAX,FULL", value, 0) : (block.type == QUAD || block.type == LIKID ? BBOX_NONE : block.bbox);
+		block.bboxPlayer = value ? FindInList("NONE,AUTO,MAX,FULL", value, 0) : (block.type == QUAD ? BBOX_NONE : block.bbox);
 		if (block.bboxPlayer < 0)
 			block.bboxPlayer = block.bbox;
 		/* default bbox (cannot be overridden) */
@@ -946,7 +946,7 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 			}
 			break;
 		case SOLID: /* will produce AO/shadow on nearby blocks */
-		case LIKID:
+		case TRANS:
 			block.updateNearby = 1;
 		}
 		if (block.rswire)
@@ -2515,24 +2515,24 @@ Bool blockIsSideHidden(int blockId, DATA16 face, int side)
 	case SOLID: return True;
 	case TRANS:
 	case INVIS:
-	case LIKID:
 	case QUAD:  return False;
 	case CUST:
 		if (state->custModel)
 		{
-			extern int8_t opp[];
+			extern int8_t   opp[];
+			extern uint8_t  axisCheck[];
+			extern uint16_t axisAlign[];
 			/* be a bit more aggressive with custom models */
 			uint16_t bounds1[4];
 			uint16_t bounds2[4];
 			DATA16   model;
 			int      count;
-			fillVertex(face, bounds1, side);
-			side = opp[side];
+			fillVertex(face, bounds1, opp[side]);
 			/* need to analyze vertex data */
 			for (model = state->custModel, count = model[-1]; count > 0; count -= 6, model += INT_PER_VERTEX * 6)
 			{
 				uint8_t norm = GET_NORMAL(model);
-				if (norm != side) continue;
+				if (norm != side || model[axisCheck[norm]] != axisAlign[norm]) continue;
 				fillVertex(model, bounds2, side);
 				/* <face> is covered by neighbor: discard */
 				if (bounds2[0] <= bounds1[0] && bounds2[2] <= bounds1[2] &&

@@ -9,7 +9,7 @@
 	{id: 261, state: 0, name: "Bow",                  stack: 1, cat: ALLCAT,   tex: [ 0, 5], durability: 384},
 	{id: 262, state: 0, name: "Arrow",                stack:64, cat: ALLCAT,   tex: [ 1, 4]},
 	{id: 263, state: 0, name: "Coal",                 stack:64, cat: ALLCAT,   tex: [ 9, 1]},
-	{id: 263, state: 1, name: "Charcoal",             stack:64, cat: ALLCAT,   tex: [ 9, 1], tech: "charcoal"},
+	{id: 263, state: 1, name: "Charcoal",             stack:64, cat: ALLCAT,   tex: [ 9, 0], tech: "charcoal"},
 	{id: 264, state: 0, name: "Diamond",              stack:64, cat: ALLCAT,   tex: [ 7, 0]},
 	{id: 265, state: 0, name: "Iron Ingot",           stack:64, cat: ALLCAT,   tex: [ 8, 1]},
 	{id: 266, state: 0, name: "Gold Ingot",           stack:64, cat: ALLCAT,   tex: [ 8, 2]},

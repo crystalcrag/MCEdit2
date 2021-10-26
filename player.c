@@ -403,7 +403,7 @@ void playerUpdateNBT(Player p)
 		int offset = NBT_Insert(levelDat, "Player.Inventory", TAG_List_Compound, &inventory);
 		NBT_Free(&inventory);
 		if (offset >= 0)
-			mapDecodeItems(p->inventory.items, MAXCOLINV, NBT_Hdr(levelDat, offset));
+			mapDecodeItems(p->inventory.items, MAXCOLINV * 4, NBT_Hdr(levelDat, offset));
 	}
 }
 

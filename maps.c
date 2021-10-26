@@ -621,6 +621,8 @@ Bool mapMoveCenter(Map map, vec4 old, vec4 pos)
 	return False;
 }
 
+void dumpTileEntities(Chunk list);
+
 /* load and convert chunk to mesh */
 void mapGenerateMesh(Map map)
 {
@@ -667,6 +669,8 @@ void mapGenerateMesh(Map map)
 			}
 		}
 
+		//fprintf(stderr, "meshing chunk %d, %d\n", list->X, list->Z);
+		//dumpTileEntities(list);
 		/* second: push data to the GPU (only the first chunk) */
 		for (i = 0, j = list->maxy; j > 0; j --, i ++)
 		{
@@ -1022,6 +1026,18 @@ NBTHdr mapLocateItems(MapExtraData sel)
 	return NULL;
 }
 
+/* old save file (<1.8, I think), saved items in numeric format (as TAG_Short): convert these to strings */
+static STRPTR mapItemName(NBTFile nbt, int offset, TEXT itemId[16])
+{
+	NBTHdr hdr = NBT_Hdr(nbt, offset);
+	if (hdr->type != TAG_String)
+	{
+		sprintf(itemId, "%d", NBT_ToInt(nbt, offset, 0));
+		return itemId;
+	}
+	return NBT_Payload(nbt, offset);
+}
+
 /* read TileEntities.Items from a container */
 void mapDecodeItems(Item container, int count, NBTHdr hdrItems)
 {
@@ -1035,6 +1051,7 @@ void mapDecodeItems(Item container, int count, NBTHdr hdrItems)
 	{
 		NBTIter_t properties;
 		NBTFile_t nbt = {.mem = mem};
+		TEXT      itemId[16];
 		ItemBuf   item;
 		int       off;
 		memset(&item, 0, sizeof item);
@@ -1042,7 +1059,7 @@ void mapDecodeItems(Item container, int count, NBTHdr hdrItems)
 		while ((off = NBT_Iter(&properties)) >= 0)
 		{
 			switch (FindInList("id,Slot,Count,Damage", properties.name, 0)) {
-			case 0:  item.id = itemGetByName(NBT_Payload(&nbt, off), True); break;
+			case 0:  item.id = itemGetByName(mapItemName(&nbt, off, itemId), True); break;
 			case 1:  item.slot = NBT_ToInt(&nbt, off, 255); break;
 			case 2:  item.count = NBT_ToInt(&nbt, off, 1); break;
 			case 3:  item.uses = NBT_ToInt(&nbt, off, 0); break;

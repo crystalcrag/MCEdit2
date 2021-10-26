@@ -361,7 +361,7 @@ void debugCoord(APTR vg, vec4 camera, int total)
 	int  vis, culled;
 	ChunkData cd = globals.level->firstVisible;
 
-	len += sprintf(message + len, "\nChunk: %d, %d, %d (cnxGraph: 0x%x)", CPOS(camera[0]) << 4, CPOS(camera[1]) << 4, CPOS(camera[2]) << 4, cd ? cd->cnxGraph : 65535);
+	len += sprintf(message + len, "\nChunk: %d, %d, %d", CPOS(camera[0]) << 4, CPOS(camera[1]) << 4, CPOS(camera[2]) << 4);
 	len += sprintf(message + len, "\nTriangles: %d", total);
 	for (cd = globals.level->firstVisible, vis = 0, culled = 0; cd; vis ++, cd = cd->visible)
 		if (cd->comingFrom == 0) culled ++;

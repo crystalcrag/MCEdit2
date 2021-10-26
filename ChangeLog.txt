@@ -1,7 +1,16 @@
+=========== Week 43 ===========
+Mon Oct 25:
+	* added furnace interface.
+	* minor bug fixed: drag items in inventories (bug if mouse was released outside window), wrong tex
+	  orient for CUST models for bottom face (bug in TileFinder actually), face culling for CUST was
+	  incorrect, tile entities linked list didn't update prev node (missing sign text on some chunks).
+	* lava block state for data 1 ~ 15 were missing.
+
 =========== Week 42 ===========
 Sun Oct 24:
 	* pixel art generation works with blocks.
 	* map pixel art can be spread over multiple maps.
+	* particle emitters nasty use after free fixed.
 
 Sat Oct 23:
 	* auto ChunkData allocation reworked (avoid useless allocation).

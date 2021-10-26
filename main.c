@@ -345,7 +345,7 @@ int main(int nb, char * argv[])
 	}
 
 //	globals.level = renderInitWorld("TestMesh", mcedit.maxDist);
-	globals.level = renderInitWorld("World1_12", mcedit.maxDist);
+	globals.level = renderInitWorld("World5", mcedit.maxDist);
 	globals.yawPitch = &mcedit.player.angleh;
 	mcedit.state  = GAMELOOP_WORLD;
 
@@ -823,7 +823,7 @@ void mceditUIOverlay(int type)
 				goto case_INV;
 
 			/* extract inventories from NBT structure */
-			switch (FindInList("chest,trapped_chest,shulker,ender_chest,dispenser,dropper", tech, 0)) {
+			switch (FindInList("chest,trapped_chest,shulker,ender_chest,dispenser,dropper,furnace,lit_furnace", tech, 0)) {
 			case 0:
 			case 1:
 				/* possibly a double-chest */
@@ -843,7 +843,7 @@ void mceditUIOverlay(int type)
 						mapDecodeItems(item+27, 27, mapLocateItems(sel));
 					}
 					memcpy(item + 54, item, 54 * sizeof *item);
-					mcuiEditChestInventory(&mcedit.player.inventory, item, 54);
+					mcuiEditChestInventory(&mcedit.player.inventory, item, 54, 0);
 					break;
 				}
 				// else no break;
@@ -854,7 +854,7 @@ void mceditUIOverlay(int type)
 				item = alloca(sizeof *item * 27 * 2);
 				mapDecodeItems(item, 27, mapLocateItems(sel));
 				memcpy(item + 27, item, 27 * sizeof *item);
-				mcuiEditChestInventory(&mcedit.player.inventory, item, 27);
+				mcuiEditChestInventory(&mcedit.player.inventory, item, 27, 0);
 				break;
 			case 3: /* ender chest */
 				break;
@@ -864,8 +864,17 @@ void mceditUIOverlay(int type)
 				item = alloca(sizeof *item * 9 * 2);
 				mapDecodeItems(item, 9, mapLocateItems(sel));
 				memcpy(item + 9, item, 9 * sizeof *item);
-				mcuiEditChestInventory(&mcedit.player.inventory, item, 9);
+				mcuiEditChestInventory(&mcedit.player.inventory, item, 9, 0);
 				break;
+			case 6: /* furnace */
+			case 7: /* lit furnace */
+				itemCount = 3;
+				item = alloca(sizeof *item * 3 * 2);
+				mapDecodeItems(item, 9, mapLocateItems(sel));
+				memcpy(item + 3, item, 3 * sizeof *item);
+				mcuiEditChestInventory(&mcedit.player.inventory, item, 3, 1);
+				break;
+
 			default:
 				if (b->special == BLOCK_SIGN)
 					mcuiCreateSignEdit(pos, sel->blockId);

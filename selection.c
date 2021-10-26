@@ -520,7 +520,7 @@ int selectionCopyBlocks(SIT_Widget w, APTR cd, APTR ud)
 					int blockId = (src.blockIds[src.offset] << 4) | (src.offset & 1 ? data >> 4 : data & 15);
 					if (dst.ref == NULL) continue; /* outside map :-/ */
 					if (air == 0 && blockId == 0) continue;
-					if (water == 0 && blockGetById(blockId)->special == LIKID) continue;
+					if (water == 0 && blockGetById(blockId)->special == BLOCK_LIQUID) continue;
 					DATA8 tile = chunkDeleteIterTE(src, True);
 					mapUpdate(map, NULL, blockId, tile, UPDATE_SILENT);
 				}
