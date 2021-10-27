@@ -934,7 +934,7 @@ static TileTick updateInsert(ChunkData cd, int offset, int tick)
 	return entry;
 }
 
-void updateRemove(ChunkData cd, int offset, int clearSorted)
+void updateRemove(ChunkData cd, int offset, Bool clearSorted)
 {
 	TileTick entry = updates.list + TOHASH(cd, offset) % updates.max;
 	TileTick last;
@@ -984,13 +984,29 @@ void updateRemove(ChunkData cd, int offset, int clearSorted)
 	}
 }
 
+#if 0
+static void updateDebugSorted(int start)
+{
+	int i;
+	fprintf(stderr, " [%d: ", updates.count);
+	for (i = 0; i < updates.count; i ++)
+	{
+		if (i > 0) fprintf(stderr, ", ");
+		int id = updates.sorted[start+i];
+		fprintf(stderr, "%d:%d", id, updates.list[id].tick);
+	}
+	fprintf(stderr, "]\n");
+}
+#endif
+
 void updateAdd(BlockIter iter, int blockId, int nbTick)
 {
 	TileTick update = updateInsert(iter->cd, iter->offset, globals.curTime + nbTick * (1000 / TICK_PER_SECOND));
 	update->blockId = blockId;
 
-	fprintf(stderr, "adding block update in %d tick at %d, %d, %d to %d:%d [%d]\n", nbTick,
-		iter->ref->X + (iter->offset & 15), iter->yabs, iter->ref->Z + ((iter->offset >> 4) & 15), blockId >> 4, blockId & 15, updates.count);
+	fprintf(stderr, "adding block update in %d tick at %d, %d, %d to %d:%d", nbTick,
+		iter->ref->X + (iter->offset & 15), iter->yabs, iter->ref->Z + ((iter->offset >> 4) & 15), blockId >> 4, blockId & 15);
+	//updateDebugSorted(0);
 }
 
 /* usually redstone devices (repeater, torch) update surrounding blocks after a delay */
@@ -1010,17 +1026,19 @@ void updateTick(void)
 		pos[2] = cd->chunk->Z + (off & 15);
 		pos[1] = cd->Y + (off >> 4);
 
-		updates.start ++;
-
+		//fprintf(stderr, "applying block update at %d, %d, %d for %d:%d",
+		//	(int) pos[0], (int) pos[1], (int) pos[2], list->blockId >> 4, list->blockId & 15);
 		i ++;
-		mapUpdate(globals.level, pos, list->blockId, NULL, i == count || updates.list[updates.sorted[i]].tick > time);
-		updateRemove(cd, list->offset, 0);
+
+		mapUpdate(globals.level, pos, list->blockId, NULL, False);
+		updateRemove(cd, list->offset, False);
+		//updateDebugSorted(i);
 	}
 	if (i > 0)
 	{
 		/* remove processed updates in sorted array */
 		memmove(updates.sorted, updates.sorted + i, updates.count * sizeof *updates.sorted);
-		updates.start = 0;
+		mapUpdateEnd(globals.level);
 	}
 }
 

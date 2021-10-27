@@ -60,7 +60,7 @@ float physicsSweptAABB(float bboxStart[6], vec4 dir, float block[6], DATA8 norma
 	/* finally compute the normal of the collision */
 	*normal = axis;
 
-	return entryTime;
+	return entryTime < EPSILON ? 0 : entryTime;
 }
 
 /* try to move bounding box <bbox> from <start> to <end>, changing end if movement is blocked */
@@ -133,7 +133,8 @@ int physicsCheckCollision(Map map, vec4 start, vec4 end, VTXBBox bbox, float aut
 						dist = physicsSweptAABB(minMax, dir, bboxFloat, &axis);
 						if (dist < 1 && elevation < bboxFloat[VY+3])
 							elevation = bboxFloat[VY+3];
-						if (dist < shortestDist)
+						static uint8_t priority[] = {1, 0, 2};
+						if (dist < shortestDist || (dist == 0 && priority[axis] > priority[curAxis]))
 							shortestDist = dist, curAxis = axis;
 					}
 				}

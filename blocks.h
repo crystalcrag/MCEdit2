@@ -21,10 +21,10 @@ void    blockParseBoundingBox(void);
 void    blockParseInventory(int vbo);
 void    blockPostProcessTexture(DATA8 * data, int * w, int * h, int bpp);
 void    blockCenterModel(DATA16 vertex, int count, int U, int V, Bool shiftY, VTXBBox bbox);
-int     blockGetConnect(BlockState, DATA8 neighbors);
+int     blockGetConnect(BlockState, DATA16 neighbors);
 VTXBBox blockGetBBox(BlockState);
 VTXBBox blockGetBBoxForVertex(BlockState);
-int     blockGetConnect4(DATA8 neighbors, int type);
+int     blockGetConnect4(DATA16 neighbors, int type);
 int     blockGenVertexBBox(BlockState b, VTXBBox box, int flag, int * vbo, int texCoord, int offsets);
 int     blockInvGetModelSize(int id);
 Bool    blockGetBoundsForFace(VTXBBox, int face, vec4 V0, vec4 V1, vec4 offset, int cnxFlags);
@@ -43,6 +43,7 @@ int     blockInvCountVertex(DATA16 model, int faceId);
 int     blockInvCopyFromModel(DATA16 ret, DATA16 model, int faceId);
 int     blockAdjustInventory(int blockId);
 Bool    blockGetAlphaTex(DATA8 bitmap, int U, int V);
+void    blockAnimate(void);
 
 void    halfBlockGenMesh(WriteBuffer, DATA8 model, int size /* 2 or 8 */, DATA8 xyz, BlockState, DATA16 blockIds, DATA8 skyBlock, int genSides);
 DATA8   halfBlockGetModel(BlockState, int size /* 1, 2 or 8 */, DATA16 blockIds);
@@ -367,6 +368,8 @@ enum                       /* special values for Block_t.rswire */
 #define PAINTINGS_TILE_H   9
 #define PAINTINGS_TILE_X   16
 #define PAINTINGS_TILE_Y   (32+14)
+#define LAVA_TILE_X        13
+#define LAVA_TILE_Y        14
 
 /*
  * mostly private stuff below that point

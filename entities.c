@@ -486,7 +486,7 @@ static int entityGetModelId(Entity entity)
 	if (strncmp(id, "minecraft:", 10) == 0)
 		id += 10;
 
-	if (strcmp(id, "falling_block") == 0)
+	if (strcasecmp(id, "falling_block") == 0)
 	{
 		STRPTR block = NULL;
 		int    data  = 0;
@@ -503,9 +503,13 @@ static int entityGetModelId(Entity entity)
 			}
 		}
 		if (block)
-			return entityAddModel(entity->blockId = itemGetByName(block, False) | data, 0, NULL);
+		{
+			off = itemGetByName(block, False);
+			if (off > 0)
+				return entityAddModel(entity->blockId = off | data, 0, NULL);
+		}
 	}
-	else if (strcmp(id, "painting") == 0)
+	else if (strcasecmp(id, "painting") == 0)
 	{
 		int off = NBT_FindNode(&nbt, 0, "Motive");
 		if (off >= 0)
@@ -514,7 +518,7 @@ static int entityGetModelId(Entity entity)
 			if (off >= 0) return hashSearch(ENTITY_PAINTINGID + off);
 		}
 	}
-	else if (strcmp(id, "item_frame") == 0)
+	else if (strcasecmp(id, "item_frame") == 0)
 	{
 		int item = NBT_FindNode(&nbt, 0, "Item");
 		if (item >= 0)
@@ -542,7 +546,7 @@ static int entityGetModelId(Entity entity)
 		/* item will be allocated later */
 		return hashSearch(ENTITY_ITEMFRAME);
 	}
-	else if (strcmp(id, "item") == 0)
+	else if (strcasecmp(id, "item") == 0)
 	{
 		/* item laying in the world */
 		int desc = NBT_FindNode(&nbt, 0, "Item");
@@ -550,7 +554,7 @@ static int entityGetModelId(Entity entity)
 		int data = NBT_ToInt(&nbt, NBT_FindNode(&nbt, desc, "Damage"), 0);
 		int blockId = itemGetByName(NBT_Payload(&nbt, NBT_FindNode(&nbt, desc, "id")), False);
 
-		if (blockId >= 0)
+		if (blockId > 0)
 		{
 			entity->rotation[3] = 0.5; /* scale actually */
 			if (blockId < ID(256, 0))
@@ -880,7 +884,7 @@ void entityInfo(int id, STRPTR buffer, int max)
 		if (id < ID(256, 0))
 		{
 			BlockState b = blockGetById(id);
-			if (b) name = b->name;
+			if (b > blockStates) name = b->name;
 		}
 		else /* item */
 		{
@@ -888,12 +892,12 @@ void entityInfo(int id, STRPTR buffer, int max)
 			if (desc) name = desc->name;
 		}
 	}
-	else if ((name = entity->name) == NULL)
-	{
+	else name = entity->name;
+
+	if (name == NULL)
 		name = "<unknown>";
-	}
-	if (name)
-		count = StrCat(buffer, max, count, name);
+
+	count = StrCat(buffer, max, count, name);
 	if (id > 0)
 		count += sprintf(buffer + count, " <dim>(%d:%d)</dim>", id >> 4, id&15);
 

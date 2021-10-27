@@ -12,7 +12,7 @@
 void updateTick(void);
 void updateFinished(DATA8 tile, vec4 dest);
 void updateAdd(BlockIter iter, int blockId, int nbTick);
-void updateRemove(ChunkData cd, int offset, int clearSorted);
+void updateRemove(ChunkData cd, int offset, Bool clearSorted);
 Bool updateAlloc(int max);
 
 int  blockRotateX90(BlockIter);
@@ -39,7 +39,7 @@ struct UpdatePrivate_t
 {
 	TileTick list;
 	DATA16   sorted;
-	int      count, max, start;
+	int      count, max;
 };
 
 #endif

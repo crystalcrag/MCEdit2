@@ -1325,7 +1325,7 @@ void blockParseConnectedTexture(void)
 					break;
 				default: /* this particular block */
 					i = itemGetByName(fmt, False);
-					if (i < 0) break;
+					if (i <= 0) break;
 					num ++;
 					p[0] = i >> 8;
 					p[1] = i & 255;
@@ -2333,7 +2333,7 @@ int blockAdjustOrient(int blockId, BlockOrient info, vec4 inter)
 	static uint8_t orientLOG[]    = {8, 4, 8, 4, 0, 0};
 	static uint8_t orientSE[]     = {0, 1, 0, 1};
 	static uint8_t orientStairs[] = {3, 1, 2, 0};
-	static uint8_t orientDoor[]   = {7, 3, 1, 5, 2, 4, 6, 0};
+	static uint8_t orientDoor[]   = {1, 3, 7, 5, 6, 4, 2, 0};
 	static uint8_t orientLever[]  = {3, 1, 4, 2, 5, 7, 6, 0};
 	static uint8_t orientSWNE[]   = {0, 3, 2, 1};
 	static uint8_t orientSNEW[]   = {0, 2, 1, 3};
@@ -2458,8 +2458,12 @@ Bool blockIsAttached(int blockId, int side)
 	case ORIENT_SWNE:
 		return blockSides.SWNE[blockId&3] == side;
 	default:
-		if (b->special == BLOCK_SIGN)
+		switch (b->special) {
+		case BLOCK_RSWIRE:
+			return side == SIDE_BOTTOM;
+		case BLOCK_SIGN:
 			return blockSides.sign[blockId&7] == side;
+		}
 	}
 	return False;
 }
@@ -2512,7 +2516,7 @@ Bool blockIsSideHidden(int blockId, DATA16 face, int side)
 {
 	BlockState state = blockGetById(blockId);
 	switch (state->type) {
-	case SOLID: return True;
+	case SOLID: return state->special != BLOCK_HALF && state->special != BLOCK_STAIRS;
 	case TRANS:
 	case INVIS:
 	case QUAD:  return False;
@@ -3033,22 +3037,23 @@ void blockGetEmitterLocation(int blockId, float loc[3])
 
 
 /* check if the 4 surounding blocks (S, E, N, W) are of the same as <type> */
-int blockGetConnect4(DATA8 neighbors, int type)
+int blockGetConnect4(DATA16 neighbors, int type)
 {
 	static uint8_t stairsOrient[] = { /* introduced in 1.12 */
 		8, 2, 4, 1, 8, 2, 4, 1
 	};
 	int i, ret = 0;
 	/* neighbors need to be ordered S, E, N, W */
-	for (i = 1; i < 16; i <<= 1, neighbors += 2)
+	for (i = 1; i < 16; i <<= 1, neighbors ++)
 	{
-		BlockState n = blockGetById(ID(neighbors[0], neighbors[1]));
-		if (n->special == BLOCK_STAIRS)
+		BlockState nbor = blockGetById(neighbors[0]);
+		uint8_t    spec = nbor->special;
+		if (spec == BLOCK_STAIRS)
 		{
-			if (stairsOrient[n->id&7] == i)
+			if (stairsOrient[nbor->id&7] == i)
 				ret |= i;
 		}
-		else if ((n->type == SOLID && (n->special & BLOCK_NOCONNECT) == 0) || SPECIALSTATE(n) == type)
+		else if (spec != BLOCK_HALF && ((nbor->type == SOLID && (spec & BLOCK_NOCONNECT) == 0) || SPECIALSTATE(nbor) == type))
 		{
 			ret |= i;
 		}
@@ -3057,35 +3062,46 @@ int blockGetConnect4(DATA8 neighbors, int type)
 }
 
 /* check which parts (S, E, N, W) a redstone wire connect to */
-static int blockConnectRedstone(int blockId, DATA8 neighbors)
+static int blockConnectRedstone(int blockId, DATA16 neighbors)
 {
 	/* indexed by connected info */
 	static uint8_t straight[] = {0, 1, 2, 0, 1, 1, 0, 0, 2, 0, 2, 0, 0, 0, 0, 0};
 	int i, ret;
+
 	/* bottom part */
-	for (i = 1, ret = 0; i < 16; i <<= 1, neighbors += 2)
-		if (neighbors[0] == blockId) ret |= i;
+	for (i = 1, ret = 0; i < 16; i <<= 1, neighbors ++)
+	{
+		if ((neighbors[0] >> 4) != blockId) continue;
+		Block b = &blockIds[neighbors[5] >> 4];
+		if (b->type != SOLID || b->special == BLOCK_HALF)
+			/* slab allow power to go down, but not up */
+			ret |= i;
+	}
+
 	/* middle part */
-	for (i = 1, neighbors += 2; i < 16; i <<= 1, neighbors += 2)
+	for (i = 1, neighbors ++; i < 16; i <<= 1, neighbors ++)
 	{
 		static uint8_t validOrientFB[] = {0, 1, 0, 0, 0, 0, 0, 1};
 		static uint8_t validOrientBO[] = {3, 5, 0, 2, 0, 0, 0, 4};
-		switch (blockIds[neighbors[0]].rswire) {
+		switch (blockIds[neighbors[0] >> 4].rswire) {
 		case ALLDIR:
 			ret |= i;
 			break;
 		case FRONTBACK: /* repeater */
-			if ((neighbors[1]&1) == validOrientFB[i-1])
+			if ((neighbors[0]&1) == validOrientFB[i-1])
 				ret |= i;
 			break;
 		case BACKONLY:  /* observer */
-			if ((neighbors[1]&7) == validOrientBO[i-1])
+			if ((neighbors[0]&7) == validOrientBO[i-1])
 				ret |= i;
 		}
 	}
 	/* top part */
-	for (i = 1; i < 16; i <<= 1, neighbors += 2)
-		if (neighbors[0] == blockId) ret |= i|(i<<4);
+	if (blockIds[neighbors[4]>>4].type != SOLID)
+	{
+		for (i = 1; i < 16; i <<= 1, neighbors ++)
+			if ((neighbors[0] >> 4) == blockId) ret |= i|(i<<4);
+	}
 
 	/* connected to 1 direction or 2 straight parts (N/S or E/W) */
 	i = straight[ret&15];
@@ -3098,9 +3114,9 @@ static int blockConnectRedstone(int blockId, DATA8 neighbors)
 	else return ret | 256;
 }
 
-int blockGetConnect(BlockState b, DATA8 neighbors)
+int blockGetConnect(BlockState b, DATA16 neighbors)
 {
-	BlockState n;
+	BlockState nbor;
 	int        ret = 0, type = b->special;
 	int        middle;
 	switch (type) {
@@ -3111,13 +3127,13 @@ int blockGetConnect(BlockState b, DATA8 neighbors)
 		if ((b->id & 0xf) < 4)
 		{
 			/* oriented N/S */
-			if (neighbors[6] == middle) ret = 2; else
-			if (neighbors[2] == middle) ret = 4;
+			if ((neighbors[3] >> 4) == middle) ret = 2; else
+			if ((neighbors[1] >> 4) == middle) ret = 4;
 		}
 		else /* oriented E/W */
 		{
-			if (neighbors[4] == middle) ret = 4; else
-			if (neighbors[0] == middle) ret = 2;
+			if ((neighbors[2] >> 4) == middle) ret = 4; else
+			if ((neighbors[0] >> 4) == middle) ret = 2;
 		}
 		if (ret > 1 && (b->id & 1)) ret = 6-ret;
 		break;
@@ -3125,32 +3141,32 @@ int blockGetConnect(BlockState b, DATA8 neighbors)
 	case BLOCK_FENCE2: /* 4 neighbors */
 		return blockGetConnect4(neighbors, type);
 	case BLOCK_WALL: /* 6 neighbors */
-		ret = blockGetConnect4(neighbors+10, type);
+		ret = blockGetConnect4(neighbors+5, type);
 		/* if not connected to exactly 2 walls, drawn a bigger center piece */
-		if ((ret != 5 && ret != 10) || neighbors[26] > 0)
+		if ((ret != 5 && ret != 10) || neighbors[13] > 0)
 			ret |= 16;
-		n = blockGetById(ID(neighbors[8], neighbors[9]));
-		if (n->type == SOLID)
+		nbor = blockGetById(neighbors[4]);
+		if (nbor->type == SOLID)
 			ret |= 32; /* do some face culling */
 		break;
 	case BLOCK_GLASS: /* 12 bit parts - glass pane/iron bars */
 		/* middle: bit4~7 */
-		middle = blockGetConnect4(neighbors+10, type);
-		/* bottom: bit0~3. neighbors[8~9] == block below <b> */
-		n = blockGetById(ID(neighbors[8], neighbors[9]));
-		ret = (n->special == type ? blockGetConnect4(neighbors, type) ^ 15 : 15) & middle;
+		middle = blockGetConnect4(neighbors+5, type);
+		/* bottom: bit0~3. neighbors[4] == block below <b> */
+		nbor = blockGetById(neighbors[4]);
+		ret = (nbor->special == type ? blockGetConnect4(neighbors, type) ^ 15 : 15) & middle;
 		/* bottom center piece cap */
-		if (n->special != type) ret |= 1<<17;
-		/* top: bit8~11, neighbors[26~27] == block above <b> */
-		n = blockGetById(ID(neighbors[26], neighbors[27]));
-		ret |= ((n->special == type ? blockGetConnect4(neighbors+18, type) ^ 15 : 15) & middle) << 8;
+		if (nbor->special != type) ret |= 1<<17;
+		/* top: bit8~11, neighbors[13] == block above <b> */
+		nbor = blockGetById(neighbors[13]);
+		ret |= ((nbor->special == type ? blockGetConnect4(neighbors+9, type) ^ 15 : 15) & middle) << 8;
 		ret |= middle << 4;
 		/* top center piece cap */
-		if (n->special != type) ret |= 1<<16;
+		if (nbor->special != type) ret |= 1<<16;
 
 		/* center piece sides (bit12~15: SENW) */
-		for (middle = 1<<12, neighbors += 10; middle < (1<<16); middle <<= 1, neighbors += 2)
-			if (((neighbors[0]<<4)|neighbors[1]) != b->id) ret |= middle;
+		for (middle = 1<<12, neighbors += 5; middle < (1<<16); middle <<= 1, neighbors ++)
+			if (neighbors[0] != b->id) ret |= middle;
 		break;
 	case BLOCK_RSWIRE:
 		ret = blockConnectRedstone(b->id >> 4, neighbors);
@@ -3171,4 +3187,78 @@ DATA8 blockGetDurability(float dura)
 		return blocks.duraColors;
 
 	return blocks.duraColors + ((int) (blocks.duraMax * dura) << 2);
+}
+
+/*
+ * animate some textures (for now only Lava)
+ * Minecraft generates lava texture on the fly using the method described here:
+ * - https://github.com/UnknownShadow200/ClassiCube/wiki/MInecraft-Classic-lava-animation-algorithm#lava
+ *
+ * this code has been quote almost verbatim from classicube source.
+ */
+void blockAnimate(void)
+{
+	static float L_soupHeat[256];
+	static float L_potHeat[256];
+	static float L_flameHeat[256];
+	static uint8_t bitmap[16*16*4];
+
+	float soupHeat, potHeat, col;
+	int8_t x, y;
+	int i;
+	DATA8 p;
+	for (y = 0, i = 0, p = bitmap; y < 16; y++)
+	{
+		for (x = 0; x < 16; x++, p += 4)
+		{
+			/* Lookup table for (int)(1.2 * sin([ANGLE] * 22.5 * MATH_DEG2RAD)); */
+			/* [ANGLE] is integer x/y, so repeats every 16 intervals */
+			static int8_t sin_adj_table[16] = { 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, -1, -1, -1, 0, 0 };
+			int xx = x + sin_adj_table[y & 0xF], yy = y + sin_adj_table[x & 0xF];
+
+			#define mask  15
+			#define shift 4
+			soupHeat =
+				L_soupHeat[((yy - 1) & mask) << shift | ((xx - 1) & mask)] +
+				L_soupHeat[((yy - 1) & mask) << shift | (xx       & mask)] +
+				L_soupHeat[((yy - 1) & mask) << shift | ((xx + 1) & mask)] +
+
+				L_soupHeat[(yy & mask) << shift | ((xx - 1) & mask)] +
+				L_soupHeat[(yy & mask) << shift | (xx       & mask)] +
+				L_soupHeat[(yy & mask) << shift | ((xx + 1) & mask)] +
+
+				L_soupHeat[((yy + 1) & mask) << shift | ((xx - 1) & mask)] +
+				L_soupHeat[((yy + 1) & mask) << shift | (xx       & mask)] +
+				L_soupHeat[((yy + 1) & mask) << shift | ((xx + 1) & mask)];
+
+			potHeat =
+				L_potHeat[i] +                                          /* x    , y     */
+				L_potHeat[y << shift | ((x + 1) & mask)] +              /* x + 1, y     */
+				L_potHeat[((y + 1) & mask) << shift | x] +              /* x    , y + 1 */
+				L_potHeat[((y + 1) & mask) << shift | ((x + 1) & mask)];/* x + 1, y + 1 */
+			#undef shift
+			#undef mask
+
+			L_soupHeat[i] = soupHeat * 0.1f + potHeat * 0.2f;
+
+			L_potHeat[i] += L_flameHeat[i];
+			if (L_potHeat[i] < 0.0f) L_potHeat[i] = 0.0f;
+
+			L_flameHeat[i] -= 0.06f * 0.01f;
+			if (RandRange(0, 1) <= 0.005f) L_flameHeat[i] = 1.5f * 0.01f;
+
+			/* Output the pixel */
+			col = 2.0f * L_soupHeat[i];
+			if (col < 0) col = 0;
+			if (col > 1) col = 1;
+
+			p[0] = col * 100.0f + 155.0f;
+			p[1] = col * col * 255.0f;
+			p[2] = col * col * col * col * 128.0f;
+			p[3] = 255;
+			i++;
+		}
+	}
+
+	glTexSubImage2D(GL_TEXTURE_2D, 0, LAVA_TILE_X * 16, LAVA_TILE_Y * 16, 16, 16, GL_RGBA, GL_UNSIGNED_BYTE, bitmap);
 }

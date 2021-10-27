@@ -79,21 +79,20 @@ void printCoord(STRPTR hdr, BlockIter iter)
 int mapGetConnect(ChunkData cd, int offset, BlockState b)
 {
 	struct BlockIter_t iter;
-	uint8_t neighbors[10];
-	uint8_t i;
-	DATA8   n;
+	uint16_t neighbors[5];
+	uint8_t  i, data;
+	DATA16   n;
 
 	mapInitIterOffset(&iter, cd, offset);
 
-	for (i = 0, n = neighbors; i < 4; i ++, n += 2)
+	for (i = 0, n = neighbors; i < 4; i ++, n ++)
 	{
 		mapIter(&iter, xoff[i], 0, zoff[i]);
-		n[0] = iter.blockIds[iter.offset];
-		n[1] = iter.blockIds[DATA_OFFSET + (iter.offset >> 1)];
-		if (iter.offset & 1) n[1] >>= 4;
-		else n[1] &= 15;
+		n[0] = iter.blockIds[iter.offset] << 4;
+		data = iter.blockIds[DATA_OFFSET + (iter.offset >> 1)];
+		n[0] |= (iter.offset & 1 ? data >>= 4 : data & 15);
 	}
-	neighbors[8] = neighbors[9] = 0;
+	neighbors[4] = 0;
 	if (b->special == BLOCK_GLASS)
 		return blockGetConnect4(neighbors, b->special);
 	return blockGetConnect(b, neighbors);
@@ -105,27 +104,26 @@ static int mapGetConnectWire(ChunkData cd, int offset, BlockState b)
 	static int8_t XYZoff[] = {
 		0,-1,1,  1,0,-1,  -1,0,-1,  -1,0,1,  1,0,0,
 		0, 1,1,  1,0,-1,  -1,0,-1,  -1,0,1,
-		1, 1,1,  1,0,-1,  -1,0,-1,  -1,0,1,
+		1, 1,1,  1,0,-1,  -1,0,-1,  -1,0,1,  1,0,0
 	};
 	struct BlockIter_t iter;
-	uint8_t neighbors[26];
-	DATA8   n;
-	int     i;
+	uint16_t neighbors[14];
+	uint8_t  i, data;
+	DATA16   n;
 
 	mapInitIterOffset(&iter, cd, offset);
 
-	for (i = 0, n = neighbors; i < DIM(XYZoff); i += 3, n += 2)
+	for (i = 0, n = neighbors; i < DIM(XYZoff); i += 3, n ++)
 	{
 		mapIter(&iter, XYZoff[i], XYZoff[i+1], XYZoff[i+2]);
-		n[0] = iter.blockIds[iter.offset];
-		n[1] = iter.blockIds[DATA_OFFSET + (iter.offset >> 1)];
-		if (iter.offset & 1) n[1] >>= 4;
-		else n[1] &= 15;
+		n[0] = iter.blockIds[iter.offset] << 4;
+		data = iter.blockIds[DATA_OFFSET + (iter.offset >> 1)];
+		n[0] |= (iter.offset & 1 ? data >>= 4 : data & 15);
 	}
-	i = blockGetConnect(b, neighbors);
-	if (i & 512)  i |= 5;
-	if (i & 1024) i |= 10;
-	return i & 15;
+	int cnx = blockGetConnect(b, neighbors);
+	if (cnx & 512)  cnx |= 5;
+	if (cnx & 1024) cnx |= 10;
+	return cnx & 15;
 }
 
 /*

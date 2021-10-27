@@ -1497,10 +1497,10 @@ that will, most of time it is simply a matter of overwriting some tables (<tt>Bl
 content can change significantly, and this is where this API will be a bit more tedious to use than other
 APIs.
 
-<p>The gist of how this API works is to serialize the content of a NBT file into a <b>single block</b>
-of memory. This block will reallocated if the first allocation was not enough, but <b>everything</b> will
-be kept into a contiguous block of memory. Therefore the binary representation of the NBT structure in
-memory will actually be <b>very close</b> to how it is stored on disk (if it were uncompressed): save
+<p>The gist of how this API works is to serialize the content of a NBT file into a <b>single memory
+block</b>. This block will be reallocated if the first allocation was not enough, but <b>everything</b>
+will be kept into a contiguous block of memory. Therefore the binary representation of the NBT structure
+in memory will actually be <b>very close</b> to how it is stored on disk (if it were uncompressed): save
 a few memory alignment constraints and byte ordering, and you could write the buffer almost directly
 to disk.
 
@@ -1512,13 +1512,27 @@ will be available in the next section.
 inidvidually. This API is also particularly efficient with memory when you need a small NBT fragment
 (around hundreds of bytes): it is possible to only use stack memory and therefore perform no allocations.
 
-<!--
-<p>There are a <b>few tricks</b> to avoid reallocation as much as possible, especially when loading chunks
-from disk: for these, we allocate a large chunk (hundreds of Kb) to be somewhat sure it is not going
-to be relocated. Then at the end, if we allocated too much, we simply reduce the size of the memory
-block (most of the time, this block will be allocated at the end of heap, which means resizing will
-be very cheap).
--->
+<h3 id="nbtread"><span>NBT structure</span></h3>
+
+<p>This section is a quick refresher on how NBT is structured (uncompressed). This format can store
+arbitrary data types, in a tree-like format with branch nested as deep as you want.
+
+<p>NBT supports <b>3 major families of types</b>:
+<ol>
+  <li><b>Scalar</b>: designate an imeediate value, which can be an integer (1, 2, 4 or 8 bytes), a
+  floating point number (32 or 64bits) or a string.
+  <li><b>List</b>: contains a finite number of scalar and/or compound.
+  <li><b>Compound</b>: an arbitrary number of scalar, one after the other: a field terminator is used
+  to mark the end of the block.
+</ol>
+
+<h3 id="nbtread"><span>Basic reading functions</span></h3>
+
+<h3 id="nbtinc"><span>Incremental write</span></h3>
+
+<h3 id="nbtfrag"><span>Edit NBT fragment</span></h3>
+
+<h3 id="nbtpost"><span>Branch post-processing</span></h3>
 
 <p>/* ... */
 

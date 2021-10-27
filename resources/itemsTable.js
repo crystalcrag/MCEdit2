@@ -185,12 +185,12 @@
 	{id: 411, state: 0, name: "Raw Rabbit",           stack:64, cat: CROPS,    tex: [ 9,13], tech: "rabbit"},
 	{id: 412, state: 0, name: "Cooked Rabbit",        stack:64, cat: CROPS,    tex: [10,13]},
 	{id: 413, state: 0, name: "Rabbit Stew",          stack: 1, cat: CROPS,    tex: [11,13]},
-	{id: 414, state: 0, name: "Rabbit Foot",          stack:64, cat: ALLCAT,   tex: [ 9,14]},
-	{id: 415, state: 0, name: "Rabbit Hide",          stack:64, cat: ALLCAT,   tex: [10,14]},
-	{id: 416, state: 0, name: "Armor Stand",          stack:16, cat: ALLCAT,   tex: [11,14]},
-	{id: 417, state: 0, name: "Iron Horse Armor",     stack: 1, cat: ALLCAT,   tex: [12,14]},
-	{id: 418, state: 0, name: "Golden Horse Armor",   stack: 1, cat: ALLCAT,   tex: [13,14]},
-	{id: 419, state: 0, name: "Diamond Horse Armor",  stack: 1, cat: ALLCAT,   tex: [14,14]},
+	{id: 414, state: 0, name: "Rabbit Foot",          stack:64, cat: ALLCAT,   tex: [ 0, 0]}, // XXX
+	{id: 415, state: 0, name: "Rabbit Hide",          stack:64, cat: ALLCAT,   tex: [ 0, 0]}, // XXX
+	{id: 416, state: 0, name: "Armor Stand",          stack:16, cat: ALLCAT,   tex: [ 0, 0]}, // XXX
+	{id: 417, state: 0, name: "Iron Horse Armor",     stack: 1, cat: ALLCAT,   tex: [ 4, 9]},
+	{id: 418, state: 0, name: "Golden Horse Armor",   stack: 1, cat: ALLCAT,   tex: [ 5, 9]},
+	{id: 419, state: 0, name: "Diamond Horse Armor",  stack: 1, cat: ALLCAT,   tex: [ 6, 9]},
 	{id: 420, state: 0, name: "Lead",                 stack:64, cat: ALLCAT,   tex: [13,11]},
 	{id: 421, state: 0, name: "Name Tag",             stack:64, cat: ALLCAT,   tex: [12,11]},
 	{id: 422, state: 0, name: "Minecart Command",     stack: 1, cat: REDSTONE, tex: [ 0, 0]}, // XXX
@@ -210,7 +210,7 @@
 	{id: 436, state: 0, name: "Beetroot Soup",        stack: 1, cat: CROPS,    tex: [12,13]},
 	{id: 437, state: 0, name: "Dragon's Breath",      stack:16, cat: ALLCAT,   tex: [ 0, 0], tech: "dragon_breath"}, // XXX
 	{id: 439, state: 0, name: "Arrow (Spectral)",     stack:64, cat: ALLCAT,   tex: [ 0, 0], tech: "spectral_arrow"}, // XXX
-	{id: 442, state: 0, name: "Shield",               stack: 1, cat: ALLCAT,   tex: [15,14], durability: 336},
+	{id: 442, state: 0, name: "Shield",               stack: 1, cat: ALLCAT,   tex: [ 0, 0], durability: 336}, // XXX
 	{id: 443, state: 0, name: "Elytra",               stack: 1, cat: ALLCAT,   tex: [ 0, 0], durability: 432},
 	{id: 449, state: 0, name: "Totem of Undying",     stack: 1, cat: ALLCAT,   tex: [15,13], tech: "totem"},
 	{id: 450, state: 0, name: "Shulker Shell",        stack:64, cat: ALLCAT,   tex: [ 0, 0]}, // XXX

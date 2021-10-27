@@ -60,18 +60,18 @@ typedef struct Paintings_t         Paintings_t;
 typedef union EntityUUID_t         EntityUUID_t;
 struct Paintings_t
 {
-	TEXT    names[256];
-	uint8_t location[128];
+	TEXT    names[256];            /* comma separated list of strings */
+	uint8_t location[128];         /* 4 values per painting: tile coord relative to PAINTINGS_TILE_X/Y */
 	int     count;
 };
 
-union EntityUUID_t
+union EntityUUID_t                 /* 128bits unique identifier for entities */
 {
 	uint8_t  uuid8[16];
 	uint64_t uuid64[2];
 };
 
-extern Paintings_t paintings;      /* convert painting id to model id */
+extern Paintings_t paintings;      /* convert painting string id to model id */
 
 /* private stuff below */
 #ifdef ENTITY_IMPL

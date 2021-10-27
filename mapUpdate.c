@@ -116,6 +116,7 @@ void mapInitIter(Map map, BlockIter iter, vec4 pos, Bool autoAlloc)
 			iter->cd = cd = chunkCreateEmpty(ref, layer), renderResetFrustum();
 		else /* iterator around a block in mapUpdate.c/blockUpdate.c might go one block above or below */
 			iter->cd = cd = chunkAir;
+
 		iter->blockIds = cd->blockIds;
 	}
 }

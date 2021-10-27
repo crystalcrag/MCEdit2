@@ -277,8 +277,8 @@ void playerMove(Player p)
 	}
 	if (keyvec & PLAYER_FALL)
 	{
-		p->pos[VY] -= p->velocityY;
 		p->velocityY += diff;
+		p->pos[VY] -= p->velocityY;
 		if (p->velocityY > MAX_FALL)
 			p->velocityY = MAX_FALL;
 	}
@@ -306,6 +306,7 @@ void playerMove(Player p)
 		}
 		diff = p->onground;
 		p->onground = physicsCheckOnGround(globals.level, p->pos, entityGetBBox(ENTITY_PLAYER));
+		//fprintf(stderr, "pos = %g, %g, %g, ground: %d\n", p->pos[0], p->pos[1], p->pos[2], p->onground);
 		if (diff != p->onground)
 		{
 			if (diff == 0)
@@ -374,17 +375,22 @@ static void playerSetInfoTip(Player p)
 
 	if (item->id > 0)
 	{
-		STRPTR name;
+		TEXT   buffer[32];
+		STRPTR name = NULL;
 
 		if (item->id >= ID(256, 0))
 		{
 			ItemDesc desc = itemGetById(item->id);
-			name = desc->name;
+			if (desc) name = desc->name;
 		}
 		else
 		{
 			BlockState b = blockGetById(item->id);
-			name = STATEFLAG(b, TRIMNAME) ? blockIds[b->id >> 4].name : b->name;
+			if (b > blockStates) name = STATEFLAG(b, TRIMNAME) ? blockIds[b->id >> 4].name : b->name;
+		}
+		if (name == NULL)
+		{
+			sprintf(name = buffer, "unknown (%d:%d)", item->id >> 4, item->id & 15);
 		}
 
 		CopyString(p->inventory.infoTxt, name, sizeof p->inventory.infoTxt);
@@ -403,7 +409,10 @@ void playerUpdateNBT(Player p)
 		int offset = NBT_Insert(levelDat, "Player.Inventory", TAG_List_Compound, &inventory);
 		NBT_Free(&inventory);
 		if (offset >= 0)
+		{
 			mapDecodeItems(p->inventory.items, MAXCOLINV * 4, NBT_Hdr(levelDat, offset));
+			p->inventory.update ++;
+		}
 	}
 }
 
@@ -419,9 +428,14 @@ void playerAddInventory(Player p, int blockId, DATA8 tileEntity)
 			if (b->inventory == 0)
 			{
 				/* this block is not supposed to be in inventory, check for alternative */
-				blockId = blockAdjustInventory(blockId);
+				int invId = blockAdjustInventory(blockId);
 				/* that entire block type can't be used as an inventory item */
-				if (blockId == 0) return;
+				if (invId == 0 && (invId = itemCanCreateBlock(blockId, NULL)) == blockId)
+					return;
+
+				if (invId == 0)
+					return;
+				blockId = invId;
 			}
 
 			/* check if it is already in inventory */

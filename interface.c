@@ -1004,7 +1004,7 @@ void mcuiCreateInventory(Inventory player)
 
 	SIT_GetValues(diag, SIT_UserData, &mcui.allItems, NULL);
 	mcinv.items   = mcui.allItems;
-	mcinv.itemsNb = itemGetInventoryByCat(mcui.allItems, mcui.curTab+1);
+	mcinv.itemsNb = itemGetInventoryByCat(mcui.allItems, category[mcui.curTab]);
 	mcinv.scroll  = SIT_GetById(diag, "scroll");
 	selfinv.items = player->items + MAXCOLINV;
 	toolbar.items = player->items;
@@ -1046,8 +1046,8 @@ void mcuiCreateInventory(Inventory player)
 	SIT_AddCallback(SIT_GetById(diag, "del"),   SITE_OnActivate, mcuiClearAll,     player);
 	SIT_AddCallback(SIT_GetById(diag, "del"),   SITE_OnClick,    mcuiCancelDrag,   player);
 
-	SIT_AddCallback(tab,         SITE_OnChange, mcuiChangeTab,   &mcinv);
-	SIT_AddCallback(find,        SITE_OnChange, mcuiFilterItems, &mcinv);
+	SIT_AddCallback(tab,  SITE_OnChange, mcuiChangeTab,   &mcinv);
+	SIT_AddCallback(find, SITE_OnChange, mcuiFilterItems, &mcinv);
 	SIT_ManageWidget(diag);
 }
 
@@ -2040,7 +2040,7 @@ void mcuiDeletePartial(void)
  */
 struct
 {
-	SIT_Widget view;
+	SIT_Widget view, name;
 	DATA8      lastHover;
 	float      scale;
 	double     lastClick;
@@ -2077,7 +2077,8 @@ static int mcuiRenderPaintings(SIT_Widget w, APTR cd, APTR ud)
 
 static DATA8 mcuiPaitingHovered(int x, int y)
 {
-	x = x / (mcuiPaintings.scale * 16); /* <scale> is a float, can't use /= operator */
+	/* <scale> is a float, can't use /= operator (we want float div, not integer) */
+	x = x / (mcuiPaintings.scale * 16);
 	y = y / (mcuiPaintings.scale * 16);
 
 	int i;
@@ -2089,6 +2090,28 @@ static DATA8 mcuiPaitingHovered(int x, int y)
 			return pos;
 	}
 	return NULL;
+}
+
+static void mcuiPaintingName(int id)
+{
+	STRPTR name, eof;
+	if (id >= 0)
+	{
+		for (name = paintings.names; name && id > 0; id --, name = strchr(name+1, ','));
+		if (name)
+		{
+			if (*name == ',') name ++;
+			for (eof = name; *eof && *eof != ','; eof ++);
+			id = eof - name + 1;
+			eof = alloca(id);
+			CopyString(eof, name, id);
+			name = eof;
+		}
+		else name = "&lt;unknwown&gt;"; /* shouldn't happen */
+	}
+	else name = "";
+
+	SIT_SetValues(mcuiPaintings.name, SIT_Title, name, NULL);
 }
 
 /* SITE_OnMouseMove over paintings */
@@ -2103,7 +2126,7 @@ static int mcuiSelectPaintings(SIT_Widget w, APTR cd, APTR ud)
 		{
 			mcuiPaintings.lastHover = hover;
 			mcuiPaintings.lastClick = 0;
-			SIT_ForceRefresh();
+			mcuiPaintingName(hover ? (hover - paintings.location) >> 2 : -1);
 		}
 		break;
 	case SITOM_ButtonPressed:
@@ -2135,6 +2158,7 @@ void mcuiShowPaintings(void)
 	SIT_CreateWidgets(diag,
 		"<label name=dlgtitle.big title=", "Select painting", "left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, ">"
 		"<label name=title title='Double-click on the painting you want to add:' top=WIDGET,dlgtitle,0.5em>"
+		"<label name=name left=WIDGET,title,0.5em right=FORM top=OPPOSITE,title>"
 		"<canvas name=view#table left=FORM right=FORM top=WIDGET,title,0.5em height=", tiles * PAINTINGS_TILE_H, "width=", tiles * PAINTINGS_TILE_W, "/>"
 		"<button name=ko title=Cancel top=WIDGET,view,0.5em right=FORM>"
 	);
@@ -2144,6 +2168,7 @@ void mcuiShowPaintings(void)
 	SIT_AddCallback(view, SITE_OnClickMove, mcuiSelectPaintings, NULL);
 	SIT_AddCallback(SIT_GetById(diag, "ko"), SITE_OnActivate, mcuiExitWnd, NULL);
 
+	mcuiPaintings.name = SIT_GetById(diag, "name");
 	mcuiPaintings.lastHover = NULL;
 	mcuiPaintings.lastClick = 0;
 

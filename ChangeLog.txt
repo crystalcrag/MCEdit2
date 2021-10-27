@@ -1,4 +1,7 @@
 =========== Week 43 ===========
+Tue Oct 26:
+	* lighting glitch fix: block light/skylight can bleeds next to a dark room.
+
 Mon Oct 25:
 	* added furnace interface.
 	* minor bug fixed: drag items in inventories (bug if mouse was released outside window), wrong tex

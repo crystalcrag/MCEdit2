@@ -124,7 +124,7 @@ int redstoneConnectTo(struct BlockIter_t iter, RSWire connectTo)
 					if (redstoneIsConnected(&cnx, RSTORCH_OFF, i))
 						*list ++ = cnx;
 				}
-				mapIter(&iter, xoff[i], 0, zoff[i]); /* bakc to start */
+				mapIter(&iter, xoff[i], 0, zoff[i]); /* back to start */
 			}
 
 			cnx.dy = 2;
@@ -496,7 +496,7 @@ int redstoneIsPowered(struct BlockIter_t iter, int side, int minPower)
 		break;
 	default:
 		/* buttons or lever */
-		if (b->orientHint == ORIENT_LEVER && (i & 15) > 8)
+		if (b->orientHint == ORIENT_LEVER && (i & 15) >= 8)
 			return POW_STRONG;
 	}
 
@@ -532,7 +532,7 @@ int redstoneIsPowered(struct BlockIter_t iter, int side, int minPower)
 			}
 			break;
 		case RSREPEATER_ON:
-			if (blockSides.repeater[data] == i) return POW_STRONG;
+			if (blockSides.repeater[data&3] == i) return POW_STRONG;
 			break;
 		case RSTORCH_ON:
 			if (i == SIDE_TOP && pow == 0) pow = POW_WEAK;

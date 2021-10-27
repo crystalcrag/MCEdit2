@@ -1382,6 +1382,7 @@ void renderWorld(void)
 	renderPrepVisibleChunks(globals.level);
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, render.texBlock);
+	blockAnimate();
 
 	/* first pass: main terrain */
 	GPUBank bank;
@@ -1596,7 +1597,7 @@ void renderDrawMap(Map map)
 void renderAddModif(void)
 {
 	/* new chunks might have been created */
-	mapViewFrustum(globals.level, render.camera);
+	nvgFontFaceId(globals.nvgCtx, render.debugFont);
 	nvgFontSize(globals.nvgCtx, FONTSIZE_MSG);
 	render.modifCount ++;
 	render.message.chrLen = sprintf(render.message.text, LangStrPlural(NULL, render.modifCount, "%d unsaved edit", "%d unsaved edits"), render.modifCount);

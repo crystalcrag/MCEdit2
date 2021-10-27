@@ -159,14 +159,14 @@ static FILE * fopen_base(STRPTR base, STRPTR path, STRPTR open)
 {
 	STRPTR buffer = alloca(strlen(base) + strlen(path) + 2);
 	strcpy(buffer, base);
-	AddPart(base, path, 1e6);
+	AddPart(buffer, path, 1e6);
 	return fopen(buffer, open);
 }
 
 /* mark all temporary maps as permanent */
 void cartoCommitNewMaps(void)
 {
-	if (cartograph.lastMapId > cartograph.lastIdCount)
+	if (cartograph.lastMapId > 0 && cartograph.lastMapId > cartograph.lastIdCount)
 	{
 		/* no need to alloc anything that way */
 		uint8_t buffer[64];

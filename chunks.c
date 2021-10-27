@@ -826,12 +826,12 @@ uint8_t texCoord[] = { /* tex coord for each face: each line is a rotation, inde
 	1,0,    0,0,    0,1,    1,1,
 };
 uint8_t skyBlockOffset[] = { /* where to get skylight to shade a vertex of a cube: grab max of 4 values per vertex */
-	15, 16, 24, 25,    6,  7, 15, 16,    7,  8, 16, 17,    16, 17, 25, 26,
-	14, 17, 23, 26,    5,  8, 14, 17,    2,  5, 11, 14,    11, 14, 20, 23,
-	10, 11, 19, 20,    1,  2, 10, 11,    0,  1,  9, 10,     9, 10, 18, 19,
-	 9, 12, 18, 21,    0,  3,  9, 12,    3,  6, 12, 15,    12, 15, 21, 24,
-	18, 19, 21, 22,   21, 22, 24, 25,   22, 23, 25, 26,    19, 20, 22, 23,
-	 3,  4,  6,  7,    0,  1,  3,  4,    1,  2,  4,  5,     4,  5,  7,  8
+	15, 16, 25, 24,    6,  7, 16, 15,    7,  8, 16, 17,    16, 17, 25, 26,
+	14, 17, 23, 26,    5, 14, 17,  8,    5, 11, 14,  2,    11, 14, 23, 20,
+	10, 11, 19, 20,    1, 10, 11,  2,    1,  9, 10,  0,     9, 10, 19, 18,
+	 9, 12, 21, 18,    3,  9, 12,  0,    3, 12, 15,  6,    12, 15, 21, 24,
+	19, 21, 22, 18,   21, 22, 25, 24,   22, 23, 25, 26,    19, 22, 23, 20,
+	 3,  4,  7,  6,    1,  3,  4,  0,    1,  4,  5, 2,      4,  5,  7,  8
 };
 uint8_t quadIndices[] = { /* coord within <vertex> to make a quad from a QUAD block type */
 	 9, 0,  15, 18,       /* QUAD_CROSS */
@@ -1117,7 +1117,7 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 	memset(visited, 0, sizeof visited);
 	hasLights = (cur->cdFlags & CDFLAG_NOLIGHT) == 0;
 
-	if (c->X == 0 && cur->Y == 64 && c->Z == -576)
+	if (c->X == 1008 && cur->Y == 0 && c->Z == -864)
 		globals.breakPoint = 1;
 
 	for (pos = air = 0; pos < 16*16*16; pos ++)
@@ -1131,7 +1131,7 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 		block = blocks[pos];
 		state = blockGetById(ID(block, data));
 
-		if (globals.breakPoint && pos == 3484)
+		if (globals.breakPoint && pos == 1401)
 			globals.breakPoint = 2;
 
 		/* 3d flood fill for cave culling */
@@ -1459,9 +1459,9 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 	if (count > 0)
 	{
 		/* retrieve blockIds for connected models (<p> is pointing to connect6blocks[]) */
-		uint8_t blockIdAndData[14 * 2];
-		DATA8 ids;
-		for (ids = blockIdAndData; count > 0; p ++, ids += 2, count --)
+		uint16_t blockIdAndData[14];
+		DATA16   ids;
+		for (ids = blockIdAndData; count > 0; p ++, ids ++, count --)
 		{
 			uint8_t ocs = occlusionSides[side = *p] & ~sides;
 			int     off = pos;
@@ -1476,17 +1476,16 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 				/* translate pos into new chunk */
 				off += blockOffset[ocs] + blockOffset2[occlusionSides[side] & sides];
 				/* block and metadata */
-				ids[0] = cd->blockIds[off];
-				ids[1] = cd->blockIds[DATA_OFFSET + (off >> 1)];
+				ids[0] = cd->blockIds[off] << 4;
+				data   = cd->blockIds[DATA_OFFSET + (off >> 1)];
 			}
 			else
 			{
 				off += occlusionNeighbors[side];
-				ids[0] = blocks[off];
-				ids[1] = blocks[DATA_OFFSET + (off >> 1)];
+				ids[0] = blocks[off] << 4;
+				data   = blocks[DATA_OFFSET + (off >> 1)];
 			}
-			if (off & 1) ids[1] >>= 4;
-			else         ids[1] &= 15;
+			ids[0] |= (off & 1 ? data >> 4 : data & 15);
 		}
 		connect = blockGetConnect(b, blockIdAndData);
 	}
@@ -1806,7 +1805,15 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 			for (k = 0; k < 4; k ++)
 			{
 				uint8_t skyval, blockval, off, ocs;
-				for (n = skyval = blockval = 0, off = (i+k) * 4; n < 4; off ++, n ++)
+
+				n = 4;
+				switch (popcount((occlusion & occlusionIfNeighbor[i+k]))) {
+				case 2: ocs = 3; n = 3; break;
+				case 1: ocs = 1; break;
+				default: ocs = occlusion & occlusionIfCorner[i+k] ? 1 : 0;
+				}
+
+				for (skyval = blockval = 0, off = (i+k) * 4; n > 0; off ++, n --)
 				{
 					uint8_t skyvtx = skyBlock[skyBlockOffset[off]];
 					uint8_t light  = skyvtx & 15;
@@ -1817,12 +1824,6 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 					if (skyvtx > 0 && (skyval > skyvtx || skyval == 0)) skyval = skyvtx;
 				}
 				out[6] |= (skyval | blockval) << (k << 3);
-
-				switch (popcount((occlusion & occlusionIfNeighbor[i+k]))) {
-				case 2: ocs = 3; break;
-				case 1: ocs = 1; break;
-				default: ocs = occlusion & occlusionIfCorner[i+k] ? 1 : 0;
-				}
 
 				if (b->special == BLOCK_LIQUID && i == SIDE_TOP * 4)
 				{
@@ -1841,7 +1842,7 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 				case SIDE_WEST: /* reduce Y and texture by 0.2 unit */
 					nbor = blockGetById(blockIds3x3[22]);
 					if (nbor->special == BLOCK_LIQUID) break;
-					out[3] -= (BASEVTX/8) << 14;
+					out[3] += (BASEVTX/8) << 14;
 					out[4] += 2 << 23;
 					out[5] -= 2 << 24;
 					// no break;

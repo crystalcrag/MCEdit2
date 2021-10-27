@@ -157,14 +157,6 @@ struct RenderWorld_t
 	GLuint     vboPreviewLoc;
 	GLuint     vboInventory;       /* block model for rendering inventory */
 	GLuint     vboParticles;
-	int        custMDAIsize;       /* vboCustMDAI size in draw calls */
-	int        custBlocks;         /* nb of custom block models to render */
-	DATA16     instanceLoc;        /* instance location in instanceCount, indexed by glObjectId */
-	DATA16     instanceCount;      /* instance count */
-	DATA16     instanceIds;        /* instance id to draw count times (glObjectId)  */
-	int        instanceSize;       /* size in bytes of both arrays */
-	float *    custLoc;            /* vertex attrib divisor 1 array for cust models */
-	int        custMax;            /* custLoc[] array capacity (in attributes = 4 floats) */
 	int        compass;            /* image id from nanovg */
 	float      compassOffset;      /* pixel offset from right border to start drawing compass */
 	float      yaw, pitch;
@@ -183,8 +175,8 @@ struct RenderWorld_t
 	int        invExt;
 	Item       toolbarItem;        /* item being hovered by mouse */
 	int        modifCount;         /* displayed at bottom of screen */
-	Message_t  message;            /* message at bottom of screen */
-	int        oldBlockPos[3];
+	Message_t  message;            /* message at bottom left of screen */
+	int        oldBlockPos[3];     /* check if we need to change tooltip message */
 	APTR       blockInfo;          /* SIT_TOOLTIP */
 };
 

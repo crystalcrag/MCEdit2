@@ -368,7 +368,7 @@ Bool jsonParse(const char * file, JSONParseCb_t cb)
 				if (expect & PARSE_ENDOBJ)
 				{
 					STRPTR * keys;
-					STRPTR   table[33]; /* 16 key/value pairs per object, ought to be enough™ */
+					STRPTR   table[33]; /* 16 key/value pairs per object, ought to be enough(TM) */
 					STRPTR   header;
 
 					/* convert accum into a key/value pairs table */

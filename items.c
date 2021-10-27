@@ -223,7 +223,7 @@ int itemCanCreateBlock(int blockId, STRPTR * name)
 		ItemDesc desc = items.table + i;
 		if (desc->refBlock == blockId)
 		{
-			*name = desc->name;
+			if (name) *name = desc->name;
 			return desc->id;
 		}
 	}
@@ -261,7 +261,7 @@ int itemMaxDurability(Item item)
 int itemGetByName(STRPTR name, Bool forInventory)
 {
 	if (name == NULL)
-		return -1;
+		return 0;
 	if ('0' <= name[0] && name[0] <= '9')
 	{
 		/* older versions used numeric id directly */
@@ -304,7 +304,7 @@ int itemGetByName(STRPTR name, Bool forInventory)
 		if (hash->next > 0)
 			hash = items.hashByName + hash->next - 1;
 		else
-			return -1;
+			return 0;
 	}
 }
 

@@ -220,7 +220,7 @@ void particlesSmoke(Map map, int blockId, vec4 pos)
 	p->physics.bbox = &particleBBox;
 	p->ttl = range;
 
-	p->size = 8 + rand() % 6;
+	p->size = 6 + rand() % 6;
 	p->UV = PARTICLE_SMOKE | (UV << 10) | (p->size << 6);
 
 	Block b = blockIds + (blockId >> 4);
@@ -385,28 +385,35 @@ void particlesChunkUpdate(Map map, ChunkData cd)
 
 	if (abs(pos[0]) <= 1 && abs(pos[1]) <= 1 && abs(pos[2]) <= 1)
 	{
-		DATA16    newIds = cd->emitters;
-		int16_t   index = pos[0]+pos[2]*3+pos[1]*9+13;
-		int16_t * start = &emitters.startIds[index];
-		Emitter   oldEmit;
+		DATA16  newIds = cd->emitters;
+		int16_t index = pos[0]+pos[2]*3+pos[1]*9+13;
+		DATAS16 start = &emitters.startIds[index];
+		Emitter old;
+		int     oldEmit;
 
-		oldEmit = *start < 0 ? NULL : emitters.buffer + *start;
+		oldEmit = *start;
 		/* current emitters must not be reset (because timer will be reset) */
 		if (newIds)
 		for (i = newIds[0], newIds += 2; i > 0; i --, newIds ++)
 		{
-			int oldOffset = oldEmit == NULL ? 4096 :
-				((int) oldEmit->loc[0] - chunk->X) +
-				((int) oldEmit->loc[2] - chunk->Z) * 16 +
-				((int) oldEmit->loc[1] - cd->Y)    * 256;
 			int newOffset = *newIds & 0xfff;
+			int oldOffset;
+			if (oldEmit >= 0)
+			{
+				old = emitters.buffer + oldEmit;
+				oldOffset =
+					((int) old->loc[0] - chunk->X) +
+					((int) old->loc[2] - chunk->Z) * 16 +
+					((int) old->loc[1] - cd->Y)    * 256;
+			}
+			else oldOffset = 4096;
 
 			if (newOffset < oldOffset)
 			{
 				/* new emitter */
 				vec4 loc = {chunk->X + (newOffset & 15), cd->Y + (newOffset >> 8), chunk->Z + ((newOffset >> 4) & 15)};
 				Emitter e = particlesAddEmitter(loc, particleGetBlockId(cd, newOffset), (*newIds >> 12) + 1, 750, &start);
-				e->next = oldEmit == NULL ? -1 : oldEmit - emitters.buffer;
+				e->next = oldEmit;
 				*start = e - emitters.buffer;
 				start = &e->next;
 				/* don't do it now, it is highly likely that more chunk updates are coming */
@@ -416,9 +423,9 @@ void particlesChunkUpdate(Map map, ChunkData cd)
 			else if (newOffset > oldOffset)
 			{
 				/* deleted emitter */
-				int id = oldEmit - emitters.buffer;
-				emitters.usage[id>>5] ^= 1 << (id & 31);
-				*start = oldEmit->next;
+				old = emitters.buffer + oldEmit;
+				emitters.usage[oldEmit>>5] ^= 1 << (oldEmit & 31);
+				*start = old->next;
 				newIds --;
 				i ++;
 				emitters.count --;
@@ -426,10 +433,11 @@ void particlesChunkUpdate(Map map, ChunkData cd)
 			}
 			else /* update blockId */
 			{
-				oldEmit->blockId = particleGetBlockId(cd, newOffset);
-				start = &oldEmit->next;
+				old = emitters.buffer + oldEmit;
+				old->blockId = particleGetBlockId(cd, newOffset);
+				start = &old->next;
 			}
-			oldEmit = *start >= 0 ? emitters.buffer + *start : NULL;
+			oldEmit = *start;
 		}
 		if (*start >= 0)
 		{
@@ -502,8 +510,8 @@ int particlesAnimate(Map map)
 			if (next == 0) next = 500;
 			emit->time = curTimeMS + RandRange(next>>1, next);
 
-			/* keep the list sorted */
-			for (i = 1; i < count && emitters.buffer[emitters.active[i]].time < emit->time; i ++);
+			/* keep the list sorted (start from the end: MUCH cheaper) */
+			for (i = count-1; i > 1 && emitters.buffer[emitters.active[i]].time > emit->time; i --);
 			if (i > 1)
 			{
 				memmove(emitters.active, emitters.active + 1, (i - 1) * 2);
