@@ -1064,7 +1064,7 @@ void mapDecodeItems(Item container, int count, NBTHdr hdrItems)
 			default: if (! item.extra) item.extra = nbt.mem;
 			}
 		}
-		if (item.id < ID(256, 0))
+		if (isBlockId(item.id))
 		{
 			/* select a state with an inventory model */
 			BlockState state = blockGetById(item.id);
@@ -1128,7 +1128,7 @@ Bool mapSerializeItems(MapExtraData sel, STRPTR listName, Item items, int itemCo
 		{
 			/* not yet created: add required fields */
 			NBT_Add(ret,
-				TAG_String, "id", itemGetTechName(sel->blockId & ~15, itemId, sizeof itemId),
+				TAG_String, "id", itemGetTechName(sel->blockId, itemId, sizeof itemId, False),
 				TAG_Int,    "x",  XYZ[0] + c->X,
 				TAG_Int,    "y",  XYZ[1],
 				TAG_Int,    "z",  XYZ[2] + c->Z,
@@ -1148,19 +1148,22 @@ Bool mapSerializeItems(MapExtraData sel, STRPTR listName, Item items, int itemCo
 	for (i = 0; i < itemCount; i ++, items ++)
 	{
 		if (items->id == 0) continue;
-		int id   = items->id;
-		int data = id & 15;
+		ItemID_t id = items->id;
+		uint16_t data;
 		/* data (or damage) is only to get a specific inventory model: not needed in NBT */
-		if (id <= ID(256, 0))
+		if (isBlockId(id))
 		{
 			Block b = &blockIds[id>>4];
+			data = id & 15;
 			if (b->invState == data)
 				data = 0;
 			else if (b->special == BLOCK_TALLFLOWER)
 				data -= 10;
 		}
+		else data = ITEMMETA(id);
+
 		NBT_Add(ret,
-			TAG_String, "id",     itemGetTechName(id & ~15, itemId, sizeof itemId),
+			TAG_String, "id",     itemGetTechName(id, itemId, sizeof itemId, False),
 			TAG_Byte,   "Slot",   i,
 			TAG_Short,  "Damage", itemMaxDurability(items) > 0 ? items->uses : data,
 			TAG_Byte,   "Count",  items->count,

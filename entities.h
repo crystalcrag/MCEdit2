@@ -22,20 +22,20 @@ void entityDeleteById(Map map, int id);
 void entityInfo(int id, STRPTR buffer, int max);
 int  entityRaycast(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos);
 void entityUpdateOrCreate(Chunk c, vec4 pos, int blockId, vec4 dest, int ticks, DATA8 tile);
-void entityUseItemOn(Map, int entityId, int itemId, vec4 pos);
+void entityUseItemOn(Map, int entityId, ItemID_t itemId, vec4 pos);
 void entityDebugCmd(Chunk c);
 int  entityCount(int start);
 int  entityCreate(Map map, int itemId, vec4 pos, int side);
-void entityCreatePainting(Map map, int id);
-int  entityGetBlockId(int id);
+void entityCreatePainting(Map map, int paintingId);
 
-VTXBBox entityGetBBox(int id);
+VTXBBox  entityGetBBox(int id);
+ItemID_t entityGetBlockId(int entityId);
 
 #define ENTITY_END                 0xffff
-#define ENTITY_PAINTINGID          0x10000
-#define ENTITY_ITEMFRAME           0x20000
-#define ENTITY_ITEMFRAME_FULL      0x40000
-#define ENTITY_ITEM                0x1000000  /* differentiate item from block entity */
+#define ENTITY_PAINTINGS           0x800
+#define ENTITY_ITEMFRAME           0x801
+#define ENTITY_ITEMFRAME_FULL      0x802
+#define ENTITY_ITEM                0x80000000  /* differentiate world item from block entity */
 
 
 enum /* entity id and models */
@@ -75,13 +75,13 @@ extern Paintings_t paintings;      /* convert painting string id to model id */
 
 /* private stuff below */
 #ifdef ENTITY_IMPL
-#define BANK_SIZE          65536
-#define INFO_SIZE          56
-#define LIGHT_SIZE         24
-#define ENTITY_SHIFT       8
-#define ENTITY_BATCH       (1 << ENTITY_SHIFT)
-#define BANK_NUM(vbo)      ((vbo) & 63)
-#define MDAI_INVALID_SLOT  0xffff
+#define BANK_SIZE                  65536
+#define INFO_SIZE                  56
+#define LIGHT_SIZE                 24
+#define ENTITY_SHIFT               8
+#define ENTITY_BATCH               (1 << ENTITY_SHIFT)
+#define BANK_NUM(vbo)              ((vbo) & 63)
+#define MDAI_INVALID_SLOT          0xffff
 #define BOX(szx,szy,szz)   \
 	{-szx/2 * BASEVTX + ORIGINVTX, -szy/2 * BASEVTX + ORIGINVTX, -szz/2 * BASEVTX + ORIGINVTX}, \
 	{ szx/2 * BASEVTX + ORIGINVTX,  szy/2 * BASEVTX + ORIGINVTX,  szz/2 * BASEVTX + ORIGINVTX}
@@ -105,9 +105,9 @@ struct Entity_t
 	uint16_t next;                 /* first ENTITY_SHIFT bits: index in buffer, remain: buffer index (linked list within chunk) */
 	uint16_t VBObank;              /* first 6bits: bank index, remain: model index */
 	uint16_t mdaiSlot;             /* GL draw index in VBObank */
-	uint8_t  map;                  /* 1 if it contains a map (uses a different model) */
+	uint8_t  special;              /* entity with some special processing (see below) */
 	uint8_t  fullLight;
-	int      blockId;
+	ItemID_t blockId;
 	float    motion[3];
 	float    pos[4];               /* X, Y, Z and extra info for shader */
 	float    rotation[4];          /* rotation in Y, X, Z axis (radians) and scaling */
@@ -117,9 +117,16 @@ struct Entity_t
 	STRPTR   name;                 /* from NBT ("id" key) */
 };
 
+enum                               /* possible values for Entity_t.type */
+{
+	ENTYPE_FRAME     = 1,          /* item frame (no items in it) */
+	ENTYPE_FILLEDMAP = 2,          /* blockId contains map id to use on disk (data/map_%d.dat) */
+	ENTYPE_FRAMEITEM = 3,          /* blockId contains item/block id within the frame */
+};
+
 struct EntityEntry_t               /* HashTable entry */
 {
-	int      id;                   /* model id */
+	ItemID_t id;                   /* model id */
 	uint16_t VBObank;              /* index in bank->models */
 	uint16_t next;                 /* hash link */
 };
@@ -172,8 +179,8 @@ struct EntitiesPrivate_t           /* static vars for entity.c */
 	int          animMax;
 	int          shader;
 	Entity       selected;
-	int          selectedId;
-	vec4         createPos;
+	int          selectedId;       /* entity id */
+	vec4         createPos;        /* paintings are created asynchronously */
 	uint8_t      createSide;
 };
 

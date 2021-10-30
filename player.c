@@ -67,7 +67,7 @@ void playerInit(Player p)
 void playerSaveLocation(Player p)
 {
 	float   rotation[2];
-	NBTFile levelDat = &globals.level->levelDat;
+	NBTFile levelDat = p->levelDat;
 	int     player = NBT_FindNode(levelDat, 0, "Player");
 	float   select = p->inventory.selected;
 
@@ -378,15 +378,15 @@ static void playerSetInfoTip(Player p)
 		TEXT   buffer[32];
 		STRPTR name = NULL;
 
-		if (item->id >= ID(256, 0))
-		{
-			ItemDesc desc = itemGetById(item->id);
-			if (desc) name = desc->name;
-		}
-		else
+		if (isBlockId(item->id))
 		{
 			BlockState b = blockGetById(item->id);
 			if (b > blockStates) name = STATEFLAG(b, TRIMNAME) ? blockIds[b->id >> 4].name : b->name;
+		}
+		else
+		{
+			ItemDesc desc = itemGetById(item->id);
+			if (desc) name = desc->name;
 		}
 		if (name == NULL)
 		{
@@ -403,7 +403,7 @@ void playerUpdateNBT(Player p)
 {
 	struct NBTFile_t inventory = {0};
 
-	NBTFile levelDat = &globals.level->levelDat;
+	NBTFile levelDat = p->levelDat;
 	if (mapSerializeItems(NULL, "Inventory", p->inventory.items, MAXCOLINV * 4, &inventory))
 	{
 		int offset = NBT_Insert(levelDat, "Player.Inventory", TAG_List_Compound, &inventory);
@@ -416,7 +416,7 @@ void playerUpdateNBT(Player p)
 	}
 }
 
-void playerAddInventory(Player p, int blockId, DATA8 tileEntity)
+void playerAddInventory(Player p, ItemID_t blockId, DATA8 tileEntity)
 {
 	if (blockId >= 0)
 	{

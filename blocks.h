@@ -14,6 +14,7 @@ typedef struct BlockState_t *  BlockState;
 typedef struct VTXBBox_t *     VTXBBox;
 typedef struct WriteBuffer_t * WriteBuffer;
 typedef struct BlockOrient_t * BlockOrient;
+typedef uint32_t               ItemID_t;
 
 Bool    blockCreate(const char * file, STRPTR * keys, int lineNum);
 void    blockParseConnectedTexture(void);
@@ -299,6 +300,8 @@ enum                             /* common redstone devices */
 #define blockGetById(id)          (blockStates + blockStateIndex[id])
 #define ID(id, data)              (((id) << 4) | (data))
 #define SIDE_NONE                 0
+#define ITEMID_FLAG               0x10000
+#define isBlockId(itemId)         (((itemId) & ITEMID_FLAG) == 0)
 #define blockIsFullySolid(state)  (state->type == SOLID && state->special != BLOCK_HALF && state->special != BLOCK_STAIRS)
 
 #define MAXSKY        15   /* maximum values for SkyLight table */

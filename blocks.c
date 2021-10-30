@@ -1126,16 +1126,10 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 				}
 				else val = strtof(value, &value);
 
-				while (*value == '+')
+				if (strncasecmp(value, "+BHDR_INCFACEID", 15) == 0)
 				{
-					STRPTR next;
-					/* those flags have to be added manually, but are recognized by TileFinder */
-					for (next = ++ value; *next && *next != '+' && *next != ','; next ++);
-					switch (FindInList("BHDR_INCFACEID,BHDR_CENTERPIECE", value, next - value)) {
-					case 0: val += BHDR_INCFACEID; break;
-					case 1: /* deprecated */ break;
-					}
-					value = next;
+					val += BHDR_INCFACEID;
+					value += 15;
 				}
 				while (isspace(*value)) value ++;
 				if (*value == ',')
@@ -2143,7 +2137,7 @@ Bool blockGetBoundsForFace(VTXBBox box, int face, vec4 V0, vec4 V1, vec4 offset,
 		}
 
 		if (dir[3]) t += 3;
-		/* same as vertex shader blocks.vsh */
+		/* same as vertex shader items.vsh */
 		pt[0] = FROMVERTEX(box->pt1[0]);
 		pt[1] = FROMVERTEX(box->pt1[1]);
 		pt[2] = FROMVERTEX(box->pt1[2]);
@@ -2255,7 +2249,7 @@ static int blockGenWireModel(DATA16 buffer, int count)
 	return total;
 }
 
-/* generate a model compatible with blocks.vsh for quad blocks */
+/* generate a model compatible with items.vsh for quad blocks */
 static int blockModelQuad(BlockState b, DATA16 buffer)
 {
 	extern uint8_t quadIndices[]; /* from chunks.c */
@@ -2768,7 +2762,7 @@ DATA8 blockCreateTileEntity(int blockId, vec4 pos, APTR arg)
 
 	/* standard fields for tile entity */
 	NBT_Add(&ret,
-		TAG_String, "id", itemGetTechName(id & ~15, itemId, sizeof itemId),
+		TAG_String, "id", itemGetTechName(id, itemId, sizeof itemId, False),
 		TAG_Int,    "x",  (int) pos[VX],
 		TAG_Int,    "y",  (int) pos[VY],
 		TAG_Int,    "z",  (int) pos[VZ],
@@ -2884,7 +2878,7 @@ void blockPostProcessTexture(DATA8 * data, int * width, int * height, int bpp)
 	/* copy biome dependent tex to bottom of texture map */
 	for (s = biomeDepend, d = dst + stride * 62 * sz / bpp; s < EOT(biomeDepend); s += 2, d += sz)
 	{
-		/* this will free 1 (ONE) bit for the vertex shader blocks.vsh */
+		/* this will free 1 (ONE) bit for the vertex shader */
 		DATA8 s2 = dst + s[0] * sz + s[1] * stride * sz / bpp;
 		DATA8 d2 = d;
 		/* but given how packed information is, this is worth it */
@@ -3194,7 +3188,7 @@ DATA8 blockGetDurability(float dura)
  * Minecraft generates lava texture on the fly using the method described here:
  * - https://github.com/UnknownShadow200/ClassiCube/wiki/MInecraft-Classic-lava-animation-algorithm#lava
  *
- * this code has been quote almost verbatim from classicube source.
+ * this code has been quoted almost verbatim from classicube source.
  */
 void blockAnimate(void)
 {
@@ -3260,5 +3254,6 @@ void blockAnimate(void)
 		}
 	}
 
+	/* terrain texture must be bound on GL_TEXTURE_2D */
 	glTexSubImage2D(GL_TEXTURE_2D, 0, LAVA_TILE_X * 16, LAVA_TILE_Y * 16, 16, 16, GL_RGBA, GL_UNSIGNED_BYTE, bitmap);
 }

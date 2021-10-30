@@ -92,13 +92,13 @@ static void renderSelection(void)
 	{
 		/* preview block */
 		int8_t * offset;
-		int      id = item->id;
+		ItemID_t id = item->id;
 		vec4     loc;
 
 		if ((render.selection.selFlags & SEL_POINTTO) == 0)
 			return;
 
-		if (id >= ID(256, 0))
+		if (! isBlockId(id))
 		{
 			/* check if this item is used to create a block */
 			ItemDesc desc = itemGetById(item->id);
@@ -881,15 +881,15 @@ static void renderInventoryItems(float scale)
 		{
 			int size;
 			if (item->id == 0) continue;
-			if (item->id > ID(256, 0))
-			{
-				ItemDesc desc = itemGetById(item->id);
-				size = desc ? blockInvGetModelSize(desc->glInvId) : 0;
-			}
-			else
+			if (isBlockId(item->id))
 			{
 				BlockState b = blockGetById(item->id);
 				size = blockInvGetModelSize(b->invId);
+			}
+			else
+			{
+				ItemDesc desc = itemGetById(item->id);
+				size = desc ? blockInvGetModelSize(desc->glInvId) : 0;
 			}
 
 			cmd->count = size >> 20;
@@ -931,7 +931,7 @@ static void renderInventoryItems(float scale)
 	}
 }
 
-/* render items at arbitrary location */
+/* render items at arbitrary location (used by interface) */
 void renderItems(Item items, int count, float scale)
 {
 	glBindBuffer(GL_ARRAY_BUFFER, render.vboInventoryLoc);
@@ -944,22 +944,21 @@ void renderItems(Item items, int count, float scale)
 
 	for (i = 0, item = items; i < count; i ++, item ++, cmd ++, loc += 3)
 	{
-		int glInvId;
-		if (item->id < ID(256, 0))
+		int size;
+		if (isBlockId(item->id))
 		{
 			BlockState b = blockGetById(item->id);
-			glInvId = b->invId;
+			size = blockInvGetModelSize(b->invId);
 		}
 		else
 		{
 			ItemDesc desc = itemGetById(item->id);
 			if (desc == NULL) continue;
-			glInvId = desc->glInvId;
+			size = blockInvGetModelSize(desc->glInvId);
 		}
-		glInvId = blockInvGetModelSize(glInvId);
 
-		cmd->count = glInvId >> 20;
-		cmd->first = glInvId & 0xfffff;
+		cmd->count = size >> 20;
+		cmd->first = size & 0xfffff;
 		cmd->instanceCount = 1;
 		cmd->baseInstance = i;
 

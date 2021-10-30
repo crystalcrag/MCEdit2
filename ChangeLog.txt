@@ -1,6 +1,20 @@
 =========== Week 43 ===========
+Fri Oct 29:
+	* lighting glitches mostly fixed around stairs/slab.
+	* itemId refactoring mostly done.
+
+Thu Oct 28:
+	* ability to edit dropper/dispenser and ender chest (finally).
+	* itemId refactoring continued (entities).
+
+Wed Oct 27:
+	* lava texture is now animated (code taken from classicube).
+	* more bugs fixed (redstone updates mostly).
+	* started itemId refactoring (about time).
+
 Tue Oct 26:
-	* lighting glitch fix: block light/skylight can bleeds next to a dark room.
+	* lighting glitch fix: block light/skylight could bleeds next to a dark room.
+	* more bugs fixed (particle updates mostly).
 
 Mon Oct 25:
 	* added furnace interface.

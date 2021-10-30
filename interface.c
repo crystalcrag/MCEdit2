@@ -123,16 +123,17 @@ static int mcuiInventoryRender(SIT_Widget w, APTR cd, APTR ud)
 
 void mcuiSetTooltip(SIT_Widget toolTip, Item item, STRPTR extra)
 {
-	TEXT   title[256];
-	TEXT   id[16];
-	int    tag = NBT_FindNodeFromStream(item->extra, 0, "/tag.ench");
-	int    index = 0;
-	STRPTR p;
+	TEXT title[256];
+	TEXT id[16];
+	int  tag = NBT_FindNodeFromStream(item->extra, 0, "/tag.ench");
+	int  index = 0;
+	int  itemNum;
+	int  metaData;
 
 	title[0] = 0;
 	if (tag >= 0)
 		index = StrCat(title, sizeof title, 0, "<b>");
-	if (item->id < ID(256, 0))
+	if (isBlockId(item->id))
 	{
 		BlockState state = blockGetById(item->id);
 		if (state->id > 0)
@@ -140,6 +141,8 @@ void mcuiSetTooltip(SIT_Widget toolTip, Item item, STRPTR extra)
 			index = StrCat(title, sizeof title, index,
 				STATEFLAG(state, TRIMNAME) ? blockIds[item->id >> 4].name : state->name
 			);
+			itemNum  = state->id >> 4;
+			metaData = state->id & 15;
 		}
 		else
 		{
@@ -156,16 +159,18 @@ void mcuiSetTooltip(SIT_Widget toolTip, Item item, STRPTR extra)
 			SIT_SetValues(toolTip, SIT_Visible, False, NULL);
 			return;
 		}
-		index = StrCat(title, sizeof title, index, desc->name);
+		itemNum  = ITEMNUM(item->id);
+		metaData = ITEMMETA(item->id);
+		index    = StrCat(title, sizeof title, index, desc->name);
 	}
 	if (tag >= 0)
 		index = StrCat(title, sizeof title, index, "</b>");
 
 	/* add id */
-	if ((item->id >> 4) != 255)
+	if (itemNum != 255 /* dummy block for extended inventory bar */)
 	{
-		p = id + sprintf(id, " (#%04d", item->id >> 4);
-		if (item->id & 15) p += sprintf(p, "/%d", item->id & 15);
+		STRPTR p = id + sprintf(id, " (#%04d", itemNum);
+		if (metaData > 0) p += sprintf(p, "/%d", metaData);
 		p += sprintf(p, ")");
 		index = StrCat(title, sizeof title, index, id);
 
@@ -175,7 +180,7 @@ void mcuiSetTooltip(SIT_Widget toolTip, Item item, STRPTR extra)
 
 		index = StrCat(title, sizeof title, index, "<br><dim>");
 
-		/* check if item container */
+		/* check if this is an item container */
 		int inventory = NBT_FindNodeFromStream(item->extra, 0, "/Items");
 
 		if (inventory >= 0)
@@ -188,7 +193,7 @@ void mcuiSetTooltip(SIT_Widget toolTip, Item item, STRPTR extra)
 		}
 
 		/* and technical name */
-		itemGetTechName(item->id, title + index, sizeof title - index);
+		itemGetTechName(item->id, title + index, sizeof title - index, True);
 		index = StrCat(title, sizeof title, index, "</dim>");
 	}
 
@@ -416,7 +421,7 @@ static int mcuiInventoryMouse(SIT_Widget w, APTR cd, APTR ud)
 			break;
 		case SITOM_ButtonRight:
 			if (inv->movable & INV_SELECT_ONLY) return 0;
-			if (inv->groupId && inv->items[cellx].count > 0)
+			if (inv->groupId && mcui.drag.id == 0 && inv->items[cellx].count > 0)
 			{
 				/* grab half the stack */
 				Item cur = inv->items + cellx;
@@ -677,7 +682,7 @@ static int mcuiFilterItems(SIT_Widget w, APTR cd, APTR ud)
 		int    id = items[i].id;
 
 		/* there is about 700 items: no need to implement something more complicated than a linear scan */
-		if (id < ID(256,0))
+		if (isBlockId(id))
 		{
 			BlockState b = blockGetById(id);
 			name = b->name;
@@ -1022,7 +1027,7 @@ void mcuiCreateInventory(Inventory player)
 	for (i = 0; i < 6; i ++)
 	{
 		/* tab icons:           build     deco        redstone       crops          rails      search/all */
-		static int blockId[] = {ID(45,0), ID(175,15), ITEMID(331,0), ITEMID(260,0), ID(27, 0), ITEMID(345,0)};
+		static ItemID_t blockId[] = {ID(45,0), ID(175,15), ITEMID(331,0), ITEMID(260,0), ID(27, 0), ITEMID(345,0)};
 		SIT_Widget w = SIT_TabGetNth(tab, i);
 
 		SIT_SetValues(w, SIT_LabelSize, SITV_LabelSize(mcui.cellSz, mcui.cellSz), SIT_UserData, (APTR) blockId[i], NULL);
@@ -1097,9 +1102,9 @@ static int mcuiTransferItems(SIT_Widget w, APTR cd, APTR ud)
 }
 
 /*
- * single/double chest inventory editing (ender, shulker or normal)
+ * single/double chest (ender, shulker or normal), dispenser, dropper inventory editor
  */
-void mcuiEditChestInventory(Inventory player, Item items, int count, int type)
+void mcuiEditChestInventory(Inventory player, Item items, int count, Block type)
 {
 	static struct MCInventory_t chest = {.invRow = 3, .invCol = MAXCOLINV, .groupId = 2};
 	static struct MCInventory_t slot0 = {.invRow = 1, .invCol = 1, .groupId = 3, .itemsNb = 1};
@@ -1112,14 +1117,29 @@ void mcuiEditChestInventory(Inventory player, Item items, int count, int type)
 	);
 	mcui.groupCount = 0;
 
-	if (type == 0)
+	if (strcmp(type->tech, "furnace") /* not a furnace type */)
 	{
-		/* chest interface */
+		STRPTR title = alloca(strlen(type->name) + 2);
+		sprintf(title, "%s:", type->name);
+		/* chest/dropper interface */
 		SIT_CreateWidgets(diag,
-			"<label name=msg title=", count > 9*3 ? "Double chest:" : "Chest:", ">"
+			"<label name=msg title=", title, ">"
 			"<canvas composited=1 name=inv.inv left=FORM top=WIDGET,msg,0.5em nextCtrl=LAST/>"
 		);
-		chest.invRow  = count / MAXCOLINV;
+		if (count > MAXCOLINV)
+		{
+			chest.invRow = count / MAXCOLINV;
+			chest.invCol = MAXCOLINV;
+		}
+		else /* 3x3 instead of 9x1 */
+		{
+			/* center title and container */
+			SIT_SetAttributes(diag,
+				"<inv left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, ">"
+				"<msg left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, ">"
+			);
+			chest.invRow = chest.invCol = 3;
+		}
 		chest.items   = items;
 		chest.itemsNb = count;
 		mcuiInitInventory(SIT_GetById(diag, "inv"), &chest, 3 + 3 + 2);

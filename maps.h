@@ -65,7 +65,7 @@ struct MapExtraData_t              /* extra info returned from mapPointToBlock()
 {
 	ChunkData cd;                  /* sub-chunk where block is */
 	Chunk     chunk;
-	int       blockId;             /* (blockid << 4) | metadata */
+	ItemID_t  blockId;             /* (blockid << 4) | metadata */
 	uint16_t  offset;              /* offset in ChunkData.blocksIds[] */
 	uint16_t  entity;              /* entity selected instead of block if > 0 */
 	uint8_t   side;                /* 0:S, 1:E, 2:N, 3:W, 4:T, 5:B */

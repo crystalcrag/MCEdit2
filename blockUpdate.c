@@ -128,7 +128,7 @@ static int mapGetRailData(int blockId, int flags)
 
 #define RAILORIENT(blockId)    ((blockId >> 4) == RSRAILS ? blockId & 15 : blockId & 7)
 
-/* a rail has been, check if block state need to be updated on nerby rails */
+/* a rail has been placed, check if block state need to be updated on nearby rails */
 static void mapUpdateNearbyRails(Map map, vec4 pos, int blockId, DATA16 nbors)
 {
 	uint16_t neighbors[4];
@@ -599,7 +599,7 @@ static Bool mapUpdateAddPistonExt(Map map, struct BlockIter_t iter, int blockId,
 			id |= 8;
 
 		NBT_Add(&ret,
-			TAG_String, "id",        itemGetTechName(id, itemId, sizeof itemId),
+			TAG_String, "id",        itemGetTechName(id, itemId, sizeof itemId, True),
 			TAG_Int,    "x",         (int) pos[VX],
 			TAG_Int,    "y",         (int) pos[VY],
 			TAG_Int,    "z",         (int) pos[VZ],
@@ -659,9 +659,9 @@ void mapUpdateToBlock36(Map map, RSWire list, int count, int dir, BlockIter iter
 		int       cnx  = 0;
 		TEXT      itemId[128];
 		STRPTR    blockName;
-		itemGetTechName(ID(RSPISTONEXT, 0), itemId, sizeof itemId);
+		itemGetTechName(ID(RSPISTONEXT, 0), itemId, sizeof itemId, False);
 		blockName = strchr(itemId, 0) + 1;
-		itemGetTechName(list->blockId << 4, blockName, sizeof itemId - (blockName - itemId));
+		itemGetTechName(list->blockId << 4, blockName, sizeof itemId - (blockName - itemId), False);
 
 		switch (blockIds[list->blockId].special) {
 		case BLOCK_FENCE:

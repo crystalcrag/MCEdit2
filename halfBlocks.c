@@ -282,7 +282,7 @@ static uint32_t halfBlockGetOCS(DATA16 neighborBlockIds, DATA8 ocsval, uint8_t p
 	return occlusion;
 }
 
-static int halfBlockSkyOffset(DATA8 vtx, int vertex, int xyz, int adjust)
+static int halfBlockSkyOffset(DATA8 vtx, int normal, int vertex, int xyz, int adjust)
 {
 	uint8_t pos[4];
 	switch (vertex) {
@@ -301,8 +301,15 @@ static int halfBlockSkyOffset(DATA8 vtx, int vertex, int xyz, int adjust)
 
 	pos[adjust&3] --;
 	pos[adjust>>2] --;
+	xyz = (pos[0]>>1) + (pos[2]>>1) * 3 + (pos[1]>>1) * 9;
+	if (xyz == 13) /* center block always has skyval = 0 and blocklight = 0 */
+	{
+		/* shift by normal direction */
+		int8_t * shift = cubeNormals + normal * 4;
+		xyz += shift[0] + shift[2] * 3 + shift[1] * 9;
+	}
 
-	return (pos[0]>>1) + (pos[2]>>1) * 3 + (pos[1]>>1) * 9;
+	return xyz;
 }
 
 static Bool isVisible(DATA16 neighborBlockIds, ModelCache models, DATA8 pos, int dir)
@@ -552,10 +559,10 @@ void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DAT
 				{
 					uint8_t max, l, skyval;
 					uint8_t adjust = (vtxAdjust[j] >> k*4) & 15;
-					for (l = skyval = max = 0; l < 4; l ++, face2 ++)
+					for (l = skyval = skyBlock[13], max = skyval & 15, skyval &= 0xf0; l < 4; l ++, face2 ++)
 					{
 						//uint8_t  skyvtx = skyBlock[face2[0]];
-						uint8_t  skyvtx = skyBlock[halfBlockSkyOffset(vtx, k, blockIndexToXYZ[face2[0]], adjust)];
+						uint8_t  skyvtx = skyBlock[halfBlockSkyOffset(vtx, j, k, blockIndexToXYZ[face2[0]], adjust)];
 						uint16_t light  = skyvtx & 15;
 						skyvtx &= 0xf0;
 						/* max for block light */

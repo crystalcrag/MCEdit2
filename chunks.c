@@ -1117,7 +1117,7 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 	memset(visited, 0, sizeof visited);
 	hasLights = (cur->cdFlags & CDFLAG_NOLIGHT) == 0;
 
-	if (c->X == 1008 && cur->Y == 0 && c->Z == -864)
+	if (c->X == 16 && cur->Y == 64 && c->Z == -560)
 		globals.breakPoint = 1;
 
 	for (pos = air = 0; pos < 16*16*16; pos ++)
@@ -1131,7 +1131,7 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 		block = blocks[pos];
 		state = blockGetById(ID(block, data));
 
-		if (globals.breakPoint && pos == 1401)
+		if (globals.breakPoint && pos == 3296)
 			globals.breakPoint = 2;
 
 		/* 3d flood fill for cave culling */
@@ -1588,6 +1588,32 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 	}
 }
 
+/*
+ * neighbor is a half-block (slab or stairs): skyval and blocklight will be 0 for these: not good.
+ * it will create a dark patch to the side this half-block is connected.
+ * to prevent this, we have to reapply skyval and blocklight propagation as if the block was transparent :-/
+ */
+static uint8_t chunkPatchLight(struct BlockIter_t iter)
+{
+	uint8_t sky = 0, light = 0, i;
+
+	/* for this, we have to look around the 6 voxels of the slab/stairs */
+	for (i = 0; i < 6; i ++)
+	{
+		mapIter(&iter, xoff[i], yoff[i], zoff[i]);
+		uint8_t skyval   = iter.blockIds[SKYLIGHT_OFFSET   + (iter.offset >> 1)];
+		uint8_t blockval = iter.blockIds[BLOCKLIGHT_OFFSET + (iter.offset >> 1)];
+		if (iter.offset & 1) skyval >>= 4, blockval >>= 4;
+		else skyval &= 15, blockval &= 15;
+		if (sky < skyval) sky = skyval;
+		if (light < blockval) light = blockval;
+	}
+	/* decrease intensity by 1 if possible */
+	if (sky > 0 && sky < MAXSKY) sky --;
+	if (light > 0) light --;
+	return (sky << 4) | light;
+}
+
 /* most common block within a chunk */
 static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b, DATAS16 chunkOffsets, int pos)
 {
@@ -1598,14 +1624,11 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 	DATA8    blocks = neighbors[6]->blockIds;
 	int      side, sides, occlusion, slab, rotate;
 	int      i, j, k, n;
-	uint8_t  x, y, z, Y, data, hasLights;
-	Chunk    c;
+	uint8_t  x, y, z, data, hasLights;
 
 	x = (pos & 15);
 	z = (pos >> 4) & 15;
 	y = (pos >> 8);
-	c = neighbors[6]->chunk;
-	Y = neighbors[6]->Y >> 4;
 	hasLights = (neighbors[6]->cdFlags & CDFLAG_NOLIGHT) == 0;
 	sides = xsides[x] | ysides[y] | zsides[z];
 
@@ -1662,73 +1685,48 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 		/* ambient occlusion neighbor: look after 26 surrounding blocks (only 20 needed by AO) */
 		if (occlusion == -1)
 		{
+			static int8_t iterNext[] = {
+				1,0,0,   1,0,0,   -2,0,1,
+				1,0,0,   1,0,0,   -2,0,1,
+				1,0,0,   1,0,0,   -2,1,-2
+			};
+			struct BlockIter_t iter;
+			int8_t * next = iterNext;
 			memset(skyBlock,    0, sizeof skyBlock);
 			memset(blockIds3x3, 0, sizeof blockIds3x3);
+			mapInitIterOffset(&iter, neighbors[6], pos);
+			mapIter(&iter, -1, -1, -1);
 
 			/* only compute that info if block is visible (highly likely it is not) */
 			for (k = occlusion = 0; k < DIM(occlusionNeighbors); k ++)
 			{
-				ChunkData cd;
-				uint8_t   ocs = occlusionSides[k] & ~sides;
-				int       off = pos;
-				int       id;
+				uint8_t  sky, light;
+				uint16_t block;
+				sky   = iter.blockIds[SKYLIGHT_OFFSET   + (iter.offset >> 1)];
+				light = iter.blockIds[BLOCKLIGHT_OFFSET + (iter.offset >> 1)];
+				data  = iter.blockIds[DATA_OFFSET       + (iter.offset >> 1)];
+				block = iter.blockIds[iter.offset] << 4;
 
-				if (ocs > 0)
-				{
-					/* neighbor is in another chunk: bits of OCS will tell where: 1:S, 2:E, 4:N, 8:W, 16:T, 32:B */
-					Chunk sub = c + chunkOffsets[c->neighbor + (ocs&15)];
-					int   lay = Y + subChunkOff[ocs];
-					if (lay < 0 || lay >= CHUNK_LIMIT || (c->noChunks & ocs)) continue;
-					cd = sub->layer[lay];
-					if (! cd) { skyBlock[k] = 15<<4; continue; }
-					/* translate pos into new chunk */
-					off += blockOffset[ocs] + blockOffset2[occlusionSides[k] & sides];
-					/* extract block+sky light */
-					if (hasLights)
-					{
-						data =  LIGHT(cd, off >> 1); skyBlock[k]  = off & 1 ? data >> 4 : data & 0xf;
-						data = SKYLIT(cd, off >> 1); skyBlock[k] |= off & 1 ? data & 0xf0 : data << 4;
-					}
-					else skyBlock[k] = 0xf0;
-					/* block and metadata */
-					data = META(cd, off >> 1);
-					id   = cd->blockIds[off];
-				}
-				else
-				{
-					cd   = neighbors[6];
-					off += occlusionNeighbors[k];
-					if (hasLights)
-					{
-						data = blocks[BLOCKLIGHT_OFFSET + (off >> 1)]; skyBlock[k]  = off & 1 ? data >> 4 : data & 0xf;
-						data = blocks[SKYLIGHT_OFFSET   + (off >> 1)]; skyBlock[k] |= off & 1 ? data & 0xf0 : data << 4;
-					}
-					else /* brush don't have skylight/blocklight */
-						skyBlock[k] = 0xf0;
-					data = blocks[DATA_OFFSET + (off >> 1)];
-					id   = blocks[off];
-				}
-				nbor = blockGetByIdData(id, off & 1 ? data >> 4 : data & 0xf);
-				blockIds3x3[k] = nbor->id;
+				if (iter.offset & 1) skyBlock[k] = (light >> 4) | (sky & 0xf0), block |= data >> 4;
+				else                 skyBlock[k] = (light & 15) | (sky << 4),   block |= data & 15;
+
+				blockIds3x3[k] = block;
+				nbor = blockGetById(block);
+
 				if (nbor->type == SOLID || (nbor->type == CUST && nbor->special == BLOCK_SOLIDOUTER))
 				{
 					if (nbor->special == BLOCK_HALF || nbor->special == BLOCK_STAIRS)
 					{
-						if (hasLights)
-						{
-							struct BlockIter_t iter;
-							/* slab and stairs have 0 skylight and blocklight: pick the one above */
-							mapInitIterOffset(&iter, cd, off);
-							mapIter(&iter, 0, 1, 0);
-							skyBlock[k] = mapGetSkyBlockLight(&iter);
-							data = skyBlock[k] >> 4;
-							if (data > 0 && data < MAXSKY) skyBlock[k] -= 0x10;
-							if ((skyBlock[k] & 0x0f) > 0)  skyBlock[k] -= 0x01;
-							slab |= 1<<k;
-						}
+						if (hasLights && k != 13)
+							skyBlock[k] = chunkPatchLight(iter);
+						slab |= 1<<k;
 					}
 					else occlusion |= 1<<k;
 				}
+
+				mapIter(&iter, next[0], next[1], next[2]);
+				next += 3;
+				if (next == EOT(iterNext)) next = iterNext;
 			}
 			/* CUST with no model: don't apply ambient occlusion, like CUST model will */
 			if (b->type == CUST && b->special != BLOCK_SOLIDOUTER)
@@ -1813,7 +1811,7 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 				default: ocs = occlusion & occlusionIfCorner[i+k] ? 1 : 0;
 				}
 
-				for (skyval = blockval = 0, off = (i+k) * 4; n > 0; off ++, n --)
+				for (skyval = skyBlock[13], blockval = skyval & 15, skyval &= 0xf0, off = (i+k) * 4; n > 0; off ++, n --)
 				{
 					uint8_t skyvtx = skyBlock[skyBlockOffset[off]];
 					uint8_t light  = skyvtx & 15;

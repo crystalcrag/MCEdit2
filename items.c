@@ -34,15 +34,10 @@ Bool itemCreate(const char * file, STRPTR * keys, int line)
 		return False;
 	}
 
-	item.id = atoi(value);
+	item.id = ITEMID(atoi(value), 0);
 	item.name = stringAddPool(jsonValue(keys, "name"), 0);
-	if (item.id < 256)
-	{
-		SIT_Log(SIT_ERROR, "%s: invalid item id %d on line %d\n", file, item.id, line);
-		return False;
-	}
+
 	value = jsonValue(keys, "state");
-	item.id <<= 4;
 	if (value) item.id |= atoi(value);
 
 	value = jsonValue(keys, "durability");
@@ -87,7 +82,17 @@ Bool itemCreate(const char * file, STRPTR * keys, int line)
 
 	value = jsonValue(keys, "createBlock");
 	if (value)
-		item.refBlock = atoi(value);
+	{
+		/* can't use hash table yet: it is not allocated yet */
+		Block b;
+		int   i;
+		for (i = 1, b = blockIds + 1; i < 256 && b->id; b ++, i ++)
+			if (strcmp(b->tech, value) == 0) break;
+		if (i < 256)
+			item.refBlock = i;
+		else
+			fprintf(stderr, "unknown block '%s'\n", value);
+	}
 
 	value = jsonValue(keys, "createTileEntity");
 	if (value)
@@ -134,7 +139,7 @@ Bool itemCreate(const char * file, STRPTR * keys, int line)
 	return True;
 }
 
-static void itemHashAdd(ItemHash table, int max, STRPTR name, int id)
+static void itemHashAdd(ItemHash table, int max, STRPTR name, ItemID_t id)
 {
 	if (! IsDef(name)) return;
 
@@ -175,18 +180,17 @@ void itemInitHash(void)
 
 	/* first: add block id */
 	for (i = 0; i < 256; i ++)
-		itemHashAdd(items.hashByName, items.hashSize, blockIds[i].tech, i);
+		itemHashAdd(items.hashByName, items.hashSize, blockIds[i].tech, ID(i, 0));
 
 	/* second: items */
 	for (i = 0; i < items.count; i ++)
 	{
 		ItemDesc ref = items.table + i;
-		if ((ref->id & 15) == 0 && ref->name)
-			itemHashAdd(items.hashByName, items.hashSize, ref->tech, ref->id >> 4);
+		if (ITEMMETA(ref->id) == 0 && ref->name)
+			itemHashAdd(items.hashByName, items.hashSize, ref->tech, ref->id);
 
 		TEXT id[16];
 		sprintf(id, "%d", ref->id);
-//		fprintf(stderr, "item %s: %s\n", ref->name, id);
 		itemHashAdd(items.hashById, items.hashIdSize, id, i);
 	}
 }
@@ -215,7 +219,7 @@ int itemAddCount(Item dest, int add)
 }
 
 /* get item id that creates the given block id */
-int itemCanCreateBlock(int blockId, STRPTR * name)
+ItemID_t itemCanCreateBlock(ItemID_t blockId, STRPTR * name)
 {
 	int i;
 	for (i = 0, blockId >>= 4; i < items.count; i ++)
@@ -247,7 +251,7 @@ float itemDurability(Item item)
 
 int itemMaxDurability(Item item)
 {
-	if (item->id < ID(256,0))
+	if (isBlockId(item->id))
 		return -1;
 
 	ItemDesc desc = itemGetById(item->id);
@@ -258,14 +262,16 @@ int itemMaxDurability(Item item)
 	return desc->durability;
 }
 
-int itemGetByName(STRPTR name, Bool forInventory)
+ItemID_t itemGetByName(STRPTR name, Bool forInventory)
 {
 	if (name == NULL)
 		return 0;
 	if ('0' <= name[0] && name[0] <= '9')
 	{
 		/* older versions used numeric id directly */
-		return atoi(name) << 4;
+		int id = atoi(name);
+		/* back then was less than 256 block types */
+		return id < 256 ? ID(id, 0) : ITEMID(id, 0);
 	}
 
 	if (strncasecmp(name, "minecraft:", 10) == 0)
@@ -282,6 +288,7 @@ int itemGetByName(STRPTR name, Bool forInventory)
 		uint8_t chr = *data;
 		if (chr == ':') { *data++ = 0; break; }
 		if (chr == 0) break;
+		/* force lower case */
 		if ('A' <= chr && chr <= 'Z')
 			*data = chr - 'A' + 'a';
 	}
@@ -298,8 +305,8 @@ int itemGetByName(STRPTR name, Bool forInventory)
 			 * some block id have a dedicated item id instead of reusing the block (and have the same tech name)
 			 * block like cauldron, repeater, doors, ... besides, the block id have no inventory model.
 			 */
-			if (hash->id >= 256 || blockIds[hash->id].inventory > 0 || ! forInventory)
-				return (hash->id << 4) | val;
+			if (! isBlockId(hash->id) || blockIds[hash->id >> 4].inventory > 0 || ! forInventory)
+				return hash->id | val;
 		}
 		if (hash->next > 0)
 			hash = items.hashByName + hash->next - 1;
@@ -309,38 +316,49 @@ int itemGetByName(STRPTR name, Bool forInventory)
 }
 
 /* get technical name of a block that can be saved in NBT */
-STRPTR itemGetTechName(int itemId, STRPTR out, int max)
+STRPTR itemGetTechName(ItemID_t itemId, STRPTR out, int max, Bool addMeta)
 {
 	STRPTR tech = NULL;
-	int i = 0;
+	int i = 0, meta = 0;
 	CopyString(out, "minecraft:", max);
-	if (itemId >= ID(256,0))
+	if (! isBlockId(itemId))
 	{
-		ItemDesc desc = itemGetById(itemId & ~15);
+		if (addMeta)
+			meta = ITEMMETA(itemId);
+		else
+			itemId &= ~(ITEMID_FLAG-1);
+		ItemDesc desc = itemGetById(itemId);
 
 		if (desc) tech = desc->tech;
 	}
-	else tech = blockIds[itemId>>4].tech;
+	else
+	{
+		if (addMeta)
+			meta = itemId & 15;
+		else
+			itemId &= ~15;
+		tech = blockIds[itemId>>4].tech;
+	}
 
 	if (tech) i = StrCat(out, max, i, tech);
 	else      i = StrCat(out, max, i, "unknown");
 
-	if (itemId & 15)
+	if (meta > 0)
 	{
-		TEXT data[4];
-		sprintf(data, ":%d", itemId & 15);
+		TEXT data[12];
+		sprintf(data, ":%d", meta);
 		StrCat(out, max, i, data);
 	}
 	return out;
 }
 
-ItemDesc itemGetById(int id)
+ItemDesc itemGetById(ItemID_t id)
 {
 	ItemHash hash;
 	uint32_t crc;
-	TEXT     idstr[6];
+	TEXT     idstr[16];
 
-	if (id < ID(256, 0))
+	if (isBlockId(id))
 		return NULL;
 
 	sprintf(idstr, "%d", id);
@@ -451,14 +469,20 @@ static void itemGenQuad(DATA16 out, int x1, int z1, int x2, int z2, int norm, DA
 	memcpy(out+5, out - 10, BYTES_PER_VERTEX);
 }
 
-int itemGenMesh(int blockId, DATA16 out)
+int itemGenMesh(ItemID_t blockId, DATA16 out)
 {
 	uint8_t texUV[2];
 	DATA16  vertex = out;
 	DATA8   bitmap = alloca(blockTexResol * blockTexResol);
 	int     count  = 6;
 
-	if (blockId >= ID(256, 0))
+	if (isBlockId(blockId))
+	{
+		BlockState state = blockGetById(blockId);
+		texUV[0] = state->nzU;
+		texUV[1] = state->nzV;
+	}
+	else
 	{
 		ItemDesc item = itemGetById(blockId);
 		if (item)
@@ -467,12 +491,6 @@ int itemGenMesh(int blockId, DATA16 out)
 			texUV[1] = item->texV + ITEM_ADDTEXV;
 		}
 		else return 0;
-	}
-	else
-	{
-		BlockState state = blockGetById(blockId);
-		texUV[0] = state->nzU;
-		texUV[1] = state->nzV;
 	}
 
 	if (blockGetAlphaTex(bitmap, texUV[0], texUV[1]))

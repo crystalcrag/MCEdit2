@@ -345,7 +345,7 @@ int main(int nb, char * argv[])
 	}
 
 //	globals.level = renderInitWorld("TestMesh", mcedit.maxDist);
-	globals.level = renderInitWorld("World5", mcedit.maxDist);
+	globals.level = renderInitWorld("World1_12", mcedit.maxDist);
 	globals.yawPitch = &mcedit.player.angleh;
 	mcedit.state  = GAMELOOP_WORLD;
 
@@ -671,10 +671,10 @@ void mceditWorld(void)
 /* left click */
 void mceditPlaceBlock(void)
 {
-	Player p = &mcedit.player;
-	vec4   pos;
-	int    block, id;
-	Item   item;
+	Player   p = &mcedit.player;
+	vec4     pos;
+	ItemID_t block, id;
+	Item     item;
 
 	if (p->inventory.offhand & PLAYER_TOOLBAR)
 	{
@@ -720,7 +720,7 @@ void mceditPlaceBlock(void)
 	item = &p->inventory.items[p->inventory.selected];
 	id   = mcedit.forceSel ? 0 : item->id;
 	/* use of an item: check if it creates a block instead */
-	if (id >= ID(256, 0))
+	if (! isBlockId(id))
 	{
 		ItemDesc desc = itemGetById(id);
 		if (desc->refBlock)
@@ -738,7 +738,7 @@ void mceditPlaceBlock(void)
 		else
 			entityUseItemOn(globals.level, sel->entity, item->id, pos);
 	}
-	else if (id < ID(256, 0))
+	else if (isBlockId(id))
 	{
 		/* 2 slabs in same block try to convert them in 1 double-slab */
 		if (blockIds[block>>4].special == BLOCK_HALF)
@@ -778,6 +778,16 @@ Bool mceditActivate(void)
 	return mapActivate(globals.level, pos);
 }
 
+static NBTHdr mceditGetEnderItems(void)
+{
+	int enderItems = NBT_FindNode(mcedit.player.levelDat, mcedit.player.playerBranch, "EnderItems");
+
+	if (enderItems > 0)
+		return NBT_Hdr(mcedit.player.levelDat, enderItems);
+	else
+		return NULL;
+}
+
 /*
  * display a modal user interface on top of editor
  */
@@ -789,6 +799,7 @@ void mceditUIOverlay(int type)
 	Item      item;
 	int       itemCount;
 	int       itemConnect;
+	uint8_t   enderItems;
 	vec4      pos;
 
 	SIT_SetValues(globals.app, SIT_RefreshMode, SITV_RefreshAsNeeded, NULL);
@@ -798,6 +809,7 @@ void mceditUIOverlay(int type)
 
 	MapExtraData sel = NULL;
 	itemCount = 0;
+	enderItems = 0;
 	item = NULL;
 	switch (type) {
 	case MCUI_OVERLAY_BLOCK:
@@ -843,7 +855,7 @@ void mceditUIOverlay(int type)
 						mapDecodeItems(item+27, 27, mapLocateItems(sel));
 					}
 					memcpy(item + 54, item, 54 * sizeof *item);
-					mcuiEditChestInventory(&mcedit.player.inventory, item, 54, 0);
+					mcuiEditChestInventory(&mcedit.player.inventory, item, 54, b);
 					break;
 				}
 				// else no break;
@@ -854,9 +866,15 @@ void mceditUIOverlay(int type)
 				item = alloca(sizeof *item * 27 * 2);
 				mapDecodeItems(item, 27, mapLocateItems(sel));
 				memcpy(item + 27, item, 27 * sizeof *item);
-				mcuiEditChestInventory(&mcedit.player.inventory, item, 27, 0);
+				mcuiEditChestInventory(&mcedit.player.inventory, item, 27, b);
 				break;
 			case 3: /* ender chest */
+				itemCount = 27;
+				enderItems = 1;
+				item = alloca(sizeof *item * 27 * 2);
+				mapDecodeItems(item, 27, mceditGetEnderItems());
+				memcpy(item + 27, item, 27 * sizeof *item);
+				mcuiEditChestInventory(&mcedit.player.inventory, item, 27, b);
 				break;
 			case 4: /* dispenser */
 			case 5: /* dropper */
@@ -864,15 +882,16 @@ void mceditUIOverlay(int type)
 				item = alloca(sizeof *item * 9 * 2);
 				mapDecodeItems(item, 9, mapLocateItems(sel));
 				memcpy(item + 9, item, 9 * sizeof *item);
-				mcuiEditChestInventory(&mcedit.player.inventory, item, 9, 0);
+				mcuiEditChestInventory(&mcedit.player.inventory, item, 9, b);
 				break;
-			case 6: /* furnace */
 			case 7: /* lit furnace */
+				b --;
+			case 6: /* furnace */
 				itemCount = 3;
 				item = alloca(sizeof *item * 3 * 2);
 				mapDecodeItems(item, 9, mapLocateItems(sel));
 				memcpy(item + 3, item, 3 * sizeof *item);
-				mcuiEditChestInventory(&mcedit.player.inventory, item, 3, 1);
+				mcuiEditChestInventory(&mcedit.player.inventory, item, 3, b);
 				break;
 
 			default:
@@ -970,8 +989,18 @@ void mceditUIOverlay(int type)
 		NBTFile_t playerInv = {0};
 
 		if (itemCount > 0 && memcmp(item, item + itemCount, itemCount * sizeof *item))
+		{
 			/* changes were made to container */
-			mapSerializeItems(sel, "Items", item, itemCount, &chest);
+			if (enderItems)
+			{
+				/* these need to be stored in level.dat */
+				mapSerializeItems(NULL, "EnderItems", item, itemCount, &chest);
+				NBT_Insert(mcedit.player.levelDat, "Player.EnderItems", TAG_List_Compound, &chest);
+				NBT_Free(&chest);
+				memset(&chest, 0, sizeof chest);
+			}
+			else mapSerializeItems(sel, "Items", item, itemCount, &chest);
+		}
 
 		if (mcedit.player.pmode >= MODE_CREATIVE && memcmp(oldPlayerInv, mcedit.player.inventory.items, sizeof oldPlayerInv))
 			/* only update NBT if player is in creative mode */

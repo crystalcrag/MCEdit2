@@ -82,7 +82,7 @@ void playerSensitivity(float s);
 void playerLookAt(Player, int mx, int my);
 int  playerProcessKey(Player, int key, int pressed);
 void playerInitPickup(PickupBlock);
-void playerAddInventory(Player, int blockId, DATA8 tileEntity);
+void playerAddInventory(Player, ItemID_t blockId, DATA8 tileEntity);
 void playerScrollInventory(Player, int dir);
 void playerSetMode(Player, int mode);
 void playerTeleport(Player, vec4 pos);
@@ -92,7 +92,7 @@ struct Player_t
 {
 	vec4     pos;
 	vec4     lookat;
-	float    angleh, anglev; /* radians */
+	float    angleh, anglev;   /* radians */
 	float    velocity[3];
 	float    dir[3];
 	float    velocityY;
@@ -102,8 +102,8 @@ struct Player_t
 	uint8_t  pmode;
 	uint16_t keyvec;
 	int      tick;
-	NBTFile  levelDat;
-	int      playerBranch;
+	NBTFile  levelDat;         /* complete NBT decoding of level.dat */
+	int      playerBranch;     /* offset within levelDat */
 	InvBuf   inventory;
 };
 
