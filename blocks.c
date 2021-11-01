@@ -2711,6 +2711,7 @@ int blockGenModel(int vbo, int blockId)
 				vtx = blockInvCopyFromModel(buffer, b->custModel, 1 << 8);
 				break;
 			case BLOCK_FENCE:
+			case BLOCK_FENCE2:
 				/* only center piece */
 				vtx = blockInvCopyFromModel(buffer, b->custModel, 0);
 				break;

@@ -1700,15 +1700,18 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 			/* only compute that info if block is visible (highly likely it is not) */
 			for (k = occlusion = 0; k < DIM(occlusionNeighbors); k ++)
 			{
-				uint8_t  sky, light;
 				uint16_t block;
-				sky   = iter.blockIds[SKYLIGHT_OFFSET   + (iter.offset >> 1)];
-				light = iter.blockIds[BLOCKLIGHT_OFFSET + (iter.offset >> 1)];
-				data  = iter.blockIds[DATA_OFFSET       + (iter.offset >> 1)];
+				data  = iter.blockIds[DATA_OFFSET + (iter.offset >> 1)];
 				block = iter.blockIds[iter.offset] << 4;
 
-				if (iter.offset & 1) skyBlock[k] = (light >> 4) | (sky & 0xf0), block |= data >> 4;
-				else                 skyBlock[k] = (light & 15) | (sky << 4),   block |= data & 15;
+				if (hasLights)
+				{
+					uint8_t sky, light;
+					sky   = iter.blockIds[SKYLIGHT_OFFSET   + (iter.offset >> 1)];
+					light = iter.blockIds[BLOCKLIGHT_OFFSET + (iter.offset >> 1)];
+					if (iter.offset & 1) skyBlock[k] = (light >> 4) | (sky & 0xf0), block |= data >> 4;
+					else                 skyBlock[k] = (light & 15) | (sky << 4),   block |= data & 15;
+				}
 
 				blockIds3x3[k] = block;
 				nbor = blockGetById(block);

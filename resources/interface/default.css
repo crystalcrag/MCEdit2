@@ -28,7 +28,7 @@ form.bg combobox arrow { background: transparent url(mask:arrowdown.png) 50% 50%
 popup { border: 3px solid black; border-width: 2px; background-color: white; color: black; padding: 12px 6px }
 
 /* mcedit style dialog */
-form.mc { background: rgba(black, 0.5); font-size: 0.9em; padding: 0.5em; border-radius: 0.5em }
+form.mc { background: rgba(black, 0.6); font-size: 0.9em; padding: 0.5em; border-radius: 0.5em }
 form.mc button { padding: 0.2em 0.5em; box-shadow: none; border: 0; outline: 0; text-transform: none; text-shadow: none; background: white; color: black }
 form.mc button:kbdfocus { outline: 0.15em solid selback 0.1em }
 form.mc #first { background: yellow; color: black; }
@@ -46,6 +46,7 @@ form.mc progress { background-color: rgba(black, 0.33); border-color: #555 }
 form.mc dim { color: #aaa }
 form.mc table td { padding: 0.3em 1.3em 0.3em 0.4em }
 form.mc table td:checked { color: selfore; background: selback }
+form.mc title { font-weight: bold; text-align: center }
 
 /* world selection */
 #header { background: linear-gradient(to right, rgba(#000,0.5), transparent 50%, rgba(#000,0.5)), url("dirt.png"); padding: 30px;
@@ -94,7 +95,7 @@ button:disabled { background: linear-gradient(to bottom, rgba(#87cb85,0.75), rgb
 #edit:active { box-shadow: 0 0 8px black inset; padding: 12px 22px 8px }
 #edit:disabled { padding: 12px 22px 8px }
 
-label.big { font-weight: bold }
+.big { font-weight: bold }
 
 #signedit { padding: 0; border: none; border-radius: 0; -caret-color: black; box-shadow: none; text-align: center; padding-top: 15px; color: black }
 

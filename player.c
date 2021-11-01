@@ -28,7 +28,7 @@ void playerInit(Player p)
 {
 	float rotation[2];
 	NBTFile levelDat = &globals.level->levelDat;
-	int player = p->playerBranch = NBT_FindNode(levelDat, 0, "Player");
+	int player = NBT_FindNode(levelDat, 0, "Player");
 
 	memset(p, 0, sizeof *p);
 
@@ -56,12 +56,20 @@ void playerInit(Player p)
 	p->lookat[VY] = p->pos[VY] + 8 * sinf(p->anglev);
 
 	/* get inventory content */
-	int offset = NBT_FindNode(levelDat, player, "Inventory");
-	if (offset > 0)
-		mapDecodeItems(p->inventory.items, MAXCOLINV * 4, (NBTHdr) (levelDat->mem + offset));
+	playerUpdateInventory(p);
 
 	p->inventory.selected = NBT_ToInt(levelDat, NBT_FindNode(levelDat, player, "SelectedItemSlot"), 0);
 }
+
+/* inventory in NBT changed: update items */
+void playerUpdateInventory(Player p)
+{
+	NBTFile levelDat = &globals.level->levelDat;
+	int offset = NBT_FindBranch(levelDat, 0, "Player.Inventory");
+	if (offset > 0)
+		mapDecodeItems(p->inventory.items, MAXCOLINV * 4, (NBTHdr) (levelDat->mem + offset));
+}
+
 
 /* save single player position and orientation in levelDat */
 void playerSaveLocation(Player p)
@@ -81,6 +89,7 @@ void playerSaveLocation(Player p)
 	NBT_SetFloat(levelDat, NBT_FindNode(levelDat, player, "SelectedItemSlot"), &select, 1); select = p->onground;
 	NBT_SetFloat(levelDat, NBT_FindNode(levelDat, player, "OnGround"), &select, 1); select = p->pmode;
 	NBT_SetFloat(levelDat, NBT_FindNode(levelDat, player, "playerGameType"), &select, 1);
+	NBT_MarkForUpdate(levelDat, 0, 1);
 }
 
 void playerSensitivity(float s)

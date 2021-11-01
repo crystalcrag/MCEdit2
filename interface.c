@@ -1,5 +1,16 @@
 /*
- * interface.c: handle user interface for MCEdit (based on SITGL).
+ * interface.c: handle user interface for MCEdit (based on SITGL); contains code for following interfaces:
+ *  - generic code for handling inventories
+ *  - creative inventory editor
+ *  - chest/furnace/dropper/dispenser editor
+ *  - text sign editor
+ *  - goto location
+ *  - analyze block window
+ *  - fill/replace blocks
+ *  - geometric brush fill
+ *  - partial delete
+ *  - painting selection
+ *  - world info
  *
  * Written by T.Pierron, oct 2020
  */
@@ -982,8 +993,7 @@ void mcuiCreateInventory(Inventory player)
 
 	SIT_CreateWidgets(diag,
 		"<tab name=items left=FORM right=FORM top=FORM bottom=FORM tabSpace=4 tabActive=", mcui.curTab, "tabStr=", "\t\t\t\t\t", ">"
-		" <label name=searchtxt title='Search:'>"
-		" <editbox name=search left=WIDGET,searchtxt,0.5em right=FORM>"
+		" <editbox name=search right=FORM buddyLabel=", "Search:", NULL, ">"
 		" <canvas composited=1 name=inv.inv left=FORM top=WIDGET,search,0.5em nextCtrl=LAST/>"
 		" <scrollbar width=1.2em name=scroll.inv wheelMult=1 top=OPPOSITE,inv,0 bottom=OPPOSITE,inv,0 right=FORM>"
 		" <label name=msg title='Player inventory:' top=WIDGET,inv,0.3em>"
@@ -1295,17 +1305,17 @@ void mcuiGoto(vec4 pos)
 
 	SIT_CreateWidgets(diag,
 		"<label name=title title='Enter the coordinate you want to jump to:' left=FORM right=FORM style='text-align: center'>"
-		"<label name=Xlab title=X:>"
-		"<editbox name=X roundTo=2 editType=", SITV_Float, "width=10em curValue=", mcuiCurPos, "top=WIDGET,title,1em left=WIDGET,Xlab,0.5em>"
-		"<label name=Ylab title=Y: left=WIDGET,X,1em>"
-		"<editbox name=Y roundTo=2 editType=", SITV_Float, "width=10em curValue=", mcuiCurPos+1, "top=WIDGET,title,1em left=WIDGET,Ylab,0.5em>"
-		"<label name=Zlab title=Z: left=WIDGET,Y,1em>"
-		"<editbox name=Z roundTo=2 editType=", SITV_Float, "width=10em curValue=", mcuiCurPos+2, "top=WIDGET,title,1em left=WIDGET,Zlab,0.5em>"
+		"<editbox name=X roundTo=2 editType=", SITV_Float, "width=10em curValue=", mcuiCurPos, "top=WIDGET,title,1em"
+		" left=WIDGET,Xlab,0.5em buddyLabel=", "X:", NULL, ">"
+		"<editbox name=Y roundTo=2 editType=", SITV_Float, "width=10em curValue=", mcuiCurPos+1, "top=WIDGET,title,1em"
+		" left=WIDGET,Ylab,0.5em buddyLabel=", "Y:", NULL, ">"
+		"<editbox name=Z roundTo=2 editType=", SITV_Float, "width=10em curValue=", mcuiCurPos+2, "top=WIDGET,title,1em"
+		" left=WIDGET,Zlab,0.5em buddyLabel=", "Z:", NULL, ">"
 		"<button name=ok.act title=Goto top=WIDGET,X,1em buttonType=", SITV_DefaultButton, ">"
-		"<button name=ko.act title=Cancel top=WIDGET,X,1em right=FORM buttonType=", SITV_CancelButton, ">"
+		"<button name=ko.act title=Cancel top=OPPOSITE,ok right=FORM buttonType=", SITV_CancelButton, ">"
 	);
 	SIT_SetAttributes(diag,
-		"<Xlab top=MIDDLE,X><Ylab top=MIDDLE,Y><Zlab top=MIDDLE,Z><ok right=WIDGET,ko,0.5em>"
+		"<bY left=WIDGET,X,1em><bZ left=WIDGET,Y,1em><ok right=WIDGET,ko,0.5em>"
 	);
 	SIT_AddCallback(SIT_GetById(diag, "ok"), SITE_OnActivate, mcuiGetCoord, pos);
 
@@ -1732,8 +1742,7 @@ void mcuiFillOrReplace(Bool fillWithBrush)
 	SIT_CreateWidgets(diag,
 		"<label name=dlgtitle.big title=", fillWithBrush ? "Geometric brush fill" : "Fill or replace selection",
 		" left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, ">"
-		"<label name=searchtxt title='Search:'>"
-		"<editbox name=search left=WIDGET,searchtxt,0.5em right=FORM top=WIDGET,dlgtitle,0.3em>"
+		"<editbox name=search right=FORM top=WIDGET,dlgtitle,0.3em buddyLabel=", "Search:", NULL, ">"
 		"<canvas composited=1 name=inv.inv left=FORM top=WIDGET,search,0.5em nextCtrl=LAST/>"
 		"<scrollbar width=1.2em name=scroll.inv wheelMult=1 top=OPPOSITE,inv,0 bottom=OPPOSITE,inv,0 right=FORM>"
 		"<label name=msg title='Fill:'>"
@@ -2058,7 +2067,7 @@ void mcuiDeletePartial(void)
 /*
  * interface to select a painting
  */
-struct
+static struct
 {
 	SIT_Widget view, name;
 	DATA8      lastHover;
@@ -2194,3 +2203,237 @@ void mcuiShowPaintings(void)
 
 	SIT_ManageWidget(diag);
 }
+
+/*
+ * world info interface: quote some parameters from level.dat
+ */
+static struct
+{
+	int  mode, difficulty, dayCycle, keepInv, mobGrief;
+	int  allowCmds, fireTick, hardcore;
+	TEXT seed[32];
+	int  days;
+	TEXT time[16];
+	TEXT name[256];
+	TEXT folder[MAX_PATHLEN];
+
+}	mcuiInfo;
+
+/* get some a parameter from level.dat */
+static void mcuiLevelDatParam(APTR buffer, int type, STRPTR key)
+{
+	NBTFile nbt = &globals.level->levelDat;
+	STRPTR  sep = strchr(key, '.');
+	int     off = 0;
+
+	if (sep)
+	{
+		STRPTR sub = alloca(sep - key + 1);
+		CopyString(sub, key, sep - key + 1);
+		off = NBT_FindNode(nbt, 0, sub);
+		key = sep + 1;
+	}
+	off = NBT_FindNode(nbt, off, key);
+
+	switch (type & 15) {
+	case TAG_Int:
+		* (int *) buffer = NBT_ToInt(nbt, off, 0);
+		break;
+	case TAG_Byte:
+		sep = NBT_Payload(nbt, off);
+		* (int *) buffer = sep ? strcasecmp(sep, "true") == 0 : 0;
+		break;
+	case TAG_Long:
+		sep = alloca(32);
+		NBT_ToString(nbt, off, sep, 32);
+		* (uint64_t *) buffer = strtoull(sep, NULL, 10);
+		break;
+	case TAG_String:
+		NBT_ToString(nbt, off, buffer, type >> 8);
+	}
+}
+
+static void TimeToStr(STRPTR dest, int time /* [0-23999] */)
+{
+	int h = time / 1000;
+	int m = (time - h * 1000) / 20; /* there are only 50 "minutes" in one hour though :-/ */
+	if (h > 12)
+		sprintf(dest, "%d:%02d PM", h - 12, m);
+	else
+		sprintf(dest, "%d:%02d AM", h, m);
+}
+
+/* get total size of all items in the directory */
+static uint64_t FolderSize(STRPTR path, int max)
+{
+	ScanDirData args;
+	uint64_t    total = 0;
+
+	if (ScanDirInit(&args, path))
+	{
+		do
+		{
+			if (args.isDir)
+			{
+				if (AddPart(path, args.name, max))
+				{
+					total += FolderSize(path, max);
+					ParentDir(path);
+				}
+			}
+			else total += args.size;
+		}
+		while (ScanDirNext(&args));
+	}
+	return total;
+}
+
+/* handler "folder" button */
+static int mcuiInfoOpenFolder(SIT_Widget w, APTR cd, APTR ud)
+{
+	OpenDocument(mcuiInfo.folder);
+	return 1;
+}
+
+/* OnActivate on "save" button */
+static int mcuiInfoSave(SIT_Widget w, APTR cd, APTR ud)
+{
+	uint64_t time = mcuiInfo.days * 24000ULL;
+	uint64_t seed = strtoull(mcuiInfo.seed, NULL, 10);
+	int h = 0, m = 0;
+	sscanf(mcuiInfo.time, "%d:%d", &h, &m);
+	if (h > 12) h = 12; if (m > 50) m = 50;
+	if (h < 0)  h = 0;  if (m < 0)  m = 0;
+	STRPTR sep = strchr(mcuiInfo.time, ' ');
+	if (sep && strcasecmp(sep + 1, "PM") == 0)
+		h += 12;
+	time += h * 1000 + m * 20;
+
+	/* 2 is adventure mode actually, 3 is spectator */
+	if (mcuiInfo.mode == 2)
+		mcuiInfo.mode = 3;
+
+	NBTFile nbt = &globals.level->levelDat;
+	NBT_AddOrUpdateKey(nbt, "Data.LevelName",            TAG_String, mcuiInfo.name);
+	NBT_AddOrUpdateKey(nbt, "Data.RandomSeed",           TAG_Long, &seed);
+	NBT_AddOrUpdateKey(nbt, "Data.Time",                 TAG_Long, &time);
+	NBT_AddOrUpdateKey(nbt, "Data.DayTime",              TAG_Long, &time);
+	NBT_AddOrUpdateKey(nbt, "Data.allowCommands",        TAG_Int, &mcuiInfo.allowCmds);
+	NBT_AddOrUpdateKey(nbt, "Player.playerGameType",     TAG_Int, &mcuiInfo.mode);
+	NBT_AddOrUpdateKey(nbt, "Data.Difficulty",           TAG_Int, &mcuiInfo.difficulty);
+	NBT_AddOrUpdateKey(nbt, "Data.hardcore",             TAG_Int, &mcuiInfo.hardcore);
+	NBT_AddOrUpdateKey(nbt, "GameRules.doDayNightCycle", TAG_String, mcuiInfo.dayCycle ? "true" : "false");
+	NBT_AddOrUpdateKey(nbt, "GameRules.keepInventory",   TAG_String, mcuiInfo.keepInv  ? "true" : "false");
+	NBT_AddOrUpdateKey(nbt, "GameRules.mobGriefing",     TAG_String, mcuiInfo.mobGrief ? "true" : "false");
+	NBT_AddOrUpdateKey(nbt, "GameRules.doFireTick",      TAG_String, mcuiInfo.fireTick ? "true" : "false");
+	NBT_MarkForUpdate(nbt, 0, 1);
+
+	renderAddModif();
+	SIT_Exit(1);
+	return 1;
+}
+
+/* build interface for world info editor */
+void mcuiWorldInfo(void)
+{
+	strcpy(mcuiInfo.folder, globals.level->path);
+	ParentDir(mcuiInfo.folder);
+
+	SIT_Widget diag = SIT_CreateWidget("worldinfo.mc", SIT_DIALOG, globals.app,
+		SIT_DialogStyles, SITV_Plain,
+		NULL
+	);
+
+	uint64_t totalTime;
+	TEXT     size[16];
+
+	#define STR(sz)    (TAG_String | (sz << 8))
+	mcuiLevelDatParam(&mcuiInfo.mode,       TAG_Int,  "Player.playerGameType");
+	mcuiLevelDatParam(&mcuiInfo.difficulty, TAG_Int,  "Data.Difficulty");
+	mcuiLevelDatParam(&mcuiInfo.hardcore,   TAG_Int,  "Data.hardcore");
+	mcuiLevelDatParam(&mcuiInfo.allowCmds,  TAG_Int,  "Data.allowCommands");
+	mcuiLevelDatParam(&mcuiInfo.dayCycle,   TAG_Byte, "GameRules.doDayNightCycle");
+	mcuiLevelDatParam(&mcuiInfo.keepInv,    TAG_Byte, "GameRules.keepInventory");
+	mcuiLevelDatParam(&mcuiInfo.mobGrief,   TAG_Byte, "GameRules.mobGriefing");
+	mcuiLevelDatParam(&mcuiInfo.fireTick,   TAG_Byte, "GameRules.doFireTick");
+	mcuiLevelDatParam(&totalTime,           TAG_Long, "Data.Time");
+	mcuiLevelDatParam(mcuiInfo.seed,        STR(32),  "Data.RandomSeed");
+	mcuiLevelDatParam(mcuiInfo.name,        STR(256), "Data.LevelName");
+	#undef STR
+	mcuiInfo.days = totalTime / 24000;
+	TimeToStr(mcuiInfo.time, totalTime - mcuiInfo.days * 24000ULL);
+	FormatNumber(size, sizeof size, "%d K", (FolderSize(mcuiInfo.folder, sizeof mcuiInfo.folder) + 1023) >> 10);
+
+	SIT_Widget max1 = NULL;
+	SIT_Widget max2 = NULL;
+	SIT_CreateWidgets(diag,
+		"<label name=dlgtitle#title title='World info:' left=FORM right=FORM>"
+		"<editbox name=level editBuffer=", mcuiInfo.name, "editLength=", sizeof mcuiInfo.name, "width=15em"
+		" right=FORM top=WIDGET,dlgtitle,0.8em buddyLabel=", "Level name:", &max1, ">"
+		"<editbox name=seed  editBuffer=", mcuiInfo.seed, "editLength=", sizeof mcuiInfo.seed,
+		" right=FORM top=WIDGET,level,0.5em buddyLabel=", "Seed:", &max1, ">"
+		"<editbox name=day   width=6em  top=WIDGET,seed,0.5em minValue=0 buddyLabel=", "Days:", &max1,
+		" editType=", SITV_Integer, "curValue=", &mcuiInfo.days, ">"
+		"<editbox name=time  width=6em  top=WIDGET,seed,0.5em buddyLabel=", "Time:", NULL,
+		" editBuffer=", mcuiInfo.time, "editLength=", sizeof mcuiInfo.time, "right=FORM>"
+		"<button name=open.act title=Folder:>"
+		"<editbox name=folder editBuffer=", mcuiInfo.folder, "editLength=", MAX_PATHLEN, "readOnly=1 top=WIDGET,time,0.5em left=OPPOSITE,level right=FORM>"
+		"<label name=size title=", size, "top=WIDGET,folder,0.5em buddyLabel=", "Size on disk:", &max1, ">"
+		"<label name=rules#title title='Game rules:' left=FORM right=FORM top=WIDGET,size,0.5em/>"
+		/* game mode */
+		"<button name=type0 buttonType=", SITV_RadioButton, "curValue=", &mcuiInfo.mode, "title=Survival top=WIDGET,rules,1em buddyLabel=", "Game mode:", &max2, ">"
+		"<button name=type1 buttonType=", SITV_RadioButton, "curValue=", &mcuiInfo.mode, "title=Creative top=OPPOSITE,type0 left=WIDGET,type0,0.8em>"
+		"<button name=type2 buttonType=", SITV_RadioButton, "curValue=", &mcuiInfo.mode, "title=Spectator top=OPPOSITE,type0 left=WIDGET,type1,0.8em>"
+		/* difficulty */
+		"<button name=level0 buttonType=", SITV_RadioButton, "curValue=", &mcuiInfo.difficulty, "radioGroup=1"
+		" title=Peaceful top=WIDGET,type0,1em buddyLabel=", "Difficulty:", &max2, ">"
+		"<button name=level1 buttonType=", SITV_RadioButton, "curValue=", &mcuiInfo.difficulty,
+		" radioGroup=1 title=Easy top=OPPOSITE,level0 left=WIDGET,level0,0.8em>"
+		"<button name=level2 buttonType=", SITV_RadioButton, "curValue=", &mcuiInfo.difficulty,
+		" radioGroup=1 title=Normal top=OPPOSITE,level0 left=WIDGET,level1,0.8em>"
+		"<button name=level3 buttonType=", SITV_RadioButton, "curValue=", &mcuiInfo.difficulty,
+		" radioGroup=1 title=Hard top=OPPOSITE,level0 left=WIDGET,level2,0.8em>"
+		/* hardcore */
+		"<button name=hard0 buttonType=", SITV_RadioButton, "radioGroup=2 top=WIDGET,level0,1em"
+		" curValue=", &mcuiInfo.hardcore, "title=No buddyLabel=", "Hardcore more:", &max2, ">"
+		"<button name=hard1 buttonType=", SITV_RadioButton, "radioGroup=2 top=OPPOSITE,hard0"
+		" left=WIDGET,hard0,0.8em curValue=", &mcuiInfo.hardcore, "title=Yes>"
+		/* allowCommands */
+		"<button name=cmd0 buttonType=", SITV_RadioButton, "radioGroup=3 top=WIDGET,hard0,1em"
+		" curValue=", &mcuiInfo.allowCmds, "title=No buddyLabel=", "Allow commands:", &max2, ">"
+		"<button name=cmd1 buttonType=", SITV_RadioButton, "radioGroup=3 top=OPPOSITE,cmd0"
+		" left=WIDGET,cmd0,0.8em curValue=", &mcuiInfo.allowCmds, "title=Yes>"
+		/* doDayNightCycle */
+		"<button name=day0 buttonType=", SITV_RadioButton, "radioGroup=4 top=WIDGET,cmd0,1em"
+		" curValue=", &mcuiInfo.dayCycle, "title=No buddyLabel=", "Day/night cycle:", &max2, ">"
+		"<button name=day1 buttonType=", SITV_RadioButton, "radioGroup=4 top=OPPOSITE,day0"
+		" left=WIDGET,day0,0.8em curValue=", &mcuiInfo.dayCycle, "title=Yes>"
+		/* keepInventory */
+		"<button name=inv0 buttonType=", SITV_RadioButton, "radioGroup=5 top=WIDGET,day0,1em"
+		" curValue=", &mcuiInfo.keepInv, "title=No buddyLabel=", "Keep inventory:", &max2, ">"
+		"<button name=inv1 buttonType=", SITV_RadioButton, "radioGroup=5 top=OPPOSITE,inv0"
+		" left=WIDGET,inv0,0.8em curValue=", &mcuiInfo.keepInv, "title=Yes>"
+		/* mobGriefing */
+		"<button name=grief0 buttonType=", SITV_RadioButton, "radioGroup=6 top=WIDGET,inv0,1em"
+		" curValue=", &mcuiInfo.mobGrief, "title=No buddyLabel=", "Mob griefing:", &max2, ">"
+		"<button name=grief1 buttonType=", SITV_RadioButton, "radioGroup=6 top=OPPOSITE,grief0"
+		" left=WIDGET,grief0,0.8em curValue=", &mcuiInfo.mobGrief, "title=Yes>"
+		/* doFireTick */
+		"<button name=fire0 buttonType=", SITV_RadioButton, "radioGroup=7 top=WIDGET,grief0,1em"
+		" curValue=", &mcuiInfo.fireTick, "title=No buddyLabel=", "Fire spreading:", &max2, ">"
+		"<button name=fire1 buttonType=", SITV_RadioButton, "radioGroup=7 top=OPPOSITE,fire0"
+		" left=WIDGET,fire0,0.8em curValue=", &mcuiInfo.fireTick, "title=Yes>"
+
+		"<button name=ko.act title=Cancel top=WIDGET,fire0,0.8em right=FORM buttonType=", SITV_CancelButton, ">"
+		"<button name=ok.act title=Save   top=OPPOSITE,ko right=WIDGET,ko,1em buttonType=", SITV_DefaultButton, ">"
+	);
+
+	SIT_SetAttributes(diag, "<open top=MIDDLE,folder><time left=NONE><btime right=WIDGET,time,0.5em>");
+	SIT_AddCallback(SIT_GetById(diag, "ko"), SITE_OnActivate, mcuiExitWnd, NULL);
+	SIT_AddCallback(SIT_GetById(diag, "open"), SITE_OnActivate, mcuiInfoOpenFolder, NULL);
+	SIT_AddCallback(SIT_GetById(diag, "ok"), SITE_OnActivate, mcuiInfoSave, NULL);
+
+	SIT_ManageWidget(diag);
+}
+
+

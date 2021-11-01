@@ -18,34 +18,38 @@ typedef struct NBTHdr_t *       NBTHdr;
 
 typedef int (*NBT_WriteCb_t)(int tag, APTR ud, NBTFile);
 
-int NBT_Parse(NBTFile, STRPTR path);
-int NBT_ParseIO(NBTFile, FILE *, int offset);
-int NBT_FindNode(NBTFile, int offset, STRPTR name);
-int NBT_FindNodeFromStream(DATA8 nbt, int offset, STRPTR name);
-int NBT_Save(NBTFile, STRPTR path, NBT_WriteCb_t cb, APTR cbparam);
-int NBT_Iter(NBTIter iter);
-int NBT_FormatSection(DATA8 mem, int y);
-int NBT_SetHdrSize(NBTFile, int offset);
-int NBT_Insert(NBTFile, STRPTR loc, int type, NBTFile fragment);
-int NBT_ToInt(NBTFile, int offset, int def);
-int NBT_Size(DATA8 fragment);
-Bool NBT_ToFloat(NBTFile, int offset, float * array, int nb);
-void NBT_MarkForUpdate(NBTFile, int offset, int tag);
-void NBT_InitIter(NBTFile, int offset, NBTIter);
-void NBT_IterCompound(NBTIter, DATA8 mem);
-APTR NBT_Payload(NBTFile, int offset);
-APTR NBT_ArrayStart(NBTFile root, int offset, int * size);
-APTR NBT_PayloadFromStream(DATA8 stream, int offset, STRPTR name);
-Bool NBT_SetFloat(NBTFile, int offset, float * array, int nb);
-Bool NBT_SetInt(NBTFile, int offset, int64_t val);
-Bool NBT_Add(NBTFile nbt, ...);
-Bool NBT_Delete(NBTFile nbt, int offset, int nth);
+int   NBT_Parse(NBTFile, STRPTR path);
+int   NBT_ParseIO(NBTFile, FILE *, int offset);
+int   NBT_FindNode(NBTFile, int offset, STRPTR name);
+int   NBT_FindNodeFromStream(DATA8 nbt, int offset, STRPTR name);
+int   NBT_FindBranch(NBTFile, int offset, STRPTR branch);
+int   NBT_Save(NBTFile, STRPTR path, NBT_WriteCb_t cb, APTR cbparam);
+int   NBT_Iter(NBTIter iter);
+int   NBT_FormatSection(DATA8 mem, int y);
+int   NBT_SetHdrSize(NBTFile, int offset);
+int   NBT_Insert(NBTFile, STRPTR loc, int type, NBTFile fragment);
+int   NBT_AddOrUpdateKey(NBTFile, STRPTR key, int type, APTR value);
+Bool  NBT_ToFloat(NBTFile, int offset, float * array, int nb);
+Bool  NBT_ToString(NBTFile root, int offset, STRPTR buffer, int max);
+int   NBT_ToInt(NBTFile, int offset, int def);
+int   NBT_Size(DATA8 fragment);
+void  NBT_MarkForUpdate(NBTFile, int offset, int tag);
+void  NBT_InitIter(NBTFile, int offset, NBTIter);
+void  NBT_IterCompound(NBTIter, DATA8 mem);
+APTR  NBT_Payload(NBTFile, int offset);
+APTR  NBT_ArrayStart(NBTFile root, int offset, int * size);
+APTR  NBT_PayloadFromStream(DATA8 stream, int offset, STRPTR name);
+Bool  NBT_SetFloat(NBTFile, int offset, float * array, int nb);
+Bool  NBT_SetInt(NBTFile, int offset, int64_t val);
+Bool  NBT_Add(NBTFile nbt, ...);
+Bool  NBT_Delete(NBTFile nbt, int offset, int nth);
 DATA8 NBT_Copy(DATA8 mem);
 DATA8 NBT_Compress(NBTFile, int * size, int page, NBT_WriteCb_t cb, APTR cbparam);
 
 /* only available in debug */
 int  NBT_Dump(NBTFile, int offset, int level, FILE * out);
 void NBT_DumpCompound(NBTFile);
+void NBT_Test(void);
 
 #define NBT_Free(ptr)        free((ptr)->mem)
 #define MIN_SECTION_MEM      10328
@@ -80,6 +84,7 @@ struct NBTHdr_t
 /* use with caution */
 #define NBT_HdrSize(mem)     ((NBTHdr)(mem))->size
 #define NBT_MemPayload(mem)  (((NBTHdr)mem)->name + ((((NBTHdr)mem)->minNameSz + 4) & ~3))
+#define NBT_IsModified(file) (((NBTHdr)(file)->mem)->count > 0)
 #define NBT_Hdr(file,off)    ((NBTHdr)((file)->mem + off))
 
 /* tags for NBT_Add() */

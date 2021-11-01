@@ -76,6 +76,7 @@ enum
 };
 
 void playerInit(Player);
+void playerUpdateInventory(Player);
 void playerSaveLocation(Player);
 void playerUpdateNBT(Player);
 void playerSensitivity(float s);
@@ -101,20 +102,20 @@ struct Player_t
 	uint8_t  onground;
 	uint8_t  pmode;
 	uint16_t keyvec;
-	int      tick;
+	uint32_t tick;
 	NBTFile  levelDat;         /* complete NBT decoding of level.dat */
-	int      playerBranch;     /* offset within levelDat */
 	InvBuf   inventory;
 };
 
-enum /* possible values for mode */
+enum /* possible values for <mode> */
 {
-	MODE_SURVIVAL,
-	MODE_CREATIVE,
-	MODE_SPECTATOR
+	MODE_SURVIVAL  = 0,
+	MODE_CREATIVE  = 1,
+	MODE_ADVENTURE = 2,
+	MODE_SPECTATOR = 3
 };
 
-enum /* possible values for keyvec */
+enum /* possible values for <keyvec> */
 {
 	PLAYER_STRAFE_LEFT  = 0x0001,
 	PLAYER_STRAFE_RIGHT = 0x0002,

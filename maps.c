@@ -962,7 +962,14 @@ Bool mapSaveLevelDat(Map map)
 	AddPart(copy, "level.dat_old", sizeof copy);
 
 	/* make a copy of level.dat first */
-	return FileCopy(path, copy, True) && NBT_Save(&map->levelDat, path, NULL, 0) > 0;
+	if (FileCopy(path, copy, True) && NBT_Save(&map->levelDat, path, NULL, 0) > 0)
+	{
+		/* remove modif mark */
+		NBTHdr hdr = (NBTHdr) map->levelDat.mem;
+		hdr->count = 0;
+		return True;
+	}
+	return False;
 }
 
 /* add the chunk to the pending list of chunks to be saved */

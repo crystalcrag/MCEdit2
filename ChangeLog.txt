@@ -1,4 +1,10 @@
 =========== Week 43 ===========
+Sun Oct 31:
+	* update single property of NBT (relocating if necessary).
+
+Sat Oct 30:
+	* added world info editor (Ctrl+I).
+
 Fri Oct 29:
 	* lighting glitches mostly fixed around stairs/slab.
 	* itemId refactoring mostly done.

@@ -38,7 +38,7 @@ enum /* possible values for state: which game loop are we running */
 void mceditWorld(void);        /* gameloop for WORLD */
 void mceditUIOverlay(int);     /* display an interface on top of editor */
 void mceditSideView(void);     /* gameloop for SIDEVIEW */
-void mceditWorldSelct(void);   /* world selection */
+void mceditWorldSelect(void);  /* world selection */
 Bool mceditActivate(void);     /* toggle state of some blocks (door, button, lever, repeater, ...) */
 void mceditPlaceBlock(void);
 
@@ -55,6 +55,7 @@ enum /* possible value for parameter mceditUIOverlay() */
 	MCUI_OVERLAY_SAVESEL,
 	MCUI_OVERLAY_PAINTING,
 	MCUI_OVERLAY_PIXELART,
+	MCUI_OVERLAY_WORLDINFO,
 	MCUI_SEL_CLONE
 };
 

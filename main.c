@@ -152,10 +152,10 @@ static int mceditSaveChanges(SIT_Widget w, APTR cd, APTR ud)
 	if (! mapSaveAll(globals.level))
 		SIT_Log(SIT_ERROR, "Fail to save changes: %s\n", GetError());
 	if (mcedit.player.pmode >= MODE_CREATIVE)
-	{
-		playerSaveLocation(&mcedit.player);
+		playerSaveLocation(&mcedit.player),
+		NBT_MarkForUpdate(&globals.level->levelDat, 0, 1);
+	if (NBT_IsModified(&globals.level->levelDat))
 		mapSaveLevelDat(globals.level);
-	}
 	renderAllSaved();
 	return 1;
 }
@@ -224,6 +224,16 @@ static void mceditCommands(int cmd)
 		}
 	}
 }
+
+/* Ctrl+I: world info */
+static int mceditShowWorldInfo(SIT_Widget w, APTR cd, APTR ud)
+{
+	FrameSaveRestoreTime(True);
+	mceditUIOverlay(MCUI_OVERLAY_WORLDINFO);
+	FrameSaveRestoreTime(False);
+	return 1;
+}
+
 
 static int mceditClearSelection(SIT_Widget w, APTR cd, APTR ud)
 {
@@ -322,6 +332,7 @@ int main(int nb, char * argv[])
 		{SITK_FlagCtrl + 'c', SITE_OnActivate, NULL, mceditCopyToLibrary},
 		{SITK_FlagCtrl + 'd', SITE_OnActivate, NULL, mceditClearSelection},
 		{SITK_FlagCtrl + 'l', SITE_OnActivate, NULL, mceditShowLibrary},
+		{SITK_FlagCtrl + 'i', SITE_OnActivate, NULL, mceditShowWorldInfo},
 		{0}
 	};
 
@@ -345,7 +356,7 @@ int main(int nb, char * argv[])
 	}
 
 //	globals.level = renderInitWorld("TestMesh", mcedit.maxDist);
-	globals.level = renderInitWorld("World1_12", mcedit.maxDist);
+	globals.level = renderInitWorld("World5", mcedit.maxDist);
 	globals.yawPitch = &mcedit.player.angleh;
 	mcedit.state  = GAMELOOP_WORLD;
 
@@ -476,14 +487,22 @@ void mceditWorld(void)
 					}
 					break;
 				case SDLK_i:
-					FrameSaveRestoreTime(True);
-					SDL_WM_GrabInput(SDL_GRAB_OFF);
-					SDL_ShowCursor(SDL_ENABLE);
-					capture = ignore = 0;
-					mceditUIOverlay(MCUI_OVERLAY_BLOCK);
-					FrameSaveRestoreTime(False);
-					mcedit.player.inventory.update ++;
-					break;
+					if (SDLMtoSIT(event.key.keysym.mod) == 0)
+					{
+						FrameSaveRestoreTime(True);
+						SDL_WM_GrabInput(SDL_GRAB_OFF);
+						SDL_ShowCursor(SDL_ENABLE);
+						capture = ignore = 0;
+						mceditUIOverlay(MCUI_OVERLAY_BLOCK);
+						FrameSaveRestoreTime(False);
+						mcedit.player.inventory.update ++;
+						break;
+					}
+					else
+					{
+						key = SDLKtoSIT(event.key.keysym.sym);
+						goto forwardKeyPress;
+					}
 				case SDLK_RETURN:
 					if (globals.selPoints & 8)
 						selectionCopyBlocks(NULL, NULL, NULL);
@@ -780,7 +799,7 @@ Bool mceditActivate(void)
 
 static NBTHdr mceditGetEnderItems(void)
 {
-	int enderItems = NBT_FindNode(mcedit.player.levelDat, mcedit.player.playerBranch, "EnderItems");
+	int enderItems = NBT_FindBranch(mcedit.player.levelDat, 0, "Player.EnderItems");
 
 	if (enderItems > 0)
 		return NBT_Hdr(mcedit.player.levelDat, enderItems);
@@ -914,7 +933,8 @@ void mceditUIOverlay(int type)
 	case MCUI_OVERLAY_SAVESEL:    libraryShow(type); break;
 	case MCUI_OVERLAY_DELPARTIAL: mcuiDeletePartial(); break;
 	case MCUI_OVERLAY_PAINTING:   mcuiShowPaintings(); break;
-	case MCUI_OVERLAY_PIXELART:   mcuiShowPixelArt(mcedit.player.pos);
+	case MCUI_OVERLAY_PIXELART:   mcuiShowPixelArt(mcedit.player.pos); break;
+	case MCUI_OVERLAY_WORLDINFO:  mcuiWorldInfo(); break;
 	}
 
 	SDL_EnableUNICODE(1);
@@ -1023,8 +1043,9 @@ void mceditUIOverlay(int type)
 		{
 			int offset = NBT_Insert(&globals.level->levelDat, "Player.Inventory", TAG_List_Compound, &playerInv);
 			NBT_Free(&playerInv);
+			NBT_MarkForUpdate(&globals.level->levelDat, 0, 1);
 			if (offset >= 0)
-				mapDecodeItems(mcedit.player.inventory.items, MAXCOLINV, NBT_Hdr(&globals.level->levelDat, offset));
+				playerUpdateInventory(&mcedit.player);
 		}
 	}	break;
 	case MCUI_OVERLAY_GOTO:
@@ -1037,6 +1058,10 @@ void mceditUIOverlay(int type)
 	case MCUI_OVERLAY_FILL:
 	case MCUI_OVERLAY_PIXELART:
 		mcedit.player.inventory.update ++;
+		break;
+	case MCUI_OVERLAY_WORLDINFO:
+		/* level.dat modified: reparse player inventory */
+		playerUpdateInventory(&mcedit.player);
 	}
 	if (mcedit.exit > 0)
 		/* exit is 1 if hit ESC (exit from interface) or 2 if alt+F4 (exit app) */
