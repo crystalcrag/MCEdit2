@@ -85,7 +85,7 @@
 	{id: 335, state: 0, name: "Milk Bucket",          stack: 1, cat: ALLCAT,   tex: [11, 1]},
 	{id: 336, state: 0, name: "Clay Brick",           stack:64, cat: ALLCAT,   tex: [ 7, 1], tech: "brick"},
 	{id: 337, state: 0, name: "Clay",                 stack:64, cat: ALLCAT,   tex: [11, 3], tech: "clay_ball"},
-	{id: 338, state: 0, name: "Sugar Cane (reeds)",   stack:64, cat: CROPS,    tex: [12, 8], tech: "reeds", createBlock: "reeds"},
+	{id: 338, state: 0, name: "Sugar Cane (reeds)",   stack:64, cat: CROPS,    tex: [12, 8], tech: "reeds", createBlock: "sugar_cane"},
 	{id: 339, state: 0, name: "Paper",                stack:64, cat: ALLCAT,   tex: [13, 8]},
 	{id: 340, state: 0, name: "Book",                 stack:64, cat: ALLCAT,   tex: [14, 9]},
 	{id: 341, state: 0, name: "Slime Ball",           stack:64, cat: ALLCAT,   tex: [ 8, 7], tech: "slimeball"},

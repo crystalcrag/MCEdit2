@@ -305,7 +305,7 @@ void debugShowChunkBoundary(Chunk cur, int Y)
 			debugChunk.count --, debugChunk.graph = 0;
 
 		initCnxGraph:
-		if (Y < cur->maxy)
+		if (0 <= Y && Y < cur->maxy)
 		{
 			debugBuildCnxGraph(cur->layer[Y]->cnxGraph);
 			debugChunk.Y = Y;
@@ -358,14 +358,16 @@ void debugCoord(APTR vg, vec4 camera, int total)
 {
 	TEXT message[256];
 	int  len = sprintf(message, "XYZ: %.2f, %.2f, %.2f (feet)", (double) camera[0], (double)(camera[1] - PLAYER_HEIGHT), (double) camera[2]);
-	int  vis, culled;
+	int  vis;
+
+	GPUBank bank;
 	ChunkData cd = globals.level->firstVisible;
 
-	len += sprintf(message + len, "\nChunk: %d, %d, %d", CPOS(camera[0]) << 4, CPOS(camera[1]) << 4, CPOS(camera[2]) << 4);
+	len += sprintf(message + len, "\nChunk: %d, %d, %d (cnxGraph: %x)", CPOS(camera[0]) << 4, CPOS(camera[1]) << 4, CPOS(camera[2]) << 4,
+		cd ? cd->cnxGraph : 0);
 	len += sprintf(message + len, "\nTriangles: %d", total);
-	for (cd = globals.level->firstVisible, vis = 0, culled = 0; cd; vis ++, cd = cd->visible)
-		if (cd->comingFrom == 0) culled ++;
-	len += sprintf(message + len, "\nChunks: %d/%d (culled: %d)", vis, globals.level->GPUchunk, culled);
+	for (bank = HEAD(globals.level->gpuBanks), vis = 0; bank; vis += bank->vtxSize, NEXT(bank));
+	len += sprintf(message + len, "\nChunks: %d/%d (culled: %d)", vis, globals.level->GPUchunk, globals.level->chunkCulled);
 
 	nvgFontSize(vg, FONTSIZE);
 	nvgTextAlign(vg, NVG_ALIGN_TOP);
@@ -673,6 +675,8 @@ void debugWorld(void)
 	mapInitIter(globals.level, &iter, top, False);
 	nvgFontSize(vg, 20);
 
+	uint8_t edge = dir[debug.sliceAxis] < 0 ? 15 : 0;
+
 	for (j = debug.cellV, y = debug.yoff; j > 0; j --, y += debug.sliceSz)
 	{
 		if (iter.y == 0)
@@ -680,7 +684,7 @@ void debugWorld(void)
 			int axis = debug.sliceAxis >> 1;
 			for (i = debug.cellH, x = debug.xoff; i > 0; i --, x += debug.sliceSz)
 			{
-				if ((&iter.x)[axis] == 0)
+				if ((&iter.x)[axis] == edge)
 				{
 					char message[64];
 					message[0] = 0;

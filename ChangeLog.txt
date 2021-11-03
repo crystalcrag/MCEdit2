@@ -1,6 +1,15 @@
+=========== Week 44 ===========
+Tue Nov 2:
+	* random jitter configuratble per quad block.
+	* minor bug fixes: brush lighting, debug culled cave.
+
+Mon Nov 1:
+	* cave culling bugs fixed and hooked to frustum culling (finally).
+
 =========== Week 43 ===========
 Sun Oct 31:
 	* update single property of NBT (relocating if necessary).
+	* bug fix in the way async update are processed: modify sorted list as soon as possible.
 
 Sat Oct 30:
 	* added world info editor (Ctrl+I).

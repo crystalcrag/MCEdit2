@@ -34,8 +34,9 @@ struct Map_t
 	int       maxDist;             /* max render distance in chunks */
 	int       mapArea;             /* size of entire area of map (including lazy chunks) */
 	int       frame;               /* needed by frustum culling */
-	int       GPUchunk;            /* statistic used by debug screen (chunks with mesh on GPU) */
-	int       GPUMaxChunk;         /* chunk of mem to allocate for a single VBO */
+	int       GPUchunk;            /* stat for debug: chunks with mesh on GPU */
+	int       GPUMaxChunk;         /* bytes to allocate for a single VBO */
+	uint16_t  chunkCulled;         /* stat for debug: chunk culled from cave culling (not from frustum) */
 	uint16_t  curOffset;           /* reduce sorting for alpha transparency of current chunk */
 	uint16_t  size[3];             /* brush only: size in blocks of brush (incl. 1 block margin around) */
 	Chunk     center;              /* chunks + mapX + mapZ * mapArea */

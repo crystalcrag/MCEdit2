@@ -22,8 +22,13 @@
 //#define SLOW_CHUNK_LOAD   /* load 1 chunk (entire column) per second */
 
 static struct Frustum_t frustum = {
+	#if 0
 	.neighbors    = {0x0000161b, 0x00004c36, 0x000190d8, 0x000341b0, 0x006c1600, 0x00d84c00, 0x03619000, 0x06c34000},
-	.chunkOffsets = {44,36,38,40,32,34,41,33,35,12,4,6,8,0,2,9,1,3,28,20,22,24,16,18,25,17,19},
+	.chunkOffsets = {44,36,38,40,32,34,41,33,35,12,4,6,8,0,2,9,1,3,28,20,22,24,16,18,25,17,19}
+	#else
+	.neighbors    = {0x04054058, 0x0101284c, 0x00440552, 0x001024c6, 0x0202c038, 0x0080982c, 0x00220332, 0x000812a6},
+	.chunkOffsets = {0,1,2,4,8,16,32,3,9,17,33,6,18,34,12,20,36,24,40,19,35,25,41,22,38,28,44}
+	#endif
 };
 
 /* given a direction encodded as bitfield (S, E, N, W), return offset of where that chunk is */
@@ -337,8 +342,8 @@ static Bool mapBlockIsFaceVisible(Map map, vec4 pos, int blockId, int8_t * offse
 	if (b->type == SOLID || b->type == TRANS)
 	{
 		vec4 neighbor = {pos[0] + offset[0], pos[1] + offset[1], pos[2] + offset[2], 1};
-
 		BlockState n = blockGetById(mapGetBlockId(map, neighbor, NULL));
+		if (n->type == b->type && n->type == TRANS) return False;
 		return n->type != SOLID || n->special == BLOCK_HALF;
 	}
 	return True;
@@ -1331,13 +1336,13 @@ static void mapFreeFakeChunk(ChunkData cd)
 	mapPrintUsage(cf, -1);
 }
 
-static int mapGetOutFlags(Map map, ChunkData cur, DATA8 outflags, int max)
+static int mapGetOutFlags(Map map, ChunkData cur, DATA8 outflags)
 {
 	uint8_t out, i, sector;
 	Chunk   chunk = cur->chunk;
 	int     layer = cur->Y >> 4;
 	int     neighbors = 0;
-	for (i = out = neighbors = 0; i < max; i ++)
+	for (i = out = neighbors = 0; i < 8; i ++)
 	{
 		static uint8_t dir[] = {0, 2, 1, 3, 16, 16+2, 16+1, 16+3};
 		Chunk neighbor = chunk + chunkNeighbor[chunk->neighbor + (dir[i] & 15)];
@@ -1413,7 +1418,7 @@ static ChunkData mapAddToVisibleList(Map map, Chunk from, int direction, int lay
 		dummy.Y = Y << 4;
 
 		/* note: at this point, we know that the chunk is intersecting with the frustum */
-		mapGetOutFlags(map, &dummy, out, 8);
+		mapGetOutFlags(map, &dummy, out);
 
 		/* but, we only want chunks that are intersecting the bottom plane of the frustum */
 		if (Y < c->cdIndex && c->outflags[Y] < VISIBLE)
@@ -1458,16 +1463,13 @@ static ChunkData mapAddToVisibleList(Map map, Chunk from, int direction, int lay
 	return NULL;
 }
 
-/* cave culling based on visibility graph traversal */
-static Bool mapCullCave(ChunkData cur, vec4 camera)
+/* cave culling based on visibility graph traversal (returns True if <cur> should be culled) */
+static void mapCullCave(ChunkData cur, vec4 camera)
 {
 	uint8_t side, i, oppSide;
 	Chunk   chunk = cur->chunk;
 	int     X = chunk->X;
 	int     Z = chunk->Z;
-
-//	if (X == 208 && Z == 992 && cur->Y == 80)
-//		puts("here");
 
 	/* try to get back to a known location from <cur> */
 	for (i = 0; i < 3; i ++)
@@ -1475,9 +1477,10 @@ static Bool mapCullCave(ChunkData cur, vec4 camera)
 		static int8_t TB[] = {0, 0, 0, 0, -1, 1};
 		ChunkData neighbor;
 
-		/* check which face is visible based on (somplified) dot product between face normal and camera */
+		/* check which face is visible based on dot product between face normal and camera */
 		switch (i) {
 		case 0: /* N/S */
+			/* side is a flag, oppSide is enumeration */
 			if (Z + 16 - camera[VZ] < 0) side = 1, oppSide = 2;
 			else if (camera[VZ] - Z < 0) side = 4, oppSide = 0;
 			else continue;
@@ -1495,10 +1498,16 @@ static Bool mapCullCave(ChunkData cur, vec4 camera)
 
 		chunk    = cur->chunk + chunkNeighbor[cur->chunk->neighbor + side];
 		neighbor = chunk->layer[(cur->Y >> 4) + TB[oppSide]];
+		side     = 1 << opp[oppSide];
 
-		if (neighbor && neighbor->comingFrom > 0 /* can be visited */ && neighbor->slot == 0 /* non-fake chunk */ && neighbor->glBank /* non-empty chunk */)
+		if (neighbor == NULL)
 		{
-			static uint8_t oppBits[] = {4,  8,  1,  2, 16,  32};
+			/* high column without neighbor: consider this chunk visible */
+			cur->comingFrom = side;
+			break;
+		}
+		if (neighbor->comingFrom > 0 /* can be visited */ && neighbor->slot == 0 /* non-fake chunk */)
+		{
 			extern uint16_t hasCnx[]; /* from chunks.c */
 			if (neighbor->comingFrom == 255)
 			{
@@ -1509,18 +1518,17 @@ static Bool mapCullCave(ChunkData cur, vec4 camera)
 				};
 				if (neighbor->cnxGraph & canGoTo[oppSide])
 				{
-					cur->comingFrom = 1 << oppSide;
-					return True;
+					cur->comingFrom = side;
+					break;
 				}
 			}
-			else if (neighbor->cnxGraph & hasCnx[oppBits[oppSide] | neighbor->comingFrom])
+			else if (neighbor->cnxGraph & hasCnx[(1 << oppSide) | neighbor->comingFrom])
 			{
-				cur->comingFrom = 1 << oppSide;
-				return True;
+				cur->comingFrom = side;
+				break;
 			}
 		}
 	}
-	return False;
 }
 
 void mapViewFrustum(Map map, vec4 camera)
@@ -1645,7 +1653,7 @@ void mapViewFrustum(Map map, vec4 camera)
 		/* 1st pass: check if chunk corners are in frustum */
 		chunk     = cur->chunk;
 		center[1] = cur->Y >> 4;
-		neighbors = mapGetOutFlags(map, cur, outflags, 8);
+		neighbors = mapGetOutFlags(map, cur, outflags);
 
 		#ifdef FRUSTUM_DEBUG
 		fprintf(stderr, "chunk %d, %d, %d: outflags = %d,%d,%d,%d,%d,%d,%d,%d\n", cur->chunk->X, cur->chunk->Z, cur->Y,
@@ -1693,7 +1701,8 @@ void mapViewFrustum(Map map, vec4 camera)
 				     popcount(sector1 ^ sector3) >= 2))
 				{
 					/* face crosses a plane: add chunk connected to it to the visible list */
-					static uint8_t faceDir[] = {10, 14, 16, 12, 22, 4};
+					//static uint8_t faceDir[] = {10, 14, 16, 12, 22, 4};
+					static uint8_t faceDir[] = {3, 2, 1, 4, 5, 6};
 					ChunkData cd = mapAddToVisibleList(map, chunk, faceDir[i], center[1], frame);
 					if (cd)
 					{
@@ -1714,11 +1723,23 @@ void mapViewFrustum(Map map, vec4 camera)
 				mapFreeFakeChunk(cur);
 			*prev = cur->visible;
 		}
-		else prev = &cur->visible, renderAddToBank(cur);
+		else prev = &cur->visible;
 	}
 
-	for (cur = map->firstVisible; cur; cur = cur->visible)
+	/* last step: cave culling: see doc/internals.html for details on how this works */
+	map->chunkCulled = 0;
+	for (prev = &map->firstVisible, cur = *prev; cur; cur = cur->visible)
+	{
 		mapCullCave(cur, camera);
-
+		#if 1
+		if (cur->comingFrom == 0)
+			/* ignore this chunk */
+			*prev = cur->visible, map->chunkCulled ++;
+		else
+			renderAddToBank(cur), prev = &cur->visible;
+		#else
+		renderAddToBank(cur);
+		#endif
+	}
 	renderAllocCmdBuffer(map);
 }

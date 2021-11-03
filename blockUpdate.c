@@ -249,6 +249,10 @@ void mapUpdateBlock(Map map, vec4 pos, int blockId, int oldBlockId, DATA8 tile)
 		static uint8_t quadCheckSides[] = {
 			/* QUAD_CROSS */   SIDE_TOP,
 			/* QUAD_CROSS2 */  SIDE_TOP,
+			/* QUAD_SQUARE */  SIDE_TOP,
+			/* QUAD_SQUARE2 */ SIDE_TOP,
+			/* QUAD_SQUARE3 */ SIDE_TOP,
+			/* QUAD_SQUARE4 */ SIDE_TOP,
 			/* QUAD_NORTH */   SIDE_SOUTH,
 			/* QUAD_SOUTH */   SIDE_NORTH,
 			/* QUAD_EAST */    SIDE_WEST,
@@ -1004,19 +1008,19 @@ void updateAdd(BlockIter iter, int blockId, int nbTick)
 	TileTick update = updateInsert(iter->cd, iter->offset, globals.curTime + nbTick * (1000 / TICK_PER_SECOND));
 	update->blockId = blockId;
 
-	fprintf(stderr, "adding block update in %d tick at %d, %d, %d to %d:%d", nbTick,
-		iter->ref->X + (iter->offset & 15), iter->yabs, iter->ref->Z + ((iter->offset >> 4) & 15), blockId >> 4, blockId & 15);
+	//fprintf(stderr, "adding block update %d in %d tick at %d, %d, %d to %d:%d", update - updates.list, nbTick,
+	//	iter->ref->X + (iter->offset & 15), iter->yabs, iter->ref->Z + ((iter->offset >> 4) & 15), blockId >> 4, blockId & 15);
 	//updateDebugSorted(0);
 }
 
 /* usually redstone devices (repeater, torch) update surrounding blocks after a delay */
 void updateTick(void)
 {
-	int i, time = globals.curTime, count;
+	int i = 0, time = globals.curTime;
 	/* more tile ticks can be added while scanning this list */
-	for (i = 0, count = updates.count; i < count; )
+	while (updates.count > 0)
 	{
-		int       id   = updates.sorted[i];
+		int       id   = updates.sorted[0];
 		TileTick  list = updates.list + id;
 		int       off  = list->offset;
 		ChunkData cd   = list->cd;
@@ -1026,18 +1030,20 @@ void updateTick(void)
 		pos[2] = cd->chunk->Z + (off & 15);
 		pos[1] = cd->Y + (off >> 4);
 
-		//fprintf(stderr, "applying block update at %d, %d, %d for %d:%d",
+		//fprintf(stderr, "applying block update %d at %d, %d, %d for %d:%d", id,
 		//	(int) pos[0], (int) pos[1], (int) pos[2], list->blockId >> 4, list->blockId & 15);
 		i ++;
-
-		mapUpdate(globals.level, pos, list->blockId, NULL, False);
+		off = list->blockId;
 		updateRemove(cd, list->offset, False);
-		//updateDebugSorted(i);
+		memmove(updates.sorted, updates.sorted + 1, updates.count * sizeof *updates.sorted);
+		//updateDebugSorted(0);
+
+		/* this can modify updates.sorted */
+		mapUpdate(globals.level, pos, off, NULL, False);
 	}
 	if (i > 0)
 	{
 		/* remove processed updates in sorted array */
-		memmove(updates.sorted, updates.sorted + i, updates.count * sizeof *updates.sorted);
 		mapUpdateEnd(globals.level);
 	}
 }

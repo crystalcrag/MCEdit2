@@ -28,7 +28,7 @@ form.bg combobox arrow { background: transparent url(mask:arrowdown.png) 50% 50%
 popup { border: 3px solid black; border-width: 2px; background-color: white; color: black; padding: 12px 6px }
 
 /* mcedit style dialog */
-form.mc { background: rgba(black, 0.6); font-size: 0.9em; padding: 0.5em; border-radius: 0.5em }
+form.mc { background: rgba(black, 0.65); font-size: 0.9em; padding: 0.5em; border-radius: 0.5em }
 form.mc button { padding: 0.2em 0.5em; box-shadow: none; border: 0; outline: 0; text-transform: none; text-shadow: none; background: white; color: black }
 form.mc button:kbdfocus { outline: 0.15em solid selback 0.1em }
 form.mc #first { background: yellow; color: black; }

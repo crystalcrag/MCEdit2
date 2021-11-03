@@ -1248,9 +1248,14 @@ void renderFrustum(Bool snapshot)
 		glVertexAttribIPointer(1, 2, GL_UNSIGNED_SHORT, BYTES_PER_VERTEX, (void *) 6);
 		glEnableVertexAttribArray(1);
 		glBindBuffer(GL_ARRAY_BUFFER, vboFrustumLoc);
+		glBufferData(GL_ARRAY_BUFFER, 500 * 12, NULL, GL_STATIC_DRAW);
 		glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, 0);
 		glEnableVertexAttribArray(2);
 		glVertexAttribDivisor(2, 1);
+		glBindVertexArray(0);
+
+		glBindBuffer(GL_ARRAY_BUFFER, vboFrustumMDAI);
+		glBufferData(GL_ARRAY_BUFFER, 500 * 16, NULL, GL_STATIC_DRAW);
 
 		glBindBuffer(GL_ARRAY_BUFFER, vboFrustum);
 		DATA16 vtx = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
@@ -1287,11 +1292,8 @@ void renderFrustum(Bool snapshot)
 		for (cd = map->firstVisible, nb = 0; cd; nb ++, cd = cd->visible)
 			if (cd->comingFrom == 0) nb ++;
 
-		/* so much boilerplate, could they not simplify this crap? */
 		glBindBuffer(GL_ARRAY_BUFFER, vboFrustumLoc);
 		glBindBuffer(GL_DRAW_INDIRECT_BUFFER, vboFrustumMDAI);
-		glBufferData(GL_ARRAY_BUFFER, nb * 12, NULL, GL_STATIC_DRAW);
-		glBufferData(GL_DRAW_INDIRECT_BUFFER, nb * 16, NULL, GL_STATIC_DRAW);
 		float * loc = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
 		MDAICmd cmd = glMapBuffer(GL_DRAW_INDIRECT_BUFFER, GL_WRITE_ONLY);
 		for (cd = map->firstVisible, vboCount = 0; cd; cd = cd->visible, loc += 3, vboCount ++, cmd ++)
@@ -1306,6 +1308,7 @@ void renderFrustum(Bool snapshot)
 			loc[2] = chunk->Z;
 			if (cd->comingFrom == 0 && cd != map->firstVisible)
 			{
+				/* chunk culled from cave visibility */
 				loc += 3, vboCount ++, cmd ++;
 				memcpy(cmd, cmd-1, 16);
 				memcpy(loc, loc-3, 12);
@@ -1316,6 +1319,7 @@ void renderFrustum(Bool snapshot)
 		glUnmapBuffer(GL_ARRAY_BUFFER);
 		glUnmapBuffer(GL_DRAW_INDIRECT_BUFFER);
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
+		glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
 	}
 	if (vboCount > 0)
 	{
@@ -1342,6 +1346,7 @@ void renderWorld(void)
 	{
 		/* do it as late as possible */
 		mapViewFrustum(globals.level, render.camera);
+		render.setFrustum = 0;
 	}
 
 
@@ -1461,6 +1466,9 @@ void renderWorld(void)
 	nvgFillPaint(vg, nvgImagePattern(vg, -scale, -scale, scale*2, scale*2, 0, render.compass, 1));
 	nvgFill(vg);
 	nvgRestore(vg);
+
+//	nvgEndFrame(vg);
+//	return;
 
 	/* draw inventory bar */
 	scale = render.scale;

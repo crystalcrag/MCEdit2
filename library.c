@@ -456,18 +456,7 @@ static int libraryGenPreview(SIT_Widget w, APTR cd, APTR ud)
 
 		/* this format is too retarded to generate a preview from it */
 		if (path && strcasecmp(path, ".nbt") == 0)
-		{
-			/* set the icon to show it is unsupported */
-			TEXT  styles[128];
-			int   szTex[2];
-			int   tex = renderGetTerrain(szTex, NULL);
-			thumbSz &= 0xfff;
-			/* use unknown entity texture */
-			sprintf(styles, "background: transparent id(%d) %dpx %dpx; background-size: %dpx %dpx",
-				tex, -496 * thumbSz >> 4, -208 * thumbSz >> 4, szTex[0] * thumbSz >> 4, szTex[1] * thumbSz >> 4);
-			SIT_SetValues(w, SIT_Style, styles, NULL);
-			return 0;
-		}
+			goto unsupported;
 
 		path = (STRPTR) lib->node.ln_Prev;
 		path = strcpy(alloca(strlen(path) + strlen(item->name) + 2), path);
@@ -485,6 +474,19 @@ static int libraryGenPreview(SIT_Widget w, APTR cd, APTR ud)
 			SIT_GetValues(w, SIT_Title, &title, NULL);
 			sprintf(fullsz, "%s - %dW x %dL x %dH", title, size[VX], size[VZ], size[VY]);
 			SIT_SetValues(w, SIT_Title, fullsz, NULL);
+		}
+		else /* set the icon to show it is unsupported */
+		{
+			TEXT styles[128];
+			int  szTex[2], tex;
+			unsupported:
+			tex = renderGetTerrain(szTex, NULL);
+			thumbSz &= 0xfff;
+			/* use unknown entity texture */
+			sprintf(styles, "background: transparent id(%d) %dpx %dpx; background-size: %dpx %dpx",
+				tex, -496 * thumbSz >> 4, -208 * thumbSz >> 4, szTex[0] * thumbSz >> 4, szTex[1] * thumbSz >> 4);
+			SIT_SetValues(w, SIT_Style, styles, NULL);
+			return 0;
 		}
 	}
 	return 0;

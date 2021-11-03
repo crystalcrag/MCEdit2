@@ -834,8 +834,12 @@ uint8_t skyBlockOffset[] = { /* where to get skylight to shade a vertex of a cub
 	 3,  4,  7,  6,    1,  3,  4,  0,    1,  4,  5, 2,      4,  5,  7,  8
 };
 uint8_t quadIndices[] = { /* coord within <vertex> to make a quad from a QUAD block type */
-	 9, 0,  15, 18,       /* QUAD_CROSS */
+	 9,  0, 15, 18,       /* QUAD_CROSS */
 	21, 12,  3,  6,       /* QUAD_CROSS (2nd part) */
+	 9,  0,  3,  6,       /* QUAD_SQUARE */
+	 6,  3, 15, 18,       /* QUAD_SQUARE2 */
+	18, 15, 12, 21,       /* QUAD_SQUARE3 */
+	21, 12,  0,  9,       /* QUAD_SQUARE4 */
 	21, 12, 15, 18,       /* QUAD_NORTH */
 	 6,  3,  0,  9,       /* QUAD_SOUTH */
 	18, 15,  3,  6,       /* QUAD_EAST */
@@ -848,7 +852,7 @@ uint8_t quadIndices[] = { /* coord within <vertex> to make a quad from a QUAD bl
 };
 
 /* normal vector for given quad type (QUAD_*); note: 6 = none */
-uint8_t quadSides[] = {6, 6, 0, 2, 3, 1, 4, 4, 4, 4, 4};
+uint8_t quadSides[] = {6, 6, 2, 3, 0, 1, 0, 2, 3, 1, 4, 4, 4, 4, 4};
 
 uint8_t openDoorDataToModel[] = {
 	5, 6, 7, 4, 3, 0, 1, 2
@@ -1204,13 +1208,6 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 	if (alpha.cur  > alpha.start)  alpha.flush(&alpha);
 }
 
-/*
- * vertex format:
- * - 6 bytes for coord, using fixed point [0 - 65280] => [-0.5 - 16.5]
- * - 3 bytes for UV coord (19bits) + normal (3bits) + OCS (2bits)
- * - 1 byte for skylight + blocklight
- */
-
 #define BUF_LESS_THAN(buffer,min)   (((DATA8)buffer->end - (DATA8)buffer->cur) < min)
 #define META(cd,off)                ((cd)->blockIds[DATA_OFFSET + (off)])
 #define LIGHT(cd,off)               ((cd)->blockIds[BLOCKLIGHT_OFFSET + (off)])
@@ -1222,7 +1219,7 @@ static void chunkGenQuad(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 	DATA8   tex   = &b->nzU;
 	DATA8   sides = &b->pxU;
 	Chunk   chunk = neighbors[6]->chunk;
-	int     vtx   = b->special == BLOCK_NOSIDE || b->pxU == QUAD_CROSS ? VERTEX_DATA_SIZE*2 : VERTEX_DATA_SIZE;
+	int     vtx   = b->special == BLOCK_NOSIDE || b->pxU <= QUAD_SQUARE ? VERTEX_DATA_SIZE*2 : VERTEX_DATA_SIZE;
 	int     seed  = neighbors[6]->Y ^ chunk->X ^ chunk->Z;
 	uint8_t x, y, z, light;
 
@@ -1300,7 +1297,7 @@ static void chunkGenQuad(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 			/* skylight/blocklight: uniform on all vertices */
 			out[6] = light | (light << 8) | (light << 16) | (light << 24);
 
-			if (side <= QUAD_CROSS2)
+			if (b->special == BLOCK_JITTER)
 			{
 				/* add some jitter to X,Z coord for QUAD_CROSS */
 				uint8_t jitter = seed ^ (x ^ y ^ z);
@@ -1313,9 +1310,10 @@ static void chunkGenQuad(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 			{
 				/* offset 1/16 of a block in the direction of their normal */
 				int8_t * normal = cubeNormals + norm * 4;
-				out[0] += normal[0] * (BASEVTX/16);
-				out[0] += normal[1] * (BASEVTX/16) << 16;
-				out[1] += normal[2] * (BASEVTX/16);
+				int      base   = side <= QUAD_SQUARE4 ? BASEVTX/4 : BASEVTX/16;
+				out[0] += normal[0] * base;
+				out[0] += normal[1] * base << 16;
+				out[1] += normal[2] * base;
 			}
 		}
 		sides ++;
@@ -1695,6 +1693,7 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 			memset(skyBlock,    0, sizeof skyBlock);
 			memset(blockIds3x3, 0, sizeof blockIds3x3);
 			mapInitIterOffset(&iter, neighbors[6], pos);
+			iter.nbor = chunkOffsets;
 			mapIter(&iter, -1, -1, -1);
 
 			/* only compute that info if block is visible (highly likely it is not) */
@@ -1709,11 +1708,12 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 					uint8_t sky, light;
 					sky   = iter.blockIds[SKYLIGHT_OFFSET   + (iter.offset >> 1)];
 					light = iter.blockIds[BLOCKLIGHT_OFFSET + (iter.offset >> 1)];
-					if (iter.offset & 1) skyBlock[k] = (light >> 4) | (sky & 0xf0), block |= data >> 4;
-					else                 skyBlock[k] = (light & 15) | (sky << 4),   block |= data & 15;
+					if (iter.offset & 1) skyBlock[k] = (light >> 4) | (sky & 0xf0);
+					else                 skyBlock[k] = (light & 15) | (sky << 4);
 				}
+				else skyBlock[k] = 0xf0; /* brush don't have sky/block light info */
 
-				blockIds3x3[k] = block;
+				blockIds3x3[k] = block | (iter.offset & 1 ? data >> 4 : data & 15);
 				nbor = blockGetById(block);
 
 				if (nbor->type == SOLID || (nbor->type == CUST && nbor->special == BLOCK_SOLIDOUTER))

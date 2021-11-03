@@ -757,7 +757,7 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 				int flag = FindInList(
 					"NORMAL,CHEST,DOOR,NOSIDE,HALF,STAIRS,GLASS,FENCE,FENCE2,"
 					"WALL,RSWIRE,LEAVES,LIQUID,DOOR_TOP,TALLFLOWER,RAILS,TRAPDOOR,"
-					"SIGN,PLATE,SOLIDOUTER,NOCONNECT,CNXTEX", value, 0
+					"SIGN,PLATE,SOLIDOUTER,JITTER,NOCONNECT,CNXTEX", value, 0
 				);
 				if (flag < 0)
 				{
@@ -1083,17 +1083,24 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 				{
 					STRPTR next = strchr(value, ',');
 					if (next) *next++ = 0;
-					int type = FindInList("CROSS,CROSS2,NORTH,SOUTH,EAST,WEST,BOTTOM,ASCE,ASCW,ASCN,ASCS", value, 0);
+					int type = FindInList("CROSS,SQUARE,NORTH,SOUTH,EAST,WEST,BOTTOM,ASCE,ASCW,ASCN,ASCS", value, 0);
 					if (type < 0)
 					{
 						SIT_Log(SIT_ERROR, "%s: unknown quad type %s on line %d\n", file, value, line);
 						return False;
 					}
+					/* internal types that need to be skipped */
+					if (type > QUAD_SQUARE) type += 4; else
+					if (type > QUAD_CROSS)  type ++;
 					*quad = type;
 					value = next;
 				}
 				if (state.pxU == QUAD_CROSS)
 					state.pxV = QUAD_CROSS2;
+				if (state.pxU == QUAD_SQUARE)
+					state.pxV = QUAD_SQUARE2,
+					state.pzU = QUAD_SQUARE3,
+					state.pzV = QUAD_SQUARE4;
 			}
 			else
 			{
@@ -2058,9 +2065,12 @@ void blockParseBoundingBox(void)
 				break;
 			case QUAD:
 				j = state->pxU;
-				if (j < 1) j = 1;
-				if (j > QUAD_ASCE) j = QUAD_ASCE;
-				j = (j - QUAD_CROSS2) + 3;
+				if (j > QUAD_SQUARE4)
+				{
+					if (j > QUAD_ASCE) j = QUAD_ASCE;
+					j = (j - QUAD_SQUARE4) + 3;
+				}
+				else j = 3;
 			}
 			state->bboxId = bboxModels[j];
 			break;

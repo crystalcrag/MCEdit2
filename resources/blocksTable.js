@@ -36,7 +36,7 @@
 		{state: 4, name: "+acacia",   tex: [0,15, 0,15, 0,15, 0,15, 0,15, 0,15]},
 		{state: 5, name: "+dark oak", tex: [1,15, 1,15, 1,15, 1,15, 1,15, 1,15]},
 
-	{id: 6, name: "Sapling", type: QUAD, inv: ITEM2D, cat: CROPS, placement: "dirt,grass", density: WOOD},
+	{id: 6, name: "Sapling", type: QUAD, inv: ITEM2D, cat: CROPS, placement: "dirt,grass", density: WOOD, special: JITTER},
 		{state: 0, name: "+oak",      tex: [15, 0], quad: [CROSS]},
 		{state: 1, name: "+spruce",   tex: [15, 3], quad: [CROSS]},
 		{state: 2, name: "+birch",    tex: [15, 4], quad: [CROSS]},
@@ -389,12 +389,12 @@
 	{id: 30, name: "Cobweb", type: QUAD, inv: ITEM2D, cat: DECO, pushable: DROPITEM, bboxPlayer: AUTO, density: 0.3},
 		{state: 0, tex: [11, 0], quad: [CROSS]},
 
-	{id: 31, name: "Tall grass", type: QUAD, inv: ITEM2D, cat: DECO, placement: "ground", density: PLANTS},
+	{id: 31, name: "Tall grass", type: QUAD, inv: ITEM2D, cat: DECO, placement: "ground", density: PLANTS, special: JITTER},
 		{state: 0, name: "Dead bush",   tex: [7, 3], quad: [CROSS]},
 		{state: 1, name: "Tall grass",  tex: [7, 2], quad: [CROSS]},
 		{state: 2, name: "Fern",        tex: [8, 3], quad: [CROSS]},
 
-	{id: 32, name: "Dead bush", type: QUAD, inv: ITEM2D, cat: DECO, placement: "sand,grass,dirt", density: WOOD},
+	{id: 32, name: "Dead bush", type: QUAD, inv: ITEM2D, cat: DECO, placement: "sand,grass,dirt", density: WOOD, special: JITTER},
 		{state: 0, tex: [7, 3], quad: [CROSS]},
 
 	{id: 33, name: "Piston", type: CUST, bbox: FULL, inv: CUBE, invState: 1, cat: REDSTONE, rsupdate: RECEIVE, special: NOCONNECT, orient: FULL},
@@ -469,10 +469,10 @@
 
 	{id: 36, name: "Block 36", type: INVIS, opacSky: 15, tech: "piston_extension", pushable: NO}, /* block moved by piston */
 
-	{id: 37, name: "Dandelion", type: QUAD, inv: ITEM2D, cat: DECO, tech: "yellow_flower", placement: "dirt,grass", density: PLANTS, pushable: DROPITEM},
+	{id: 37, name: "Dandelion", type: QUAD, inv: ITEM2D, cat: DECO, tech: "yellow_flower", placement: "dirt,grass", density: PLANTS, pushable: DROPITEM, special: JITTER},
 		{state: 0, tex: [13, 0], quad: [CROSS]},
 
-	{id: 38, name: "Poppy", type: QUAD,  inv: ITEM2D, cat: DECO, tech: "red_flower", placement: "dirt,grass", density: PLANTS, pushable: DROPITEM},
+	{id: 38, name: "Poppy", type: QUAD,  inv: ITEM2D, cat: DECO, tech: "red_flower", placement: "dirt,grass", density: PLANTS, pushable: DROPITEM, special: JITTER},
 		{state: 0, name: "-",            tex: [12, 0], quad: [CROSS]},
 		{state: 1, name: "Blue orchid",  tex: [16, 0], quad: [CROSS]},
 		{state: 2, name: "Allium",       tex: [17, 0], quad: [CROSS]},
@@ -483,10 +483,10 @@
 		{state: 7, name: "Pink tulip",   tex: [18, 1], quad: [CROSS]},
 		{state: 8, name: "Oxeye daisy",  tex: [19, 1], quad: [CROSS]},
 
-	{id: 39, name: "Brown mushroom", type: QUAD, inv: ITEM2D, cat: DECO, placement: "ground", density: PLANTS, pushable: DROPITEM},
+	{id: 39, name: "Brown mushroom", type: QUAD, inv: ITEM2D, cat: DECO, placement: "ground", density: PLANTS, pushable: DROPITEM, special: JITTER},
 		{state: 0, tex: [13, 1], quad: [CROSS]},
 
-	{id: 40, name: "Red mushroom", type: QUAD, inv: ITEM2D, cat: DECO, placement: "ground", density: PLANTS, pushable: DROPITEM},
+	{id: 40, name: "Red mushroom", type: QUAD, inv: ITEM2D, cat: DECO, placement: "ground", density: PLANTS, pushable: DROPITEM, special: JITTER},
 		{state: 0, tex: [12, 1], quad: [CROSS]},
 
 	{id: 41, name: "Gold block", type: SOLID, inv: CUBE, cat: BUILD, density: 20},
@@ -654,14 +654,14 @@
 		{state: 0, tex: [12, 3,11, 3,12, 3,11, 3,11, 2, 4, 0]},
 
 	{id: 59, name: "Wheat", type: QUAD, inv: NONE, placement: "farmland", pushable: DROPITEM, density: PLANTS},
-		{state: 0, name: "+stage_1", tex: [ 8, 5], quad: [CROSS]},
-		{state: 1, name: "-2",       tex: [ 9, 5], quad: [CROSS]},
-		{state: 2, name: "-3",       tex: [10, 5], quad: [CROSS]},
-		{state: 3, name: "-4",       tex: [11, 5], quad: [CROSS]},
-		{state: 4, name: "-5",       tex: [12, 5], quad: [CROSS]},
-		{state: 5, name: "-6",       tex: [13, 5], quad: [CROSS]},
-		{state: 6, name: "-7",       tex: [14, 5], quad: [CROSS]},
-		{state: 7, name: "-8",       tex: [15, 5], quad: [CROSS]},
+		{state: 0, name: "+stage_1", tex: [ 8, 5], quad: [SQUARE]},
+		{state: 1, name: "-2",       tex: [ 9, 5], quad: [SQUARE]},
+		{state: 2, name: "-3",       tex: [10, 5], quad: [SQUARE]},
+		{state: 3, name: "-4",       tex: [11, 5], quad: [SQUARE]},
+		{state: 4, name: "-5",       tex: [12, 5], quad: [SQUARE]},
+		{state: 5, name: "-6",       tex: [13, 5], quad: [SQUARE]},
+		{state: 6, name: "-7",       tex: [14, 5], quad: [SQUARE]},
+		{state: 7, name: "-8",       tex: [15, 5], quad: [SQUARE]},
 
 	{id: 60, name: "Farmland", type: TRANS, inv: CUBE, invState: 0, cat: BUILD},
 		{state: 0, name: "-",    tex: [2, 0, 2, 0, 2, 0, 2, 0, 7, 5, 2, 0]}, /* TODO */
@@ -1018,7 +1018,7 @@
 	{id: 82, name: "Clay", type: SOLID, inv: CUBE, cat: BUILD},
 		{state: 0, tex: [8, 4, 8, 4, 8, 4, 8, 4, 8, 4, 8, 4]},
 
-	{id: 83, name: "Sugar Cane", type: QUAD, inv: ITEM2D, cat: CROPS, tech: "reeds", placement: "dirt,sand,grass", density: PLANTS, pushable: DROPITEM},
+	{id: 83, name: "Sugar Cane", type: QUAD, inv: ITEM2D, placement: "dirt,sand,grass,sugar_cane", density: PLANTS, pushable: DROPITEM},
 		{state: 0, tex: [9, 4], quad: [CROSS]},
 
 	{id: 84, name: "Jukebox", type: SOLID, inv: CUBE, cat: DECO, tile: 1, density: WOOD, pushable: NO},
@@ -1267,7 +1267,7 @@
 
 	{id: 100, name: "Red mushroom", type: SOLID, inv: CUBE, invState: 14, cat: DECO, tech: "red_mushroom_block", density: PLANTS},
 		{state: 0, name: "+inside", tex: [14, 8,14, 8,14, 8,14, 8,14, 8,14, 8]},
-		{state: 1, name: "+NW",     tex: [14, 8,14, 8,14, 7,13, 7,13, 7,14, 8]},
+		{state: 1, name: "+NW",     tex: [14, 8,14, 8,13, 7,13, 7,13, 7,14, 8]},
 		{state: 2, name: "+NW",     tex: [14, 8,14, 8,13, 7,14, 8,13, 7,14, 8]},
 		{state: 3, name: "+NE",     tex: [14, 8,13, 7,13, 7,14, 8,13, 7,14, 8]},
 		{state: 4, name: "+W",      tex: [14, 8,14, 8,14, 8,13, 7,13, 7,14, 8]},
@@ -1464,10 +1464,10 @@
 		{state: 7, name: "+top, north",    tex: [0,14, 0,14, 0,14, 0,14, 0,14, 0,14]},
 
 	{id: 115, name: "Nether wart", type: QUAD, pushable: DROPITEM, density: PLANTS},
-		{state: 0, name: "-",      tex: [2,14], quad: [CROSS]},
-		{state: 1, name: "+age 1", tex: [3,14], quad: [CROSS]},
-		{state: 2, name: "+age 2", tex: [3,14], quad: [CROSS]},
-		{state: 3, name: "+age 3", tex: [4,14], quad: [CROSS]},
+		{state: 0, name: "-",      tex: [2,14], quad: [SQUARE]},
+		{state: 1, name: "+age 1", tex: [3,14], quad: [SQUARE]},
+		{state: 2, name: "+age 2", tex: [3,14], quad: [SQUARE]},
+		{state: 3, name: "+age 3", tex: [4,14], quad: [SQUARE]},
 
 	{id: 116, name: "Enchanting table", type: CUST, bbox: MAX, inv: MODEL, cat: DECO, pushable: NO},
 		{state: 0, tex: [6,11, 6,11, 6,11, 6,11], model: [
@@ -1823,24 +1823,24 @@
 		]},
 
 	{id: 141, name: "Carrots", type: QUAD, pushable: DROPITEM, density: PLANTS},
-		{state: 0, name: "-",      tex: [ 8, 12], quad: [CROSS]},
-		{state: 1, name: "+age 1", tex: [ 8, 12], quad: [CROSS]},
-		{state: 2, name: "+age 2", tex: [ 9, 12], quad: [CROSS]},
-		{state: 3, name: "+age 3", tex: [ 9, 12], quad: [CROSS]},
-		{state: 4, name: "+age 4", tex: [10, 12], quad: [CROSS]},
-		{state: 5, name: "+age 5", tex: [10, 12], quad: [CROSS]},
-		{state: 6, name: "+age 6", tex: [10, 12], quad: [CROSS]},
-		{state: 7, name: "+age 7", tex: [11, 12], quad: [CROSS]},
+		{state: 0, name: "-",      tex: [ 8, 12], quad: [SQUARE]},
+		{state: 1, name: "+age 1", tex: [ 8, 12], quad: [SQUARE]},
+		{state: 2, name: "+age 2", tex: [ 9, 12], quad: [SQUARE]},
+		{state: 3, name: "+age 3", tex: [ 9, 12], quad: [SQUARE]},
+		{state: 4, name: "+age 4", tex: [10, 12], quad: [SQUARE]},
+		{state: 5, name: "+age 5", tex: [10, 12], quad: [SQUARE]},
+		{state: 6, name: "+age 6", tex: [10, 12], quad: [SQUARE]},
+		{state: 7, name: "+age 7", tex: [11, 12], quad: [SQUARE]},
 
 	{id: 142, name: "Potatoes", type: QUAD, pushable: DROPITEM, density: PLANTS},
-		{state: 0, name: "-",      tex: [ 8, 12], quad: [CROSS]},
-		{state: 1, name: "+age 1", tex: [ 8, 12], quad: [CROSS]},
-		{state: 2, name: "+age 2", tex: [ 9, 12], quad: [CROSS]},
-		{state: 3, name: "+age 3", tex: [ 9, 12], quad: [CROSS]},
-		{state: 4, name: "+age 4", tex: [10, 12], quad: [CROSS]},
-		{state: 5, name: "+age 5", tex: [10, 12], quad: [CROSS]},
-		{state: 6, name: "+age 6", tex: [10, 12], quad: [CROSS]},
-		{state: 7, name: "+age 7", tex: [12, 12], quad: [CROSS]},
+		{state: 0, name: "-",      tex: [ 8, 12], quad: [SQUARE]},
+		{state: 1, name: "+age 1", tex: [ 8, 12], quad: [SQUARE]},
+		{state: 2, name: "+age 2", tex: [ 9, 12], quad: [SQUARE]},
+		{state: 3, name: "+age 3", tex: [ 9, 12], quad: [SQUARE]},
+		{state: 4, name: "+age 4", tex: [10, 12], quad: [SQUARE]},
+		{state: 5, name: "+age 5", tex: [10, 12], quad: [SQUARE]},
+		{state: 6, name: "+age 6", tex: [10, 12], quad: [SQUARE]},
+		{state: 7, name: "+age 7", tex: [12, 12], quad: [SQUARE]},
 
 	{id: 143, name: "Wooden button", type: CUST, bbox: MAX, bboxPlayer: NONE, inv: MODEL, cat: REDSTONE, orient: LEVER, placement: "solid",
 		rswire: ALLDIR, rsupdate: GENERATE, pushable: DROPITEM, density: WOOD, invmodel: [
@@ -2948,10 +2948,10 @@
 		{state: 0, name: "-", tex: [18,18,18,18,18,18,18,18,18,18,18,18]},
 
 	{id: 207, name: "Beetroot", type: QUAD, pushable: DROPITEM, density: PLANTS},
-		{state: 0, name: "-(age_0)",  tex: [19, 6], quad: [CROSS]},
-		{state: 1, name: "-1",        tex: [20, 6], quad: [CROSS]},
-		{state: 2, name: "-2",        tex: [21, 6], quad: [CROSS]},
-		{state: 3, name: "-3",        tex: [22, 6], quad: [CROSS]},
+		{state: 0, name: "-(age_0)",  tex: [19, 6], quad: [SQUARE]},
+		{state: 1, name: "-1",        tex: [20, 6], quad: [SQUARE]},
+		{state: 2, name: "-2",        tex: [21, 6], quad: [SQUARE]},
+		{state: 3, name: "-3",        tex: [22, 6], quad: [SQUARE]},
 
 	{id: 208, name: "Path block", type: SOLID, inv: CUBE, cat: DECO, tech: "grass_path"},
 		{state: 0, tex: [18,12,18,12,18,12,18,12,18,11, 2, 0]},

@@ -355,8 +355,8 @@ int main(int nb, char * argv[])
 		return 1;
 	}
 
-//	globals.level = renderInitWorld("TestMesh", mcedit.maxDist);
-	globals.level = renderInitWorld("World5", mcedit.maxDist);
+	globals.level = renderInitWorld("TestMesh", mcedit.maxDist);
+//	globals.level = renderInitWorld("World5", mcedit.maxDist);
 	globals.yawPitch = &mcedit.player.angleh;
 	mcedit.state  = GAMELOOP_WORLD;
 

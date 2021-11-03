@@ -179,6 +179,7 @@ enum                             /* values for Block_t.special */
 	BLOCK_SIGN,                  /* need extra special processing for rendering */
 	BLOCK_PLATE,                 /* pressure plate */
 	BLOCK_SOLIDOUTER,            /* custom model with solid cube as outer face (slime block) */
+	BLOCK_JITTER,                /* add a small random XYZ offset to block mesh (QUAD only) */
 	BLOCK_LASTSPEC,
 	BLOCK_BED,
 	BLOCK_CNXTEX    = 64,        /* relocate texture to connected texture row */
@@ -198,7 +199,11 @@ enum                             /* possible values for block_t.particle */
 enum                             /* values for BlockState.pxU if BlockState.type == QUAD */
 {
 	QUAD_CROSS,                  /* flower, grass, crops ... */
-	QUAD_CROSS2,
+	QUAD_CROSS2,                 /* internal: 2nd part of cross */
+	QUAD_SQUARE,                 /* crops usually */
+	QUAD_SQUARE2,                /* internal: 2nd face of square */
+	QUAD_SQUARE3,
+	QUAD_SQUARE4,
 	QUAD_NORTH,                  /* attach to north side (on the inside) */
 	QUAD_SOUTH,
 	QUAD_EAST,
@@ -207,7 +212,7 @@ enum                             /* values for BlockState.pxU if BlockState.type
 	QUAD_ASCE,                   /* rails: ascending E, W, N, S */
 	QUAD_ASCW,
 	QUAD_ASCN,
-	QUAD_ASCS
+	QUAD_ASCS,
 };
 
 enum                             /* orientation method: Block.orientHint */

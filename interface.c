@@ -40,6 +40,7 @@ static int category[] = {BUILD, DECO, REDSTONE, CROPS, RAILS, 0};
 /*
  * before displaying a user interface, take a snapshot of current framebuffer and
  * use this as a background: prevent from continuously rendering the same frame
+ * (and will also completely disable any interaction with voxel space)
  */
 void mcuiTakeSnapshot(int width, int height)
 {
@@ -71,7 +72,7 @@ void mcuiTakeSnapshot(int width, int height)
 }
 
 /*
- * creative inventory interface
+ * inventory interface management: move/drag/split/draw items between inventories
  */
 static int mcuiInventoryRender(SIT_Widget w, APTR cd, APTR ud)
 {
@@ -417,11 +418,12 @@ static int mcuiInventoryMouse(SIT_Widget w, APTR cd, APTR ud)
 			break;
 		case SITOM_ButtonMiddle:
 			if (inv->movable & INV_SELECT_ONLY) return 0;
-			/* grab an entire stack */
+			/* grab an entire stack (no matter how many items there are in inventory) */
 			if (inv->items[cellx].id > 0)
 			{
 				grab_stack:
 				mcui.drag = inv->items[cellx];
+				/* will be clamped to max stack */
 				itemAddCount(&mcui.drag, 64);
 				cellx = SIT_InitDrag(mcuiDragItem);
 				mcui.drag.x = cellx & 0xffff;
@@ -992,7 +994,7 @@ void mcuiCreateInventory(Inventory player)
 	);
 
 	SIT_CreateWidgets(diag,
-		"<tab name=items left=FORM right=FORM top=FORM bottom=FORM tabSpace=4 tabActive=", mcui.curTab, "tabStr=", "\t\t\t\t\t", ">"
+		"<tab name=items left=FORM right=FORM top=FORM bottom=FORM tabSpace=4 tabActive=", mcui.curTab, "tabStr='\t\t\t\t\t'>"
 		" <editbox name=search right=FORM buddyLabel=", "Search:", NULL, ">"
 		" <canvas composited=1 name=inv.inv left=FORM top=WIDGET,search,0.5em nextCtrl=LAST/>"
 		" <scrollbar width=1.2em name=scroll.inv wheelMult=1 top=OPPOSITE,inv,0 bottom=OPPOSITE,inv,0 right=FORM>"
@@ -1295,6 +1297,12 @@ static int mcuiGetCoord(SIT_Widget w, APTR cd, APTR ud)
 	return 1;
 }
 
+int mcuiExitWnd(SIT_Widget w, APTR cd, APTR ud)
+{
+	SIT_Exit(1);
+	return 1;
+}
+
 void mcuiGoto(vec4 pos)
 {
 	SIT_Widget diag = SIT_CreateWidget("goto.bg", SIT_DIALOG, globals.app,
@@ -1304,7 +1312,7 @@ void mcuiGoto(vec4 pos)
 	memcpy(mcuiCurPos, pos, 12);
 
 	SIT_CreateWidgets(diag,
-		"<label name=title title='Enter the coordinate you want to jump to:' left=FORM right=FORM style='text-align: center'>"
+		"<label name=title title='Enter the coordinate you want to jump to:' left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, ">"
 		"<editbox name=X roundTo=2 editType=", SITV_Float, "width=10em curValue=", mcuiCurPos, "top=WIDGET,title,1em"
 		" left=WIDGET,Xlab,0.5em buddyLabel=", "X:", NULL, ">"
 		"<editbox name=Y roundTo=2 editType=", SITV_Float, "width=10em curValue=", mcuiCurPos+1, "top=WIDGET,title,1em"
@@ -1318,6 +1326,7 @@ void mcuiGoto(vec4 pos)
 		"<bY left=WIDGET,X,1em><bZ left=WIDGET,Y,1em><ok right=WIDGET,ko,0.5em>"
 	);
 	SIT_AddCallback(SIT_GetById(diag, "ok"), SITE_OnActivate, mcuiGetCoord, pos);
+	SIT_AddCallback(SIT_GetById(diag, "ko"), SITE_OnActivate, mcuiExitWnd, NULL);
 
 	SIT_ManageWidget(diag);
 }
@@ -1378,12 +1387,6 @@ static int mcuiGrabItem(SIT_Widget w, APTR cd, APTR ud)
 	item->y = mcui.height - ocp->LTWH[1] - ocp->LTWH[3] + 1;
 	item->id = (int) rowTag;
 	item->count = 1;
-	return 1;
-}
-
-int mcuiExitWnd(SIT_Widget w, APTR cd, APTR ud)
-{
-	SIT_Exit(1);
 	return 1;
 }
 
@@ -1658,6 +1661,7 @@ static int mcuiFillDisabled(SIT_Widget w, APTR cd, APTR ud)
 	SIT_GetValues(w, SIT_Enabled, &enabled, NULL);
 	if (enabled == 0)
 	{
+		/* draw a red cross to clearly show the slot as disabled */
 		NVGcontext * vg = paint->nvg;
 		float dist = floorf(paint->fontSize * 0.4f);
 		float x1   = paint->x + dist, x2 = paint->x + paint->w - dist;
@@ -1882,7 +1886,7 @@ static struct
 	int blocks;
 	int entity;
 	int tile;
-}	mcuiDelWnd = {False, True, True};
+}	mcuiDelWnd = {.blocks = False, .entity = True, .tile = True};
 
 static int mcuiDeleteProgress(SIT_Widget w, APTR cd, APTR ud)
 {
@@ -1937,12 +1941,6 @@ void mcuiDeleteAll(void)
 	/* this function will monitor the thread progress */
 	globals.curTimeUI = FrameGetTime();
 	mcuiRepWnd.asyncCheck = SIT_ActionAdd(globals.app, mcuiRepWnd.processStart = globals.curTimeUI, globals.curTimeUI + 1e9, mcuiDeleteProgress, NULL);
-}
-
-static int mcuiStopDelete(SIT_Widget w, APTR cd, APTR ud)
-{
-	SIT_Exit(1);
-	return 1;
 }
 
 static int mcuiAutoCheck(SIT_Widget w, APTR cd, APTR ud)
@@ -2055,7 +2053,7 @@ void mcuiDeletePartial(void)
 		"<progress name=prog title=%d%% visible=0 left=FORM right=WIDGET,ok,1em top=MIDDLE,ok>"
 	);
 	SIT_AddCallback(SIT_GetById(diag, "blocks"), SITE_OnActivate, mcuiAutoCheck, SIT_GetById(diag, "tile"));
-	SIT_AddCallback(SIT_GetById(diag, "cancel"), SITE_OnActivate, mcuiStopDelete, NULL);
+	SIT_AddCallback(SIT_GetById(diag, "cancel"), SITE_OnActivate, mcuiExitWnd, NULL);
 	SIT_AddCallback(SIT_GetById(diag, "ok"),     SITE_OnActivate, mcuiDoDelete, NULL);
 
 	mcuiDelWnd.diag = diag;
@@ -2309,10 +2307,6 @@ static int mcuiInfoSave(SIT_Widget w, APTR cd, APTR ud)
 		h += 12;
 	time += h * 1000 + m * 20;
 
-	/* 2 is adventure mode actually, 3 is spectator */
-	if (mcuiInfo.mode == 2)
-		mcuiInfo.mode = 3;
-
 	NBTFile nbt = &globals.level->levelDat;
 	NBT_AddOrUpdateKey(nbt, "Data.LevelName",            TAG_String, mcuiInfo.name);
 	NBT_AddOrUpdateKey(nbt, "Data.RandomSeed",           TAG_Long, &seed);
@@ -2383,7 +2377,7 @@ void mcuiWorldInfo(void)
 		/* game mode */
 		"<button name=type0 buttonType=", SITV_RadioButton, "curValue=", &mcuiInfo.mode, "title=Survival top=WIDGET,rules,1em buddyLabel=", "Game mode:", &max2, ">"
 		"<button name=type1 buttonType=", SITV_RadioButton, "curValue=", &mcuiInfo.mode, "title=Creative top=OPPOSITE,type0 left=WIDGET,type0,0.8em>"
-		"<button name=type2 buttonType=", SITV_RadioButton, "curValue=", &mcuiInfo.mode, "title=Spectator top=OPPOSITE,type0 left=WIDGET,type1,0.8em>"
+		"<button name=type2 buttonType=", SITV_RadioButton, "curValue=", &mcuiInfo.mode, "title=Spectator radioID=3 top=OPPOSITE,type0 left=WIDGET,type1,0.8em>"
 		/* difficulty */
 		"<button name=level0 buttonType=", SITV_RadioButton, "curValue=", &mcuiInfo.difficulty, "radioGroup=1"
 		" title=Peaceful top=WIDGET,type0,1em buddyLabel=", "Difficulty:", &max2, ">"

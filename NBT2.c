@@ -176,7 +176,7 @@ static int NBT_ParseFile(NBTFile nbt, ZStream in, int flags)
 
 	/* first byte: node type */
 	type = gzGetC(in);
-	if (type == TAG_End || type == 255 /* -1 returned by gzGetC */) return -1;
+	if (type == TAG_End || type > TAG_Int_Array) return -1;
 
 	/* get node name */
 	len = UINT16(in);
