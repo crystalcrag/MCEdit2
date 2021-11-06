@@ -86,7 +86,7 @@ void playerInitPickup(PickupBlock);
 void playerAddInventory(Player, ItemID_t blockId, DATA8 tileEntity);
 void playerScrollInventory(Player, int dir);
 void playerSetMode(Player, int mode);
-void playerTeleport(Player, vec4 pos);
+void playerTeleport(Player, vec4 pos, float rotation[2]);
 void playerMove(Player);
 
 struct Player_t

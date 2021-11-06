@@ -59,26 +59,8 @@ dim { color: rgba(0,0,0,0.3) }
 cap { font-size: 0.9em }
 .image > div,
 .image img { margin-left: 0 10px; display: block; box-shadow: #555 0 0 5px; border: 2px solid black }
-.marker { border: 2px solid orange; border-radius: 50%; padding: 0 5px; background-color: green; color: white; font-weight: bold;
-		box-shadow: black 0 0 5px; text-decoration: none }
-.marker.alt { border: 0; background-color: transparent; border-radius: 0; box-shadow: none; margin-right: 1em }
-.marker.alt::before { border: 2px solid red; background-color: blue; border-radius: 0; transform: rotate(45deg);
-					position: absolute; width: 1em; height: 1em; content: ""; box-shadow: black 0 0 5px; z-index: 1 }
-.marker.alt::after { content: attr(num); position: relative; z-index: 2; color: white; left: 0.3em }
-.marker.fat { padding: 1px 2px }
-.marker.small { font-size: 0.8em }
-.markerv { border-left: 1px solid #66f; position: absolute; top: 0; bottom: 0 }
+.marker { border: 2px solid black; color: black; border-radius: 50%; padding: 0 5px; text-decoration: none; font-family: sans-serif }
 .image .marker { position: absolute }
-.image .marker.alt .lined,
-.image .marker.alt .lineu,
-.image .marker.alt .linel,
-.image .marker.alt .liner { border-color: red }
-.image .marker.alt .lineu { margin-left: 4px }
-.image .marker .lined { border-left: 2px solid orange; position: absolute; left: 50%; top: 100%; box-shadow: black 0 0 5px }
-.image .marker .lineu { border-left: 2px solid orange; position: absolute; left: 50%; bottom: 100%; box-shadow: black 0 0 5px }
-.image .marker .liner { border-bottom: 2px solid orange; position: absolute; left: 100%; top: 50%; box-shadow: black 0 0 5px }
-.image .marker .linel { border-bottom: 2px solid orange; position: absolute; right: 100%; top: 50%; box-shadow: black 0 0 5px }
-.image .rect { border: 2px solid orange; position: absolute; box-shadow: black 0 0 5px }
 .center { text-align: center }
 a { color: brown }
 prod { font-style: italic; color: blue; font-weight: bold }

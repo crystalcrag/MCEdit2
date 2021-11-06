@@ -116,6 +116,7 @@ DLLIMP void       SIT_ListDeleteRow(SIT_Widget, int row);
 DLLIMP SIT_Widget SIT_ListInsertControlIntoCell(SIT_Widget, int row, int cell);
 DLLIMP void       SIT_ListFinishInsertControl(SIT_Widget);
 DLLIMP STRPTR     SIT_ListGetCellText(SIT_Widget, int col, int row);
+DLLIMP int        SIT_ListGetItemOver(SIT_Widget, float rect[4], float mouseX, float mouseY, SIT_Widget mouseIsRelTo);
 DLLIMP void       SIT_ListReorgColumns(SIT_Widget, STRPTR);
 DLLIMP int        SIT_TextGetWithSoftline(SIT_Widget, STRPTR buffer, int max);
 DLLIMP void       SIT_MoveNearby(SIT_Widget, int XYWH[4], int defAlign);
@@ -457,10 +458,10 @@ enum         /* SIT_ViewMode */
 enum         /* SIT_DialogStyles */
 {
 	SITV_Resizable   = 0x01,
-	SITV_NoActivate  = 0x02,
+	SITV_Transcient  = 0x02,
 	SITV_Movable     = 0x04,
 	SITV_Modal       = 0x08,
-	SITV_Plain       = 0x10
+	SITV_Plain       = 0x10,
 };
 
 enum         /* SIT_DlgFlags */

@@ -1578,8 +1578,7 @@ void mapViewFrustum(Map map, vec4 camera)
 
 	if (center[1] < 0)
 	{
-		/* use trigonometry to find the first chunk */
-		fprintf(stderr, "TODO\n");
+		/* don't care: you are not supposed to be here anyway */
 		return;
 	}
 	else if (center[1] >= chunk->maxy)
@@ -1677,9 +1676,9 @@ void mapViewFrustum(Map map, vec4 camera)
 		{
 			static uint8_t faces[] = {
 				/* numbers reference boxPts, order is S, E, N, W, T, B */
-				0, 1, 4, 5,
-				1, 3, 5, 7,
 				3, 2, 7, 6,
+				1, 3, 5, 7,
+				0, 1, 4, 5,
 				2, 0, 6, 4,
 				4, 5, 6, 7,
 				0, 1, 2, 3
@@ -1702,8 +1701,8 @@ void mapViewFrustum(Map map, vec4 camera)
 				{
 					/* face crosses a plane: add chunk connected to it to the visible list */
 					//static uint8_t faceDir[] = {10, 14, 16, 12, 22, 4};
-					static uint8_t faceDir[] = {3, 2, 1, 4, 5, 6};
-					ChunkData cd = mapAddToVisibleList(map, chunk, faceDir[i], center[1], frame);
+					//static uint8_t faceDir[] = {3, 2, 1, 4, 5, 6};
+					ChunkData cd = mapAddToVisibleList(map, chunk, i+1, center[1], frame);
 					if (cd)
 					{
 						#ifdef FRUSTUM_DEBUG

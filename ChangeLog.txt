@@ -1,4 +1,15 @@
 =========== Week 44 ===========
+Fri Nov 5:
+	* waypoints editor interface mostly (+NBT update).
+
+Thu Nov 4:
+	* waypoints editor continued.
+
+Wed Nov 3:
+	* started waypoints editor.
+	* redstone bug fix with lever and buttons: area near device didn't trigger updates.
+	* minor bug fix in skylight update (1 year anniversary for this bug!).
+
 Tue Nov 2:
 	* random jitter configuratble per quad block.
 	* minor bug fixes: brush lighting, debug culled cave.

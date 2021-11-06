@@ -345,12 +345,25 @@ void playerMove(Player p)
 	vecAdd(p->lookat, p->lookat, orig_pos);
 }
 
-void playerTeleport(Player p, vec4 pos)
+void playerTeleport(Player p, vec4 pos, float rotation[2])
 {
 	vec4 diff;
-	vecSub(diff, pos, p->pos);
-	vecAdd(p->lookat, p->lookat, diff);
-	memcpy(p->pos, pos, 12);
+	if (rotation == NULL)
+	{
+		vecSub(diff, pos, p->pos);
+		vecAdd(p->lookat, p->lookat, diff);
+		memcpy(p->pos, pos, 12);
+	}
+	else
+	{
+		memcpy(p->pos, pos, 12);
+		p->angleh = rotation[0];
+		p->anglev = rotation[1];
+		float cv = cosf(p->anglev);
+		p->lookat[VX] = p->pos[VX] + 8 * cosf(p->angleh) * cv;
+		p->lookat[VZ] = p->pos[VZ] + 8 * sinf(p->angleh) * cv;
+		p->lookat[VY] = p->pos[VY] + 8 * sinf(p->anglev);
+	}
 }
 
 void playerSetMode(Player p, int mode)

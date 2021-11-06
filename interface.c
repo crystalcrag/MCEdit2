@@ -4,7 +4,6 @@
  *  - creative inventory editor
  *  - chest/furnace/dropper/dispenser editor
  *  - text sign editor
- *  - goto location
  *  - analyze block window
  *  - fill/replace blocks
  *  - geometric brush fill
@@ -1283,55 +1282,6 @@ void mcuiCreateSignEdit(vec4 pos, int blockId)
 	SIT_ManageWidget(diag);
 }
 
-/*
- * ask player a coordinate to jump to
- */
-
-static float mcuiCurPos[3];
-static int mcuiGetCoord(SIT_Widget w, APTR cd, APTR ud)
-{
-	/* ud is player vec4 position: don't modify until user confirms its choice */
-	memcpy(ud, mcuiCurPos, sizeof mcuiCurPos);
-	SIT_CloseDialog(w);
-	SIT_Exit(1);
-	return 1;
-}
-
-int mcuiExitWnd(SIT_Widget w, APTR cd, APTR ud)
-{
-	SIT_Exit(1);
-	return 1;
-}
-
-void mcuiGoto(vec4 pos)
-{
-	SIT_Widget diag = SIT_CreateWidget("goto.bg", SIT_DIALOG, globals.app,
-		SIT_DialogStyles, SITV_Plain | SITV_Movable,
-		NULL
-	);
-	memcpy(mcuiCurPos, pos, 12);
-
-	SIT_CreateWidgets(diag,
-		"<label name=title title='Enter the coordinate you want to jump to:' left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, ">"
-		"<editbox name=X roundTo=2 editType=", SITV_Float, "width=10em curValue=", mcuiCurPos, "top=WIDGET,title,1em"
-		" left=WIDGET,Xlab,0.5em buddyLabel=", "X:", NULL, ">"
-		"<editbox name=Y roundTo=2 editType=", SITV_Float, "width=10em curValue=", mcuiCurPos+1, "top=WIDGET,title,1em"
-		" left=WIDGET,Ylab,0.5em buddyLabel=", "Y:", NULL, ">"
-		"<editbox name=Z roundTo=2 editType=", SITV_Float, "width=10em curValue=", mcuiCurPos+2, "top=WIDGET,title,1em"
-		" left=WIDGET,Zlab,0.5em buddyLabel=", "Z:", NULL, ">"
-		"<button name=ok.act title=Goto top=WIDGET,X,1em buttonType=", SITV_DefaultButton, ">"
-		"<button name=ko.act title=Cancel top=OPPOSITE,ok right=FORM buttonType=", SITV_CancelButton, ">"
-	);
-	SIT_SetAttributes(diag,
-		"<bY left=WIDGET,X,1em><bZ left=WIDGET,Y,1em><ok right=WIDGET,ko,0.5em>"
-	);
-	SIT_AddCallback(SIT_GetById(diag, "ok"), SITE_OnActivate, mcuiGetCoord, pos);
-	SIT_AddCallback(SIT_GetById(diag, "ko"), SITE_OnActivate, mcuiExitWnd, NULL);
-
-	SIT_ManageWidget(diag);
-}
-
-
 
 /*
  * show a summary about all the blocks in the selection
@@ -1387,6 +1337,12 @@ static int mcuiGrabItem(SIT_Widget w, APTR cd, APTR ud)
 	item->y = mcui.height - ocp->LTWH[1] - ocp->LTWH[3] + 1;
 	item->id = (int) rowTag;
 	item->count = 1;
+	return 1;
+}
+
+int mcuiExitWnd(SIT_Widget w, APTR cd, APTR ud)
+{
+	SIT_Exit(1);
 	return 1;
 }
 
@@ -2308,18 +2264,18 @@ static int mcuiInfoSave(SIT_Widget w, APTR cd, APTR ud)
 	time += h * 1000 + m * 20;
 
 	NBTFile nbt = &globals.level->levelDat;
-	NBT_AddOrUpdateKey(nbt, "Data.LevelName",            TAG_String, mcuiInfo.name);
-	NBT_AddOrUpdateKey(nbt, "Data.RandomSeed",           TAG_Long, &seed);
-	NBT_AddOrUpdateKey(nbt, "Data.Time",                 TAG_Long, &time);
-	NBT_AddOrUpdateKey(nbt, "Data.DayTime",              TAG_Long, &time);
-	NBT_AddOrUpdateKey(nbt, "Data.allowCommands",        TAG_Int, &mcuiInfo.allowCmds);
-	NBT_AddOrUpdateKey(nbt, "Player.playerGameType",     TAG_Int, &mcuiInfo.mode);
-	NBT_AddOrUpdateKey(nbt, "Data.Difficulty",           TAG_Int, &mcuiInfo.difficulty);
-	NBT_AddOrUpdateKey(nbt, "Data.hardcore",             TAG_Int, &mcuiInfo.hardcore);
-	NBT_AddOrUpdateKey(nbt, "GameRules.doDayNightCycle", TAG_String, mcuiInfo.dayCycle ? "true" : "false");
-	NBT_AddOrUpdateKey(nbt, "GameRules.keepInventory",   TAG_String, mcuiInfo.keepInv  ? "true" : "false");
-	NBT_AddOrUpdateKey(nbt, "GameRules.mobGriefing",     TAG_String, mcuiInfo.mobGrief ? "true" : "false");
-	NBT_AddOrUpdateKey(nbt, "GameRules.doFireTick",      TAG_String, mcuiInfo.fireTick ? "true" : "false");
+	NBT_AddOrUpdateKey(nbt, "Data.LevelName",            TAG_String, mcuiInfo.name, 0);
+	NBT_AddOrUpdateKey(nbt, "Data.RandomSeed",           TAG_Long, &seed, 0);
+	NBT_AddOrUpdateKey(nbt, "Data.Time",                 TAG_Long, &time, 0);
+	NBT_AddOrUpdateKey(nbt, "Data.DayTime",              TAG_Long, &time, 0);
+	NBT_AddOrUpdateKey(nbt, "Data.allowCommands",        TAG_Int, &mcuiInfo.allowCmds, 0);
+	NBT_AddOrUpdateKey(nbt, "Player.playerGameType",     TAG_Int, &mcuiInfo.mode, 0);
+	NBT_AddOrUpdateKey(nbt, "Data.Difficulty",           TAG_Int, &mcuiInfo.difficulty, 0);
+	NBT_AddOrUpdateKey(nbt, "Data.hardcore",             TAG_Int, &mcuiInfo.hardcore, 0);
+	NBT_AddOrUpdateKey(nbt, "GameRules.doDayNightCycle", TAG_String, mcuiInfo.dayCycle ? "true" : "false", 0);
+	NBT_AddOrUpdateKey(nbt, "GameRules.keepInventory",   TAG_String, mcuiInfo.keepInv  ? "true" : "false", 0);
+	NBT_AddOrUpdateKey(nbt, "GameRules.mobGriefing",     TAG_String, mcuiInfo.mobGrief ? "true" : "false", 0);
+	NBT_AddOrUpdateKey(nbt, "GameRules.doFireTick",      TAG_String, mcuiInfo.fireTick ? "true" : "false", 0);
 	NBT_MarkForUpdate(nbt, 0, 1);
 
 	renderAddModif();

@@ -160,4 +160,6 @@ progress bar { background-color: #23ba1f; border: 2px outset #23ba1f; color: whi
 vscroll.inv, .inv #td { border: 0.1em inset #ccc }
 #container { padding: 5px; color: #444; background-color: #c6c6c6; border: 0.2em outset #c6c6c6; border-radius: 0.3em }
 
+#colorchooser { border: 0; background: #ddd; box-shadow: 0 0 20px rgba(black, 0.5) }
+
 ::link { color: #55f }

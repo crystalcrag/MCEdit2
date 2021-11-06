@@ -448,14 +448,13 @@ Bool NBT_Add(NBTFile nbt, ...)
 			case TAG_Compound:
 				hdr->count = va_arg(args, int);
 				if (hdr->count > 0) nested ++;
-				/* will need a terminator at some point */
-				nbt->alloc = 4;
-				break;
+				continue;
 			default: return False;
 			}
 			break;
 		case TAG_Compound:
 			compound = (DATA8) hdr - nbt->mem;
+			/* TAG_End terminator */
 			nbt->alloc = 4;
 			nested ++;
 			break;
@@ -501,11 +500,12 @@ static void NBT_UpdateHdrSize(NBTFile nbt, int diff, int offset)
 	{
 		hdr->size += diff;
 		mem = hdr->name + ((hdr->minNameSz + 4) & ~3); /* payload */
+		i = hdr->count;
 
 		switch (hdr->type) {
-		case TAG_Compound: hdr->count = 1; // no break;
+		case TAG_Compound: i = 1; // no break;
 		case TAG_List_Compound:
-			for (i = hdr->count; i > 0; i --)
+			for (; i > 0; i --)
 			{
 				/* parse <count> compound */
 				for (;;)
@@ -513,13 +513,11 @@ static void NBT_UpdateHdrSize(NBTFile nbt, int diff, int offset)
 					NBTHdr sub = (NBTHdr) mem;
 					if (sub->type == 0) { mem += 4; break; }
 					mem += sub->size;
-					if (mem == eof) return;
-					if (mem > eof)
+					if (mem >= eof)
 					{
-						hdr = sub;
-						mem = (DATA8) sub;
-						i = 1;
-						break;
+						if ((sub->type & 15) == TAG_List)
+							sub->size += diff;
+						return;
 					}
 				}
 			}
@@ -539,7 +537,7 @@ Bool NBT_Delete(NBTFile nbt, int offset, int nth)
 	/* NBT_FindNode failed */
 	if (offset < 0) return False;
 
-	if (hdr->type == TAG_List_Compound && nth > 0)
+	if (hdr->type == TAG_List_Compound && nth >= 0)
 	{
 		mem = hdr->name + ((hdr->minNameSz + 4) & ~3);
 		if (nth > hdr->count) return False;
@@ -555,6 +553,7 @@ Bool NBT_Delete(NBTFile nbt, int offset, int nth)
 		}
 		offset = mem - nbt->mem;
 		DATA8 p;
+		/* remove entire compound */
 		for (size = 0, p = mem;;)
 		{
 			NBTHdr sub = (NBTHdr) p;
@@ -614,7 +613,7 @@ void NBT_InitIter(NBTFile root, int offset, NBTIter iter)
 	switch (type&15) {
 	case TAG_Compound: iter->state = -1; /* iter over properties */ break;
 	case TAG_End:      iter->state =  0; return;
-	case TAG_List:     if (type == TAG_List_Compound) { iter->state = hdr->count; /* iter over items */ break; }
+	case TAG_List:     iter->state = hdr->count; /* iter over items */ break;
 	default:           iter->state = -1; iter->offset = offset; return; /* assume middle of compound */
 	}
 	/* move to payload */
@@ -983,38 +982,46 @@ static int NBT_InsertAt(NBTFile nbt, int offset, NBTFile fragment, Bool overwrit
 	if (offset < 0) return -1;
 	DATA8 mem  = nbt->mem + offset;
 	int   size = mem ? ((NBTHdr)mem)->size : 0;
+	int   ins  = offset;
+	char  hdr  = 0;
 	int   diff, remain;
 
 	if (! overwrite)
 	{
 		/* insert at the end */
 		diff = fragment->usage;
-		offset += size; size = 0;
+		ins += size; size = 0;
 		if (mem)
-		switch (((NBTHdr)mem)->type) {
-		case TAG_List_Compound:
-		case TAG_Compound: offset -= 4; break; /* before TAG_End */
+		{
+			switch (((NBTHdr)mem)->type & 15) {
+			case TAG_Compound: ins -= 4; break; /* before TAG_End */
+			case TAG_List:
+				/* often have the wrong sub-type :-/ */
+				((NBTHdr)mem)->type = TAG_List_Compound;
+				hdr = 1;
+			}
 		}
 	}
 	else diff = fragment->usage - size;
-	remain = nbt->usage - (offset + size);
+	remain = nbt->usage - (ins + size);
 
 	if (diff > 0)
 	{
 		if (! NBT_AddBytes(nbt, diff))
 			return -1;
-		mem = nbt->mem + offset;
+		mem = nbt->mem + ins;
 	}
 	else nbt->usage += diff;
 
 	memmove(mem + fragment->usage, mem + size, remain);
 	memcpy(mem, fragment->mem, fragment->usage);
 
-	NBT_UpdateHdrSize(nbt, diff, offset);
+	if (hdr) NBT_Hdr(nbt, offset)->count ++;
+	NBT_UpdateHdrSize(nbt, diff, ins);
 
 	//NBT_Dump(nbt, 0, 0, stderr);
 
-	return offset;
+	return ins;
 }
 
 
@@ -1045,55 +1052,70 @@ int NBT_Insert(NBTFile nbt, STRPTR loc, int type, NBTFile fragment)
 			NBTFile_t key = {0};
 			int       len = strlen(loc);
 			key.mem = alloca(key.max = len + 32);
-			NBT_Add(&key, type, loc, TAG_End);
+			NBT_Add(&key, type & 0xff, loc, TAG_End);
 			offset = NBT_InsertAt(nbt, offset, &key, False);
 			if (offset < 0) return -1;
 		}
 	}
 	else offset = NBT_FindNode(nbt, 0, loc); /* hmm, no indirection */
 
-	return offset >= 0 ? NBT_InsertAt(nbt, offset, fragment, True) : -1;
+	return offset >= 0 ? NBT_InsertAt(nbt, offset, fragment, (type & TAG_InsertAtEnd) == 0) : -1;
 }
 
 
-int NBT_AddOrUpdateKey(NBTFile nbt, STRPTR key, int type, APTR value)
+int NBT_AddOrUpdateKey(NBTFile nbt, STRPTR key, int type, APTR value, int offsetTagList)
 {
 	NBTFile_t fragment = {0};
-	STRPTR    sep = strchr(key, '.');
 	int       off, keyOff;
-
-	if (sep == NULL) return -1;
 
 	/* already build fragment in stack */
 	off = strlen(key) + 64;
-	if (type == TAG_String) off += strlen(value);
+	switch (type & 15) {
+	case TAG_String: off += strlen(value); break;
+	case TAG_List:   off += ((type >> 8) + 3) & ~3;;
+	}
 	fragment.mem = alloca(off);
 	fragment.max = off;
 
-	off = sep - key + 1;
-	sep = fragment.mem + fragment.max - off;
-	CopyString(sep, key, off);
-	key = strchr(key, '.') + 1;
+	if (offsetTagList <= 0)
+	{
+		STRPTR sep = strchr(key, '.');
+		if (sep == NULL) return -1;
 
-	NBT_Add(&fragment, TAG_Compound, sep, TAG_End);
-	switch (type) {
+		off = sep - key + 1;
+		sep = fragment.mem + fragment.max - off;
+		CopyString(sep, key, off);
+		key = strchr(key, '.') + 1;
+		NBT_Add(&fragment, TAG_Compound, sep, TAG_End);
+		off = NBT_FindNode(nbt, 0, ((NBTHdr)fragment.mem)->name);
+	}
+	else /* add or update a key within a TAG_List_Compound */
+	{
+		off = offsetTagList;
+	}
+
+	switch (type & 15) {
 	case TAG_String: NBT_Add(&fragment, TAG_String, key, value, TAG_Compound_End); break;
 	case TAG_Int:    NBT_Add(&fragment, TAG_Int,    key, * (int *) value, TAG_Compound_End); break;
 	case TAG_Float:  NBT_Add(&fragment, TAG_Float,  key, (double) * (float *) value, TAG_Compound_End); break;
 	case TAG_Double: NBT_Add(&fragment, TAG_Double, key, * (double *) value, TAG_Compound_End); break;
 	case TAG_Long:   NBT_Add(&fragment, TAG_Long,   key, * (uint64_t *) value, TAG_Compound_End); break;
+	case TAG_List:
+		keyOff = type >> 8;
+		type &= 255;
+		NBT_Add(&fragment, type, key, keyOff / sizeof_type[type >> 4] | NBT_WithInit, value, TAG_Compound_End);
 	}
 
-	off = NBT_FindNode(nbt, 0, ((NBTHdr)fragment.mem)->name);
 	if (off < 0)
 	{
+		/* whole branch missing */
 		return NBT_InsertAt(nbt, 0, &fragment, False);
 	}
 
 	/* parent key exists: check for key itself */
 	keyOff = NBT_FindNode(nbt, off, key);
 
-	NBTHdr src = (NBTHdr) NBT_Payload(&fragment, 0);
+	NBTHdr src = (NBTHdr) (offsetTagList <= 0 ? NBT_Payload(&fragment, 0) : fragment.mem);
 	fragment.mem = (DATA8) src;
 	fragment.usage = src->size;
 	if (keyOff >= 0)
@@ -1111,7 +1133,6 @@ int NBT_AddOrUpdateKey(NBTFile nbt, STRPTR key, int type, APTR value)
 	else /* add it */
 		return NBT_InsertAt(nbt, off, &fragment, False);
 }
-
 
 /*
  * save functions: write to gzip file (level.dat)
@@ -1173,7 +1194,7 @@ static int NBT_WriteToZip(APTR out, APTR buffer, int size, int be)
 }
 
 typedef struct NBTWriteParam_t *     NBTWriteParam;
-typedef int (*write_t)(APTR, APTR, int, int);
+typedef int (*write_t)(APTR out, APTR buffer, int size, int bigEndian);
 struct NBTWriteParam_t
 {
 	write_t       puts;
@@ -1187,7 +1208,11 @@ static void NBT_WriteArray(APTR out, write_t cb, DATA8 mem, int items, int size)
 	int     max = sizeof buffer / size;
 	int     nb, i, j;
 
-	for (i = 0; i < items; i += nb)
+	if (size == 1)
+	{
+		cb(out, mem, items, 0);
+	}
+	else for (i = 0; i < items; i += nb)
 	{
 		DATA8 d;
 		nb = MIN(items, max);
@@ -1591,15 +1616,15 @@ void NBT_Test(void)
 	NBTFile_t nbt = {.page = 511};
 
 	/* create from an empty NBT */
-	NBT_AddOrUpdateKey(&nbt, "Data.RandomSeed", TAG_String, "9878328491013332");
+	NBT_AddOrUpdateKey(&nbt, "Data.RandomSeed", TAG_String, "9878328491013332", 0);
 	/* add a branch and a key */
-	NBT_AddOrUpdateKey(&nbt, "GameRules.doDayNightCycle", TAG_String, "true");
+	NBT_AddOrUpdateKey(&nbt, "GameRules.doDayNightCycle", TAG_String, "true", 0);
 	/* add only a key */
-	NBT_AddOrUpdateKey(&nbt, "GameRules.doFireTick", TAG_String, "????");
+	NBT_AddOrUpdateKey(&nbt, "GameRules.doFireTick", TAG_String, "????", 0);
 	/* overwrite with same value size */
-	NBT_AddOrUpdateKey(&nbt, "GameRules.doFireTick", TAG_String, "true");
+	NBT_AddOrUpdateKey(&nbt, "GameRules.doFireTick", TAG_String, "true", 0);
 	/* overwrite with different value size */
-	NBT_AddOrUpdateKey(&nbt, "GameRules.doDayNightCycle", TAG_String, "orbitalAccurate");
+	NBT_AddOrUpdateKey(&nbt, "GameRules.doDayNightCycle", TAG_String, "orbitalAccurate", 0);
 	NBT_Dump(&nbt, 0, 0, 0);
 
 	NBT_Free(&nbt);

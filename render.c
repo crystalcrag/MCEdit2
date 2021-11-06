@@ -20,6 +20,7 @@
 #include "skydome.h"
 #include "entities.h"
 #include "cartograph.h"
+#include "waypoints.h"
 #include "nanovg.h"
 #include "SIT.h"
 #include "globals.h"

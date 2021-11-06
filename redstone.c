@@ -258,7 +258,7 @@ int redstoneConnectTo(struct BlockIter_t iter, RSWire connectTo)
 				id = getBlockId(&iter);
 				cnx.blockId = id >> 4;
 				cnx.data = id & 15;
-				if (blockIds[cnx.blockId].rsupdate & RSUPDATE_RECV)
+				if ((blockIds[cnx.blockId].rsupdate & RSUPDATE_RECV) || cnx.blockId == RSWIRE)
 					*list ++ = cnx;
 			}
 		}

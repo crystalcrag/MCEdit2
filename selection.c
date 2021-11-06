@@ -70,12 +70,13 @@ void selectionInitStatic(int shader)
 	glBindVertexArray(0);
 }
 
-/* show size of selection in the "nudge" window */
+/* show size (in blocks) of selection in the "nudge" window */
 void selectionSetSize(void)
 {
 	SIT_Widget w;
 	if ((w = selection.nudgeSize))
 	{
+		/* nudge window (located on top of toolbar) */
 		TEXT buffer[32];
 		int size[] = {
 			(int) fabsf(selection.firstPt[VX] - selection.secondPt[VX]) + 1,
@@ -89,6 +90,7 @@ void selectionSetSize(void)
 	}
 	if ((w = selection.brushSize))
 	{
+		/* brush information (located on left of screen) */
 		TEXT buffer[32];
 		Map brush = selection.brush;
 		int size[] = {brush->size[VX]-2, brush->size[VZ]-2, brush->size[VY]-2};
@@ -189,7 +191,7 @@ static int selectionNudge(SIT_Widget w, APTR cd, APTR ud)
 			selection.nudgeStep  = 1;
 			return 2;
 		case SITOM_ButtonRight:
-			/* button don't normally react to RMB: do it manually */
+			/* buttons don't normally react to RMB: do it manually */
 			SIT_SetValues(w, SIT_CheckState, True, NULL);
 			selection.nudgePoint = (int) ud;
 			selection.nudgeStep  = 16;
@@ -241,7 +243,7 @@ Bool selectionProcessKey(int key, int mod)
 		case 'z':      axis = 1; dir = -1; break;
 		default:       return False;
 		}
-		if (selection.nudgeStep == 16 && selection.nudgePoint == 3)
+		if (selection.nudgeStep == 16 && selection.nudgePoint == 3 /* entire selection */)
 		{
 			/* move by integral amount of selection size */
 			dir *= fabsf(selection.firstPt[axis] - selection.secondPt[axis]) + 1;
@@ -766,7 +768,6 @@ Map selectionClone(vec4 pos, int side, Bool genMesh)
 		fabsf(selection.firstPt[VZ] - selection.secondPt[VZ]) + 3
 	};
 
-	/* the only data structure that can be relocated in the chunk grid */
 	Map brush = selectionAllocBrush(sizes);
 
 	if (brush)

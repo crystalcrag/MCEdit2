@@ -24,6 +24,7 @@
 #include "interface.h"
 #include "library.h"
 #include "entities.h"
+#include "waypoints.h"
 #include "SIT.h"
 
 GameState_t mcedit;
@@ -356,9 +357,10 @@ int main(int nb, char * argv[])
 	}
 
 	globals.level = renderInitWorld("TestMesh", mcedit.maxDist);
-//	globals.level = renderInitWorld("World5", mcedit.maxDist);
+//	globals.level = renderInitWorld("World1_12", mcedit.maxDist);
 	globals.yawPitch = &mcedit.player.angleh;
 	mcedit.state  = GAMELOOP_WORLD;
+	wayPointsRead();
 
 	if (globals.level == NULL)
 	{
@@ -819,6 +821,7 @@ void mceditUIOverlay(int type)
 	int       itemCount;
 	int       itemConnect;
 	uint8_t   enderItems;
+	float     rotation[2];
 	vec4      pos;
 
 	SIT_SetValues(globals.app, SIT_RefreshMode, SITV_RefreshAsNeeded, NULL);
@@ -923,8 +926,12 @@ void mceditUIOverlay(int type)
 		else mcuiCreateInventory(&mcedit.player.inventory);
 		break;
 
-	case MCUI_OVERLAY_GOTO:       memcpy(pos, mcedit.player.pos, sizeof pos);
-		                          mcuiGoto(pos); break;
+	case MCUI_OVERLAY_GOTO:
+		memcpy(pos, mcedit.player.pos, sizeof pos);
+		memcpy(rotation, &mcedit.player.angleh, 8);
+		wayPointsEdit(pos, rotation);
+		break;
+
 	case MCUI_OVERLAY_ANALYZE:    mcuiAnalyze(); break;
 	case MCUI_OVERLAY_REPLACE:    mcuiFillOrReplace(False); break;
 	case MCUI_OVERLAY_FILL:       mcuiFillOrReplace(True); break;
@@ -1049,7 +1056,7 @@ void mceditUIOverlay(int type)
 		}
 	}	break;
 	case MCUI_OVERLAY_GOTO:
-		playerTeleport(&mcedit.player, pos);
+		playerTeleport(&mcedit.player, pos, rotation);
 		renderSetViewMat(mcedit.player.pos, mcedit.player.lookat, &mcedit.player.angleh);
 		break;
 

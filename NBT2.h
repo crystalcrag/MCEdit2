@@ -28,7 +28,7 @@ int   NBT_Iter(NBTIter iter);
 int   NBT_FormatSection(DATA8 mem, int y);
 int   NBT_SetHdrSize(NBTFile, int offset);
 int   NBT_Insert(NBTFile, STRPTR loc, int type, NBTFile fragment);
-int   NBT_AddOrUpdateKey(NBTFile, STRPTR key, int type, APTR value);
+int   NBT_AddOrUpdateKey(NBTFile, STRPTR key, int type, APTR value, int offsetTagList);
 Bool  NBT_ToFloat(NBTFile, int offset, float * array, int nb);
 Bool  NBT_ToString(NBTFile root, int offset, STRPTR buffer, int max);
 int   NBT_ToInt(NBTFile, int offset, int def);
@@ -103,6 +103,7 @@ struct NBTHdr_t
 #define TAG_Raw_Data         12   /* NBT_Add() only */
 #define TAG_Raw_Ptr          13   /* NBT_Add() only */
 #define TAG_Compound_End     14   /* NBT_Add() only */
+#define TAG_InsertAtEnd      256  /* NBT_Add() only */
 #define	TAG_List_Byte        (TAG_List | (TAG_Byte << 4))
 #define	TAG_List_Short       (TAG_List | (TAG_Short << 4))
 #define	TAG_List_Int         (TAG_List | (TAG_Int << 4))
@@ -111,6 +112,7 @@ struct NBTHdr_t
 #define	TAG_List_Double      (TAG_List | (TAG_Double << 4))
 #define	TAG_List_String      (TAG_List | (TAG_String << 4))
 #define	TAG_List_Compound    (TAG_List | (TAG_Compound << 4))
+#define TAG_ListSize(x)      ((x) << 8) /* NBT_AddOrUpdate() only */
 #define NBT_WithInit         0x1000000
 
 #ifdef NBT_IMPL			     /* private stuff below */

@@ -808,11 +808,12 @@ void entityParse(Chunk c, NBTFile nbt, int offset)
 
 		/* iterate over the properties of one entity */
 		NBTIter_t iter;
-		NBT_InitIter(nbt, offset, &iter);
+		NBT_IterCompound(&iter, nbt->mem + offset);
 		memset(pos, 0, sizeof pos); id = NULL;
 		pos[10] = 1;
 		while ((off = NBT_Iter(&iter)) >= 0)
 		{
+			off += offset;
 			switch (FindInList("Motion,Pos,Rotation,id", iter.name, 0)) {
 			case 0: NBT_ToFloat(nbt, off, pos,   3); break;
 			case 1: NBT_ToFloat(nbt, off, pos+3, 3); break;

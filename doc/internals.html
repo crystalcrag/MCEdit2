@@ -235,34 +235,43 @@ chunks you can have from those 8 corners is 27.
 
 <p>This is what encodes the <tt>neighbors</tt> table: each of these 27 chunks are given a number
 between 0 and 26, and therefore can be encoded as a bitfield in a 32bit integer. The order is shown below
-(axis is the same as the figure on the right) (XXX order changed for cave culling):
+(axis is the same as the figure on the right):
 
 <table class="skewed" id="cube3x3">
-<tr><td>18<td>19<td>20
-<tr><td>21<td>22<td>23
-<tr><td>24<td>25<td>26
+<tr><td>25<td>15<td>23
+<tr><td>17<td>5<td>12
+<tr><td>21<td>9<td>19
 </table>
 
 <table class="skewed">
-<tr><td>9<td>10<td>11
-<tr><td>12<td><span class="o">13</span><td>14
-<tr><td>15<td>16<td>17
+<tr><td>14<td>3<td>11
+<tr><td>4<td><span class="o">0</span><td>2
+<tr><td>8<td>1<td>7
 </table>
 
 <table class="skewed">
-<tr><td>0<td>1<td>2
-<tr><td>3<td>4<td>5
-<tr><td>6<td>7<td>8
+<tr><td>26<td>16<td>24
+<tr><td>18<td>6<td>13
+<tr><td>22<td>10<td>20
 </table>
 
-<p><tt>13</tt> is therefore the chunk we are currently in. For example, if we checked that vertex
-<tt>0</tt> of a chunk is within the frustum, we know we can also add chunks <tt>0</tt>, <tt>1</tt>, <tt>3</tt>,
-<tt>4</tt>, <tt>9</tt>, <tt>10</tt> and <tt>12</tt>. Chunk 13 is not included, because at this point
-we already know that the center chunk is part of the frustum. Encoded as bitfield, with the n<sup>th</sup>
-bit set if chunk number <tt>n</tt> is in the frustum, the 7 chunks to add for vertex 0 can be encoded
-as <tt>2<sup>0</sup> + 2<sup>1</sup> + 2<sup>3</sup> + 2<sup>4</sup> + 2<sup>9</sup>
-+ 2<sup>10</sup> + 2<sup>12</sup> = 5659</tt>, and so on for the other 7 corners: that's what is
-stored in the <tt>neighbors</tt> table.
+<p><tt>0</tt> is the chunk we are currently in. The numbers are ordered by scanning each number (starting
+from 0 in the center) and looking in the <tt>S, E, N, W, T, B</tt> directions if the chunk has been
+assgined to something. If not, it is assigned to the next free number. The process continues until
+all 27 slots have been assigned to a number.
+
+<p>The purpose of this order is to be able to scan surrounding chunks by their distance from the center
+chunk: number 0 is the center, 1 to 6 are chunks one step away from center, 7 to 18 are two steps away
+and 19 to 26 are 3 steps away (the steps being a <tt>S, E, N, W, T, B</tt> step). This order will
+be required by the cave culling algorithm.
+
+<p>For example, if we checked that vertex <tt>0</tt> of a chunk is within the frustum, we know we can
+also add chunks <tt>3</tt>, <tt>4</tt>, <tt>6</tt>, <tt>14</tt>, <tt>16</tt>, <tt>18</tt> and <tt>26</tt>.
+Chunk 0 is not included, because at this point we already know that the center chunk is part of the frustum.
+Encoded as bitfield, with the n<sup>th</sup> bit set if chunk number <tt>n</tt> is in the frustum, the
+7 chunks to add for vertex 0 can be encoded as <tt>2<sup>3</sup> + 2<sup>4</sup> + 2<sup>6</sup> +
+2<sup>14</sup> + 2<sup>16</sup> + 2<sup>18</sup> + 2<sup>26</sup> = 0x04054058</tt>, and so on for the
+other 7 corners: that's what is stored in the <tt>neighbors</tt> table.
 
 
 <h3 id="neighbors"><span>Enumerating neighbors</span></h3>
@@ -427,7 +436,16 @@ approach is required when the player is below the bottomest chunk (i.e.: <tt>Y &
 have one</b>, because there is no place in the <tt>Chunk</tt> structure to store a reference, even for a
 fake chunk.
 
-<p>/* ... */
+<p>There are 2 cases to take care:
+<ol>
+  <li><b>Below built height</b>: right now we return an empty chunk list: you are not supposed to get here.
+  And besides, even if you were to generate a chunk list, most voxel will be culled by the GPU because
+  they are oriented backward.
+  <li><b>Above build height</b>: we use the inverse MVP matrix to get the direction of the bottom plane
+  of the frustum. With that direction, we check what's the nearest chunk it intersects (at highest possible
+  location, whether there is a <tt>ChunkData</tt> or not). If there is a <tt>ChunkData</tt>, we use this
+  as a starting point, otherwise we allocate a fake <tt>ChunkData</tt>.
+</ol>
 
 <h3 id="cavecull"><span>Cave culling</span></h3>
 
@@ -508,11 +526,13 @@ implementation (another advice to not waste any time with this idea).
 
 <p>The way it is done, is actually pretty simple: since frustum culling orders chunks from near to far,
 we then scan the chunks from beginning to the end of that list. From a given chunk, we check if there
-is a path within the visibility graph that can reach a previously visible chunk.
+is <b>a path within the visibility graph</b> that can reach a previously visible chunk.
 
 <p>We also use the fact that a cube in 3d space only have, at most, 3 visible faces. Going through
 hidden faces will add a significant amount of hidden chunks. Visibility of a face is done by computing
 the dot product between the face normal and the vector from camera to one point of the face.
+
+<p>There is one special case though: starting chunk.
 
 <p>This method is not as aggressive as the current version of <prod>Minecraft</prod>: it is far from
 simulating a raycasting traversal, but can still easily cull 50% of chunks when above ground, and nearly
