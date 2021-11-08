@@ -924,7 +924,7 @@ void vecSub(vec4 res, vec4 A, vec4 B)
 
 float vecLength(vec4 A)
 {
-	return sqrt(A[VX]*A[VX] + A[VY]*A[VY] + A[VZ]*A[VZ]);
+	return sqrtf(A[VX]*A[VX] + A[VY]*A[VY] + A[VZ]*A[VZ]);
 }
 
 float vecDistSquare(vec4 A, vec4 B)

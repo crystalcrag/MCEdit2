@@ -124,14 +124,18 @@ static void CCSetSVCursor(ColorChooser cc, int x, int y)
 
 	if (x < 0) x = 0; if (x >= width)  x = width-1;
 	if (y < 0) y = 0; if (y >= height) y = height-1;
+	y = 100 - (y / (height-1)) * 100;
+	x = (x / (width-1)) * 100;
 
-	cc->hsv[1] = 100 - (y / height) * 100;
-	cc->hsv[2] = (x / width) * 100;
-
-	uint8_t rgb[4];
-	HSV_to_RGB(cc->hsv, rgb);
-	CCSetColorRGB(cc, rgb);
-	SIT_SetValues(cc->SVindic, SIT_TopObject, SITV_AttachPos(y * 100 / height), SIT_LeftObject, SITV_AttachPos(x * 100 / width), NULL);
+	if (cc->hsv[1] != y || cc->hsv[2] != x)
+	{
+		uint8_t rgb[4];
+		cc->hsv[1] = y;
+		cc->hsv[2] = x;
+		HSV_to_RGB(cc->hsv, rgb);
+		CCSetColorRGB(cc, rgb);
+		SIT_SetValues(cc->SVindic, SIT_TopObject, SITV_AttachPos(100-y), SIT_LeftObject, SITV_AttachPos(x), NULL);
+	}
 }
 
 static void CCSetHueCursor(ColorChooser cc, int y)
@@ -140,11 +144,14 @@ static void CCSetHueCursor(ColorChooser cc, int y)
 	SIT_GetValues(cc->hue, SIT_Height, &height, NULL);
 	if (y < 0) y = 0;
 	if (y >= height) y = height-1;
+	y = 359 - (y * 359 / height);
 
-	cc->hsv[0] = 360 - (y * 360 / height);
-	HSV_to_RGB(cc->hsv, cc->rgb);
-
-	CCSetColor(cc, cc->rgb);
+	if (y != cc->hsv[0])
+	{
+		cc->hsv[0] = y;
+		HSV_to_RGB(cc->hsv, cc->rgb);
+		CCSetColor(cc, cc->rgb);
+	}
 }
 
 static int CCMoveHS(SIT_Widget w, APTR cd, APTR ud)
@@ -187,10 +194,11 @@ static int CCMoveHue(SIT_Widget w, APTR cd, APTR ud)
 
 static int CCParseColor(SIT_Widget w, APTR cd, APTR ud)
 {
-	STRPTR str;
-	uint8_t rgb[4];
+	ColorChooser cc = ud;
+	STRPTR       str;
+	uint8_t      rgb[4];
 	SIT_GetValues(w, SIT_Title, &str, NULL);
-	if (SIT_ParseCSSColor(str, rgb))
+	if (SIT_ParseCSSColor(str, rgb) && memcmp(cc->rgb, rgb, 3))
 		CCSetColor(ud, rgb);
 	return 0;
 }

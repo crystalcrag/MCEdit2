@@ -1021,7 +1021,7 @@ static Bool entityInFrustum(vec4 pos)
 }
 
 /* check if vector <dir> intersects an entity bounding box (from position <camera>) */
-int entityRaycast(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos)
+int entityRaypick(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos)
 {
 	float maxDist = cur ? vecDistSquare(camera, cur) : 1e6f;
 	int   flags = (dir[VX] < 0 ? 2 : 8) | (dir[VY] < 0 ? 16 : 32) | (dir[VZ] < 0 ? 1 : 4);
@@ -1085,7 +1085,7 @@ int entityRaycast(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos)
 					vec3AddMult(points+6, list->pos, num);
 
 					if (intersectRayPlane(camera, dir, points, norm, inter) &&
-					    pointIsInRect(points, inter))
+					    pointIsInRect(points /* rect */, inter /* point */))
 					{
 						/* check if points are contained within the face */
 						float dist = vecDistSquare(camera, inter);

@@ -16,6 +16,7 @@
 #include "NBT2.h"
 #include "particles.h"
 #include "entities.h"
+#include "waypoints.h"
 #include "globals.h"
 
 
@@ -310,7 +311,6 @@ VTXBBox mapGetBBox(BlockIter iterator, int * count, int * cnxFlags)
  *    Output: I = the intersect point (when it exists)
  *    Return: 0 = disjoint (no intersection)
  *            1 = intersection in the unique point I
- *            2 = the segment lies in the plane
  */
 int intersectRayPlane(vec4 P0, vec4 u, vec4 V0, vec norm, vec4 I)
 {
@@ -349,8 +349,8 @@ static Bool mapBlockIsFaceVisible(Map map, vec4 pos, int blockId, int8_t * offse
 	return True;
 }
 
-/* find the block pointed by tracing a ray using direction <dir> or <yawPitch> */
-Bool mapPointToBlock(Map map, vec4 camera, float * yawPitch, vec4 dir, vec4 ret, MapExtraData data)
+/* find the object (block, entity or waypoint)  pointed by tracing a ray using direction <dir> or <yawPitch> */
+Bool mapPointToObject(Map map, vec4 camera, vec4 dir, vec4 ret, MapExtraData data)
 {
 	static float normals[] = { /* S, E, N, W, T, B */
 		 0,  0,  1, 1,
@@ -370,17 +370,34 @@ Bool mapPointToBlock(Map map, vec4 camera, float * yawPitch, vec4 dir, vec4 ret,
 	};
 	static uint8_t opposite[] = {2, 3, 0, 1, 5, 4};
 
+	/* too annoying to make a global function */
+	void mapCheckOtherObjects(vec4 inter)
+	{
+		data->entity = entityRaypick(map->center, dir, camera, inter, ret);
+		if (data->entity == 0)
+		{
+			data->entity = wayPointRaypick(dir, camera, inter, ret);
+			if (data->entity > 0)
+				data->side = SIDE_WAYPOINT;
+		}
+		else data->side = SIDE_ENTITY;
+	}
+
+
 	vec4 pos, u;
+	#if 0
 	if (dir == NULL)
 	{
-		/* use yaw-pitch to get our direction vector */
+		/* use yaw-pitch to get our direction vector XXX does not work at all... why ? */
 		float cv = cosf(yawPitch[1]);
 		u[VX] = cosf(yawPitch[0]) * cv;
 		u[VY] = sinf(yawPitch[1]);
 		u[VZ] = sinf(yawPitch[0]) * cv;
 		u[VT] = 1;
 	}
-	else memcpy(u, dir, sizeof u);
+	else
+	#endif
+		memcpy(u, dir, sizeof u);
 	vec4 plane = {floorf(camera[0]), floorf(camera[1]), floorf(camera[2]), 1};
 	int  flags = (u[0] < 0 ? 8 : 2) | (u[1] < 0 ? 32 : 16) | (u[2] < 0 ? 4 : 1);
 	int  check = 0;
@@ -420,7 +437,7 @@ Bool mapPointToBlock(Map map, vec4 camera, float * yawPitch, vec4 dir, vec4 ret,
 					if (check)
 					{
 						data->side = i;
-						data->entity = entityRaycast(map->center, dir, camera, inter, ret);
+						mapCheckOtherObjects(inter);
 						return True;
 					}
 
@@ -447,7 +464,7 @@ Bool mapPointToBlock(Map map, vec4 camera, float * yawPitch, vec4 dir, vec4 ret,
 							check = 1;
 							goto break_all;
 						}
-						data->entity = entityRaycast(map->center, dir, camera, inter, ret);
+						mapCheckOtherObjects(inter);
 						return True;
 					}
 					goto break_all;
@@ -466,7 +483,8 @@ Bool mapPointToBlock(Map map, vec4 camera, float * yawPitch, vec4 dir, vec4 ret,
 		if (i == 6)
 			break;
 	}
-	data->entity = entityRaycast(map->center, dir, camera, NULL, ret);
+	/* no intersection with voxels, check for other objects */
+	mapCheckOtherObjects(NULL);
 	return data->entity > 0;
 }
 

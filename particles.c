@@ -33,7 +33,7 @@ Bool particlesInit(void)
 		/* error message already showed */
 		return False;
 
-	glGenVertexArrays(3, &particles.vao);
+	glGenVertexArrays(1, &particles.vao);
 	glGenBuffers(1, &particles.vbo);
 
 	glBindVertexArray(particles.vao);

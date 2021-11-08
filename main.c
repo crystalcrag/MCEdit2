@@ -356,8 +356,8 @@ int main(int nb, char * argv[])
 		return 1;
 	}
 
-	globals.level = renderInitWorld("TestMesh", mcedit.maxDist);
-//	globals.level = renderInitWorld("World1_12", mcedit.maxDist);
+//	globals.level = renderInitWorld("TestMesh", mcedit.maxDist);
+	globals.level = renderInitWorld("World1_12", mcedit.maxDist);
 	globals.yawPitch = &mcedit.player.angleh;
 	mcedit.state  = GAMELOOP_WORLD;
 	wayPointsRead();
@@ -439,7 +439,7 @@ void mceditWorld(void)
 					break;
 				case SDLK_F7:
 					globals.breakPoint = ! globals.breakPoint;
-					entityDebugCmd(globals.level->center);
+					renderPointToBlock(825, 173);
 					break;
 				#endif
 				case SDLK_TAB:

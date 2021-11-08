@@ -1,6 +1,12 @@
 =========== Week 44 ===========
+Sun Nov 7:
+	* added raypicking for in-game waypoints.
+
+Sat Nov 6:
+	* waypoints editor done: render in game and edit NBT.
+
 Fri Nov 5:
-	* waypoints editor interface mostly (+NBT update).
+	* waypoints editor interface mostly done (including NBT update).
 
 Thu Nov 4:
 	* waypoints editor continued.

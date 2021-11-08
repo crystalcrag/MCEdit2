@@ -9,7 +9,10 @@
 
 void wayPointsRead(void);
 void wayPointsEdit(vec4 pos, float rotation[2]);
-
+Bool wayPointsInit(void);
+void wayPointsRender(vec4 camera);
+int  wayPointRaypick(vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos);
+void wayPointInfo(int id, STRPTR msg, int max);
 
 #ifdef WAY_POINTS_IMPL
 
@@ -20,13 +23,18 @@ struct WayPointsPrivate_t
 	SIT_Widget list;
 	SIT_Widget delButton;
 	SIT_Widget coords[3];
-	vector_t   all;                 /* WayPoint_t */
+	vector_t   all;                /* WayPoint_t */
 	NBTFile_t  nbt;
-	uint8_t    nbtModified;
-	uint8_t    displayInWorld;
-	int        nbtWaypoints;        /* WayPoints branch offset in NBT */
-	float      curPos[3];           /* goto interface */
+	uint8_t    nbtModified;        /* NBT waypoints file need to be saved */
+	uint8_t    listDirty;          /* need to update GL VBO */
+	uint8_t    glCount;            /* nb. of waypoints actually rendered (max: 255) */
+	int        displayInWorld;
+	int        nbtWaypoints;       /* WayPoints branch offset in NBT */
+	float      curPos[3];          /* goto interface */
 	float      rotation[2];
+	int        vao, vbo, shader;   /* GL stuff */
+	float      lastYaw;            /* reduce VBO sorting */
+	int        lastHover;          /* waypoint id */
 };
 
 struct WayPoint_t
@@ -35,7 +43,12 @@ struct WayPoint_t
 	float   location[3];
 	float   rotation[2];
 	uint8_t color[4];
+	int     glIndex;
 };
+
+#define WAYPOINTS_BEAM_SZ          0.5f
+#define WAYPOINTS_VBO_SIZE         20
+#define WAYPOINTS_MAX              255   /* note: in visible range */
 
 #endif
 #endif

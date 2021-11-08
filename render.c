@@ -407,8 +407,8 @@ void renderPointToBlock(int mx, int my)
 		dir[VZ] = dir[VZ] / dir[VT] - render.camera[VZ];
 
 		/* XXX why is the yaw/pitch ray picking off compared to a MVP matrix ??? */
-		//if (mapPointToBlock(render.level, render.camera, &render.yaw, NULL, render.selection.current, &render.selection.extra))
-		if (mapPointToBlock(globals.level, render.camera, NULL, dir, render.selection.current, &render.selection.extra))
+		//if (mapPointToObject(globals.level, render.camera, &render.yaw, NULL, render.selection.current, &render.selection.extra))
+		if (mapPointToObject(globals.level, render.camera, dir, render.selection.current, &render.selection.extra))
 			render.selection.selFlags |= SEL_POINTTO;
 		else
 			render.selection.selFlags &= ~(SEL_POINTTO | SEL_NOCURRENT);
@@ -503,6 +503,9 @@ Bool renderInitStatic(void)
 	(render.selection.shader = createGLSLProgram("selection.vsh", "selection.fsh", NULL));
 
 	if (! compiled)
+		return False;
+
+	if (! wayPointsInit())
 		return False;
 
 	/* init VBO for vboInventoryLoc, vboPreview, vboPreviewLoc, vboInventory */
@@ -717,7 +720,7 @@ void renderSetViewMat(vec4 pos, vec4 lookat, float * yawPitch)
 
 	mapMoveCenter(globals.level, old, render.camera);
 
-	matLookAt(render.matModel, render.camera, lookat, (float[3]) {0, 1, 0});
+	matLookAt(render.matModel, render.camera, (float[3]) {lookat[VX], lookat[VY] + PLAYER_HEIGHT, lookat[VZ]}, (float[3]) {0, 1, 0});
 	/* must be same as the one used in the vertex shader */
 	matMult(globals.matMVP, render.matPerspective, render.matModel);
 	/* we will need that matrix sooner or later */
@@ -1209,7 +1212,10 @@ void renderBlockInfo(SelBlock_t * sel)
 			sprintf(msg, "X: %d <dim>(%d)</dim>\nY: %d <dim>(%d)</dim>\nZ: %d <dim>(%d)</dim>\n%s <dim>(%d:%d)</dim>",
 				XYZ[0], XYZ[0] & 15, XYZ[1], XYZ[1] & 15, XYZ[2], XYZ[2] & 15, blockGetById(id)->name, id>>4, id&15);
 		}
-		else entityInfo(sel->extra.entity, msg, sizeof msg);
+		else switch (sel->extra.side) {
+		case SIDE_ENTITY:     entityInfo(sel->extra.entity, msg, sizeof msg); break;
+		case SIDE_WAYPOINT: wayPointInfo(sel->extra.entity, msg, sizeof msg); break;
+		}
 
 		SIT_SetValues(render.blockInfo, SIT_Title, msg, SIT_DisplayTime, SITV_ResetTime, NULL);
 	}
@@ -1405,7 +1411,7 @@ void renderWorld(void)
 	/* text signs and map in item frame */
 	signRender();
 	cartoRender();
-	/* second: entities */
+	/* next: entities */
 	glBindTexture(GL_TEXTURE_2D, render.texBlock);
 	entityRender();
 
@@ -1423,6 +1429,9 @@ void renderWorld(void)
 		}
 	}
 //	glDepthMask(GL_TRUE);
+
+	/* in-game map marker */
+	wayPointsRender(render.camera);
 
 	/* show limit of chunk boundary where player is */
 	if (render.debug & RENDER_DEBUG_CURCHUNK)

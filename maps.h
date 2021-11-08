@@ -62,7 +62,7 @@ struct Frustum_t                   /* frustum culling static tables (see doc/int
 	uint16_t  lazyCount;
 };
 
-struct MapExtraData_t              /* extra info returned from mapPointToBlock() and mapGetBlockId() */
+struct MapExtraData_t              /* extra info returned from mapPointToObject() and mapGetBlockId() */
 {
 	ChunkData cd;                  /* sub-chunk where block is */
 	Chunk     chunk;
@@ -74,6 +74,12 @@ struct MapExtraData_t              /* extra info returned from mapPointToBlock()
 	uint8_t   topHalf;             /* slab/stairs placement */
 	uint8_t   special;             /* value from Block_t */
 	float     inter[3];
+};
+
+enum                               /* extra values for MapExtraData_t.side */
+{
+	SIDE_ENTITY,                   /* <entity> field is an entityId */
+	SIDE_WAYPOINT,                 /* <entity> is a waypoint id */
 };
 
 struct BlockIter_t                 /* iterate over nearby blocks */
@@ -90,7 +96,7 @@ struct BlockIter_t                 /* iterate over nearby blocks */
 Map     mapInitFromPath(STRPTR path, int renderDist);
 void    mapGenerateMesh(Map);
 int     mapGetBlockId(Map, vec4 pos, MapExtraData canBeNULL);
-Bool    mapPointToBlock(Map, vec4 camera, float * yawPitch, vec4 dir, vec4 ret, MapExtraData exxtra);
+Bool    mapPointToObject(Map, vec4 camera, vec4 dir, vec4 ret, MapExtraData extra);
 Bool    mapMoveCenter(Map, vec4 old, vec4 pos);
 Bool    mapSetRenderDist(Map, int maxDist);
 Bool    mapSaveAll(Map);

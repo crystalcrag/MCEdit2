@@ -24,6 +24,8 @@
   <a class="sub2" href="#fakechunks"><span>Fake chunks</span></a>
   <a class="sub2" href="#outside"><span>Outside bounds</span></a>
   <a class="sub2" href="#cavecull"><span>Cave culling</span></a>
+    <a class="sub3" href="#cavecullv1"><span>First attempt</span></h3>
+    <a class="sub3" href="#cavecullv2"><span>Second attempt</span></h3>
 
 <a class="sub1" href="#blocks"><span>Block API</span></a>
   <a class="sub2" href="#blockdesc"><span>Block description</span></a>
@@ -498,7 +500,7 @@ is mostly air).
 <p>The visibility of faces is <b>stored in a bitfield</b>. Since there are 6 faces, there are <b>15</b>
 possible connections:
 
-<table class="hspace">
+<table class="hspace" id="cnxgraphtbl">
   <thead><tr><td><small>to &#x25ba;<br>from &#x25bc;</small><td><tt>S</tt><td><tt>E</tt><td><tt>N</tt><td><tt>W</tt><td><tt>T</tt><td><tt>B</tt>
   <tbody><tr><th><tt>S</tt><td class="XXX"><td>1<td>2<td>3<td>4<td>5
          <tr><th><tt>E</tt><td>1<td class="XXX"><td>6<td>7<td>8<td>9
@@ -532,7 +534,59 @@ is <b>a path within the visibility graph</b> that can reach a previously visible
 hidden faces will add a significant amount of hidden chunks. Visibility of a face is done by computing
 the dot product between the face normal and the vector from camera to one point of the face.
 
-<p>There is one special case though: starting chunk.
+<p>Therefore here is a simplified vresion of the graph traversal algorithm:
+<div class="pre">
+<ul>
+  <li>For each visible <tt>ChunkData</tt> we got from frustum culling:
+    <ul>
+	  <li>For each face visible of this <tt>ChunkData</tt> (at most 3):
+	    <ul>
+		  <li>Get neighbor <tt>ChunkData</tt> directly connected to that face.
+		  <li>From this neighbor <tt>ChunkData</tt> is there a path that allows us to go from the face
+		  we entered this neighbor previously to the <b>opposite face</b> we are currently testing ?
+		  <li><b>If yes</b>: save the face we entered current chunk and mark the chunk as visible.
+		  <li><b>If no</b>: try with another face.
+		  <li><span class="n">Note</span>: besides lack of connectivity, this test can also fail for
+		  the following reasons:
+		  <ul>
+		    <li>The neighbor is outside frustum.
+			<li>The neighbor was removed from the list by a previous iteration of this algorithm.
+		  </ul>
+		</ul>
+	  <li>If there are no paths to any faces of the <tt>ChunkData</tt>, remove this chunk from the
+	  visible list.
+	</ul>
+</ul>
+</div>
+
+<p>Knowing this, you'll notice that the first chunk in the list is a bit special: there are no particular
+faces where we entered this chunk. Since we don't know where we came from in this very first chunk, we
+simply assume all directions are valid: this is what is encoded in the table <tt>canGoTo[]</tt>: For each
+<tt>S, E, N, W, T, B</tt> face we want to check, assume assume we came from every direction, therefore
+check connectivity for any direction.
+
+<p>If a <tt>ChunkData</tt> is connected to this first chunk, we want to know if there is a path to that
+face, from <b>any other direction</b>. Therefore we check all the connection ID that are possible
+for a given face, as described in the <a href="#cnxgraphtbl">previous table</a>. So if we want to know
+if we can reach the south face of the first chunk, we check if one of the connection ID is set, that
+is either 1, 2, 3, 4 or 5. Since connection graph is encoded as bitfield, the test becomes:
+<pre><span class="t">static uint16_t</span> canGoTo[] = {
+	<span class="o">0x001f</span>, <span class="c">/* to south:  1+2+4+8+16 */</span>
+	<span class="o">0x01e1</span>, <span class="c">/* to east:   1+32+64+128+256 */</span>
+	<span class="o">0x0e22</span>, <span class="c">/* to west:   2+32+512+1024+2048 */</span>
+	<span class="o">0x3244</span>, <span class="c">/* to north:  4+64+512+4096+8192 */</span>
+	<span class="o">0x5488</span>, <span class="c">/* to top:    8+128+1024+4096+16384 */</span>
+	<span class="o">0x6910</span>, <span class="c">/* to bottom: 16+256+2048+8192+16384 */</span>
+};
+<span class="c">/* neighbor is the first ChunkData */</span>
+<span class="k">if</span> (neighbor->cnxGraph &amp; canGoTo[oppSide])
+{
+	/* yes, we can */
+	cur->comingFrom = side;
+	<span class="k">break</span>;
+}
+</pre>
+
 
 <p>This method is not as aggressive as the current version of <prod>Minecraft</prod>: it is far from
 simulating a raycasting traversal, but can still easily cull 50% of chunks when above ground, and nearly
@@ -590,12 +644,12 @@ possible properties:
 	Typical use case: crops, grass or flowers.
     <li><tt>CUST</tt>: completely arbitrary shape, a custom model will be expected for each state
 	description. Keep in mind that the model cannot exceed a 2x2x2 cube in size. If you need more,
-	you will have to use an dedicated entity otherwise.
+	you will have to use an entity instead.
   </ul>
   <li><tt>name</tt>: a human readable name that will be displayed in various places of the engine.
   <li><tt>tech</tt>: the technical name stored in inventories. If the name is the same as the <tt>name</tt>
   field (but converted to lowercase and space replaced with underscore), you can omit that field.
-  <li><tt>inv</tt>: how this block is going to represented in inventory menus. It is an enumeration
+  <li><tt>inv</tt>: how this block is going to be represented in inventory menus. It is an enumeration
   value that can be assigned to one of the following values:
   <ul>
     <li><tt>CUBE</tt>: each individual states will have its own inventory item in the form of a cube. The

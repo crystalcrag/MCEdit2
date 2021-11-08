@@ -27,7 +27,7 @@ typedef struct MCGlobals_t
 	uint8_t direction;
 
 	/* edit box is active: restrict some kbd shortcut */
-	uint8_t  inEditBox;
+	uint8_t inEditBox;
 
 	/* map being edited */
 	Map level;
