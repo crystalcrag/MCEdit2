@@ -11,6 +11,7 @@ layout (triangle_strip, max_vertices = 4) out;
 
 flat in  uint wp_Color[];
 flat out vec4 vtx_center;
+flat out uint vtx_select;
      out vec4 vtx_color;
 	 out vec4 vtx_coord;
 
@@ -21,29 +22,30 @@ void main(void)
 {
 	vec4  pt1 = gl_in[0].gl_Position;
 	vec4  pt2 = projMatrix * mvMatrix * vec4(pt1.x, 256, pt1.z, 1);
-	float dy = CIRCLE_RADIUS * shading[0].y;
+	float dy = CIRCLE_RADIUS * ASPECT_RATIO;
 	pt1 = projMatrix * mvMatrix * pt1;
 
 	/* we want a billboard effect for the beam, just like particles */
-	vtx_color = unpackUnorm4x8(wp_Color[0]);
+	vtx_color  = unpackUnorm4x8(wp_Color[0]);
 	vtx_center = pt1;
-	
+	vtx_select = vtx_color.a > 0.4 ? 1 : 0;
+
 	/*
 	 * Note: there will be some distortion of the circle at the base when it is at the edge of the screen.
 	 * This is because pt1.w and pt2.w are only valid for pt1 and pt2.
 	 * Here the points are shifted to form a quad, which means w component should change, but it is not that much of a big deal.
 	 */
-	gl_Position = vtx_coord = vec4(pt1.x - CIRCLE_RADIUS, pt1.y - dy, 1, pt1.w);
+	gl_Position = vtx_coord = vec4(pt1.x - CIRCLE_RADIUS, pt1.y - dy, pt1.z, pt1.w);
 	EmitVertex();
 
-	gl_Position = vtx_coord = vec4(pt1.x + CIRCLE_RADIUS, pt1.y - dy, 1, pt1.w);
+	gl_Position = vtx_coord = vec4(pt1.x + CIRCLE_RADIUS, pt1.y - dy, pt1.z, pt1.w);
 	EmitVertex();
 
 	vtx_color.a = 0;
-	gl_Position = vtx_coord = vec4(pt2.x - CIRCLE_RADIUS, pt2.y, 1, pt2.w);
+	gl_Position = vtx_coord = vec4(pt2.x - CIRCLE_RADIUS, pt2.y, pt2.z, pt2.w);
 	EmitVertex();
 
-	gl_Position = vtx_coord = vec4(pt2.x + CIRCLE_RADIUS, pt2.y, 1, pt2.w);
+	gl_Position = vtx_coord = vec4(pt2.x + CIRCLE_RADIUS, pt2.y, pt2.z, pt2.w);
 	EmitVertex();
 	EndPrimitive();
 }

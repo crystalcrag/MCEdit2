@@ -447,6 +447,8 @@ static int renderGetSize(SIT_Widget w, APTR cd, APTR ud)
 
 	/* aspect ratio (needed by particle.gsh) */
 	shading[1] = globals.width / (float) globals.height;
+	shading[2] = globals.width;
+	shading[2] = globals.height;
 	matPerspective(render.matPerspective, DEF_FOV, shading[1], NEAR_PLANE, 1000);
 	glViewport(0, 0, globals.width, globals.height);
 

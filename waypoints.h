@@ -33,7 +33,7 @@ struct WayPointsPrivate_t
 	float      curPos[3];          /* goto interface */
 	float      rotation[2];
 	int        vao, vbo, shader;   /* GL stuff */
-	float      lastYaw;            /* reduce VBO sorting */
+	float      lastPos[3];         /* reduce VBO sorting */
 	int        lastHover;          /* waypoint id */
 };
 

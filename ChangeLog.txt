@@ -1,3 +1,7 @@
+=========== Week 45 ===========
+Mon Nov 8:
+	* waypoints refined: better highlighting feedback and raypicking.
+
 =========== Week 44 ===========
 Sun Nov 7:
 	* added raypicking for in-game waypoints.

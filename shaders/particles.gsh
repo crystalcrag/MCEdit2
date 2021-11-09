@@ -37,7 +37,7 @@ void main(void)
 	int   tmax = int(size[0]); if (tmax > 4) tmax = 4;
 	int   tmin = - tmax;
 	float szX  = size[0] / 64;
-	float szY  = szX * shading[0].y; /* shading.y == aspect ratio of screen */
+	float szY  = szX * ASPECT_RATIO;
 
 	/* that way we will get a billboard effect at the same time */
 	ptype = type[0];
