@@ -27,6 +27,8 @@ typedef struct ChunkFake_t *       ChunkFake;
 #define CPOS(pos)     ((int) floorf(pos) >> 4)
 #define CREM(pos)     ((int) floorf(pos) & 15)
 
+#define PACKPNG_SIZE  128          /* minecraft uses 64, but that's a bit too small */
+
 struct Map_t
 {
 	float     cx, cy, cz;          /* player pos (init) */

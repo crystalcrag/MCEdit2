@@ -1,4 +1,10 @@
 =========== Week 45 ===========
+Wed Nov 10:
+	* added way to update world icon.png from world info.
+
+Tue Nov 9:
+	* minor bug fixes: waypoints, sign deletion, emitters update, rs torch incorrect update.
+
 Mon Nov 8:
 	* waypoints refined: better highlighting feedback and raypicking.
 

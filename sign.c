@@ -244,7 +244,9 @@ static void signUpdateBank(SignText sign)
 	for (i = 0; i < 4; i ++, y += SIGN_HEIGHT / 4)
 	{
 		uint8_t text[128];
-		int len = signParseText(text, sizeof text, sign->tile + sign->text[i]);
+		int len = sign->text[i];
+		if (len == 0) continue;
+		len = signParseText(text, sizeof text, sign->tile + len);
 
 		if (len > 0)
 		{

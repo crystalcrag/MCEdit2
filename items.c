@@ -270,7 +270,7 @@ ItemID_t itemGetByName(STRPTR name, Bool forInventory)
 	{
 		/* older versions used numeric id directly */
 		int id = atoi(name);
-		/* back then was less than 256 block types */
+		/* back then, there was less than 256 block types */
 		return id < 256 ? ID(id, 0) : ITEMID(id, 0);
 	}
 
@@ -675,6 +675,7 @@ void itemDecodeEnchants(DATA8 nbt, STRPTR title, int max)
 				id = StrCat(title, max, id, enchantments[pos].name);
 				if (level > 5)
 				{
+					/* using hacking tools, are we? */
 					TEXT num[10];
 					sprintf(num, "%d", level);
 					StrCat(title, max, id, num);

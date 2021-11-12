@@ -1432,6 +1432,13 @@ void renderWorld(void)
 	}
 //	glDepthMask(GL_TRUE);
 
+	/* particles */
+	particlesRender();
+
+	/* don't add any clutter to the render (ie: F1 view) */
+	if (render.debugInfo & RENDER_DEBUG_NOCLUTTER)
+		return;
+
 	/* in-game map marker */
 	wayPointsRender(render.camera);
 
@@ -1444,10 +1451,6 @@ void renderWorld(void)
 	{
 		renderFrustum(False);
 	}
-
-	/* particles */
-	glBindTexture(GL_TEXTURE_2D, render.texBlock);
-	particlesRender();
 
 	/* selection overlay */
 	if (render.selection.selFlags)
@@ -1647,7 +1650,7 @@ void renderSaveRestoreState(Bool save)
 	static SIT_Widget selWnd, libWnd, editWnd;
 	if (save)
 	{
-		/* this will avoid recreaating everything and is pretty cheap trick */
+		/* this will avoid recreaating everything and is a pretty cheap trick */
 		selWnd  = SIT_GetById(globals.app, "selection"); /* selection nudge */
 		libWnd  = SIT_GetById(globals.app, "selcopy");   /* copied selection window */
 		editWnd = SIT_GetById(globals.app, "editbrush");

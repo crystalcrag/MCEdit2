@@ -246,6 +246,7 @@ static Emitter particlesAddEmitter(vec4 pos, int blockId, int type, int interval
 	Emitter old  = emitters.buffer;
 	Emitter emit = emitterAlloc();
 
+	/* relocate <*next> if it pointed within emitters.buffer :-/ */
 	if (old != emitters.buffer && (DATAS16) old <= *next && *next < (DATAS16) (old + emitters.count-1))
 		*next = (int16_t *) ((DATA8) emitters.buffer + ((DATA8) *next - (DATA8) old));
 
@@ -491,7 +492,8 @@ int particlesAnimate(Map map)
 	ParticleList list;
 	Particle     p;
 	float *      buf;
-	int          i, count, curTimeMS = globals.curTime;
+	int          i, count;
+	uint32_t     curTimeMS = globals.curTime;
 
 	particleMakeActive(map);
 	if (emitters.dirtyList)
@@ -511,11 +513,11 @@ int particlesAnimate(Map map)
 			emit->time = curTimeMS + RandRange(next>>1, next);
 
 			/* keep the list sorted (start from the end: MUCH cheaper) */
-			for (i = count-1; i > 1 && emitters.buffer[emitters.active[i]].time > emit->time; i --);
-			if (i > 1)
+			for (i = count-1; i > 0 && emitters.buffer[emitters.active[i]].time > emit->time; i --);
+			if (i > 0)
 			{
-				memmove(emitters.active, emitters.active + 1, (i - 1) * 2);
-				emitters.active[i-1] = cur;
+				memmove(emitters.active, emitters.active + 1, i * 2);
+				emitters.active[i] = cur;
 			}
 		}
 		else break;

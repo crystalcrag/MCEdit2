@@ -301,6 +301,7 @@ DATA8 chunkDeleteTileEntity(Chunk c, int * XYZ, Bool extract)
 	{
 		if (ent->next == EOF_MARKER) return False;
 		ent = base + ent->next;
+		data = ent->data;
 	}
 	if (ent->prev != EOF_MARKER)
 	{

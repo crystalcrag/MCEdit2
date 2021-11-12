@@ -21,6 +21,7 @@
 #include <math.h>
 #include <stdio.h>
 #include "nanovg.h"
+#include "nanovg_gl_utils.h"
 #include "SIT.h"
 #include "entities.h"
 #include "interface.h"
@@ -2283,6 +2284,48 @@ static int mcuiInfoSave(SIT_Widget w, APTR cd, APTR ud)
 	return 1;
 }
 
+/* use current framebuffer to generate an icon of the world */
+static int mcuiInfoSetIcon(SIT_Widget w, APTR cd, APTR ud)
+{
+	/* generate a off-screen FBO for this */
+	NVGCTX vg = globals.nvgCtx;
+
+	struct NVGLUframebuffer * fbo = nvgluCreateFramebuffer(vg, PACKPNG_SIZE, PACKPNG_SIZE, NVG_IMAGE_DEPTH);
+
+	if (fbo)
+	{
+		STRPTR path = STRDUPA(globals.level->path);
+		int width  = globals.width;
+		int height = globals.height;
+		globals.width  = PACKPNG_SIZE;
+		globals.height = PACKPNG_SIZE;
+		nvgluBindFramebuffer(fbo);
+
+		renderShowBlockInfo(True, RENDER_DEBUG_NOCLUTTER);
+		renderWorld();
+
+		renderShowBlockInfo(False, RENDER_DEBUG_NOCLUTTER);
+		globals.width  = width;
+		globals.height = height;
+		nvgluBindFramebuffer(NULL);
+		glViewport(0, 0, width, height);
+
+		/* retrieve texture */
+		DATA8 data = malloc(PACKPNG_SIZE * PACKPNG_SIZE * 3);
+		glBindTexture(GL_TEXTURE_2D, fbo->texture);
+		glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+		nvgluDeleteFramebuffer(fbo);
+
+		AddPart(path, "../icon.png", 1e6);
+		textureSaveSTB(path, PACKPNG_SIZE, PACKPNG_SIZE, 3, data, PACKPNG_SIZE*3);
+		free(data);
+
+		/* update interface too (note: it is set twice to reset cache from SITGL) */
+		SIT_SetValues(ud, SIT_ImagePath, "", SIT_ImagePath, path, NULL);
+	}
+	return 1;
+}
+
 /* build interface for world info editor */
 void mcuiWorldInfo(void)
 {
@@ -2296,6 +2339,12 @@ void mcuiWorldInfo(void)
 
 	uint64_t totalTime;
 	TEXT     size[16];
+	STRPTR   iconPath = STRDUPA(globals.level->path);
+
+	AddPart(iconPath, "../icon.png", 1e6);
+
+	if (! FileExists(iconPath))
+		iconPath = "resources/pack.png";
 
 	#define STR(sz)    (TAG_String | (sz << 8))
 	mcuiLevelDatParam(&mcuiInfo.mode,       TAG_Int,  "Player.playerGameType");
@@ -2318,17 +2367,19 @@ void mcuiWorldInfo(void)
 	SIT_Widget max2 = NULL;
 	SIT_CreateWidgets(diag,
 		"<label name=dlgtitle#title title='World info:' left=FORM right=FORM>"
+		"<label name=icon#table imagePath=", iconPath, "right=FORM top=WIDGET,dlgtitle,0.8em>"
+		"<button name=set.act title='Update icon' top=WIDGET,icon,0.2em left=OPPOSITE,icon right=OPPOSITE,icon tooltip='Will use current 3d view'>"
 		"<editbox name=level editBuffer=", mcuiInfo.name, "editLength=", sizeof mcuiInfo.name, "width=15em"
-		" right=FORM top=WIDGET,dlgtitle,0.8em buddyLabel=", "Level name:", &max1, ">"
+		" right=WIDGET,icon,0.5em top=WIDGET,dlgtitle,0.8em buddyLabel=", "Name:", &max1, ">"
 		"<editbox name=seed  editBuffer=", mcuiInfo.seed, "editLength=", sizeof mcuiInfo.seed,
-		" right=FORM top=WIDGET,level,0.5em buddyLabel=", "Seed:", &max1, ">"
-		"<editbox name=day   width=6em  top=WIDGET,seed,0.5em minValue=0 buddyLabel=", "Days:", &max1,
+		" right=WIDGET,icon,0.5em top=WIDGET,level,0.5em buddyLabel=", "Seed:", &max1, ">"
+		"<editbox name=day width=5.75em top=WIDGET,seed,0.5em minValue=0 buddyLabel=", "Days:", &max1,
 		" editType=", SITV_Integer, "curValue=", &mcuiInfo.days, ">"
-		"<editbox name=time  width=6em  top=WIDGET,seed,0.5em buddyLabel=", "Time:", NULL,
-		" editBuffer=", mcuiInfo.time, "editLength=", sizeof mcuiInfo.time, "right=FORM>"
+		"<editbox name=time width=5.75em top=WIDGET,seed,0.5em buddyLabel=", "Time:", NULL,
+		" editBuffer=", mcuiInfo.time, "editLength=", sizeof mcuiInfo.time, "right=WIDGET,icon,0.5em>"
 		"<button name=open.act title=Folder:>"
-		"<editbox name=folder editBuffer=", mcuiInfo.folder, "editLength=", MAX_PATHLEN, "readOnly=1 top=WIDGET,time,0.5em left=OPPOSITE,level right=FORM>"
-		"<label name=size title=", size, "top=WIDGET,folder,0.5em buddyLabel=", "Size on disk:", &max1, ">"
+		"<editbox name=folder editBuffer=", mcuiInfo.folder, "editLength=", MAX_PATHLEN, "readOnly=1 top=WIDGET,time,0.5em left=OPPOSITE,level right=WIDGET,icon,0.5em>"
+		"<label name=size title=", size, "top=WIDGET,folder,0.5em buddyLabel=", "Size:", &max1, ">"
 		"<label name=rules#title title='Game rules:' left=FORM right=FORM top=WIDGET,size,0.5em/>"
 		/* game mode */
 		"<button name=type0 buttonType=", SITV_RadioButton, "curValue=", &mcuiInfo.mode, "title=Survival top=WIDGET,rules,1em buddyLabel=", "Game mode:", &max2, ">"
@@ -2378,10 +2429,11 @@ void mcuiWorldInfo(void)
 		"<button name=ok.act title=Save   top=OPPOSITE,ko right=WIDGET,ko,1em buttonType=", SITV_DefaultButton, ">"
 	);
 
-	SIT_SetAttributes(diag, "<open top=MIDDLE,folder><time left=NONE><btime right=WIDGET,time,0.5em>");
-	SIT_AddCallback(SIT_GetById(diag, "ko"), SITE_OnActivate, mcuiExitWnd, NULL);
+	SIT_SetAttributes(diag, "<open top=MIDDLE,folder maxWidth=bsize><time left=NONE><btime right=WIDGET,time,0.5em><icon bottom=OPPOSITE,folder>");
+	SIT_AddCallback(SIT_GetById(diag, "ko"),   SITE_OnActivate, mcuiExitWnd, NULL);
 	SIT_AddCallback(SIT_GetById(diag, "open"), SITE_OnActivate, mcuiInfoOpenFolder, NULL);
-	SIT_AddCallback(SIT_GetById(diag, "ok"), SITE_OnActivate, mcuiInfoSave, NULL);
+	SIT_AddCallback(SIT_GetById(diag, "ok"),   SITE_OnActivate, mcuiInfoSave, NULL);
+	SIT_AddCallback(SIT_GetById(diag, "set"),  SITE_OnActivate, mcuiInfoSetIcon, SIT_GetById(diag, "icon"));
 
 	SIT_ManageWidget(diag);
 }

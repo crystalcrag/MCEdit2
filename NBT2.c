@@ -513,11 +513,13 @@ static void NBT_UpdateHdrSize(NBTFile nbt, int diff, int offset)
 					NBTHdr sub = (NBTHdr) mem;
 					if (sub->type == 0) { mem += 4; break; }
 					mem += sub->size;
-					if (mem >= eof)
+					if (mem == eof) return;
+					if (mem > eof)
 					{
-						if ((sub->type & 15) == TAG_List)
-							sub->size += diff;
-						return;
+						hdr = sub;
+						mem = (DATA8) sub;
+						i = 1;
+						break;
 					}
 				}
 			}
@@ -541,7 +543,7 @@ Bool NBT_Delete(NBTFile nbt, int offset, int nth)
 	{
 		mem = hdr->name + ((hdr->minNameSz + 4) & ~3);
 		if (nth > hdr->count) return False;
-		for (i = nth - 1; i > 0; i --)
+		for (i = nth; i > 0; i --)
 		{
 			/* there are no TAG_Compound headers: only properties separated by TAG_End, therefore no hdr->size */
 			for (;;)
@@ -568,6 +570,8 @@ Bool NBT_Delete(NBTFile nbt, int offset, int nth)
 	memmove(mem, mem + size, nbt->usage - offset);
 	if (nth >= 0)
 		NBT_UpdateHdrSize(nbt, -size, offset);
+	if (nbt->usage == 0)
+		mem[0] = 0;
 
 	return True;
 }
@@ -1513,7 +1517,7 @@ int NBT_Dump(NBTFile root, int offset, int level, FILE * out)
 			level += 3;
 			for (i = 0; i < hdr->count; i ++)
 			{
-				fprintf(out, "%*sTAG_Compound(\"\"):\n%*s{\n", level, "", level, "");
+				fprintf(out, "%*sTAG_Compound(\"\") [%d]:\n%*s{\n", level, "", offset, level, "");
 				while ((sz = NBT_Dump(root, offset, level + 3, out)) > 0)
 					offset += sz;
 				offset += 4;
@@ -1611,20 +1615,84 @@ int NBT_ParseIO(NBTFile file, FILE * in, int offset)
 }
 
 #ifdef DEBUG
+/* check that hdr->size is consistent */
+static int NBT_CheckHdrsize(NBTFile nbt, int offset)
+{
+	NBTHdr hdr = NBT_Hdr(nbt, offset);
+	DATA8 payload = hdr->name + ((hdr->minNameSz + 4) & ~3);
+
+	switch (hdr->type & 15) {
+	case TAG_End: return -1;
+	case TAG_Byte:
+	case TAG_Short:
+	case TAG_Int:
+	case TAG_Float: payload += 4; break;
+	case TAG_Long:
+	case TAG_Double:     payload += 8; break;
+	case TAG_Byte_Array: payload += hdr->count; break;
+	case TAG_String:     payload += (hdr->count + 4) & ~3; break;
+	case TAG_List:
+		if ((hdr->type >> 4) == TAG_Compound)
+		{
+			/* need to check individual item */
+			int i, off;
+			for (i = hdr->count, off = payload - nbt->mem; i > 0; i --)
+			{
+				while ((off = NBT_CheckHdrsize(nbt, off)) >= 0)
+					payload = nbt->mem + off;
+
+				payload += 4; /* TAG_End */
+			}
+		}
+		else /* fixed size field */
+		{
+			payload += sizeof_type[hdr->type >> 4] * hdr->count;
+		}
+		break;
+	case TAG_Compound:
+		offset = payload - nbt->mem;
+		while ((offset = NBT_CheckHdrsize(nbt, offset)) >= 0)
+			payload = nbt->mem + offset;
+		payload += 4;
+	}
+
+
+	if ((DATA8) hdr + hdr->size != payload)
+		fprintf(stderr, "incorrect hdr size at %d for key %s [current: %d, should be: %d]\n", (DATA8) hdr - nbt->mem,
+			hdr->name, hdr->size, payload - (DATA8) hdr);
+
+	return payload - nbt->mem;
+}
+
 void NBT_Test(void)
 {
 	NBTFile_t nbt = {.page = 511};
 
 	/* create from an empty NBT */
 	NBT_AddOrUpdateKey(&nbt, "Data.RandomSeed", TAG_String, "9878328491013332", 0);
+	NBT_CheckHdrsize(&nbt, 0);
 	/* add a branch and a key */
 	NBT_AddOrUpdateKey(&nbt, "GameRules.doDayNightCycle", TAG_String, "true", 0);
+	NBT_CheckHdrsize(&nbt, 0);
 	/* add only a key */
 	NBT_AddOrUpdateKey(&nbt, "GameRules.doFireTick", TAG_String, "????", 0);
+	NBT_CheckHdrsize(&nbt, 0);
 	/* overwrite with same value size */
 	NBT_AddOrUpdateKey(&nbt, "GameRules.doFireTick", TAG_String, "true", 0);
+	NBT_CheckHdrsize(&nbt, 0);
 	/* overwrite with different value size */
 	NBT_AddOrUpdateKey(&nbt, "GameRules.doDayNightCycle", TAG_String, "orbitalAccurate", 0);
+	NBT_CheckHdrsize(&nbt, 0);
+	NBT_Dump(&nbt, 0, 0, 0);
+
+	NBT_Delete(&nbt, NBT_FindNode(&nbt, 0, "doDayNightCycle"), 0);
+	NBT_CheckHdrsize(&nbt, 0);
+
+	NBT_Delete(&nbt, NBT_FindNode(&nbt, 0, "GameRules"), 0);
+	NBT_CheckHdrsize(&nbt, 0);
+
+	NBT_Delete(&nbt, 0, 0);
+	NBT_CheckHdrsize(&nbt, 0);
 	NBT_Dump(&nbt, 0, 0, 0);
 
 	NBT_Free(&nbt);

@@ -36,7 +36,7 @@ void wayPointsRead(void)
 
 	CopyString(path, globals.level->path, sizeof path);
 	AddPart(path, "../mcedit_waypoints.dat", sizeof path);
-	vector_init_zero(waypoints.all, sizeof (struct WayPoint_t));
+	vector_init(waypoints.all, sizeof (struct WayPoint_t));
 
 	NBT_Parse(&waypoints.nbt, path);
 
@@ -120,7 +120,10 @@ static int wayPointsAdd(SIT_Widget w, APTR cd, APTR ud)
 
 	WayPoint wp = vector_nth(&waypoints.all, waypoints.all.count);
 	memcpy(wp->location, waypoints.curPos, sizeof wp->location);
+	memcpy(wp->rotation, waypoints.rotation, sizeof waypoints.rotation);
 	memcpy(wp->color, colors, sizeof wp->color);
+	wp->name[0] = 0;
+	wp->glIndex = -1;
 	waypoints.nbtModified = True;
 	waypoints.listDirty = 1;
 
@@ -128,6 +131,7 @@ static int wayPointsAdd(SIT_Widget w, APTR cd, APTR ud)
 	{
 		wayPointsAddToList(wp);
 		SIT_SetValues(waypoints.list, SIT_SelectedIndex, waypoints.all.count - 1, NULL);
+		SIT_SetValues(w, SIT_Enabled, False, NULL);
 	}
 	else
 	{
@@ -139,15 +143,12 @@ static int wayPointsAdd(SIT_Widget w, APTR cd, APTR ud)
 
 static int wayPointsGetNth(int nth)
 {
-	if (nth > 0)
-	{
-		NBTIter_t iter;
-		NBT_InitIter(&waypoints.nbt, waypoints.nbtWaypoints, &iter);
-		int offset = -1;
-		while (nth > 0 && (offset = NBT_Iter(&iter)) >= 0);
-		return offset;
-	}
-	else return (DATA8) NBT_Payload(&waypoints.nbt, waypoints.nbtWaypoints) - waypoints.nbt.mem;
+	NBTIter_t iter;
+	NBT_InitIter(&waypoints.nbt, waypoints.nbtWaypoints, &iter);
+	int offset = -1;
+	while ((offset = NBT_Iter(&iter)) >= 0 && nth > 0)
+		nth --;
+	return offset;
 }
 
 static void vector_del(vector v, int nth, int count)
@@ -241,7 +242,7 @@ static int wayPointsSetColor(SIT_Widget w, APTR cd, APTR ud)
 		{
 			/* update GL buffers if this waypoint is displayed */
 			glBindBuffer(GL_ARRAY_BUFFER, waypoints.vbo);
-			glBufferSubData(GL_ARRAY_BUFFER, wp->glIndex * WAYPOINTS_VBO_SIZE + 12, 4, wp->color);
+			glBufferSubData(GL_ARRAY_BUFFER, wp->glIndex * WAYPOINTS_VBO_SIZE + 12, 3, wp->color);
 			glBindBuffer(GL_ARRAY_BUFFER, 0);
 		}
 	}
@@ -249,17 +250,9 @@ static int wayPointsSetColor(SIT_Widget w, APTR cd, APTR ud)
 }
 
 /* SITE_OnBlur */
-static int wayPointsCancelEdit(SIT_Widget w, APTR cd, APTR ud)
+static int wayPointsFinishEdit(SIT_Widget w, APTR cd, APTR ud)
 {
-	SIT_RemoveWidget(w);
-	return 1;
-}
-
-/* SITE_OnRawKey handler from temporary editbox */
-static int wayPointsAcceptEdit(SIT_Widget w, APTR cd, APTR ud)
-{
-	SIT_OnKey * msg = cd;
-	if (msg->keycode == SITK_Return)
+	if (! waypoints.cancelEdit)
 	{
 		WayPoint wp = ud;
 		STRPTR   name;
@@ -278,11 +271,26 @@ static int wayPointsAcceptEdit(SIT_Widget w, APTR cd, APTR ud)
 
 		/* modify listbox */
 		SIT_ListSetCell(waypoints.list, wp - (WayPoint) waypoints.all.buffer, 1, DontChangePtr, DontChange, wp->name);
-		SIT_RemoveWidget(w);
+	}
+	else waypoints.cancelEdit = 0;
+	SIT_RemoveWidget(w);
+	return 1;
+}
+
+/* SITE_OnRawKey handler from temporary editbox */
+static int wayPointsAcceptEdit(SIT_Widget w, APTR cd, APTR ud)
+{
+	SIT_OnKey * msg = cd;
+	if (msg->keycode == SITK_Return)
+	{
+		waypoints.cancelEdit = 0;
+		wayPointsFinishEdit(w, NULL, ud);
 		return 1;
 	}
 	else if (msg->keycode == SITK_Escape)
 	{
+		/* remove widgets will cause an OnBlur event */
+		waypoints.cancelEdit = 1;
 		SIT_RemoveWidget(w);
 		return 1;
 	}
@@ -329,7 +337,7 @@ static int wayPointsClick(SIT_Widget w, APTR cd, APTR ud)
 					NULL
 				);
 				SIT_SetFocus(w);
-				SIT_AddCallback(w, SITE_OnBlur,   wayPointsCancelEdit, NULL);
+				SIT_AddCallback(w, SITE_OnBlur,   wayPointsFinishEdit, wp);
 				SIT_AddCallback(w, SITE_OnRawKey, wayPointsAcceptEdit, wp);
 				break;
 			default:

@@ -28,6 +28,7 @@ struct WayPointsPrivate_t
 	uint8_t    nbtModified;        /* NBT waypoints file need to be saved */
 	uint8_t    listDirty;          /* need to update GL VBO */
 	uint8_t    glCount;            /* nb. of waypoints actually rendered (max: 255) */
+	uint8_t    cancelEdit;         /* cancel in-place editing */
 	int        displayInWorld;
 	int        nbtWaypoints;       /* WayPoints branch offset in NBT */
 	float      curPos[3];          /* goto interface */

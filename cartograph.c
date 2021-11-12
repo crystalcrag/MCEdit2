@@ -431,7 +431,7 @@ void cartoAddMap(int entityId, float coord[12], int mapId, DATA32 light)
 			map.light[i] = (map.light[i] - min) * 15 / max;
 	#endif
 
-	fprintf(stderr, "%d. light (%d) = %02x, %02x, %02x, %02x\n", entityId, map.normal, map.light[0], map.light[1], map.light[2], map.light[3]);
+	// fprintf(stderr, "%d. light (%d) = %02x, %02x, %02x, %02x\n", entityId, map.normal, map.light[0], map.light[1], map.light[2], map.light[3]);
 
 	/* check for a free place */
 	i = mapFirstFree(cartograph.usage, cartograph.max >> 5);
@@ -447,7 +447,7 @@ void cartoDelMap(int entityId)
 	Cartograph map;
 	int        i;
 	for (i = 0, map = cartograph.maps; i < cartograph.count && map->entityId != entityId; map ++, i += map->bank >= 0);
-	fprintf(stderr, "deleting map %d: %d / %d\n", entityId, i, cartograph.count);
+	// fprintf(stderr, "deleting map %d: %d / %d\n", entityId, i, cartograph.count);
 	if (i < cartograph.count)
 	{
 		int slot = map->bank;

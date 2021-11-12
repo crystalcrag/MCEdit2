@@ -47,7 +47,7 @@ struct Emitter_t
 	uint16_t interval;
 	uint16_t blockId;
 	int16_t  next;
-	int      time;
+	uint32_t time;
 };
 
 struct ParticleList_t

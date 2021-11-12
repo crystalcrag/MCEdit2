@@ -326,7 +326,6 @@ int main(int nb, char * argv[])
 
 	static SIT_Accel accels[] = {
 		{SITK_FlagCapture + SITK_FlagAlt + SITK_F4, SITE_OnActivate, NULL, mceditExit},
-		{SITK_FlagCapture + SITK_Escape,            SITE_OnActivate, NULL, mceditCancelStuff},
 		{SITK_FlagCapture + SITK_FlagCtrl + 's',    SITE_OnActivate, NULL, mceditSaveChanges},
 
 		{SITK_FlagCtrl + 'g', SITE_OnActivate, NULL, mceditGoto},
@@ -334,6 +333,7 @@ int main(int nb, char * argv[])
 		{SITK_FlagCtrl + 'd', SITE_OnActivate, NULL, mceditClearSelection},
 		{SITK_FlagCtrl + 'l', SITE_OnActivate, NULL, mceditShowLibrary},
 		{SITK_FlagCtrl + 'i', SITE_OnActivate, NULL, mceditShowWorldInfo},
+		{SITK_Escape,         SITE_OnActivate, NULL, mceditCancelStuff},
 		{0}
 	};
 

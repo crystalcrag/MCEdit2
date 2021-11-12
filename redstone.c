@@ -139,12 +139,11 @@ int redstoneConnectTo(struct BlockIter_t iter, RSWire connectTo)
 		mapIter(&iter, 0, -2, 0);
 		i = getBlockId(&iter);
 		list->dx = 0;
-		list->dy = 1;
+		list->dy = -1;
 		list->dz = 0;
-		list->signal = MAXSIGNAL;
 		list->pow = POW_NORMAL;
 		list->blockId = i >> 4;
-		list->data = i & 15;
+		list->data = list->signal = i & 15;
 		if (list->blockId != RSWIRE)
 			list->pow = POW_WEAK;
 		list ++;

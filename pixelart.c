@@ -1,5 +1,5 @@
 /*
- * pixelart.c : interface to generate pixel art from blocks or maps
+ * pixelart.c : interface to generate pixel art from blocks or maps.
  *
  * Written by T.Pierron, oct 2021.
  */
@@ -124,7 +124,7 @@ static int pixArtSelInfo(SIT_Widget w, APTR cd, APTR ud)
 		}
 		sprintf(buffer, "%d x %d blocks, %s plane", pixArt.sizeX, pixArt.sizeY, plane);
 	}
-	else /* maps: will be only visible from one side */
+	else /* maps: will be visible from only one side */
 	{
 		static STRPTR sides[] = {"south", "east", "north", "west", "top", "bottom"};
 		sprintf(buffer, "%d x %dpx, %s face", pixArt.sizeX * MAP_SIZEPX, pixArt.sizeY * MAP_SIZEPX, sides[pixArt.side]);
@@ -379,13 +379,13 @@ static void pixArtToPalette(DATA8 pixels, int width, int height, DATA8 cmapRGB)
 				continue;
 			}
 			/* find nearest color from colormap that matches RGBA component pointed by <s> */
-			for (cmap = cmapRGB, best = NULL; cmap < cmapEOF; cmap += 4)
+			for (cmap = cmapRGB, best = NULL, minDist = 1e6; cmap < cmapEOF; cmap += 4)
 			{
 				/* find shortest euclidean distance */
 				int dist = (cmap[0] - r) * (cmap[0] - r) +
 				           (cmap[1] - g) * (cmap[1] - g) +
 				           (cmap[2] - b) * (cmap[2] - b);
-				if (best == NULL || minDist > dist)
+				if (minDist > dist)
 					best = cmap, minDist = dist;
 			}
 
@@ -752,6 +752,7 @@ void mcuiShowPixelArt(vec4 playerPos)
 	SIT_AddCallback(SIT_GetById(diag, "load"),   SITE_OnActivate, pixArtLoadImg, NULL);
 	SIT_AddCallback(SIT_GetById(diag, "ko"),     SITE_OnActivate, mcuiExitWnd, NULL);
 
+	/* restore last image selected */
 	if (pixArt.defImage[0])
 	{
 		pixArtSetIcon(pixArt.defImage);

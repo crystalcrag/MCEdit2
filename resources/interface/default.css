@@ -47,6 +47,7 @@ form.mc dim { color: #aaa }
 form.mc table td { padding: 0.3em 1.3em 0.3em 0.4em }
 form.mc table td:checked { color: selfore; background: selback }
 form.mc title { font-weight: bold; text-align: center }
+form.mc #icon { border: 2px solid #87cb85 }
 
 /* world selection */
 #header { background: linear-gradient(to right, rgba(#000,0.5), transparent 50%, rgba(#000,0.5)), url("dirt.png"); padding: 30px;
