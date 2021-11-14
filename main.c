@@ -439,7 +439,7 @@ void mceditWorld(void)
 					break;
 				case SDLK_F7:
 					globals.breakPoint = ! globals.breakPoint;
-					renderPointToBlock(825, 173);
+					renderToggleDebug(RENDER_DEBUG_BRIGHT);
 					break;
 				#endif
 				case SDLK_TAB:

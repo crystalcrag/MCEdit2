@@ -63,7 +63,10 @@ float physicsSweptAABB(float bboxStart[6], vec4 dir, float block[6], DATA8 norma
 	return entryTime < EPSILON ? 0 : entryTime;
 }
 
-/* try to move bounding box <bbox> from <start> to <end>, changing end if movement is blocked */
+/*
+ * try to move bounding box <bbox> from <start> to <end>, changing end if movement is blocked
+ * returns a bitfield (1 << (VX|VY|VZ)) of sides blocking movement.
+ */
 int physicsCheckCollision(Map map, vec4 start, vec4 end, VTXBBox bbox, float autoClimb)
 {
 	struct BlockIter_t iter;
@@ -93,6 +96,7 @@ int physicsCheckCollision(Map map, vec4 start, vec4 end, VTXBBox bbox, float aut
 	vecSub(dir, end, start);           /* dir = end - start */
 	vecAdd(minMax,   minMax,   start); /* minMax += start */
 	vecAdd(minMax+3, minMax+3, start); /* minMax+3 += start */
+	end[VT] = 1;
 	elevation = 0;
 	ret = 0;
 
@@ -137,6 +141,14 @@ int physicsCheckCollision(Map map, vec4 start, vec4 end, VTXBBox bbox, float aut
 						if (dist < shortestDist || (dist == 0 && priority[axis] > priority[curAxis]))
 							shortestDist = dist, curAxis = axis;
 					}
+				}
+
+				if (iter.blockIds)
+				{
+					/* check special physics property of block we are intersecting */
+					Block block = &blockIds[iter.blockIds[iter.offset]];
+					if (block->viscosity > 0 && end[VT] > block->viscosity)
+						end[VT] = block->viscosity;
 				}
 
 				k ++;
@@ -313,7 +325,7 @@ Bool physicsMoveEntity(Map map, PhysicsEntity entity, float speed)
 	else entity->friction[VY] += 0.003f * speed * entity->density;
 
 	/* check collision */
-	int axis = physicsCheckCollision(map, oldLoc, entity->loc, entity->bbox, False);
+	int axis = physicsCheckCollision(map, oldLoc, entity->loc, entity->bbox, 0);
 
 	if (axis & 2)
 	{

@@ -53,13 +53,43 @@
 	{id: 7, name: "Bedrock", type: SOLID, inv: CUBE, cat: BUILD, pushable: NO, density: 30},
 		{state: 0, name: "Bedrock",  tex: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]},
 
-	{id: 8, name: "Water", type: TRANS, special: LIQUID, tech: "flowing_water", opacLight: 3, opacSky: 3, pushable: DESTROY, density: WATER},
+	{id: 8, name: "Water", type: TRANS, special: LIQUID, tech: "flowing_water", opacLight: 3, opacSky: 3, viscosity: 0.075, pushable: DESTROY, density: WATER},
 		{state: 0, name: "+flowing", tex: [13,12,13,12,13,12,13,12,13,12,13,12]},
+		{state: 1, name: "-",        tex: [13,12,13,12,13,12,13,12,13,12,13,12]},
+		{state: 2, name: "-",        tex: [13,12,13,12,13,12,13,12,13,12,13,12]},
+		{state: 3, name: "-",        tex: [13,12,13,12,13,12,13,12,13,12,13,12]},
+		{state: 4, name: "-",        tex: [13,12,13,12,13,12,13,12,13,12,13,12]},
+		{state: 5, name: "-",        tex: [13,12,13,12,13,12,13,12,13,12,13,12]},
+		{state: 6, name: "-",        tex: [13,12,13,12,13,12,13,12,13,12,13,12]},
+		{state: 7, name: "-",        tex: [13,12,13,12,13,12,13,12,13,12,13,12]},
+		{state: 8, name: "-",        tex: [13,12,13,12,13,12,13,12,13,12,13,12]},
+		{state: 9, name: "-",        tex: [13,12,13,12,13,12,13,12,13,12,13,12]},
+		{state:10, name: "-",        tex: [13,12,13,12,13,12,13,12,13,12,13,12]},
+		{state:11, name: "-",        tex: [13,12,13,12,13,12,13,12,13,12,13,12]},
+		{state:12, name: "-",        tex: [13,12,13,12,13,12,13,12,13,12,13,12]},
+		{state:13, name: "-",        tex: [13,12,13,12,13,12,13,12,13,12,13,12]},
+		{state:14, name: "-",        tex: [13,12,13,12,13,12,13,12,13,12,13,12]},
+		{state:15, name: "-",        tex: [13,12,13,12,13,12,13,12,13,12,13,12]},
 
-	{id: 9, name: "Water", type: TRANS, special: LIQUID, opacLight: 3, opacSky: 3, pushable: DESTROY, density: WATER},
-		{state: 0, name: "+still", tex: [13,12,13,12,13,12,13,12,13,12,13,12]},
+	{id: 9, name: "Water", type: TRANS, special: LIQUID, opacLight: 3, opacSky: 3, cat: FILLBY, inv: CUBE, invState: 0, viscosity: 0.075, pushable: DESTROY, density: WATER},
+		{state: 0, name: "+still",   tex: [13,12,13,12,13,12,13,12,13,12,13,12]},
+		{state: 1, name: "-",        tex: [13,12,13,12,13,12,13,12,13,12,13,12]},
+		{state: 2, name: "-",        tex: [13,12,13,12,13,12,13,12,13,12,13,12]},
+		{state: 3, name: "-",        tex: [13,12,13,12,13,12,13,12,13,12,13,12]},
+		{state: 4, name: "-",        tex: [13,12,13,12,13,12,13,12,13,12,13,12]},
+		{state: 5, name: "-",        tex: [13,12,13,12,13,12,13,12,13,12,13,12]},
+		{state: 6, name: "-",        tex: [13,12,13,12,13,12,13,12,13,12,13,12]},
+		{state: 7, name: "-",        tex: [13,12,13,12,13,12,13,12,13,12,13,12]},
+		{state: 8, name: "-",        tex: [13,12,13,12,13,12,13,12,13,12,13,12]},
+		{state: 9, name: "-",        tex: [13,12,13,12,13,12,13,12,13,12,13,12]},
+		{state:10, name: "-",        tex: [13,12,13,12,13,12,13,12,13,12,13,12]},
+		{state:11, name: "-",        tex: [13,12,13,12,13,12,13,12,13,12,13,12]},
+		{state:12, name: "-",        tex: [13,12,13,12,13,12,13,12,13,12,13,12]},
+		{state:13, name: "-",        tex: [13,12,13,12,13,12,13,12,13,12,13,12]},
+		{state:14, name: "-",        tex: [13,12,13,12,13,12,13,12,13,12,13,12]},
+		{state:15, name: "-",        tex: [13,12,13,12,13,12,13,12,13,12,13,12]},
 
-	{id: 10, name: "Lava", type: TRANS, special: LIQUID, bbox: NONE, emitLight: 15, tech: "flowing_lava", pushable: DESTROY}, /* TODO */
+	{id: 10, name: "Lava", type: TRANS, special: LIQUID, bbox: NONE, emitLight: 15, viscosity: 0.7, tech: "flowing_lava", pushable: DESTROY},
 		{state: 0, name: "+flowing", tex: [13,14,13,14,13,14,13,14,13,14,13,14]},
 		{state: 1, name: "-",        tex: [13,14,13,14,13,14,13,14,13,14,13,14]},
 		{state: 2, name: "-",        tex: [13,14,13,14,13,14,13,14,13,14,13,14]},
@@ -77,7 +107,7 @@
 		{state:14, name: "-",        tex: [13,14,13,14,13,14,13,14,13,14,13,14]},
 		{state:15, name: "-",        tex: [13,14,13,14,13,14,13,14,13,14,13,14]},
 
-	{id: 11, name: "Lava", type: TRANS, special: LIQUID, bbox: NONE, emitLight: 15, pushable: DESTROY}, /* TODO */
+	{id: 11, name: "Lava", type: TRANS, special: LIQUID, bbox: NONE, emitLight: 15, cat: FILLBY, inv: CUBE, invState: 0, viscosity: 0.7, pushable: DESTROY},
 		{state: 0, name: "+still", tex: [13,14,13,14,13,14,13,14,13,14,13,14]},
 		{state: 1, name: "-",      tex: [13,14,13,14,13,14,13,14,13,14,13,14]},
 		{state: 2, name: "-",      tex: [13,14,13,14,13,14,13,14,13,14,13,14]},
@@ -613,7 +643,7 @@
 		{state: 4, name: "+west",  tex: [17, 3,17, 3,17, 3,18, 3], model: [SAME_AS, ID(54, 0), 1855]},
 		{state: 5, name: "+east",  tex: [17, 3,18, 3,17, 3,17, 3], model: [SAME_AS, ID(54, 0), 831]},
 
-	{id: 55, name: "Redstone wire", type: CUST, special: RSWIRE, bboxPlayer: NONE, rswire: ALLDIR, particle: SMOKE, rsupdate: GENERATE,
+	{id: 55, name: "Redstone wire", type: CUST, special: RSWIRE, bboxPlayer: NONE, inv: ITEM2D, invState: 0, cat: FILLBY, rswire: ALLDIR, particle: SMOKE, rsupdate: GENERATE,
 		placement: "ground", pushable: DROPITEM},
 		{state: 0, tex: [26,35,26,35,26,35,26,35], model: [
 			272+BHDR_INCFACEID,3,0.1,4,6,0,12,0,0,0,0,0,0,88306,90358,90361,88309,
@@ -953,8 +983,8 @@
 		{state: 12, name: "-north", model: [SAME_AS, ID(77, 9), 1591]},
 
 	{id: 78, name: "Snow layer", type: CUST, bbox: MAX, inv: MODEL, invState: 0, placement: "ground,leaves,leaves2,snow_layer",
-		orient: SNOW, cat: DECO, inv: NONE, pushable: DESTROY, density: ICE},
-		{state: 0, name: "+1", inv: DECO, tex: [2, 4, 2, 4, 2, 4, 2, 4, 2, 4], model: [
+		orient: SNOW, cat: DECO, pushable: DESTROY, density: ICE},
+		{state: 0, name: "+1", tex: [2, 4, 2, 4, 2, 4, 2, 4, 2, 4], model: [
 			63,16,2,16,0,0,0,0,0,0,0,0,0,40062,41088,41072,40046,40062,41088,41072,40046,40062,41088,41072,40046,40062,41088,41072,40046,
 				32880,41088,41072,32864,32865,41073,41088,32880,
 		]},
@@ -987,7 +1017,7 @@
 				32880,41088,41072,32864,32864,41072,41088,32880,
 		]},
 
-	{id: 79, name: "Ice", type: TRANS, inv: CUBE, cat: BUILD, opacLight: 3, opacSky: 3, density: ICE},
+	{id: 79, name: "Ice", type: TRANS, inv: CUBE, cat: BUILD, opacLight: 3, opacSky: 3, groundFriction: 0.5, density: ICE},
 		{state: 0, tex: [19,16,19,16,19,16,19,16,19,16,19,16]},
 
 	{id: 80, name: "Snow block", type: SOLID, inv: CUBE, cat: DECO, tech: "snow", density: ICE},
@@ -1104,7 +1134,7 @@
 				57616,57648,65856,65872,57664,
 		]},
 
-	{id: 93, name: "Repeater", type: CUST, inv: NONE, bbox: MAX, rswire: FRONTBACK, tech: "unpowered_repeater", rsupdate: INOUT,
+	{id: 93, name: "Repeater", type: CUST, inv: NONE, bbox: FIRSTBOX, rswire: FRONTBACK, tech: "unpowered_repeater", rsupdate: INOUT,
 		placement: "ground", orient: SWNE, pushable: DROPITEM},
 		{state: 0, name: "-(OFF, delay 1,_north)", tex: [3, 8, 3, 8, 3, 8, 3, 8, 3, 8], model: [
 			287,16,2,16,0,0,0,0,0,0,0,0,0,72894,73920,73936,72910,66754,65728,65712,66738,66754,65728,65712,66738,66754,65728,65712,66738,65712,73920,73936,65728,
@@ -1139,7 +1169,7 @@
 		{state:14, name: "-south", model: [SAME_AS, ID(93,12), 1311]},
 		{state:15, name: "-west",  model: [SAME_AS, ID(93,12), 1823]},
 
-	{id: 94, name: "Repeater", type: CUST, inv: NONE, bbox: MAX, cat: REDSTONE, rswire: FRONTBACK, tech: "powered_repeater", particle: SMOKE, placement: "ground",
+	{id: 94, name: "Repeater", type: CUST, inv: NONE, bbox: FIRSTBOX, cat: REDSTONE, rswire: FRONTBACK, tech: "powered_repeater", particle: SMOKE, placement: "ground",
 		emitLight: 7, orient: SWNE, rsupdate: INOUT, pushable: DROPITEM},
 		{state: 0, name: "-(ON, delay 1,_north)", tex: [12,11,12,11,12,11,12,11,12,11], emit: [2, 5], model: [
 			287,16,2,16,0,0,0,0,0,0,0,0,0,72894,73920,73936,72910,66754,65728,65712,66738,66754,65728,65712,66738,66754,65728,65712,66738,73920,82128,82144,73936,
@@ -1363,7 +1393,7 @@
 		{state:15, name: "+ENSW", tex: [15, 8], quad: [EAST, NORTH, SOUTH, WEST]},
 
 	{id: 107, name: "Fence gate", type: CUST, bbox: MAX, inv: MODEL, cat: REDSTONE, rsupdate: RECEIVE,
-		orient: SWNE, special: FENCE|NOCONNECT, density: WOOD, invmodel: [
+		orient: SWNE, special: FENCE|NOCONNECT, bboxPlayerIgnoreBit: 4, density: WOOD, invmodel: [
 		447,2,11,2,0,3,7,0,0,0,0,0,0,64,8272,8288,80,64,8272,8288,80,64,8272,8288,80,64,8272,8288,80,64,8272,8288,80,64,8272,8288,80,
 		447,2,11,2,14,3,7,0,0,0,0,0,0,
 		437,12,3,2,2,10,7,0,0,0,0,0,0,
@@ -1973,7 +2003,7 @@
 		{state:14, name: "-14", model: [SAME_AS, ID(148, 1)]},
 		{state:15, name: "-15", model: [SAME_AS, ID(148, 1)]},
 
-	{id: 149, name: "Comparator", type: CUST, bbox: MAX, orient: SWNE, placement: "ground", rswire: ALLDIR, tech: "unpowered_comparator",
+	{id: 149, name: "Comparator", type: CUST, bbox: FIRSTBOX, orient: SWNE, placement: "ground", rswire: ALLDIR, tech: "unpowered_comparator",
 		rsupdate: INOUT, tile: 1, pushable: DROPITEM},
 		{state: 0, name: "-(OFF,_north)", tex: [11,11,11,11,11,11,11,11], model: [
 			287,16,2,16,0,0,0,0,0,0,0,0,0,97646,98672,98688,97662,97646,98672,98688,97662,97646,98672,98688,97662,97646,98672,98688,97662,90464,98672,98688,90480,
@@ -2346,7 +2376,7 @@
 	{id: 173, name: "Coal block", type: SOLID, inv: CUBE, cat: BUILD, density: 2},
 		{state: 0, tex: [12,13,12,13,12,13,12,13,12,13,12,13]},
 
-	{id: 174, name: "Packed ice", type: SOLID, inv: CUBE, cat: BUILD, density: ICE},
+	{id: 174, name: "Packed ice", type: SOLID, inv: CUBE, cat: BUILD, groundFriction: 0.5, density: ICE},
 		{state: 0, tex: [0,16, 0,16, 0,16, 0,16, 0,16, 0,16]},
 
 	{id: 175, name: "Double plant", type: QUAD, inv: ITEM2D, cat: DECO, placement: "dirt,grass", special: TALLFLOWER, pushable: DROPITEM, density: PLANTS},
@@ -2413,7 +2443,7 @@
 		{state: 8, name: "+top",     tex: [2,20, 2,20, 2,20, 2,20, 4,20, 0,20]},
 
 	{id: 183, name: "Spruce fence gate", type: CUST, bbox: MAX, inv: MODEL, cat: REDSTONE, rsupdate: RECEIVE, orient: SWNE,
-		density: WOOD, special: FENCE|NOCONNECT, invmodel: [
+		density: WOOD, bboxPlayerIgnoreBit: 4, special: FENCE|NOCONNECT, invmodel: [
 		447,2,11,2,0,3,7,0,0,0,0,0,0,98592,106800,106816,98608,98592,106800,106816,98608,98592,106800,106816,98608,98592,106800,106816,
 			98608,98592,106800,106816,98608,98592,106800,106816,98608,
 		447,2,11,2,14,3,7,0,0,0,0,0,0,
@@ -2457,7 +2487,7 @@
 		{state:15, name: "-opened, east",   model: [SAME_AS, ID(183, 7)]},
 
 	{id: 184, name: "Birch fence gate", type: CUST, bbox: MAX, inv: MODEL, cat: REDSTONE, rsupdate: RECEIVE, orient: SWNE,
-		density: WOOD, special: FENCE|NOCONNECT, invmodel: [
+		density: WOOD, bboxPlayerIgnoreBit: 4, special: FENCE|NOCONNECT, invmodel: [
 		447,2,11,2,0,3,7,0,0,0,0,0,0,106800,115008,115024,106816,106800,115008,115024,106816,106800,115008,115024,106816,106800,115008,115024,
 			106816,106800,115008,115024,106816,106800,115008,115024,106816,
 		447,2,11,2,14,3,7,0,0,0,0,0,0,
@@ -2501,7 +2531,7 @@
 		{state:15, name: "-opened, east",   model: [SAME_AS, ID(184, 7)]},
 
 	{id: 185, name: "Jungle fence gate", type: CUST, bbox: MAX, inv: MODEL, cat: REDSTONE, rsupdate: RECEIVE, orient: SWNE,
-		density: WOOD, special: FENCE|NOCONNECT, invmodel: [
+		density: WOOD, bboxPlayerIgnoreBit: 4, special: FENCE|NOCONNECT, invmodel: [
 		447,2,11,2,0,3,7,0,0,0,0,0,0,98608,106816,106832,98624,98608,106816,106832,98624,98608,106816,106832,98624,98608,106816,106832,98624,
 			98608,106816,106832,98624,98608,106816,106832,98624,
 		447,2,11,2,14,3,7,0,0,0,0,0,0,
@@ -2545,7 +2575,7 @@
 		{state:15, name: "-opened, east",   model: [SAME_AS, ID(185, 7)]},
 
 	{id: 186, name: "Dark oak fence gate", type: CUST, bbox: MAX, inv: MODEL, cat: REDSTONE, rsupdate: RECEIVE, orient: SWNE,
-		density: WOOD, special: FENCE|NOCONNECT, invmodel: [
+		density: WOOD, bboxPlayerIgnoreBit: 4, special: FENCE|NOCONNECT, invmodel: [
 		447,2,11,2,0,3,7,0,0,0,0,0,0,123136,131344,131360,123152,123136,131344,131360,123152,123136,131344,131360,123152,123136,131344,131360,
 			123152,123136,131344,131360,123152,123136,131344,131360,123152,
 		447,2,11,2,14,3,7,0,0,0,0,0,0,
@@ -2589,7 +2619,7 @@
 		{state:15, name: "-opened, east",   model: [SAME_AS, ID(186, 7)]},
 
 	{id: 187, name: "Acacia fence gate", type: CUST, bbox: MAX, inv: MODEL, cat: REDSTONE, rsupdate: RECEIVE, orient: SWNE,
-		density: WOOD, special: FENCE|NOCONNECT, invmodel: [
+		density: WOOD, bboxPlayerIgnoreBit: 4, special: FENCE|NOCONNECT, invmodel: [
 		447,2,11,2,0,3,7,0,0,0,0,0,0,123120,131328,131344,123136,123120,131328,131344,123136,123120,131328,131344,123136,123120,131328,
 			131344,123136,123120,131328,131344,123136,123120,131328,131344,123136,
 		447,2,11,2,14,3,7,0,0,0,0,0,0,
@@ -2988,7 +3018,7 @@
 		{state:13, name: "+east",               tex: [22, 5,21, 2,22, 5,21, 5,22, 5,22, 5,  1329]},
 
 	/* minecraft 1.10 */
-	{id: 212, name: "Frosted ice", type: TRANS, inv: CUBE, cat: DECO, opacSky: 3, opacLight: 3, pushable: DESTROY, density: ICE},
+	{id: 212, name: "Frosted ice", type: TRANS, inv: CUBE, cat: DECO, opacSky: 3, opacLight: 3, groundFriction: 0.5, pushable: DESTROY, density: ICE},
 		{state: 0, tex: [3, 4, 3, 4, 3, 4, 3, 4, 3, 4, 3, 4]},
 
 	{id: 213, name: "Magma block", type: SOLID, inv: CUBE, cat: BUILD},

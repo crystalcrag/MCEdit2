@@ -67,7 +67,7 @@ enum /* flags values */
 	PLAYER_TOOLBAR  = 4   /* mouse is over toolbar (see hoverSlot) */
 };
 
-enum
+enum /* infoState: display a text about item selected in toolbar */
 {
 	INFO_INV_NONE,
 	INFO_INV_INIT,
@@ -91,23 +91,26 @@ void playerMove(Player);
 
 struct Player_t
 {
-	vec4     pos;
-	vec4     lookat;
-	float    angleh, anglev;   /* radians */
-	float    velocity[3];
-	float    dir[3];
-	float    velocityY;
-	float    targetY;
-	uint8_t  fly;
-	uint8_t  onground;
-	uint8_t  pmode;
-	uint16_t keyvec;
-	uint32_t tick;
+	vec4     pos;              /* position of feet */
+	vec4     lookat;           /* position looking at (to be used as param to matLookAt()) */
+	float    angleh, anglev;   /* yaw, pitch (in radians) */
+	float    velocity[3];      /* movement change per tick */
+	float    dir[3];           /* target diection */
+	float    targetY;          /* smooth clibing */
+
+	uint8_t  fly;              /* 1 if flying */
+	uint8_t  onground;         /* 1 if on ground, 0 otherwise */
+	uint8_t  pmode;            /* enum, see MODE_* */
+	uint8_t  liquid;           /* is in a liquid (water:1 or lava:2) */
+
+	uint16_t keyvec;           /* bitfield of PLAYER_* */
+
+	uint32_t tick;             /* time diff between update */
 	NBTFile  levelDat;         /* complete NBT decoding of level.dat */
 	InvBuf   inventory;
 };
 
-enum /* possible values for <mode> */
+enum /* possible values for <pmode> */
 {
 	MODE_SURVIVAL  = 0,
 	MODE_CREATIVE  = 1,
@@ -126,7 +129,8 @@ enum /* possible values for <keyvec> */
 	PLAYER_JUMP         = 0x0040,
 	PLAYER_FALL         = 0x0080,
 	PLAYER_CLIMB        = 0x0100,
-	PLAYER_STOPPING     = 0x0200
+	PLAYER_STOPPING     = 0x0200,
+	PLAYER_JUMPKEY      = 0x0400
 };
 
 #endif

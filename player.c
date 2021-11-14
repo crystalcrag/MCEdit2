@@ -15,12 +15,13 @@
 #include "SIT.h"
 #include "globals.h"
 
-#define JUMP_STRENGTH          0.25f
+#define JUMP_STRENGTH          0.29f
 #define MAX_SPEED              4.317f
 #define FLY_SPEED             10.000f
-#define FALL_SPEED            10.0f
+#define FALL_SPEED             1.0f
 #define MAX_FALL              10.000f
 #define BASE_ACCEL            24.0f
+#define viscosity             pos[VT]
 
 static float sensitivity = 1/1000.;
 
@@ -35,7 +36,6 @@ void playerInit(Player p)
 	NBT_ToFloat(levelDat, NBT_FindNode(levelDat, player, "Pos"), p->pos, 3);
 	NBT_ToFloat(levelDat, NBT_FindNode(levelDat, player, "Rotation"), rotation, 2);
 
-	p->pos[VT]  = p->lookat[VT] = 1;
 	p->onground = NBT_ToInt(levelDat, NBT_FindNode(levelDat, player, "OnGround"), 1);
 	p->pmode    = NBT_ToInt(levelDat, NBT_FindNode(levelDat, player, "playerGameType"), MODE_SURVIVAL);
 	p->levelDat = levelDat;
@@ -54,6 +54,7 @@ void playerInit(Player p)
 	p->lookat[VX] = p->pos[VX] + 8 * cosf(p->angleh) * cv;
 	p->lookat[VZ] = p->pos[VZ] + 8 * sinf(p->angleh) * cv;
 	p->lookat[VY] = p->pos[VY] + 8 * sinf(p->anglev);
+	p->lookat[VT] = p->pos[VT] = 1;
 
 	/* get inventory content */
 	playerUpdateInventory(p);
@@ -139,7 +140,6 @@ int playerProcessKey(Player p, int key, int mod)
 		case BACKWARD: p->keyvec &= ~(PLAYER_STOPPING|PLAYER_MOVE_FORWARD); p->keyvec |= PLAYER_MOVE_BACK; break;
 		case LEFT:     p->keyvec &= ~(PLAYER_STOPPING|PLAYER_STRAFE_RIGHT); p->keyvec |= PLAYER_STRAFE_LEFT; break;
 		case RIGHT:    p->keyvec &= ~(PLAYER_STOPPING|PLAYER_STRAFE_LEFT);  p->keyvec |= PLAYER_STRAFE_RIGHT; break;
-		case FLYDOWN:  p->keyvec &= ~PLAYER_UP;                             p->keyvec |= PLAYER_DOWN; break;
 		case OFFHAND:  p->inventory.offhand ^= 1; break;
 		case '0':      p->inventory.offhand ^= 2; break;
 		case '1': case '2': case '3': case '4': case '5':
@@ -147,28 +147,37 @@ int playerProcessKey(Player p, int key, int mod)
 			playerScrollInventory(p, (key - '1') - p->inventory.selected);
 			return 2;
 		case JUMP:
+			p->keyvec |= PLAYER_JUMPKEY;
 			if ((int) globals.curTime - lastTick < 250 && p->pmode <= MODE_CREATIVE)
 			{
+				/* push jump key twice within short time: toggle fly mode */
 				p->fly ^= 1;
 				if (p->fly)
 				{
 					p->keyvec &= ~ PLAYER_FALL;
-					p->velocityY = 0;
+					p->velocity[VY] = 0;
 				}
 				else p->keyvec |= PLAYER_FALL;
 			}
 			lastTick = globals.curTime;
-			if (p->fly)
+			if (p->fly || p->viscosity < 1)
 			{
-				p->keyvec &= ~PLAYER_DOWN;
+				/* if flying or in liquid, jump key == go up */
+				p->keyvec &= ~(PLAYER_DOWN | PLAYER_FALL);
 				p->keyvec |= PLAYER_UP;
+				p->dir[VY] = 1;
 			}
 			else if (p->onground && p->pmode <= MODE_CREATIVE) /* initiate a jump */
 			{
 				p->keyvec |= PLAYER_FALL | PLAYER_JUMP;
-				p->velocityY = -JUMP_STRENGTH;
+				p->velocity[VY] = -JUMP_STRENGTH;
 				p->onground = 0;
 			}
+			break;
+		case FLYDOWN:
+			p->dir[VY] = -1;
+			p->keyvec &= ~PLAYER_UP;
+			p->keyvec |= PLAYER_DOWN;
 			break;
 		default: return 0;
 		}
@@ -180,9 +189,22 @@ int playerProcessKey(Player p, int key, int mod)
 		case BACKWARD: p->keyvec &= ~PLAYER_MOVE_BACK; break;
 		case LEFT:     p->keyvec &= ~PLAYER_STRAFE_LEFT; break;
 		case RIGHT:    p->keyvec &= ~PLAYER_STRAFE_RIGHT; break;
-		case JUMP:     p->keyvec &= ~(PLAYER_UP | PLAYER_JUMP); break;
-		case FLYDOWN:  p->keyvec &= ~PLAYER_DOWN; break;
-		default:       return 0;
+		case JUMP:
+			p->keyvec &= ~PLAYER_JUMPKEY;
+			if (p->keyvec & (PLAYER_UP | PLAYER_DOWN))
+			{
+				/* instant stop */
+				p->velocity[VY] = p->dir[VY] = 0;
+				if (! p->fly) p->keyvec |= PLAYER_FALL;
+			}
+			p->keyvec &= ~(PLAYER_UP | PLAYER_JUMP);
+			break;
+		case FLYDOWN:
+			if (p->keyvec & (PLAYER_UP | PLAYER_DOWN))
+				p->velocity[VY] = p->dir[VY] = 0;
+			p->keyvec &= ~PLAYER_DOWN;
+			break;
+		default: return 0;
 		}
 	}
 	if (keyvec == 0)
@@ -220,13 +242,14 @@ void playerLookAt(Player p, int dx, int dy)
  */
 void playerAdjustVelocity(Player p, float delta)
 {
-	float max = (p->fly ? FLY_SPEED : MAX_SPEED);
+	float max = (p->fly ? FLY_SPEED : MAX_SPEED) * fminf(p->viscosity * 4, 1);
 	vec   v   = p->velocity;
 	float dest[3] = {p->dir[VX] * max, 0, p->dir[VZ] * max};
 	float diff[3];
 
 	vecSub(diff, dest, p->velocity);
 
+	/* only adjust VX and VZ here */
 	max = sqrtf(diff[VX]*diff[VX] + diff[VZ] * diff[VZ]);
 	if (max > EPSILON)
 	{
@@ -234,7 +257,8 @@ void playerAdjustVelocity(Player p, float delta)
 		max = BASE_ACCEL * delta / max;
 		if (! p->fly)
 		{
-			if (p->onground == 0) max *= 0.15f;
+			/* falling: harder to steer than when on ground */
+			if (p->onground == 0) max *= 0.5f;
 		}
 		else if (p->keyvec & PLAYER_STOPPING) max *= 0.75f;
 		for (i = VX; i <= VZ; i += 2)
@@ -258,87 +282,137 @@ void playerAdjustVelocity(Player p, float delta)
 		p->keyvec &= ~PLAYER_STOPPING;
 }
 
+/* slightly simplified compare to playerAdjustVelocity() */
+static void playerAdjustVelocityY(Player p, float delta)
+{
+	float dest = p->dir[VY] * (FALL_SPEED * 0.5f); if (! p->fly) dest *= p->viscosity;
+	float diff = dest - p->velocity[VY];
+	float max  = fabsf(diff);
+	vec   vecY = p->velocity + VY;
+
+	if (max > EPSILON)
+	{
+		float adjust = diff * (BASE_ACCEL/16) * delta / max;
+		if (vecY[0] < dest)
+		{
+			vecY[0] += adjust;
+			if (vecY[0] > dest) vecY[0] = dest;
+		}
+		else if (vecY[0] > dest)
+		{
+			vecY[0] += adjust;
+			if (vecY[0] < dest) vecY[0] = dest;
+		}
+	}
+	else vecY[0] = dest;
+
+//	fprintf(stderr, "velocityY = %g, target = %g, keyvec = %x\n", vecY[0], p->dir[VY], p->keyvec);
+}
+
 void playerMove(Player p)
 {
 	float diff = globals.curTime - p->tick;
 	int   keyvec = p->keyvec;
-	if (diff == 0) return;
+	vec4  orig_pos;
+
+	if (diff < 1) return;
 	if (diff > 100) diff = 100; /* lots of lag :-/ */
 	diff *= 1/1000.f;
 	p->tick = globals.curTime;
-	vec4 orig_pos;
 
 	memcpy(orig_pos, p->pos, 16);
-//	if (p->slower) speed *= 0.25;
 	if (keyvec & (PLAYER_UP|PLAYER_DOWN))
 	{
-		p->pos[VY] += p->keyvec & PLAYER_UP ? FALL_SPEED*diff : -FALL_SPEED*diff;
+		playerAdjustVelocityY(p, diff);
+		p->pos[VY] += p->velocity[VY];
 	}
 	if (keyvec & (PLAYER_STRAFE_LEFT|PLAYER_STRAFE_RIGHT|PLAYER_MOVE_FORWARD|PLAYER_MOVE_BACK|PLAYER_STOPPING))
 	{
+		playerAdjustVelocity(p, diff);
 		p->pos[VX] += p->velocity[VX] * diff;
 		p->pos[VZ] += p->velocity[VZ] * diff;
-
-		playerAdjustVelocity(p, diff);
-
-//		fprintf(stderr, "%c v = %f - %f, d = %f, %f\n", p->keyvec & PLAYER_STOPPING ? '-' : ' ', p->velocity[VX], p->velocity[VZ],
-//			p->dir[VX], p->dir[VZ]);
 	}
 	if (keyvec & PLAYER_FALL)
 	{
-		p->velocityY += diff;
-		p->pos[VY] -= p->velocityY;
-		if (p->velocityY > MAX_FALL)
-			p->velocityY = MAX_FALL;
+		/* jumping or falling */
+		p->velocity[VY] += diff * p->viscosity;
+		p->pos[VY] -= p->velocity[VY];
+		if (p->velocity[VY] > MAX_FALL * p->viscosity)
+			p->velocity[VY] = MAX_FALL * p->viscosity;
 	}
 	if (keyvec & PLAYER_CLIMB)
 	{
-		p->velocityY += 2*diff;
-		p->pos[VY] += p->velocityY;
+		/* smooth vertical transition */
+		p->velocity[VY] += 2*diff;
+		p->pos[VY] += p->velocity[VY];
 		if (p->pos[VY] > p->targetY)
 		{
 			p->pos[VY] = p->targetY, p->keyvec &= ~ PLAYER_CLIMB;
-			p->velocityY = 0;
+			p->velocity[VY] = 0;
 		}
 	}
 	if (p->pmode <= MODE_CREATIVE)
 	{
 		/* bounding box of voxels will constraint movement in these modes */
-		int collision = physicsCheckCollision(globals.level, orig_pos, p->pos, entityGetBBox(ENTITY_PLAYER), 0.5);
-		if (collision & 2)
+		float oldVisco = p->viscosity;
+		int collision = physicsCheckCollision(globals.level, orig_pos, p->pos, entityGetBBox(ENTITY_PLAYER), (keyvec & PLAYER_FALL) ? 0 : 0.5);
+
+//		fprintf(stderr, "velocityY %.2f, pos = %.2f => %.2f [%g - %d], dirY: %g\n", p->velocity[VY], orig_pos[VY], p->pos[VY], p->targetY, collision,
+//			p->dir[VY]);
+//		fprintf(stderr, "Velocity = %.2f x %.2f, dir = %.2f x %.2f (%d)\n", (double) p->velocity[VX], (double) p->velocity[VZ],
+//			p->dir[VX], p->dir[VZ], collision);
+
+		if (collision & 1) p->velocity[VX] = 0;
+		if (collision & 4) p->velocity[VZ] = 0;
+		if ((collision & 2) && orig_pos[VY] < p->pos[VY])
 		{
 			/* auto-climb */
 			p->targetY = p->pos[VY];
 			p->pos[VY] = orig_pos[VY];
 			p->keyvec |= PLAYER_CLIMB;
-			//fprintf(stderr, "climbing to %g (from %g)\n", p->targetY, p->pos[VY]);
+			//fprintf(stderr, "auto-climbing to %g (from %g)\n", (double) p->targetY, (double) p->pos[VY]);
 		}
 		diff = p->onground;
-		p->onground = physicsCheckOnGround(globals.level, p->pos, entityGetBBox(ENTITY_PLAYER));
+		if ((keyvec & PLAYER_FALL) == 0 || p->velocity[VY] >= 0)
+			p->onground = physicsCheckOnGround(globals.level, p->pos, entityGetBBox(ENTITY_PLAYER));
 		//fprintf(stderr, "pos = %g, %g, %g, ground: %d\n", p->pos[0], p->pos[1], p->pos[2], p->onground);
-		if (diff != p->onground)
+		if (p->viscosity != oldVisco && ! p->fly)
+		{
+			if (p->viscosity == 1)
+			{
+				/* just exited water/lava */
+				p->keyvec &= ~ (PLAYER_CLIMB | PLAYER_UP | PLAYER_DOWN);
+				p->keyvec |= PLAYER_FALL;
+				p->velocity[VY] = -JUMP_STRENGTH/3;
+			}
+			else if (p->keyvec & PLAYER_JUMPKEY)
+			{
+				/* just entered water/lava (while jump key is held down) */
+				p->keyvec &= ~ PLAYER_FALL;
+				p->keyvec |= PLAYER_UP;
+			}
+		}
+		else if (diff != p->onground)
 		{
 			if (diff == 0)
 			{
 				/* cancel fall */
-				p->velocityY = 0;
+				p->velocity[VY] = 0;
 				p->keyvec &= ~PLAYER_FALL;
 				p->fly = 0;
 				if (keyvec & PLAYER_JUMP)
 				{
 					/* start a new jump as soon as we hit the ground */
 					p->keyvec |= PLAYER_FALL | PLAYER_JUMP;
-					p->velocityY = -JUMP_STRENGTH;
+					p->velocity[VY] = -JUMP_STRENGTH;
 					p->onground = 0;
 				}
 			}
-			else /* not on ground: init fall */
+			else if (p->viscosity == 1) /* not on ground: init fall */
 			{
 				p->keyvec &= ~ PLAYER_CLIMB;
 				p->keyvec |= PLAYER_FALL;
 			}
-
-			//fprintf(stderr, "onground: %d\n", p->onground);
 		}
 	}
 	vecSub(orig_pos, p->pos, orig_pos);

@@ -52,9 +52,9 @@ enum /* possible values for <action> of renderSetSelectionPoint */
 
 enum /* possible values for <what> of renderToggleDebug */
 {
-	RENDER_DEBUG_CURCHUNK  = 1,
-	RENDER_DEBUG_FRUSTUM   = 2,
-	RENDER_DEBUG_NOCLUTTER = 4
+	RENDER_DEBUG_CURCHUNK = 1,
+	RENDER_DEBUG_FRUSTUM  = 2,
+	RENDER_DEBUG_BRIGHT   = 4,
 };
 
 /* side view */
@@ -68,12 +68,13 @@ void debugBlock(int x, int y);
 void debugToggleInfo(int what);
 void debugLoadSaveState(STRPTR path, Bool load);
 
-enum /* possible flags for paramter <what> of debugToggleInfo() (side view) */
+enum /* possible flags for paramter <what> of debugToggleInfo() (side view) and renderShowBlockInfo() */
 {
-	DEBUG_BLOCK = 1,
-	DEBUG_LIGHT = 2,
-	DEBUG_CHUNK = 3,
+	DEBUG_BLOCK     = 1,
+	DEBUG_LIGHT     = 2,
+	DEBUG_CHUNK     = 3,
 	DEBUG_SELECTION = 4,
+	DEBUG_NOCLUTTER = 8
 };
 
 /* chunk transfer to GPU */

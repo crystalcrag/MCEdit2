@@ -80,8 +80,11 @@ struct Block_t                   /* per id information */
 	uint8_t  gravity;            /* block affected by gravity */
 	uint8_t  pushable;           /* can be pushed by piston or /retracted by sticky piston */
 	uint8_t  updateNearby;       /* 6 nearby blocks can be changed if block is placed/deleted (chunk meshing optimization if not) */
+	uint8_t  bboxIgnoreBit;      /* ignore some states for player bounding box */
 
 	float    density;            /* entity/particle physics */
+	float    viscosity;          /* semi-solid block with reduced gravity */
+	float    friction;           /* ground physics */
 	STRPTR   name;               /* description as displayed to user */
 	STRPTR   tech;               /* technical name as stored in NBT */
 	DATA16   model;              /* custom inventory model */
@@ -317,7 +320,8 @@ enum                       /* values for Block.bbox */
 	BBOX_NONE,             /* can't target block = no box */
 	BBOX_AUTO,             /* SOLID, TRANS and QUAD = auto box */
 	BBOX_MAX,              /* CUST: union of all boxes = max box */
-	BBOX_FULL              /* CUST: keep all boxes from custom model = full box */
+	BBOX_FULL,             /* CUST: keep all boxes from custom model = full box */
+	BBOX_FIRST             /* CUST: only take first primitive from model */
 };
 
 enum                       /* flags for Block.inventory (render type) */
@@ -334,7 +338,8 @@ enum                       /* flags for Block.inventory (category) */
 	DECO     = 2,
 	REDSTONE = 3,
 	CROPS    = 4,          /* or food */
-	RAILS    = 5
+	RAILS    = 5,
+	FILLBY   = 6           /* useful in fill by block/geomtric brush only */
 };
 
 enum                       /* special flags in BlockState.rotate */

@@ -35,7 +35,7 @@
 static struct MCInterface_t mcui;
 static struct MCInventory_t selfinv = {.invRow = 3, .invCol = MAXCOLINV, .groupId = 1, .itemsNb = MAXCOLINV * 3};
 static struct MCInventory_t toolbar = {.invRow = 1, .invCol = MAXCOLINV, .groupId = 1, .itemsNb = MAXCOLINV};
-static int category[] = {BUILD, DECO, REDSTONE, CROPS, RAILS, 0};
+static int category[] = {BUILD, DECO, REDSTONE, CROPS, RAILS, ALLCAT};
 
 /*
  * before displaying a user interface, take a snapshot of current framebuffer and
@@ -2301,10 +2301,10 @@ static int mcuiInfoSetIcon(SIT_Widget w, APTR cd, APTR ud)
 		globals.height = PACKPNG_SIZE;
 		nvgluBindFramebuffer(fbo);
 
-		renderShowBlockInfo(True, RENDER_DEBUG_NOCLUTTER);
+		renderShowBlockInfo(True, DEBUG_NOCLUTTER);
 		renderWorld();
 
-		renderShowBlockInfo(False, RENDER_DEBUG_NOCLUTTER);
+		renderShowBlockInfo(False, DEBUG_NOCLUTTER);
 		globals.width  = width;
 		globals.height = height;
 		nvgluBindFramebuffer(NULL);

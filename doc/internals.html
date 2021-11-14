@@ -34,6 +34,9 @@
 
 <a class="sub1" href="#opengl"><span>Advanced OpenGL</a>
   <a class="sub2" href="#translucency"><span>Alpha transparency</span></a>
+    <a class="sub3" href="#oit"><span>Sorting on GPU</span></a>
+    <a class="sub3" href="#depthpeel"><span>Depth peeling</span></a>
+    <a class="sub3" href="#cpusort"><span>Sorting on CPU</span></a>
   <a class="sub2" href="#gpubanks"><span>Managing chunks on the GPU</span></a>
     <a class="sub3" href="#vtxbuffers"><span>Vertex buffers</span></a>
     <a class="sub3" href="#vtxdata"><span>Vertex data</span></a>
@@ -534,7 +537,7 @@ is <b>a path within the visibility graph</b> that can reach a previously visible
 hidden faces will add a significant amount of hidden chunks. Visibility of a face is done by computing
 the dot product between the face normal and the vector from camera to one point of the face.
 
-<p>Therefore here is a simplified vresion of the graph traversal algorithm:
+<p>Therefore here is a simplified version of the graph traversal algorithm:
 <div class="pre">
 <ul>
   <li>For each visible <tt>ChunkData</tt> we got from frustum culling:
@@ -568,8 +571,8 @@ check connectivity for any direction.
 <p>If a <tt>ChunkData</tt> is connected to this first chunk, we want to know if there is a path to that
 face, from <b>any other direction</b>. Therefore we check all the connection ID that are possible
 for a given face, as described in the <a href="#cnxgraphtbl">previous table</a>. So if we want to know
-if we can reach the south face of the first chunk, we check if one of the connection ID is set, that
-is either 1, 2, 3, 4 or 5. Since connection graph is encoded as bitfield, the test becomes:
+if we can reach the south face of the first chunk, we check if one of the connection ID is set for the
+south face, that is either 1, 2, 3, 4 or 5. Since connection graph is encoded as bitfield, the test becomes:
 <pre><span class="t">static uint16_t</span> canGoTo[] = {
 	<span class="o">0x001f</span>, <span class="c">/* to south:  1+2+4+8+16 */</span>
 	<span class="o">0x01e1</span>, <span class="c">/* to east:   1+32+64+128+256 */</span>

@@ -241,7 +241,7 @@ VTXBBox mapGetBBox(BlockIter iterator, int * count, int * cnxFlags)
 	int id = getBlockId(iterator);
 	Block block = blockIds + (id >> 4);
 
-	if (block->bboxPlayer == BBOX_NONE)
+	if (block->bboxPlayer == BBOX_NONE || (id & block->bboxIgnoreBit))
 		return NULL;
 
 	*cnxFlags = 0xffff;

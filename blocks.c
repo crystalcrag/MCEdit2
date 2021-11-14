@@ -703,7 +703,7 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 		value = jsonValue(keys, "cat");
 		if (value)
 		{
-			block.category = FindInList("BUILD,DECO,REDSTONE,CROPS,RAILS", value, 0)+1;
+			block.category = FindInList("BUILD,DECO,REDSTONE,CROPS,RAILS,FILLBY", value, 0)+1;
 			if (block.category == 0)
 			{
 				SIT_Log(SIT_ERROR, "%s: unknown inventory category '%s' on line %d\n", file, value, line);
@@ -713,7 +713,7 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 
 		/* bounding box model */
 		value = jsonValue(keys, "bbox");
-		block.bbox = value ? FindInList("NONE,AUTO,MAX,FULL", value, 0) : BBOX_AUTO;
+		block.bbox = value ? FindInList("NONE,AUTO,MAX,FULL,FIRSTBOX", value, 0) : BBOX_AUTO;
 		if (block.bbox < 0)
 		{
 			SIT_Log(SIT_ERROR, "%s: unknown bounding box '%s' on line %d\n", file, value, line);
@@ -734,6 +734,9 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 		case QUAD:
 			block.bbox = BBOX_AUTO;
 		}
+
+		value = jsonValue(keys, "bboxPlayerIgnoreBit");
+		if (value) block.bboxIgnoreBit = atoi(value);
 
 		/* how the block has to orient when placing it */
 		value = jsonValue(keys, "orient");
@@ -776,6 +779,18 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 		}
 		if (block.orientHint == ORIENT_BED)
 			block.special = BLOCK_BED;
+
+		/* liquid physics */
+		value = jsonValue(keys, "viscosity");
+		if (value)
+		{
+			block.viscosity = atof(value);
+			if (block.viscosity > 0)
+				block.bboxPlayer = BBOX_NONE;
+		}
+
+		value = jsonValue(keys, "groundFriction");
+		block.friction = value ? atof(value) : 1;
 
 		/* grab inventory model from this block state */
 		value = jsonValue(keys, "invState");
@@ -958,7 +973,8 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 		{
 			if (FindInList(
 				"id,name,type,inv,invstate,cat,special,tech,bbox,orient,keepModel,particle,rsupdate,density,"
-				"emitLight,opacSky,opacLight,tile,invmodel,rswire,placement,bboxPlayer,gravity,pushable", *keys, 0) < 0)
+				"emitLight,opacSky,opacLight,tile,invmodel,rswire,placement,bboxPlayer,gravity,pushable,"
+				"bboxPlayerIgnoreBit,groundFriction,viscosity", *keys, 0) < 0)
 			{
 				SIT_Log(SIT_ERROR, "%s: unknown property \"%s\" on line %d\n", file, *keys, line);
 				return False;
@@ -1623,8 +1639,10 @@ VTXBBox blockGetBBox(BlockState b)
 {
 	int index = b->bboxId;
 	if (b->special == BLOCK_FENCE || b->special == BLOCK_FENCE2)
-		/* use a simplified bounding box for fence */
-		index = bboxModels[12];
+	{
+		/* use a simplified bounding box for fence (note: NOCONNECT == fence gate) */
+		return blocks.bboxExact + ((blockIds[b->id>>4].special & BLOCK_NOCONNECT) ? index : 12);
+	}
 	return index == 0 ? NULL : blocks.bboxExact + index;
 }
 
@@ -1652,11 +1670,13 @@ static void blockGenBBox(DATA16 buffer, int len, int type)
 	for (j = 0, first->cont = 1; len > 0; len --, data += INT_PER_VERTEX, j ++)
 	{
 		DATA16 pt1, pt2;
-		if (type == BBOX_FULL)
+		if (type >= BBOX_FULL)
 		{
 			if ((data[4] & (31<<8)) == 0 && !ref) ref = box;
 			if (data[4] & NEW_BBOX)
 			{
+				if (type == BBOX_FIRST)
+					break;
 				/* start of a new box */
 				pt1 = box->pt1;
 				/* ignore box if one of its axis has a 0 width */
@@ -1871,12 +1891,13 @@ int blockGenVertexBBox(BlockState b, VTXBBox box, int flag, int * vbo, int textu
 	int idx;
 	float U = ((textureCoord >> 4) * 16 + 8) / 512.;
 	float V = ((textureCoord & 15) * 16 + 8) / 1024.;
+	uint8_t bbox = blockIds[b->id>>4].bbox;
 
 	index  += offsets & 0xffff; offsets >>= 16;
 	vertex += offsets;
 	offsets /= 5;
 
-	if (box->aabox == 0 && b->custModel && blockIds[b->id>>4].bbox == BBOX_FULL)
+	if (box->aabox == 0 && b->custModel && bbox >= BBOX_FULL)
 	{
 		/* generate vertex data from custom model */
 		int    i, j, k;
@@ -1890,6 +1911,7 @@ int blockGenVertexBBox(BlockState b, VTXBBox box, int flag, int * vbo, int textu
 		{
 			DATA16 check;
 			/* check for unique vertices */
+			if (bbox == BBOX_FIRST && (p[4] & NEW_BBOX)) break;
 			for (check = (DATA16) vertex, j = 0; check != v && memcmp(check, p, 6); check += 10, j ++);
 			if (check == v) memcpy(v, p, 6), v += 10, k ++;
 			vtxIndex[i] = j;
@@ -2012,6 +2034,7 @@ void blockParseBoundingBox(void)
 			for (j = p[-1], bbox ++; j > 0; j --, p += INT_PER_VERTEX)
 				if (p[4] & NEW_BBOX) bbox ++;
 			break;
+		case BBOX_FIRST:
 		case BBOX_MAX:
 			bbox ++;
 		}
@@ -2076,6 +2099,7 @@ void blockParseBoundingBox(void)
 			break;
 		case BBOX_MAX:
 		case BBOX_FULL:
+		case BBOX_FIRST:
 			if (state->custModel == NULL)
 			{
 				/* assume full block */

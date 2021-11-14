@@ -18,5 +18,4 @@ layout (std140, binding = 2) uniform param
 #define BASEVTX       0.00048828125
 #define MIDVTX        4
 #define ASPECT_RATIO  shading[0].y
-#define SCREEN_WIDTH  shading[0].z
-#define SCREEN_HEIGHT shading[0].w
+#define FULL_BRIGHT   shading[0].z > 0

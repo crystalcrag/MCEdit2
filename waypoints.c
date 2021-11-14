@@ -199,7 +199,8 @@ static void wayPointsAddToList(WayPoint wp)
 static int wayPointsGoto(SIT_Widget w, APTR cd, APTR ud)
 {
 	/* ud is player vec4 position: don't modify until user confirms its choice */
-	memcpy(ud, waypoints.curPos, sizeof waypoints.curPos);
+	memcpy(waypoints.playerPos, waypoints.curPos, sizeof waypoints.curPos);
+	memcpy(waypoints.playerRotation, waypoints.rotation, sizeof waypoints.rotation);
 	SIT_CloseDialog(w);
 	SIT_Exit(1);
 	return 1;
@@ -256,23 +257,62 @@ static int wayPointsFinishEdit(SIT_Widget w, APTR cd, APTR ud)
 	{
 		WayPoint wp = ud;
 		STRPTR   name;
+		APTR     type;
+		int      offset;
 
-		SIT_GetValues(w, SIT_Title, &name, NULL);
+		SIT_GetValues(w, SIT_Title, &name, SIT_UserData, &type, NULL);
+		offset = wayPointsGetNth(wp - (WayPoint) waypoints.all.buffer);
 
 		/* modify in-memory list */
-		CopyString(wp->name, name, sizeof wp->name);
+		if (type == (APTR) 2)
+		{
+			if (name[0] == 0)
+			{
+				memcpy(wp->location, waypoints.playerPos, 12);
+				memcpy(wp->rotation, waypoints.playerRotation, 8);
+			}
+			else
+			{
+				/* try to get 3 numbers */
+				int i;
+				for (i = 0; i < 3; i ++)
+				{
+					STRPTR end;
+					float val = strtof(name, &end);
+					if (end > name) wp->location[i] = val;
+					else break;
+					if (*name == ',') name ++;
+				}
+			}
+			/* modify listbox */
+			TEXT coord[64];
+			snprintf(coord, sizeof coord, "%d, %d, %d", (int) wp->location[VX], (int) wp->location[VY], (int) wp->location[VZ]);
+			SIT_ListSetCell(waypoints.list, wp - (WayPoint) waypoints.all.buffer, 2, DontChangePtr, DontChange, coord);
 
-		/* modify NBT */
-		int offset = wayPointsGetNth(wp - (WayPoint) waypoints.all.buffer);
-		if (offset > 0 && NBT_AddOrUpdateKey(&waypoints.nbt, "Name", TAG_String, name, offset) > 0)
-			waypoints.nbtModified = True;
+			/* modify NBT */
+			if (offset > 0)
+			{
+				if (NBT_AddOrUpdateKey(&waypoints.nbt, "Rotation",    TAG_List_Float | TAG_ListSize(8),  wp->rotation, offset) > 0 &&
+				    NBT_AddOrUpdateKey(&waypoints.nbt, "Coordinates", TAG_List_Float | TAG_ListSize(12), wp->location, offset) > 0)
+					waypoints.nbtModified = True;
+			}
+		}
+		else
+		{
+			CopyString(wp->name, name, sizeof wp->name);
+			/* modify listbox */
+			SIT_ListSetCell(waypoints.list, wp - (WayPoint) waypoints.all.buffer, 1, DontChangePtr, DontChange, wp->name);
+
+			/* modify NBT */
+			if (offset > 0 && NBT_AddOrUpdateKey(&waypoints.nbt, "Name", TAG_String, name, offset) > 0)
+				waypoints.nbtModified = True;
+		}
 
 		// NBT_Dump(&waypoints.nbt, 0, 0, 0);
 
-		/* modify listbox */
-		SIT_ListSetCell(waypoints.list, wp - (WayPoint) waypoints.all.buffer, 1, DontChangePtr, DontChange, wp->name);
+		/* don't go here until a new edit box has been allocated */
+		waypoints.cancelEdit = 1;
 	}
-	else waypoints.cancelEdit = 0;
 	SIT_RemoveWidget(w);
 	return 1;
 }
@@ -309,10 +349,12 @@ static int wayPointsClick(SIT_Widget w, APTR cd, APTR ud)
 		if (click >= 0)
 		{
 			WayPoint wp = vector_nth(&waypoints.all, click >> 8);
+			TEXT     coord[64];
 			int      padding[4];
 			float    left, top;
 
-			switch (click & 0xff) {
+			click &= 0xff;
+			switch (click) {
 			case 0: /* color value: show a color chooser */
 				w = CCOpen(w, wp->color, wayPointsSetColor, wp, 50 - (int) SIT_EmToReal(w, SITV_Em(1)));
 				SIT_SetValues(w,
@@ -322,20 +364,27 @@ static int wayPointsClick(SIT_Widget w, APTR cd, APTR ud)
 				);
 				SIT_ManageWidget(w);
 				break;
-			case 1: /* name: in-place edit box */
+			case 2: /* location: in-place edit box */
+				snprintf(coord, sizeof coord, "%d, %d, %d", (int) wp->location[VX], (int) wp->location[VY], (int) wp->location[VZ]);
+				// no break;
+			case 1: /* name: same */
 				SIT_GetValues(w, SIT_Parent, &w, NULL);
 				SIT_GetValues(w, SIT_X, &left, SIT_Y, &top, SIT_Padding, padding, NULL);
+				waypoints.cancelEdit = 0;
 				w = SIT_CreateWidget("editname", SIT_EDITBOX, w,
 					/* cannot edit wp->name directly: we want this to be cancellable */
-					SIT_Title,      wp->name,
+					SIT_Title,      click == 2 ? coord : wp->name,
 					SIT_EditLength, sizeof wp->name,
 					SIT_Left,       SITV_AttachForm, NULL, (int) (rect[0] - left) - padding[0],
 					SIT_Top,        SITV_AttachForm, NULL, (int) (rect[1] - top)  - padding[1] - 1,
 					SIT_Width,      (int) (rect[2] - rect[0] - 2),
 					SIT_Height,     (int) (rect[3] - rect[1] - 3),
 					SIT_Style,      "border: 0; padding: 0",
+					SIT_UserData,   (APTR) click,
 					NULL
 				);
+				if (click == 2)
+					SIT_SetValues(w, SIT_PlaceHolder, "Set to player pos if empty", NULL);
 				SIT_SetFocus(w);
 				SIT_AddCallback(w, SITE_OnBlur,   wayPointsFinishEdit, wp);
 				SIT_AddCallback(w, SITE_OnRawKey, wayPointsAcceptEdit, wp);
@@ -383,6 +432,7 @@ static int wayPointsSelect(SIT_Widget w, APTR cd, APTR ud)
 	return 1;
 }
 
+/* SITE_OnActivate on checkbox */
 static int wayPointsDisplayed(SIT_Widget w, APTR cd, APTR ud)
 {
 	/* stored at the root of NBT */
@@ -402,6 +452,8 @@ void wayPointsEdit(vec4 pos, float rotation[2])
 	);
 	memcpy(waypoints.curPos, pos, 12);
 	memcpy(waypoints.rotation, rotation, 8);
+	waypoints.playerPos = pos;
+	waypoints.playerRotation = rotation;
 
 	SIT_CreateWidgets(diag,
 		"<label name=title.big title='Enter the coordinates you want to jump to:' left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, ">"
@@ -431,7 +483,7 @@ void wayPointsEdit(vec4 pos, float rotation[2])
 
 		SIT_AddCallback(top, SITE_OnClick,    wayPointsClick,  NULL);
 		SIT_AddCallback(top, SITE_OnChange,   wayPointsSelect, NULL);
-		SIT_AddCallback(top, SITE_OnActivate, wayPointsGoto,   pos);
+		SIT_AddCallback(top, SITE_OnActivate, wayPointsGoto,   NULL);
 	}
 	else /* simplified interface */
 	{
@@ -474,7 +526,7 @@ void wayPointsEdit(vec4 pos, float rotation[2])
 		);
 	}
 
-	SIT_AddCallback(SIT_GetById(diag, "ok"),  SITE_OnActivate, wayPointsGoto, pos);
+	SIT_AddCallback(SIT_GetById(diag, "ok"),  SITE_OnActivate, wayPointsGoto, NULL);
 	SIT_AddCallback(SIT_GetById(diag, "add"), SITE_OnActivate, wayPointsAdd, NULL);
 	SIT_AddCallback(SIT_GetById(diag, "ko"),  SITE_OnActivate, mcuiExitWnd, NULL);
 	SIT_AddCallback(waypoints.delButton,      SITE_OnActivate, wayPointsDel, NULL);
@@ -482,6 +534,7 @@ void wayPointsEdit(vec4 pos, float rotation[2])
 	SIT_ManageWidget(diag);
 }
 
+/* tooltip displayed in 3d view */
 void wayPointInfo(int id, STRPTR msg, int max)
 {
 	WayPoint wp = vector_nth(&waypoints.all, id-1);
@@ -512,7 +565,7 @@ static void wayPointSetAlpha(int nth, int alpha)
 
 int intersectRayPlane(vec4 P0, vec4 u, vec4 V0, vec norm, vec4 I);
 
-/* find the waypoint hovered over mouse coordinates <mousXY> */
+/* find the waypoint hovered using position <camera> and direction vector <dir> */
 int wayPointRaypick(vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos)
 {
 	if (waypoints.displayInWorld == 0 || waypoints.all.count == 0)
@@ -623,7 +676,7 @@ void wayPointsRender(vec4 camera)
 
 		for (wp = vector_first(waypoints.all), i = 0, max = waypoints.all.count, waypoints.glCount = 0, maxDist *= maxDist; i < max; i ++, wp ++)
 		{
-			/* don't care about frustum culling: there too little of these to bother */
+			/* don't care about frustum culling: there are too little of these to bother */
 			int32_t dist = vecDistSquare(wp->location, camera);
 			if (dist < maxDist)
 			{

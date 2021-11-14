@@ -36,6 +36,8 @@ struct WayPointsPrivate_t
 	int        vao, vbo, shader;   /* GL stuff */
 	float      lastPos[3];         /* reduce VBO sorting */
 	int        lastHover;          /* waypoint id */
+	float *    playerPos;          /* buffers to write if user confirms its selection */
+	float *    playerRotation;
 };
 
 struct WayPoint_t

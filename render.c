@@ -406,8 +406,6 @@ void renderPointToBlock(int mx, int my)
 		dir[VY] = dir[VY] / dir[VT] - render.camera[VY];
 		dir[VZ] = dir[VZ] / dir[VT] - render.camera[VZ];
 
-		/* XXX why is the yaw/pitch ray picking off compared to a MVP matrix ??? */
-		//if (mapPointToObject(globals.level, render.camera, &render.yaw, NULL, render.selection.current, &render.selection.extra))
 		if (mapPointToObject(globals.level, render.camera, dir, render.selection.current, &render.selection.extra))
 			render.selection.selFlags |= SEL_POINTTO;
 		else
@@ -447,8 +445,6 @@ static int renderGetSize(SIT_Widget w, APTR cd, APTR ud)
 
 	/* aspect ratio (needed by particle.gsh) */
 	shading[1] = globals.width / (float) globals.height;
-	shading[2] = globals.width;
-	shading[2] = globals.height;
 	matPerspective(render.matPerspective, DEF_FOV, shading[1], NEAR_PLANE, 1000);
 	glViewport(0, 0, globals.width, globals.height);
 
@@ -692,6 +688,12 @@ Map renderInitWorld(STRPTR path, int renderDist)
 void renderToggleDebug(int what)
 {
 	render.debug ^= what;
+
+	if (what == RENDER_DEBUG_BRIGHT)
+	{
+		shading[2] = render.debug & RENDER_DEBUG_BRIGHT ? 1 : 0;
+		glBufferSubData(GL_UNIFORM_BUFFER, UBO_SHADING_OFFSET, 16, shading);
+	}
 }
 
 /* print info from VBO */
@@ -1436,7 +1438,7 @@ void renderWorld(void)
 	particlesRender();
 
 	/* don't add any clutter to the render (ie: F1 view) */
-	if (render.debugInfo & RENDER_DEBUG_NOCLUTTER)
+	if (render.debugInfo & DEBUG_NOCLUTTER)
 		return;
 
 	/* in-game map marker */
@@ -1546,7 +1548,7 @@ void renderWorld(void)
 	}
 
 	/* debug info */
-	if (render.debug)
+	if (render.debug & RENDER_DEBUG_CURCHUNK)
 	{
 		debugCoord(vg, render.camera, render.debugTotalTri/3);
 	}

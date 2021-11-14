@@ -57,7 +57,7 @@ void main(void)
 		float(U) * 0.001953125,  float(U + Usz - 128) * 0.001953125,
 		float(V) * 0.0009765625, float(V + Vsz - 128) * 0.0009765625
 	);
-	skyBlockLight = info.z;
+	skyBlockLight = FULL_BRIGHT ? 0xf0f0f0f0 : info.z;
 	ocsField = bitfieldExtract(info.y, 0, 9) | (bitfieldExtract(position.w, 28, 4) << 9) | (bitfieldExtract(position.z, 28, 4) << 13);
 	normFlags = bitfieldExtract(info.y, 9, 7);
 }

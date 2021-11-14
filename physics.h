@@ -20,7 +20,7 @@ struct PhysicsEntity_t
 {
 	float   density;           /* will rise in the air (density < 1 microgram/cm³) or fall down otherwise */
 	float   dir[3];            /* current movement direcion */
-	float   loc[3];            /* current position */
+	float   loc[4];            /* current position */
 	float   friction[3];       /* how dir[] will change over time */
 	uint8_t VYblocked;         /* hit the ground */
 	uint8_t light;             /* blocklight (bit0~3) skylight (bit4~7) */

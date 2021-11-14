@@ -1122,8 +1122,8 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 	memset(visited, 0, sizeof visited);
 	hasLights = (cur->cdFlags & CDFLAG_NOLIGHT) == 0;
 
-	if (c->X == 16 && cur->Y == 64 && c->Z == -560)
-		globals.breakPoint = 1;
+//	if (c->X == 16 && cur->Y == 64 && c->Z == -560)
+//		globals.breakPoint = 1;
 
 	for (pos = air = 0; pos < 16*16*16; pos ++)
 	{
@@ -1136,8 +1136,8 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 		block = blocks[pos];
 		state = blockGetById(ID(block, data));
 
-		if (globals.breakPoint && pos == 3296)
-			globals.breakPoint = 2;
+//		if (globals.breakPoint && pos == 3296)
+//			globals.breakPoint = 2;
 
 		/* 3d flood fill for cave culling */
 		if (! blockIsFullySolid(state) && (slotsXZ[pos & 0xff] || slotsY[pos >> 8]) && (visited[pos>>3] & mask8bit[pos&7]) == 0)

@@ -1,4 +1,15 @@
 =========== Week 45 ===========
+Sat Nov 13:
+	* player movement refined: smoother transitions.
+	* added: FIRSTBOX for bbox property in blocksTable.js (repeater, comparator).
+
+Fri Nov 12:
+	* fix some minor bounding box issues.
+	* waypoints location can also be edited now.
+
+Thu Nov 11:
+	* stb_image_write.h rewrite (PNG encoder only).
+
 Wed Nov 10:
 	* added way to update world icon.png from world info.
 
