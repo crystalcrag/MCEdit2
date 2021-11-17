@@ -307,7 +307,7 @@ int redstonePushedByPiston(struct BlockIter_t iter, RSWire list)
 
 	for (;;)
 	{
-		while (count < MAXPUSH)
+		while (count <= MAXPUSH)
 		{
 			Block b = blockIds + iter.blockIds[iter.offset];
 
@@ -319,10 +319,11 @@ int redstonePushedByPiston(struct BlockIter_t iter, RSWire list)
 				else return -1;
 			case PUSH_ONLY:
 				if (retract) goto break_all;
+				if (count == MAXPUSH) return -1;
 				break;
 			case PUSH_DESTROY:
 			case PUSH_DROPITEM:
-				if (retract) goto break_all;
+				if (retract || count == MAXPUSH) goto break_all;
 			}
 
 			list->dx = x;

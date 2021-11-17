@@ -21,7 +21,7 @@ void    blockParseConnectedTexture(void);
 void    blockParseBoundingBox(void);
 void    blockParseInventory(int vbo);
 void    blockPostProcessTexture(DATA8 * data, int * w, int * h, int bpp);
-void    blockCenterModel(DATA16 vertex, int count, int U, int V, Bool shiftY, VTXBBox bbox);
+void    blockCenterModel(DATA16 vertex, int count, int U, int V, Bool shiftY, VTXBBox bbox, float * maxsize);
 int     blockGetConnect(BlockState, DATA16 neighbors);
 VTXBBox blockGetBBox(BlockState);
 VTXBBox blockGetBBoxForVertex(BlockState);
@@ -402,14 +402,14 @@ struct BlockPrivate_t      /* static info kept in blocks.c */
 	int      maxVtxCust;   /* max number of vertices for custom models */
 	int      curVtxCount;  /* vertex count stored in lastModel */
 	STRPTR   curFile;      /* current file being parsed in blockParse() (mostly for error reporting) */
-	DATA8    alphaTex;     /* keep a bitmap version of alpha part of terrain.png */
+	DATA8    alphaTex;     /* keep a bitmap (1bit) version of alpha part of terrain.png */
 	int      alphaStride;  /* width of alphaTex in bytes */
 	DATA8    duraColors;   /* durability color from terrain.png (RGBA) */
-	int      duraMax;
-	float *  lastModel;
+	int      duraMax;      /* number of colors in <duraColors> */
+	float *  lastModel;    /* hack when building blockState list */
 	uint8_t  cnxTex[128];  /* quadruplet describing which texture to generate connected info and where */
 	int      cnxCount;
-	uint16_t modelKeep;
+	uint16_t modelKeep;    /* needed when building blockState list */
 	uint16_t modelRef[16];
 	uint16_t modelCount[16];
 };

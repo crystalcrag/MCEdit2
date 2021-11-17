@@ -53,7 +53,7 @@ void main(void)
 	normal = rotate * normal;
 
 	/* distribute shading per face */
-	vec3  absNorm = abs(normal);
+	vec3 absNorm = abs(normal);
 	absNorm *= 1 / (absNorm.x + absNorm.y + absNorm.z);
 	float shade = shading[normal.x < 0 ? 3 : 1].x * absNorm.x +
 	              shading[normal.z < 0 ? 2 : 0].x * absNorm.z +
@@ -69,13 +69,13 @@ void main(void)
 	/* distribute sky/block light according to normal direction */
 	uint light, corner;
 	/* south/north */
-	corner = ((pos.x < 0.5 ? 0 : 1) + (pos.y < 0.5 ? 0 : 2)) << 3;
+	corner = ((pos.x < 0.5 ? 1 : 0) + (pos.y < 0.5 ? 0 : 2)) << 3;
 	light  = (normal.z < 0 ? lightSEN.z : lightSEN.x) >> corner;
 	blockLight = float(light & 15)   * (1/15.)  * absNorm.z;
 	skyLight   = float(light & 0xf0) * (1/240.) * absNorm.z;
 
 	/* east/west */
-	corner = ((pos.z < 0.5 ? 0 : 1) + (pos.y < 0.5 ? 0 : 2)) << 3;
+	corner = ((pos.z < 0.5 ? 1 : 0) + (pos.y < 0.5 ? 0 : 2)) << 3;
 	light  = (normal.x < 0 ? lightWTB.x : lightSEN.y) >> corner;
 	blockLight += float(light & 15)   * (1/15.)  * absNorm.x;
 	skyLight   += float(light & 0xf0) * (1/240.) * absNorm.x;
@@ -85,16 +85,6 @@ void main(void)
 	light  = (normal.y < 0 ? lightWTB.z : lightWTB.y) >> corner;
 	blockLight += float(light & 15)   * (1/15.)  * absNorm.y;
 	skyLight   += float(light & 0xf0) * (1/240.) * absNorm.y;
-
-	/* need to do the same thing than blocks.vsh */
-	if (blockLight > skyLight)
-	{
-		/* diminish slightly ambient occlusion if there is blockLight overpowering skyLight */
-		shade += (blockLight - skyLight) * 0.35 +
-			/* cancel some of the shading per face */
-			(1 - shading[(info.y >> 3) & 7].x) * 0.5;
-		if (shade > 1) shade = 1;
-	}
 
 	blockLight *= shade;
 	skyLight   *= shade;

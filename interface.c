@@ -2367,7 +2367,7 @@ void mcuiWorldInfo(void)
 	SIT_Widget max2 = NULL;
 	SIT_CreateWidgets(diag,
 		"<label name=dlgtitle#title title='World info:' left=FORM right=FORM>"
-		"<label name=icon#table imagePath=", iconPath, "right=FORM top=WIDGET,dlgtitle,0.8em>"
+		"<label name=icon#table currentdir=1 imagePath=", iconPath, "right=FORM top=WIDGET,dlgtitle,0.8em>"
 		"<button name=set.act title='Update icon' top=WIDGET,icon,0.2em left=OPPOSITE,icon right=OPPOSITE,icon tooltip='Will use current 3d view'>"
 		"<editbox name=level editBuffer=", mcuiInfo.name, "editLength=", sizeof mcuiInfo.name, "width=15em"
 		" right=WIDGET,icon,0.5em top=WIDGET,dlgtitle,0.8em buddyLabel=", "Name:", &max1, ">"

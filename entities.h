@@ -100,10 +100,13 @@ typedef struct EntityAnim_t *      EntityAnim;
 typedef struct CustModel_t *       CustModel;
 typedef struct BBoxBuffer_t *      BBoxBuffer;
 
+Entity entityGetById(int id);
+EntityModel entityGetModelById(int modelBank);
+
 struct Entity_t
 {
 	uint16_t next;                 /* first ENTITY_SHIFT bits: index in buffer, remain: buffer index (linked list within chunk) */
-	uint16_t VBObank;              /* first 6bits: bank index, remain: model index */
+	uint16_t VBObank;              /* model id: first 6bits: bank index, remain: model index */
 	uint16_t mdaiSlot;             /* GL draw index in VBObank */
 	uint8_t  special;              /* entity with some special processing (see below) */
 	uint8_t  fullLight;
@@ -111,7 +114,7 @@ struct Entity_t
 	float    motion[3];
 	float    pos[4];               /* X, Y, Z and extra info for shader */
 	float    rotation[4];          /* rotation in Y, X, Z axis (radians) and scaling */
-	uint32_t light[6];
+	uint32_t light[6];             /* lighting values for S, E, N, W, T, B faces */
 	DATA8    tile;                 /* start of NBT Compound for this entity */
 	Entity   ref;
 	STRPTR   name;                 /* from NBT ("id" key) */
@@ -148,6 +151,7 @@ struct EntityBuffer_t              /* entity allocated in batch (avoid realloc) 
 struct EntityModel_t               /* where model data is and bounding box info */
 {
 	VTXBBox  bbox;                 /* from block models */
+	float    maxSize;              /* max dimension from <bbox>, to quickly cull entities */
 	uint16_t first;                /* position in vboModel */
 	uint16_t count;
 };

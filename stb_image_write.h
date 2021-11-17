@@ -606,7 +606,7 @@ STBIWDEF unsigned char *stbi_write_png_to_mem(const unsigned char *pixels, int s
 {
    int force_filter = stbi_write_force_png_filter;
    int ctype[5] = { -1, 0, 4, 2, 6 };
-   unsigned char sig[8] = { 0x89, 'P','N','G','\n','\r',0x1a,0x0a };
+   unsigned char sig[8] = { 0x89, 'P','N','G','\r','\n',0x1a,0x0a };
    unsigned char *out,*o, *filt, *zlib;
    signed char *line_buffer;
    int j,zlen;

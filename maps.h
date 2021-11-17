@@ -45,7 +45,7 @@ struct Map_t
 	ListHead  gpuBanks;            /* VBO for chunk mesh (GPUBank) */
 	ListHead  genList;             /* chunks to process (Chunk) */
 	Chunk     genLast;
-	DATAS16   chunkOffsets;        /* array 16*9: similar to chunkNeighbors[] */
+	DATAS16   chunkOffsets;        /* array 16*9: similar to chunkNeighbor[] */
 	char      path[MAX_PATHLEN];   /* path to level.dat */
 	ChunkData dirty;               /* sub-chunks that needs mesh regeneration */
 	ChunkData firstVisible;        /* list of visible chunks according to the MVP matrix */

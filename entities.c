@@ -371,7 +371,8 @@ static int entityGenModel(EntityBank bank, ItemID_t itemId, int cnx, CustModel c
 	}
 
 	/* entities have their position centered in the middle of their bbox */
-	blockCenterModel(buffer, count, U, V, ! item, bbox);
+	float maxSize;
+	blockCenterModel(buffer, count, U, V, ! item, bbox, &maxSize);
 	glUnmapBuffer(GL_ARRAY_BUFFER);
 	bank->vtxCount += count;
 
@@ -392,6 +393,7 @@ static int entityGenModel(EntityBank bank, ItemID_t itemId, int cnx, CustModel c
 	models->first = bank->vtxCount - count;
 	models->count = count;
 	models->bbox  = bbox;
+	models->maxSize = maxSize;
 	bank->modelCount ++;
 
 	/* VBObank: 6 first bits are for bank number, 10 next are for model number (index in bank->models) */
@@ -611,7 +613,7 @@ static void entityAddToCommandList(Entity entity)
 	else bank->mdaiCount ++, bank->dirty = 1; /* redo the list from scratch */
 }
 
-static void entityGetLight(Chunk c, vec4 pos, DATA32 light, Bool full)
+static void entityGetLight(Chunk c, vec4 pos, DATA32 light, Bool full, int debugLight)
 {
 	int Y = CPOS(pos[1]);
 	if (Y < 0)
@@ -626,7 +628,7 @@ static void entityGetLight(Chunk c, vec4 pos, DATA32 light, Bool full)
 	{
 		extern uint8_t skyBlockOffset[];
 		static uint8_t shiftValues[] = { /* 4 entries per face, ordered S,E,N,W,T,B */
-			16,0,8,24, 16,0,8,24, 16,0,8,24, 16,0,8,24, 0,16,24,8, 16,0,8,24
+			16,0,8,24, 16,0,8,24, 16,0,8,24, 16,0,8,24, 0,8,24,16, 16,0,8,24
 		};
 		struct BlockIter_t iter;
 		uint8_t skyBlockLight[27];
@@ -675,9 +677,16 @@ static void entityGetLight(Chunk c, vec4 pos, DATA32 light, Bool full)
 		mapInitIterOffset(&iter, cd, CHUNK_POS2OFFSET(c, pos));
 		memset(light, mapGetSkyBlockLight(&iter), LIGHT_SIZE);
 	}
+
+	if (debugLight)
+	{
+		fprintf(stderr, "light entity at %g, %g, %g%s:\n", pos[0], pos[1], pos[2], full ? " (full)" : "");
+		for (Y = 0; Y < LIGHT_SIZE/4; Y ++)
+			fprintf(stderr, " - %08x\n", light[Y]);
+	}
 }
 
-static EntityModel entityGetModelById(int modelBank)
+EntityModel entityGetModelById(int modelBank)
 {
 	EntityBank bank;
 	int i;
@@ -848,7 +857,7 @@ void entityParse(Chunk c, NBTFile nbt, int offset)
 			entity->VBObank = entityGetModelId(entity);
 			if (entity->VBObank == 0) /* unknwon entity */
 				entity->pos[VY] += 0.5f;
-			entityGetLight(c, pos+3, entity->light, entity->fullLight = entity->blockId > 0);
+			entityGetLight(c, pos+3, entity->light, entity->fullLight = entity->blockId > 0, 0);
 			entityAddToCommandList(entity);
 
 			/* alloc an entity for the item in the frame */
@@ -858,7 +867,7 @@ void entityParse(Chunk c, NBTFile nbt, int offset)
 	}
 }
 
-static Entity entityGetById(int id)
+Entity entityGetById(int id)
 {
 	EntityBuffer buffer;
 	int i = id >> ENTITY_SHIFT;
@@ -1119,6 +1128,7 @@ int entityRaypick(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos)
 		entitySetSelection(NULL, 0);
 	return 0;
 }
+
 
 /* remove any reference of this entity in all the data structure */
 static uint16_t entityClear(EntityBuffer buf, int index)
@@ -1522,7 +1532,7 @@ void entityCreatePainting(Map map, int paintingId)
 	entity->tile = nbt.mem;
 	entity->rotation[3] = 1;
 	entity->VBObank = entityGetModelId(entity);
-	entityGetLight(c, entity->pos, entity->light, entity->fullLight = False);
+	entityGetLight(c, entity->pos, entity->light, entity->fullLight = False, 0);
 	entityAddToCommandList(entity);
 
 	/* flag chunk for saving later */
@@ -1565,7 +1575,7 @@ static int entityCreateItemFrame(Map map, vec4 pos, int side)
 	entity->tile = nbt.mem;
 	entity->rotation[3] = 1;
 	entity->VBObank = entityGetModelId(entity);
-	entityGetLight(c, entity->pos, entity->light, entity->fullLight = True);
+	entityGetLight(c, entity->pos, entity->light, entity->fullLight = True, 0);
 	entityAddToCommandList(entity);
 	entityMarkListAsModified(map, c);
 	return slot + 1;
@@ -1656,14 +1666,26 @@ void entityAnimate(void)
 		int remain = anim->stopTime - time;
 		if (remain > 0)
 		{
+			int oldPos[3];
 			for (j = 0; j < 3; j ++)
+			{
+				oldPos[j] = entity->pos[j];
 				entity->pos[j] += (entity->motion[j] - entity->pos[j]) * (time - anim->prevTime) / remain;
+			}
 			anim->prevTime = time;
 			/* update VBO */
 			EntityBank bank;
 			for (j = BANK_NUM(entity->VBObank), bank = HEAD(entities.banks); j > 0; j --, NEXT(bank));
 			glBindBuffer(GL_ARRAY_BUFFER, bank->vboLoc);
 			glBufferSubData(GL_ARRAY_BUFFER, entity->mdaiSlot * INFO_SIZE, 12, entity->pos);
+			if (oldPos[0] != (int) entity->pos[0] ||
+				oldPos[1] != (int) entity->pos[1] ||
+				oldPos[2] != (int) entity->pos[2])
+			{
+				/* XXX check if chunk has changed */
+				entityGetLight(mapGetChunk(globals.level, entity->pos), entity->pos, entity->light, entity->fullLight, 1);
+				glBufferSubData(GL_ARRAY_BUFFER, entity->mdaiSlot * INFO_SIZE + INFO_SIZE-LIGHT_SIZE, LIGHT_SIZE, entity->light);
+			}
 			anim ++;
 		}
 		else /* anim done: remove entity */
@@ -1705,6 +1727,7 @@ void entityUpdateOrCreate(Chunk c, vec4 pos, int blockId, vec4 dest, int ticks, 
 		c->entityList = slot;
 	}
 
+	Block b = &blockIds[blockId>>4];
 	memcpy(entity->pos, pos, 12);
 	memcpy(entity->motion, dest, 12);
 	entity->blockId = blockId;
@@ -1713,7 +1736,7 @@ void entityUpdateOrCreate(Chunk c, vec4 pos, int blockId, vec4 dest, int ticks, 
 	vecAddNum(entity->pos,    0.5f);
 	vecAddNum(entity->motion, 0.5f);
 	entity->VBObank = entityGetModelId(entity);
-	entityGetLight(c, pos, entity->light, entity->fullLight = True);
+	entityGetLight(c, pos, entity->light, entity->fullLight = b->type != CUST || b->special == BLOCK_SOLIDOUTER, 1);
 	entityAddToCommandList(entity);
 
 	/* push it into the animate list */
@@ -1727,7 +1750,7 @@ void entityUpdateOrCreate(Chunk c, vec4 pos, int blockId, vec4 dest, int ticks, 
 	anim->prevTime = (int) globals.curTime;
 	anim->stopTime =
 	#ifdef DEBUG
-		anim->prevTime + ticks * 10 * (1000 / TICK_PER_SECOND);
+		anim->prevTime + ticks * 100 * (1000 / TICK_PER_SECOND);
 	#else
 		anim->prevTime + ticks * (1000 / TICK_PER_SECOND);
 	#endif
@@ -1748,7 +1771,7 @@ void entityUpdateLight(Chunk c)
 		if (entity->ref)
 			memcpy(light, entity->ref->light, sizeof light);
 		else
-			entityGetLight(c, entity->pos, light, entity->fullLight);
+			entityGetLight(c, entity->pos, light, entity->fullLight, 0);
 		if (memcmp(light, entity->light, LIGHT_SIZE))
 		{
 			EntityBank bank;

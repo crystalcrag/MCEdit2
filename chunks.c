@@ -1122,7 +1122,7 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 	memset(visited, 0, sizeof visited);
 	hasLights = (cur->cdFlags & CDFLAG_NOLIGHT) == 0;
 
-//	if (c->X == 16 && cur->Y == 64 && c->Z == -560)
+//	if (c->X == -208 && cur->Y == 48 && c->Z == -48)
 //		globals.breakPoint = 1;
 
 	for (pos = air = 0; pos < 16*16*16; pos ++)
@@ -1136,7 +1136,7 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 		block = blocks[pos];
 		state = blockGetById(ID(block, data));
 
-//		if (globals.breakPoint && pos == 3296)
+//		if (globals.breakPoint && pos == 120)
 //			globals.breakPoint = 2;
 
 		/* 3d flood fill for cave culling */
@@ -1161,7 +1161,6 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 			}
 			/* else no break; */
 		case TRANS:
-			// no break;
 		case SOLID:
 			chunkGenCube(neighbors, STATEFLAG(state, ALPHATEX) ? &alpha : &opaque, state, chunkOffsets, pos);
 			break;
@@ -1734,7 +1733,7 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 			}
 			/* CUST with no model: don't apply ambient occlusion, like CUST model will */
 			if (b->type == CUST && b->special != BLOCK_SOLIDOUTER)
-				occlusion = slab = 0;
+				occlusion = slab = 0, memset(skyBlock, skyBlock[13], 27);
 			if (STATEFLAG(b, CNXTEX))
 			{
 				static uint8_t texUV[12];

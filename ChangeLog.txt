@@ -1,4 +1,14 @@
+=========== Week 46 ===========
+Tue Nov 16:
+	* partially implemented redstone comparator (finally).
+
+Mon Nov 15:
+	* entites lighting debug: not in sync since last AO refactoring.
+
 =========== Week 45 ===========
+Sun Nov 14:
+	* started entity-entity collision.
+
 Sat Nov 13:
 	* player movement refined: smoother transitions.
 	* added: FIRSTBOX for bbox property in blocksTable.js (repeater, comparator).

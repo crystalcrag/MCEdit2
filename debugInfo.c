@@ -72,17 +72,17 @@ void debugBlockVertex(SelBlock_t * select)
 		GPUMem  mem  = bank->usedList + iter.cd->glSlot;
 
 		for (i = -1; bank; PREV(bank), i ++);
-		fprintf(stderr, "bank: %d, offset: %d, size: %d\n", i, mem->offset, mem->size);
+		fprintf(stderr, "bank: %d, offset: %d, size: %d (alpha: %d)\n", i, mem->offset, iter.cd->glSize, iter.cd->glAlpha);
 
-		if (block->type == SOLID || block->type == TRANS || (block->type == CUST && block->custModel == NULL))
+		if (block->type != QUAD)
 		{
-			buffer = malloc(mem->size);
+			buffer = malloc(iter.cd->glSize);
 			bank = iter.cd->glBank;
 			glBindBuffer(GL_ARRAY_BUFFER, bank->vboTerrain);
-			glGetBufferSubData(GL_ARRAY_BUFFER, mem->offset, mem->size, buffer);
+			glGetBufferSubData(GL_ARRAY_BUFFER, mem->offset, iter.cd->glSize, buffer);
 			glBindBuffer(GL_ARRAY_BUFFER, 0);
 
-			for (i = mem->size, p = buffer; i > 0; i -= VERTEX_DATA_SIZE, p += VERTEX_INT_SIZE)
+			for (i = iter.cd->glSize, p = buffer; i > 0; i -= VERTEX_DATA_SIZE, p += VERTEX_INT_SIZE)
 			{
 				#define INTVERTEX(x)       (((x) - ORIGINVTX) >> 10)
 				/* need to decode vertex buffer */
