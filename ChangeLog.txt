@@ -1,4 +1,17 @@
 =========== Week 46 ===========
+Sat Nov 20:
+	* moar screen resize debug: seems working correctly now.
+
+Fri Nov 19:
+	* better screen resize handling.
+
+Thu Nov 18:
+	* handle screen resize in interface.c.
+
+Wed Nov 17:
+	* redstone update when removing/adding SOLID blocks did not work correctly.
+	* comparator integration continued.
+
 Tue Nov 16:
 	* partially implemented redstone comparator (finally).
 

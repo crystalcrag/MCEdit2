@@ -50,10 +50,9 @@ void debugBlockVertex(SelBlock_t * select)
 		if (i)
 		{
 			static STRPTR strength[] = {"WEAK", "NORMAL", "STRONG"};
-			fprintf(stderr, "powered by signal: %s\n", strength[i-1]);
+			fprintf(stderr, "powered by signal: %s\n", strength[(i&15)-1]);
 		}
 
-		#ifdef DEBUG
 		xyz[1] += iter.cd->Y;
 		DATA8 tile = chunkGetTileEntity(iter.ref, xyz);
 		if (tile)
@@ -64,7 +63,6 @@ void debugBlockVertex(SelBlock_t * select)
 				nbt.alloc += i;
 		}
 		xyz[1] -= iter.cd->Y;
-		#endif
 
 		/* get the sub buffer where the vertex data is located */
 		DATA32  buffer, p;

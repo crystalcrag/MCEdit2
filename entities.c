@@ -678,12 +678,14 @@ static void entityGetLight(Chunk c, vec4 pos, DATA32 light, Bool full, int debug
 		memset(light, mapGetSkyBlockLight(&iter), LIGHT_SIZE);
 	}
 
+	#if 0
 	if (debugLight)
 	{
 		fprintf(stderr, "light entity at %g, %g, %g%s:\n", pos[0], pos[1], pos[2], full ? " (full)" : "");
 		for (Y = 0; Y < LIGHT_SIZE/4; Y ++)
 			fprintf(stderr, " - %08x\n", light[Y]);
 	}
+	#endif
 }
 
 EntityModel entityGetModelById(int modelBank)

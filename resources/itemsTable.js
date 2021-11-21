@@ -174,7 +174,7 @@
 	{id: 401, state: 0, name: "Firework Rocket",      stack:64, cat: ALLCAT,   tex: [ 7, 4], tech: "fireworks"},
 	{id: 402, state: 0, name: "Firework Charge",      stack:64, cat: ALLCAT,   tex: [ 8, 4]},
 	{id: 403, state: 0, name: "Enchanted Book",       stack: 1, cat: ALLCAT,   tex: [15, 9]},
-	{id: 404, state: 0, name: "Comparator",           stack:64, cat: REDSTONE, tex: [11, 2], createBlock: "unpowered_comparator"},
+	{id: 404, state: 0, name: "Comparator",           stack:64, cat: REDSTONE, tex: [11, 2], createBlock: "comparator"},
 	{id: 405, state: 0, name: "Nether Brick",         stack:64, cat: ALLCAT,   tex: [ 7, 2], tech: "netherbrick"},
 	{id: 406, state: 0, name: "Nether Quartz",        stack:64, cat: REDSTONE, tex: [14, 0], tech: "quartz"},
 	{id: 407, state: 0, name: "TNT Minecart",         stack: 1, cat: RAILS,    tex: [ 0,10]},

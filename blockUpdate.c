@@ -757,6 +757,54 @@ int mapUpdatePiston(Map map, BlockIter iterator, int blockId, Bool init, DATA8 *
 }
 
 
+/* check if comparator state need to change based on nearby power levels */
+int mapUpdateComparator(Map map, BlockIter iterator, int blockId, Bool init, DATA8 * tile)
+{
+	struct BlockIter_t input = *iterator;
+	NBTFile_t nbt = {.page = 127};
+	if (tile == NULL)
+		nbt.mem = chunkGetTileEntity(input.ref, (int[3]) {input.x, input.yabs, input.z});
+	else
+		nbt.mem = *tile;
+
+	uint8_t side = blockSides.repeater[blockId & 3];
+	uint8_t signal;
+	mapIter(&input, relx[side], 0, relz[side]);
+	signal = redstoneSignalStrength(&input, False);
+
+	if (init)
+	{
+		if (nbt.mem == NULL)
+		{
+			TEXT id[32];
+			itemGetTechName(ID(RSCOMPARATOR, 0), id, sizeof id, False);
+			/* coord will be filled later in mapUpdate() */
+			NBT_Add(&nbt,
+				TAG_String, "id", id,
+				TAG_Int,    "x",  0,
+				TAG_Int,    "y",  0,
+				TAG_Int,    "z",  0,
+				TAG_Int,    "OutputSignal", 0,
+				TAG_Compound_End
+			);
+			*tile = nbt.mem;
+		}
+		/* prevent uselss updates later */
+		iterator->blockIds[iterator->offset] = RSCOMPARATOR;
+	}
+
+	/* only function supported function so far: maintain signal */
+	int offset = NBT_FindNode(&nbt, 0, "OutputSignal");
+	NBT_SetInt(&nbt, offset, signal);
+
+	if (signal > 0 && (blockId & 8) == 0)
+		return blockId | 8;
+	if (signal == 0 && (blockId & 8))
+		return blockId & ~8;
+
+	return blockId;
+}
+
 /* return the activated state of <blockId>, but does not modify any tables */
 int mapActivateBlock(BlockIter iter, vec4 pos, int blockId)
 {
@@ -794,7 +842,9 @@ int mapActivateBlock(BlockIter iter, vec4 pos, int blockId)
 	case BLOCK_FENCEGATE:
 		return blockId ^ 4;
 	default:
-		switch (FindInList("unpowered_repeater,powered_repeater,cake,lever,stone_button,wooden_button,cocoa_beans,cauldron", b->tech, 0)) {
+		switch (FindInList(
+			"unpowered_repeater,powered_repeater,cake,lever,stone_button,"
+			"wooden_button,cocoa_beans,cauldron,comparator", b->tech, 0)) {
 		case 0:
 		case 1: /* repeater: bit3~4: delay */
 			if ((blockId & 12) == 12) blockId &= ~12;
@@ -822,13 +872,16 @@ int mapActivateBlock(BlockIter iter, vec4 pos, int blockId)
 			}
 			else return 0;
 			break;
-		case 6: /* cocoa beans - cycle through different growth stage */
+		case 6: /* cocoa beans: cycle through different growth stage */
 			if ((blockId & 15) < 8) blockId += 4;
 			else                    blockId &= 0xfff0;
 			break;
 		case 7: /* cauldron - fill level */
 			if ((blockId & 3) < 3) blockId ++;
 			else                   blockId &= 0xfff0;
+			break;
+		case 8: /* comparator: toggle between compare and subtract mode */
+			blockId ^= 4;
 			break;
 		default:
 			return 0;
@@ -1007,11 +1060,19 @@ void updateAdd(BlockIter iter, int blockId, int nbTick)
 {
 	TileTick update = updateInsert(iter->cd, iter->offset, globals.curTime + nbTick * (1000 / TICK_PER_SECOND));
 	update->blockId = blockId;
-
-	//fprintf(stderr, "adding block update %d in %d tick at %d, %d, %d to %d:%d", update - updates.list, nbTick,
-	//	iter->ref->X + (iter->offset & 15), iter->yabs, iter->ref->Z + ((iter->offset >> 4) & 15), blockId >> 4, blockId & 15);
-	//updateDebugSorted(0);
 }
+
+void updateAddRSUpdate(struct BlockIter_t iter, int side, int nbTick)
+{
+	if (side != RSSAMEBLOCK)
+		mapIter(&iter, relx[side], rely[side], relz[side]);
+
+	TileTick update = updateInsert(iter.cd, iter.offset, globals.curTime + nbTick * (1000 / TICK_PER_SECOND));
+	update->blockId = BLOCK_UPDATE;
+}
+
+/* XXX move this crap somewhere else ... */
+void mapUpdateChangeRedstone(Map map, BlockIter iterator, int side, RSWire dir);
 
 /* usually redstone devices (repeater, torch) update surrounding blocks after a delay */
 void updateTick(void)
@@ -1026,20 +1087,26 @@ void updateTick(void)
 		ChunkData cd   = list->cd;
 		vec4      pos;
 		if (list->tick > time) break;
-		pos[0] = cd->chunk->X + (off & 15); off >>= 4;
-		pos[2] = cd->chunk->Z + (off & 15);
-		pos[1] = cd->Y + (off >> 4);
+		pos[0] = cd->chunk->X + (off & 15);
+		pos[2] = cd->chunk->Z + ((off>>4) & 15);
+		pos[1] = cd->Y + (off >> 8);
 
 		//fprintf(stderr, "applying block update %d at %d, %d, %d for %d:%d", id,
 		//	(int) pos[0], (int) pos[1], (int) pos[2], list->blockId >> 4, list->blockId & 15);
 		i ++;
-		off = list->blockId;
+		id = list->blockId;
 		updateRemove(cd, list->offset, False);
 		memmove(updates.sorted, updates.sorted + 1, updates.count * sizeof *updates.sorted);
 		//updateDebugSorted(0);
 
 		/* this can modify updates.sorted */
-		mapUpdate(globals.level, pos, off, NULL, False);
+		if (id == BLOCK_UPDATE)
+		{
+			struct BlockIter_t iter;
+			mapInitIterOffset(&iter, cd, off);
+			mapUpdateChangeRedstone(globals.level, &iter, RSSAMEBLOCK, NULL);
+		}
+		else mapUpdate(globals.level, pos, id, NULL, False);
 	}
 	if (i > 0)
 	{

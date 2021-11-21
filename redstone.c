@@ -54,6 +54,8 @@ static Bool redstoneIsConnected(RSWire cnx, int fromId, int side)
 			return True;
 		}
 		break;
+	case RSCOMPARATOR: /* wire can connect to all sides */
+		return True;
 	case RSREPEATER_ON:
 	case RSREPEATER_OFF:
 		if (blockSides.repeater[data&3] == side)
@@ -388,6 +390,21 @@ int redstonePushedByPiston(struct BlockIter_t iter, RSWire list)
 	return count <= MAXPUSH ? count : -1;
 }
 
+static int redstoneGetComparatorSignal(struct BlockIter_t iter, RSWire cnx)
+{
+	if (cnx)
+		mapIter(&iter, cnx->dx, cnx->dy, cnx->dz);
+
+	DATA8 tile = chunkGetTileEntity(iter.ref, (int[3]) {iter.x, iter.yabs, iter.z});
+
+	if (tile)
+	{
+		NBTFile_t nbt = {.mem = tile};
+		return NBT_ToInt(&nbt, NBT_FindNode(&nbt, 0, "OutputSignal"), 0);
+	}
+	return 0;
+}
+
 /* get signal strength emitted by block pointed by <iter> */
 int redstoneSignalStrength(BlockIter iter, Bool dirty)
 {
@@ -414,6 +431,7 @@ int redstoneSignalStrength(BlockIter iter, Bool dirty)
 				case RSBLOCK:
 				case RSTORCH_ON:
 				case RSREPEATER_ON: return MAXSIGNAL;
+				case RSCOMPARATOR: return redstoneGetComparatorSignal(*iter, cnx);
 				default:
 					b = &blockIds[cnx->blockId];
 					if (b->orientHint == ORIENT_LEVER)
@@ -434,8 +452,12 @@ int redstoneSignalStrength(BlockIter iter, Bool dirty)
 				/* check for nearby power source */
 				for (i = 0; i < 6; i ++)
 				{
-					if (redstoneIsPowered(*iter, i, POW_STRONG))
-						return MAXSIGNAL;
+					uint8_t power = redstoneIsPowered(*iter, i, POW_STRONG);
+					if (power > 0)
+					{
+						power = power > 15 ? power >> 4 : MAXSIGNAL;
+						if (power > max) max = power;
+					}
 				}
 			}
 			return max;
@@ -473,6 +495,8 @@ static int redstoneIsWirePowering(BlockIter iter, int side)
 	return POW_NONE;
 }
 
+#define POW_MAXSIGNL    (MAXSIGNAL << 4)
+
 /* is the block pointed by <iter> powered by any redstone signal from <side>: returns enum POW_* */
 int redstoneIsPowered(struct BlockIter_t iter, int side, int minPower)
 {
@@ -492,12 +516,12 @@ int redstoneIsPowered(struct BlockIter_t iter, int side, int minPower)
 	case RSWIRE:
 		return minPower < POW_STRONG ? (i & 15) > 0 : POW_NONE;
 	case RSREPEATER_ON:
-		if (side == RSSAMEBLOCK || blockSides.repeater[i&3] == side) return POW_STRONG;
+		if (side == RSSAMEBLOCK || blockSides.repeater[i&3] == side) return POW_STRONG + POW_MAXSIGNL;
 		break;
 	default:
 		/* buttons or lever */
 		if (b->orientHint == ORIENT_LEVER && (i & 15) >= 8)
-			return POW_STRONG;
+			return POW_STRONG + (15 << 4);
 	}
 
 	if (b->type != SOLID)
@@ -532,11 +556,14 @@ int redstoneIsPowered(struct BlockIter_t iter, int side, int minPower)
 			}
 			break;
 		case RSREPEATER_ON:
-			if (blockSides.repeater[data&3] == i) return POW_STRONG;
+			if (blockSides.repeater[data&3] == i) return POW_STRONG + POW_MAXSIGNL;
+			break;
+		case RSCOMPARATOR:
+			if (blockSides.repeater[data&3] == i) return POW_STRONG + (redstoneGetComparatorSignal(iter, NULL) << 4);
 			break;
 		case RSTORCH_ON:
 			if (i == SIDE_TOP && pow == 0) pow = POW_WEAK;
-			else if (i == SIDE_BOTTOM) return POW_STRONG;
+			else if (i == SIDE_BOTTOM) return POW_STRONG + (15 << 4);
 		}
 	}
 	return pow;

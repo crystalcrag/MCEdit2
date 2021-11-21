@@ -25,6 +25,7 @@ void mcuiDeletePartial(void);
 void mcuiShowPaintings(void);
 void mcuiShowPixelArt(vec4 pos);
 void mcuiWorldInfo(void);
+void mcuiResizeInventories(void);
 
 #ifdef MCUI_IMPL
 
@@ -33,19 +34,24 @@ typedef struct MCInventory_t *       MCInventory;
 struct MCInterface_t
 {
 	SIT_Widget   toolTip;
+	SIT_Widget   curDialog;
 	SIT_CallProc cb;
+	SIT_CallProc resize;
 	MCInventory  groups[10];
-	int          groupCount;
-	int          groupIdStart;
+	uint8_t      groupCount;
+	uint8_t      groupIdStart;
+	uint8_t      groupOther;
+	uint8_t      selCount;
+	uint8_t      dragOneItem;
+	uint8_t      curTab;
+	uint8_t      maxItemSize;
 	int          cellSz;
 	int          itemSz;
 	int          width, height;
 	int          glBack, nvgImage;
-	int          itemRender, curTab;
+	int          itemRender;
 	int          padding[4];
 	Item         allItems;
-	uint8_t      selCount;
-	uint8_t      dragOneItem;
 	ItemBuf      dragSplit;
 	ItemBuf      drag;
 	ItemBuf      items[128];
@@ -57,6 +63,7 @@ struct MCInventory_t
 {
 	SIT_Widget   cell;
 	SIT_Widget   scroll;
+	SIT_Widget   canvas;
 	SIT_CallProc customDraw;
 	int8_t       curX, curY;
 	uint8_t      invCol, invRow;

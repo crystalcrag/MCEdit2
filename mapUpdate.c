@@ -825,9 +825,8 @@ static void mapUpdateBlockLight(Map map, BlockIter iter, int oldId, int newId)
  */
 
 /* queue block that needs updating in the vicinity of <iterator> */
-static void mapUpdateAddRSUpdate(BlockIter iterator, RSWire cnx)
+static void mapUpdateAddRSUpdate(struct BlockIter_t iter, RSWire cnx)
 {
-	struct BlockIter_t iter = *iterator;
 	int i;
 	mapIter(&iter, cnx->dx, cnx->dy, cnx->dz);
 //	printCoord("checking update at", &iter);
@@ -835,7 +834,7 @@ static void mapUpdateAddRSUpdate(BlockIter iterator, RSWire cnx)
 	if (b->rsupdate & RSUPDATE_RECV)
 		trackAddUpdate(&iter, 0xffff, NULL);
 
-	/* only check the where the update is, if power is weak */
+	/* only check where the update is, if power is weak it cannot update nearby blocks */
 	if (cnx->pow != POW_WEAK && cnx->signal == RSUPDATE)
 	{
 		for (i = 0; i < 6; i ++)
@@ -878,7 +877,7 @@ static void mapUpdatePropagateSignal(BlockIter iterator)
 		RSWire cnx = connectTo + i;
 		if (cnx->signal == RSUPDATE || cnx->blockId != RSWIRE)
 		{
-			mapUpdateAddRSUpdate(iterator, cnx);
+			mapUpdateAddRSUpdate(*iterator, cnx);
 		}
 		else if (cnx->signal < signal - 1)
 		{
@@ -904,7 +903,7 @@ static void mapUpdatePropagateSignal(BlockIter iterator)
 			RSWire cnx = connectTo + i;
 			if (cnx->signal == RSUPDATE || cnx->blockId != RSWIRE)
 			{
-				mapUpdateAddRSUpdate(&neighbor, cnx);
+				mapUpdateAddRSUpdate(neighbor, cnx);
 			}
 			else if (cnx->signal < signal - 1)
 			{
@@ -938,7 +937,7 @@ void mapUpdateDeleteSignal(BlockIter iterator, int blockId)
 		{
 			RSWire cnx = connectTo + i;
 			if (cnx->signal == RSUPDATE || cnx->blockId != RSWIRE)
-				mapUpdateAddRSUpdate(iterator, cnx);
+				mapUpdateAddRSUpdate(*iterator, cnx);
 			else
 				trackAdd(cnx->dx, cnx->dy, cnx->dz);
 		}
@@ -969,9 +968,12 @@ void mapUpdateDeleteSignal(BlockIter iterator, int blockId)
 
 			signal = cnx->signal;
 
+			if (cnx->blockId == RSCOMPARATOR)
+				puts("here");
+
 			if (signal == RSUPDATE || cnx->blockId != RSWIRE)
 			{
-				mapUpdateAddRSUpdate(&neighbor, cnx);
+				mapUpdateAddRSUpdate(neighbor, cnx);
 				continue;
 			}
 			if (level < signal && max < signal)
@@ -982,7 +984,7 @@ void mapUpdateDeleteSignal(BlockIter iterator, int blockId)
 		if (level == MAXSIGNAL)
 		{
 			/* can be powered by a nearby block */
-			for (i = 0; i < 6; i ++)
+			for (i = 0, max = 0; i < 6; i ++)
 			{
 				if (redstoneIsPowered(neighbor, i, POW_STRONG))
 				{
@@ -1039,7 +1041,7 @@ void mapUpdateDeleteSignal(BlockIter iterator, int blockId)
 static int mapUpdateIfPowered(Map map, BlockIter iterator, int oldId, int blockId, Bool init, DATA8 * tile);
 
 /* redstone power level has been updated in a block, check nearby what updates it will trigger */
-static void mapUpdateChangeRedstone(Map map, BlockIter iterator, int side, RSWire dir)
+void mapUpdateChangeRedstone(Map map, BlockIter iterator, int side, RSWire dir)
 {
 	struct BlockIter_t iter = *iterator;
 
@@ -1116,17 +1118,13 @@ static void mapUpdateDeleteRedstone(Map map, BlockIter iterator, int blockId)
 			for (i = 0; i < 6; i ++)
 			{
 				mapIter(&iter, xoff[i], yoff[i], zoff[i]);
-				if (iter.blockIds[iter.offset] == RSWIRE) break;
-			}
-			/* extremely likely there are no wire nearby (ie: i == 6) */
-			if (i < 6 && redstoneIsPowered(*iterator, RSSAMEBLOCK, POW_STRONG))
-			{
-				iterator->blockIds[iterator->offset] = 0;
-				/* this block was powered */
-				for ( ; i < 6; i ++, mapIter(&iter, xoff[i], yoff[i], zoff[i]))
+				b = &blockIds[iter.blockIds[iter.offset]];
+				if (b->rsupdate & RSUPDATE_SEND)
 				{
-					if (i != 4 && iter.blockIds[iter.offset] == RSWIRE) /* block on top, will be deleted with block update */
-						mapUpdateDeleteSignal(&iter, -1);
+					/* block is about to be deleted, but tables have not been updated yet */
+					iterator->blockIds[iterator->offset] = 0;
+					mapUpdateChangeRedstone(map, iterator, RSSAMEBLOCK, NULL);
+					break;
 				}
 			}
 		}
@@ -1163,7 +1161,7 @@ static int mapUpdateIfPowered(Map map, BlockIter iterator, int oldId, int blockI
 		return mapUpdatePiston(map, iterator, blockId, init, tile);
 	case RSDISPENSER:
 	case RSDROPPER:
-		/* very similar to gence gate actually */
+		/* very similar to fence gate actually */
 		return mapUpdateGate(iterator, blockId, init);
 	case RSPOWERRAILS:
 		return mapUpdatePowerRails(map, blockId, iterator);
@@ -1236,6 +1234,13 @@ static int mapUpdateIfPowered(Map map, BlockIter iterator, int oldId, int blockI
 			iterator->blockIds[iterator->offset] = blockId >> 4;
 			/* repeater went on */
 			mapUpdateChangeRedstone(map, iterator, blockSides.repeater[blockId & 3] ^ 2, NULL);
+		}
+		break;
+	case RSCOMPARATOR:
+		blockId = mapUpdateComparator(map, iterator, blockId, init, tile);
+		if ((oldId & 8) != (blockId & 8))
+		{
+			updateAddRSUpdate(*iterator, blockSides.repeater[blockId & 3] ^ 2, 1);
 		}
 		break;
 	case RSWIRE:
@@ -1696,6 +1701,24 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 			mapUpdateChangeRedstone(map, &iter, RSSAMEBLOCK, NULL);
 		}
 	}
+	else if (b->type == SOLID)
+	{
+		/* quickly check if it needs a redstone update */
+		uint8_t i;
+		for (i = 0; i < 6; i ++)
+		{
+			mapIter(&iter, xoff[i], yoff[i], zoff[i]);
+			b = &blockIds[iter.blockIds[iter.offset]];
+			/* extremely likely there are nothing around */
+			if (b->rsupdate & RSUPDATE_SEND)
+			{
+				/* maybe */
+				mapIter(&iter, -relx[i], -rely[i], -relz[i]);
+				mapUpdateChangeRedstone(map, &iter, RSSAMEBLOCK, NULL);
+				break;
+			}
+		}
+	}
 
 	/* block replaced: check if there is a tile entity to delete */
 	DATA8 oldTile = chunkDeleteTileEntity(iter.ref, XYZ, False);
@@ -1765,6 +1788,7 @@ Bool mapActivate(Map map, vec4 pos)
 	if (block > 0)
 	{
 		mapUpdate(map, pos, block, NULL, True);
+		renderAddModif();
 		return True;
 	}
 	return False;

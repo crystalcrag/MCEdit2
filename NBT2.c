@@ -825,6 +825,7 @@ APTR NBT_PayloadFromStream(DATA8 stream, int offset, STRPTR name)
 	return NBT_Payload(&file, off);
 }
 
+/* convert the tag at <offset> into an integer (return value) */
 int NBT_ToInt(NBTFile root, int offset, int def)
 {
 	if (offset < 0) return def;
@@ -844,6 +845,7 @@ int NBT_ToInt(NBTFile root, int offset, int def)
 	}
 }
 
+/* convert the tag at <offset> into a string (<buffer>) */
 Bool NBT_ToString(NBTFile root, int offset, STRPTR buffer, int max)
 {
 	buffer[0] = 0;
@@ -868,10 +870,7 @@ Bool NBT_ToString(NBTFile root, int offset, STRPTR buffer, int max)
 	return False;
 }
 
-/*
- * modification functions
- */
-
+/* read one or more floats from NBT array */
 Bool NBT_ToFloat(NBTFile root, int offset, float * array, int nb)
 {
 	if (offset < 0) return 0;
@@ -905,6 +904,10 @@ Bool NBT_ToFloat(NBTFile root, int offset, float * array, int nb)
 	}
 	return True;
 }
+
+/*
+ * modification functions
+ */
 
 Bool NBT_SetFloat(NBTFile root, int offset, float * array, int nb)
 {

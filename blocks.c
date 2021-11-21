@@ -93,7 +93,7 @@ uint8_t blockTexResol;
 
 /* convert some common block data into SIDE_* enum */
 struct BlockSides_t blockSides = {
-	.repeater = {SIDE_SOUTH,  SIDE_WEST, SIDE_NORTH, SIDE_EAST},
+	.repeater = {SIDE_SOUTH,  SIDE_WEST, SIDE_NORTH, SIDE_EAST}, /* where the input is (output = input ^ 2) */
 	.torch    = {SIDE_TOP,    SIDE_WEST, SIDE_EAST,  SIDE_NORTH, SIDE_SOUTH, SIDE_BOTTOM, SIDE_NONE,   SIDE_NONE},
 	.lever    = {SIDE_TOP,    SIDE_WEST, SIDE_EAST,  SIDE_NORTH, SIDE_SOUTH, SIDE_BOTTOM, SIDE_BOTTOM, SIDE_TOP},
 	.sign     = {SIDE_NONE,   SIDE_NONE, SIDE_SOUTH, SIDE_NORTH, SIDE_EAST,  SIDE_WEST,   SIDE_NONE,   SIDE_NONE},
@@ -2827,6 +2827,10 @@ DATA8 blockCreateTileEntity(int blockId, vec4 pos, APTR arg)
 			prop[4] = i + '1';
 			NBT_Add(&ret, TAG_String, prop, text, TAG_End);
 		}
+		break;
+	default:
+		if (b->id == RSCOMPARATOR)
+			NBT_Add(&ret, TAG_Int, "OutputSignal", 0, TAG_End);
 	}
 	NBT_Add(&ret, TAG_Compound_End);
 

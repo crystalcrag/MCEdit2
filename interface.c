@@ -65,9 +65,10 @@ void mcuiTakeSnapshot(int width, int height)
 
 	mcui.width = width;
 	mcui.height = height;
+	mcui.resize = NULL;
 
-	TEXT style[32];
-	sprintf(style, "background: id(%d)", mcui.nvgImage);
+	TEXT style[64];
+	sprintf(style, "background: id(%d); background-size: 100%% 100%%", mcui.nvgImage);
 	SIT_SetValues(globals.app, SIT_Style|XfMt, style, NULL);
 }
 
@@ -123,7 +124,7 @@ static int mcuiInventoryRender(SIT_Widget w, APTR cd, APTR ud)
 					Item render = mcui.items + mcui.itemRender ++;
 					render[0] = item[0];
 					render->x = x + x2 + mcui.padding[0]/2;
-					render->y = mcui.height - (y + y2 + mcui.padding[1]/2) - mcui.itemSz;
+					render->y = globals.height - (y + y2 + mcui.padding[1]/2) - mcui.itemSz;
 				}
 				item ++;
 				max --;
@@ -233,7 +234,7 @@ static int mcuiDragItem(SIT_Widget w, APTR cd, APTR ud)
 	switch (msg->state) {
 	case SITOM_CaptureMove:
 		mcui.drag.x = msg->x;
-		mcui.drag.y = mcui.height - msg->y - mcui.itemSz;
+		mcui.drag.y = globals.height - msg->y - mcui.itemSz;
 		SIT_ForceRefresh();
 		break;
 	case SITOM_ButtonPressed:
@@ -304,7 +305,7 @@ static void mcuiSplitItems(Item addCell)
 		mcui.drag = mcui.dragSplit;
 		mcui.drag.count = count;
 		mcui.drag.x = i & 0xffff;
-		mcui.drag.y = mcui.height - (i >> 16) - mcui.itemSz;
+		mcui.drag.y = globals.height - (i >> 16) - mcui.itemSz;
 	}
 	else mcui.drag.id = 0, SIT_InitDrag(NULL);
 	SIT_ForceRefresh();
@@ -427,7 +428,7 @@ static int mcuiInventoryMouse(SIT_Widget w, APTR cd, APTR ud)
 				itemAddCount(&mcui.drag, 64);
 				cellx = SIT_InitDrag(mcuiDragItem);
 				mcui.drag.x = cellx & 0xffff;
-				mcui.drag.y = mcui.height - (cellx >> 16) - mcui.itemSz;
+				mcui.drag.y = globals.height - (cellx >> 16) - mcui.itemSz;
 				SIT_ForceRefresh();
 				return -1;
 			}
@@ -450,7 +451,7 @@ static int mcuiInventoryMouse(SIT_Widget w, APTR cd, APTR ud)
 				}
 				cellx = SIT_InitDrag(mcuiDragItem);
 				mcui.drag.x = cellx & 0xffff;
-				mcui.drag.y = mcui.height - (cellx >> 16) - mcui.itemSz;
+				mcui.drag.y = globals.height - (cellx >> 16) - mcui.itemSz;
 				return -1;
 			}
 			else if ((inv->movable & INV_PICK_ONLY) == 0 && mcui.drag.id > 0)
@@ -560,7 +561,7 @@ static int mcuiInventoryMouse(SIT_Widget w, APTR cd, APTR ud)
 				}
 				cellx = SIT_InitDrag(mcuiDragItem);
 				mcui.drag.x = cellx & 0xffff;
-				mcui.drag.y = mcui.height - (cellx >> 16) - mcui.itemSz;
+				mcui.drag.y = globals.height - (cellx >> 16) - mcui.itemSz;
 				mcuiGrabAllItems(inv, cellx);
 				SIT_ForceRefresh();
 			}
@@ -595,7 +596,7 @@ static int mcuiGrabItemCoord(SIT_Widget w, APTR cd, APTR ud)
 	/* note: itemRender is set to 0 before rendering loop starts */
 	item = mcui.items + mcui.itemRender ++;
 	item->x = paint->x + padding[0]/2;
-	item->y = mcui.height - (paint->y + padding[1]/2) - mcui.itemSz;
+	item->y = globals.height - (paint->y + padding[1]/2) - mcui.itemSz;
 	item->id = (int) blockId;
 	item->count = 1;
 	return 0;
@@ -903,23 +904,29 @@ static int mcuiInventoryFocus(SIT_Widget w, APTR cd, APTR ud)
 	return 0;
 }
 
+static void mcuiSetCellSize(MCInventory inv, int max)
+{
+	/* this inventory will constraint the size of items displayed */
+	SIT_GetValues(inv->cell, SIT_Padding, mcui.padding, NULL);
+	/* same scale than player toolbar... */
+	mcui.cellSz = roundf(globals.width * 17 * ITEMSCALE / (3 * 182.f));
+	/* ... unless it doesn't fit within window's height */
+	if (mcui.cellSz * max > globals.height)
+		mcui.cellSz = globals.height / max;
+	mcui.itemSz = mcui.cellSz - mcui.padding[0] - mcui.padding[2];
+}
 
 void mcuiInitInventory(SIT_Widget canvas, MCInventory inv, int max)
 {
 	inv->cell = SIT_CreateWidget("td", SIT_HTMLTAG, canvas, SIT_Visible, False, NULL);
+	inv->canvas = canvas;
 	inv->curX = -1;
 	inv->top  = 0;
 
 	if (max > 0)
 	{
-		/* this inventory will constraint the size of items displayed */
-		SIT_GetValues(inv->cell, SIT_Padding, mcui.padding, NULL);
-		/* same scale than player toolbar... */
-		mcui.cellSz = roundf(mcui.width * 17 * ITEMSCALE / (3 * 182.f));
-		/* ... unless it doesn't fit within window's height */
-		if (mcui.cellSz * max > mcui.height)
-			mcui.cellSz = mcui.height / max;
-		mcui.itemSz = mcui.cellSz - mcui.padding[0] - mcui.padding[2];
+		mcuiSetCellSize(inv, max);
+		mcui.maxItemSize = max;
 	}
 
 	SIT_AddCallback(canvas, SITE_OnPaint,     mcuiInventoryRender,   inv);
@@ -934,8 +941,13 @@ void mcuiInitInventory(SIT_Widget canvas, MCInventory inv, int max)
 	if (inv->scroll)
 		SIT_AddCallback(inv->scroll, SITE_OnScroll, mcuiSetTop, inv);
 
-	if (inv->groupId > 0)
-		mcui.groups[mcui.groupCount++] = inv;
+	if (inv->groupId == 0)
+	{
+		/* annonymous group : insert at end */
+		mcui.groupOther ++;
+		mcui.groups[10 - mcui.groupOther] = inv;
+	}
+	else mcui.groups[mcui.groupCount++] = inv;
 }
 
 /* SITE_OnActivate on exch button */
@@ -981,9 +993,42 @@ static int mcuiCancelDrag(SIT_Widget w, APTR cd, APTR ud)
 	return 1;
 }
 
+/* screen resized: manually change some hardcoded values */
+void mcuiResizeInventories(void)
+{
+	int i, total = mcui.groupCount + mcui.groupOther;
+	if (total > 0)
+		mcuiSetCellSize(mcui.groups[9], mcui.maxItemSize);
+	for (i = 0; i < total; i ++)
+	{
+		MCInventory inv = mcui.groups[i >= mcui.groupCount ? 9 - i + mcui.groupCount : i];
+		SIT_SetValues(inv->canvas, SIT_Width, inv->invCol * mcui.cellSz, SIT_Height, inv->invRow * mcui.cellSz, NULL);
+	}
+	if (mcui.resize) mcui.resize(NULL, NULL, NULL);
+}
+
 /*
  * creative inventory editor
  */
+static int mcuiResizeCreativeInv(SIT_Widget w, APTR cd, APTR ud)
+{
+	/* some values are hardcodrd outside SITGL control */
+	SIT_SetAttributes(mcui.curDialog,
+		"<exch1 height=", mcui.cellSz, ">"
+		"<exch2 height=", mcui.cellSz, ">"
+		"<exch3 height=", mcui.cellSz, ">"
+		"<del   height=", mcui.cellSz, ">"
+	);
+	SIT_Widget tab = SIT_GetById(mcui.curDialog, "items");
+	int i;
+	for (i = 0; i < 6; i ++)
+	{
+		w = SIT_TabGetNth(tab, i);
+		SIT_SetValues(w, SIT_LabelSize, SITV_LabelSize(mcui.cellSz, mcui.cellSz), NULL);
+	}
+	return 1;
+}
+
 void mcuiCreateInventory(Inventory player)
 {
 	static TEXT tip[] = "Exchange row with toolbar";
@@ -1004,7 +1049,7 @@ void mcuiCreateInventory(Inventory player)
 		" <button name=exch1.exch nextCtrl=NONE top=OPPOSITE,player right=FORM tooltip=", tip, "maxWidth=scroll>"
 		" <button name=exch2.exch nextCtrl=NONE top=WIDGET,exch1 right=FORM tooltip=", tip, "maxWidth=exch1>"
 		" <button name=exch3.exch nextCtrl=NONE top=WIDGET,exch2 right=FORM tooltip=", tip, "maxWidth=exch2>"
-		" <button name=del.exch   nextCtrl=NONE top=OPPOSITE,tb right=FORM title=X tooltip='Clear inventory' maxWidth=exch3>"
+		" <button name=del.exch   nextCtrl=NONE top=OPPOSITE,tb title='X' right=FORM tooltip='Clear inventory' maxWidth=exch3>"
 		"</tab>"
 		"<tooltip name=info delayTime=", SITV_TooltipManualTrigger, " displayTime=10000 toolTipAnchor=", SITV_TooltipFollowMouse, ">"
 	);
@@ -1015,6 +1060,9 @@ void mcuiCreateInventory(Inventory player)
 	mcui.toolTip = SIT_GetById(diag, "info");
 	mcui.selCount = 0;
 	mcui.groupCount = 0;
+	mcui.groupOther = 0;
+	mcui.curDialog = diag;
+	mcui.resize = mcuiResizeCreativeInv;
 	mcui.cb = NULL;
 
 	static struct MCInventory_t mcinv = {.invRow = 6, .invCol = MAXCOLINV, .movable = INV_PICK_ONLY};
@@ -1041,17 +1089,11 @@ void mcuiCreateInventory(Inventory player)
 		/* tab icons:           build     deco        redstone       crops          rails      search/all */
 		static ItemID_t blockId[] = {ID(45,0), ID(175,15), ITEMID(331,0), ITEMID(260,0), ID(27, 0), ITEMID(345,0)};
 		SIT_Widget w = SIT_TabGetNth(tab, i);
-
-		SIT_SetValues(w, SIT_LabelSize, SITV_LabelSize(mcui.cellSz, mcui.cellSz), SIT_UserData, (APTR) blockId[i], NULL);
+		SIT_SetValues(w, SIT_UserData, (APTR) blockId[i], NULL);
 		SIT_AddCallback(w, SITE_OnPaint, mcuiGrabItemCoord, NULL);
 	}
 
-	SIT_SetAttributes(diag,
-		"<exch1 height=", mcui.cellSz, ">"
-		"<exch2 height=", mcui.cellSz, ">"
-		"<exch3 height=", mcui.cellSz, ">"
-		"<del   height=", mcui.cellSz, ">"
-	);
+	mcuiResizeCreativeInv(diag, NULL, NULL);
 	SIT_GetValues(mcinv.cell, SIT_Padding, mcui.padding, NULL);
 	mcui.itemSz = mcui.cellSz - mcui.padding[0] - mcui.padding[2];
 
@@ -1128,6 +1170,7 @@ void mcuiEditChestInventory(Inventory player, Item items, int count, Block type)
 		NULL
 	);
 	mcui.groupCount = 0;
+	mcui.groupOther = 0;
 
 	if (strcmp(type->tech, "furnace") /* not a furnace type */)
 	{
@@ -1258,7 +1301,7 @@ void mcuiCreateSignEdit(vec4 pos, int blockId)
 	if (uv[1] > uv[3]) swap(uv[1], uv[3]);
 
 	int sz[2];
-	int height = mcui.height / 4;
+	int height = globals.height / 4;
 	int width  = height * (uv[2] - uv[0]) / (uv[3] - uv[1]);
 	int image  = renderGetTerrain(sz, NULL);
 	int fontsz = mcuiFontSize(globals.app, signText, width, (height - height / 10) / 4);
@@ -1335,7 +1378,7 @@ static int mcuiGrabItem(SIT_Widget w, APTR cd, APTR ud)
 	SIT_GetValues(w, SIT_RowTag(ocp->rowColumn>>8), &rowTag, NULL);
 
 	item->x = ocp->LTWH[0];
-	item->y = mcui.height - ocp->LTWH[1] - ocp->LTWH[3] + 1;
+	item->y = globals.height - ocp->LTWH[1] - ocp->LTWH[3] + 1;
 	item->id = (int) rowTag;
 	item->count = 1;
 	return 1;
@@ -1678,6 +1721,7 @@ void mcuiReplaceFillItems(SIT_Widget diag, MCInventory inv)
 	mcui.toolTip = SIT_GetById(diag, "info");
 	mcui.selCount = 0;
 	mcui.groupCount = 0;
+	mcui.groupOther = 0;
 	mcui.cb = NULL;
 	inv->items = mcui.allItems;
 }
