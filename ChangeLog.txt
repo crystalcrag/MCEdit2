@@ -1,6 +1,10 @@
 =========== Week 46 ===========
+Sun Nov 21:
+	* pixel art was FUBAR since last item ID refactoring.
+
 Sat Nov 20:
 	* moar screen resize debug: seems working correctly now.
+	* started ability to drop items in world.
 
 Fri Nov 19:
 	* better screen resize handling.

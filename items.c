@@ -328,6 +328,9 @@ STRPTR itemGetTechName(ItemID_t itemId, STRPTR out, int max, Bool addMeta)
 		else
 			itemId &= ~(ITEMID_FLAG-1);
 		ItemDesc desc = itemGetById(itemId);
+		if (! desc)
+			/* try without meta */
+			desc = itemGetById(ITEMID(ITEMNUM(itemId), 0));
 
 		if (desc) tech = desc->tech;
 	}
@@ -422,6 +425,21 @@ int itemGetInventoryByCat(Item buffer, int cat)
 	}
 
 	return item - buffer;
+}
+
+ItemID_t itemHasModel(Item item)
+{
+	ItemID_t ret = item->id;
+	if (item->id > 0)
+	{
+		if (isBlockId(item->id))
+		{
+			BlockState state = blockGetById(item->id);
+			if (state->inventory == 0)
+				return itemCanCreateBlock(item->id, NULL);
+		}
+	}
+	return ret;
 }
 
 /*

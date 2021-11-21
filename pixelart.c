@@ -24,15 +24,16 @@ struct
 {
 	SIT_Widget image;
 	SIT_Widget palette;
-	SIT_Widget icon, fill;
-	SIT_Widget selinfo;
+	SIT_Widget icon, fill, info;
+	SIT_Widget selinfo, cmapSz;
 	Item       allItems;
 	uint8_t    axis1, axis2, axisMin;
 	uint8_t    side;                    /* S, E, N, W, T, B */
 	int        rasterizeWith;
 	int        fillAir, stretch;
 	int        sizeX, sizeY;
-	int        itemsNb;
+	uint16_t   itemsNb;
+	uint16_t   itemSel;
 	int        selPalette;
 	TEXT       defImage[128];
 
@@ -129,6 +130,7 @@ static int pixArtSelInfo(SIT_Widget w, APTR cd, APTR ud)
 		static STRPTR sides[] = {"south", "east", "north", "west", "top", "bottom"};
 		sprintf(buffer, "%d x %dpx, %s face", pixArt.sizeX * MAP_SIZEPX, pixArt.sizeY * MAP_SIZEPX, sides[pixArt.side]);
 	}
+	strcat(buffer, ", ");
 	SIT_SetValues(pixArt.selinfo, SIT_Title, buffer, NULL);
 
 	/* change combobox content */
@@ -188,6 +190,35 @@ static int pixArtSavePal(SIT_Widget w, APTR cd, APTR ud)
 	return 1;
 }
 
+/* SITE_OnChange on palette */
+static int pixArtGetColorCount(SIT_Widget w, APTR cd, APTR ud)
+{
+	Item item, eof;
+	int  count;
+	TEXT buffer[32];
+	if (pixArt.rasterizeWith == PIXART_BLOCKS)
+		item = pixArt.allItems, eof = item + pixArt.itemsNb;
+	else
+		item = pixArt.allItems + pixArt.itemsNb, eof = item + 62;
+	for (count = 0; item < eof; count += item->added, item ++);
+	/* XXX confusing to see more colors than what is selected :-/ */
+	// if (pixArt.rasterizeWith == PIXART_MAPS)
+	//	count *= 4;
+	if (pixArt.itemSel != count)
+	{
+		switch (count) {
+		case 0:  strcpy(buffer, "no colors"); break;
+		case 1:  strcpy(buffer, "1 color"); break;
+		default: sprintf(buffer, "%d colors", count);
+		}
+		if (pixArt.itemSel >= 0 && (pixArt.itemSel < 2) != (count < 2))
+			SIT_SetValues(pixArt.cmapSz, SIT_Style, count < 2 ? "color: red" : "", NULL);
+		SIT_SetValues(pixArt.cmapSz, SIT_Title, buffer, NULL);
+		pixArt.itemSel = count;
+	}
+	return 1;
+}
+
 /* SITE_OnChange on palette combobox */
 static int pixArtChangePalette(SIT_Widget w, APTR cd, APTR ud)
 {
@@ -217,6 +248,7 @@ static int pixArtChangePalette(SIT_Widget w, APTR cd, APTR ud)
 		}
 		else itemId ++;
 	}
+	pixArtGetColorCount(NULL, NULL, NULL);
 	return 1;
 }
 
@@ -228,7 +260,7 @@ static int pixArtDrawMapColor(SIT_Widget w, APTR cd, APTR ud)
 	Item   item = ud;
 
 	nvgBeginPath(vg);
-	int sz = rect[2] * 3 / 4;
+	int sz = rect[2] >> 1;
 	int off = (rect[2] - sz) >> 1;
 	nvgStrokeWidth(vg, 2);
 	nvgFillColorRGBA8(vg, item->extra);
@@ -306,7 +338,7 @@ static int pixArtLoadImg(SIT_Widget w, APTR cd, APTR ud)
 #define SPP      4 /* samples per pixel */
 
 /* convert a RGBA image into a palette 8bpp image */
-static void pixArtToPalette(DATA8 pixels, int width, int height, DATA8 cmapRGB)
+static int pixArtToPalette(DATA8 pixels, int width, int height, DATA8 cmapRGB)
 {
 	/*
 	 * use a floyd-steinberg error diffusion matrix (3x2):
@@ -326,7 +358,7 @@ static void pixArtToPalette(DATA8 pixels, int width, int height, DATA8 cmapRGB)
 		for (j = 0, d = cmapRGB; j < 4; j ++)
 		{
 			uint8_t shade = mapShading[j];
-			for (s = mapRGB, i = 0, item = pixArt.allItems + pixArt.itemsNb; i < 64; i ++, s += 4)
+			for (s = mapRGB, i = 0, item = pixArt.allItems + pixArt.itemsNb; i < 64; i ++, s += 4, item ++)
 			{
 				/* alpha == 0 => invisible: don't care */
 				if (item->added == 0 || s[3] == 0x00) continue;
@@ -359,6 +391,16 @@ static void pixArtToPalette(DATA8 pixels, int width, int height, DATA8 cmapRGB)
 		}
 		cmapRGB += 32*32*4;
 		cmapEOF = cmap;
+	}
+	if (cmapRGB + 4 >= cmapEOF)
+	{
+		/* not enough colors selected (0 or 1): show a tooltip of the problem */
+		SIT_SetValues(pixArt.info,
+			SIT_Visible, True,
+			SIT_Title,   "Not enough colors selected",
+			NULL
+		);
+		return 0;
 	}
 
 	/* perform dithering with a fixed colormap */
@@ -436,6 +478,7 @@ static void pixArtToPalette(DATA8 pixels, int width, int height, DATA8 cmapRGB)
 			else *d++ = best[3]; /* 8bpp */
 		}
 	}
+	return 1;
 }
 
 /* create map on disk from slice of picture */
@@ -493,10 +536,12 @@ static void pixArtGenerateMaps(DATA8 data, int width, int height)
 		fabsf(points[VY] - points[VY+4]) + 1,
 		fabsf(points[VZ] - points[VZ+4]) + 1
 	};
-	uint8_t axis1 = pixArt.axisMin;
-	uint8_t axis2 = pixArt.axis2;
-	uint8_t i, j;
-	vec4    pos;
+	uint8_t  axis1 = pixArt.axisMin;
+	uint8_t  axis2 = pixArt.axis2;
+	uint8_t  i, j;
+	ItemID_t itemFrame = itemGetByName("item_frame", False);
+	ItemID_t fillMap = itemGetByName("filled_map", False);
+	vec4     pos;
 
 	pos[axis1] = minAxis[pixArt.side] ? points[axis1] : points[axis1+4];
 	axis1 = pixArt.axis1;
@@ -507,9 +552,9 @@ static void pixArtGenerateMaps(DATA8 data, int width, int height)
 		pos[axis1] = pos[3];
 		for (i = 0; i < size[axis1]; i ++, pos[axis1] ++)
 		{
-			int entityId = entityCreate(globals.level, ID(389, 0), pos, pixArt.side);
+			int entityId = entityCreate(globals.level, itemFrame, pos, pixArt.side);
 			int mapId = pixArtCreateMap(data, width, height, i, j);
-			entityUseItemOn(globals.level, entityId, ID(358, mapId), pos);
+			entityUseItemOn(globals.level, entityId, fillMap | mapId, pos);
 		}
 	}
 }
@@ -569,7 +614,7 @@ static int pixArtGenerate(SIT_Widget w, APTR cd, APTR ud)
 	NVGCTX vg;
 	NVGFBO fbo;
 	int    dstWidth, dstHeight, image;
-	int    srcWidth, srcHeight;
+	int    srcWidth, srcHeight, done;
 
 	if (! SIT_GetCSSValue(pixArt.icon, "background-image", &image)) /* NVG image handle */
 		return 0;
@@ -589,6 +634,7 @@ static int pixArtGenerate(SIT_Widget w, APTR cd, APTR ud)
 			dstWidth = dstHeight * srcWidth / srcHeight;
 	}
 
+	done = 0;
 	fbo = nvgluCreateFramebuffer(vg, dstWidth, dstHeight, 0);
 
 	if (fbo)
@@ -610,10 +656,11 @@ static int pixArtGenerate(SIT_Widget w, APTR cd, APTR ud)
 		/* second: convert the texture to palette using floyd-steinberg dithering */
 		if (pixArt.rasterizeWith == PIXART_MAPS)
 		{
-			pixArtToPalette(data, dstWidth, dstHeight, NULL);
-			pixArtGenerateMaps(data, dstWidth, dstHeight);
+			done = pixArtToPalette(data, dstWidth, dstHeight, NULL);
+			if (done)
+				pixArtGenerateMaps(data, dstWidth, dstHeight);
 		}
-		else
+		else /* using blocks */
 		{
 			int size[2], level, texId;
 			DATA8 cmap;
@@ -624,12 +671,15 @@ static int pixArtGenerate(SIT_Widget w, APTR cd, APTR ud)
 			glBindTexture(GL_TEXTURE_2D, texId);
 			glGetTexImage(GL_TEXTURE_2D, level, GL_RGBA, GL_UNSIGNED_BYTE, cmap);
 
-			pixArtToPalette(data, dstWidth, dstHeight, cmap); free(cmap);
-			pixArtGenerateBlocks(data, dstWidth, dstHeight);
+			done = pixArtToPalette(data, dstWidth, dstHeight, cmap);
+			free(cmap);
+			if (done > 0)
+				pixArtGenerateBlocks(data, dstWidth, dstHeight);
 		}
 		free(data);
 	}
-	SIT_Exit(1);
+	if (done)
+		SIT_Exit(1);
 	return 1;
 }
 
@@ -671,6 +721,7 @@ void mcuiShowPixelArt(vec4 playerPos)
 		"<label name=save.big title='(<a href=#>Save</a>)' bottom=OPPOSITE,msg2 right=OPPOSITE,palette>"
 		"<label name=msg3.big title=Selection: top=WIDGET,icon,0.5em>"
 		"<label name=selinfo top=OPPOSITE,msg3 left=WIDGET,msg3,0.3em>"
+		"<label name=cmapsz top=OPPOSITE,msg3 left=WIDGET,selinfo>"
 		"<canvas composited=1 name=inv.inv top=WIDGET,msg3,0.5em nextCtrl=LAST/>"
 		"<button name=load title='Load image' top=WIDGET,inv,0.5em>"
 		"<button name=ko title=Cancel buttonType=", SITV_CancelButton, "top=OPPOSITE,load right=FORM>"
@@ -730,21 +781,26 @@ void mcuiShowPixelArt(vec4 playerPos)
 	SIT_GetValues(diag, SIT_UserData, &pixArt.allItems, NULL);
 	pixArt.palette = SIT_GetById(diag, "palette");
 	pixArt.selinfo = SIT_GetById(diag, "selinfo");
+	pixArt.cmapSz  = SIT_GetById(diag, "cmapsz");
 	pixArt.icon    = SIT_GetById(diag, "icon");
+	pixArt.info    = SIT_GetById(diag, "info");
 	pixArt.fill    = SIT_GetById(diag, "ok");
 	pixArt.axis1   = axis1;
 	pixArt.axis2   = axis2;
 	pixArt.sizeX   = size[axis1];
 	pixArt.sizeY   = size[axis2];
+	pixArt.itemSel = -1;
 
 	int old = pixArt.selPalette;
 	SIT_AddCallback(pixArt.palette, SITE_OnChange,   pixArtChangePalette, &mcinv);
 	SIT_AddCallback(pixArt.fill,    SITE_OnActivate, pixArtGenerate,      NULL);
 
+	SIT_Widget inv = SIT_GetById(diag, "inv");
 	mcuiReplaceFillItems(diag, &mcinv);
 	pixArtFillMapColors(&mcinv);
-	mcuiInitInventory(SIT_GetById(diag, "inv"), &mcinv, 1);
+	mcuiInitInventory(inv, &mcinv, 1);
 	mcuiResetScrollbar(&mcinv);
+	SIT_AddCallback(inv, SITE_OnChange, pixArtGetColorCount, NULL);
 
 	SIT_AddCallback(SIT_GetById(diag, "blocks"), SITE_OnActivate, pixArtSelInfo, &mcinv);
 	SIT_AddCallback(SIT_GetById(diag, "maps"),   SITE_OnActivate, pixArtSelInfo, &mcinv);
@@ -765,4 +821,3 @@ void mcuiShowPixelArt(vec4 playerPos)
 
 	SIT_ManageWidget(diag);
 }
-

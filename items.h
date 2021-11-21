@@ -33,6 +33,7 @@ ItemID_t itemGetByName(STRPTR name, Bool forInventory);
 int      itemAddCount(Item, int add);
 int      itemMaxDurability(Item);
 float    itemDurability(Item);
+ItemID_t itemHasModel(Item);
 STRPTR   itemGetTechName(ItemID_t id, STRPTR out, int max, Bool addMeta);
 void     itemDecodeEnchants(DATA8 nbt, STRPTR title, int max);
 int      itemGetInventoryByCat(Item buffer, int cat);

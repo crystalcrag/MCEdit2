@@ -70,11 +70,12 @@ void debugLoadSaveState(STRPTR path, Bool load);
 
 enum /* possible flags for paramter <what> of debugToggleInfo() (side view) and renderShowBlockInfo() */
 {
-	DEBUG_BLOCK     = 1,
-	DEBUG_LIGHT     = 2,
-	DEBUG_CHUNK     = 3,
-	DEBUG_SELECTION = 4,
-	DEBUG_NOCLUTTER = 8
+	DEBUG_BLOCK     = 1,       /* show tooltip about block selected */
+	DEBUG_LIGHT     = 2,       /* 2d view */
+	DEBUG_CHUNK     = 3,       /* 2d view */
+	DEBUG_SELECTION = 4,       /* force block selection */
+	DEBUG_NOCLUTTER = 8,       /* remove all HuD elements */
+	DEBUG_SHOWITEM  = 16       /* show entity preview and info */
 };
 
 /* chunk transfer to GPU */

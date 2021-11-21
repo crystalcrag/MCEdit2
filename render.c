@@ -96,6 +96,7 @@ static void renderSelection(void)
 		ItemID_t id = item->id;
 		vec4     loc;
 
+		/* pointing too far away */
 		if ((render.selection.selFlags & SEL_POINTTO) == 0)
 			return;
 
@@ -299,7 +300,7 @@ void renderSetSelectionPoint(int action)
 		break;
 
 	case RENDER_SEL_AUTO:
-		if (render.selection.selFlags & SEL_POINTTO)
+		if ((render.selection.selFlags & SEL_POINTTO) && render.selection.extra.entity == 0)
 		{
 			selectionAutoSelect(render.selection.current, render.scale);
 			render.invCache ++;
@@ -757,6 +758,18 @@ void renderShowBlockInfo(Bool show, int what)
 {
 	if (show)
 	{
+		if (what & DEBUG_SHOWITEM)
+		{
+			/* check if it is possible to show an item */
+			Inventory inv = render.inventory;
+			if (inv->selected < 9)
+			{
+				ItemID_t itemId = itemHasModel(inv->items + inv->selected);
+				if (itemId > 0)
+					fprintf(stderr, "can place item %d:%d in world\n", itemId >> 4, itemId & 15);
+			}
+			return;
+		}
 		render.debugInfo |= what;
 		if (what & DEBUG_BLOCK)
 		{

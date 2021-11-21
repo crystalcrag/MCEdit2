@@ -168,26 +168,23 @@ void cartoCommitNewMaps(void)
 {
 	if (cartograph.lastMapId > 0 && cartograph.lastMapId > cartograph.lastIdCount)
 	{
-		/* no need to alloc anything that way */
-		uint8_t buffer[64];
-		struct NBTFile_t nbt = {.mem = buffer, .max = sizeof buffer};
+		/* idcounts.dat is an uncompressed NBT file: hardcode content */
+		static uint8_t buffer[] = {0x0A, 0, 0, 0x02, 0, 0x03, 'm', 'a', 'p', 0, 0, 0};
 
 		/* update idcounts.dat */
-		NBT_Add(&nbt,
-			TAG_Compound, "",
-				TAG_Short, "map", cartograph.lastMapId,
-			TAG_Compound_End
-		);
 		FILE * out = fopen_base(globals.level->path, "../data/idcounts.dat", "wb");
+		int    i   = cartograph.lastMapId;
+		buffer[sizeof buffer-3] = i >> 8;
+		buffer[sizeof buffer-2] = i & 255;
 		if (out)
 		{
-			fwrite(buffer, 1, nbt.usage, out);
+			fwrite(buffer, 1, sizeof buffer, out);
 			fclose(out);
-		}
 
-		/* clear temp flag */
-		Cartograph map;
-		for (nbt.usage = 0, map = cartograph.maps; nbt.usage < cartograph.count; map->temp = 0, nbt.usage ++, map ++);
+			/* clear temp flag */
+			Cartograph map;
+			for (i = cartograph.count, map = cartograph.maps; i > 0; map->temp = 0, i --, map ++);
+		}
 	}
 }
 

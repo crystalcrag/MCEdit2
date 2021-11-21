@@ -344,6 +344,7 @@ int main(int nb, char * argv[])
 		SIT_AddFont,     "sans-serif-bold", "system/Bold",
 		SIT_AccelTable,  accels,
 		SIT_ExitCode,    &mcedit.exit,
+		SIT_SetAppIcon,  1,
 		NULL
 	);
 	SIT_GetValues(globals.app, SIT_NVGcontext, &globals.nvgCtx, NULL);
@@ -509,6 +510,9 @@ void mceditWorld(void)
 					if (globals.selPoints & 8)
 						selectionCopyBlocks(NULL, NULL, NULL);
 					break;
+				case SDLK_LSHIFT:
+					renderShowBlockInfo(True, DEBUG_SHOWITEM);
+					// no break;
 				default:
 					key = SDLKtoSIT(event.key.keysym.sym);
 					if (selectionProcessKey(key, SDLMtoSIT(event.key.keysym.mod)))
@@ -699,7 +703,7 @@ void mceditPlaceBlock(void)
 
 	if (p->inventory.offhand & PLAYER_TOOLBAR)
 	{
-		/* click while hovering slot from toolbar */
+		/* click while hovering slot from toolbar: select slot */
 		if (p->inventory.hoverSlot == 9)
 		{
 			/* hovering off-hand */
@@ -710,7 +714,7 @@ void mceditPlaceBlock(void)
 			}
 			else p->inventory.offhand ^= PLAYER_ALTPOINT;
 		}
-		else
+		else /* hovering toolbar slot */
 		{
 			playerScrollInventory(p, p->inventory.hoverSlot - p->inventory.selected);
 			if (globals.selPoints < 3)
@@ -725,7 +729,7 @@ void mceditPlaceBlock(void)
 
 	if (globals.selPoints & 8)
 	{
-		/* move clone brush instead */
+		/* clone brush active: move brush instead */
 		if (sel) selectionSetClonePt(pos, sel->side|SEL_CLONEMOVE_STOP);
 		return;
 	}
@@ -755,7 +759,7 @@ void mceditPlaceBlock(void)
 	if (sel->entity > 0) /* pointing at an entity */
 	{
 		if (id == 0 /* no block selected in inventory bar */)
-			entityDeleteById(globals.level, sel->entity - 1);
+			entityDeleteById(globals.level, sel->entity);
 		else
 			entityUseItemOn(globals.level, sel->entity, item->id, pos);
 	}

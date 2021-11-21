@@ -516,22 +516,25 @@ void playerAddInventory(Player p, ItemID_t blockId, DATA8 tileEntity)
 {
 	if (blockId >= 0)
 	{
-		BlockState b = blockGetById(blockId);
 		Item item;
 
 		if (blockId > 0)
 		{
-			if (b->inventory == 0)
+			if (isBlockId(blockId))
 			{
-				/* this block is not supposed to be in inventory, check for alternative */
-				int invId = blockAdjustInventory(blockId);
-				/* that entire block type can't be used as an inventory item */
-				if (invId == 0 && (invId = itemCanCreateBlock(blockId, NULL)) == blockId)
-					return;
+				BlockState b = blockGetById(blockId);
+				if (b->inventory == 0)
+				{
+					/* this block is not supposed to be in inventory, check for alternative */
+					int invId = blockAdjustInventory(blockId);
+					/* that entire block type can't be used as an inventory item */
+					if (invId == 0 && (invId = itemCanCreateBlock(blockId, NULL)) == blockId)
+						return;
 
-				if (invId == 0)
-					return;
-				blockId = invId;
+					if (invId == 0)
+						return;
+					blockId = invId;
+				}
 			}
 
 			/* check if it is already in inventory */

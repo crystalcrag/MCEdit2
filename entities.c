@@ -1217,21 +1217,25 @@ static void entityMarkListAsModified(Map map, Chunk c)
 }
 
 /* delete entity from memory and NBT */
-void entityDeleteById(Map map, int id)
+void entityDeleteById(Map map, int entityId)
 {
 	EntityBuffer buffer;
 	Entity entity;
 	Chunk c;
 
-	int i = id >> ENTITY_SHIFT;
+	if (entityId == 0) return;
+	entityId --;
+
+	int i = entityId >> ENTITY_SHIFT;
+	int slot = entityId & (ENTITY_BATCH-1);
 	for (buffer = HEAD(entities.list); i > 0; i --, NEXT(buffer));
-	id &= ENTITY_BATCH-1;
-	entity = buffer->entities + id;
+	entity = buffer->entities + slot;
 	c = mapGetChunk(map, entity->pos);
 
 	if (c)
 	{
 		DATA16 prev;
+		/* mark the chunk as needing to be saved */
 		entityMarkListAsModified(map, c);
 
 		/* unlink from chunk active entities */
@@ -1245,7 +1249,7 @@ void entityDeleteById(Map map, int id)
 				/* unlink from chunk linked list */
 				if (entity->special != ENTYPE_FILLEDMAP)
 				{
-					prev = entityGetPrev(c, entity, id);
+					prev = entityGetPrev(c, entity, entityId);
 					*prev = entity->next;
 				}
 
@@ -1258,23 +1262,23 @@ void entityDeleteById(Map map, int id)
 				/* item in frame is about to be deleted, modify item frame entity then */
 				if (entity->ref)
 					entity = entity->ref;
-				/* NBT compound from item and frame is the same */
 				entity->tile = nbt.mem;
-				entity->special = ENTYPE_FRAME;
+				/* NBT compound from item and frame is the same */
 				if (entity->special == ENTYPE_FILLEDMAP)
 				{
 					/* map removed from item frame: reset frame model to normal */
+					entity->special = ENTYPE_FRAME;
 					entity->VBObank = hashSearch(ITEMID(ENTITY_ITEMFRAME, 0));
 					entity->special = 0;
 					entityResetModel(entity);
-					cartoDelMap(id+1);
+					cartoDelMap(entityId+1);
 				}
-				else entityClear(buffer, id);
+				else entityClear(buffer, slot);
 			}
 		}
 		else
 		{
-			prev = entityGetPrev(c, entity, id);
+			prev = entityGetPrev(c, entity, entityId);
 			*prev = entity->next;
 			/* item in item frame: also delete */
 			if (entity->next != ENTITY_END)
@@ -1288,7 +1292,7 @@ void entityDeleteById(Map map, int id)
 			}
 
 			chunkDeleteTile(c, entity->tile);
-			entityClear(buffer, id);
+			entityClear(buffer, slot);
 		}
 	}
 }
@@ -1619,9 +1623,9 @@ void entityUseItemOn(Map map, int entityId, ItemID_t itemId, vec4 pos)
 			tile.mem = NULL;
 			tile.page = 127;
 			itemGetTechName(itemId, buffer, sizeof buffer, True);
-			STRPTR sep = strchr(buffer, ':');
-			if (sep) meta = atoi(sep+1), sep[0] = 0;
-			else     meta = 0;
+			STRPTR sep = strrchr(buffer, ':');
+			if (sep && isdigit(sep[1])) meta = atoi(sep+1), sep[0] = 0;
+			else meta = 0;
 			NBT_Add(&tile,
 				TAG_Raw_Data, NBT_Size(entity->tile), entity->tile,
 				TAG_Compound, "Item",
@@ -1631,12 +1635,12 @@ void entityUseItemOn(Map map, int entityId, ItemID_t itemId, vec4 pos)
 					TAG_Compound_End
 			);
 			NBT_Add(&tile, TAG_Compound_End); /* end of whole entity */
-			//NBT_DumpCompound(&tile);
+			NBT_DumpCompound(&tile);
 			chunkDeleteTile(chunk, entity->tile);
 			entity->name = NBT_Payload(&tile, NBT_FindNode(&tile, 0, "id"));
 			entity->tile = tile.mem;
 			entity->blockId = itemId | ENTITY_ITEM;
-			entity->special = strcmp(buffer, "filled_map") == 0 ? ENTYPE_FILLEDMAP : ENTYPE_FRAMEITEM;
+			entity->special = strcmp(buffer, "minecraft:filled_map") == 0 ? ENTYPE_FILLEDMAP : ENTYPE_FRAMEITEM;
 			uint16_t next = entity->next;
 			entity = entityItemFrameAddItem(entity, entityId);
 			entity->next = next;

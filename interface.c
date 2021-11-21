@@ -370,7 +370,11 @@ static int mcuiInventoryMouse(SIT_Widget w, APTR cd, APTR ud)
 				inv->curX = cellx;
 				inv->curY = celly;
 				old = inv->items + inv->top + cellx + celly * inv->invCol;
-				old->added = mcui.dragOneItem;
+				if (old->added != mcui.dragOneItem)
+				{
+					old->added = mcui.dragOneItem;
+					SIT_ApplyCallback(w, NULL, SITE_OnChange);
+				}
 				SIT_ForceRefresh();
 			}
 		}
@@ -474,6 +478,7 @@ static int mcuiInventoryMouse(SIT_Widget w, APTR cd, APTR ud)
 				{
 					old->added ^= 1;
 					mcui.dragOneItem = old->added;
+					SIT_ApplyCallback(w, NULL, SITE_OnChange);
 					SIT_ForceRefresh();
 					return 2;
 				}
@@ -875,7 +880,12 @@ static int mcuiInventoryKeyboard(SIT_Widget w, APTR cd, APTR ud)
 			case INV_SINGLE_DROP: mcuiTransferFromInventory(inv); break;
 			case INV_SELECT_ONLY:
 				x += y * inv->invCol;
-				if (x < inv->itemsNb) inv->items[x].added ^= 1, SIT_ForceRefresh();;
+				if (x < inv->itemsNb)
+				{
+					inv->items[x].added ^= 1;
+					SIT_ForceRefresh();
+					SIT_ApplyCallback(w, NULL, SITE_OnChange);
+				}
 			}
 			return 0;
 		default: return 0;
