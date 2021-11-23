@@ -35,7 +35,7 @@ struct MCInterface_t
 {
 	SIT_Widget   toolTip;
 	SIT_Widget   curDialog;
-	SIT_CallProc cb;
+	SIT_CallProc transfer;
 	SIT_CallProc resize;
 	MCInventory  groups[10];
 	uint8_t      groupCount;

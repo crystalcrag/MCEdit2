@@ -4,7 +4,7 @@
  * Written by T.Pierron, Dec 2019
  */
 
-#define STB_IMAGE_WRITE_IMPLEMENTATION
+#define PNGWRITE_IMPL
 #define STBIW_CRC32(x, y)    crc32(0, x, y);
 #include <glad.h>
 #include <stdio.h>
@@ -14,7 +14,7 @@
 #include <zlib.h>
 #include "utils.h"
 #include "nanovg.h" /* contains stb_image */
-#include "stb_image_write.h"
+#include "PNGWrite.h"
 
 static void textureGenMipmap(DATA8 data, int w, int h, int bpp)
 {

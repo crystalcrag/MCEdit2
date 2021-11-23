@@ -699,14 +699,12 @@ void mapUpdateToBlock36(Map map, RSWire list, int count, int dir, BlockIter iter
 
 		entityUpdateOrCreate(iter.ref, src, (list->blockId << 4) | list->data, dst, 1, tile.mem);
 
-		#if 0
-		/* also replace destination block XXX why (2021-07-30) ? */
+		/* also replace destination block to prevent other pistons to place block here */
 		mapIter(&iter, off[0], off[1], off[2]);
 		uint8_t block = iter.blockIds[iter.offset];
 		if (block != RSPISTONEXT && block != RSPISTONHEAD)
-			fprintf(stderr, "adding extra block 36 (from %s) at %g,%g,%g\n", blockName, dst[0], dst[1], dst[2]),
+//			fprintf(stderr, "adding extra block 36 (from %s) at %g,%g,%g\n", blockName, dst[0], dst[1], dst[2]),
 			mapUpdate(map, dst, ID(RSPISTONEXT, 0), NULL, UPDATE_KEEPLIGHT);
-		#endif
 	}
 }
 

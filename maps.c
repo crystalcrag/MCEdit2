@@ -418,7 +418,7 @@ Bool mapPointToObject(Map map, vec4 camera, vec4 dir, vec4 ret, MapExtraData dat
 		uint8_t  faces = check ? flags^63 : flags;
 
 		/* check intersection with all planes */
-		for (i = 0, norm = normals, box = blockGetBBox(blockGetById(block)); i < 6; i ++, norm += 4)
+		for (i = 0, norm = normals, box = blockGetBBoxForVertex(blockGetById(block)); i < 6; i ++, norm += 4)
 		{
 			vec4 inter, V0, V1;
 			/* we can already eliminate some planes based on the ray direction */

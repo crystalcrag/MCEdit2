@@ -497,7 +497,7 @@
 		{state:14, name: "+red",            tex: [1, 8, 1, 8, 1, 8, 1, 8, 1, 8, 1, 8]},
 		{state:15, name: "+black",          tex: [1, 7, 1, 7, 1, 7, 1, 7, 1, 7, 1, 7]},
 
-	{id: 36, name: "Block 36", type: INVIS, opacSky: 15, tech: "piston_extension", pushable: NO}, /* block moved by piston */
+	{id: 36, name: "Block 36", type: INVIS, tech: "piston_extension", pushable: NO}, /* block moved by piston */
 
 	{id: 37, name: "Dandelion", type: QUAD, inv: ITEM2D, cat: DECO, tech: "yellow_flower", placement: "dirt,grass", density: PLANTS, pushable: DROPITEM, special: JITTER},
 		{state: 0, tex: [13, 0], quad: [CROSS]},

@@ -1,6 +1,12 @@
+=========== Week 47 ===========
+Mon Nov 22:
+	* bug fixing screen resize continued.
+
 =========== Week 46 ===========
 Sun Nov 21:
 	* pixel art was FUBAR since last item ID refactoring.
+	* replaced stb_image_write.h with zlib.dll.
+	* save icon in dithered colormap format: file size divided by 3.
 
 Sat Nov 20:
 	* moar screen resize debug: seems working correctly now.

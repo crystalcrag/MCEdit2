@@ -51,7 +51,7 @@ static void takeScreenshot(void)
 		sprintf(path + len - 4, "_%d.png", num);
 		num ++;
 	}
-	textureSaveSTB(path, globals.width, globals.height, 3, buffer, globals.width*3);
+	textureSavePNG(path, buffer, 0, globals.width, globals.height, 3);
 	fprintf(stderr, "screenshot saved in %s\n", path);
 	free(buffer);
 }
@@ -358,7 +358,7 @@ int main(int nb, char * argv[])
 	}
 
 //	globals.level = renderInitWorld("TestMesh", mcedit.maxDist);
-	globals.level = renderInitWorld("World1_12", mcedit.maxDist);
+	globals.level = renderInitWorld("World5", mcedit.maxDist);
 	globals.yawPitch = &mcedit.player.angleh;
 	mcedit.state  = GAMELOOP_WORLD;
 	wayPointsRead();

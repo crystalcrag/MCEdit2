@@ -1650,7 +1650,7 @@ VTXBBox blockGetBBox(BlockState b)
 	if (b->special == BLOCK_FENCE || b->special == BLOCK_FENCE2)
 	{
 		/* use a simplified bounding box for fence (note: NOCONNECT == fence gate) */
-		return blocks.bboxExact + ((blockIds[b->id>>4].special & BLOCK_NOCONNECT) ? index : 12);
+		return blocks.bboxExact + ((blockIds[b->id>>4].special & BLOCK_NOCONNECT) ? index : 21);
 	}
 	return index == 0 ? NULL : blocks.bboxExact + index;
 }

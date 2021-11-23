@@ -141,7 +141,8 @@ int  textureGen(DATA8 data, int w, int h, int bpp);
 void textureDump(int glTex, int w, int h);
 
 /* texture save */
-int textureSaveSTB(char const * filename, int x, int y, int comp, const void *data, int stride_bytes);
+int textureSavePNG(const char * path, DATA8 pixels, int stride, int width, int height, int bpp);
+int textureConvertToCMap(DATA8 bitmap, int width, int height);
 
 /* misc. */
 #ifdef __GNUC__

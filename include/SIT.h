@@ -276,7 +276,6 @@ enum
 	SIT_EditType         = 77,   /* C__: Int */
 	SIT_ReadOnly         = 78,   /* CSG: Bool */
 	SIT_PlaceHolder      = 79,   /* CSG: String */
-	SIT_HotKey           = 80,   /* CSG: Int */
 	SIT_StartSel         = 81,   /* CSG: Int */
 	SIT_EndSel           = 82,   /* CSG: Int */
 	SIT_EditBuffer       = 83,   /* C__: String */

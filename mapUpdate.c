@@ -566,9 +566,15 @@ static void mapUpdateRestoreSky(BlockIter iterator)
 {
 	struct BlockIter_t iter = *iterator;
 
-	mapIter(&iter, 0, 1, 0);
-	uint8_t sky = mapGetSky(&iter);
-	if (0 < sky && sky < MAXSKY) sky --;
+	uint8_t i, sky;
+	for (i = sky = 0; i < 5; i ++)
+	{
+		mapIter(&iter, xoff[i], yoff[i], zoff[i]);
+		uint8_t val = mapGetSky(&iter);
+		if (i == 4 && val == MAXSKY) sky = MAXSKY+1; else
+		if (sky < val) sky = val;
+	}
+	if (sky > 0) sky --;
 	mapUpdateTable(iterator, sky, SKYLIGHT_OFFSET);
 	DATA32 height = &iter.ref->heightMap[CHUNK_BLOCK_POS(iter.x, iter.z, 0)];
 	if (sky == MAXSKY && height[0] == iter.yabs)

@@ -65,7 +65,11 @@ void mcuiTakeSnapshot(int width, int height)
 
 	mcui.width = width;
 	mcui.height = height;
+	mcui.selCount = 0;
+	mcui.groupCount = 0;
+	mcui.groupOther = 0;
 	mcui.resize = NULL;
+	mcui.transfer = NULL;
 
 	TEXT style[64];
 	sprintf(style, "background: id(%d); background-size: 100%% 100%%", mcui.nvgImage);
@@ -485,10 +489,10 @@ static int mcuiInventoryMouse(SIT_Widget w, APTR cd, APTR ud)
 			}
 			else if (msg->flags & SITK_FlagShift)
 			{
-				if (mcui.cb)
+				if (mcui.transfer)
 				{
 					/* transfer item to other inventory usually */
-					if (mcui.cb(w, inv, (APTR) cellx))
+					if (mcui.transfer(w, inv, (APTR) cellx))
 						SIT_ForceRefresh();
 				}
 				else if (inv->groupId)
@@ -1068,12 +1072,8 @@ void mcuiCreateInventory(Inventory player)
 
 	/* callbacks registration */
 	mcui.toolTip = SIT_GetById(diag, "info");
-	mcui.selCount = 0;
-	mcui.groupCount = 0;
-	mcui.groupOther = 0;
 	mcui.curDialog = diag;
 	mcui.resize = mcuiResizeCreativeInv;
-	mcui.cb = NULL;
 
 	static struct MCInventory_t mcinv = {.invRow = 6, .invCol = MAXCOLINV, .movable = INV_PICK_ONLY};
 
@@ -1179,8 +1179,6 @@ void mcuiEditChestInventory(Inventory player, Item items, int count, Block type)
 		SIT_DialogStyles, SITV_Plain | SITV_Modal,
 		NULL
 	);
-	mcui.groupCount = 0;
-	mcui.groupOther = 0;
 
 	if (strcmp(type->tech, "furnace") /* not a furnace type */)
 	{
@@ -1236,8 +1234,7 @@ void mcuiEditChestInventory(Inventory player, Item items, int count, Block type)
 	);
 
 	mcui.toolTip = SIT_GetById(diag, "info");
-	mcui.selCount = 0;
-	mcui.cb = mcuiTransferItems;
+	mcui.transfer = mcuiTransferItems;
 
 	selfinv.items = player->items + MAXCOLINV;
 	toolbar.items = player->items;
@@ -1729,10 +1726,6 @@ void mcuiReplaceFillItems(SIT_Widget diag, MCInventory inv)
 
 	inv->scroll = SIT_GetById(diag, "scroll");
 	mcui.toolTip = SIT_GetById(diag, "info");
-	mcui.selCount = 0;
-	mcui.groupCount = 0;
-	mcui.groupOther = 0;
-	mcui.cb = NULL;
 	inv->items = mcui.allItems;
 }
 
@@ -2371,7 +2364,12 @@ static int mcuiInfoSetIcon(SIT_Widget w, APTR cd, APTR ud)
 		nvgluDeleteFramebuffer(fbo);
 
 		AddPart(path, "../icon.png", 1e6);
-		textureSaveSTB(path, PACKPNG_SIZE, PACKPNG_SIZE, 3, data, PACKPNG_SIZE*3);
+		/* save some space by converting image to colormap */
+		width = textureConvertToCMap(path, PACKPNG_SIZE, PACKPNG_SIZE);
+		if (width > 0)
+			textureSavePNG(path, data, PACKPNG_SIZE*3, PACKPNG_SIZE, PACKPNG_SIZE, - width);
+		else
+			textureSavePNG(path, data, PACKPNG_SIZE*3, PACKPNG_SIZE, PACKPNG_SIZE, 3);
 		free(data);
 
 		/* update interface too (note: it is set twice to reset cache from SITGL) */
