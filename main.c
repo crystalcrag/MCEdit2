@@ -358,7 +358,7 @@ int main(int nb, char * argv[])
 	}
 
 //	globals.level = renderInitWorld("TestMesh", mcedit.maxDist);
-	globals.level = renderInitWorld("World5", mcedit.maxDist);
+	globals.level = renderInitWorld("World1_12", mcedit.maxDist);
 	globals.yawPitch = &mcedit.player.angleh;
 	mcedit.state  = GAMELOOP_WORLD;
 	wayPointsRead();
@@ -861,7 +861,7 @@ void mceditUIOverlay(int type)
 				goto case_INV;
 
 			/* extract inventories from NBT structure */
-			switch (FindInList("chest,trapped_chest,shulker,ender_chest,dispenser,dropper,furnace,lit_furnace", tech, 0)) {
+			switch (FindInList("chest,trapped_chest,ender_chest,dispenser,dropper,furnace,lit_furnace", tech, 0)) {
 			case 0:
 			case 1:
 				/* possibly a double-chest */
@@ -885,7 +885,6 @@ void mceditUIOverlay(int type)
 					break;
 				}
 				// else no break;
-			case 2:
 			case_INV:
 				/* single chest */
 				itemCount = 27;
@@ -894,7 +893,7 @@ void mceditUIOverlay(int type)
 				memcpy(item + 27, item, 27 * sizeof *item);
 				mcuiEditChestInventory(&mcedit.player.inventory, item, 27, b);
 				break;
-			case 3: /* ender chest */
+			case 2: /* ender chest */
 				itemCount = 27;
 				enderItems = 1;
 				item = alloca(sizeof *item * 27 * 2);
@@ -902,17 +901,17 @@ void mceditUIOverlay(int type)
 				memcpy(item + 27, item, 27 * sizeof *item);
 				mcuiEditChestInventory(&mcedit.player.inventory, item, 27, b);
 				break;
-			case 4: /* dispenser */
-			case 5: /* dropper */
+			case 3: /* dispenser */
+			case 4: /* dropper */
 				itemCount = 9;
 				item = alloca(sizeof *item * 9 * 2);
 				mapDecodeItems(item, 9, mapLocateItems(sel));
 				memcpy(item + 9, item, 9 * sizeof *item);
 				mcuiEditChestInventory(&mcedit.player.inventory, item, 9, b);
 				break;
-			case 7: /* lit furnace */
+			case 6: /* lit furnace */
 				b --;
-			case 6: /* furnace */
+			case 5: /* furnace */
 				itemCount = 3;
 				item = alloca(sizeof *item * 3 * 2);
 				mapDecodeItems(item, 9, mapLocateItems(sel));

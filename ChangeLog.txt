@@ -1,4 +1,13 @@
 =========== Week 47 ===========
+Fri Nov 26:
+	* analyze command done.
+
+Wed Nov 24:
+	* added way to inspect group of similar containers in analyze command.
+
+Tue Nov 23:
+	* analyze command was FUBAR.
+
 Mon Nov 22:
 	* bug fixing screen resize continued.
 

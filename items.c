@@ -221,11 +221,11 @@ int itemAddCount(Item dest, int add)
 /* get item id that creates the given block id */
 ItemID_t itemCanCreateBlock(ItemID_t blockId, STRPTR * name)
 {
-	int i;
-	for (i = 0, blockId >>= 4; i < items.count; i ++)
+	int i, id = blockId >> 4;
+	for (i = 0; i < items.count; i ++)
 	{
 		ItemDesc desc = items.table + i;
-		if (desc->refBlock == blockId)
+		if (desc->refBlock == id)
 		{
 			if (name) *name = desc->name;
 			return desc->id;
@@ -249,12 +249,12 @@ float itemDurability(Item item)
 	else return 1;
 }
 
-int itemMaxDurability(Item item)
+int itemMaxDurability(ItemID_t id)
 {
-	if (isBlockId(item->id))
+	if (isBlockId(id))
 		return -1;
 
-	ItemDesc desc = itemGetById(item->id);
+	ItemDesc desc = itemGetById(id);
 
 	if (desc == NULL || desc->durability == 0)
 		return -1;

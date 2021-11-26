@@ -45,6 +45,8 @@ struct MCInterface_t
 	uint8_t      dragOneItem;
 	uint8_t      curTab;
 	uint8_t      maxItemSize;
+	uint8_t      clipItems;
+	int          clipRect[4];
 	int          cellSz;
 	int          itemSz;
 	int          width, height;

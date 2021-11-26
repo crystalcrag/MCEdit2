@@ -80,7 +80,7 @@ struct Block_t                   /* per id information */
 	uint8_t  gravity;            /* block affected by gravity */
 	uint8_t  pushable;           /* can be pushed by piston or /retracted by sticky piston */
 	uint8_t  updateNearby;       /* 6 nearby blocks can be changed if block is placed/deleted (chunk meshing optimization if not) */
-	uint8_t  bboxIgnoreBit;      /* ignore some states for player bounding box */
+	uint8_t  bboxIgnoreBit;      /* ignore some states for player bounding box (fence gate) */
 
 	float    density;            /* entity/particle physics */
 	float    viscosity;          /* semi-solid block with reduced gravity */

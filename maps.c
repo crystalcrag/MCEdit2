@@ -1055,7 +1055,7 @@ NBTHdr mapLocateItems(MapExtraData sel)
 }
 
 /* old save file (<1.8, I think), saved items in numeric format (as TAG_Short): convert these to strings */
-static STRPTR mapItemName(NBTFile nbt, int offset, TEXT itemId[16])
+STRPTR mapItemName(NBTFile nbt, int offset, TEXT itemId[16])
 {
 	NBTHdr hdr = NBT_Hdr(nbt, offset);
 	if (hdr->type != TAG_String)
@@ -1108,7 +1108,7 @@ void mapDecodeItems(Item container, int count, NBTHdr hdrItems)
 					item.id = (item.id & ~15) | b->invState;
 			}
 		}
-		if (item.uses > 0 && itemMaxDurability(&item) < 0)
+		if (item.uses > 0 && itemMaxDurability(item.id) < 0)
 			/* damage means meta-data from these items :-/ */
 			item.id += item.uses, item.uses = 0;
 		if (item.slot < count)
@@ -1195,7 +1195,7 @@ Bool mapSerializeItems(MapExtraData sel, STRPTR listName, Item items, int itemCo
 		NBT_Add(ret,
 			TAG_String, "id",     itemGetTechName(id, itemId, sizeof itemId, False),
 			TAG_Byte,   "Slot",   i,
-			TAG_Short,  "Damage", itemMaxDurability(items) > 0 ? items->uses : data,
+			TAG_Short,  "Damage", itemMaxDurability(items->id) > 0 ? items->uses : data,
 			TAG_Byte,   "Count",  items->count,
 			TAG_End
 		);

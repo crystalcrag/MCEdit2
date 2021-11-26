@@ -68,6 +68,7 @@ void mcuiTakeSnapshot(int width, int height)
 	mcui.selCount = 0;
 	mcui.groupCount = 0;
 	mcui.groupOther = 0;
+	mcui.clipItems = 0;
 	mcui.resize = NULL;
 	mcui.transfer = NULL;
 
@@ -620,7 +621,15 @@ void mcuiInitDrawItems(void)
 /* refresh phase done: render items */
 void mcuiDrawItems(void)
 {
+	if (mcui.clipItems)
+	{
+		glScissor(mcui.clipRect[0], mcui.clipRect[1], mcui.clipRect[2], mcui.clipRect[3]);
+		glEnable(GL_SCISSOR_TEST);
+	}
 	renderItems(mcui.items, mcui.itemRender, mcui.itemSz);
+	if (mcui.clipItems)
+		glDisable(GL_SCISSOR_TEST);
+
 	if (mcui.drag.id > 0)
 	{
 		ItemBuf item = mcui.drag;
@@ -1338,20 +1347,82 @@ void mcuiCreateSignEdit(vec4 pos, int blockId)
  * show a summary about all the blocks in the selection
  */
 
+/* only grab items to render */
+static int mcuiGrabItem(SIT_Widget w, APTR cd, APTR ud)
+{
+	SIT_OnCellPaint * ocp = cd;
+
+	if ((ocp->rowColumn & 0xff) > 0) return 0;
+
+	if (mcui.itemSz == 0)
+	{
+		mcui.itemSz = ocp->LTWH[3] - 2;
+		mcui.clipItems = 1;
+		SIT_GetValues(w, SIT_ClientRect, mcui.clipRect, NULL);
+		mcui.clipRect[1] = globals.height - mcui.clipRect[1] - mcui.clipRect[3];
+	}
+
+	/* note: itemRender is set to 0 before rendering loop starts */
+	Item item = mcui.items + mcui.itemRender ++;
+	APTR rowTag;
+
+	SIT_GetValues(w, SIT_RowTag(ocp->rowColumn>>8), &rowTag, NULL);
+
+	item->x = ocp->LTWH[0];
+	item->y = globals.height - ocp->LTWH[1] - ocp->LTWH[3] + 1;
+	item->id = (int) rowTag;
+	item->count = 1;
+	return 0;
+}
+
+int mcuiExitWnd(SIT_Widget w, APTR cd, APTR ud)
+{
+	SIT_Exit(1);
+	return 1;
+}
+
+struct InvBlock_t
+{
+	STRPTR tech;
+	int    cat;
+};
+
+typedef struct TileList_t *     TileList;
+typedef struct ItemStat_t *     ItemStat;
+
+struct TileList_t
+{
+	SIT_Widget list;
+	SIT_Widget listSub;
+	SIT_Widget stat, ok, back;
+	DATA8 *    groups;
+	int        max;
+	int        count[6];
+	int        volume, nonAir, isSub;
+};
+
+struct ItemStat_t
+{
+	ItemID_t itemId;
+	int      count;
+};
+
 static int mcuiCopyAnalyze(SIT_Widget w, APTR cd, APTR ud)
 {
-	STRPTR bytes = malloc(256);
-	int    max   = 256;
-	int    i, nb, usage;
+	TileList tiles = ud;
+	STRPTR   bytes = malloc(256);
+	int      max   = 256;
+	int      i, nb, usage;
 
 	/* copy info into clipboard */
-	SIT_GetValues(ud, SIT_ItemCount, &nb, NULL);
+	SIT_Widget list = tiles->isSub ? tiles->listSub : tiles->list;
+	SIT_GetValues(list, SIT_ItemCount, &nb, NULL);
 	usage = sprintf(bytes, "Number,Type,ID\n");
 	for (i = 0; i < nb; i ++)
 	{
-		STRPTR count = SIT_ListGetCellText(ud, 1, i);
-		STRPTR name  = SIT_ListGetCellText(ud, 2, i);
-		STRPTR id    = SIT_ListGetCellText(ud, 3, i);
+		STRPTR count = SIT_ListGetCellText(list, 1, i);
+		STRPTR name  = SIT_ListGetCellText(list, 2, i);
+		STRPTR id    = SIT_ListGetCellText(list, 3, i);
 
 		int len = strlen(count) + strlen(name) + strlen(id) + 4;
 
@@ -1368,53 +1439,287 @@ static int mcuiCopyAnalyze(SIT_Widget w, APTR cd, APTR ud)
 	return 1;
 }
 
-/* only grab items to render */
-static int mcuiGrabItem(SIT_Widget w, APTR cd, APTR ud)
+/* keep a list of all the tile entities from container we might want to see the content of */
+static void storeTileEntity(TileList tiles, int type, DATA8 tile)
 {
-	SIT_OnCellPaint * ocp = cd;
+	tiles->count[0] ++;
+	if (tiles->max < tiles->count[0])
+	{
+		tiles->max = (tiles->count[0] + 127) & ~127;
+		DATA8 * list = realloc(tiles->groups, tiles->max * sizeof (DATA8));
+		if (! list) return;
+		tiles->groups = list;
+	}
+	int i, j;
+	for (i = 1, j = 0; i < type; j += tiles->count[i], i ++);
+	memmove(tiles->groups + j + 1, tiles->groups, (tiles->count[0] - j) * sizeof (DATA8));
+	tiles->count[type] ++;
+	tiles->groups[j] = tile;
+}
 
-	if ((ocp->rowColumn & 0xff) > 0) return 1;
+#define invType       copyModel /* this field is not needed past initialization phase */
 
-	if (mcui.itemSz == 0)
-		mcui.itemSz = ocp->LTWH[3] - 2;
+STRPTR mapItemName(NBTFile nbt, int offset, TEXT itemId[16]);
 
-	/* note: itemRender is set to 0 before rendering loop starts */
-	Item item = mcui.items + mcui.itemRender ++;
-	APTR rowTag;
+static int mergeItems(ItemStat * ret, int max, DATA8 tile)
+{
+	ItemStat  stat  = *ret;
+	NBTFile_t nbt   = {.mem = tile};
+	int       items = NBT_FindNode(&nbt, 0, "Items");
+	NBTIter_t iter;
 
-	SIT_GetValues(w, SIT_RowTag(ocp->rowColumn>>8), &rowTag, NULL);
+	if (items < 0)
+		return max;
 
-	item->x = ocp->LTWH[0];
-	item->y = globals.height - ocp->LTWH[1] - ocp->LTWH[3] + 1;
-	item->id = (int) rowTag;
-	item->count = 1;
+	NBT_InitIter(&nbt, items, &iter);
+	/* scan all items of container */
+	next_item:
+	while ((items = NBT_Iter(&iter)) > 0)
+	{
+		NBTIter_t properties;
+		ItemStat  base;
+		ItemID_t  id;
+		TEXT      itemId[16];
+		int       off, count, data, num;
+		/* scan properties of item */
+		NBT_IterCompound(&properties, nbt.mem + items);
+		id = count = data = 0;
+		while ((off = NBT_Iter(&properties)) >= 0)
+		{
+			switch (FindInList("id,Count,Damage", properties.name, 0)) {
+			case 0:  id    = itemGetByName(mapItemName(&nbt, items + off, itemId), True); break;
+			case 1:  count = NBT_ToInt(&nbt, items + off, 1); break;
+			case 2:  data  = NBT_ToInt(&nbt, items + off, 0);
+			}
+		}
+		if (itemMaxDurability(id) < 0)
+			id += data;
+		/* binary search based on item id */
+		for (num = max, base = stat; num > 0; num >>= 1)
+		{
+			ItemStat pivot = base + (num >> 1);
+			int compare = pivot->itemId - id;
+			if (compare == 0)
+			{
+				pivot->count += count;
+				goto next_item;
+			}
+			if (compare < 0)
+				base = pivot + 1, num --;
+		}
+		/* not in the list, add it now */
+		num = (max + 127) & ~127;
+		if (max + 1 > num)
+		{
+			num = (max + 128) & ~127;
+			off = base - stat;
+			stat = realloc(stat, num * sizeof *stat);
+			if (! stat) return max;
+			base = stat + off;
+		}
+		memmove(base + 1, base, (max - (base - stat)) * sizeof *base);
+		base->itemId = id;
+		base->count = count;
+		max ++;
+	}
+	*ret = stat;
+	return max;
+}
+
+
+static void mcuiAnalyzeAddItem(TileList tiles, ItemID_t itemId, int num, Bool expand)
+{
+	STRPTR desc;
+	STRPTR column0 = "";
+	TEXT   count[16];
+	TEXT   id[16];
+
+	FormatNumber(count, sizeof count, "%d", num);
+	BlockState b = NULL;
+	if (isBlockId(itemId))
+	{
+		b = blockGetById(itemId);
+		desc = b->name;
+		if (b->inventory == 0)
+			/* check if there is an item that generate these type of block */
+			itemId = itemCanCreateBlock(itemId, &desc);
+	}
+
+	if (isBlockId(itemId))
+	{
+		Block block = &blockIds[itemId>>4];
+		switch (block->orientHint) {
+		case ORIENT_LOG:
+		case ORIENT_LEVER:
+		case ORIENT_BED:
+		case ORIENT_TORCH:
+		case ORIENT_SNOW:
+		case ORIENT_SWNE:
+		case ORIENT_NSWE:
+		case ORIENT_FULL:
+		case ORIENT_RAILS:
+		case ORIENT_STAIRS:
+		case ORIENT_DOOR:
+			/* metadata is useless for these types of blocks */
+			sprintf(id, "%d", itemId >> 4);
+			desc = block->name;
+			if (block->invState > 0)
+				itemId += block->invState;
+			break;
+		default:
+			if (! isBlockId(itemId))
+				id[0] = 0;
+			else if ((itemId & 15) > 0)
+				sprintf(id, "%d:%d", itemId >> 4, itemId & 15);
+			else
+				sprintf(id, "%d", itemId >> 4);
+		}
+		if (expand && block->invType > 0 && tiles->count[block->invType] > 0)
+			column0 = "\xC2\xA0\xC2\xA0\xC2\xA0\xC2\xA0...";
+	}
+	else
+	{
+		ItemDesc item = itemGetById(itemId);
+		if (item == NULL) return;
+		desc = item->name;
+		if (b)
+			sprintf(id, "%d", b->id>>4);
+		else
+			id[0] = 0;
+	}
+	SIT_ListInsertItem(expand ? tiles->list : tiles->listSub, -1, (APTR) itemId, column0, count, desc, id);
+}
+
+
+static void mcuiSetAnalyzeTitle(SIT_Widget title, STRPTR msg, int param1, int param2)
+{
+	STRPTR buffer = alloca(strlen(msg) + 40);
+	STRPTR p;
+
+	for (p = buffer; *msg; msg ++)
+	{
+		if (msg[0] == '%' && msg[1] == 'd')
+		{
+			p += FormatNumber(p, 20, "%d", param1);
+			param1 = param2;
+			msg ++;
+		}
+		else *p++ = *msg;
+	}
+	*p = 0;
+
+	SIT_SetValues(title, SIT_Title, buffer, NULL);
+}
+
+
+/* double-click on an item in the list */
+static int mcuiExpandAnalyze(SIT_Widget w, APTR cd, APTR ud)
+{
+	TileList tiles = ud;
+	ItemID_t itemId = (int) cd;
+
+	if (isBlockId(itemId))
+	{
+		Block block = &blockIds[itemId >> 4];
+		if (block->invType > 0 && tiles->count[block->invType] > 0)
+		{
+			ItemStat stats = NULL;
+			DATA8 *  tile  = NULL;
+			int      count = 0;
+			int      i, j, total, stacks;
+			/* gather all items from all containers of the group */
+			for (i = 1, j = 0; i < block->invType; j += tiles->count[i], i ++);
+			for (i = tiles->count[i], tile = tiles->groups + j; i > 0; i --, tile ++)
+				count = mergeItems(&stats, count, *tile);
+
+			SIT_SetValues(tiles->list, SIT_Visible, False, NULL);
+			SIT_SetValues(tiles->ok, SIT_TopObject, tiles->listSub, NULL);
+			SIT_SetValues(tiles->listSub, SIT_Visible, True, NULL);
+			SIT_SetValues(tiles->back, SIT_Visible, True, NULL);
+			ItemStat list;
+			for (i = total = stacks = 0, list = stats; i < count; i ++, list ++)
+			{
+				mcuiAnalyzeAddItem(tiles, list->itemId, list->count, False);
+				total += list->count;
+				if (! isBlockId(list->itemId))
+				{
+					ItemDesc item = itemGetById(list->itemId);
+					if (item) stacks += (list->count + item->stack - 1) / item->stack;
+				}
+				else stacks += (list->count + 63) / 64;
+			}
+			SIT_ListReorgColumns(tiles->listSub, "**-*");
+			free(stats);
+			tiles->isSub = 1;
+			mcuiSetAnalyzeTitle(tiles->stat, "Items in containes: <b>%d</b><br>Stacks needed: <b>%d</b>", total, stacks);
+		}
+	}
 	return 1;
 }
 
-int mcuiExitWnd(SIT_Widget w, APTR cd, APTR ud)
+static int mcuiAnalyzeBackToList(SIT_Widget w, APTR cd, APTR ud)
 {
-	SIT_Exit(1);
+	TileList tiles = ud;
+	SIT_ListDeleteRow(tiles->listSub, DeleteAllRows);
+	SIT_SetValues(tiles->list, SIT_Visible, True, NULL);
+	SIT_SetValues(tiles->ok, SIT_TopObject, tiles->list, NULL);
+	SIT_SetValues(tiles->listSub, SIT_Visible, False, NULL);
+	SIT_SetValues(tiles->back, SIT_Visible, False, NULL);
+	mcuiSetAnalyzeTitle(tiles->stat, "Non air block selected: <b>%d</b><br>Blocks in volume: <b>%d</b>", tiles->nonAir, tiles->volume);
+	tiles->isSub = 0;
 	return 1;
 }
 
+/* SITE_OnFinalize */
+static int mcuiClearAnalyze(SIT_Widget w, APTR cd, APTR ud)
+{
+	TileList tiles = ud;
+	free(tiles->groups);
+	return 1;
+}
+
+/* main interface creation */
 void mcuiAnalyze(void)
 {
+	static struct InvBlock_t invTypes[] = { /* group common containers */
+		{"chest",             1},
+		{"trapped_chest",     1},
+		{"ender_chest",       2},
+		{"dispenser",         3},
+		{"dropper",           3},
+		{"furnace",           4},
+		{"lit_furnace",       4},
+		{"white_shulker_box", 5},
+	};
+	static struct TileList_t tiles;
 	SIT_Widget diag = SIT_CreateWidget("analyze.bg", SIT_DIALOG, globals.app,
 		SIT_DialogStyles, SITV_Plain | SITV_Modal | SITV_Movable,
 		NULL
 	);
 
 	mcui.itemSz = 0;
+	memset(&tiles, 0, sizeof tiles);
 	SIT_CreateWidgets(diag,
 		"<label name=total>"
-		"<listbox name=list columnNames='\xC2\xA0\xC2\xA0\xC2\xA0\xC2\xA0\tCount\tName\tID' width=20em height=15em top=WIDGET,total,0.5em"
+		"<listbox name=list columnNames='\xC2\xA0\xC2\xA0\xC2\xA0\xC2\xA0\tCount\tName\tID' width=25em height=15em top=WIDGET,total,0.5em"
 		" composited=1 cellPaint=", mcuiGrabItem, ">"
+		"<listbox name=chest columnNames='\xC2\xA0\xC2\xA0\xC2\xA0\xC2\xA0\tCount\tName\tID' width=25em height=15em top=WIDGET,total,0.5em"
+		" composited=1 cellPaint=", mcuiGrabItem, "visible=0>"
 		"<button name=ok title=Ok top=WIDGET,list,1em right=FORM buttonType=", SITV_DefaultButton, ">"
 		"<button name=save title='Copy to clipboard' right=WIDGET,ok,0.5em top=OPPOSITE,ok>"
+		"<button name=back title='Back' right=WIDGET,save,0.5em top=OPPOSITE,ok visible=0>"
 	);
-	SIT_Widget w = SIT_GetById(diag, "list");
-	SIT_AddCallback(SIT_GetById(diag, "ok"),   SITE_OnActivate, mcuiExitWnd, NULL);
-	SIT_AddCallback(SIT_GetById(diag, "save"), SITE_OnActivate, mcuiCopyAnalyze, w);
+	tiles.list = SIT_GetById(diag, "list");
+	tiles.stat = SIT_GetById(diag, "total");
+	tiles.back = SIT_GetById(diag, "back");
+	tiles.listSub = SIT_GetById(diag, "chest");
+	tiles.ok = SIT_GetById(diag, "ok");
+
+	SIT_AddCallback(tiles.ok, SITE_OnActivate, mcuiExitWnd, NULL);
+	SIT_AddCallback(tiles.list, SITE_OnActivate, mcuiExpandAnalyze, &tiles);
+	SIT_AddCallback(tiles.back, SITE_OnActivate, mcuiAnalyzeBackToList, &tiles);
+	SIT_AddCallback(SIT_GetById(diag, "save"), SITE_OnActivate, mcuiCopyAnalyze, &tiles);
+	SIT_AddCallback(diag, SITE_OnFinalize, mcuiClearAnalyze, &tiles);
 
 	int  dx, dy, dz, i, j;
 	vec  points = selectionGetPoints();
@@ -1427,6 +1732,17 @@ void mcuiAnalyze(void)
 	dy = fabsf(points[VY] - points[VY+4]) + 1;
 	dz = fabsf(points[VZ] - points[VZ+4]) + 1;
 
+	Block block;
+	for (i = 0; i < DIM(invTypes); i ++)
+	{
+		ItemID_t id = itemGetByName(invTypes[i].tech, False);
+		block = &blockIds[id >> 4];
+		block->invType = invTypes[i].cat;
+	}
+	/* select remaining type (color) of shulker box */
+	for (i = block->invType, block ++; block->tileEntity; block ++)
+		block->invType = i;
+
 	int * statistics = calloc(blockLast - blockStates, sizeof (int));
 	struct BlockIter_t iter;
 	for (mapInitIter(globals.level, &iter, pos, False); dy > 0; dy --)
@@ -1436,29 +1752,53 @@ void mcuiAnalyze(void)
 			for (i = 0; i < dx; i ++, mapIter(&iter, 1, 0, 0))
 			{
 				BlockState b = blockGetById(getBlockId(&iter));
-				if (b->inventory == 0)
+				if (b->id == 0) continue;
+				uint16_t id = b->id;
+				uint8_t data = id & 15;
+				/* check if we can use alternative block state */
+				block = &blockIds[id >> 4];
+				switch (block->orientHint) {
+				case ORIENT_LOG:
+					if (4 <= data && data < 12) id -= data & ~3;
+					break;
+				case ORIENT_SLAB:
+					id -= data & ~7;
+					break;
+				case ORIENT_BED:
+				case ORIENT_LEVER:
+				case ORIENT_SNOW:
+				case ORIENT_TORCH:
+				case ORIENT_FULL:
+				case ORIENT_RAILS:
+				case ORIENT_STAIRS:
+				case ORIENT_NSWE:
+					id -= data;
+					if (id == ID(RSTORCH_OFF, 0))
+						id = ID(RSTORCH_ON, 0);
+					break;
+				case ORIENT_SWNE:
+					id -= data & 3;
+					break;
+				case ORIENT_DOOR:
+					if (data >= 8) continue;
+					id -= data;
+					break;
+				default:
+					if (block->special == BLOCK_RSWIRE)
+						id -= data;
+				}
+				b = blockGetById(id);
+				DATA8 tile;
+				/* check if there are items we might want to inspect in this block */
+				if (block->invType > 0 && (tile = chunkGetTileEntity(iter.ref, (int[3]) {iter.x, iter.yabs, iter.z})))
 				{
-					uint8_t data = b->id & 15;
-					/* check if we can use alternative block state */
-					switch (blockIds[iter.blockIds[iter.offset]].orientHint) {
-					case ORIENT_LOG:
-						if (4 <= data && data < 12) b -= data & ~3;
-						break;
-					case ORIENT_SLAB:
-						b -= data & ~7;
-						break;
-					case ORIENT_SNOW:
-						b -= data;
-						break;
-					case ORIENT_SWNE:
-						b -= data & 3;
-						break;
-					case ORIENT_DOOR:
-						if (data >= 8) continue;
-						b -= data;
-						break;
-					case ORIENT_BED:
-						b -= data;
+					NBTFile_t nbt = {.mem = tile};
+					int items = NBT_FindNode(&nbt, 0, "Items");
+					if (items >= 0)
+					{
+						NBTHdr hdr = NBT_Hdr(&nbt, items);
+						if (hdr->type == TAG_List_Compound)
+							storeTileEntity(&tiles, block->invType, tile);
 					}
 				}
 				statistics[b - blockStates] ++;
@@ -1467,31 +1807,20 @@ void mcuiAnalyze(void)
 		mapIter(&iter, 0, 1, -dz);
 	}
 
+	/* build list of items */
 	for (i = dx = 0, j = blockLast - blockStates; i < j; i ++)
 	{
 		if (statistics[i] == 0) continue;
 		dx += statistics[i];
-		STRPTR desc;
-		TEXT   count[16];
-		TEXT   id[16];
-		int    itemId;
-		BlockState b = blockStates + i;
-		sprintf(count, "%d", statistics[i]);
-		itemId = b->id;
-		desc   = b->name;
-		if (b->inventory == 0 && itemId > 0)
-			/* check if there is an item that generate these type of block */
-			itemId = itemCanCreateBlock(itemId, &desc);
-
-		sprintf(id, "%d:%d", itemId >> 4, itemId & 15);
-		SIT_ListInsertItem(w, -1, (APTR) itemId, "", count, desc, id);
+		mcuiAnalyzeAddItem(&tiles, blockStates[i].id, statistics[i], True);
 	}
 	free(statistics);
-	SIT_ListReorgColumns(w, "**-*");
-	dz *= (int) (fabsf(points[VX] - points[VX+4]) + 1) *
-	      (int) (fabsf(points[VY] - points[VY+4]) + 1);
-	SIT_SetValues(SIT_GetById(diag, "total"), SIT_Title|XfMt, "Non air block selected: <b>%d</b><br>Blocks in volume: <b>%d</b>", dx, dz, NULL);
+	SIT_ListReorgColumns(tiles.list, "**-*");
+	tiles.nonAir = dx;
+	tiles.volume = dz * (int) (fabsf(points[VX] - points[VX+4]) + 1) *
+	                    (int) (fabsf(points[VY] - points[VY+4]) + 1);
 
+	mcuiAnalyzeBackToList(NULL, NULL, &tiles);
 	SIT_ManageWidget(diag);
 }
 

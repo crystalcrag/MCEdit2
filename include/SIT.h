@@ -216,7 +216,7 @@ enum
 	SIT_Composited       = 27,   /* CSG_: Int */
 	SIT_NVGcontext       = 28,   /* __G_: NVGcontext * */
 	SIT_ToolTip          = 29,   /* CS__: String */
-	SIT_OuterRect        = 30,   /* __G_: Int[4] or Rect */
+	SIT_ClientRect       = 30,   /* __G_: Int[4] (X,Y,W,H) */
 	SIT_Height           = 31,   /* CSGR: Int (unit) */
 	SIT_Width            = 32,   /* CSGR: Int (unit) */
 	SIT_LeftOffset       = 33,   /* CSGR: Int (unit) */

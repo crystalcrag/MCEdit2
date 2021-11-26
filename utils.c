@@ -1049,13 +1049,12 @@ PFNGLUNIFORM2FVPROC glad_glUniform2fv;
 PFNGLDELETEBUFFERSPROC glad_glDeleteBuffers;
 PFNGLDELETEVERTEXARRAYSPROC glad_glDeleteVertexArrays;
 PFNGLMAPBUFFERRANGEPROC glad_glMapBufferRange;
+PFNGLSCISSORPROC glad_glScissor;
 
 PFNGLBINDTEXTUREPROC glad_glBindTexture;
 PFNGLDELETETEXTURESPROC glad_glDeleteTextures;
 PFNGLGETERRORPROC glad_glGetError;
 PFNGLGETINTEGERVPROC glad_glGetIntegerv;
-PFNGLFINISHPROC glad_glFinish;
-PFNGLFLUSHPROC glad_glFlush;
 PFNGLGENTEXTURESPROC glad_glGenTextures;
 PFNGLPIXELSTOREIPROC glad_glPixelStorei;
 PFNGLTEXIMAGE2DPROC glad_glTexImage2D;
@@ -1152,8 +1151,7 @@ int gladLoadGL(void)
 		 && (glad_glDeleteTextures     = load(name = "glDeleteTextures"))
 		 && (glad_glGetError           = load(name = "glGetError"))
 		 && (glad_glGetIntegerv        = load(name = "glGetIntegerv"))
-		 && (glad_glFinish             = load(name = "glFinish"))
-		 && (glad_glFlush              = load(name = "glFlush"))
+		 && (glad_glScissor            = load(name = "glScissor"))
 		 && (glad_glGenTextures        = load(name = "glGenTextures"))
 		 && (glad_glPixelStorei        = load(name = "glPixelStorei"))
 		 && (glad_glTexImage2D         = load(name = "glTexImage2D"))

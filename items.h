@@ -31,7 +31,7 @@ void     itemInitHash(void);
 int      itemGetCount(void);
 ItemID_t itemGetByName(STRPTR name, Bool forInventory);
 int      itemAddCount(Item, int add);
-int      itemMaxDurability(Item);
+int      itemMaxDurability(ItemID_t);
 float    itemDurability(Item);
 ItemID_t itemHasModel(Item);
 STRPTR   itemGetTechName(ItemID_t id, STRPTR out, int max, Bool addMeta);
