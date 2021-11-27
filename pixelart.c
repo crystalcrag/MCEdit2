@@ -15,6 +15,7 @@
 #include "SIT.h"
 #include "entities.h"
 #include "interface.h"
+#include "inventories.h"
 #include "selection.h"
 #include "cartograph.h"
 #include "mapUpdate.h"
@@ -40,9 +41,7 @@ struct
 } pixArt = {.selPalette = 5};
 
 /* from interface.c */
-void mcuiResetScrollbar(MCInventory);
 void mcuiReplaceFillItems(SIT_Widget, MCInventory);
-void mcuiInitInventory(SIT_Widget, MCInventory, int max);
 int  mcuiExitWnd(SIT_Widget, APTR cd, APTR ud);
 
 /* from cartograph.c */
@@ -153,7 +152,7 @@ static int pixArtSelInfo(SIT_Widget w, APTR cd, APTR ud)
 		inv->items = pixArt.allItems + pixArt.itemsNb;
 		inv->itemsNb = 62;
 	}
-	mcuiResetScrollbar(inv);
+	inventoryResetScrollbar(inv);
 	SIT_SetValues(pixArt.palette, SIT_SelectedIndex, 0, NULL);
 	SIT_SetValues(SIT_GetById(w, "../fillair"), SIT_Enabled, pixArt.rasterizeWith == PIXART_BLOCKS, NULL);
 
@@ -798,8 +797,8 @@ void mcuiShowPixelArt(vec4 playerPos)
 	SIT_Widget inv = SIT_GetById(diag, "inv");
 	mcuiReplaceFillItems(diag, &mcinv);
 	pixArtFillMapColors(&mcinv);
-	mcuiInitInventory(inv, &mcinv, 1);
-	mcuiResetScrollbar(&mcinv);
+	inventoryInit(&mcinv, inv, 1);
+	inventoryResetScrollbar(&mcinv);
 	SIT_AddCallback(inv, SITE_OnChange, pixArtGetColorCount, NULL);
 
 	SIT_AddCallback(SIT_GetById(diag, "blocks"), SITE_OnActivate, pixArtSelInfo, &mcinv);

@@ -1,6 +1,7 @@
 =========== Week 47 ===========
 Fri Nov 26:
 	* analyze command done.
+	* interface.c refactoring: moved generic inventory management into separate file.
 
 Wed Nov 24:
 	* added way to inspect group of similar containers in analyze command.

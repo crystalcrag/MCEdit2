@@ -983,7 +983,7 @@ void mceditUIOverlay(int type)
 			case SDL_VIDEORESIZE:
 				globals.width  = event.resize.w;
 				globals.height = event.resize.h;
-				mcuiResizeInventories();
+				mcuiResize();
 				SIT_ProcessResize(globals.width, globals.height);
 				break;
 			case SDL_QUIT:

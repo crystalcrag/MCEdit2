@@ -709,7 +709,7 @@
 		{state: 2, name: "+north", tex: [13, 2,13, 2,12, 2,13, 2,14, 3,14, 3]},
 		{state: 3, name: "+south", tex: [12, 2,13, 2,13, 2,13, 2,14, 3,14, 3]},
 		{state: 4, name: "+west",  tex: [13, 2,13, 2,13, 2,12, 2,14, 3,14, 3]},
-		{state: 5, name: "-east",  tex: [13, 2,12, 2,13, 2,13, 2,13, 2,14, 3]},
+		{state: 5, name: "+east",  tex: [13, 2,12, 2,13, 2,13, 2,14, 3,14, 3]},
 
 	{id: 62, name: "Lit furnace", type: SOLID, tile: 1, particle: SMOKE, pushable: NO},
 		{state: 0, name: "-",      tex: [13, 3,13, 2,13, 2,13, 2,14, 3,14, 3], emit: [S]},

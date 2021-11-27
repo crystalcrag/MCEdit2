@@ -331,7 +331,7 @@ void renderSetSelectionPoint(int action)
 	}
 }
 
-void mcuiSetTooltip(SIT_Widget toolTip, Item item, STRPTR extra);
+void inventorySetTooltip(SIT_Widget toolTip, Item item, STRPTR extra);
 
 /* from mouse pos mx, my: pickup block pointed at this location using ray casting */
 void renderPointToBlock(int mx, int my)
@@ -378,7 +378,7 @@ void renderPointToBlock(int mx, int my)
 			{
 				TEXT extra[32];
 				sprintf(extra, "<br><b>shortcut: %c</b>", '1' + item);
-				mcuiSetTooltip(render.blockInfo, hover, extra);
+				inventorySetTooltip(render.blockInfo, hover, extra);
 			}
 		}
 		if (hover->id == 0)

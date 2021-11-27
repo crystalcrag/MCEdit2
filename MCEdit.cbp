@@ -76,6 +76,9 @@
 		<Unit filename="interface.c">
 			<Option compilerVar="CC" />
 		</Unit>
+		<Unit filename="inventories.c">
+			<Option compilerVar="CC" />
+		</Unit>
 		<Unit filename="items.c">
 			<Option compilerVar="CC" />
 		</Unit>
