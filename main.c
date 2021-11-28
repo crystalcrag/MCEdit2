@@ -761,7 +761,7 @@ void mceditPlaceBlock(void)
 		if (id == 0 /* no block selected in inventory bar */)
 			entityDeleteById(globals.level, sel->entity);
 		else
-			entityUseItemOn(globals.level, sel->entity, item->id, pos);
+			worldItemUseItemOn(globals.level, sel->entity, item->id, pos);
 	}
 	else if (isBlockId(id))
 	{
@@ -788,7 +788,7 @@ void mceditPlaceBlock(void)
 		renderAddModif();
 	}
 	else /* selected an item: check if we can create an entity instead */
-		entityCreate(globals.level, id, pos, sel->side);
+		worldItemCreate(globals.level, id, pos, sel->side);
 }
 
 /* right click */

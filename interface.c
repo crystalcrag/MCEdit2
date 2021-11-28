@@ -1665,7 +1665,7 @@ static int mcuiSelectPaintings(SIT_Widget w, APTR cd, APTR ud)
 			double curTime = FrameGetTime();
 			if ((curTime - mcuiPaintings.lastClick) < 750)
 			{
-				entityCreatePainting(globals.level, (mcuiPaintings.lastHover - paintings.location) >> 2);
+				worldItemCreatePainting(globals.level, (mcuiPaintings.lastHover - paintings.location) >> 2);
 				SIT_Exit(1);
 			}
 			else mcuiPaintings.lastClick = curTime;

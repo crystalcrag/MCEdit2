@@ -22,14 +22,15 @@ void entityDeleteById(Map map, int entityId);
 void entityInfo(int id, STRPTR buffer, int max);
 int  entityRaypick(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos);
 void entityUpdateOrCreate(Chunk c, vec4 pos, int blockId, vec4 dest, int ticks, DATA8 tile);
-void entityUseItemOn(Map, int entityId, ItemID_t itemId, vec4 pos);
 void entityDebugCmd(Chunk c);
 int  entityCount(int start);
-int  entityCreate(Map map, int itemId, vec4 pos, int side);
-void entityCreatePainting(Map map, int paintingId);
 
 VTXBBox  entityGetBBox(int id);
 ItemID_t entityGetBlockId(int entityId);
+
+void worldItemCreatePainting(Map map, int paintingId);
+void worldItemUseItemOn(Map, int entityId, ItemID_t itemId, vec4 pos);
+int  worldItemCreate(Map map, int itemId, vec4 pos, int side);
 
 #define ENTITY_END                 0xffff
 #define ENTITY_PAINTINGS           0x800
@@ -184,8 +185,6 @@ struct EntitiesPrivate_t           /* static vars for entity.c */
 	int          shader;
 	Entity       selected;
 	int          selectedId;       /* entity id */
-	vec4         createPos;        /* paintings are created asynchronously */
-	uint8_t      createSide;
 };
 
 struct EntityAnim_t
@@ -209,6 +208,14 @@ struct BBoxBuffer_t
 	struct VTXBBox_t bbox[ENTITY_BATCH];
 	int              count;
 };
+
+Entity entityAlloc(uint16_t * entityLoc);
+int    entityGetModelId(Entity);
+int    entityGetModelBank(ItemID_t);
+void   entityAddToCommandList(Entity);
+void   entityResetModel(Entity);
+void   entityGetLight(Chunk, vec4 pos, DATA32 light, Bool full, int debugLight);
+void   entityMarkListAsModified(Map, Chunk);
 
 #endif
 #endif

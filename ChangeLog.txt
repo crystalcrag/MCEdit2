@@ -1,4 +1,7 @@
 =========== Week 47 ===========
+Sat Nov 27:
+	* world item refactoring: moved out of entities.c.
+
 Fri Nov 26:
 	* analyze command done.
 	* interface.c refactoring: moved generic inventory management into separate file.

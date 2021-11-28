@@ -134,6 +134,9 @@
 		<Unit filename="waypoints.c">
 			<Option compilerVar="CC" />
 		</Unit>
+		<Unit filename="worldItems.c">
+			<Option compilerVar="CC" />
+		</Unit>
 		<Extensions>
 			<code_completion />
 			<envvars />

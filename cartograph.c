@@ -282,7 +282,7 @@ void cartoUpdateLight(int entityId, DATA32 light)
 {
 	Cartograph map;
 	int i;
-	for (i = 0, map = cartograph.maps; i < cartograph.count && map->entityId != entityId; map ++, i += map->bank >= 0);
+	for (i = 0, map = cartograph.maps; i < cartograph.count && map->entityId != entityId; map ++, i ++);
 	if (i < cartograph.count)
 	{
 		uint32_t face = light[map->normal];

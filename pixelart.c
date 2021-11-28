@@ -551,9 +551,9 @@ static void pixArtGenerateMaps(DATA8 data, int width, int height)
 		pos[axis1] = pos[3];
 		for (i = 0; i < size[axis1]; i ++, pos[axis1] ++)
 		{
-			int entityId = entityCreate(globals.level, itemFrame, pos, pixArt.side);
+			int entityId = worldItemCreate(globals.level, itemFrame, pos, pixArt.side);
 			int mapId = pixArtCreateMap(data, width, height, i, j);
-			entityUseItemOn(globals.level, entityId, fillMap | mapId, pos);
+			worldItemUseItemOn(globals.level, entityId, fillMap | mapId, pos);
 		}
 	}
 }
