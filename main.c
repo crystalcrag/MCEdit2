@@ -512,6 +512,7 @@ void mceditWorld(void)
 					break;
 				case SDLK_LSHIFT:
 					renderShowBlockInfo(True, DEBUG_SHOWITEM);
+					mcedit.forceSel = 2;
 					// no break;
 				default:
 					key = SDLKtoSIT(event.key.keysym.sym);
@@ -553,9 +554,12 @@ void mceditWorld(void)
 				case SDLK_F5: sunMove &= ~1; break;
 				case SDLK_F6: sunMove &= ~2; break;
 				case 't': /* throw item */
-					playerAddInventory(&mcedit.player, 0, NULL);
+					playerAddInventory(&mcedit.player, 0, NULL, False);
 					playerUpdateNBT(&mcedit.player);
 					break;
+				case SDLK_LSHIFT:
+					renderShowBlockInfo(False, DEBUG_SHOWITEM);
+					// no break;
 				default:
 					key = SDLKtoSIT(event.key.keysym.sym);
 					if (! playerProcessKey(&mcedit.player, key, SITK_FlagUp))
@@ -621,9 +625,9 @@ void mceditWorld(void)
 							if (sel->entity == 0)
 							{
 								int XYZ[] = {pos[0] - sel->chunk->X, pos[1], pos[2] - sel->chunk->Z};
-								playerAddInventory(&mcedit.player, sel->blockId, chunkGetTileEntity(sel->chunk, XYZ));
+								playerAddInventory(&mcedit.player, sel->blockId, chunkGetTileEntity(sel->chunk, XYZ), False);
 							}
-							else playerAddInventory(&mcedit.player, entityGetBlockId(sel->entity), NULL);
+							else playerAddInventory(&mcedit.player, entityGetBlockId(sel->entity), NULL, False);
 							playerUpdateNBT(&mcedit.player);
 						}
 					}
@@ -674,12 +678,17 @@ void mceditWorld(void)
 		}
 		if (mcedit.player.keyvec)
 		{
+			vec4 oldpos;
+			memcpy(oldpos, mcedit.player.pos, 12);
 			playerMove(&mcedit.player);
-			renderSetViewMat(mcedit.player.pos, mcedit.player.lookat, &mcedit.player.angleh);
-			if (! capture)
+			if (memcmp(oldpos, mcedit.player.pos, 12))
 			{
-				SDL_GetMouseState(&mcedit.mouseX, &mcedit.mouseY);
-				renderPointToBlock(mcedit.mouseX, mcedit.mouseY);
+				renderSetViewMat(mcedit.player.pos, mcedit.player.lookat, &mcedit.player.angleh);
+				if (! capture)
+				{
+					SDL_GetMouseState(&mcedit.mouseX, &mcedit.mouseY);
+					renderPointToBlock(mcedit.mouseX, mcedit.mouseY);
+				}
 			}
 		}
 		if (sunMove) skydomeMoveSun(sunMove);
@@ -700,6 +709,30 @@ void mceditPlaceBlock(void)
 	vec4     pos;
 	ItemID_t block, id;
 	Item     item;
+
+	MapExtraData sel = renderGetSelectedBlock(pos, &block);
+
+	if (mcedit.forceSel == 2)
+	{
+		/* pointing at a world item entity */
+		if (sel->side == SIDE_ENTITY)
+		{
+			ItemID_t itemId = entityGetBlockId(sel->entity);
+			if (itemId > 0 && playerAddInventory(&mcedit.player, itemId, NULL, True))
+			{
+				entityDeleteById(globals.level, sel->entity);
+				renderPointToBlock(mcedit.mouseX, mcedit.mouseY);
+				mcedit.forceSel = 0;
+			}
+		}
+		else /* place current item */
+		{
+			worldItemAdd(globals.level);
+			renderShowBlockInfo(False, DEBUG_SHOWITEM);
+			mcedit.forceSel = 0;
+		}
+		return;
+	}
 
 	if (p->inventory.offhand & PLAYER_TOOLBAR)
 	{
@@ -724,8 +757,6 @@ void mceditPlaceBlock(void)
 		}
 		return;
 	}
-
-	MapExtraData sel = renderGetSelectedBlock(pos, &block);
 
 	if (globals.selPoints & 8)
 	{
@@ -759,15 +790,18 @@ void mceditPlaceBlock(void)
 	if (sel->entity > 0) /* pointing at an entity */
 	{
 		if (id == 0 /* no block selected in inventory bar */)
-			entityDeleteById(globals.level, sel->entity);
-		else
-			worldItemUseItemOn(globals.level, sel->entity, item->id, pos);
+		{
+			if (sel->side == SIDE_ENTITY)
+				entityDeleteById(globals.level, sel->entity);
+		}
+		else worldItemUseItemOn(globals.level, sel->entity, item->id, pos);
 	}
 	else if (isBlockId(id))
 	{
 		/* 2 slabs in same block try to convert them in 1 double-slab */
 		if (blockIds[block>>4].special == BLOCK_HALF)
 		{
+			/* need to be of the same type */
 			int curId = mapGetBlockId(globals.level, pos, NULL);
 			if ((curId & ~8) == (block & ~8) && (curId & 8) != (block & 8))
 				/* can be combined */

@@ -1,6 +1,10 @@
 =========== Week 47 ===========
+Sun Nov 28:
+	* preview item can be picked up or dropped in the world.
+
 Sat Nov 27:
 	* world item refactoring: moved out of entities.c.
+	* preview for world item.
 
 Fri Nov 26:
 	* analyze command done.
@@ -187,7 +191,7 @@ Thu Oct 7:
 
 Wed Oct 6:
 	* cleanup SITGL and MCEdit with -Wdouble-precision and -Wshadow.
-	* SITLG lexer mostly done, including doc.
+	* SITGL lexer mostly done, including doc.
 
 Tue Oct 5:
 	* add/remove items from item frame.

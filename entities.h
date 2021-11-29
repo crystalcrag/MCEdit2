@@ -17,20 +17,24 @@ void entityUnload(Chunk);
 void entityAnimate(void);
 void entityRender(void);
 void entityDebug(int id);
-void entityUpdateLight(Chunk c);
-void entityDeleteById(Map map, int entityId);
+void entityUpdateLight(Chunk);
+void entityDeleteById(Map, int entityId);
 void entityInfo(int id, STRPTR buffer, int max);
 int  entityRaypick(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos);
-void entityUpdateOrCreate(Chunk c, vec4 pos, int blockId, vec4 dest, int ticks, DATA8 tile);
-void entityDebugCmd(Chunk c);
+void entityUpdateOrCreate(Chunk, vec4 pos, int blockId, vec4 dest, int ticks, DATA8 tile);
+void entityDebugCmd(Chunk);
 int  entityCount(int start);
 
 VTXBBox  entityGetBBox(int id);
 ItemID_t entityGetBlockId(int entityId);
 
-void worldItemCreatePainting(Map map, int paintingId);
-void worldItemUseItemOn(Map, int entityId, ItemID_t itemId, vec4 pos);
-int  worldItemCreate(Map map, int itemId, vec4 pos, int side);
+void worldItemCreatePainting(Map, int paintingId);
+void worldItemUseItemOn(Map, int entityId, ItemID_t, vec4 pos);
+void worldItemPreview(vec4 camera, vec4 pos, ItemID_t);
+int  worldItemCreate(Map, int itemId, vec4 pos, int side);
+void worldItemUpdatePreviewPos(vec4 camera, vec4 pos);
+void worldItemDeletePreview(void);
+void worldItemAdd(Map);
 
 #define ENTITY_END                 0xffff
 #define ENTITY_PAINTINGS           0x800
@@ -101,7 +105,6 @@ typedef struct EntityAnim_t *      EntityAnim;
 typedef struct CustModel_t *       CustModel;
 typedef struct BBoxBuffer_t *      BBoxBuffer;
 
-Entity entityGetById(int id);
 EntityModel entityGetModelById(int modelBank);
 
 struct Entity_t
@@ -114,8 +117,8 @@ struct Entity_t
 	ItemID_t blockId;
 	float    motion[3];
 	float    pos[4];               /* X, Y, Z and extra info for shader */
-	float    rotation[4];          /* rotation in Y, X, Z axis (radians) and scaling */
-	uint32_t light[6];             /* lighting values for S, E, N, W, T, B faces */
+	float    rotation[4];          /* rotation in Y, X, Z axis (radians) and scaling (shader info) */
+	uint32_t light[6];             /* lighting values for S, E, N, W, T, B faces (shader info) */
 	DATA8    tile;                 /* start of NBT Compound for this entity */
 	Entity   ref;
 	STRPTR   name;                 /* from NBT ("id" key) */
@@ -210,12 +213,16 @@ struct BBoxBuffer_t
 };
 
 Entity entityAlloc(uint16_t * entityLoc);
+Entity entityGetById(int id);
 int    entityGetModelId(Entity);
 int    entityGetModelBank(ItemID_t);
 void   entityAddToCommandList(Entity);
 void   entityResetModel(Entity);
 void   entityGetLight(Chunk, vec4 pos, DATA32 light, Bool full, int debugLight);
 void   entityMarkListAsModified(Map, Chunk);
+int    entityAddModel(ItemID_t, int cnx, CustModel cust);
+void   entityDeleteSlot(int slot);
+void   entityUpdateInfo(Entity);
 
 #endif
 #endif

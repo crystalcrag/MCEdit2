@@ -512,57 +512,72 @@ void playerUpdateNBT(Player p)
 	}
 }
 
-void playerAddInventory(Player p, ItemID_t blockId, DATA8 tileEntity)
+Bool playerAddInventory(Player p, ItemID_t blockId, DATA8 tileEntity, Bool incCount)
 {
-	if (blockId >= 0)
+	Item item;
+	int  slot = p->inventory.selected;
+
+	if (blockId > 0)
 	{
-		Item item;
-
-		if (blockId > 0)
+		if (isBlockId(blockId))
 		{
-			if (isBlockId(blockId))
+			BlockState b = blockGetById(blockId);
+			if (b->inventory == 0)
 			{
-				BlockState b = blockGetById(blockId);
-				if (b->inventory == 0)
-				{
-					/* this block is not supposed to be in inventory, check for alternative */
-					int invId = blockAdjustInventory(blockId);
-					/* that entire block type can't be used as an inventory item */
-					if (invId == 0 && (invId = itemCanCreateBlock(blockId, NULL)) == blockId)
-						return;
+				/* this block is not supposed to be in inventory, check for alternative */
+				int invId = blockAdjustInventory(blockId);
+				/* that entire block type can't be used as an inventory item */
+				if (invId == 0 && (invId = itemCanCreateBlock(blockId, NULL)) == blockId)
+					return False;
 
-					if (invId == 0)
-						return;
-					blockId = invId;
-				}
+				if (invId == 0)
+					return False;
+				blockId = invId;
 			}
-
-			/* check if it is already in inventory */
-			int i;
-			for (item = p->inventory.items, i = 0; i < MAXCOLINV && !(item->id == blockId && item->extra == NULL); i ++, item ++);
-			if (i < MAXCOLINV)
-				p->inventory.selected = i;
 		}
 
-		item = &p->inventory.items[p->inventory.selected];
-		item->id = blockId;
-		item->count = 1;
-		item->uses = 0;
-		item->extra = tileEntity; /* XXX raw pointer to NBT from world map, can be freed at any time :-/ */
-		p->inventory.update ++;
-		playerSetInfoTip(p);
+		/* check if it is already in inventory */
+		int max;
+		max = incCount ? MAXCOLINV * 4 : MAXCOLINV;
+		for (item = p->inventory.items, slot = 0; slot < max && !(item->id == blockId && item->extra == NULL); slot ++, item ++);
+		if (slot < MAXCOLINV)
+			p->inventory.selected = slot;
+		if (incCount)
+		{
+			if (slot < max)
+			{
+				item->count ++;
+				p->inventory.update ++;
+				return True;
+			}
+			/* add them in the first free slot */
+			for (item = p->inventory.items, slot = 0; slot < max && item->id != 0; slot ++, item ++);
+			if (slot == max)
+				return False;
+		}
 	}
+
+	item = &p->inventory.items[slot];
+	item->id = blockId;
+	item->count = 1;
+	item->uses = 0;
+	item->extra = tileEntity; /* XXX raw pointer to NBT from world map, can be freed at any time :-/ */
+	p->inventory.update ++;
+	playerSetInfoTip(p);
+	return True;
 }
 
 void playerScrollInventory(Player p, int dir)
 {
-//	if (dir == 0) return;
-	p->inventory.offhand = 0;
+	if (p->inventory.offhand < 3)
+		/* partial extended selection: cancel all */
+		p->inventory.offhand = 0;
 	int pos = p->inventory.selected + dir;
 	if (pos < 0) pos = MAXCOLINV - 1;
 	if (pos >= MAXCOLINV) pos = 0;
 	p->inventory.selected = pos;
-	playerSetInfoTip(p);
+	if (p->inventory.offhand != 3)
+		playerSetInfoTip(p);
 }
 
 /*

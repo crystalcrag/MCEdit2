@@ -26,13 +26,15 @@
 
 struct
 {
-	vec4    createPos;        /* paintings are created asynchronously */
-	uint8_t createSide;
+	Entity   preview;
+	uint16_t slot;
+	uint8_t  createSide;
+	vec4     createPos;        /* paintings are created asynchronously */
 }	worldItem;
 
 
 /* add the pre-defined fields of a world item in the <nbt> fragment */
-static void worldItemCreateGeneric(NBTFile nbt, Entity entity, ItemID_t itemId, int side)
+static void worldItemCreateGeneric(NBTFile nbt, Entity entity, STRPTR name)
 {
 	EntityUUID_t uuid;
 	TEXT         id[64];
@@ -45,8 +47,10 @@ static void worldItemCreateGeneric(NBTFile nbt, Entity entity, ItemID_t itemId, 
 	pos64[VZ] = entity->pos[VZ];
 	rotation[0] = 360 - entity->rotation[0] * RAD_TO_DEG;
 	rotation[1] = - entity->rotation[1] * RAD_TO_DEG;
+	if (rotation[1] == -0.0f)
+		rotation[1] = 0;
+	sprintf(id, "minecraft:%s", name);
 	for (p = uuid.uuid8, e = p + sizeof uuid.uuid8; p < e; *p++ = rand());
-	itemGetTechName(itemId, id, sizeof id, True);
 	NBT_Add(nbt,
 		TAG_List_Double, "Motion", 3,
 		TAG_Byte,        "Facing", 0,
@@ -288,7 +292,7 @@ void worldItemCreatePainting(Map map, int paintingId)
 	float     posAndRot[8];
 	DATA8     loc;
 
-	/* .location contains 4 bytes of each painting where they are location in terrain.png (in tile coord) */
+	/* .location contains 4 bytes of each painting where they are located in terrain.png (in tile coord) */
 	loc = paintings.location + paintingId * 4;
 	for (name = paintings.names; paintingId > 0; name = strchr(name, ',') + 1, paintingId --);
 	buffer = name; name = strchr(name, ','); if (name) *name = 0;
@@ -309,7 +313,7 @@ void worldItemCreatePainting(Map map, int paintingId)
 
 	entity = entityAlloc(&slot);
 	memcpy(entity->pos, posAndRot, sizeof posAndRot);
-	worldItemCreateGeneric(&nbt, entity, itemGetByName("painting", False), worldItem.createSide);
+	worldItemCreateGeneric(&nbt, entity, "painting");
 	NBT_Add(&nbt,
 		TAG_String, "Motive", buffer,
 		TAG_Compound_End
@@ -355,7 +359,7 @@ static int worldItemCreateItemFrame(Map map, vec4 pos, int side)
 	entity = entityAlloc(&slot);
 	memcpy(entity->pos, posAndRot, sizeof posAndRot);
 	if (c == NULL) return 0; /* outside map? */
-	worldItemCreateGeneric(&nbt, entity, itemGetByName("item_frame", False), side);
+	worldItemCreateGeneric(&nbt, entity, "item_frame");
 	NBT_Add(&nbt, TAG_Compound_End);
 
 	entity->next = c->entityList;
@@ -431,6 +435,110 @@ void worldItemUseItemOn(Map map, int entityId, ItemID_t itemId, vec4 pos)
 			entity = worldItemAddItemFrame(entity, entityId);
 			entity->next = next;
 			entityMarkListAsModified(map, chunk);
+		}
+	}
+}
+
+/* show a preview of the item that will be placed if left-clicked */
+void worldItemPreview(vec4 camera, vec4 pos, ItemID_t itemId)
+{
+	Entity preview = worldItem.preview;
+
+	if (preview == NULL)
+	{
+		preview = entityAlloc(&worldItem.slot);
+
+		memcpy(preview->pos, pos, 12);
+		preview->pos[3] = 1;
+
+		preview->next = ENTITY_END;
+		float angle = atan2f(pos[VX] - camera[VX], pos[VZ] - camera[VZ]);
+		preview->rotation[3] = 0.5; /* scale actually */
+		if (isBlockId(itemId) && blockIds[itemId>>4].special == BLOCK_STAIRS)
+			/* viewed from front instead of side */
+			angle += M_PI_2f;
+		/* shader wants a positive angle */
+		if (angle < 0)
+			angle += 2*M_PIf;
+		preview->rotation[0] = angle;
+		if (isBlockId(itemId))
+			preview->pos[VY] += 0.25f;
+		preview->VBObank = entityAddModel(preview->blockId = itemId, 0, NULL);
+
+		if (preview->VBObank == 0) /* unknwon entity */
+			preview->pos[VY] += 0.5f;
+		/* fully bright, to somewhat highlight that the item has not been placed yet */
+		memset(preview->light, 0xf0, sizeof preview->light);
+		entityAddToCommandList(preview);
+		worldItem.preview = preview;
+	}
+}
+
+void worldItemUpdatePreviewPos(vec4 camera, vec4 pos)
+{
+	Entity preview = worldItem.preview;
+
+	if (preview)
+	{
+		memcpy(preview->pos, pos, 12);
+		if (isBlockId(preview->blockId))
+			preview->pos[VY] += 0.25f;
+		float angle = atan2f(pos[VX] - camera[VX], pos[VZ] - camera[VZ]);
+		if (isBlockId(preview->blockId) && blockIds[preview->blockId>>4].special == BLOCK_STAIRS)
+			/* viewed from front instead of side */
+			angle += M_PI_2f;
+		if (angle < 0) angle += 2*M_PIf;
+		preview->rotation[0] = angle;
+		entityUpdateInfo(preview);
+	}
+}
+
+void worldItemDeletePreview(void)
+{
+	Entity preview = worldItem.preview;
+
+	if (preview)
+	{
+		entityDeleteSlot(worldItem.slot);
+		worldItem.preview = NULL;
+		worldItem.slot = 0;
+	}
+}
+
+/* place current preview item in the world */
+void worldItemAdd(Map map)
+{
+	Entity preview = worldItem.preview;
+
+	if (preview)
+	{
+		Chunk chunk = mapGetChunk(map, preview->pos);
+
+		if (chunk)
+		{
+			TEXT itemName[64];
+			NBTFile_t nbt = {.page = 511};
+
+			itemGetTechName(preview->blockId, itemName, sizeof itemName, False);
+			worldItemCreateGeneric(&nbt, preview, "item");
+			NBT_Add(&nbt,
+				TAG_Compound, "Item",
+					TAG_String, "id", itemName,
+					TAG_Byte,   "Count", 1,
+					TAG_Short,  "Damage", 0,
+				TAG_Compound_End
+			);
+			NBT_Add(&nbt, TAG_Compound_End);
+
+			preview->next = chunk->entityList;
+			preview->name = NBT_Payload(&nbt, NBT_FindNode(&nbt, 0, "id"));
+			chunk->entityList = worldItem.slot;
+
+			preview->tile = nbt.mem;
+			entityGetLight(chunk, preview->pos, preview->light, preview->fullLight = False, 0);
+			entityMarkListAsModified(map, chunk);
+			worldItem.preview = NULL;
+			worldItem.slot = 0;
 		}
 	}
 }

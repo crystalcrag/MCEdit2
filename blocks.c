@@ -228,7 +228,6 @@ static void blockAddState(struct BlockState_t * model, int id)
 	state->id |= id << 4;
 	blockStateIndex[state->id] = blocks.totalStates;
 	blocks.totalStates ++;
-	blockIds[id].states ++;
 	#undef POOLSTATES
 	#undef POOLMASK
 }
@@ -788,6 +787,11 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 		}
 		if (block.orientHint == ORIENT_BED)
 			block.special = BLOCK_BED;
+
+		/* need some extra check when placed */
+		block.tall = block.special == BLOCK_BED ||
+		             block.special == BLOCK_TALLFLOWER ||
+		             block.special == BLOCK_DOOR;
 
 		/* liquid physics */
 		value = jsonValue(keys, "viscosity");
@@ -2370,7 +2374,7 @@ int blockAdjustOrient(int blockId, BlockOrient info, vec4 inter)
 	static uint8_t orientLOG[]    = {8, 4, 8, 4, 0, 0};
 	static uint8_t orientSE[]     = {0, 1, 0, 1};
 	static uint8_t orientStairs[] = {3, 1, 2, 0};
-	static uint8_t orientDoor[]   = {1, 3, 7, 5, 6, 4, 2, 0};
+	static uint8_t orientDoor[]   = {7, 3, 1, 5, 2, 4, 6, 0};
 	static uint8_t orientLever[]  = {3, 1, 4, 2, 5, 7, 6, 0};
 	static uint8_t orientSWNE[]   = {0, 3, 2, 1};
 	static uint8_t orientSNEW[]   = {0, 2, 1, 3};
@@ -2425,6 +2429,9 @@ int blockAdjustOrient(int blockId, BlockOrient info, vec4 inter)
 		return blockId + orientTorch[side];
 	case ORIENT_DOOR:
 		side = (fabs(inter[VX] - (int) inter[VX]) < 0.5 ? 1 : 0) | (fabs(inter[VZ] - (int) inter[VZ]) < 0.5 ? 2 : 0);
+//		static int oldside = -1;
+//		if (side != oldside)
+//			fprintf(stderr, "side = %d - ", side), oldside = side;
 		return (blockId & ~15) | orientDoor[info->direction&1 ? side+4 : side];
 		break;
 	case ORIENT_LEVER:
@@ -3234,7 +3241,7 @@ DATA8 blockGetDurability(float dura)
 /*
  * animate some textures (for now only Lava)
  * Minecraft generates lava texture on the fly using the method described here:
- * - https://github.com/UnknownShadow200/ClassiCube/wiki/MInecraft-Classic-lava-animation-algorithm#lava
+ * - https://github.com/UnknownShadow200/ClassiCube/wiki/Minecraft-Classic-lava-animation-algorithm#lava
  *
  * this code has been quoted almost verbatim from classicube source.
  */

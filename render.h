@@ -167,6 +167,7 @@ struct RenderWorld_t
 	uint8_t    debug;              /* 1 if debug info is displayed (chunk boundaries) */
 	uint8_t    debugInfo;          /* tooltip over block highligted (DEBUG_*) */
 	uint8_t    setFrustum;         /* recompute chunk visible list */
+	uint8_t    previewItem;        /* >0 == preview item being displayed */
 	int        debugFont;          /* font id from nanovg (init by SITGL) */
 	int        debugTotalTri;      /* triangle count being drawn */
 	int        mouseX, mouseY;
@@ -181,6 +182,7 @@ struct RenderWorld_t
 	Message_t  message;            /* message at bottom left of screen */
 	int        oldBlockPos[3];     /* check if we need to change tooltip message */
 	APTR       blockInfo;          /* SIT_TOOLTIP */
+	ItemID_t   previewItemId;      /* id of preview item entity */
 };
 
 struct MeshBuffer_t                /* temporary buffer used to collect data from chunkUpdate() */
@@ -189,6 +191,13 @@ struct MeshBuffer_t                /* temporary buffer used to collect data from
 	ChunkData  chunk;
 	uint16_t   usage;
 	uint32_t   buffer[0];          /* 64Kb: not declared here because gdb doesn't like big table */
+};
+
+enum                               /* possible values for render.previewItem */
+{
+	PREVIEW_NOTHING = 0,
+	PREVIEW_PICKUP  = 1,
+	PREVIEW_BLOCK   = 2
 };
 
 /* debug info */

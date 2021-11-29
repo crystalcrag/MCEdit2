@@ -471,6 +471,8 @@ void debugSetPos(int * exitCode)
 	}
 
 	SIT_AddCallback(SIT_GetById(globals.app, "back"), SITE_OnActivate, debugExit, exitCode);
+
+	SIT_InsertDialog(render.blockInfo);
 }
 
 /* render side view of world */
@@ -888,6 +890,7 @@ void debugLoadSaveState(STRPTR path, Bool load)
 	}
 	else
 	{
+		SIT_ExtractDialog(render.blockInfo);
 		SetINIValueInt(path, "DBGShowChunks", debug.showChunks);
 		SetINIValueInt(path, "DBGLightValue", debug.showLightValue);
 		SetINIValueInt(path, "DBGShowHeightMap", debug.showHeightMap);

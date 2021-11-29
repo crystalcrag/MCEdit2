@@ -1570,6 +1570,32 @@ void mapUpdatePush(Map map, vec4 pos, int blockId, DATA8 tile)
 	trackAddUpdate(&iter, blockId, tile);
 }
 
+/* check if a tall block can be placed at given location */
+static Bool mapHasEnoughSpace(struct BlockIter_t iter, Block block, int blockId)
+{
+	uint8_t side;
+	/* only check bottom/foot part of block (ie: first block placed) */
+	if ((blockId & 15) >= 8) return True;
+	switch (block->special) {
+	case BLOCK_DOOR:
+		if (iter.blockIds[iter.offset] == (blockId >> 4))
+			return True;
+		// no break;
+	case BLOCK_TALLFLOWER:
+		mapIter(&iter, 0, 1, 0);
+		if (iter.yabs >= BUILD_HEIGHT) return False;
+		return ! iter.blockIds || iter.blockIds[iter.offset] == 0;
+	case BLOCK_BED:
+		side = blockSides.SWNE[blockId & 3];
+		mapIter(&iter, relx[side], 0, relz[side]);
+		if (iter.blockIds == NULL) return True;
+		blockId = iter.blockIds[iter.offset];
+		block = &blockIds[blockId];
+		return blockId == 0 || block->pushable == PUSH_DESTROY;
+	}
+	return True;
+}
+
 /*
  * group multiple updates
  */
@@ -1623,6 +1649,9 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 	int XYZ[] = {iter.x, iter.yabs, iter.z};
 	DATA8 data = iter.blockIds + DATA_OFFSET + (iter.offset >> 1);
 	Block b = &blockIds[blockId >> 4];
+
+	if (b->tall && ! mapHasEnoughSpace(iter, b, blockId))
+		return;
 
 	if (b->updateNearby || (oldId > 0 && blockIds[oldId >> 4].updateNearby))
 		iter.cd->cdFlags |= CDFLAG_UPDATENEARBY;

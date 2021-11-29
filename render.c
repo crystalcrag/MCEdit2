@@ -414,6 +414,34 @@ void renderPointToBlock(int mx, int my)
 
 		if (render.selection.selFlags & SEL_MOVE)
 			selectionSetClonePt(render.selection.current, render.selection.extra.side);
+
+		/* user want to place/pickup an item: update action indicator according to what is pointed */
+		if (render.debugInfo & DEBUG_SHOWITEM)
+		{
+			uint8_t shouldDisplayPreview =
+				render.selection.extra.side == SIDE_ENTITY ? PREVIEW_PICKUP :
+				render.previewItemId > 0 ? PREVIEW_BLOCK : PREVIEW_NOTHING;
+			if (shouldDisplayPreview != render.previewItem)
+			{
+				/* selection type has changed */
+				switch (render.previewItem = shouldDisplayPreview) {
+				case PREVIEW_NOTHING:
+					SIT_SetValues(render.blockInfo, SIT_Visible, False, NULL);
+					break;
+				case PREVIEW_PICKUP:
+					worldItemDeletePreview();
+					SIT_SetValues(render.blockInfo, SIT_Visible, True, SIT_Title, "Pick-up item", NULL);
+					break;
+				case PREVIEW_BLOCK:
+					worldItemPreview(render.camera, render.selection.extra.inter, render.previewItemId);
+					SIT_SetValues(render.blockInfo, SIT_Visible, True, SIT_Title, "Place item here", NULL);
+				}
+			}
+			else if (render.previewItem == PREVIEW_BLOCK)
+			{
+				worldItemUpdatePreviewPos(render.camera, render.selection.extra.inter);
+			}
+		}
 	}
 
 	render.mouseX = mx;
@@ -622,6 +650,13 @@ Bool renderInitStatic(void)
 	render.scale = globals.width / (3 * 182.f) * ITEMSCALE;
 	SIT_AddCallback(globals.app, SITE_OnResize, renderGetSize, NULL);
 
+	render.blockInfo = SIT_CreateWidget("blockinfo", SIT_TOOLTIP, globals.app,
+		SIT_ToolTipAnchor, SITV_TooltipFollowMouse,
+		SIT_DelayTime,     SITV_TooltipManualTrigger,
+		SIT_DisplayTime,   100000,
+		NULL
+	);
+
 	/* will need to measure some stuff before hand */
 	return signInitStatic(render.debugFont);
 }
@@ -745,45 +780,36 @@ void renderSetViewMat(vec4 pos, vec4 lookat, float * yawPitch)
 		selectionSetSize();
 }
 
-/* tooltip is about to be deleted, clear reference */
-static int clearRef(SIT_Widget w, APTR cd, APTR ud)
-{
-	render.blockInfo = NULL;
-	memset(render.oldBlockPos, 0, sizeof render.oldBlockPos);
-	return 1;
-}
-
 void renderShowBlockInfo(Bool show, int what)
 {
 	if (show)
 	{
+		render.debugInfo |= what;
 		if (what & DEBUG_SHOWITEM)
 		{
-			/* check if it is possible to show an item */
 			Inventory inv = render.inventory;
+			render.previewItemId = 0;
+			render.previewItem = PREVIEW_NOTHING;
 			if (inv->selected < 9)
+				render.previewItemId = itemHasModel(inv->items + inv->selected);
+
+			if (render.selection.extra.entity > 0 && render.selection.extra.side == SIDE_ENTITY)
 			{
-				ItemID_t itemId = itemHasModel(inv->items + inv->selected);
-				if (itemId > 0)
-					fprintf(stderr, "can place item %d:%d in world\n", itemId >> 4, itemId & 15);
+				/* pointing at an entity: pick it if left-clicked */
+				render.previewItem = PREVIEW_PICKUP;
+				SIT_SetValues(render.blockInfo, SIT_Visible, True, SIT_Title, "Pick-up item", NULL);
+			}
+			/* check if it is possible to show an item */
+			else if (render.previewItemId > 0)
+			{
+				worldItemPreview(render.camera, render.selection.extra.inter, render.previewItemId);
+				render.previewItem = PREVIEW_BLOCK;
+				SIT_SetValues(render.blockInfo, SIT_Visible, True, SIT_Title, "Place item here", NULL);
 			}
 			return;
 		}
-		render.debugInfo |= what;
 		if (what & DEBUG_BLOCK)
-		{
-			if (! render.blockInfo)
-			{
-				render.blockInfo = SIT_CreateWidget("blockinfo", SIT_TOOLTIP, globals.app,
-					SIT_ToolTipAnchor, SITV_TooltipFollowMouse,
-					SIT_DelayTime,     SITV_TooltipManualTrigger,
-					SIT_DisplayTime,   100000,
-					NULL
-				);
-				SIT_AddCallback(render.blockInfo, SITE_OnFinalize, clearRef, NULL);
-			}
 			SIT_SetValues(render.blockInfo, SIT_Visible, True, SIT_DisplayTime, SITV_ResetTime, NULL);
-		}
 	}
 	else
 	{
@@ -791,6 +817,13 @@ void renderShowBlockInfo(Bool show, int what)
 		SIT_SetValues(render.blockInfo, SIT_Visible, False, NULL);
 		if (globals.selPoints & 3)
 			render.debugInfo |= DEBUG_SELECTION;
+		if (what & DEBUG_SHOWITEM)
+		{
+			render.previewItem = PREVIEW_NOTHING;
+			render.previewItemId = 0;
+			SIT_SetValues(render.blockInfo, SIT_Visible, False, NULL);
+			worldItemDeletePreview();
+		}
 	}
 }
 
@@ -1465,7 +1498,7 @@ void renderWorld(void)
 	}
 
 	/* selection overlay */
-	if (render.selection.selFlags)
+	if (render.selection.selFlags && render.previewItem == PREVIEW_NOTHING)
 		renderSelection();
 
 	if (globals.selPoints)
@@ -1554,7 +1587,8 @@ void renderWorld(void)
 		nvgFillColorRGBAS8(vg, "\0\0\0\xaa");
 		nvgFill(vg);
 		nvgFillColorRGBAS8(vg, "\xff\xff\xff\xff");
-		nvgText(vg, FONTSIZE+FONTSIZE_MSG/2, globals.height - FONTSIZE*2+(FONTSIZE-FONTSIZE_MSG)/2, render.message.text, render.message.text + render.message.chrLen);
+		nvgText(vg, FONTSIZE+FONTSIZE_MSG/2, globals.height - FONTSIZE*2+(FONTSIZE-FONTSIZE_MSG)/2, render.message.text,
+			render.message.text + render.message.chrLen);
 	}
 
 	/* debug info */
@@ -1668,12 +1702,15 @@ void renderSaveRestoreState(Bool save)
 		if (selWnd)  SIT_ExtractDialog(selWnd);
 		if (libWnd)  SIT_ExtractDialog(libWnd);
 		if (editWnd) SIT_ExtractDialog(editWnd);
+		SIT_ExtractDialog(render.blockInfo);
 	}
 	else
 	{
+		memset(render.oldBlockPos, 0, sizeof render.oldBlockPos);
 		if (selWnd)  SIT_InsertDialog(selWnd);
 		if (libWnd)  SIT_InsertDialog(libWnd);
 		if (editWnd) SIT_InsertDialog(editWnd);
+		SIT_InsertDialog(render.blockInfo);
 	}
 }
 

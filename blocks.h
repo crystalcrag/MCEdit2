@@ -63,7 +63,7 @@ struct Block_t                   /* per id information */
 	int8_t   bboxPlayer;         /* enum */
 
 	int8_t   particle;           /* enum */
-	uint8_t  states;
+	uint8_t  tall;               /* this block will need more than 1 voxel */
 	uint8_t  emitLight;          /* value of light emitted 0 ~ 15 */
 	uint8_t  opacSky;            /* reduction of skyLight */
 
@@ -74,7 +74,7 @@ struct Block_t                   /* per id information */
 
 	uint8_t  rswire;             /* redstone wire can attach to this block */
 	uint8_t  rsupdate;           /* update state if redstone signal change around block */
-	uint8_t  copyModel;          /* copy invmodel from this block id */
+	uint8_t  copyModel;          /* copy invmodel from this block id (init phase only) */
 	uint8_t  placement;          /* allowed blocks this one can be placed on (index in blocks.placements) */
 
 	uint8_t  gravity;            /* block affected by gravity */

@@ -29,7 +29,6 @@ struct EntitiesPrivate_t entities;
 struct Paintings_t       paintings;
 
 static void hashAlloc(int);
-static int entityAddModel(ItemID_t itemId, int cnx, CustModel cust);
 
 static struct VTXBBox_t entitiesBBox[] = {
 	{  BOX(1.0, 1.0, 1.0), .sides = 63, .aabox = 1},  /* ENTITY_UNKNOWN */
@@ -408,7 +407,7 @@ static int entityGenModel(EntityBank bank, ItemID_t itemId, int cnx, CustModel c
 }
 
 /* get modelId (modelId + bank), allocate one if it does not exist yet */
-static int entityAddModel(ItemID_t itemId, int cnx, CustModel cust)
+int entityAddModel(ItemID_t itemId, int cnx, CustModel cust)
 {
 	EntityBank bank;
 	int modelId = entityGetModelBank(itemId | (cnx << 17));
@@ -832,8 +831,13 @@ void entityInfo(int id, STRPTR buffer, int max)
 	{
 		if (isBlockId(id))
 		{
-			BlockState b = blockGetById(id);
-			if (b > blockStates) name = b->name;
+			Block b = &blockIds[id>>4];
+			if (b->orientHint == 0)
+			{
+				BlockState state = blockGetById(id);
+				if (state > blockStates) name = state->name;
+			}
+			else name = b->name;
 		}
 		else /* item */
 		{
@@ -1064,7 +1068,7 @@ int entityRaypick(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos)
  */
 
 /* remove any reference of this entity in all the data structure */
-static uint16_t entityClear(EntityBuffer buf, int index)
+uint16_t entityClear(EntityBuffer buf, int index)
 {
 	static MDAICmd_t clear = {0};
 	EntityBank bank;
@@ -1120,6 +1124,14 @@ void entityDelete(Chunk c, DATA8 tile)
 		}
 		prev = &entity->next;
 	}
+}
+
+void entityDeleteSlot(int slot)
+{
+	EntityBuffer buffer;
+	int i;
+	for (buffer = HEAD(entities.list), i = slot >> ENTITY_SHIFT; i > 0 && buffer; NEXT(buffer), i --);
+	entityClear(buffer, slot & (ENTITY_BATCH-1));
 }
 
 /* used to unlink entity from chunk's active list */
@@ -1402,6 +1414,18 @@ void entityUpdateLight(Chunk c)
 			if (entity->special == ENTYPE_FILLEDMAP)
 				cartoUpdateLight(id+1, entity->light);
 		}
+	}
+}
+
+void entityUpdateInfo(Entity entity)
+{
+	if (entity)
+	{
+		EntityBank bank;
+		int j;
+		for (j = BANK_NUM(entity->VBObank), bank = HEAD(entities.banks); j > 0; j --, NEXT(bank));
+		glBindBuffer(GL_ARRAY_BUFFER, bank->vboLoc);
+		glBufferSubData(GL_ARRAY_BUFFER, entity->mdaiSlot * INFO_SIZE, INFO_SIZE - LIGHT_SIZE, entity->pos);
 	}
 }
 

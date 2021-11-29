@@ -83,7 +83,7 @@ void playerSensitivity(float s);
 void playerLookAt(Player, int mx, int my);
 int  playerProcessKey(Player, int key, int pressed);
 void playerInitPickup(PickupBlock);
-void playerAddInventory(Player, ItemID_t blockId, DATA8 tileEntity);
+Bool playerAddInventory(Player, ItemID_t blockId, DATA8 tileEntity, Bool incCount);
 void playerScrollInventory(Player, int dir);
 void playerSetMode(Player, int mode);
 void playerTeleport(Player, vec4 pos, float rotation[2]);

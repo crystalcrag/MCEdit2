@@ -349,7 +349,7 @@ static Bool mapBlockIsFaceVisible(Map map, vec4 pos, int blockId, int8_t * offse
 	return True;
 }
 
-/* find the object (block, entity or waypoint)  pointed by tracing a ray using direction <dir> or <yawPitch> */
+/* find the object (block, entity or waypoint) pointed by tracing a ray using direction <dir> or <yawPitch> */
 Bool mapPointToObject(Map map, vec4 camera, vec4 dir, vec4 ret, MapExtraData data)
 {
 	static float normals[] = { /* S, E, N, W, T, B */
@@ -385,19 +385,7 @@ Bool mapPointToObject(Map map, vec4 camera, vec4 dir, vec4 ret, MapExtraData dat
 
 
 	vec4 pos, u;
-	#if 0
-	if (dir == NULL)
-	{
-		/* use yaw-pitch to get our direction vector XXX does not work at all... why ? */
-		float cv = cosf(yawPitch[1]);
-		u[VX] = cosf(yawPitch[0]) * cv;
-		u[VY] = sinf(yawPitch[1]);
-		u[VZ] = sinf(yawPitch[0]) * cv;
-		u[VT] = 1;
-	}
-	else
-	#endif
-		memcpy(u, dir, sizeof u);
+	memcpy(u, dir, sizeof u);
 	vec4 plane = {floorf(camera[0]), floorf(camera[1]), floorf(camera[2]), 1};
 	int  flags = (u[0] < 0 ? 8 : 2) | (u[1] < 0 ? 32 : 16) | (u[2] < 0 ? 4 : 1);
 	int  check = 0;

@@ -23,7 +23,7 @@ struct GameState_t
 	int      mouseX, mouseY;   /* current mouse pos */
 	int      exit;             /* managed by SITGL */
 	int      maxDist;          /* render distance in chunks */
-	uint8_t  forceSel;         /* don't display inventory item */
+	uint8_t  forceSel;         /* don't display preview item */
 	TEXT     capture[128];     /* screenshot directory */
 };
 
