@@ -1,3 +1,7 @@
+=========== Week 48 ===========
+Mon Nov 29:
+	* selectively delete entities (command 8 in toolbar wasn't working).
+
 =========== Week 47 ===========
 Sun Nov 28:
 	* preview item can be picked up or dropped in the world.

@@ -24,6 +24,7 @@ int  entityRaypick(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos);
 void entityUpdateOrCreate(Chunk, vec4 pos, int blockId, vec4 dest, int ticks, DATA8 tile);
 void entityDebugCmd(Chunk);
 int  entityCount(int start);
+Bool entityIter(int * entityId, vec4 pos);
 
 VTXBBox  entityGetBBox(int id);
 ItemID_t entityGetBlockId(int entityId);

@@ -800,6 +800,22 @@ Entity entityGetById(int id)
 	return buffer->entities + (id & (ENTITY_BATCH-1));
 }
 
+Bool entityIter(int * entityId, vec4 pos)
+{
+	int id = *entityId;
+	if (id != ENTITY_END)
+	{
+		Entity entity = entityGetById(id);
+		if (entity)
+		{
+			memcpy(pos, entity->pos, 12);
+			*entityId = entity->next;
+			return True;
+		}
+	}
+	return False;
+}
+
 #ifdef DEBUG /* stderr not available in release build */
 void entityDebug(int id)
 {
@@ -1179,7 +1195,9 @@ void entityDeleteById(Map map, int entityId)
 	{
 		DATA16 prev;
 		/* mark the chunk as needing to be saved */
-		entityMarkListAsModified(map, c);
+		mapAddToSaveList(map, c);
+		if ((c->cflags & CFLAG_REBUILDETT) == 0)
+			chunkUpdateEntities(c);
 
 		/* unlink from chunk active entities */
 		if (entity->ref || entity->special == ENTYPE_FILLEDMAP)

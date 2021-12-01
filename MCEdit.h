@@ -56,6 +56,7 @@ enum /* possible value for parameter mceditUIOverlay() */
 	MCUI_OVERLAY_PAINTING,
 	MCUI_OVERLAY_PIXELART,
 	MCUI_OVERLAY_WORLDINFO,
+	MCUI_OVERLAY_FILTER,
 	MCUI_SEL_CLONE
 };
 

@@ -26,6 +26,7 @@ void mcuiDeletePartial(void);
 void mcuiShowPaintings(void);
 void mcuiShowPixelArt(vec4 pos);
 void mcuiWorldInfo(void);
+void mcuiFilter(void);
 
 #ifdef MCUI_IMPL
 

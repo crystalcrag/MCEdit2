@@ -1389,6 +1389,7 @@ static struct
 	int blocks;
 	int entity;
 	int tile;
+	uint8_t flags;
 }	mcuiDelWnd = {.blocks = False, .entity = True, .tile = True};
 
 static int mcuiDeleteProgress(SIT_Widget w, APTR cd, APTR ud)
@@ -1429,6 +1430,62 @@ static int mcuiDeleteProgress(SIT_Widget w, APTR cd, APTR ud)
 	return 0;
 }
 
+static void mcuiGetSelection(int points[6])
+{
+	int * p;
+	int   i;
+	vec   sel = selectionGetPoints();
+	for (i = 0, p = points; i < 3; i ++, p ++)
+	{
+		p[0] = sel[i];
+		p[3] = sel[i+4];
+		if (p[0] > p[3]) swap(p[0], p[3]);
+		p[3] ++;
+	}
+}
+
+/* interate over all entities that intersect selection */
+static void mcuiIterEntities(SIT_CallProc cb, APTR data)
+{
+	int dx, dz, i;
+	int pos[6];
+	float posf[6];
+	mcuiGetSelection(pos);
+
+	dx = (pos[VZ+3] >> 4) - (pos[VZ] >> 4);
+	dz = (pos[VX+3] >> 4) - (pos[VX] >> 4);
+	for (i = 0; i < 6; posf[i] = pos[i], i ++);
+
+	Chunk c = mapGetChunk(globals.level, posf);
+
+	for (; dz >= 0; dz --, c += chunkNeighbor[c->neighbor + 1] /* going south */)
+	{
+		Chunk chunk;
+		for (i = 0, chunk = c; i <= dx; i ++, chunk += chunkNeighbor[chunk->neighbor + 2] /* going east */)
+		{
+			vec4 coord;
+			int  id, cur;
+
+			for (id = cur = chunk->entityList; entityIter(&id, coord); cur = id)
+			{
+				if (posf[VX] <= coord[VX] && coord[VX] <= pos[VX+3] &&
+				    posf[VY] <= coord[VY] && coord[VY] <= pos[VY+3] &&
+				    posf[VZ] <= coord[VZ] && coord[VZ] <= pos[VZ+3])
+				{
+					cb(NULL, &cur, data);
+				}
+			}
+		}
+	}
+}
+
+static int mcuiDeleteEntities(SIT_Widget w, APTR cd, APTR ud)
+{
+	entityDeleteById(globals.level, * (int *) cd + 1);
+	((int *)ud)[0] ++;
+	return 1;
+}
+
 /* delete key pressed: auto-delete everything in selection */
 void mcuiDeleteAll(void)
 {
@@ -1436,6 +1493,9 @@ void mcuiDeleteAll(void)
 	mcuiRepWnd.processCurrent = 0;
 	mcuiRepWnd.replace = NULL;
 	mcuiRepWnd.processTotal = selectionFill(&mcuiRepWnd.processCurrent, 0, 0, 0);
+	/* this can be done in the current thread */
+	int total = 0;
+	mcuiIterEntities(mcuiDeleteEntities, &total);
 	renderAddModif();
 
 	/* if the interface is stopped early, we need to be notified */
@@ -1452,19 +1512,13 @@ static int mcuiAutoCheck(SIT_Widget w, APTR cd, APTR ud)
 	return 1;
 }
 
-void mcuiIterTE(SIT_CallProc cb, APTR data)
+static void mcuiIterTE(SIT_CallProc cb, APTR data)
 {
 	int dx, dz, i, j;
-	vec points = selectionGetPoints();
-	int pos[6], * p;
-	for (i = 0, p = pos; i < 3; i ++, p ++)
-	{
-		p[0] = points[i];
-		p[3] = points[i+4];
-		if (p[0] > p[3]) swap(p[0], p[3]);
-	}
-	dx = pos[3] - pos[0] + 1;
-	dz = pos[5] - pos[2] + 1;
+	int pos[6];
+	mcuiGetSelection(pos);
+	dx = pos[3] - pos[0];
+	dz = pos[5] - pos[2];
 
 	struct BlockIter_t iter;
 	mapInitIter(globals.level, &iter, (float[3]){pos[0], pos[1], pos[2]}, False);
@@ -1491,7 +1545,9 @@ static int mcuiDeleteTE(SIT_Widget w, APTR cd, APTR ud)
 	BlockIter iter = (BlockIter) w;
 	chunkDeleteTileEntity(iter->ref, (int[3]){iter->x, iter->yabs, iter->z}, False);
 	chunkMarkForUpdate(iter->ref);
+	/* <cd> contains offset of last item in hash table, dec by 1 to avoid missing if linked list has to be relocated */
 	((int *)cd)[0] --;
+	/* total tile entities removed */
 	((int *)ud)[0] ++;
 	return 1;
 }
@@ -1501,9 +1557,19 @@ static int mcuiDoDelete(SIT_Widget w, APTR cd, APTR ud)
 	if (! mcuiDelWnd.blocks)
 	{
 		/* this doesn't need to be asynchronous */
-		int total = 0;
-		mcuiIterTE(mcuiDeleteTE, &total);
-		if (total > 0) renderAddModif();
+		int total;
+		if (mcuiDelWnd.tile && (mcuiDelWnd.flags & 2))
+		{
+			total = 0;
+			mcuiIterTE(mcuiDeleteTE, &total);
+			if (total > 0) renderAddModif();
+		}
+		if (mcuiDelWnd.entity && (mcuiDelWnd.flags & 1))
+		{
+			total = 0;
+			mcuiIterEntities(mcuiDeleteEntities, &total);
+			if (total > 0) renderAddModif();
+		}
 		SIT_Exit(1);
 	}
 	else if (! mcuiRepWnd.asyncCheck)
@@ -1515,7 +1581,7 @@ static int mcuiDoDelete(SIT_Widget w, APTR cd, APTR ud)
 	return 1;
 }
 
-static int mcuiCountTE(SIT_Widget w, APTR cd, APTR ud)
+static int mcuiCountObjects(SIT_Widget w, APTR cd, APTR ud)
 {
 	((int *)ud)[0] ++;
 	return 1;
@@ -1530,29 +1596,41 @@ void mcuiDeletePartial(void)
 	);
 
 	/* count the number of TileEntities */
-	int tileEntities = 0;
-	mcuiIterTE(mcuiCountTE, &tileEntities);
+	TEXT title[64];
+	int  tileEntities = 0;
+	int  entities = 0;
+	mcuiIterTE(mcuiCountObjects, &tileEntities);
+	mcuiIterEntities(mcuiCountObjects, &entities);
 
 	SIT_CreateWidgets(diag,
 		"<label name=dlgtitle.big title=", "Partial delete", "left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, ">"
 		"<label name=title title='Select the parts you want to delete:' top=WIDGET,dlgtitle,0.5em>"
 		"<button name=blocks buttonType=", SITV_CheckBox, "curValue=", &mcuiDelWnd.blocks, "title=Blocks top=WIDGET,title,0.5em>"
-		"<button name=entity buttonType=", SITV_CheckBox, "curValue=", &mcuiDelWnd.entity, "title='Entities (mobs, falling blocks, item frame, ...)'"
-		" top=WIDGET,blocks,0.5em>"
 	);
+	mcuiDelWnd.flags = 0;
+	if (entities > 0)
+	{
+		sprintf(title, "In selection: %d", entities);
+		SIT_CreateWidgets(diag,
+			"<button name=entity buttonType=", SITV_CheckBox, "curValue=", &mcuiDelWnd.entity, "title='Entities (mobs, falling blocks, item frame, ...)'"
+			" top=WIDGET,blocks,0.5em>"
+			"<label name=entitynb.big title=", title, "left=FORM,,1.5em top=WIDGET,entity,0.3em>"
+		);
+		mcuiDelWnd.flags = 1;
+	}
 	if (tileEntities > 0)
 	{
-		TEXT title[64];
-		sprintf(title, "Currently selected: %d", tileEntities);
+		sprintf(title, "In selection: %d", tileEntities);
 		SIT_CreateWidgets(diag,
 			"<button name=tile enabled=", ! mcuiDelWnd.blocks, "buttonType=", SITV_CheckBox, "curValue=", &mcuiDelWnd.tile,
-			" title='Tile entities (chests inventories, ...)' top=WIDGET,entity,0.5em>"
-			"<label name=tilenb style='font-weight:bold' title=", title, "left=FORM,,1.5em top=WIDGET,tile,0.3em>"
+			" title='Tile entities (chests inventories, ...)' top=WIDGET,#LAST,0.5em>"
+			"<label name=tilenb.big title=", title, "left=FORM,,1.5em top=WIDGET,tile,0.3em>"
 		);
+		mcuiDelWnd.flags |= 2;
 	}
 	SIT_CreateWidgets(diag,
-		"<button name=cancel title=Cancel right=FORM top=WIDGET,#LAST,1em>"
-		"<button name=ok title=Delete top=OPPOSITE,cancel right=WIDGET,cancel,0.5em>"
+		"<button name=cancel title=Cancel right=FORM top=WIDGET,#LAST,1em buttonType=", SITV_CancelButton, ">"
+		"<button name=ok title=Delete top=OPPOSITE,cancel right=WIDGET,cancel,0.5em buttonType=", SITV_DefaultButton, ">"
 		"<progress name=prog title=%d%% visible=0 left=FORM right=WIDGET,ok,1em top=MIDDLE,ok>"
 	);
 	SIT_AddCallback(SIT_GetById(diag, "blocks"), SITE_OnActivate, mcuiAutoCheck, SIT_GetById(diag, "tile"));
@@ -1985,6 +2063,29 @@ void mcuiWorldInfo(void)
 	SIT_AddCallback(SIT_GetById(diag, "open"), SITE_OnActivate, mcuiInfoOpenFolder, NULL);
 	SIT_AddCallback(SIT_GetById(diag, "ok"),   SITE_OnActivate, mcuiInfoSave, NULL);
 	SIT_AddCallback(SIT_GetById(diag, "set"),  SITE_OnActivate, mcuiInfoSetIcon, SIT_GetById(diag, "icon"));
+
+	SIT_ManageWidget(diag);
+}
+
+/*
+ * Filter interface: TODO
+ */
+
+void mcuiFilter(void)
+{
+	SIT_Widget diag = SIT_CreateWidget("worldinfo.mc", SIT_DIALOG, globals.app,
+		SIT_DialogStyles, SITV_Plain,
+		NULL
+	);
+
+	SIT_CreateWidgets(diag,
+		"<label name=dlgtitle#title title='Filter blocks:' left=FORM right=FORM>"
+		"<label name=todo title='TODO...' top=WIDGET,#LAST,1em>"
+		"<button name=ko.act title=Cancel top=WIDGET,#LAST,1em right=FORM buttonType=", SITV_CancelButton, ">"
+		"<button name=ok.act title=Filter top=OPPOSITE,ko right=WIDGET,ko,1em buttonType=", SITV_DefaultButton, ">"
+	);
+
+	SIT_AddCallback(SIT_GetById(diag, "ko"), SITE_OnActivate, mcuiExitWnd, NULL);
 
 	SIT_ManageWidget(diag);
 }

@@ -401,9 +401,9 @@ void physicsEntityMoved(Map map, int entityId, vec4 start, vec4 end, VTXBBox bbo
 	for (; DZ >= 0; DZ --, c += chunkNeighbor[c->neighbor + 1] /* going south */)
 	{
 		Chunk chunk;
-		for (i = 0, chunk = c; i <= DX; i ++, chunk += chunkNeighbor[c->neighbor + 2] /* going east */)
+		for (i = 0, chunk = c; i <= DX; i ++, chunk += chunkNeighbor[chunk->neighbor + 2] /* going east */)
 		{
-			Entity entity = NULL;
+			Entity entity;
 			int id;
 
 			for (id = chunk->entityList; id != ENTITY_END; id = entity->next)

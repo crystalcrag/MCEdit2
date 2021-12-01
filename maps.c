@@ -1116,7 +1116,7 @@ Bool mapSerializeItems(MapExtraData sel, STRPTR listName, Item items, int itemCo
 	int  i;
 
 	memset(ret, 0, sizeof *ret);
-	ret->page = 127;
+	ret->page = 511;
 
 	if (sel)
 	{

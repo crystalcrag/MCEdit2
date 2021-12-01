@@ -390,7 +390,7 @@ int main(int nb, char * argv[])
 
 static uint8_t toolbarCmds[] = {
 	MCUI_OVERLAY_REPLACE, MCUI_OVERLAY_FILL, MCUI_SEL_CLONE, MCUI_OVERLAY_LIBRARY, MCUI_OVERLAY_ANALYZE,
-	MCUI_OVERLAY_SAVESEL, 0, MCUI_OVERLAY_DELPARTIAL, MCUI_OVERLAY_PIXELART
+	MCUI_OVERLAY_SAVESEL, MCUI_OVERLAY_FILTER, MCUI_OVERLAY_DELPARTIAL, MCUI_OVERLAY_PIXELART
 };
 
 /*
@@ -721,6 +721,7 @@ void mceditPlaceBlock(void)
 			if (itemId > 0 && playerAddInventory(&mcedit.player, itemId, NULL, True))
 			{
 				entityDeleteById(globals.level, sel->entity);
+				renderAddModif();
 				renderPointToBlock(mcedit.mouseX, mcedit.mouseY);
 				mcedit.forceSel = 0;
 			}
@@ -792,7 +793,10 @@ void mceditPlaceBlock(void)
 		if (id == 0 /* no block selected in inventory bar */)
 		{
 			if (sel->side == SIDE_ENTITY)
+			{
 				entityDeleteById(globals.level, sel->entity);
+				renderAddModif();
+			}
 		}
 		else worldItemUseItemOn(globals.level, sel->entity, item->id, pos);
 	}
@@ -979,6 +983,7 @@ void mceditUIOverlay(int type)
 	case MCUI_OVERLAY_PAINTING:   mcuiShowPaintings(); break;
 	case MCUI_OVERLAY_PIXELART:   mcuiShowPixelArt(mcedit.player.pos); break;
 	case MCUI_OVERLAY_WORLDINFO:  mcuiWorldInfo(); break;
+	case MCUI_OVERLAY_FILTER:     mcuiFilter(); break;
 	}
 
 	SDL_EnableUNICODE(1);
