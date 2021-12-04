@@ -120,7 +120,7 @@ int cartoSaveMap(DATA8 mem, int size)
 		AddPart(path, "data/idcounts.dat", 1e6);
 		if (NBT_Parse(&nbt, path))
 		{
-			lastId = NBT_ToInt(&nbt, NBT_FindNode(&nbt, 0, "map"), 0);
+			lastId = NBT_GetInt(&nbt, NBT_FindNode(&nbt, 0, "map"), 0);
 			NBT_Free(&nbt);
 		}
 		else /* hmm, missing or can't read it: let's be cautious */

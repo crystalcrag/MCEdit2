@@ -1135,9 +1135,9 @@ void updateFinished(DATA8 tile, vec4 dest)
 	while ((i = NBT_Iter(&iter)) >= 0 && flags != 15)
 	{
 		switch (FindInList("X,Y,Z,id", iter.name, 0)) {
-		case 0: src[0] = NBT_ToInt(&nbt, i, 0); flags |= 1; break;
-		case 1: src[1] = NBT_ToInt(&nbt, i, 0); flags |= 2; break;
-		case 2: src[2] = NBT_ToInt(&nbt, i, 0); flags |= 4; break;
+		case 0: src[0] = NBT_GetInt(&nbt, i, 0); flags |= 1; break;
+		case 1: src[1] = NBT_GetInt(&nbt, i, 0); flags |= 2; break;
+		case 2: src[2] = NBT_GetInt(&nbt, i, 0); flags |= 4; break;
 		case 3: blockId = itemGetByName(NBT_Payload(&nbt, i), False); flags |= 8;
 		}
 	}
@@ -1145,7 +1145,7 @@ void updateFinished(DATA8 tile, vec4 dest)
 
 	switch (blockId >> 4) {
 	case RSPISTONHEAD:
-		if (NBT_ToInt(&nbt, NBT_FindNode(&nbt, 0, "extending"), 0) == 0)
+		if (NBT_GetInt(&nbt, NBT_FindNode(&nbt, 0, "extending"), 0) == 0)
 		{
 			/* piston retracted: delete head */
 			mapUpdatePush(map, src, 0, NULL);
@@ -1172,7 +1172,7 @@ void updateFinished(DATA8 tile, vec4 dest)
 
 		/* convert block 36 into actual blocks */
 		blockId = itemGetByName(NBT_Payload(&nbt, NBT_FindNode(&nbt, 0, "blockId")), False) |
-		          NBT_ToInt(&nbt, NBT_FindNode(&nbt, 0, "blockData"), 0);
+		          NBT_GetInt(&nbt, NBT_FindNode(&nbt, 0, "blockData"), 0);
 		if (blockId > 0)
 		{
 			/* delete block 36 */

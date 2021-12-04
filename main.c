@@ -67,6 +67,7 @@ static void prefsInit(void)
 	CopyString(mcedit.capture, GetINIValueStr(ini, "CaptureDir", "screenshots"), sizeof mcedit.capture);
 
 	DOS2Unix(mcedit.capture);
+	selectionLoadState(ini);
 	debugLoadSaveState((STRPTR) ini, True);
 
 	FreeINI(ini);
@@ -384,6 +385,7 @@ int main(int nb, char * argv[])
 	}
 	SDL_FreeSurface(screen);
 	SDL_Quit();
+	selectionSaveState(PREFS_PATH);
 	//prefsSave();
 	return 0;
 }
@@ -411,6 +413,8 @@ void mceditWorld(void)
 
 	while (! mcedit.exit)
 	{
+		#define NO_EXTENDED_SEL_TOOLBAR \
+			((mcedit.player.inventory.offhand & 1) == 0 && globals.selPoints == 0)
 		while (SDL_PollEvent(&event))
 		{
 			int key;
@@ -511,8 +515,11 @@ void mceditWorld(void)
 						selectionCopyBlocks(NULL, NULL, NULL);
 					break;
 				case SDLK_LSHIFT:
-					renderShowBlockInfo(True, DEBUG_SHOWITEM);
-					mcedit.forceSel = 2;
+					if (! capture && NO_EXTENDED_SEL_TOOLBAR)
+					{
+						renderShowBlockInfo(True, DEBUG_SHOWITEM);
+						mcedit.forceSel = 2;
+					}
 					// no break;
 				default:
 					key = SDLKtoSIT(event.key.keysym.sym);
@@ -554,7 +561,7 @@ void mceditWorld(void)
 				case SDLK_F5: sunMove &= ~1; break;
 				case SDLK_F6: sunMove &= ~2; break;
 				case 't': /* throw item */
-					playerAddInventory(&mcedit.player, 0, NULL, False);
+					playerAddInventory(&mcedit.player, NULL);
 					playerUpdateNBT(&mcedit.player);
 					break;
 				case SDLK_LSHIFT:
@@ -613,8 +620,6 @@ void mceditWorld(void)
 					capture = 1;
 					break;
 				case SDL_BUTTON_MIDDLE:
-					#define NO_EXTENDED_SEL_TOOLBAR \
-						(mcedit.player.inventory.offhand & 1) == 0 && globals.selPoints == 0
 					if (NO_EXTENDED_SEL_TOOLBAR)
 					{
 						/* add block selected to inventory bar */
@@ -622,12 +627,20 @@ void mceditWorld(void)
 						MapExtraData sel = renderGetSelectedBlock(pos, NULL);
 						if (sel)
 						{
+							struct Item_t item = {0};
 							if (sel->entity == 0)
 							{
 								int XYZ[] = {pos[0] - sel->chunk->X, pos[1], pos[2] - sel->chunk->Z};
-								playerAddInventory(&mcedit.player, sel->blockId, chunkGetTileEntity(sel->chunk, XYZ), False);
+								item.count = 1;
+								item.id = sel->blockId;
+								item.extra = chunkGetTileEntity(sel->chunk, XYZ);
+								playerAddInventory(&mcedit.player, &item);
 							}
-							else playerAddInventory(&mcedit.player, entityGetBlockId(sel->entity), NULL, False);
+							else
+							{
+								entityGetItem(sel->entity, &item);
+								playerAddInventory(&mcedit.player, &item);
+							}
 							playerUpdateNBT(&mcedit.player);
 						}
 					}
@@ -717,8 +730,9 @@ void mceditPlaceBlock(void)
 		/* pointing at a world item entity */
 		if (sel->side == SIDE_ENTITY)
 		{
-			ItemID_t itemId = entityGetBlockId(sel->entity);
-			if (itemId > 0 && playerAddInventory(&mcedit.player, itemId, NULL, True))
+			struct Item_t buffer = {0};
+			entityGetItem(sel->entity, &buffer);
+			if (buffer.id > 0 && playerAddInventory(&mcedit.player, &buffer))
 			{
 				entityDeleteById(globals.level, sel->entity);
 				renderAddModif();

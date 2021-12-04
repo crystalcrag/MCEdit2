@@ -33,6 +33,22 @@ struct
 }	worldItem;
 
 
+static void worldItemRAD2MC(float rad[2], float mcangle[2])
+{
+	/*
+	 * mcangle stores the following angles:
+	 * mcangle[0]: yaw, clockwise, degrees, where 0 = south.
+	 * mcangle[1]: pitch, degrees, +/- 90. negative = up, positive = down
+	 */
+	mcangle[0] = 360 - rad[0] * RAD_TO_DEG;
+	mcangle[1] = - rad[1] * RAD_TO_DEG;
+	/* not necessary, but looks nicer in debug output */
+	if (mcangle[0] == -0.0f) mcangle[0] = 0; else
+	if (mcangle[0] < 0)      mcangle[0] += 360; else
+	if (mcangle[0] >= 360)   mcangle[0] -= 360;
+	if (mcangle[1] == -0.0f) mcangle[1] = 0;
+}
+
 /* add the pre-defined fields of a world item in the <nbt> fragment */
 static void worldItemCreateGeneric(NBTFile nbt, Entity entity, STRPTR name)
 {
@@ -45,10 +61,7 @@ static void worldItemCreateGeneric(NBTFile nbt, Entity entity, STRPTR name)
 	pos64[VX] = entity->pos[VX];
 	pos64[VY] = entity->pos[VY];
 	pos64[VZ] = entity->pos[VZ];
-	rotation[0] = 360 - entity->rotation[0] * RAD_TO_DEG;
-	rotation[1] = - entity->rotation[1] * RAD_TO_DEG;
-	if (rotation[1] == -0.0f)
-		rotation[1] = 0;
+	worldItemRAD2MC(entity->rotation, rotation);
 	sprintf(id, "minecraft:%s", name);
 	for (p = uuid.uuid8, e = p + sizeof uuid.uuid8; p < e; *p++ = rand());
 	NBT_Add(nbt,
@@ -62,6 +75,52 @@ static void worldItemCreateGeneric(NBTFile nbt, Entity entity, STRPTR name)
 		TAG_String,      "id", id,
 		TAG_End
 	);
+}
+
+void worldItemDup(Map map, vec info, int entityId)
+{
+	uint16_t slot;
+	Entity entity = entityGetById(entityId);
+	Entity dup    = entityAlloc(&slot);
+	Chunk  chunk  = mapGetChunk(map, info);
+
+	memcpy(dup->pos, info, INFO_SIZE);
+	dup->VBObank   = entity->VBObank;
+	dup->special   = entity->special;
+	dup->fullLight = entity->fullLight;
+	dup->blockId   = entity->blockId;
+	dup->tile      = NBT_Copy(entity->tile);
+
+	NBTFile_t nbt = {.mem = dup->tile};
+	NBTIter_t iter;
+	int       offset;
+	float     rotation[2];
+	DATA8     p, e;
+
+	/* update NBT record too */
+	worldItemRAD2MC(dup->rotation, rotation);
+	NBT_IterCompound(&iter, nbt.mem);
+	EntityUUID_t uuid;
+	for (p = uuid.uuid8, e = p + sizeof uuid.uuid8; p < e; *p++ = rand());
+	while ((offset = NBT_Iter(&iter)) >= 0)
+	{
+		switch (FindInList("UUIDLeast,UUIDMost,Rotation,Pos,Motion", iter.name, 0)) {
+		case 0: memcpy(NBT_Payload(&nbt, offset), uuid.uuid8,   8); break;
+		case 1: memcpy(NBT_Payload(&nbt, offset), uuid.uuid8+8, 8); break;
+		case 2: NBT_SetFloat(&nbt, offset, rotation, 2); break;
+		case 3: NBT_SetFloat(&nbt, offset, dup->pos, 3); break;
+		case 4: NBT_SetFloat(&nbt, offset, dup->motion, 3);
+		}
+	}
+
+	dup->next = chunk->entityList;
+	dup->name = NBT_Payload(&nbt, NBT_FindNode(&nbt, 0, "id"));
+	chunk->entityList = slot;
+	entityGetLight(chunk, dup->pos, dup->light, dup->fullLight, 0);
+	entityAddToCommandList(dup);
+	mapAddToSaveList(map, chunk);
+	if ((chunk->cflags & CFLAG_REBUILDETT) == 0)
+		chunkUpdateEntities(chunk);
 }
 
 /* model for full frame is oriented in the XY plane: grab coord of south face and apply entity transformation */
@@ -425,7 +484,6 @@ void worldItemUseItemOn(Map map, int entityId, ItemID_t itemId, vec4 pos)
 					TAG_Compound_End
 			);
 			NBT_Add(&tile, TAG_Compound_End); /* end of whole entity */
-			NBT_DumpCompound(&tile);
 			chunkDeleteTile(chunk, entity->tile);
 			entity->name = NBT_Payload(&tile, NBT_FindNode(&tile, 0, "id"));
 			entity->tile = tile.mem;
@@ -457,6 +515,8 @@ void worldItemPreview(vec4 camera, vec4 pos, ItemID_t itemId)
 		if (isBlockId(itemId) && blockIds[itemId>>4].special == BLOCK_STAIRS)
 			/* viewed from front instead of side */
 			angle += M_PI_2f;
+		else
+			angle += M_PIf;
 		/* shader wants a positive angle */
 		if (angle < 0)
 			angle += 2*M_PIf;
@@ -487,6 +547,8 @@ void worldItemUpdatePreviewPos(vec4 camera, vec4 pos)
 		if (isBlockId(preview->blockId) && blockIds[preview->blockId>>4].special == BLOCK_STAIRS)
 			/* viewed from front instead of side */
 			angle += M_PI_2f;
+		else
+			angle += M_PIf;
 		if (angle < 0) angle += 2*M_PIf;
 		preview->rotation[0] = angle;
 		entityUpdateInfo(preview);

@@ -198,9 +198,9 @@ static void signParseEntity(SignText sign)
 					sign->text[id] = (DATA8) NBT_Payload(&nbt, i) - nbt.mem;
 			}
 			break;
-		case 'x': case 'X': sign->XYZ[0] = NBT_ToInt(&nbt, i, 0); break;
-		case 'y': case 'Y': sign->XYZ[1] = NBT_ToInt(&nbt, i, 0); break;
-		case 'z': case 'Z': sign->XYZ[2] = NBT_ToInt(&nbt, i, 0); break;
+		case 'x': case 'X': sign->XYZ[0] = NBT_GetInt(&nbt, i, 0); break;
+		case 'y': case 'Y': sign->XYZ[1] = NBT_GetInt(&nbt, i, 0); break;
+		case 'z': case 'Z': sign->XYZ[2] = NBT_GetInt(&nbt, i, 0); break;
 		}
 	}
 }

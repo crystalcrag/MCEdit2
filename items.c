@@ -677,8 +677,8 @@ void itemDecodeEnchants(DATA8 nbt, STRPTR title, int max)
 		while ((off2 = NBT_Iter(&sub)) >= 0)
 		{
 			switch (FindInList("lvl,id", sub.name, 0)) {
-			case 0: level = NBT_ToInt(&file, off2, 0); break;
-			case 1: id    = NBT_ToInt(&file, off2, 0);
+			case 0: level = NBT_GetInt(&file, off2, 0); break;
+			case 1: id    = NBT_GetInt(&file, off2, 0);
 			}
 		}
 		if (id > 0 && level > 0)

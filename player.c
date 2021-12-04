@@ -33,11 +33,11 @@ void playerInit(Player p)
 
 	memset(p, 0, sizeof *p);
 
-	NBT_ToFloat(levelDat, NBT_FindNode(levelDat, player, "Pos"), p->pos, 3);
-	NBT_ToFloat(levelDat, NBT_FindNode(levelDat, player, "Rotation"), rotation, 2);
+	NBT_GetFloat(levelDat, NBT_FindNode(levelDat, player, "Pos"), p->pos, 3);
+	NBT_GetFloat(levelDat, NBT_FindNode(levelDat, player, "Rotation"), rotation, 2);
 
-	p->onground = NBT_ToInt(levelDat, NBT_FindNode(levelDat, player, "OnGround"), 1);
-	p->pmode    = NBT_ToInt(levelDat, NBT_FindNode(levelDat, player, "playerGameType"), MODE_SURVIVAL);
+	p->onground = NBT_GetInt(levelDat, NBT_FindNode(levelDat, player, "OnGround"), 1);
+	p->pmode    = NBT_GetInt(levelDat, NBT_FindNode(levelDat, player, "playerGameType"), MODE_SURVIVAL);
 	p->levelDat = levelDat;
 	p->fly      = ! p->onground;
 
@@ -59,7 +59,7 @@ void playerInit(Player p)
 	/* get inventory content */
 	playerUpdateInventory(p);
 
-	p->inventory.selected = NBT_ToInt(levelDat, NBT_FindNode(levelDat, player, "SelectedItemSlot"), 0);
+	p->inventory.selected = NBT_GetInt(levelDat, NBT_FindNode(levelDat, player, "SelectedItemSlot"), 0);
 }
 
 /* inventory in NBT changed: update items */
@@ -500,68 +500,90 @@ void playerUpdateNBT(Player p)
 	struct NBTFile_t inventory = {0};
 
 	NBTFile levelDat = p->levelDat;
-	if (mapSerializeItems(NULL, "Inventory", p->inventory.items, MAXCOLINV * 4, &inventory))
+	if (mapSerializeItems(NULL, "Inventory", p->inventory.items, PLAYER_MAX_ITEMS, &inventory))
 	{
 		int offset = NBT_Insert(levelDat, "Player.Inventory", TAG_List_Compound, &inventory);
 		NBT_Free(&inventory);
 		if (offset >= 0)
 		{
-			mapDecodeItems(p->inventory.items, MAXCOLINV * 4, NBT_Hdr(levelDat, offset));
+			mapDecodeItems(p->inventory.items, PLAYER_MAX_ITEMS, NBT_Hdr(levelDat, offset));
 			p->inventory.update ++;
 		}
 	}
 }
 
-Bool playerAddInventory(Player p, ItemID_t blockId, DATA8 tileEntity, Bool incCount)
+Bool playerAddInventory(Player p, Item add)
 {
-	Item item;
-	int  slot = p->inventory.selected;
+	ItemID_t itemId;
+	Item     item;
+	int      slot;
 
-	if (blockId > 0)
+	if (add && add->id > 0)
 	{
-		if (isBlockId(blockId))
+		itemId = add->id;
+		if (isBlockId(itemId))
 		{
-			BlockState b = blockGetById(blockId);
+			BlockState b = blockGetById(itemId);
 			if (b->inventory == 0)
 			{
 				/* this block is not supposed to be in inventory, check for alternative */
-				int invId = blockAdjustInventory(blockId);
+				int invId = blockAdjustInventory(itemId);
 				/* that entire block type can't be used as an inventory item */
-				if (invId == 0 && (invId = itemCanCreateBlock(blockId, NULL)) == blockId)
+				if (invId == 0 && (invId = itemCanCreateBlock(itemId, NULL)) == itemId)
 					return False;
 
 				if (invId == 0)
 					return False;
-				blockId = invId;
+				itemId = invId;
 			}
 		}
 
 		/* check if it is already in inventory */
-		int max;
-		max = incCount ? MAXCOLINV * 4 : MAXCOLINV;
-		for (item = p->inventory.items, slot = 0; slot < max && !(item->id == blockId && item->extra == NULL); slot ++, item ++);
-		if (slot < MAXCOLINV)
-			p->inventory.selected = slot;
-		if (incCount)
-		{
-			if (slot < max)
+		do {
+			for (item = p->inventory.items, slot = 0; slot < PLAYER_MAX_ITEMS && !(item->id == itemId && item->extra == NULL); slot ++, item ++);
+
+			if (slot < PLAYER_MAX_ITEMS)
 			{
-				item->count ++;
-				p->inventory.update ++;
-				return True;
+				int remain = itemAddCount(item, add->count);
+				if (remain > 0)
+				{
+					/* not enough space */
+					add->count = remain;
+				}
 			}
-			/* add them in the first free slot */
-			for (item = p->inventory.items, slot = 0; slot < max && item->id != 0; slot ++, item ++);
-			if (slot == max)
-				return False;
+			else /* not in inventory: try to add them in the first free slot */
+			{
+				for (item = p->inventory.items, slot = 0; slot < PLAYER_MAX_ITEMS && item->id > 0; slot ++, item ++);
+
+				if (slot < PLAYER_MAX_ITEMS)
+				{
+					if (slot >= MAXCOLINV)
+					{
+						/* exchange with active slot */
+						Item active = p->inventory.items + p->inventory.selected;
+						item[0] = active[0];
+						item = active;
+					}
+					/*
+					 * <tileEntity> is a raw pointer within chunk NBT from world map, it can be freed at any time,
+					 * but will be serialized within levelDat in playerUpdateNBT()
+					 */
+					item->id = add->id;
+					item->count = add->count;
+					item->extra = add->extra;
+					item->uses = add->uses;
+					break;
+				}
+				else return False; /* inventory full XXX need to update entity count otherwise duping glitch */
+			}
 		}
+		while (add->count > 0);
+	}
+	else /* else user wants to get rid of this item */
+	{
+		memset(p->inventory.items + p->inventory.selected, 0, sizeof *item);
 	}
 
-	item = &p->inventory.items[slot];
-	item->id = blockId;
-	item->count = 1;
-	item->uses = 0;
-	item->extra = tileEntity; /* XXX raw pointer to NBT from world map, can be freed at any time :-/ */
 	p->inventory.update ++;
 	playerSetInfoTip(p);
 	return True;

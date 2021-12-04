@@ -1,4 +1,16 @@
 =========== Week 48 ===========
+Thu Dec 3:
+	* entity copy logic continued.
+
+Thu Dec 2:
+	* moar clone entities logic (vbo copy done, need nbt copy still).
+
+Wed Dec 1:
+	* copy entities in selection continued.
+
+Tue Nov 30:
+	* started being able to copy entities in selection.
+
 Mon Nov 29:
 	* selectively delete entities (command 8 in toolbar wasn't working).
 

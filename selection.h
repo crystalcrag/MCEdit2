@@ -11,7 +11,11 @@
 #include "SIT.h"
 
 void selectionInitStatic(int shader);
+void selectionLoadState(INIFile);
+void selectionSaveState(STRPTR path);
 void selectionSetPoint(float scale, vec4 pos, int point);
+void selectionIterTE(SIT_CallProc cb, APTR data);
+void selectionIterEntities(SIT_CallProc cb, APTR data);
 void selectionSetSize(void);
 void selectionRender(void);
 void selectionCancel(void);
@@ -66,13 +70,15 @@ enum /* selection pointId */
 	SEL_POINT_CLONE = 3        /* green rectangle around brush */
 };
 
+/* repurpose some unused field for Map_t */
 #define sharedBanks            path[MAX_PATHLEN-1]
+#define BRUSH_ENTITIES(map)    ((APTR) (map)->dirty)
+#define BRUSH_SETENT(map,ent)  ((map)->dirty = (APTR) (ent))
 
 #ifdef SELECTION_IMPL          /* private stuff below */
 struct Selection_t
 {
-	int      shader;
-	int      shaderBlocks;
+	int      shader;           /* selection.vsh/fsh */
 	int      infoLoc;          /* shader uniform location */
 	int      vao;              /* GL buffer to render selection points/box */
 	int      vboVertex;
@@ -85,13 +91,14 @@ struct Selection_t
 	vec4     secondPt;
 	vec4     regionPt;
 	vec4     regionSize;
-	vec4     clonePt;
+	vec4     clonePt;          /* where the cloned selection is */
 	vec4     cloneSize;
-	int      cloneOff[3];
+	int      cloneOff[3];      /* value for clone selection window */
 	int      cloneRepeat;
 	int      copyAir;
 	int      copyWater;
 	int      copyEntity;
+	uint8_t  loadSettings[4];  /* check if settings have changed on exit */
 	STRPTR   ext[4];           /* directionnal dependant icon for roll button */
 	APTR     nudgeDiag;        /* SIT_DIALOG */
 	APTR     editBrush;        /* SIT_DIALOG */
@@ -100,6 +107,21 @@ struct Selection_t
 	APTR     brushOff[3];      /* SIT_EDITBOX */
 	Map      brush;            /* mesh for cloned selection */
 };
+
+#define SEL_INIT_STAT          64
+
+struct SelEntities_t           /* gather some stat about selected entities */
+{
+	int      nbVertex;
+	int      nbIds,  nbModels;
+	int      maxIds, maxModels;
+	uint16_t buffer[SEL_INIT_STAT];
+	uint32_t modelIds[SEL_INIT_STAT];
+	DATA16   ids;
+	DATA32   models;
+};
+
+typedef struct SelEntities_t * SelEntities;
 
 #define MAX_REPEAT             128
 #define MAX_SELECTION          1024 /* blocks */

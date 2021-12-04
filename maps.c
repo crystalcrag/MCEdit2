@@ -677,6 +677,8 @@ void mapGenerateMesh(Map map)
 					load->cflags |= CFLAG_GOTDATA;
 			}
 		}
+		//if (list == map->center)
+		//	NBT_Dump(&list->nbt, 0, 0, 0);
 
 		//fprintf(stderr, "meshing chunk %d, %d\n", list->X, list->Z);
 		//dumpTileEntities(list);
@@ -926,7 +928,7 @@ Map mapInitFromPath(STRPTR path, int renderDist)
 	{
 		float xyz[3];
 
-		if (NBT_ToFloat(&nbt, NBT_FindNode(&nbt, 0, "pos"), xyz, 3))
+		if (NBT_GetFloat(&nbt, NBT_FindNode(&nbt, 0, "pos"), xyz, 3))
 		{
 			map->cx = xyz[0];
 			map->cy = xyz[1];
@@ -1048,7 +1050,7 @@ STRPTR mapItemName(NBTFile nbt, int offset, TEXT itemId[16])
 	NBTHdr hdr = NBT_Hdr(nbt, offset);
 	if (hdr->type != TAG_String)
 	{
-		sprintf(itemId, "%d", NBT_ToInt(nbt, offset, 0));
+		sprintf(itemId, "%d", NBT_GetInt(nbt, offset, 0));
 		return itemId;
 	}
 	return NBT_Payload(nbt, offset);
@@ -1076,9 +1078,9 @@ void mapDecodeItems(Item container, int count, NBTHdr hdrItems)
 		{
 			switch (FindInList("id,Slot,Count,Damage", properties.name, 0)) {
 			case 0:  item.id = itemGetByName(mapItemName(&nbt, off, itemId), True); break;
-			case 1:  item.slot = NBT_ToInt(&nbt, off, 255); break;
-			case 2:  item.count = NBT_ToInt(&nbt, off, 1); break;
-			case 3:  item.uses = NBT_ToInt(&nbt, off, 0); break;
+			case 1:  item.slot = NBT_GetInt(&nbt, off, 255); break;
+			case 2:  item.count = NBT_GetInt(&nbt, off, 1); break;
+			case 3:  item.uses = NBT_GetInt(&nbt, off, 0); break;
 			default: if (! item.extra) item.extra = nbt.mem;
 			}
 		}

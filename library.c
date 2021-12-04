@@ -277,7 +277,7 @@ static Bool GetTilePosition(int * XYZ, DATA8 tile)
 	while ((i = NBT_Iter(&iter)) >= 0 && flags != 7)
 	{
 		int n = FindInList("X,Y,Z", iter.name, 0);
-		if (n >= 0) XYZ[n] = NBT_ToInt(&nbt, i, 0), flags |= 1 << n;
+		if (n >= 0) XYZ[n] = NBT_GetInt(&nbt, i, 0), flags |= 1 << n;
 	}
 	return flags == 7;
 }
@@ -407,9 +407,9 @@ static Bool libraryExtractThumb(LibBrush lib, STRPTR path, DATA16 size)
 	if (NBT_Parse(&lib->nbt, path))
 	{
 		/* seems to be a valid NBT, check if it is a schematics */
-		size[VY] = NBT_ToInt(&lib->nbt, NBT_FindNode(&lib->nbt, 0, "Height"), 0);
-		size[VZ] = NBT_ToInt(&lib->nbt, NBT_FindNode(&lib->nbt, 0, "Length"), 0);
-		size[VX] = NBT_ToInt(&lib->nbt, NBT_FindNode(&lib->nbt, 0, "Width"), 0);
+		size[VY] = NBT_GetInt(&lib->nbt, NBT_FindNode(&lib->nbt, 0, "Height"), 0);
+		size[VZ] = NBT_GetInt(&lib->nbt, NBT_FindNode(&lib->nbt, 0, "Length"), 0);
+		size[VX] = NBT_GetInt(&lib->nbt, NBT_FindNode(&lib->nbt, 0, "Width"), 0);
 		if (size[VY] > 0 && size[VZ] > 0 && size[VX] > 0)
 		{
 			lib->nvgFBO = nvgluCreateFramebuffer(globals.nvgCtx, lib->thumbSz, lib->thumbSz, NVG_IMAGE_DEPTH);

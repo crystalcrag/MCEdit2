@@ -18,6 +18,7 @@
 #include "blockUpdate.h"
 #include "player.h"
 #include "render.h"
+#include "entities.h"
 #include "globals.h"
 #include "SIT.h"
 
@@ -68,6 +69,34 @@ void selectionInitStatic(int shader)
 	glEnableVertexAttribArray(2);
 	glVertexAttribDivisor(2, 1);
 	glBindVertexArray(0);
+}
+
+static const char * selectionKeys[] = {"CopyAir", "CopyWater", "CopyEntity"};
+static char selectionDefault[] = {1, 1, 0};
+
+/* load settings from disk */
+void selectionLoadState(INIFile ini)
+{
+	TEXT key[32];
+	int  i;
+	for (i = 0; i < DIM(selectionKeys); i ++)
+	{
+		sprintf(key, "Selection/%s", selectionKeys[i]);
+		(&selection.copyAir)[i] = selection.loadSettings[i] = GetINIValueInt(ini, key, selectionDefault[i]);
+	}
+}
+
+/* should be called when exiting app */
+void selectionSaveState(STRPTR path)
+{
+	TEXT key[32];
+	int  i;
+	for (i = 0; i < DIM(selectionKeys); i ++)
+	{
+		sprintf(key, "Selection/%s", selectionKeys[i]);
+		if ((&selection.copyAir)[i] != selection.loadSettings[i])
+			SetINIValueInt(path, key, selection.loadSettings[i] = (&selection.copyAir)[i]);
+	}
 }
 
 /* show size (in blocks) of selection in the "nudge" window */
@@ -368,18 +397,6 @@ void selectionRender(void)
 {
 	if (globals.selPoints)
 	{
-		glDepthMask(GL_FALSE);
-		glUseProgram(selection.shader);
-		glBindVertexArray(selection.vao);
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, selection.vboIndex);
-
-		switch (globals.selPoints & 3) {
-		case 1: selectionDrawPoint(selection.firstPt,  0); break;
-		case 2: selectionDrawPoint(selection.secondPt, 1); break;
-		case 3: selectionDrawPoint(selection.firstPt,  0);
-		        selectionDrawPoint(selection.secondPt, 1);
-		        selectionDrawPoint(selection.regionPt, 2);
-		}
 		if (globals.selPoints & (1 << SEL_POINT_CLONE))
 		{
 			/* draw the brush (only once, no matter how many repeats there are) */
@@ -393,6 +410,18 @@ void selectionRender(void)
 			glUseProgram(selection.shader);
 			glBindVertexArray(selection.vao);
 			selectionDrawPoint(selection.clonePt, 3);
+		}
+		glDepthMask(GL_FALSE);
+		glUseProgram(selection.shader);
+		glBindVertexArray(selection.vao);
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, selection.vboIndex);
+
+		switch (globals.selPoints & 3) {
+		case 1: selectionDrawPoint(selection.firstPt,  0); break;
+		case 2: selectionDrawPoint(selection.secondPt, 1); break;
+		case 3: selectionDrawPoint(selection.firstPt,  0);
+		        selectionDrawPoint(selection.secondPt, 1);
+		        selectionDrawPoint(selection.regionPt, 2);
 		}
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 		glEnable(GL_DEPTH_TEST);
@@ -411,7 +440,7 @@ void selectionRender(void)
 	chunkUpdateTilePosition((iter).ref, xyz, tile); \
 }
 
-
+/* move brush */
 void selectionSetClonePt(vec4 pos, int side)
 {
 	static uint8_t axis[] = { /* S, E, N, W, T, B */
@@ -433,7 +462,7 @@ void selectionSetClonePt(vec4 pos, int side)
 		i = off[2]; selection.clonePt[i] = pos[i] + (off[3] ? -floorf(selection.cloneSize[i]) : 1);
 	}
 
-	/* offset from original selection */
+	/* set editbox offset from original selection */
 	if (selection.editBrush)
 	{
 		for (i = 0; i < 3; i ++)
@@ -465,8 +494,13 @@ void selectionSetClonePt(vec4 pos, int side)
 		brush->cx = pos[0] - 1;
 		brush->cy = pos[1] - 1;
 		brush->cz = pos[2] - 1;
+
+		/* relocate entities if any */
+		if (BRUSH_ENTITIES(brush))
+			entityCopyRelocate(BRUSH_ENTITIES(brush), selection.clonePt);
 	}
 
+	/* if the brush was following mouse, cancel it now */
 	if (side & SEL_CLONEMOVE_STOP)
 		renderSetSelectionPoint(RENDER_SEL_STOPMOVE);
 }
@@ -541,6 +575,9 @@ int selectionCopyBlocks(SIT_Widget w, APTR cd, APTR ud)
 		mapInitIter(map, &dst, pos, True);
 		mapInitIterOffset(&src, brush->firstVisible, 256+16+1);
 	}
+
+	if (selection.copyEntity)
+		entityCopyToMap(BRUSH_ENTITIES(brush), map);
 
 	mapUpdateEnd(map);
 	selectionCancelClone(NULL, NULL, NULL);
@@ -642,6 +679,8 @@ Map selectionAllocBrush(uint16_t sizes[3])
 	return brush;
 }
 
+void chunkFreeHash(APTR hash, DATA8 min, DATA8 max);
+
 /* destructor */
 void selectionFreeBrush(Map brush)
 {
@@ -651,7 +690,10 @@ void selectionFreeBrush(Map brush)
 		renderFreeMesh(brush, False);
 	/* clear tile entites per chunk */
 	for (chunk = brush->chunks, count = ((brush->size[VX] + 15) >> 4) * ((brush->size[VZ] + 15) >> 4); count > 0; count --, chunk ++)
-		if (chunk->tileEntities) free(chunk->tileEntities);
+		if (chunk->tileEntities) chunkFreeHash(chunk->tileEntities, NULL, NULL);
+	if (BRUSH_ENTITIES(brush))
+		entityCopyDelete(BRUSH_ENTITIES(brush));
+
 	free(brush);
 }
 
@@ -675,7 +717,6 @@ void selectionEditBrush(Bool simplified)
 		"<button name=flip.act title='<pchar src=flip.png> Flip' maxWidth=roll top=WIDGET,broll,0.5em left=WIDGET,bflip,0.3em>"
 		"<label name=bmirror maxWidth=broll title=M: left=WIDGET,flip,1em>"
 		"<button name=mirror.act title='<xchar src=mirror.png> Mirror' maxWidth=flip top=WIDGET,broll,0.5em left=WIDGET,bmirror,0.3em>"
-
 		"<button name=nudge title=Nudge nextCtrl=NONE right=FORM maxWidth=mirror>"
 	);
 
@@ -708,7 +749,7 @@ void selectionEditBrush(Bool simplified)
 	}
 
 	SIT_CreateWidgets(diag,
-		"<button name=copyair title='Copy air'    curValue=", &selection.copyAir,    "top=WIDGET,repeat,1em    buttonType=", SITV_CheckBox, ">"
+		"<button name=copyair title='Copy air'    curValue=", &selection.copyAir,    "top=WIDGET,#LAST,1em    buttonType=", SITV_CheckBox, ">"
 		"<button name=copywat title='Copy water'  curValue=", &selection.copyWater,  "top=WIDGET,copyair,0.5em buttonType=", SITV_CheckBox, ">"
 		"<button name=copyent title='Copy entity' curValue=", &selection.copyEntity, "top=WIDGET,copywat,0.5em buttonType=", SITV_CheckBox, ">"
 
@@ -718,7 +759,6 @@ void selectionEditBrush(Bool simplified)
 	SIT_SetAttributes(diag,
 		"<brotate top=MIDDLE,rotate><broll top=MIDDLE,roll><bflip top=MIDDLE,flip><bmirror top=MIDDLE,mirror>"
 	);
-	if (simplified) SIT_SetAttributes(diag, "<copyair topObject=size>");
 	int i;
 	for (i = 0; i < 3; i ++)
 	{
@@ -734,6 +774,131 @@ void selectionEditBrush(Bool simplified)
 	SIT_AddCallback(SIT_GetById(diag, "flip"), SITE_OnActivate, selectionTransform, (APTR) 2);
 	SIT_AddCallback(SIT_GetById(diag, "mirror"), SITE_OnActivate, selectionTransform, (APTR) 3);
 	SIT_ManageWidget(diag);
+}
+
+static void selectionGetRange(int points[6])
+{
+	int * p;
+	int   i;
+	vec   sel = selection.firstPt;
+	for (i = 0, p = points; i < 3; i ++, p ++)
+	{
+		p[0] = sel[i];
+		p[3] = sel[i+4];
+		if (p[0] > p[3]) swap(p[0], p[3]);
+		p[3] ++;
+	}
+}
+
+/* iterator over tile entities (within selection from map) */
+void selectionIterTE(SIT_CallProc cb, APTR data)
+{
+	int dx, dz, i, j;
+	int pos[6];
+	selectionGetRange(pos);
+	dx = pos[3] - pos[0];
+	dz = pos[5] - pos[2];
+
+	struct BlockIter_t iter;
+	mapInitIter(globals.level, &iter, (float[3]){pos[0], pos[1], pos[2]}, False);
+	for (j =  0; j < dz; j ++, mapIter(&iter, -i, 0, 16 - iter.z))
+	{
+		for (i = 0; i < dx; i += 16 - iter.x, mapIter(&iter, 16 - iter.x, 0, 0))
+		{
+			int offset = 0, XYZ[3];
+			while ((iter.blockIds = chunkIterTileEntity(iter.ref, XYZ, &offset)))
+			{
+				if (pos[VX] <= XYZ[VX] && XYZ[VX] <= pos[VX+3] &&
+				    pos[VY] <= XYZ[VY] && XYZ[VY] <= pos[VY+3] &&
+				    pos[VZ] <= XYZ[VZ] && XYZ[VZ] <= pos[VZ+3])
+				{
+					cb((SIT_Widget)&iter, &offset, data);
+				}
+			}
+		}
+	}
+}
+
+/* iterate over all entities that intersect selection */
+void selectionIterEntities(SIT_CallProc cb, APTR data)
+{
+	int dx, dz, i;
+	int pos[6];
+	float posf[6];
+	selectionGetRange(pos);
+
+	dx = (pos[VZ+3] >> 4) - (pos[VZ] >> 4);
+	dz = (pos[VX+3] >> 4) - (pos[VX] >> 4);
+	for (i = 0; i < 6; posf[i] = pos[i], i ++);
+
+	Chunk c = mapGetChunk(globals.level, posf);
+
+	for (; dz >= 0; dz --, c += chunkNeighbor[c->neighbor + 1] /* going south */)
+	{
+		Chunk chunk;
+		for (i = 0, chunk = c; i <= dx; i ++, chunk += chunkNeighbor[chunk->neighbor + 2] /* going east */)
+		{
+			vec4 coord;
+			int  id, cur;
+
+			for (id = cur = chunk->entityList; entityIter(&id, coord); cur = id)
+			{
+				if (posf[VX] <= coord[VX] && coord[VX] <= posf[VX+3] &&
+				    posf[VY] <= coord[VY] && coord[VY] <= posf[VY+3] &&
+				    posf[VZ] <= coord[VZ] && coord[VZ] <= posf[VZ+3])
+				{
+					cb(NULL, &cur, data);
+				}
+			}
+		}
+	}
+}
+
+static int selectionEnumEntities(SIT_Widget unused, APTR cd, APTR ud)
+{
+	SelEntities stat = ud;
+	int entityId = * (int *) cd;
+	int vtxCount = 0;
+	int modelId = entityGetModel(entityId, &vtxCount);
+	int i;
+
+	/* simply gather all entities within selection */
+	if (stat->nbIds >= stat->maxIds)
+	{
+		int max = stat->maxIds + SEL_INIT_STAT;
+		DATA16 buffer = realloc(stat->ids, max * sizeof *buffer);
+		if (buffer == NULL) return 0;
+		if (stat->ids == NULL)
+			memcpy(buffer, stat->buffer, sizeof stat->buffer);
+		stat->ids = buffer;
+		stat->maxIds = max;
+	}
+	DATA16 ids = stat->ids;
+	if (ids == NULL) ids = stat->buffer;
+	ids[stat->nbIds++] = entityId;
+
+	/* models must be unique though */
+	DATA32 models = stat->models;
+	if (models == NULL) models = stat->modelIds;
+	for (i = stat->nbModels - 1; i >= 0 && models[i] != modelId; i --);
+	if (i < 0)
+	{
+		/* not yet in the list */
+		if (stat->nbModels >= stat->maxModels)
+		{
+			int max = stat->maxModels + SEL_INIT_STAT;
+			models = realloc(stat->models, max * sizeof *models);
+			if (models == NULL) return 0;
+			if (stat->models == NULL)
+				memcpy(models, stat->modelIds, sizeof stat->modelIds);
+			stat->models = models;
+			stat->maxModels = max;
+		}
+		models[stat->nbModels++] = modelId;
+		stat->nbVertex += vtxCount;
+	}
+
+	return 1;
 }
 
 /* copy selected blocks into a mini-map */
@@ -788,6 +953,7 @@ Map selectionClone(vec4 pos, int side, Bool genMesh)
 		sizes[VX] -= 2;
 		sizes[VY] -= 2;
 		sizes[VZ] -= 2;
+		chunk = src.ref;
 		/* note: we have to add a 1 block layer all around the brush to prevent face culling at the edge of chunk */
 		for (y = 1; y <= sizes[VY]; y ++, mapIter(&src, 0, 1, -sizes[VZ]), mapIter(&dst, 0, 1, -sizes[VZ]))
 		{
@@ -807,6 +973,12 @@ Map selectionClone(vec4 pos, int side, Bool genMesh)
 				}
 			}
 		}
+
+		/* copy entities too */
+		struct SelEntities_t stat = {.maxIds = SEL_INIT_STAT, .maxModels = SEL_INIT_STAT};
+		selectionIterEntities(selectionEnumEntities, &stat);
+		BRUSH_SETENT(brush, entityCopy(stat.nbVertex, srcPos, stat.ids ? stat.ids : stat.buffer, stat.nbIds,
+			stat.models ? stat.models : stat.modelIds, stat.nbModels));
 
 		if (genMesh)
 		{

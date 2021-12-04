@@ -9,6 +9,7 @@
 #define MCENTITY_H
 
 #include "maps.h"
+#include "items.h"
 #include "blocks.h"
 
 Bool entityInitStatic(void);
@@ -25,9 +26,17 @@ void entityUpdateOrCreate(Chunk, vec4 pos, int blockId, vec4 dest, int ticks, DA
 void entityDebugCmd(Chunk);
 int  entityCount(int start);
 Bool entityIter(int * entityId, vec4 pos);
+int  entityGetModel(int entityId, int * vtxCount);
+void entityGetItem(int entityId, Item ret);
 
-VTXBBox  entityGetBBox(int id);
-ItemID_t entityGetBlockId(int entityId);
+/* clone entities with selection */
+APTR entityCopy(int vtxCount, vec4 origin, DATA16 entityIds, int maxEntities, DATA32 models, int maxModels);
+void entityCopyRender(APTR duplicated);
+void entityCopyDelete(APTR duplicated);
+void entityCopyRelocate(APTR duplicated, vec4 pos);
+void entityCopyToMap(APTR duplicated, Map map);
+
+VTXBBox entityGetBBox(int id);
 
 void worldItemCreatePainting(Map, int paintingId);
 void worldItemUseItemOn(Map, int entityId, ItemID_t, vec4 pos);
@@ -36,6 +45,7 @@ int  worldItemCreate(Map, int itemId, vec4 pos, int side);
 void worldItemUpdatePreviewPos(vec4 camera, vec4 pos);
 void worldItemDeletePreview(void);
 void worldItemAdd(Map);
+void worldItemDup(Map map, vec info, int entityId);
 
 #define ENTITY_END                 0xffff
 #define ENTITY_PAINTINGS           0x800
@@ -125,7 +135,7 @@ struct Entity_t
 	STRPTR   name;                 /* from NBT ("id" key) */
 };
 
-enum                               /* possible values for Entity_t.type */
+enum                               /* possible values for Entity_t.special */
 {
 	ENTYPE_FRAME     = 1,          /* item frame (no items in it) */
 	ENTYPE_FILLEDMAP = 2,          /* blockId contains map id to use on disk (data/map_%d.dat) */
@@ -158,7 +168,7 @@ struct EntityModel_t               /* where model data is and bounding box info 
 	VTXBBox  bbox;                 /* from block models */
 	float    maxSize;              /* max dimension from <bbox>, to quickly cull entities */
 	uint16_t first;                /* position in vboModel */
-	uint16_t count;
+	uint16_t count;                /* vertex count */
 };
 
 struct EntityBank_t                /* contains models up to 65536 vertices (BANK_SIZE) */

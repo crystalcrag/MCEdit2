@@ -420,12 +420,13 @@ void renderPointToBlock(int mx, int my)
 		{
 			uint8_t shouldDisplayPreview =
 				render.selection.extra.side == SIDE_ENTITY ? PREVIEW_PICKUP :
-				render.previewItemId > 0 ? PREVIEW_BLOCK : PREVIEW_NOTHING;
+				render.previewItemId > 0 && render.selection.extra.side == SIDE_TOP ? PREVIEW_BLOCK : PREVIEW_NOTHING;
 			if (shouldDisplayPreview != render.previewItem)
 			{
 				/* selection type has changed */
 				switch (render.previewItem = shouldDisplayPreview) {
 				case PREVIEW_NOTHING:
+					worldItemDeletePreview();
 					SIT_SetValues(render.blockInfo, SIT_Visible, False, NULL);
 					break;
 				case PREVIEW_PICKUP:
@@ -795,13 +796,14 @@ void renderShowBlockInfo(Bool show, int what)
 
 			if (render.selection.extra.entity > 0 && render.selection.extra.side == SIDE_ENTITY)
 			{
-				/* pointing at an entity: pick it if left-clicked */
+				/* pointing at an entity: pick it up if left-clicked */
 				render.previewItem = PREVIEW_PICKUP;
 				SIT_SetValues(render.blockInfo, SIT_Visible, True, SIT_Title, "Pick-up item", NULL);
 			}
 			/* check if it is possible to show an item */
-			else if (render.previewItemId > 0)
+			else if (render.previewItemId > 0 && render.selection.extra.side == SIDE_TOP)
 			{
+				fprintf(stderr, "side = %d\n", render.selection.extra.side);
 				worldItemPreview(render.camera, render.selection.extra.inter, render.previewItemId);
 				render.previewItem = PREVIEW_BLOCK;
 				SIT_SetValues(render.blockInfo, SIT_Visible, True, SIT_Title, "Place item here", NULL);
@@ -1253,7 +1255,7 @@ void renderBlockInfo(SelBlock_t * sel)
 				{
 					struct NBTFile_t nbt = {.mem = tile};
 					id &= ~15;
-					id |= NBT_ToInt(&nbt, NBT_FindNode(&nbt, 0, "color"), 14);
+					id |= NBT_GetInt(&nbt, NBT_FindNode(&nbt, 0, "color"), 14);
 				}
 			}
 
@@ -1641,7 +1643,8 @@ void renderDrawMap(Map map)
 	}
 
 	/* second: entities */
-	//entityRender();
+	if (BRUSH_ENTITIES(map))
+		entityCopyRender(BRUSH_ENTITIES(map));
 
 	/* third pass: translucent terrain */
 	for (bank = HEAD(map->gpuBanks); bank; NEXT(bank))

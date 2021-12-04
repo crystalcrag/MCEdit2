@@ -400,7 +400,7 @@ static int redstoneGetComparatorSignal(struct BlockIter_t iter, RSWire cnx)
 	if (tile)
 	{
 		NBTFile_t nbt = {.mem = tile};
-		return NBT_ToInt(&nbt, NBT_FindNode(&nbt, 0, "OutputSignal"), 0);
+		return NBT_GetInt(&nbt, NBT_FindNode(&nbt, 0, "OutputSignal"), 0);
 	}
 	return 0;
 }

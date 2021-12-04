@@ -22,12 +22,25 @@
 #include "globals.h"
 #include "NBT2.h"
 #include "nanovg.h"
+#include "extra.h"
+#include "ColorChooser.c"
+
 
 struct WayPointsPrivate_t waypoints;
 
 /*
  * manage NBT file
  */
+
+static void wayPointRandColor(uint8_t colors[4])
+{
+	uint16_t hsv[3];
+	hsv[0] = RandRange(0, 360);
+	hsv[1] = 50 + RandRange(0, 50);
+	hsv[2] = 50 + RandRange(0, 50);
+	HSV_to_RGB(hsv, colors);
+	colors[3] = 255;
+}
 
 /* map must be opened in globals.level before using this function */
 void wayPointsRead(void)
@@ -59,6 +72,9 @@ void wayPointsRead(void)
 			int       i;
 			wp = vector_nth(&waypoints.all, waypoints.all.count);
 			waypoints.listDirty = 1;
+			memset(wp, 0, sizeof *wp);
+			/* might not be defined */
+			wayPointRandColor(wp->color);
 			NBT_IterCompound(&waypoint, waypoints.nbt.mem + offset);
 			while ((i = NBT_Iter(&waypoint)) >= 0)
 			{
@@ -72,12 +88,9 @@ void wayPointsRead(void)
 			}
 		}
 	}
-	waypoints.displayInWorld = NBT_ToInt(&waypoints.nbt, NBT_FindNode(&waypoints.nbt, 0, "DisplayInWorld"), 0 /* default value */);
+	waypoints.displayInWorld = NBT_GetInt(&waypoints.nbt, NBT_FindNode(&waypoints.nbt, 0, "DisplayInWorld"), 0 /* default value */);
 }
 
-
-#include "extra.h"
-#include "ColorChooser.c"
 
 static void wayPointsAddToList(WayPoint);
 
@@ -85,14 +98,8 @@ static int wayPointsAdd(SIT_Widget w, APTR cd, APTR ud)
 {
 	NBTFile_t nbt = {.max = 256};
 	uint8_t   colors[4];
-	uint16_t  hsv[3];
 
 	nbt.mem = alloca(256);
-	hsv[0] = RandRange(0, 360);
-	hsv[1] = 50 + RandRange(0, 50);
-	hsv[2] = 50 + RandRange(0, 50);
-	HSV_to_RGB(hsv, colors);
-	colors[3] = 255;
 
 	NBT_Add(&nbt,
 		TAG_String,     "Name", "",

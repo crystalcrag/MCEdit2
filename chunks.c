@@ -247,9 +247,9 @@ static void chunkExpandTileEntities(Chunk c)
 		{
 			if (sub.name[1] == 0)
 			switch (sub.name[0]) {
-			case 'X': case 'x': XYZ[0] = NBT_ToInt(&nbt, off+i, 0) - c->X; break;
-			case 'Z': case 'z': XYZ[2] = NBT_ToInt(&nbt, off+i, 0) - c->Z; break;
-			case 'Y': case 'y': XYZ[1] = NBT_ToInt(&nbt, off+i, 0);
+			case 'X': case 'x': XYZ[0] = NBT_GetInt(&nbt, off+i, 0) - c->X; break;
+			case 'Z': case 'z': XYZ[2] = NBT_GetInt(&nbt, off+i, 0) - c->Z; break;
+			case 'Y': case 'y': XYZ[1] = NBT_GetInt(&nbt, off+i, 0);
 			}
 		}
 		chunkAddTileEntity(c, XYZ, nbt.mem + off);
@@ -395,8 +395,8 @@ Bool chunkLoad(Chunk chunk, const char * path, int x, int z)
 			nbt.alloc = 0;
 			chunk->signList       = -1;
 			chunk->nbt            = nbt;
-			//chunk->lightPopulated = NBT_ToInt(&nbt, NBT_FindNode(&nbt, 0, "LightPopulated"), 0);
-			//chunk->terrainDeco    = NBT_ToInt(&nbt, NBT_FindNode(&nbt, 0, "TerrainPopulated"), 0);
+			//chunk->lightPopulated = NBT_GetInt(&nbt, NBT_FindNode(&nbt, 0, "LightPopulated"), 0);
+			//chunk->terrainDeco    = NBT_GetInt(&nbt, NBT_FindNode(&nbt, 0, "TerrainPopulated"), 0);
 			chunk->heightMap      = NBT_Payload(&nbt, NBT_FindNode(&nbt, 0, "HeightMap"));
 			chunk->biomeMap       = NBT_Payload(&nbt, NBT_FindNode(&nbt, 0, "Biomes"));
 			chunk->entOffset      = NBT_FindNode(&nbt, 0, "Entities");
@@ -412,7 +412,7 @@ Bool chunkLoad(Chunk chunk, const char * path, int x, int z)
 				chunk->secOffset = secOffset;
 				while ((secOffset = NBT_Iter(&iter)) >= 0)
 				{
-					int y = NBT_ToInt(&nbt, NBT_FindNode(&nbt, secOffset, "Y"), 0);
+					int y = NBT_GetInt(&nbt, NBT_FindNode(&nbt, secOffset, "Y"), 0);
 					if (y < CHUNK_LIMIT && chunk->layer[y] == NULL)
 						chunkFillData(chunk, y, secOffset);
 				}
@@ -1433,7 +1433,7 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 		if (p)
 		{
 			struct NBTFile_t nbt = {.mem = p};
-			connect = 1 << NBT_ToInt(&nbt, NBT_FindNode(&nbt, 0, "color"), 14);
+			connect = 1 << NBT_GetInt(&nbt, NBT_FindNode(&nbt, 0, "color"), 14);
 		}
 		/* default color: red */
 		else connect = 1 << 14;
@@ -1856,7 +1856,7 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 	}
 }
 
-static void chunkFreeHash(TileEntityHash hash, DATA8 min, DATA8 max)
+void chunkFreeHash(TileEntityHash hash, DATA8 min, DATA8 max)
 {
 	TileEntityEntry ent = (TileEntityEntry) (hash + 1);
 	int i;

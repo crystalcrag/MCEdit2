@@ -826,7 +826,7 @@ APTR NBT_PayloadFromStream(DATA8 stream, int offset, STRPTR name)
 }
 
 /* convert the tag at <offset> into an integer (return value) */
-int NBT_ToInt(NBTFile root, int offset, int def)
+int NBT_GetInt(NBTFile root, int offset, int def)
 {
 	if (offset < 0) return def;
 
@@ -846,7 +846,7 @@ int NBT_ToInt(NBTFile root, int offset, int def)
 }
 
 /* convert the tag at <offset> into a string (<buffer>) */
-Bool NBT_ToString(NBTFile root, int offset, STRPTR buffer, int max)
+Bool NBT_GetString(NBTFile root, int offset, STRPTR buffer, int max)
 {
 	buffer[0] = 0;
 	if (offset >= 0)
@@ -871,7 +871,7 @@ Bool NBT_ToString(NBTFile root, int offset, STRPTR buffer, int max)
 }
 
 /* read one or more floats from NBT array */
-Bool NBT_ToFloat(NBTFile root, int offset, float * array, int nb)
+Bool NBT_GetFloat(NBTFile root, int offset, float * array, int nb)
 {
 	if (offset < 0) return 0;
 	NBTHdr  hdr  = HDR(root, offset);
@@ -1555,7 +1555,7 @@ void NBT_DumpCompound(NBTFile nbt)
 {
 	NBTIter_t iter;
 	int off;
-	NBT_InitIter(nbt, 0, &iter);
+	NBT_IterCompound(&iter, nbt->mem);
 
 	while ((off = NBT_Iter(&iter)) >= 0)
 		NBT_Dump(nbt, off, 0, 0);

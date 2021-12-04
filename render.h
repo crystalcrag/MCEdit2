@@ -115,7 +115,7 @@ struct SelBlock_t
 	int     blockId;               /* block to show preview of */
 	int     blockVtx;              /* nb of vertex for glDrawArrays() */
 	uint8_t selFlags;              /* bitfield, see below */
-	uint8_t rotationY90;           /* number of Y90 rotation to apply to blockId [0 ~ 3]*/
+	uint8_t rotationY90;           /* number of Y90 rotation to apply to blockId [0 ~ 3] */
 	Extra_t extra;
 };
 

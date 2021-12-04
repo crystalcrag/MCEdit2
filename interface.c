@@ -663,8 +663,8 @@ static int mergeItems(ItemStat * ret, int max, DATA8 tile)
 		{
 			switch (FindInList("id,Count,Damage", properties.name, 0)) {
 			case 0:  id    = itemGetByName(mapItemName(&nbt, items + off, itemId), True); break;
-			case 1:  count = NBT_ToInt(&nbt, items + off, 1); break;
-			case 2:  data  = NBT_ToInt(&nbt, items + off, 0);
+			case 1:  count = NBT_GetInt(&nbt, items + off, 1); break;
+			case 2:  data  = NBT_GetInt(&nbt, items + off, 0);
 			}
 		}
 		if (itemMaxDurability(id) < 0)
@@ -1430,55 +1430,6 @@ static int mcuiDeleteProgress(SIT_Widget w, APTR cd, APTR ud)
 	return 0;
 }
 
-static void mcuiGetSelection(int points[6])
-{
-	int * p;
-	int   i;
-	vec   sel = selectionGetPoints();
-	for (i = 0, p = points; i < 3; i ++, p ++)
-	{
-		p[0] = sel[i];
-		p[3] = sel[i+4];
-		if (p[0] > p[3]) swap(p[0], p[3]);
-		p[3] ++;
-	}
-}
-
-/* interate over all entities that intersect selection */
-static void mcuiIterEntities(SIT_CallProc cb, APTR data)
-{
-	int dx, dz, i;
-	int pos[6];
-	float posf[6];
-	mcuiGetSelection(pos);
-
-	dx = (pos[VZ+3] >> 4) - (pos[VZ] >> 4);
-	dz = (pos[VX+3] >> 4) - (pos[VX] >> 4);
-	for (i = 0; i < 6; posf[i] = pos[i], i ++);
-
-	Chunk c = mapGetChunk(globals.level, posf);
-
-	for (; dz >= 0; dz --, c += chunkNeighbor[c->neighbor + 1] /* going south */)
-	{
-		Chunk chunk;
-		for (i = 0, chunk = c; i <= dx; i ++, chunk += chunkNeighbor[chunk->neighbor + 2] /* going east */)
-		{
-			vec4 coord;
-			int  id, cur;
-
-			for (id = cur = chunk->entityList; entityIter(&id, coord); cur = id)
-			{
-				if (posf[VX] <= coord[VX] && coord[VX] <= pos[VX+3] &&
-				    posf[VY] <= coord[VY] && coord[VY] <= pos[VY+3] &&
-				    posf[VZ] <= coord[VZ] && coord[VZ] <= pos[VZ+3])
-				{
-					cb(NULL, &cur, data);
-				}
-			}
-		}
-	}
-}
-
 static int mcuiDeleteEntities(SIT_Widget w, APTR cd, APTR ud)
 {
 	entityDeleteById(globals.level, * (int *) cd + 1);
@@ -1495,7 +1446,7 @@ void mcuiDeleteAll(void)
 	mcuiRepWnd.processTotal = selectionFill(&mcuiRepWnd.processCurrent, 0, 0, 0);
 	/* this can be done in the current thread */
 	int total = 0;
-	mcuiIterEntities(mcuiDeleteEntities, &total);
+	selectionIterEntities(mcuiDeleteEntities, &total);
 	renderAddModif();
 
 	/* if the interface is stopped early, we need to be notified */
@@ -1508,36 +1459,9 @@ void mcuiDeleteAll(void)
 
 static int mcuiAutoCheck(SIT_Widget w, APTR cd, APTR ud)
 {
+	/* disable tile entties checkbox if blocks are deleted (because they will be deleted no matter what) */
 	SIT_SetValues(ud, SIT_Enabled, ! mcuiDelWnd.blocks, NULL);
 	return 1;
-}
-
-static void mcuiIterTE(SIT_CallProc cb, APTR data)
-{
-	int dx, dz, i, j;
-	int pos[6];
-	mcuiGetSelection(pos);
-	dx = pos[3] - pos[0];
-	dz = pos[5] - pos[2];
-
-	struct BlockIter_t iter;
-	mapInitIter(globals.level, &iter, (float[3]){pos[0], pos[1], pos[2]}, False);
-	for (j =  0; j < dz; j ++, mapIter(&iter, -i, 0, 16 - iter.z))
-	{
-		for (i = 0; i < dx; i += 16 - iter.x, mapIter(&iter, 16 - iter.x, 0, 0))
-		{
-			int offset = 0, XYZ[3];
-			while ((iter.blockIds = chunkIterTileEntity(iter.ref, XYZ, &offset)))
-			{
-				if (pos[VX] <= XYZ[VX] && XYZ[VX] <= pos[VX+3] &&
-				    pos[VY] <= XYZ[VY] && XYZ[VY] <= pos[VY+3] &&
-				    pos[VZ] <= XYZ[VZ] && XYZ[VZ] <= pos[VZ+3])
-				{
-					cb((SIT_Widget)&iter, &offset, data);
-				}
-			}
-		}
-	}
 }
 
 static int mcuiDeleteTE(SIT_Widget w, APTR cd, APTR ud)
@@ -1561,13 +1485,13 @@ static int mcuiDoDelete(SIT_Widget w, APTR cd, APTR ud)
 		if (mcuiDelWnd.tile && (mcuiDelWnd.flags & 2))
 		{
 			total = 0;
-			mcuiIterTE(mcuiDeleteTE, &total);
+			selectionIterTE(mcuiDeleteTE, &total);
 			if (total > 0) renderAddModif();
 		}
 		if (mcuiDelWnd.entity && (mcuiDelWnd.flags & 1))
 		{
 			total = 0;
-			mcuiIterEntities(mcuiDeleteEntities, &total);
+			selectionIterEntities(mcuiDeleteEntities, &total);
 			if (total > 0) renderAddModif();
 		}
 		SIT_Exit(1);
@@ -1595,12 +1519,12 @@ void mcuiDeletePartial(void)
 		NULL
 	);
 
-	/* count the number of TileEntities */
+	/* count the number of TileEntities and entities */
 	TEXT title[64];
 	int  tileEntities = 0;
 	int  entities = 0;
-	mcuiIterTE(mcuiCountObjects, &tileEntities);
-	mcuiIterEntities(mcuiCountObjects, &entities);
+	selectionIterTE(mcuiCountObjects, &tileEntities);
+	selectionIterEntities(mcuiCountObjects, &entities);
 
 	SIT_CreateWidgets(diag,
 		"<label name=dlgtitle.big title=", "Partial delete", "left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, ">"
@@ -1608,6 +1532,8 @@ void mcuiDeletePartial(void)
 		"<button name=blocks buttonType=", SITV_CheckBox, "curValue=", &mcuiDelWnd.blocks, "title=Blocks top=WIDGET,title,0.5em>"
 	);
 	mcuiDelWnd.flags = 0;
+
+	/* show options depending on what was selected */
 	if (entities > 0)
 	{
 		sprintf(title, "In selection: %d", entities);
@@ -1753,6 +1679,14 @@ static int mcuiSelectPaintings(SIT_Widget w, APTR cd, APTR ud)
 	return 1;
 }
 
+static int mcuiPaintingsResize(SIT_Widget w, APTR cd, APTR ud)
+{
+	/* outside of SITGL control */
+	int tiles = (globals.height >> 1) / PAINTINGS_TILE_H;
+	SIT_SetValues(mcuiPaintings.view, SIT_Width, tiles * PAINTINGS_TILE_W, SIT_Height, tiles * PAINTINGS_TILE_H, NULL);
+	return 1;
+}
+
 void mcuiShowPaintings(void)
 {
 	SIT_Widget diag = SIT_CreateWidget("paintings.bg", SIT_DIALOG, globals.app,
@@ -1767,11 +1701,13 @@ void mcuiShowPaintings(void)
 		"<label name=dlgtitle.big title=", "Select painting", "left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, ">"
 		"<label name=title title='Double-click on the painting you want to add:' top=WIDGET,dlgtitle,0.5em>"
 		"<label name=name left=WIDGET,title,0.5em right=FORM top=OPPOSITE,title>"
-		"<canvas name=view#table left=FORM right=FORM top=WIDGET,title,0.5em height=", tiles * PAINTINGS_TILE_H, "width=", tiles * PAINTINGS_TILE_W, "/>"
+		"<canvas name=view#table top=WIDGET,title,0.5em height=", tiles * PAINTINGS_TILE_H, "width=", tiles * PAINTINGS_TILE_W, "/>"
 		"<button name=ko title=Cancel top=WIDGET,view,0.5em right=FORM>"
 	);
 
-	SIT_Widget view = SIT_GetById(diag, "view");
+	mcui.resize = mcuiPaintingsResize;
+
+	SIT_Widget view = mcuiPaintings.view = SIT_GetById(diag, "view");
 	SIT_AddCallback(view, SITE_OnPaint,     mcuiRenderPaintings, NULL);
 	SIT_AddCallback(view, SITE_OnClickMove, mcuiSelectPaintings, NULL);
 	SIT_AddCallback(SIT_GetById(diag, "ko"), SITE_OnActivate, mcuiExitWnd, NULL);
@@ -1816,7 +1752,7 @@ static void mcuiLevelDatParam(APTR buffer, int type, STRPTR key)
 
 	switch (type & 15) {
 	case TAG_Int:
-		* (int *) buffer = NBT_ToInt(nbt, off, 0);
+		* (int *) buffer = NBT_GetInt(nbt, off, 0);
 		break;
 	case TAG_Byte:
 		sep = NBT_Payload(nbt, off);
@@ -1824,11 +1760,11 @@ static void mcuiLevelDatParam(APTR buffer, int type, STRPTR key)
 		break;
 	case TAG_Long:
 		sep = alloca(32);
-		NBT_ToString(nbt, off, sep, 32);
+		NBT_GetString(nbt, off, sep, 32);
 		* (uint64_t *) buffer = strtoull(sep, NULL, 10);
 		break;
 	case TAG_String:
-		NBT_ToString(nbt, off, buffer, type >> 8);
+		NBT_GetString(nbt, off, buffer, type >> 8);
 	}
 }
 

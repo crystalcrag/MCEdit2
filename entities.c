@@ -406,6 +406,41 @@ static int entityGenModel(EntityBank bank, ItemID_t itemId, int cnx, CustModel c
 	return max;
 }
 
+static void entityInitVAO(EntityBank bank, int vtxCount)
+{
+	glGenVertexArrays(1, &bank->vao);
+	glGenBuffers(3, &bank->vboModel); /* + vboLoc and vboMDAI */
+
+	/* same vertex format than items.vsh */
+	glBindVertexArray(bank->vao);
+	glBindBuffer(GL_ARRAY_BUFFER, bank->vboModel);
+	glBufferData(GL_ARRAY_BUFFER, vtxCount * BYTES_PER_VERTEX, NULL, GL_STATIC_DRAW);
+	/* 3 uint16_t for vertex position (rel to info) */
+	glVertexAttribIPointer(0, 3, GL_UNSIGNED_SHORT, BYTES_PER_VERTEX, 0);
+	glEnableVertexAttribArray(0);
+	/* 2 uint16_t texture coord, normal */
+	glVertexAttribIPointer(1, 2, GL_UNSIGNED_SHORT, BYTES_PER_VERTEX, (void *) 6);
+	glEnableVertexAttribArray(1);
+	glBindBuffer(GL_ARRAY_BUFFER, bank->vboLoc);
+	/* 3 floats for model position, 1 for meta data */
+	glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, INFO_SIZE, 0);
+	glEnableVertexAttribArray(2);
+	glVertexAttribDivisor(2, 1);
+	/* 4 floats for 3 rotations and 1 scaling */
+	glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, INFO_SIZE, (void *) 16);
+	glEnableVertexAttribArray(3);
+	glVertexAttribDivisor(3, 1);
+	/* 24 uint8_t for lighting */
+	glVertexAttribIPointer(4, 3, GL_UNSIGNED_INT, INFO_SIZE, (void *) 32);
+	glEnableVertexAttribArray(4);
+	glVertexAttribDivisor(4, 1);
+
+	glVertexAttribIPointer(5, 3, GL_UNSIGNED_INT, INFO_SIZE, (void *) 44);
+	glEnableVertexAttribArray(5);
+	glVertexAttribDivisor(5, 1);
+	glBindVertexArray(0);
+}
+
 /* get modelId (modelId + bank), allocate one if it does not exist yet */
 int entityAddModel(ItemID_t itemId, int cnx, CustModel cust)
 {
@@ -425,38 +460,7 @@ int entityAddModel(ItemID_t itemId, int cnx, CustModel cust)
 		bank = calloc(sizeof *bank, 1);
 		bank->models = malloc(sizeof *bank->models * ENTITY_BATCH);
 		ListAddTail(&entities.banks, &bank->node);
-
-		glGenVertexArrays(1, &bank->vao);
-		glGenBuffers(3, &bank->vboModel); /* + vboLoc and vboMDAI */
-
-		/* same vertex format than blocks.vsh */
-		glBindVertexArray(bank->vao);
-		glBindBuffer(GL_ARRAY_BUFFER, bank->vboModel);
-		glBufferData(GL_ARRAY_BUFFER, BANK_SIZE * BYTES_PER_VERTEX, NULL, GL_STATIC_DRAW);
-		/* 3 uint16_t for vertex position (rel to info) */
-		glVertexAttribIPointer(0, 3, GL_UNSIGNED_SHORT, BYTES_PER_VERTEX, 0);
-		glEnableVertexAttribArray(0);
-		/* 2 uint16_t texture coord, normal */
-		glVertexAttribIPointer(1, 2, GL_UNSIGNED_SHORT, BYTES_PER_VERTEX, (void *) 6);
-		glEnableVertexAttribArray(1);
-		glBindBuffer(GL_ARRAY_BUFFER, bank->vboLoc);
-		/* 3 floats for model position, 1 for meta data */
-		glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, INFO_SIZE, 0);
-		glEnableVertexAttribArray(2);
-		glVertexAttribDivisor(2, 1);
-		/* 4 floats for 3 rotations and 1 scaling */
-		glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, INFO_SIZE, (void *) 16);
-		glEnableVertexAttribArray(3);
-		glVertexAttribDivisor(3, 1);
-		/* 24 uint8_t for lighting */
-		glVertexAttribIPointer(4, 3, GL_UNSIGNED_INT, INFO_SIZE, (void *) 32);
-		glEnableVertexAttribArray(4);
-		glVertexAttribDivisor(4, 1);
-
-		glVertexAttribIPointer(5, 3, GL_UNSIGNED_INT, INFO_SIZE, (void *) 44);
-		glEnableVertexAttribArray(5);
-		glVertexAttribDivisor(5, 1);
-		glBindVertexArray(0);
+		entityInitVAO(bank, BANK_SIZE);
 	}
 
 	/* check if it has already been generated */
@@ -496,7 +500,7 @@ int entityGetModelId(Entity entity)
 
 	/* block pushed by piston */
 	if (entity->blockId > 0)
-		return entityAddModel(entity->blockId, nbt.mem ? NBT_ToInt(&nbt, NBT_FindNode(&nbt, 0, "blockCnx"), 0) : 0, NULL);
+		return entityAddModel(entity->blockId, nbt.mem ? NBT_GetInt(&nbt, NBT_FindNode(&nbt, 0, "blockCnx"), 0) : 0, NULL);
 
 	if (strncmp(id, "minecraft:", 10) == 0)
 		id += 10;
@@ -513,7 +517,7 @@ int entityGetModelId(Entity entity)
 		while ((off = NBT_Iter(&prop)) >= 0)
 		{
 			switch (FindInList("Data,Block", prop.name, 0)) {
-			case 0: data  = NBT_ToInt(&nbt, off, 0); break;
+			case 0: data  = NBT_GetInt(&nbt, off, 0); break;
 			case 1: block = NBT_Payload(&nbt, off);
 			}
 		}
@@ -540,7 +544,7 @@ int entityGetModelId(Entity entity)
 		if (item >= 0)
 		{
 			STRPTR   tech = NBT_Payload(&nbt, NBT_FindNode(&nbt, item, "id"));
-			int      data = NBT_ToInt(&nbt, NBT_FindNode(&nbt, item, "Damage"), 0);
+			int      data = NBT_GetInt(&nbt, NBT_FindNode(&nbt, item, "Damage"), 0);
 			ItemID_t blockId = itemGetByName(tech, True);
 
 			/* note: don't compare <tech> with filled_map, older NBT contained numeric id */
@@ -568,8 +572,8 @@ int entityGetModelId(Entity entity)
 	{
 		/* item laying in the world */
 		int desc = NBT_FindNode(&nbt, 0, "Item");
-//		int count = NBT_ToInt(&nbt, NBT_FindNode(&nbt, desc, "Count"), 1);
-		int data = NBT_ToInt(&nbt, NBT_FindNode(&nbt, desc, "Damage"), 0);
+//		int count = NBT_GetInt(&nbt, NBT_FindNode(&nbt, desc, "Count"), 1);
+		int data = NBT_GetInt(&nbt, NBT_FindNode(&nbt, desc, "Damage"), 0);
 		ItemID_t blockId = itemGetByName(NBT_Payload(&nbt, NBT_FindNode(&nbt, desc, "id")), False);
 
 		if (blockId > 0)
@@ -747,9 +751,9 @@ void entityParse(Chunk c, NBTFile nbt, int offset)
 		{
 			off += offset;
 			switch (FindInList("Motion,Pos,Rotation,id", iter.name, 0)) {
-			case 0: NBT_ToFloat(nbt, off, pos,   3); break;
-			case 1: NBT_ToFloat(nbt, off, pos+3, 3); break;
-			case 2: NBT_ToFloat(nbt, off, pos+7, 2); break;
+			case 0: NBT_GetFloat(nbt, off, pos,   3); break;
+			case 1: NBT_GetFloat(nbt, off, pos+3, 3); break;
+			case 2: NBT_GetFloat(nbt, off, pos+7, 2); break;
 			case 3: id = NBT_Payload(nbt, off);
 			}
 		}
@@ -1217,7 +1221,6 @@ void entityDeleteById(Map map, int entityId)
 				nbt.mem = NBT_Copy(entity->tile);
 				nbt.usage = NBT_Size(nbt.mem)+4; /* XXX want TAG_EndCompound too */
 				NBT_Delete(&nbt, item, -1);
-				// NBT_DumpCompound(&nbt);
 				chunkDeleteTile(c, entity->tile);
 				entity->name = NBT_Payload(&nbt, NBT_FindNode(&nbt, 0, "id"));
 				/* item in frame is about to be deleted, modify item frame entity then */
@@ -1269,7 +1272,7 @@ int entityCount(int start)
 		int i = id >> ENTITY_SHIFT;
 		for (buf = HEAD(entities.list); i > 0; i --, NEXT(buf));
 		entity = &buf->entities[id & (ENTITY_BATCH-1)];
-		/* entity->ref == item in item frame, item NBT will be saved with item frame */
+		/* entity->ref == item in item frame, which will be saved with item frame */
 		if (entity->ref) count --;
 		id = entity->next;
 	}
@@ -1293,16 +1296,25 @@ Bool entityGetNBT(NBTFile nbt, int * id)
 }
 
 /* get the block id (if any) stored in this entity */
-ItemID_t entityGetBlockId(int entityId)
+void entityGetItem(int entityId, Item ret)
 {
 	Entity entity = entityGetById(entityId-1);
 
 	if (entity)
 	{
-		if (entity->blockId > 0) return entity->blockId;
-		return itemGetByName(entity->name, True);
+		NBTFile_t nbt = {.mem = entity->tile};
+		int offset = NBT_FindNode(&nbt, 0, "Item");
+		if (offset > 0)
+			ret->extra = NBT_Payload(&nbt, offset);
+
+		ret->count = NBT_GetInt(&nbt, NBT_FindNode(&nbt, offset, "Count"), 1);
+		if (ret->count < 0)
+			ret->count = 1;
+		if (entity->blockId > 0)
+			ret->id = entity->blockId;
+		else
+			ret->id = itemGetByName(entity->name, True);
 	}
-	return 0;
 }
 
 void entityAnimate(void)
@@ -1527,17 +1539,162 @@ void entityRender(void)
 		}
 
 		/* piston head will overdraw piston block causing z-fighting XXX messes item frame and maps :-/ */
-//		glEnable(GL_POLYGON_OFFSET_FILL);
-//		glPolygonOffset(-1.0, -1.0);
+		// glEnable(GL_POLYGON_OFFSET_FILL);
+		// glPolygonOffset(-1.0, -1.0);
 
-//		float curtime = globals.curTime;
-//		setShaderValue(entities.shader, "curtime", 1, &curtime);
 		glEnable(GL_CULL_FACE);
 		glCullFace(GL_BACK);
 		glUseProgram(entities.shader);
 		glBindVertexArray(bank->vao);
 		glBindBuffer(GL_DRAW_INDIRECT_BUFFER, bank->vboMDAI);
 		glMultiDrawArraysIndirect(GL_TRIANGLES, 0, bank->mdaiCount, 0);
-		glDisable(GL_POLYGON_OFFSET_FILL);
+		// glDisable(GL_POLYGON_OFFSET_FILL);
 	}
 }
+
+/*
+ * used to handle cloned entities in selection
+ */
+int entityGetModel(int entityId, int * vtxCount)
+{
+	EntityBank bank;
+	Entity entity = entityGetById(entityId);
+	int VBObank = entity->VBObank;
+	int i;
+
+	for (i = BANK_NUM(VBObank), bank = HEAD(entities.banks); i > 0; i --, NEXT(bank));
+
+	*vtxCount = bank->models[VBObank >> 6].count;
+
+	return VBObank;
+}
+
+APTR entityCopy(int vtxCount, vec4 origin, DATA16 entityIds, int maxEntities, DATA32 models, int maxModels)
+{
+	if (maxEntities == 0 || maxModels == 0)
+		return NULL;
+
+	EntityBank bank = calloc(sizeof *bank + sizeof (vec4) + maxEntities * 2, 1);
+	EntityModel model;
+
+	entityInitVAO(bank, vtxCount);
+	bank->mdaiCount = maxEntities;
+	bank->mdaiUsage = (DATA32) (bank+1) + 4;
+	memcpy(bank + 1, origin, sizeof (vec4));
+	memcpy(bank->mdaiUsage, entityIds, maxEntities * 2);
+
+	/* create command buffer */
+	glBindBuffer(GL_ARRAY_BUFFER, bank->vboLoc);
+	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, bank->vboMDAI);
+
+	glBufferData(GL_ARRAY_BUFFER, maxEntities * INFO_SIZE, NULL, GL_STATIC_DRAW);
+	glBufferData(GL_DRAW_INDIRECT_BUFFER, maxEntities * 16, NULL, GL_STATIC_DRAW);
+
+	MDAICmd mdai  = glMapBuffer(GL_DRAW_INDIRECT_BUFFER, GL_WRITE_ONLY);
+	float * loc   = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
+	DATA16  first = alloca(maxModels * 2);
+	DATA16  vtxdata;
+	int     i, j;
+
+	for (i = j = 0; i < maxModels; i ++)
+	{
+		model = entityGetModelById(models[i]);
+		first[i] = j;
+		j += model->count;
+	}
+
+	for (i = 0; i < maxEntities; i ++, loc += INFO_SIZE/4, mdai ++)
+	{
+		Entity entity = entityGetById(entityIds[i]);
+		model = entityGetModelById(entity->VBObank);
+		for (j = 0; j < maxModels && models[j] != entity->VBObank; j ++);
+
+		mdai->baseInstance = i;
+		mdai->count = model->count;
+		mdai->first = first[j];
+		mdai->instanceCount = 1;
+		memcpy(loc, entity->pos, INFO_SIZE);
+	}
+	glUnmapBuffer(GL_DRAW_INDIRECT_BUFFER);
+	glUnmapBuffer(GL_ARRAY_BUFFER);
+
+	/* then model vbo */
+	glBindBuffer(GL_ARRAY_BUFFER, bank->vboModel);
+	vtxdata = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
+
+	for (i = 0; i < maxModels; i ++)
+	{
+		EntityBank modelBank;
+		for (j = models[i], modelBank = HEAD(entities.banks); BANK_NUM(j); j --, NEXT(modelBank));
+		glBindBuffer(GL_DRAW_INDIRECT_BUFFER, modelBank->vboModel);
+		model = modelBank->models + (j >> 6);
+		glGetBufferSubData(GL_DRAW_INDIRECT_BUFFER, model->first * BYTES_PER_VERTEX, model->count * BYTES_PER_VERTEX, vtxdata);
+		vtxdata += model->count * INT_PER_VERTEX;
+	}
+
+	glUnmapBuffer(GL_ARRAY_BUFFER);
+
+	return bank;
+}
+
+#define bank ((EntityBank)duplicated)
+/* render value returned by entityDuplicate() */
+void entityCopyRender(APTR duplicated)
+{
+	if (duplicated == NULL) return;
+	glEnable(GL_CULL_FACE);
+	glCullFace(GL_BACK);
+	glUseProgram(entities.shader);
+	glBindVertexArray(bank->vao);
+	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, bank->vboMDAI);
+	/* yeah, only a single draw call is necessary */
+	glMultiDrawArraysIndirect(GL_TRIANGLES, 0, bank->mdaiCount, 0);
+}
+
+/* add entity and tile information to given map */
+void entityCopyToMap(APTR duplicated, Map map)
+{
+	DATA16 entityIds;
+	int i;
+
+	/* worldItemDup() will rebind GL_ARRAY_BUFFER, so use a different binding point :-/ */
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, bank->vboLoc);
+	vec loc = glMapBuffer(GL_ELEMENT_ARRAY_BUFFER, GL_READ_WRITE);
+	for (i = bank->mdaiCount, entityIds = (DATA16) bank->mdaiUsage; i > 0; i --, entityIds ++, loc += INFO_SIZE/4)
+		worldItemDup(map, loc, entityIds[0]);
+	glUnmapBuffer(GL_ELEMENT_ARRAY_BUFFER);
+}
+
+/* update location of all duplicated entities */
+void entityCopyRelocate(APTR duplicated, vec4 origin)
+{
+	if (duplicated == NULL) return;
+	vec4 offset;
+	vec  loc;
+	int  i;
+	vecSub(offset, origin, (vec) (bank+1));
+	memcpy(bank+1, origin, 12);
+
+	glBindBuffer(GL_ARRAY_BUFFER, bank->vboLoc);
+	loc = glMapBuffer(GL_ARRAY_BUFFER, GL_READ_WRITE);
+	for (i = bank->mdaiCount; i > 0; i --, loc += INFO_SIZE/4)
+	{
+		loc[VX] += offset[VX];
+		loc[VY] += offset[VY];
+		loc[VZ] += offset[VZ];
+	}
+	glUnmapBuffer(GL_ARRAY_BUFFER);
+}
+
+void entityCopyDelete(APTR duplicated)
+{
+	if (duplicated == NULL) return;
+	glBindVertexArray(0);
+	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
+
+	glDeleteBuffers(3, &bank->vboModel);
+	glDeleteVertexArrays(1, &bank->vao);
+
+	free(duplicated);
+}
+#undef bank

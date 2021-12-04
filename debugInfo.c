@@ -883,17 +883,18 @@ void debugLoadSaveState(STRPTR path, Bool load)
 	{
 		INIFile ini = (INIFile) path;
 
-		debug.showChunks = GetINIValueInt(ini, "DBGShowChunks", 0);
-		debug.showLightValue = GetINIValueInt(ini, "DBGLightValue", 0);
-		debug.showHeightMap = GetINIValueInt(ini, "DBGShowHeightMap", 0);
-		debug.zoom = GetINIValueInt(ini, "DBGZoom", 32);
+		debug.showChunks = GetINIValueInt(ini, "Debug/ShowChunks", 0);
+		debug.showLightValue = GetINIValueInt(ini, "Debug/LightValue", 0);
+		debug.showHeightMap = GetINIValueInt(ini, "Debug/ShowHeightMap", 0);
+		// debug.zoom = GetINIValueInt(ini, "Debug/Zoom", 32);
+		debug.zoom = 32;
 	}
 	else
 	{
 		SIT_ExtractDialog(render.blockInfo);
-		SetINIValueInt(path, "DBGShowChunks", debug.showChunks);
-		SetINIValueInt(path, "DBGLightValue", debug.showLightValue);
-		SetINIValueInt(path, "DBGShowHeightMap", debug.showHeightMap);
-//		SetINIValueInt(path, "DBGZoom", debug.zoom);
+		SetINIValueInt(path, "Debug/ShowChunks", debug.showChunks);
+		SetINIValueInt(path, "Debug/LightValue", debug.showLightValue);
+		SetINIValueInt(path, "Debug/ShowHeightMap", debug.showHeightMap);
+		// SetINIValueInt(path, "DBGZoom", debug.zoom);
 	}
 }

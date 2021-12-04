@@ -35,6 +35,7 @@ enum /* possible values for PickBuf.state */
 };
 
 #define MAXCOLINV             9
+#define PLAYER_MAX_ITEMS      (MAXCOLINV*4)
 #define INFO_INV_DURATION     3
 #define INFO_INV_FADEOUT      2
 #define PLAYER_HEIGHT         1.6f
@@ -83,7 +84,7 @@ void playerSensitivity(float s);
 void playerLookAt(Player, int mx, int my);
 int  playerProcessKey(Player, int key, int pressed);
 void playerInitPickup(PickupBlock);
-Bool playerAddInventory(Player, ItemID_t blockId, DATA8 tileEntity, Bool incCount);
+Bool playerAddInventory(Player, Item add);
 void playerScrollInventory(Player, int dir);
 void playerSetMode(Player, int mode);
 void playerTeleport(Player, vec4 pos, float rotation[2]);
