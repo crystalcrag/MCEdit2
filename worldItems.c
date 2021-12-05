@@ -30,6 +30,7 @@ struct
 	uint16_t slot;
 	uint8_t  createSide;
 	vec4     createPos;        /* paintings are created asynchronously */
+	float    previewOffVY;
 }	worldItem;
 
 
@@ -518,16 +519,19 @@ void worldItemPreview(vec4 camera, vec4 pos, ItemID_t itemId)
 		else
 			angle += M_PIf;
 		/* shader wants a positive angle */
-		if (angle < 0)
-			angle += 2*M_PIf;
-		preview->rotation[0] = angle;
-		if (isBlockId(itemId))
-			preview->pos[VY] += 0.25f;
+		preview->rotation[0] = normAngle(angle);
 		preview->VBObank = entityAddModel(preview->blockId = itemId, 0, NULL);
+		EntityModel model = entityGetModelById(preview->VBObank);
 
-		if (preview->VBObank == 0) /* unknwon entity */
-			preview->pos[VY] += 0.5f;
-		/* fully bright, to somewhat highlight that the item has not been placed yet */
+		if (model)
+		{
+			VTXBBox bbox = model->bbox;
+			worldItem.previewOffVY = (bbox->pt2[VY] - bbox->pt1[VY]) / (4.0f*BASEVTX);
+		}
+		else worldItem.previewOffVY = 0.25f;
+		preview->pos[VY] += worldItem.previewOffVY;
+
+		/* fully bright, to somewhat highlight that this item has not been placed yet */
 		memset(preview->light, 0xf0, sizeof preview->light);
 		entityAddToCommandList(preview);
 		worldItem.preview = preview;
@@ -541,16 +545,14 @@ void worldItemUpdatePreviewPos(vec4 camera, vec4 pos)
 	if (preview)
 	{
 		memcpy(preview->pos, pos, 12);
-		if (isBlockId(preview->blockId))
-			preview->pos[VY] += 0.25f;
+		preview->pos[VY] += worldItem.previewOffVY;
 		float angle = atan2f(pos[VX] - camera[VX], pos[VZ] - camera[VZ]);
 		if (isBlockId(preview->blockId) && blockIds[preview->blockId>>4].special == BLOCK_STAIRS)
 			/* viewed from front instead of side */
 			angle += M_PI_2f;
 		else
 			angle += M_PIf;
-		if (angle < 0) angle += 2*M_PIf;
-		preview->rotation[0] = angle;
+		preview->rotation[0] = normAngle(angle);
 		entityUpdateInfo(preview);
 	}
 }

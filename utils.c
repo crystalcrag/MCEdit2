@@ -962,6 +962,15 @@ void vecCrossProduct(vec4 res, vec4 A, vec4 B)
 	memcpy(res, tmp, 12);
 }
 
+/* keep angle between 0 and 2*M_PI */
+float normAngle(float angle)
+{
+	if (angle < 0) angle += 2*M_PIf; else
+	if (angle > 2*M_PIf) angle -= 2*M_PIf;
+	if (angle == -0.0f) angle = 0;
+	return angle;
+}
+
 /* compiler without builtin support for popcount */
 #ifndef popcount
 int popcount(uint32_t x)

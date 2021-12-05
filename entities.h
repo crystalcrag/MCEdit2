@@ -28,12 +28,14 @@ int  entityCount(int start);
 Bool entityIter(int * entityId, vec4 pos);
 int  entityGetModel(int entityId, int * vtxCount);
 void entityGetItem(int entityId, Item ret);
+void entityGetPos(int entityId, float ret[3]);
 
 /* clone entities with selection */
 APTR entityCopy(int vtxCount, vec4 origin, DATA16 entityIds, int maxEntities, DATA32 models, int maxModels);
 void entityCopyRender(APTR duplicated);
 void entityCopyDelete(APTR duplicated);
 void entityCopyRelocate(APTR duplicated, vec4 pos);
+void entityCopyTransform(APTR duplicated, int transform, vec4 origin, DATA16 size);
 void entityCopyToMap(APTR duplicated, Map map);
 
 VTXBBox entityGetBBox(int id);
@@ -53,6 +55,11 @@ void worldItemDup(Map map, vec info, int entityId);
 #define ENTITY_ITEMFRAME_FULL      0x802
 #define ENTITY_ITEM                0x80000000  /* differentiate world item from block entity */
 
+enum /* transform param for entityCopyTransform() */
+{
+	TRANSFORM_ROTATE = 0,
+	TRANSFORM_MIRROR = 3
+};
 
 enum /* entity id and models */
 {

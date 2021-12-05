@@ -25,6 +25,7 @@ int  selectionHasPoints(void);
 Map  selectionAllocBrush(uint16_t sizes[3]);
 Bool selectionProcessKey(int key, int mod);
 void selectionAutoSelect(vec4 pos, float scale);
+void selectionSelect(vec4 pos, float scale);
 int  selectionFill(DATA32 progress, int blockId, int side, int direction);
 int  selectionReplace(DATA32 progress, int blockId, int replId, int side, Bool doSimilar);
 int  selectionFillWithShape(DATA32 progress, int blockId, int shape, vec4 size, int direction);

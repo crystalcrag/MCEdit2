@@ -300,9 +300,19 @@ void renderSetSelectionPoint(int action)
 		break;
 
 	case RENDER_SEL_AUTO:
-		if ((render.selection.selFlags & SEL_POINTTO) && render.selection.extra.entity == 0)
+		if (render.selection.selFlags & SEL_POINTTO)
 		{
-			selectionAutoSelect(render.selection.current, render.scale);
+			if (render.selection.extra.entity > 0)
+			{
+				float pos[3];
+				switch (render.selection.extra.side) {
+				case SIDE_ENTITY:   entityGetPos(render.selection.extra.entity, pos); break;
+				case SIDE_WAYPOINT: wayPointGetPos(render.selection.extra.entity, pos); break;
+				default: return;
+				}
+				selectionSelect(pos, render.scale);
+			}
+			else selectionAutoSelect(render.selection.current, render.scale);
 			render.invCache ++;
 		}
 		break;
@@ -803,7 +813,6 @@ void renderShowBlockInfo(Bool show, int what)
 			/* check if it is possible to show an item */
 			else if (render.previewItemId > 0 && render.selection.extra.side == SIDE_TOP)
 			{
-				fprintf(stderr, "side = %d\n", render.selection.extra.side);
 				worldItemPreview(render.camera, render.selection.extra.inter, render.previewItemId);
 				render.previewItem = PREVIEW_BLOCK;
 				SIT_SetValues(render.blockInfo, SIT_Visible, True, SIT_Title, "Place item here", NULL);

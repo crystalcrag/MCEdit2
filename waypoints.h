@@ -13,6 +13,7 @@ Bool wayPointsInit(void);
 void wayPointsRender(vec4 camera);
 int  wayPointRaypick(vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos);
 void wayPointInfo(int id, STRPTR msg, int max);
+void wayPointGetPos(int id, float ret[3]);
 
 #ifdef WAY_POINTS_IMPL
 

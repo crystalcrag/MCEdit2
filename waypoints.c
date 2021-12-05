@@ -91,6 +91,16 @@ void wayPointsRead(void)
 	waypoints.displayInWorld = NBT_GetInt(&waypoints.nbt, NBT_FindNode(&waypoints.nbt, 0, "DisplayInWorld"), 0 /* default value */);
 }
 
+/* get origin of waypoint */
+void wayPointGetPos(int id, float ret[3])
+{
+	if (0 < id && id <= waypoints.all.count)
+	{
+		WayPoint wp = vector_nth(&waypoints.all, id-1);
+		memcpy(ret, wp->location, sizeof wp->location);
+	}
+	else memset(ret, 0, 12);
+}
 
 static void wayPointsAddToList(WayPoint);
 

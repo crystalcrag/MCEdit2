@@ -117,6 +117,7 @@ void  vecCrossProduct(vec4 res, vec4 A, vec4 B);
 void  vecSub(vec4 res, vec4 A, vec4 B);
 void  vecAdd(vec4 res, vec4 A, vec4 B);
 float vecDistSquare(vec4 A, vec4 B);
+float normAngle(float angle);
 
 #define vecAddNum(A, num) \
 	(A)[VX] += num, (A)[VY] += num, (A)[VZ] += num

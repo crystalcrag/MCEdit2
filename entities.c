@@ -253,6 +253,8 @@ static int entityModelCount(ItemID_t id, int cnx)
 			}
 			// else no break;
 		case TRANS: return 36;
+		case QUAD:
+			return itemGenMesh(id, NULL);
 		case CUST:
 			if (desc->model) /* custom inventory model */
 				return desc->model[-1];
@@ -579,8 +581,8 @@ int entityGetModelId(Entity entity)
 		if (blockId > 0)
 		{
 			entity->rotation[3] = 0.5; /* scale actually */
-			if (isBlockId(blockId))
-				entity->pos[VY] += 0.25f;
+			//if (isBlockId(blockId))
+			//	entity->pos[VY] += 0.25f;
 			return entityAddModel(entity->blockId = blockId | data, 0, NULL);
 		}
 	}
@@ -1317,6 +1319,17 @@ void entityGetItem(int entityId, Item ret)
 	}
 }
 
+void entityGetPos(int entityId, float ret[3])
+{
+	Entity entity = entityGetById(entityId-1);
+
+	if (entity)
+		memcpy(ret, entity->pos, 12);
+	else
+		memset(ret, 0, 12);
+}
+
+
 void entityAnimate(void)
 {
 	EntityAnim anim;
@@ -1637,6 +1650,25 @@ APTR entityCopy(int vtxCount, vec4 origin, DATA16 entityIds, int maxEntities, DA
 	return bank;
 }
 
+void entityRotate(int entityId, int dir)
+{
+	Entity entity = entityGetById(entityId-1);
+	EntityBank bank;
+	int VBObank = entity->VBObank;
+	int i;
+
+	for (i = BANK_NUM(VBObank), bank = HEAD(entities.banks); i > 0; i --, NEXT(bank));
+
+	entity->rotation[0] = normAngle(entity->rotation[0] + (dir & 1 ? -M_PIf/360 : M_PIf/360));
+
+	i = entity->mdaiSlot;
+	glBindBuffer(GL_ARRAY_BUFFER, bank->vboLoc);
+	glBufferSubData(GL_ARRAY_BUFFER, i * INFO_SIZE + 16, 4, entity->rotation);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+	fprintf(stderr, "angle = %g\n", entity->rotation[0] * 180 / M_PI);
+}
+
 #define bank ((EntityBank)duplicated)
 /* render value returned by entityDuplicate() */
 void entityCopyRender(APTR duplicated)
@@ -1682,6 +1714,44 @@ void entityCopyRelocate(APTR duplicated, vec4 origin)
 		loc[VX] += offset[VX];
 		loc[VY] += offset[VY];
 		loc[VZ] += offset[VZ];
+	}
+	glUnmapBuffer(GL_ARRAY_BUFFER);
+}
+
+void entityCopyTransform(APTR duplicated, int transform, vec4 origin, DATA16 intSize)
+{
+	if (duplicated == NULL) return;
+	vec4 offset;
+	vec4 size = {intSize[VX]-2, intSize[VY]-2, intSize[VZ]-2};
+	vec  loc;
+	int  i;
+	vecSub(offset, origin, (vec) (bank+1));
+
+	glBindBuffer(GL_ARRAY_BUFFER, bank->vboLoc);
+	loc = glMapBuffer(GL_ARRAY_BUFFER, GL_READ_WRITE);
+	for (i = bank->mdaiCount; i > 0; i --, loc += INFO_SIZE/4)
+	{
+		float x = loc[VX] - origin[VX];
+		float z = loc[VZ] - origin[VZ];
+		switch (transform) {
+		case TRANSFORM_ROTATE + VY: /* rotate */
+			loc[VX] = origin[VX] + size[VZ] - z;
+			loc[VZ] = origin[VZ] + x;
+			loc[4]  = normAngle(loc[4] - M_PI_2f);
+			break;
+		case TRANSFORM_MIRROR + VX: /* mirror */
+			loc[VX] = origin[VX] + size[VX] - x;
+			loc[4]  = normAngle(- loc[4]);
+			break;
+		case TRANSFORM_MIRROR + VZ: /* mirror */
+			loc[VZ] = origin[VZ] + size[VZ] - z;
+			loc[4]  = normAngle(M_PIf - loc[4]);
+			break;
+		case TRANSFORM_MIRROR + VY: /* flip */
+			x = loc[VY] - origin[VY];
+			loc[VY] = origin[VY] + size[VY] - x;
+			loc[5]  = normAngle(loc[5] + M_PIf);
+		}
 	}
 	glUnmapBuffer(GL_ARRAY_BUFFER);
 }

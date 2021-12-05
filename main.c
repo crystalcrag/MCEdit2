@@ -704,7 +704,14 @@ void mceditWorld(void)
 				}
 			}
 		}
-		if (sunMove) skydomeMoveSun(sunMove);
+		if (sunMove)
+		{
+			MapExtraData sel = renderGetSelectedBlock(NULL, NULL);
+			if (sel->side == SIDE_ENTITY)
+				entityRotate(sel->entity, sunMove);
+			else
+				skydomeMoveSun(sunMove);
+		}
 		globals.curTime = FrameGetTime();
 		renderWorld();
 		entityAnimate();

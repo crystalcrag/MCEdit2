@@ -1,6 +1,10 @@
 =========== Week 48 ===========
-Thu Dec 3:
-	* entity copy logic continued.
+Sat Dec 4:
+	* select entity by middle-click.
+	* transform entity along with brush (rotate, roll, mirror, flip).
+
+Fri Dec 3:
+	* entity copy logic continued: mostly working for now.
 
 Thu Dec 2:
 	* moar clone entities logic (vbo copy done, need nbt copy still).
@@ -20,7 +24,7 @@ Sun Nov 28:
 
 Sat Nov 27:
 	* world item refactoring: moved out of entities.c.
-	* preview for world item.
+	* preview for world item (when attempting to place one).
 
 Fri Nov 26:
 	* analyze command done.

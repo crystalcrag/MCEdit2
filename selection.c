@@ -854,6 +854,7 @@ void selectionIterEntities(SIT_CallProc cb, APTR data)
 	}
 }
 
+/* keep a list of all entities we will have to copy */
 static int selectionEnumEntities(SIT_Widget unused, APTR cd, APTR ud)
 {
 	SelEntities stat = ud;
@@ -901,7 +902,9 @@ static int selectionEnumEntities(SIT_Widget unused, APTR cd, APTR ud)
 	return 1;
 }
 
-/* copy selected blocks into a mini-map */
+/*
+ * copy selected blocks into a mini-map: this is the clone brush creation function.
+ */
 Map selectionClone(vec4 pos, int side, Bool genMesh)
 {
 	if (globals.selPoints != 3)
@@ -1206,6 +1209,8 @@ static void selectionBrushRotate(void)
 			}
 		}
 	}
+	if (BRUSH_ENTITIES(brush))
+		entityCopyTransform(BRUSH_ENTITIES(brush), TRANSFORM_ROTATE + VY, selection.clonePt, brush->size);
 	if (size > 6) free(layer);
 	brush->size[VX] = dz+2;
 	brush->size[VZ] = dx+2;
@@ -1421,6 +1426,9 @@ static void selectionBrushFlip(void)
 		}
 	}
 
+	if (BRUSH_ENTITIES(brush))
+		entityCopyTransform(BRUSH_ENTITIES(brush), TRANSFORM_MIRROR + VY, selection.clonePt, brush->size);
+
 	/* regenerate mesh of brush */
 	Chunk c;
 	dx = (brush->size[VX] + 15) >> 4;
@@ -1467,7 +1475,6 @@ static void selectionBrushMirror(void)
 	if (axisEW) mapIter(&iterMAX, dx - 1, 0, 0), trans = blockMirrorX, iterX >>= 1, dirX = -1, dirZ =  1;
 	else        mapIter(&iterMAX, 0, 0, dz - 1), trans = blockMirrorZ, iterZ >>= 1, dirX =  1, dirZ = -1;
 
-
 	/* relocate blocks + data */
 	for (y = 1; y <= dy; y ++, mapIter(&iterMIN, 0, 1, -iterZ), mapIter(&iterMAX, 0, 1, -iterZ * dirZ))
 	{
@@ -1509,6 +1516,9 @@ static void selectionBrushMirror(void)
 		}
 	}
 
+	if (BRUSH_ENTITIES(brush))
+		entityCopyTransform(BRUSH_ENTITIES(brush), axisEW ? TRANSFORM_MIRROR + VX : TRANSFORM_MIRROR + VZ, selection.clonePt, brush->size);
+
 	/* regenerate mesh of brush */
 	Chunk c;
 	dx = (brush->size[VX] + 15) >> 4;
@@ -1544,6 +1554,14 @@ void selectionAutoSelect(vec4 pos, float scale)
 	vec4 pt2 = {pos[VX] + minMax[VX+4], pos[VY] + minMax[VY+4], pos[VZ] + minMax[VZ+4]};
 	selectionSetPoint(scale, pt1, SEL_POINT_1);
 	selectionSetPoint(scale, pt2, SEL_POINT_2);
+}
+
+/* used to select entities */
+void selectionSelect(vec4 pos, float scale)
+{
+	vec4 intPos = {floorf(pos[VX]), floorf(pos[VY]), floorf(pos[VZ])};
+	selectionSetPoint(scale, intPos, SEL_POINT_1);
+	selectionSetPoint(scale, intPos, SEL_POINT_2);
 }
 
 /*
