@@ -29,6 +29,8 @@ Bool entityIter(int * entityId, vec4 pos);
 int  entityGetModel(int entityId, int * vtxCount);
 void entityGetItem(int entityId, Item ret);
 void entityGetPos(int entityId, float ret[3]);
+void entityRenderBBox(void);
+int  entityCreatePlayer(void);
 
 /* clone entities with selection */
 APTR entityCopy(int vtxCount, vec4 origin, DATA16 entityIds, int maxEntities, DATA32 models, int maxModels);
@@ -130,8 +132,8 @@ struct Entity_t
 	uint16_t next;                 /* first ENTITY_SHIFT bits: index in buffer, remain: buffer index (linked list within chunk) */
 	uint16_t VBObank;              /* model id: first 6bits: bank index, remain: model index */
 	uint16_t mdaiSlot;             /* GL draw index in VBObank */
-	uint8_t  special;              /* entity with some special processing (see below) */
-	uint8_t  fullLight;
+	uint8_t  enflags;              /* entity with some special processing (see below) */
+	uint8_t  entype;
 	ItemID_t blockId;
 	float    motion[3];
 	float    pos[4];               /* X, Y, Z and extra info for shader */
@@ -142,11 +144,18 @@ struct Entity_t
 	STRPTR   name;                 /* from NBT ("id" key) */
 };
 
-enum                               /* possible values for Entity_t.special */
+enum                               /* possible values for Entity_t.entype */
 {
 	ENTYPE_FRAME     = 1,          /* item frame (no items in it) */
 	ENTYPE_FILLEDMAP = 2,          /* blockId contains map id to use on disk (data/map_%d.dat) */
 	ENTYPE_FRAMEITEM = 3,          /* blockId contains item/block id within the frame */
+};
+
+enum                               /* possible flags for Entity_t.enflags */
+{
+	ENFLAG_POPIFPUSHED = 1,        /* if pushed by piston: convert to item */
+	ENFLAG_FIXED       = 2,        /* can't be pushed by piston */
+	ENFLAG_FULLLIGHT   = 4,        /* lighting similar to SOLID voxel */
 };
 
 struct EntityEntry_t               /* HashTable entry */
@@ -240,7 +249,7 @@ void   entityGetLight(Chunk, vec4 pos, DATA32 light, Bool full, int debugLight);
 void   entityMarkListAsModified(Map, Chunk);
 int    entityAddModel(ItemID_t, int cnx, CustModel cust);
 void   entityDeleteSlot(int slot);
-void   entityUpdateInfo(Entity);
+void   entityUpdateInfo(Entity, Chunk checkIfChanged);
 
 #endif
 #endif

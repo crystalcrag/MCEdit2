@@ -1616,7 +1616,8 @@ arbitrary data types, in a tree-like format with branch nested as deep as you wa
 <h2 id="entities">Entities</h2>
 
 <p>Entities in this engine refer to a model that is not aligned to the voxel grid: it can have arbitrary
-position and/or rotation.
+position and/or rotation, and are not necessarily included in a <tt>ChunkData</tt> (which means that
+frustum culling used by terrain <b>cannot</b> be applied to entities).
 
 <p>This part will describe <b>how entities</b> (mobs, block moved by piston, dropped items, paintings, ...)
 <b>are managed</b> within this engine. This part is not trivial just by looking at the source code, since
@@ -1624,41 +1625,105 @@ there are a lot of moving parts, with lots of datatypes:
 
 <h3 id="structure"><span>Data structures</span></h3>
 
-<p>There are 6 datatypes used to manage entities:
+<p>There are a lot of datatypes used to manage entities, here a brief overview of the purpose of each one:
 
 <ul>
   <li><tt>struct Entity_t</tt> : represents an entity from within the world, as such, they have
   a NBT record associated.
 
-  <li><tt>struct EntityBuf_t</tt> : <tt>struct Entity_t</tt> are allocated in batch (<tt>ENTITY_BATCH</tt>
-  count). It is easier to handle entities if pointers are not reallocated, so that reference can be held
-  within datatypes. Allocating them in batch, will somewhat keep those entities close in memory.
+  <li><tt>struct EntityBuffer_t</tt> : <tt>struct Entity_t</tt> are allocated in batch (<tt>ENTITY_BATCH</tt>
+  count, 128 by default). It is easier to handle entities if pointers are not reallocated, so that reference
+  can be held within datatypes. Allocating them in batch, will somewhat keep those entities close in memory.
 
   <li><tt>struct EntityBank_t</tt> : hold model data that will be used to render entities: we'll use
-  one model per entity, so that they can be drawn in a single call to <tt>glMultiDrawArraysIndirect()</tt>.
+  one model per entity, so that they can be drawed in a single call to <tt>glMultiDrawArraysIndirect()</tt>.
 
-  <p>This API will need a command buffer (vboMDAI) and a per instance info (vboLoc). This list will
+  <p>This API will need a command buffer (vboMDAI) and a per instance vertex data (vboLoc). This list will
   be rebuild with minimal changes whenever a entity is added or removed, which means a few more boilerplate
   tables to track usage (most notable one being <tt>mdaiUsage</tt>).
 
-  <p>Assumption is made that entities around the player is rather low (less than 1000). Aas such, we
+  <p>Assumption is made that entities around the player is rather low (less than 1000). As such, we
   don't care about frustum culling, we let the vertex shader do the work.
 
-  <p>Once added, an entity model will remain in the VBO (there are no ways to remove models). A model
-  represent a complete entity, like for example: item frame and their item are one model. Block 36 is
-  one model...
+  <p>Once added, an entity model will remain in the VBO (there are no ways to remove models). Models will
+  be reused as mush as possible: for example if a stone brick block is used in an item frame, is dropped
+  as an item in the world or is pushed by a piston, all at the same time: there will be only one model
+  allocated for all of these (but using different per instance information: rotation, scaling, lighting).
 
-  <p>Models will be rendered on demand: there are way too many to generate them all at startup.
+  <p>Models will also be rendered on demand: there are way too many to generate them all at startup.
 
   <p>Banks will hold a fixed number of vertices data: if that buffer is full or close to, a new bank
-  will be allocated.
+  will be allocated. The number of objects drawed can be unlimited though: if there are 1000 stone brick
+  block dropped as an item around the player, it will use one model in the VBO and 1000 instance with
+  different location/lighting.
 
   <li><tt>struct EntityModel_t</tt> : describe what's in all the VBOs: since VBO are only stream
-  of bytes, but we also need to know the vertex location, size, and bounding box.
+  of bytes. We also need to know the vertex location, size, and bounding box.
 
   <li><tt>struct EntityEntry_t</tt> : given an entity, we want to know if its model is already available
-  in one bank.
+  in one bank. Each models id (<tt>VBObank</tt>) are stored in a hash table that can give the model id
+  (<tt>VBObank</tt>) given an item ID (<tt>ItemID_t</tt>).
 </ul>
+
+<p>The schema below shows how all these datatypes are interconnected. If you ever venture in <tt>entities.c</tt>,
+keep that schema on hand, otherwise, you'll get lost:
+
+<div class="photo">
+  <img src="images/entities.png" style="width: 100%">
+</div>
+
+<p>It is not as complicated as it looks. First some legends:
+<ul>
+  <li>A <b>closed box</b> represent a fixed chunk of memory.
+  <li>An <b>opened box</b> on the left side means that the block can be reallocated if more space is needed.
+  That means there should be no pointers that holds a reference within those blocks, because its base
+  address can change at any time.
+  <li>An <b>arrow</b> means that within the datatype, there is a reference to the pointed datatype.
+  Note that this reference is not necessarily a pointer (it is often just an integer, more on this below).
+</ul>
+
+<p>The "root" datatype is <tt>EntityPrivate_t</tt> (on the far left): this is a static global variable
+that contains all the buffers/linked list for managing entities. Whenever an entity is found in the NBT
+of a chunk, it is added to a list (in the first free slot). To avoid doing one allocation per entity,
+they are allocated in batch of 256, those batches being stored in a linked list. An <tt>entityId</tt>
+is <b>an integer</b> that can uniquely identify one entity: the first 8bits encode the index in the batch,
+the remaining is the buffer number (ie: <tt>entityId&gt;&gt;8</tt><sup>th</sup> item in the linked list).
+
+
+<p>But we don't want to allocate one model (vertex data for the GPU) per entity. In any given world, it
+is extremely likely that only a couple of entity models will be used: a few hundreds usually, whereas
+the number of entities can be in the thousands.
+
+
+<p>That's the purpose of the <tt>EntityBank_t</tt> datatype: keep track of where a given model (vertex
+data) is and the metadata necessary for each instance (one per entity). One entire bank can then be rendered
+using a single OpenGL draw call, using <tt>glMultiDrawArraysIndirect()</tt>.
+
+<p>Banks therefore have to manage 2 arrays: model vertex data (<tt>vboModel</tt> and <tt>models</tt>)
+and per instance information (<tt>vboLoc</tt> and <tt>vboMDAI</tt>):
+<ul>
+  <li><tt>vboModel</tt> is an OpenGL array buffer that can hold at most 64K <a href="#vtx10bytes">vertex</a>
+  data (each vertex being 10 bytes). Once it is full, a new bank will be allocated. Also, once a model
+  has been added, it cannot be removed.
+
+  <p>To keep track of what's inside this <tt>VBO</tt>, we need a new array: <tt>struct EntityModel_t * models</tt>.
+  This array will contain where the model is located in <tt>vboModel</tt> (vertex index and vertex count).
+  And while we are here, the model structure will also hold a reference to the model bounding box.
+  This bounding box assumes that no rotations and no scaling are applied to the model.
+
+  <li><tt>vboLoc</tt> is a per instance array buffer (<tt>glVertexAttribDivisor()</tt> set to 1). There
+  is one instance slot per entity. All entities that use a model from the bank will be rendered in the
+  same draw call, no matter how many entities rerferences this model.
+
+  <p>Therefore <tt>vboLoc</tt> and <tt>vboMDAI</tt> can be resized at some point.
+</ul>
+
+<p>The link between an <tt>Entity_t</tt> and and its model is stored in the <tt>VBObank</tt> field: it
+encodes both the bank and the model id within an integer: the first 6bits encodes the bank number, the
+reamining encodes the index in the <tt>models</tt> array.
+
+<p>Bounding box are allocated the same way than entities: in batch of the same size and one bounding box
+per model (assuming no rotations and scaling).
 
 <h3 id="collision"><span>Collision detection/correction</span></h3>
 

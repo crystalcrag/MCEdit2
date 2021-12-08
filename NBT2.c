@@ -583,8 +583,15 @@ void NBT_MarkForUpdate(NBTFile nbt, int offset, int tag)
 
 	NBTHdr hdr = HDR(nbt, offset);
 
-	if ((hdr->type & 15) != TAG_List && hdr->type != TAG_Compound)
+	if ((hdr->type & 15) == TAG_List)
+	{
+		/* the only type that make sense to call this function */
+		hdr->type = TAG_List_Compound;
+	}
+	else if (hdr->type != TAG_Compound)
+	{
 		return;
+	}
 
 	if (hdr->count < NBT_NODE_CHANGED)
 		hdr->count = NBT_NODE_CHANGED;

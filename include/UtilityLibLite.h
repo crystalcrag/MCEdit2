@@ -152,6 +152,7 @@ DLLIMP int    UTF16ToUTF8(STRPTR out, int max, STRPTR in, int len);
 
 /* high performance frame counter */
 DLLIMP int    FrameSetFPS(int fps);
+DLLIMP double FrameGetFPS(void);
 DLLIMP double FrameGetTime(void);
 DLLIMP void   FrameWaitNext(void);
 DLLIMP void   FramePauseUnpause(Bool pause);

@@ -38,7 +38,7 @@ static uint8_t biomeDepend[] = {
 };
 
 uint8_t bboxIndices[] = {
-	/* triangles for filling: ordered S, E, N, W, T, B */
+	/* triangles for filling: ordered S, E, N, W, T, B (index in cubeVertex[]) */
 	3, 0, 1,    2, 3, 1,
 	2, 1, 5,    6, 2, 5,
 	6, 5, 4,    7, 6, 4,

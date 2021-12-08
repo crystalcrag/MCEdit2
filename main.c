@@ -565,6 +565,7 @@ void mceditWorld(void)
 					playerUpdateNBT(&mcedit.player);
 					break;
 				case SDLK_LSHIFT:
+					mcedit.forceSel = 0;
 					renderShowBlockInfo(False, DEBUG_SHOWITEM);
 					// no break;
 				default:
@@ -705,13 +706,7 @@ void mceditWorld(void)
 			}
 		}
 		if (sunMove)
-		{
-			MapExtraData sel = renderGetSelectedBlock(NULL, NULL);
-			if (sel->side == SIDE_ENTITY)
-				entityRotate(sel->entity, sunMove);
-			else
-				skydomeMoveSun(sunMove);
-		}
+			skydomeMoveSun(sunMove);
 		globals.curTime = FrameGetTime();
 		renderWorld();
 		entityAnimate();

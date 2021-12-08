@@ -355,17 +355,18 @@ static void nvgMultiLineText(NVGcontext * vg, float x, float y, STRPTR start, ST
 void debugCoord(APTR vg, vec4 camera, int total)
 {
 	TEXT message[256];
-	int  len = sprintf(message, "XYZ: %.2f, %.2f, %.2f (feet)", (double) camera[0], (double)(camera[1] - PLAYER_HEIGHT), (double) camera[2]);
+	int  len = sprintf(message, "XYZ: %.2f, %.2f, %.2f (feet)\n", (double) camera[0], (double)(camera[1] - PLAYER_HEIGHT), (double) camera[2]);
 	int  vis;
 
 	GPUBank bank;
 	ChunkData cd = globals.level->firstVisible;
 
-	len += sprintf(message + len, "\nChunk: %d, %d, %d (cnxGraph: %x)", CPOS(camera[0]) << 4, CPOS(camera[1]) << 4, CPOS(camera[2]) << 4,
+	len += sprintf(message + len, "Chunk: %d, %d, %d (cnxGraph: %x)\n", CPOS(camera[0]) << 4, CPOS(camera[1]) << 4, CPOS(camera[2]) << 4,
 		cd ? cd->cnxGraph : 0);
-	len += sprintf(message + len, "\nTriangles: %d", total);
+	len += sprintf(message + len, "Triangles: %d\n", total);
 	for (bank = HEAD(globals.level->gpuBanks), vis = 0; bank; vis += bank->vtxSize, NEXT(bank));
-	len += sprintf(message + len, "\nChunks: %d/%d (culled: %d)", vis, globals.level->GPUchunk, globals.level->chunkCulled);
+	len += sprintf(message + len, "Chunks: %d/%d (culled: %d)\n", vis, globals.level->GPUchunk, globals.level->chunkCulled);
+	len += sprintf(message + len, "FPS: %.1f", FrameGetFPS());
 
 	nvgFontSize(vg, FONTSIZE);
 	nvgTextAlign(vg, NVG_ALIGN_TOP);

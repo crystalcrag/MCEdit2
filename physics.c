@@ -359,33 +359,51 @@ Bool physicsMoveEntity(Map map, PhysicsEntity entity, float speed)
  * entity moved: check if other entities must be moved along
  */
 
-void physicsEntityMoved(Map map, int entityId, vec4 start, vec4 end, VTXBBox bbox)
+static Bool physicsPushEntity(float broad[6], vec4 pos, float scale, VTXBBox bbox, float dir[3])
 {
-	float minMax[6];
+	DATA16 pt1 = bbox->pt1;
+	DATA16 pt2 = bbox->pt2;
+	float inter[] = {
+		fminf(FROMVERTEX(pt2[VX]) * scale + pos[VX], broad[VX+3]) - fmaxf(FROMVERTEX(pt1[VX]) * scale + pos[VX], broad[VX]),
+		fminf(FROMVERTEX(pt2[VY]) * scale + pos[VY], broad[VY+3]) - fmaxf(FROMVERTEX(pt1[VY]) * scale + pos[VY], broad[VY]),
+		fminf(FROMVERTEX(pt2[VZ]) * scale + pos[VZ], broad[VZ+3]) - fmaxf(FROMVERTEX(pt1[VZ]) * scale + pos[VZ], broad[VZ])
+	};
+
+	if (inter[VX] < EPSILON || inter[VY] < EPSILON || inter[VZ] < EPSILON)
+		/* does not intersect */
+		return False;
+
+	float endPos[] = {
+		pos[VX] + dir[VX] * inter[VX],
+		pos[VY] + dir[VY] * inter[VY],
+		pos[VZ] + dir[VZ] * inter[VZ]
+	};
+	//physicsCheckCollision(map, pos, endPos, bbox, 0.5);
+	memcpy(pos, endPos, 12);
+	return True;
+}
+
+void physicsEntityMoved(Map map, APTR self, vec4 start, vec4 end, VTXBBox bbox, float scale)
+{
+	float broad[6];
 	float dir[3];
 	float maxSize;
 	int   i;
 
-	/* bounding box of entity */
+	/* compute broad phase box */
 	for (i = 0, maxSize = 0; i < 3; i ++)
 	{
 		/* <start> and <end> are the center of entity: bbox must be centered */
-		float min = FROMVERTEX(bbox->pt1[i]);
-		float max = FROMVERTEX(bbox->pt2[i]);
-		float off = (max - min) * 0.5f;
-		minMax[i]   = min - off;
-		minMax[3+i] = max - off;
+		float min = FROMVERTEX(bbox->pt1[i]) * scale;
+		float max = FROMVERTEX(bbox->pt2[i]) * scale;
+		broad[i]   = fminf(start[i], end[i]) + min;
+		broad[3+i] = fmaxf(start[i], end[i]) + max;
 		if (maxSize < max - min)
 			maxSize = max - min;
-		off = end[i] - start[i];
-		dir[i] = off < EPSILON ? -1 : off > EPSILON ? 1 : 0;
+		float diff = end[i] - start[i];
+		dir[i] = diff < -EPSILON ? -1 : diff > EPSILON ? 1 : 0;
 	}
 
-	/* compute broad phase box */
-	float broad[] = {
-		fminf(start[VX], end[VX]) + minMax[VX],   fminf(start[VY], end[VY]) + minMax[VY],   fminf(start[VZ], end[VZ]) + minMax[VZ],
-		fmaxf(start[VX], end[VX]) + minMax[VX+3], fmaxf(start[VY], end[VY]) + minMax[VY+3], fmaxf(start[VZ], end[VZ]) + minMax[VZ+3]
-	};
 	float center[] = {
 		(broad[VX] + broad[VX+3]) * 0.5f,
 		(broad[VY] + broad[VY+3]) * 0.5f,
@@ -409,6 +427,7 @@ void physicsEntityMoved(Map map, int entityId, vec4 start, vec4 end, VTXBBox bbo
 			for (id = chunk->entityList; id != ENTITY_END; id = entity->next)
 			{
 				entity = entityGetById(id);
+				if (entity == self || (entity->enflags & ENFLAG_FIXED)) continue;
 
 				EntityModel model = entityGetModelById(entity->VBObank);
 
@@ -419,26 +438,11 @@ void physicsEntityMoved(Map map, int entityId, vec4 start, vec4 end, VTXBBox bbo
 					continue;
 
 				/* they can indeed be intersecting */
-				DATA16 pt1 = model->bbox->pt1;
-				DATA16 pt2 = model->bbox->pt2;
-				vec    pos = entity->pos;
-				float inter[] = {
-					fminf(FROMVERTEX(pt2[VX]) + pos[VX], broad[VX+3]) - fmaxf(FROMVERTEX(pt1[VX]) + pos[VX], broad[VX]),
-					fminf(FROMVERTEX(pt2[VY]) + pos[VY], broad[VY+3]) - fmaxf(FROMVERTEX(pt1[VY]) + pos[VY], broad[VY]),
-					fminf(FROMVERTEX(pt2[VZ]) + pos[VZ], broad[VZ+3]) - fmaxf(FROMVERTEX(pt1[VZ]) + pos[VZ], broad[VZ])
-				};
-
-				if (inter[VX] < EPSILON || inter[VY] < EPSILON || inter[VZ] < EPSILON)
-				    /* does not intersect */
-				    continue;
-
-				float endPos[] = {
-					pos[VX] + dir[VX] * inter[VX],
-					pos[VY] + dir[VY] * inter[VY],
-					pos[VZ] + dir[VZ] * inter[VZ]
-				};
-				physicsCheckCollision(map, entity->pos, endPos, model->bbox, 0.5);
+				if (physicsPushEntity(broad, entity->pos, entity->rotation[3], model->bbox, dir))
+					entityUpdateInfo(entity, chunk);
 			}
 		}
 	}
+	/* check for players */
+	//physicsPushEntity(broad, player->pos, 1, entityGetBBox(ENTITY_PLAYER), dir);
 }

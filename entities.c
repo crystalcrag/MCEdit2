@@ -21,8 +21,9 @@
 #include "mapUpdate.h"
 #include "cartograph.h"
 #include "render.h"
-#include "globals.h"
 #include "worldItems.h"
+#include "physics.h"
+#include "globals.h"
 #include "glad.h"
 
 struct EntitiesPrivate_t entities;
@@ -536,13 +537,18 @@ int entityGetModelId(Entity entity)
 		if (off >= 0)
 		{
 			off = FindInList(paintings.names, NBT_Payload(&nbt, off), 0);
-			if (off >= 0) return entityGetModelBank(ITEMID(ENTITY_PAINTINGS, off));
+			if (off >= 0)
+			{
+				entity->enflags = ENFLAG_POPIFPUSHED;
+				return entityGetModelBank(ITEMID(ENTITY_PAINTINGS, off));
+			}
 		}
 	}
 	else if (strcasecmp(id, "item_frame") == 0)
 	{
 		int item = NBT_FindNode(&nbt, 0, "Item");
-		entity->special = ENTYPE_FRAME;
+		entity->entype = ENTYPE_FRAME;
+		entity->enflags = ENFLAG_POPIFPUSHED;
 		if (item >= 0)
 		{
 			STRPTR   tech = NBT_Payload(&nbt, NBT_FindNode(&nbt, item, "id"));
@@ -556,14 +562,16 @@ int entityGetModelId(Entity entity)
 				 * filled map will use a slightly bigger model and need a cartograph entry to render the map bitmap
 				 * note: data in this case refers to id in data/map_%d.dat, this number can be arbitrary large.
 				 */
-				entity->special = ENTYPE_FILLEDMAP;
+				entity->entype  = ENTYPE_FILLEDMAP;
+				entity->enflags = ENFLAG_POPIFPUSHED;
 				entity->blockId = ENTITY_ITEM | data;
 				return entityGetModelBank(ITEMID(ENTITY_ITEMFRAME_FULL, 0));
 			}
 			else if (blockId > 0)
 			{
 				/* we will have to alloc another entity for the item in the frame */
-				entity->special = ENTYPE_FRAMEITEM;
+				entity->entype  = ENTYPE_FRAMEITEM;
+				entity->enflags = ENFLAG_POPIFPUSHED;
 				entity->blockId = ENTITY_ITEM | blockId | data;
 			}
 		}
@@ -784,9 +792,11 @@ void entityParse(Chunk c, NBTFile nbt, int offset)
 			entity->pos[VT] = 0;
 			entity->name = id;
 			entity->VBObank = entityGetModelId(entity);
-			if (entity->VBObank == 0) /* unknwon entity */
+			if (entity->VBObank == 0) /* unknown entity */
 				entity->pos[VY] += 0.5f;
-			entityGetLight(c, pos+3, entity->light, entity->fullLight = entity->blockId > 0, 0);
+			if (entity->blockId > 0)
+				entity->enflags |= ENFLAG_FULLLIGHT;
+			entityGetLight(c, pos+3, entity->light, entity->enflags & ENFLAG_FULLLIGHT, 0);
 			entityAddToCommandList(entity);
 
 			/* alloc an entity for the item in the frame */
@@ -805,6 +815,20 @@ Entity entityGetById(int id)
 
 	return buffer->entities + (id & (ENTITY_BATCH-1));
 }
+
+/* converse of entityGetById() */
+static int entityGetId(Entity entity)
+{
+	EntityBuffer buffer;
+	int i;
+
+	for (buffer = HEAD(entities.list), i = 0; buffer; NEXT(buffer), i += ENTITY_BATCH)
+		if ((Entity) buffer <= entity && entity < (Entity) (buffer+1))
+			return i | (entity - buffer->entities);
+
+	return ENTITY_END;
+}
+
 
 Bool entityIter(int * entityId, vec4 pos)
 {
@@ -908,7 +932,7 @@ static void entitySetSelection(Entity entity, int entityId)
 				glBufferSubData(GL_ARRAY_BUFFER, entities.selected->mdaiSlot * INFO_SIZE + 12, 4, &val);
 			}
 			entities.selected->pos[VT] = 0;
-			if (entities.selected->special == ENTYPE_FILLEDMAP)
+			if (entities.selected->entype == ENTYPE_FILLEDMAP)
 				cartoSetSelect(entities.selectedId, False);
 		}
 
@@ -923,7 +947,7 @@ static void entitySetSelection(Entity entity, int entityId)
 				glBindBuffer(GL_ARRAY_BUFFER, bank->vboLoc);
 				glBufferSubData(GL_ARRAY_BUFFER, entity->mdaiSlot * INFO_SIZE + 12, 4, &val);
 			}
-			if (entity->special == ENTYPE_FILLEDMAP)
+			if (entity->entype == ENTYPE_FILLEDMAP)
 				cartoSetSelect(entityId, True);
 			entity->pos[VT] = 1;
 		}
@@ -1175,7 +1199,6 @@ static DATA16 entityGetPrev(Chunk c, Entity entity, int id)
 /* flag chunk for saving later */
 void entityMarkListAsModified(Map map, Chunk c)
 {
-	renderAddModif();
 	mapAddToSaveList(map, c);
 	if ((c->cflags & CFLAG_REBUILDETT) == 0)
 		chunkUpdateEntities(c);
@@ -1200,13 +1223,10 @@ void entityDeleteById(Map map, int entityId)
 	if (c)
 	{
 		DATA16 prev;
-		/* mark the chunk as needing to be saved */
-		mapAddToSaveList(map, c);
-		if ((c->cflags & CFLAG_REBUILDETT) == 0)
-			chunkUpdateEntities(c);
+		entityMarkListAsModified(map, c);
 
 		/* unlink from chunk active entities */
-		if (entity->ref || entity->special == ENTYPE_FILLEDMAP)
+		if (entity->ref || entity->entype == ENTYPE_FILLEDMAP)
 		{
 			/* item in item frame: only delete this item */
 			NBTFile_t nbt = {.mem = entity->tile};
@@ -1214,7 +1234,7 @@ void entityDeleteById(Map map, int entityId)
 			if (item >= 0)
 			{
 				/* unlink from chunk linked list */
-				if (entity->special != ENTYPE_FILLEDMAP)
+				if (entity->entype != ENTYPE_FILLEDMAP)
 				{
 					prev = entityGetPrev(c, entity, entityId);
 					*prev = entity->next;
@@ -1230,12 +1250,12 @@ void entityDeleteById(Map map, int entityId)
 					entity = entity->ref;
 				entity->tile = nbt.mem;
 				/* NBT compound from item and frame is the same */
-				if (entity->special == ENTYPE_FILLEDMAP)
+				if (entity->entype == ENTYPE_FILLEDMAP)
 				{
 					/* map removed from item frame: reset frame model to normal */
-					entity->special = ENTYPE_FRAME;
+					entity->entype  = ENTYPE_FRAME;
 					entity->VBObank = entityGetModelBank(ITEMID(ENTITY_ITEMFRAME, 0));
-					entity->special = 0;
+					entity->entype  = 0;
 					entityResetModel(entity);
 					cartoDelMap(entityId+1);
 				}
@@ -1340,24 +1360,26 @@ void entityAnimate(void)
 		int remain = anim->stopTime - time;
 		if (remain > 0)
 		{
-			int oldPos[3];
+			vec4 oldPos;
+			memcpy(oldPos, entity->pos, 12);
 			for (j = 0; j < 3; j ++)
-			{
-				oldPos[j] = entity->pos[j];
 				entity->pos[j] += (entity->motion[j] - entity->pos[j]) * (time - anim->prevTime) / remain;
-			}
 			anim->prevTime = time;
-			/* update VBO */
+
 			EntityBank bank;
+			EntityModel model;
 			for (j = BANK_NUM(entity->VBObank), bank = HEAD(entities.banks); j > 0; j --, NEXT(bank));
+			model = bank->models + (entity->VBObank>>6);
+			physicsEntityMoved(globals.level, entity, oldPos, entity->pos, model->bbox, entity->rotation[3]);
+			/* update VBO */
 			glBindBuffer(GL_ARRAY_BUFFER, bank->vboLoc);
 			glBufferSubData(GL_ARRAY_BUFFER, entity->mdaiSlot * INFO_SIZE, 12, entity->pos);
-			if (oldPos[0] != (int) entity->pos[0] ||
-				oldPos[1] != (int) entity->pos[1] ||
-				oldPos[2] != (int) entity->pos[2])
+			if ((int) oldPos[0] != (int) entity->pos[0] ||
+				(int) oldPos[1] != (int) entity->pos[1] ||
+				(int) oldPos[2] != (int) entity->pos[2])
 			{
 				/* XXX check if chunk has changed */
-				entityGetLight(mapGetChunk(globals.level, entity->pos), entity->pos, entity->light, entity->fullLight, 1);
+				entityGetLight(mapGetChunk(globals.level, entity->pos), entity->pos, entity->light, entity->enflags & ENFLAG_FULLLIGHT, 1);
 				glBufferSubData(GL_ARRAY_BUFFER, entity->mdaiSlot * INFO_SIZE + INFO_SIZE-LIGHT_SIZE, LIGHT_SIZE, entity->light);
 			}
 			anim ++;
@@ -1410,7 +1432,10 @@ void entityUpdateOrCreate(Chunk c, vec4 pos, int blockId, vec4 dest, int ticks, 
 	vecAddNum(entity->pos,    0.5f);
 	vecAddNum(entity->motion, 0.5f);
 	entity->VBObank = entityGetModelId(entity);
-	entityGetLight(c, pos, entity->light, entity->fullLight = b->type != CUST || b->special == BLOCK_SOLIDOUTER, 1);
+	entity->enflags |= ENFLAG_FIXED;
+	if (b->type != CUST || b->special == BLOCK_SOLIDOUTER)
+		entity->enflags |= ENFLAG_FULLLIGHT;
+	entityGetLight(c, pos, entity->light, entity->enflags & ENFLAG_FULLLIGHT, 1);
 	entityAddToCommandList(entity);
 
 	/* push it into the animate list */
@@ -1445,7 +1470,7 @@ void entityUpdateLight(Chunk c)
 		if (entity->ref)
 			memcpy(light, entity->ref->light, sizeof light);
 		else
-			entityGetLight(c, entity->pos, light, entity->fullLight, 0);
+			entityGetLight(c, entity->pos, light, entity->enflags & ENFLAG_FULLLIGHT, 0);
 		if (memcmp(light, entity->light, LIGHT_SIZE))
 		{
 			EntityBank bank;
@@ -1454,13 +1479,14 @@ void entityUpdateLight(Chunk c)
 			for (j = BANK_NUM(entity->VBObank), bank = HEAD(entities.banks); j > 0; j --, NEXT(bank));
 			glBindBuffer(GL_ARRAY_BUFFER, bank->vboLoc);
 			glBufferSubData(GL_ARRAY_BUFFER, entity->mdaiSlot * INFO_SIZE + INFO_SIZE-LIGHT_SIZE, LIGHT_SIZE, light);
-			if (entity->special == ENTYPE_FILLEDMAP)
+			if (entity->entype == ENTYPE_FILLEDMAP)
 				cartoUpdateLight(id+1, entity->light);
 		}
 	}
 }
 
-void entityUpdateInfo(Entity entity)
+/* push data into vertex buffer */
+void entityUpdateInfo(Entity entity, Chunk checkIfChanged)
 {
 	if (entity)
 	{
@@ -1469,6 +1495,28 @@ void entityUpdateInfo(Entity entity)
 		for (j = BANK_NUM(entity->VBObank), bank = HEAD(entities.banks); j > 0; j --, NEXT(bank));
 		glBindBuffer(GL_ARRAY_BUFFER, bank->vboLoc);
 		glBufferSubData(GL_ARRAY_BUFFER, entity->mdaiSlot * INFO_SIZE, INFO_SIZE - LIGHT_SIZE, entity->pos);
+
+		/* check if we need to move the entity in a different chunk */
+		if (checkIfChanged && (checkIfChanged->X != ((int) entity->pos[VX] & ~15) || checkIfChanged->Z != ((int) entity->pos[VZ] & ~15)))
+		{
+			Chunk chunk = mapGetChunk(globals.level, entity->pos);
+			DATA16 prev;
+			int slot, entityId = entityGetId(entity);
+			for (prev = &checkIfChanged->entityList, slot = *prev; slot != ENTITY_END && slot != entityId; slot = *prev)
+			{
+				Entity next = entityGetById(slot);
+				prev = &next->next;
+			}
+			if (slot == entityId)
+			{
+				/* relocate to another chunk */
+				//fprintf(stderr, "moving entity into another chunk\n");
+				*prev = entity->next;
+				entity->next = chunk->entityList;
+				chunk->entityList = entityId;
+				entityMarkListAsModified(globals.level, chunk);
+			}
+		}
 	}
 }
 
@@ -1493,7 +1541,7 @@ void entityDebugCmd(Chunk c)
 		else
 		{
 			fprintf(stderr, "%s", entity->name);
-			if (entity->special == ENTYPE_FILLEDMAP)
+			if (entity->entype == ENTYPE_FILLEDMAP)
 				fprintf(stderr, " (map)");
 			fputc('\n', stderr);
 		}
@@ -1650,25 +1698,6 @@ APTR entityCopy(int vtxCount, vec4 origin, DATA16 entityIds, int maxEntities, DA
 	return bank;
 }
 
-void entityRotate(int entityId, int dir)
-{
-	Entity entity = entityGetById(entityId-1);
-	EntityBank bank;
-	int VBObank = entity->VBObank;
-	int i;
-
-	for (i = BANK_NUM(VBObank), bank = HEAD(entities.banks); i > 0; i --, NEXT(bank));
-
-	entity->rotation[0] = normAngle(entity->rotation[0] + (dir & 1 ? -M_PIf/360 : M_PIf/360));
-
-	i = entity->mdaiSlot;
-	glBindBuffer(GL_ARRAY_BUFFER, bank->vboLoc);
-	glBufferSubData(GL_ARRAY_BUFFER, i * INFO_SIZE + 16, 4, entity->rotation);
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-	fprintf(stderr, "angle = %g\n", entity->rotation[0] * 180 / M_PI);
-}
-
 #define bank ((EntityBank)duplicated)
 /* render value returned by entityDuplicate() */
 void entityCopyRender(APTR duplicated)
@@ -1768,3 +1797,55 @@ void entityCopyDelete(APTR duplicated)
 	free(duplicated);
 }
 #undef bank
+
+#include "nanovg.h"
+
+static void vec3Mult(vec4 pt, float mult)
+{
+	pt[0] *= mult;
+	pt[1] *= mult;
+	pt[2] *= mult;
+}
+
+/* render bbox of selected entity */
+void entityRenderBBox(void)
+{
+	Entity sel = entities.selected;
+
+	if (sel)
+	{
+		extern uint8_t bboxIndices[];
+		float vertex[6];
+		DATA8 index;
+		NVGCTX vg = globals.nvgCtx;
+		int i, j;
+		EntityModel model = entityGetModelById(sel->VBObank);
+		VTXBBox bbox = model->bbox;
+		nvgStrokeColorRGBA8(vg, "\xff\xff\xff\xff");
+		nvgBeginPath(vg);
+		for (i = 0; i < 3; i ++)
+		{
+			vertex[i]   = sel->pos[i] + FROMVERTEX(bbox->pt1[i]) * sel->rotation[3];
+			vertex[3+i] = sel->pos[i] + FROMVERTEX(bbox->pt2[i]) * sel->rotation[3];
+		}
+		for (index = bboxIndices + 36, i = 0; i < 12; i ++, index += 2)
+		{
+			vec4 pt1, pt2;
+			DATA8 idx1, idx2;
+			for (j = 0, idx1 = cubeVertex + index[0]*3, idx2 = cubeVertex + index[1]*3; j < 3; j ++)
+			{
+				pt1[j] = vertex[idx1[j]*3+j];
+				pt2[j] = vertex[idx2[j]*3+j];
+			}
+			/* less painful to do it via nanovg than opengl :-/ */
+			pt1[3] = pt2[3] = 1;
+			matMultByVec(pt1, globals.matMVP, pt1);
+			matMultByVec(pt2, globals.matMVP, pt2);
+			vec3Mult(pt1, 1 / pt1[3]);
+			vec3Mult(pt2, 1 / pt2[3]);
+			nvgMoveTo(vg, (pt1[0] + 1) * (globals.width>>1), (1 - pt1[1]) * (globals.height>>1));
+			nvgLineTo(vg, (pt2[0] + 1) * (globals.width>>1), (1 - pt2[1]) * (globals.height>>1));
+		}
+		nvgStroke(vg);
+	}
+}

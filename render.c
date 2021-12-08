@@ -1606,6 +1606,7 @@ void renderWorld(void)
 	if (render.debug & RENDER_DEBUG_CURCHUNK)
 	{
 		debugCoord(vg, render.camera, render.debugTotalTri/3);
+		entityRenderBBox();
 	}
 	nvgEndFrame(vg);
 

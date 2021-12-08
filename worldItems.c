@@ -20,9 +20,10 @@
 #include "blockUpdate.h"
 #include "mapUpdate.h"
 #include "cartograph.h"
-#include "globals.h"
 #include "entities.h"
 #include "worldItems.h"
+#include "render.h"
+#include "globals.h"
 
 struct
 {
@@ -87,8 +88,8 @@ void worldItemDup(Map map, vec info, int entityId)
 
 	memcpy(dup->pos, info, INFO_SIZE);
 	dup->VBObank   = entity->VBObank;
-	dup->special   = entity->special;
-	dup->fullLight = entity->fullLight;
+	dup->entype    = entity->entype;
+	dup->enflags   = entity->enflags;
 	dup->blockId   = entity->blockId;
 	dup->tile      = NBT_Copy(entity->tile);
 
@@ -117,7 +118,7 @@ void worldItemDup(Map map, vec info, int entityId)
 	dup->next = chunk->entityList;
 	dup->name = NBT_Payload(&nbt, NBT_FindNode(&nbt, 0, "id"));
 	chunk->entityList = slot;
-	entityGetLight(chunk, dup->pos, dup->light, dup->fullLight, 0);
+	entityGetLight(chunk, dup->pos, dup->light, dup->enflags & ENFLAG_FULLLIGHT, 0);
 	entityAddToCommandList(dup);
 	mapAddToSaveList(map, chunk);
 	if ((chunk->cflags & CFLAG_REBUILDETT) == 0)
@@ -169,7 +170,7 @@ static void worldItemGetFrameCoord(Entity entity, float vertex[12])
 /* add the item within the frame in the list of entities to render */
 Entity worldItemAddItemFrame(Entity frame, int entityId)
 {
-	if (frame->special == ENTYPE_FRAMEITEM)
+	if (frame->entype == ENTYPE_FRAMEITEM)
 	{
 		uint16_t next;
 		/* normal item in frame */
@@ -190,7 +191,7 @@ Entity worldItemAddItemFrame(Entity frame, int entityId)
 		entityAddToCommandList(item);
 		return item;
 	}
-	else if (frame->special == ENTYPE_FILLEDMAP)
+	else if (frame->entype == ENTYPE_FILLEDMAP)
 	{
 		float coord[12];
 		int   VBObank = entityGetModelBank(ITEMID(ENTITY_ITEMFRAME_FULL, 0));
@@ -386,11 +387,13 @@ void worldItemCreatePainting(Map map, int paintingId)
 	entity->tile = nbt.mem;
 	entity->rotation[3] = 1;
 	entity->VBObank = entityGetModelId(entity);
-	entityGetLight(c, entity->pos, entity->light, entity->fullLight = False, 0);
+	entity->enflags &= ~ENFLAG_FULLLIGHT;
+	entityGetLight(c, entity->pos, entity->light, False, 0);
 	entityAddToCommandList(entity);
 
 	/* flag chunk for saving later */
 	entityMarkListAsModified(map, c);
+	renderAddModif();
 }
 
 static int worldItemCreateItemFrame(Map map, vec4 pos, int side)
@@ -429,9 +432,11 @@ static int worldItemCreateItemFrame(Map map, vec4 pos, int side)
 	entity->tile = nbt.mem;
 	entity->rotation[3] = 1;
 	entity->VBObank = entityGetModelId(entity);
-	entityGetLight(c, entity->pos, entity->light, entity->fullLight = True, 0);
+	entity->enflags |= ENFLAG_FULLLIGHT;
+	entityGetLight(c, entity->pos, entity->light, True, 0);
 	entityAddToCommandList(entity);
 	entityMarkListAsModified(map, c);
+	renderAddModif();
 	return slot + 1;
 }
 
@@ -457,7 +462,7 @@ void worldItemUseItemOn(Map map, int entityId, ItemID_t itemId, vec4 pos)
 {
 	Entity entity = entityGetById(entityId - 1);
 
-	if (entity && entity->special == ENTYPE_FRAME)
+	if (entity && entity->entype == ENTYPE_FRAME)
 	{
 		NBTFile_t tile  = {.mem = entity->tile};
 		int       item  = NBT_FindNode(&tile, 0, "Item");
@@ -489,11 +494,12 @@ void worldItemUseItemOn(Map map, int entityId, ItemID_t itemId, vec4 pos)
 			entity->name = NBT_Payload(&tile, NBT_FindNode(&tile, 0, "id"));
 			entity->tile = tile.mem;
 			entity->blockId = itemId | ENTITY_ITEM;
-			entity->special = strcmp(buffer, "minecraft:filled_map") == 0 ? ENTYPE_FILLEDMAP : ENTYPE_FRAMEITEM;
+			entity->entype = strcmp(buffer, "minecraft:filled_map") == 0 ? ENTYPE_FILLEDMAP : ENTYPE_FRAMEITEM;
 			uint16_t next = entity->next;
 			entity = worldItemAddItemFrame(entity, entityId);
 			entity->next = next;
 			entityMarkListAsModified(map, chunk);
+			renderAddModif();
 		}
 	}
 }
@@ -553,7 +559,8 @@ void worldItemUpdatePreviewPos(vec4 camera, vec4 pos)
 		else
 			angle += M_PIf;
 		preview->rotation[0] = normAngle(angle);
-		entityUpdateInfo(preview);
+		/* note: this entity is not linked to any chunk, no need to update entityList */
+		entityUpdateInfo(preview, NULL);
 	}
 }
 
@@ -599,10 +606,12 @@ void worldItemAdd(Map map)
 			chunk->entityList = worldItem.slot;
 
 			preview->tile = nbt.mem;
-			entityGetLight(chunk, preview->pos, preview->light, preview->fullLight = False, 0);
+			preview->enflags &= ~ENFLAG_FULLLIGHT;
+			entityGetLight(chunk, preview->pos, preview->light, False, 0);
 			entityMarkListAsModified(map, chunk);
 			worldItem.preview = NULL;
 			worldItem.slot = 0;
+			renderAddModif();
 		}
 	}
 }

@@ -1,4 +1,11 @@
+=========== Week 49 ===========
+Mon Dec 6:
+	* added player as a movable entity, but will need an octree to handle collision efficiently.
+
 =========== Week 48 ===========
+Sun Dec 5:
+	* entity-entity collision early implementation (piston can push entity).
+
 Sat Dec 4:
 	* select entity by middle-click.
 	* transform entity along with brush (rotate, roll, mirror, flip).
