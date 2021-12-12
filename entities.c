@@ -31,41 +31,6 @@ struct Paintings_t       paintings;
 
 static void hashAlloc(int);
 
-static struct VTXBBox_t entitiesBBox[] = {
-	{  BOX(1.0, 1.0, 1.0), .sides = 63, .aabox = 1},  /* ENTITY_UNKNOWN */
-	{BOXCY(0.6, 1.8, 0.6), .sides = 63, .aabox = 2},  /* ENTITY_PLAYER */
-};
-static vec4 pos_000;
-
-VTXBBox entityGetBBox(int id)
-{
-	if (id < 0 || id >= DIM(entitiesBBox))
-		return entitiesBBox;
-
-	return entitiesBBox + id;
-}
-
-
-static VTXBBox entityAllocBBox(void)
-{
-	BBoxBuffer buf = HEAD(entities.bbox);
-
-	if (buf == NULL || buf->count == ENTITY_BATCH)
-	{
-		buf = malloc(sizeof *buf);
-		buf->count = 0;
-		ListAddHead(&entities.bbox, &buf->node);
-	}
-
-	VTXBBox bbox = buf->bbox + (buf->count ++);
-
-	memset(bbox, 0, sizeof *bbox);
-	bbox->sides = 63;
-	bbox->aabox = 1;
-
-	return bbox;
-}
-
 /* pre-create some entities from entities.js */
 static Bool entityCreateModel(const char * file, STRPTR * keys, int lineNum)
 {
@@ -106,7 +71,6 @@ static Bool entityCreateModel(const char * file, STRPTR * keys, int lineNum)
 		paintings.count ++;
 		cust.U = PAINTINGS_TILE_X * 16;
 		cust.V = PAINTINGS_TILE_Y * 16;
-		cust.bbox = entityAllocBBox();
 		/* also store painting location in texture (needed by paintings selector interface) */
 		index = cust.model[13];
 		loc[0] = (index % 513 >> 4);
@@ -117,14 +81,13 @@ static Bool entityCreateModel(const char * file, STRPTR * keys, int lineNum)
 	case 1:
 		name = jsonValue(keys, "full");
 		modelId = name && atoi(name) == 1 ? ITEMID(ENTITY_ITEMFRAME_FULL,0) : ITEMID(ENTITY_ITEMFRAME,0);
-		cust.bbox = entityAllocBBox();
 		break;
 	default:
 		SIT_Log(SIT_ERROR, "%s: unknown entity type %s on line %d", file, id, lineNum);
 		return False;
 	}
 
-	entityAddModel(modelId, 0, &cust);
+	entityAddModel(modelId, 0, &cust, NULL);
 
 	return True;
 }
@@ -134,7 +97,7 @@ Bool entityInitStatic(void)
 	/* pre-alloc some entities */
 	hashAlloc(ENTITY_BATCH);
 	/* already add model for unknown entity */
-	entityAddModel(0, 0, NULL);
+	entityAddModel(0, 0, NULL, NULL);
 
 	/* parse entity description models */
 	if (! jsonParse(RESDIR "entities.js", entityCreateModel))
@@ -282,8 +245,8 @@ static int entityGenModel(EntityBank bank, ItemID_t itemId, int cnx, CustModel c
 	VTXBBox  bbox   = NULL;
 	int      count  = 0;
 	int      item   = 0;
-	uint8_t  cpBBox = 0;
 	uint16_t U, V;
+	uint16_t sizes[3];
 	itemId &= ~ENTITY_ITEM;
 
 	U = V = 0;
@@ -321,9 +284,8 @@ static int entityGenModel(EntityBank bank, ItemID_t itemId, int cnx, CustModel c
 			}
 			// no break;
 		case TRANS:
-			count  = blockInvModelCube(buffer, b, texCoord);
-			bbox   = blockGetBBox(b);
-			cpBBox = 1;
+			count = blockInvModelCube(buffer, b, texCoord);
+			bbox  = blockGetBBox(b);
 			break;
 		case CUST:
 			if (desc->model)
@@ -344,7 +306,6 @@ static int entityGenModel(EntityBank bank, ItemID_t itemId, int cnx, CustModel c
 					memcpy(buffer, b->custModel, count * BYTES_PER_VERTEX);
 				}
 				bbox = blockGetBBox(b);
-				cpBBox = 1;
 				if (b->special == BLOCK_SOLIDOUTER)
 					count += blockInvModelCube(buffer + count * INT_PER_VERTEX, b, texCoord);
 			}
@@ -355,27 +316,13 @@ static int entityGenModel(EntityBank bank, ItemID_t itemId, int cnx, CustModel c
 	{
 		count = blockCountModelVertex(cust->model, cust->vertex);
 		blockParseModel(cust->model, cust->vertex, buffer);
-		bbox = cust->bbox;
 		U = cust->U;
 		V = cust->V;
 	}
 	else count = itemGenMesh(itemId, buffer), item = 1;
 
-	if (! bbox)
-	{
-		bbox = entityAllocBBox();
-	}
-	else if (cpBBox)
-	{
-		/* bbox currently points to a VTXBBox used by physics: do not modify the original */
-		VTXBBox newBB = entityAllocBBox();
-		memcpy(newBB, bbox, sizeof *newBB);
-		bbox = newBB;
-	}
-
 	/* entities have their position centered in the middle of their bbox */
-	float maxSize;
-	blockCenterModel(buffer, count, U, V, ! item, bbox, &maxSize);
+	blockCenterModel(buffer, count, U, V, ! item, bbox, sizes);
 	glUnmapBuffer(GL_ARRAY_BUFFER);
 	bank->vtxCount += count;
 
@@ -395,14 +342,18 @@ static int entityGenModel(EntityBank bank, ItemID_t itemId, int cnx, CustModel c
 	models = bank->models + max;
 	models->first = bank->vtxCount - count;
 	models->count = count;
-	models->bbox  = bbox;
-	models->maxSize = maxSize;
+	memcpy(&models->bbox, sizes, sizeof sizes);
 	bank->modelCount ++;
 
 	/* VBObank: 6 first bits are for bank number, 10 next are for model number (index in bank->models) */
 	for (max <<= 6; bank->node.ln_Prev; max ++, PREV(bank));
 
-	//fprintf(stderr, "model %d, first: %d, count: %d, id: %x\n", max >> 6, models->first, count, id);
+//	fprintf(stderr, "model %d, first: %d, count: %d, bbox: %g,%g,%g, ", max >> 6, models->first, count,
+//		sizes[0] * (1.0/BASEVTX), sizes[1] * (1.0/BASEVTX), sizes[2] * (1.0/BASEVTX));
+//	if (isBlockId(itemId))
+//		fprintf(stderr, "block: %d:%d\n", itemId >> 4, itemId & 15);
+//	else
+//		fprintf(stderr, "item: %d:%d\n", ITEMNUM(itemId), ITEMMETA(itemId));
 
 	hashInsert(itemId, max);
 
@@ -445,29 +396,38 @@ static void entityInitVAO(EntityBank bank, int vtxCount)
 }
 
 /* get modelId (modelId + bank), allocate one if it does not exist yet */
-int entityAddModel(ItemID_t itemId, int cnx, CustModel cust)
+int entityAddModel(ItemID_t itemId, int cnx, CustModel cust, DATA16 sizes)
 {
 	EntityBank bank;
 	int modelId = entityGetModelBank(itemId | (cnx << 17));
-	if (modelId > 0) return modelId;
-
-	/* not yet in cache, add it on the fly */
-	int count = cust ? blockCountModelVertex(cust->model, cust->vertex) : entityModelCount(itemId, cnx);
-	if (count == 0) return ENTITY_UNKNOWN;
-
-	/* check for a free place */
-	for (bank = HEAD(entities.banks); bank && bank->vtxCount + count > BANK_SIZE; NEXT(bank));
-
-	if (bank == NULL)
+	if (modelId == 0)
 	{
-		bank = calloc(sizeof *bank, 1);
-		bank->models = malloc(sizeof *bank->models * ENTITY_BATCH);
-		ListAddTail(&entities.banks, &bank->node);
-		entityInitVAO(bank, BANK_SIZE);
-	}
+		/* not yet in cache, add it on the fly */
+		int count = cust ? blockCountModelVertex(cust->model, cust->vertex) : entityModelCount(itemId, cnx);
+		if (count > 0)
+		{
+			/* check for a free place */
+			for (bank = HEAD(entities.banks); bank && bank->vtxCount + count > BANK_SIZE; NEXT(bank));
 
-	/* check if it has already been generated */
-	return entityGenModel(bank, itemId, cnx, cust);
+			if (bank == NULL)
+			{
+				bank = calloc(sizeof *bank, 1);
+				bank->models = malloc(sizeof *bank->models * ENTITY_BATCH);
+				ListAddTail(&entities.banks, &bank->node);
+				entityInitVAO(bank, BANK_SIZE);
+			}
+
+			/* check if it has already been generated */
+			modelId = entityGenModel(bank, itemId, cnx, cust);
+		}
+		else modelId = ENTITY_UNKNOWN;
+	}
+	if (sizes)
+	{
+		EntityModel model = entityGetModelById(modelId);
+		memcpy(sizes, model->bbox, sizeof model->bbox);
+	}
+	return modelId;
 }
 
 /* entity found in a chunk: add it to a linked list */
@@ -503,7 +463,7 @@ int entityGetModelId(Entity entity)
 
 	/* block pushed by piston */
 	if (entity->blockId > 0)
-		return entityAddModel(entity->blockId, nbt.mem ? NBT_GetInt(&nbt, NBT_FindNode(&nbt, 0, "blockCnx"), 0) : 0, NULL);
+		return entityAddModel(entity->blockId, nbt.mem ? NBT_GetInt(&nbt, NBT_FindNode(&nbt, 0, "blockCnx"), 0) : 0, NULL, &entity->szx);
 
 	if (strncmp(id, "minecraft:", 10) == 0)
 		id += 10;
@@ -515,7 +475,7 @@ int entityGetModelId(Entity entity)
 		int    off;
 
 		NBTIter_t prop;
-		entity->pos[VY] += 0.5f; // XXX not sure why
+		//entity->pos[VY] += 0.5f;
 		NBT_IterCompound(&prop, entity->tile);
 		while ((off = NBT_Iter(&prop)) >= 0)
 		{
@@ -528,7 +488,7 @@ int entityGetModelId(Entity entity)
 		{
 			ItemID_t itemId = itemGetByName(block, False);
 			if (itemId > 0)
-				return entityAddModel(entity->blockId = itemId | data, 0, NULL);
+				return entityAddModel(entity->blockId = itemId | data, 0, NULL, &entity->szx);
 		}
 	}
 	else if (strcasecmp(id, "painting") == 0)
@@ -540,7 +500,7 @@ int entityGetModelId(Entity entity)
 			if (off >= 0)
 			{
 				entity->enflags = ENFLAG_POPIFPUSHED;
-				return entityGetModelBank(ITEMID(ENTITY_PAINTINGS, off));
+				return entityAddModel(ITEMID(ENTITY_PAINTINGS, off), 0, NULL, &entity->szx);
 			}
 		}
 	}
@@ -565,7 +525,7 @@ int entityGetModelId(Entity entity)
 				entity->entype  = ENTYPE_FILLEDMAP;
 				entity->enflags = ENFLAG_POPIFPUSHED;
 				entity->blockId = ENTITY_ITEM | data;
-				return entityGetModelBank(ITEMID(ENTITY_ITEMFRAME_FULL, 0));
+				return entityAddModel(ITEMID(ENTITY_ITEMFRAME_FULL, 0), 0, NULL, &entity->szx);
 			}
 			else if (blockId > 0)
 			{
@@ -576,7 +536,7 @@ int entityGetModelId(Entity entity)
 			}
 		}
 		/* item will be allocated later */
-		return entityGetModelBank(ITEMID(ENTITY_ITEMFRAME, 0));
+		return entityAddModel(ITEMID(ENTITY_ITEMFRAME, 0), 0, NULL, &entity->szx);
 	}
 	else if (strcasecmp(id, "item") == 0)
 	{
@@ -591,9 +551,10 @@ int entityGetModelId(Entity entity)
 			entity->rotation[3] = 0.5; /* scale actually */
 			//if (isBlockId(blockId))
 			//	entity->pos[VY] += 0.25f;
-			return entityAddModel(entity->blockId = blockId | data, 0, NULL);
+			return entityAddModel(entity->blockId = blockId | data, 0, NULL, &entity->szx);
 		}
 	}
+	entity->szx = entity->szy = entity->szz = BASEVTX; /* 1x1x1 */
 	return ENTITY_UNKNOWN;
 }
 
@@ -729,7 +690,7 @@ void entityResetModel(Entity entity)
 		int i;
 		for (i = curBank, bank = HEAD(entities.banks); BANK_NUM(i); i --, NEXT(bank));
 		glBindBuffer(GL_ARRAY_BUFFER, bank->vboMDAI);
-		glBufferSubData(GL_ARRAY_BUFFER, entity->mdaiSlot * MDAI_SIZE, MDAI_SIZE, pos_000 /* set to 0 */);
+		glBufferSubData(GL_ARRAY_BUFFER, entity->mdaiSlot * MDAI_SIZE, MDAI_SIZE, & ((MDAICmd_t) {0}));
 		/* mark slot as free */
 		i = entity->mdaiSlot;
 		bank->mdaiUsage[i>>5] ^= 1 << (i & 31);
@@ -782,6 +743,8 @@ void entityParse(Chunk c, NBTFile nbt, int offset)
 			/* set entity->pos as well */
 			memcpy(entity->motion, pos, sizeof pos);
 
+			quadTreeInsertItem(entity);
+
 			/* rotation also depends on how the initial model is oriented :-/ */
 			entity->rotation[0] = fmod((360 - pos[7]) * M_PIf / 180, 2*M_PIf);
 			entity->rotation[1] = - pos[8] * (2*M_PIf / 360);
@@ -830,20 +793,16 @@ static int entityGetId(Entity entity)
 }
 
 
-Bool entityIter(int * entityId, vec4 pos)
+Bool entityIter(Entity * entity, int * entityId)
 {
-	int id = *entityId;
-	if (id != ENTITY_END)
-	{
-		Entity entity = entityGetById(id);
-		if (entity)
-		{
-			memcpy(pos, entity->pos, 12);
-			*entityId = entity->next;
-			return True;
-		}
-	}
-	return False;
+	EntityBuffer buffer;
+	Entity cur = *entity;
+	int id;
+	if (cur == NULL) return False;
+	for (id = 0, buffer = HEAD(entities.list); ! (buffer->entities <= cur && cur < EOT(buffer->entities)); NEXT(buffer), id += ENTITY_BATCH);
+	id += cur - buffer->entities;
+	*entity = cur->qselect;
+	return True;
 }
 
 #ifdef DEBUG /* stderr not available in release build */
@@ -970,7 +929,7 @@ static void fillNormal(vec4 norm, int side)
  *  A +--------+ B
  *    |        |
  *  D +--------+ C
- * blockGetBoundsForFace() will give points A and C. We want A, B and D.
+ * entityGetBoundsForFace() will give points A and C. We want A, B and D.
  */
 static void AABBSplit(vec A, vec C, vec D, int norm)
 {
@@ -1007,6 +966,39 @@ static Bool entityInFrustum(vec4 pos)
 	return point[0] > -point[3] && point[0] < point[3] &&
 	       point[1] > -point[3] && point[1] < point[3] &&
 	       point[2] > -point[3] && point[2] < point[3];
+}
+
+void entityGetBoundsForFace(Entity entity, int face, vec4 V0, vec4 V1)
+{
+	static uint8_t offsets[] = { /* S, E, N, W, T, B */
+		0, 1, 2, 1,
+		1, 2, 0, 1,
+		0, 1, 2, 0,
+		1, 2, 0, 0,
+		0, 2, 1, 1,
+		0, 2, 1, 0
+	};
+
+	DATA8 dir = offsets + face * 4;
+	uint8_t x = dir[0];
+	uint8_t y = dir[1];
+	uint8_t z = dir[2];
+	uint8_t t = z;
+	float   scale = entity->rotation[3] * 0.5f / BASEVTX;
+	float   pts[6];
+
+	if (dir[3]) t += 3;
+	pts[VX+3] = entity->szx * scale; pts[VX] = - pts[VX+3];
+	pts[VY+3] = entity->szy * scale; pts[VY] = - pts[VY+3];
+	pts[VZ+3] = entity->szz * scale; pts[VZ] = - pts[VZ+3];
+
+	V0[x] = pts[x];
+	V0[y] = pts[y];
+	V0[z] = pts[t];
+
+	V1[x] = pts[x+3];
+	V1[y] = pts[y+3];
+	V1[z] = pts[t];
 }
 
 /* check if vector <dir> intersects an entity bounding box (from position <camera>) */
@@ -1062,16 +1054,14 @@ int entityRaypick(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos)
 					/* back-face culling */
 					if (vecDotProduct(dir, norm) > 0) continue;
 
-					EntityModel model = entityGetModelById(list->VBObank);
-					blockGetBoundsForFace(model->bbox, j, points, points+3, pos_000, 0);
+					entityGetBoundsForFace(list, j, points, points+3);
 					AABBSplit(points, points + 3, points + 6, j);
 					matMultByVec3(points,   rotation, points);
 					matMultByVec3(points+3, rotation, points+3);
 					matMultByVec3(points+6, rotation, points+6);
-					float num = list->rotation[3];
-					vec3AddMult(points,   list->pos, num);
-					vec3AddMult(points+3, list->pos, num);
-					vec3AddMult(points+6, list->pos, num);
+					vec3Add(points,   list->pos);
+					vec3Add(points+3, list->pos);
+					vec3Add(points+6, list->pos);
 
 					if (intersectRayPlane(camera, dir, points, norm, inter) &&
 					    pointIsInRect(points /* rect */, inter /* point */))
@@ -1254,7 +1244,7 @@ void entityDeleteById(Map map, int entityId)
 				{
 					/* map removed from item frame: reset frame model to normal */
 					entity->entype  = ENTYPE_FRAME;
-					entity->VBObank = entityGetModelBank(ITEMID(ENTITY_ITEMFRAME, 0));
+					entity->VBObank = entityAddModel(ITEMID(ENTITY_ITEMFRAME, 0), 0, NULL, &entity->szx);
 					entity->entype  = 0;
 					entityResetModel(entity);
 					cartoDelMap(entityId+1);
@@ -1360,17 +1350,21 @@ void entityAnimate(void)
 		int remain = anim->stopTime - time;
 		if (remain > 0)
 		{
-			vec4 oldPos;
+			float oldPos[3];
+			float scale = entity->rotation[3] * 0.5f / BASEVTX;
+			float sizes[3] = {
+				entity->szx * scale,
+				entity->szy * scale,
+				entity->szz * scale
+			};
 			memcpy(oldPos, entity->pos, 12);
 			for (j = 0; j < 3; j ++)
 				entity->pos[j] += (entity->motion[j] - entity->pos[j]) * (time - anim->prevTime) / remain;
 			anim->prevTime = time;
 
 			EntityBank bank;
-			EntityModel model;
 			for (j = BANK_NUM(entity->VBObank), bank = HEAD(entities.banks); j > 0; j --, NEXT(bank));
-			model = bank->models + (entity->VBObank>>6);
-			physicsEntityMoved(globals.level, entity, oldPos, entity->pos, model->bbox, entity->rotation[3]);
+			physicsEntityMoved(globals.level, entity, oldPos, entity->pos, sizes);
 			/* update VBO */
 			glBindBuffer(GL_ARRAY_BUFFER, bank->vboLoc);
 			glBufferSubData(GL_ARRAY_BUFFER, entity->mdaiSlot * INFO_SIZE, 12, entity->pos);
@@ -1815,18 +1809,18 @@ void entityRenderBBox(void)
 	if (sel)
 	{
 		extern uint8_t bboxIndices[];
-		float vertex[6];
-		DATA8 index;
+		float  vertex[6];
+		DATA8  index;
 		NVGCTX vg = globals.nvgCtx;
-		int i, j;
-		EntityModel model = entityGetModelById(sel->VBObank);
-		VTXBBox bbox = model->bbox;
+		float  scale = sel->rotation[3] * 0.5f / BASEVTX;
+		int    i, j;
 		nvgStrokeColorRGBA8(vg, "\xff\xff\xff\xff");
 		nvgBeginPath(vg);
 		for (i = 0; i < 3; i ++)
 		{
-			vertex[i]   = sel->pos[i] + FROMVERTEX(bbox->pt1[i]) * sel->rotation[3];
-			vertex[3+i] = sel->pos[i] + FROMVERTEX(bbox->pt2[i]) * sel->rotation[3];
+			float size = (&sel->szx)[i] * scale;
+			vertex[i]   = sel->pos[i] - size;
+			vertex[3+i] = sel->pos[i] + size;
 		}
 		for (index = bboxIndices + 36, i = 0; i < 12; i ++, index += 2)
 		{

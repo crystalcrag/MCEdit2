@@ -12,6 +12,9 @@
 #include "items.h"
 #include "blocks.h"
 
+typedef struct Entity_t *   Entity;
+typedef struct QuadTree_t * QuadTree;
+
 Bool entityInitStatic(void);
 void entityParse(Chunk, NBTFile nbt, int offset);
 void entityUnload(Chunk);
@@ -25,7 +28,7 @@ int  entityRaypick(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos);
 void entityUpdateOrCreate(Chunk, vec4 pos, int blockId, vec4 dest, int ticks, DATA8 tile);
 void entityDebugCmd(Chunk);
 int  entityCount(int start);
-Bool entityIter(int * entityId, vec4 pos);
+Bool entityIter(Entity * entity, int * entityId);
 int  entityGetModel(int entityId, int * vtxCount);
 void entityGetItem(int entityId, Item ret);
 void entityGetPos(int entityId, float ret[3]);
@@ -51,6 +54,10 @@ void worldItemDeletePreview(void);
 void worldItemAdd(Map);
 void worldItemDup(Map map, vec info, int entityId);
 
+void quadTreeInit(int x, int z, int size);
+void quadTreeDebug(APTR vg);
+void quadTreeIntersect(QuadTree root, float bbox[6], Entity * first);
+
 #define ENTITY_END                 0xffff
 #define ENTITY_PAINTINGS           0x800
 #define ENTITY_ITEMFRAME           0x801
@@ -66,7 +73,6 @@ enum /* transform param for entityCopyTransform() */
 enum /* entity id and models */
 {
 	ENTITY_UNKNOWN,
-	ENTITY_PLAYER,
 	ENTITY_CHICKEN,
 	ENTITY_SHEEP,
 	ENTITY_COW,
@@ -107,14 +113,7 @@ extern Paintings_t paintings;      /* convert painting string id to model id */
 #define ENTITY_BATCH               (1 << ENTITY_SHIFT)
 #define BANK_NUM(vbo)              ((vbo) & 63)
 #define MDAI_INVALID_SLOT          0xffff
-#define BOX(szx,szy,szz)   \
-	{-szx/2 * BASEVTX + ORIGINVTX, -szy/2 * BASEVTX + ORIGINVTX, -szz/2 * BASEVTX + ORIGINVTX}, \
-	{ szx/2 * BASEVTX + ORIGINVTX,  szy/2 * BASEVTX + ORIGINVTX,  szz/2 * BASEVTX + ORIGINVTX}
-#define BOXCY(szx,szy,szz) \
-	{-szx/2 * BASEVTX + ORIGINVTX,                 ORIGINVTX, -szz/2 * BASEVTX + ORIGINVTX}, \
-	{ szx/2 * BASEVTX + ORIGINVTX, szy * BASEVTX + ORIGINVTX,  szz/2 * BASEVTX + ORIGINVTX}
 
-typedef struct Entity_t *          Entity;
 typedef struct Entity_t            Entity_t;
 typedef struct EntityEntry_t *     EntityEntry;
 typedef struct EntityBuffer_t *    EntityBuffer;
@@ -123,7 +122,6 @@ typedef struct EntityModel_t *     EntityModel;
 typedef struct EntityHash_t        EntityHash_t;
 typedef struct EntityAnim_t *      EntityAnim;
 typedef struct CustModel_t *       CustModel;
-typedef struct BBoxBuffer_t *      BBoxBuffer;
 
 EntityModel entityGetModelById(int modelBank);
 
@@ -142,6 +140,21 @@ struct Entity_t
 	DATA8    tile;                 /* start of NBT Compound for this entity */
 	Entity   ref;
 	STRPTR   name;                 /* from NBT ("id" key) */
+	uint16_t szx, szy, szz;        /* bbox of entity */
+
+	/* quadtree fields */
+	Entity   qnext, qselect;
+	QuadTree qnode;
+};
+
+struct QuadTree_t                  /* quadtree for entity collision check (28b) */
+{
+	float    x, z;
+	uint16_t size;                 /* always a power of 2 */
+	uint8_t  nbLeaf;               /* nb of items in quadrants[] */
+	Entity   items;                /* entities that lies in this quadrant */
+	QuadTree parent;               /* all "pointers" must be indirect, tree nodes will be relocated */
+	QuadTree quadrants[4];         /* leaf of the quad tree */
 };
 
 enum                               /* possible values for Entity_t.entype */
@@ -156,6 +169,7 @@ enum                               /* possible flags for Entity_t.enflags */
 	ENFLAG_POPIFPUSHED = 1,        /* if pushed by piston: convert to item */
 	ENFLAG_FIXED       = 2,        /* can't be pushed by piston */
 	ENFLAG_FULLLIGHT   = 4,        /* lighting similar to SOLID voxel */
+	ENFLAG_OVERLAP     = 8,        /* overlap partition of a quad tree */
 };
 
 struct EntityEntry_t               /* HashTable entry */
@@ -181,10 +195,9 @@ struct EntityBuffer_t              /* entity allocated in batch (avoid realloc) 
 
 struct EntityModel_t               /* where model data is and bounding box info */
 {
-	VTXBBox  bbox;                 /* from block models */
-	float    maxSize;              /* max dimension from <bbox>, to quickly cull entities */
 	uint16_t first;                /* position in vboModel */
 	uint16_t count;                /* vertex count */
+	uint16_t bbox[3];              /* bounding box in BASEVTX unit */
 };
 
 struct EntityBank_t                /* contains models up to 65536 vertices (BANK_SIZE) */
@@ -208,7 +221,6 @@ struct EntitiesPrivate_t           /* static vars for entity.c */
 	EntityHash_t hash;
 	ListHead     list;             /* EntityBuffer */
 	ListHead     banks;            /* EntityBank */
-	ListHead     bbox;             /* BBoxBuffer */
 	EntityAnim   animate;
 	int          animCount;
 	int          animMax;
@@ -229,14 +241,6 @@ struct CustModel_t
 	float *  model;
 	int      vertex;
 	uint16_t U, V;
-	VTXBBox  bbox;
-};
-
-struct BBoxBuffer_t
-{
-	ListNode         node;
-	struct VTXBBox_t bbox[ENTITY_BATCH];
-	int              count;
 };
 
 Entity entityAlloc(uint16_t * entityLoc);
@@ -247,9 +251,15 @@ void   entityAddToCommandList(Entity);
 void   entityResetModel(Entity);
 void   entityGetLight(Chunk, vec4 pos, DATA32 light, Bool full, int debugLight);
 void   entityMarkListAsModified(Map, Chunk);
-int    entityAddModel(ItemID_t, int cnx, CustModel cust);
+int    entityAddModel(ItemID_t, int cnx, CustModel cust, DATA16 sizes);
 void   entityDeleteSlot(int slot);
 void   entityUpdateInfo(Entity, Chunk checkIfChanged);
+
+void quadTreeClear(void);
+void quadTreeDeleteItem(Entity item);
+void quadTreeInsertItem(Entity item);
+void quadTreeChangePos(Entity item);
+
 
 #endif
 #endif

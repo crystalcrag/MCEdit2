@@ -128,9 +128,7 @@ void worldItemDup(Map map, vec info, int entityId)
 /* model for full frame is oriented in the XY plane: grab coord of south face and apply entity transformation */
 static void worldItemGetFrameCoord(Entity entity, float vertex[12])
 {
-	EntityModel model = entityGetModelById(entity->VBObank);
-
-	blockGetBoundsForFace(model->bbox, SIDE_SOUTH, vertex, vertex+3, (vec4){0,0,0,0}, 0);
+	entityGetBoundsForFace(entity, SIDE_SOUTH, vertex, vertex+3);
 	/* we need 3 points because rotation will move them, and we need to preserve backface orientation */
 	vertex[6] = vertex[0];
 	vertex[7] = vertex[4];
@@ -292,6 +290,7 @@ static void worldItemGetCoord(float outCoord[6], float posAndRot[6], VTXBBox bbo
 /* check if bounding box of entity overlaps another entity/blocks */
 static Bool worldItemFitIn(int entityId, float posAndRot[8], VTXBBox bbox)
 {
+#if 0
 	float coord[6];
 	float diff[3];
 
@@ -336,6 +335,7 @@ static Bool worldItemFitIn(int entityId, float posAndRot[8], VTXBBox bbox)
 		}
 		entityId = entity->next;
 	}
+#endif
 	return True;
 }
 
@@ -365,12 +365,14 @@ void worldItemCreatePainting(Map map, int paintingId)
 	worldItemFillPos(posAndRot, worldItem.createPos, worldItem.createSide, 0, size);
 	c = mapGetChunk(map, posAndRot);
 	if (c == NULL) return; /* outside map? */
+	#if 0
 	if (! worldItemFitIn(c->entityList, posAndRot, entityGetModelById(entityGetModelBank(ITEMID(ENTITY_ITEMFRAME, 0)))->bbox))
 	{
 		/* does not fit: cancel creation */
 		fprintf(stderr, "can't fit painting in %g, %g, %g\n", (double) posAndRot[VX], (double) posAndRot[VY], (double) posAndRot[VZ]);
 		return;
 	}
+	#endif
 
 	entity = entityAlloc(&slot);
 	memcpy(entity->pos, posAndRot, sizeof posAndRot);
@@ -412,12 +414,14 @@ static int worldItemCreateItemFrame(Map map, vec4 pos, int side)
 	worldItemFillPos(posAndRot, pos, side, side == SIDE_TOP ? -90 : side == SIDE_BOTTOM ? 90 : 0, size);
 	c = mapGetChunk(map, posAndRot);
 
+	#if 0
 	if (! worldItemFitIn(c->entityList, posAndRot, entityGetModelById(entityGetModelBank(ITEMID(ENTITY_ITEMFRAME, 0)))->bbox))
 	{
 		/* does not fit: cancel creation */
 		fprintf(stderr, "can't fit item frame in %g, %g, %g\n", (double) posAndRot[VX], (double) posAndRot[VY], (double) posAndRot[VZ]);
 		return 0;
 	}
+	#endif
 
 	entity = entityAlloc(&slot);
 	memcpy(entity->pos, posAndRot, sizeof posAndRot);
@@ -526,15 +530,9 @@ void worldItemPreview(vec4 camera, vec4 pos, ItemID_t itemId)
 			angle += M_PIf;
 		/* shader wants a positive angle */
 		preview->rotation[0] = normAngle(angle);
-		preview->VBObank = entityAddModel(preview->blockId = itemId, 0, NULL);
-		EntityModel model = entityGetModelById(preview->VBObank);
+		preview->VBObank = entityAddModel(preview->blockId = itemId, 0, NULL, &preview->szx);
 
-		if (model)
-		{
-			VTXBBox bbox = model->bbox;
-			worldItem.previewOffVY = (bbox->pt2[VY] - bbox->pt1[VY]) / (4.0f*BASEVTX);
-		}
-		else worldItem.previewOffVY = 0.25f;
+		worldItem.previewOffVY = preview->szy * preview->rotation[3] * 0.25f / BASEVTX;
 		preview->pos[VY] += worldItem.previewOffVY;
 
 		/* fully bright, to somewhat highlight that this item has not been placed yet */

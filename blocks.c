@@ -321,13 +321,14 @@ static void blockSetUVAndNormals(DATA16 vert, int inv, int setUV, float * vertex
 }
 
 /* needed by entity models */
-void blockCenterModel(DATA16 vertex, int count, int dU, int dV, Bool shiftY, VTXBBox bbox, float * maxsize)
+void blockCenterModel(DATA16 vertex, int count, int dU, int dV, Bool shiftY, VTXBBox bbox, DATA16 sizes)
 {
-	DATA16 start = vertex;
-	DATA16 min, max;
-	int    i, U, V;
-	memset(min = bbox->pt1, 0xff, sizeof bbox->pt1);
-	memset(max = bbox->pt2, 0x00, sizeof bbox->pt2);
+	uint16_t buffer[6];
+	DATA16   start = vertex;
+	DATA16   min, max;
+	int      i, U, V;
+	memset(min = buffer,   0xff, 3 * sizeof *min);
+	memset(max = buffer+3, 0x00, 3 * sizeof *max);
 	for (i = 0; i < count; i ++, vertex += INT_PER_VERTEX)
 	{
 		uint16_t x = vertex[0], y = vertex[1], z = vertex[2];
@@ -348,15 +349,6 @@ void blockCenterModel(DATA16 vertex, int count, int dU, int dV, Bool shiftY, VTX
 		((max[1] - min[1]) >> 1) + (min[1] - ORIGINVTX),
 		((max[2] - min[2]) >> 1) + (min[2] - ORIGINVTX)
 	};
-	if (maxsize)
-	{
-		i = max[0] - min[0];
-		U = max[1] - min[1];
-		V = max[2] - min[2];
-		if (i < U) i = U;
-		if (i < V) i = V;
-		*maxsize = i * (1.f / BASEVTX);
-	}
 	if (! shiftY) shift[VY] = 0;
 
 	/* center vertex around 0, 0 */
@@ -366,7 +358,15 @@ void blockCenterModel(DATA16 vertex, int count, int dU, int dV, Bool shiftY, VTX
 		vertex[1] -= shift[1];
 		vertex[2] -= shift[2];
 	}
-	for (i = 0; i < 3; min[i] -= shift[i], max[i] -= shift[i], i ++);
+	if (bbox)
+	{
+		min = bbox->pt1;
+		max = bbox->pt2;
+	}
+
+	sizes[VX] = max[VX] - min[VX];
+	sizes[VY] = max[VY] - min[VY];
+	sizes[VZ] = max[VZ] - min[VZ];
 }
 
 int blockCountModelVertex(float * vert, int count)

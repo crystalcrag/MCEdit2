@@ -819,18 +819,26 @@ void selectionIterTE(SIT_CallProc cb, APTR data)
 	}
 }
 
-/* iterate over all entities that intersect selection */
+/* iterate over all entities from map that intersect selection */
 void selectionIterEntities(SIT_CallProc cb, APTR data)
 {
-	int dx, dz, i;
-	int pos[6];
-	float posf[6];
+	float bbox[6];
+	int   pos[6], i;
+	Entity first = NULL;
+
+	extern int bboxTest;
+
+	bboxTest = 0;
 	selectionGetRange(pos);
+	for (i = 0; i < 6; bbox[i] = pos[i], i ++);
+	quadTreeIntersect(NULL, bbox, &first);
 
-	dx = (pos[VZ+3] >> 4) - (pos[VZ] >> 4);
-	dz = (pos[VX+3] >> 4) - (pos[VX] >> 4);
-	for (i = 0; i < 6; posf[i] = pos[i], i ++);
+	while (entityIter(&first, &i))
+		cb(NULL, &i, data);
 
+	fprintf(stderr, "bbox test = %d\n", bboxTest);
+
+	#if 0
 	Chunk c = mapGetChunk(globals.level, posf);
 
 	for (; dz >= 0; dz --, c += chunkNeighbor[c->neighbor + 1] /* going south */)
@@ -852,6 +860,7 @@ void selectionIterEntities(SIT_CallProc cb, APTR data)
 			}
 		}
 	}
+	#endif
 }
 
 /* keep a list of all entities we will have to copy */

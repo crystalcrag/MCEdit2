@@ -109,6 +109,9 @@
 		<Unit filename="player.c">
 			<Option compilerVar="CC" />
 		</Unit>
+		<Unit filename="quadtree.c">
+			<Option compilerVar="CC" />
+		</Unit>
 		<Unit filename="redstone.c">
 			<Option compilerVar="CC" />
 		</Unit>

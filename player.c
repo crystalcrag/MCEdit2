@@ -22,8 +22,15 @@
 #define MAX_FALL              10.000f
 #define BASE_ACCEL            24.0f
 #define viscosity             pos[VT]
+#define BOXCY(szx,szy,szz)    \
+	{-szx/2 * BASEVTX + ORIGINVTX,                 ORIGINVTX, -szz/2 * BASEVTX + ORIGINVTX}, \
+	{ szx/2 * BASEVTX + ORIGINVTX, szy * BASEVTX + ORIGINVTX,  szz/2 * BASEVTX + ORIGINVTX}
 
 static float sensitivity = 1/1000.;
+
+struct VTXBBox_t playerBBox = {
+	BOXCY(0.6, 1.8, 0.6), .sides = 63, .aabox = 1
+};
 
 void playerInit(Player p)
 {
@@ -355,7 +362,7 @@ void playerMove(Player p)
 	{
 		/* bounding box of voxels will constraint movement in these modes */
 		float oldVisco = p->viscosity;
-		int collision = physicsCheckCollision(globals.level, orig_pos, p->pos, entityGetBBox(ENTITY_PLAYER), (keyvec & PLAYER_FALL) ? 0 : 0.5);
+		int collision = physicsCheckCollision(globals.level, orig_pos, p->pos, &playerBBox, (keyvec & PLAYER_FALL) ? 0 : 0.5);
 
 //		fprintf(stderr, "velocityY %.2f, pos = %.2f => %.2f [%g - %d], dirY: %g\n", p->velocity[VY], orig_pos[VY], p->pos[VY], p->targetY, collision,
 //			p->dir[VY]);
@@ -374,7 +381,7 @@ void playerMove(Player p)
 		}
 		diff = p->onground;
 		if ((keyvec & PLAYER_FALL) == 0 || p->velocity[VY] >= 0)
-			p->onground = physicsCheckOnGround(globals.level, p->pos, entityGetBBox(ENTITY_PLAYER));
+			p->onground = physicsCheckOnGround(globals.level, p->pos, &playerBBox);
 		//fprintf(stderr, "pos = %g, %g, %g, ground: %d\n", p->pos[0], p->pos[1], p->pos[2], p->onground);
 		if (p->viscosity != oldVisco && ! p->fly)
 		{
@@ -445,13 +452,13 @@ void playerSetMode(Player p, int mode)
 	p->pmode = mode;
 	switch (mode) {
 	case MODE_SURVIVAL:
-		p->onground = physicsCheckOnGround(globals.level, p->pos, entityGetBBox(ENTITY_PLAYER));
+		p->onground = physicsCheckOnGround(globals.level, p->pos, &playerBBox);
 		p->fly = 0;
 		if (! p->onground)
 			p->keyvec |= PLAYER_FALL;
 		break;
 	case MODE_CREATIVE:
-		p->onground = physicsCheckOnGround(globals.level, p->pos, entityGetBBox(ENTITY_PLAYER));
+		p->onground = physicsCheckOnGround(globals.level, p->pos, &playerBBox);
 		p->fly = !p->onground;
 		break;
 	case MODE_SPECTATOR:

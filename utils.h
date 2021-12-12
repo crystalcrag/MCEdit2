@@ -122,6 +122,11 @@ float normAngle(float angle);
 #define vecAddNum(A, num) \
 	(A)[VX] += num, (A)[VY] += num, (A)[VZ] += num
 
+#define vec3Add(A, B) \
+	(A)[VX] += (B)[VX], \
+	(A)[VY] += (B)[VY], \
+	(A)[VZ] += (B)[VZ]
+
 #define vec3AddMult(A, B, num) \
 	(A)[VX] = ((A)[VX] * num) + (B)[VX], \
 	(A)[VY] = ((A)[VY] * num) + (B)[VY], \

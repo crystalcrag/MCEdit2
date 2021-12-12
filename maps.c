@@ -45,6 +45,7 @@ int mapFirstFree(DATA32 usage, int count)
 	for (i = count, base = 0; i > 0; i --, usage ++, base += 32)
 	{
 		uint32_t bits = *usage;
+		if (bits == 0xffffffff) continue;
 		int slot = firstFree[bits & 0xff];
 		if (slot == 8)
 		{
@@ -956,6 +957,8 @@ Map mapInitFromPath(STRPTR path, int renderDist)
 		}
 
 		fprintf(stderr, "center = %d, %d\n", map->center->X, map->center->Z);
+
+		quadTreeInit(xyz[VX] - 1, xyz[VZ] - 1, map->maxDist * 16);
 
 		return map;
 	}

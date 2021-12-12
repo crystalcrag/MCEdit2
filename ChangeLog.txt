@@ -1,6 +1,21 @@
 =========== Week 49 ===========
+Sat Dec 11:
+	* quadtree integration conitnued.
+
+Fri Dec 10:
+	* started quadtree integration.
+
+Thu Dec 9:
+	* quadtree implementation almost done (auto-resize and self-balancing seems working).
+
+Wed Dec 8:
+	* quadtree interface continued.
+
+Tue Dec 7:
+	* started quadtree implementation for entity collision check.
+
 Mon Dec 6:
-	* added player as a movable entity, but will need an octree to handle collision efficiently.
+	* entity collision cleanup.
 
 =========== Week 48 ===========
 Sun Dec 5:

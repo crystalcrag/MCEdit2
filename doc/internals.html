@@ -55,7 +55,7 @@
 
 <a class="sub1" href="#entities"><span>Entities</span></a>
   <a class="sub2" href="#structure"><span>Data structure</span></a>
-  <a class="sub2" href="#collision"><span>Collision correction</span></a>
+  <a class="sub2" href="#collision"><span>Collision detection</span></a>
 </div>
 
 <div id="content">
@@ -1720,7 +1720,7 @@ and per instance information (<tt>vboLoc</tt> and <tt>vboMDAI</tt>):
 
 <p>The link between an <tt>Entity_t</tt> and and its model is stored in the <tt>VBObank</tt> field: it
 encodes both the bank and the model id within an integer: the first 6bits encodes the bank number, the
-reamining encodes the index in the <tt>models</tt> array.
+remaining encodes the index in the <tt>models</tt> array.
 
 <p>Bounding box are allocated the same way than entities: in batch of the same size and one bounding box
 per model (assuming no rotations and scaling).
@@ -1728,7 +1728,45 @@ per model (assuming no rotations and scaling).
 <h3 id="collision"><span>Collision detection/correction</span></h3>
 
 <p>Collision detection is implemented using a swept AABB algorithm and correction is done through sliding
-adjustment.
+adjustment and was strongly inspired by <a href="https://www.gamedev.net/tutorials/programming/general-and-gameplay-programming/swept-aabb-collision-detection-and-response-r3084/">this article</a>.
+
+<p>One aspect related to collision detection, is entities enumeration. Since entities are spread all
+over the world and don't rely on the voxel grid, enumerating them without scanning the majority of
+them, each time a collision detection need to be performed is somewhat challenging.
+
+<p>Scanning the entire entity list is of course not a viable solution, since entities in a voxel engine
+tend to move a lot (that's the main interest of entities: moving freely, unlike voxels). One may be
+tempted to use the chunk itself as a crube block map space partioning.
+
+<p>In practice, it not that good of an idea, since a 16x16 area is quite big, even bigger if you consider
+that entities are referenced through their center and therefore can overlap a nearby chunk depending
+on their size. In practice, it means you'll have to scan more than one chunk each time you want to do
+a collision check on a given entity.
+
+<p>This will become prohibitly expensive if a lot of entities are crammed in a single chunk.
+
+<p>Therefore the solution chosen to solve this problem in this engine was to use a dynamic self-balancing
+quadtree. First, you might wonder why just a quadtree and not an octree? The main reason for using a
+quadtree is that entities are primarily spread on the XZ plane and very little on the Y axis: adding
+another dimension to the tree would add very little performance gain, but lots of uneeded complexity
+and extra memory usage. An octree would have made more sense it were used for other purpose, like
+frustum culling or raypicking.
+
+<p>Another question worth answering is: is it cheaper (in terms of memory allocation) to use a finer
+block map grid at the chunk level instead of using a quadtree? This question is particularly interesting
+since an entity can be uniquely identified using a 16bit integer (no need for a full pointer address).
+
+<p>The resolution of the quadtree is "limited" to a 1x1 grid at the finest level. Using a block map
+of this size is too expensive though: 512 bytes per chunk, which in pratice would have to be allocated
+for almost every chunk, since entities are almost everywhere in a typical <prod>Minecraft</prod> map.
+
+<p>Therefore, there are only 2 choices left: a 2x2 or 4x4 grid (8x8 and 16x16 being too coarse). Which
+adds respectively 128 and 32bytes per chunk. On a far render distance (32x32 grid of chunk loaded),
+as far as memory usage goes, that would 128K and 32K of memory needed, which is still far more than
+a quadtree need (around 10K), and the quadtree will give you way more precision than a 4x4 grid.
+
+<p>Conclusion: a quadtree is more efficient as far as memory is concerned, but will require a bit more
+CPU usage.
 
 <p>/* ... */
 

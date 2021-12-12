@@ -383,7 +383,7 @@ static Bool physicsPushEntity(float broad[6], vec4 pos, float scale, VTXBBox bbo
 	return True;
 }
 
-void physicsEntityMoved(Map map, APTR self, vec4 start, vec4 end, VTXBBox bbox, float scale)
+void physicsEntityMoved(Map map, APTR self, vec4 start, vec4 end, float size[3])
 {
 	float broad[6];
 	float dir[3];
@@ -394,12 +394,8 @@ void physicsEntityMoved(Map map, APTR self, vec4 start, vec4 end, VTXBBox bbox, 
 	for (i = 0, maxSize = 0; i < 3; i ++)
 	{
 		/* <start> and <end> are the center of entity: bbox must be centered */
-		float min = FROMVERTEX(bbox->pt1[i]) * scale;
-		float max = FROMVERTEX(bbox->pt2[i]) * scale;
-		broad[i]   = fminf(start[i], end[i]) + min;
-		broad[3+i] = fmaxf(start[i], end[i]) + max;
-		if (maxSize < max - min)
-			maxSize = max - min;
+		broad[i]   = fminf(start[i], end[i]) - size[i];
+		broad[3+i] = fmaxf(start[i], end[i]) + size[i];
 		float diff = end[i] - start[i];
 		dir[i] = diff < -EPSILON ? -1 : diff > EPSILON ? 1 : 0;
 	}
@@ -429,20 +425,12 @@ void physicsEntityMoved(Map map, APTR self, vec4 start, vec4 end, VTXBBox bbox, 
 				entity = entityGetById(id);
 				if (entity == self || (entity->enflags & ENFLAG_FIXED)) continue;
 
-				EntityModel model = entityGetModelById(entity->VBObank);
-
-				/* quick heuristic to check if bounding boxes can be intersecting */
-				float maxDist = model->maxSize + maxSize;
-				if (vecDistSquare(center, entity->pos) > maxDist * maxDist)
-					/* too far away */
-					continue;
-
 				/* they can indeed be intersecting */
-				if (physicsPushEntity(broad, entity->pos, entity->rotation[3], model->bbox, dir))
+				if (physicsPushEntity(broad, entity->pos, entity->rotation[3], NULL, dir))
 					entityUpdateInfo(entity, chunk);
 			}
 		}
 	}
 	/* check for players */
-	//physicsPushEntity(broad, player->pos, 1, entityGetBBox(ENTITY_PLAYER), dir);
+	//physicsPushEntity(broad, player->pos, 1, &playerBBox, dir);
 }
