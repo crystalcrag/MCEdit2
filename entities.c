@@ -21,7 +21,6 @@
 #include "mapUpdate.h"
 #include "cartograph.h"
 #include "render.h"
-#include "worldItems.h"
 #include "physics.h"
 #include "globals.h"
 #include "glad.h"
@@ -87,7 +86,7 @@ static Bool entityCreateModel(const char * file, STRPTR * keys, int lineNum)
 		return False;
 	}
 
-	entityAddModel(modelId, 0, &cust, NULL);
+	entityAddModel(modelId, 0, &cust, NULL, MODEL_DONT_SWAP);
 
 	return True;
 }
@@ -97,7 +96,7 @@ Bool entityInitStatic(void)
 	/* pre-alloc some entities */
 	hashAlloc(ENTITY_BATCH);
 	/* already add model for unknown entity */
-	entityAddModel(0, 0, NULL, NULL);
+	entityAddModel(0, 0, NULL, NULL, MODEL_DONT_SWAP);
 
 	/* parse entity description models */
 	if (! jsonParse(RESDIR "entities.js", entityCreateModel))
@@ -242,7 +241,6 @@ static int entityGenModel(EntityBank bank, ItemID_t itemId, int cnx, CustModel c
 {
 	glBindBuffer(GL_ARRAY_BUFFER, bank->vboModel);
 	DATA16   buffer = glMapBuffer(GL_ARRAY_BUFFER, GL_READ_WRITE);
-	VTXBBox  bbox   = NULL;
 	int      count  = 0;
 	int      item   = 0;
 	uint16_t U, V;
@@ -285,7 +283,6 @@ static int entityGenModel(EntityBank bank, ItemID_t itemId, int cnx, CustModel c
 			// no break;
 		case TRANS:
 			count = blockInvModelCube(buffer, b, texCoord);
-			bbox  = blockGetBBox(b);
 			break;
 		case CUST:
 			if (desc->model)
@@ -305,7 +302,6 @@ static int entityGenModel(EntityBank bank, ItemID_t itemId, int cnx, CustModel c
 					count = b->custModel[-1];
 					memcpy(buffer, b->custModel, count * BYTES_PER_VERTEX);
 				}
-				bbox = blockGetBBox(b);
 				if (b->special == BLOCK_SOLIDOUTER)
 					count += blockInvModelCube(buffer + count * INT_PER_VERTEX, b, texCoord);
 			}
@@ -322,7 +318,7 @@ static int entityGenModel(EntityBank bank, ItemID_t itemId, int cnx, CustModel c
 	else count = itemGenMesh(itemId, buffer), item = 1;
 
 	/* entities have their position centered in the middle of their bbox */
-	blockCenterModel(buffer, count, U, V, ! item, bbox, sizes);
+	blockCenterModel(buffer, count, U, V, ! item, sizes);
 	glUnmapBuffer(GL_ARRAY_BUFFER);
 	bank->vtxCount += count;
 
@@ -396,7 +392,7 @@ static void entityInitVAO(EntityBank bank, int vtxCount)
 }
 
 /* get modelId (modelId + bank), allocate one if it does not exist yet */
-int entityAddModel(ItemID_t itemId, int cnx, CustModel cust, DATA16 sizes)
+int entityAddModel(ItemID_t itemId, int cnx, CustModel cust, DATA16 sizes, int swapAxis)
 {
 	EntityBank bank;
 	int modelId = entityGetModelBank(itemId | (cnx << 17));
@@ -426,6 +422,11 @@ int entityAddModel(ItemID_t itemId, int cnx, CustModel cust, DATA16 sizes)
 	{
 		EntityModel model = entityGetModelById(modelId);
 		memcpy(sizes, model->bbox, sizeof model->bbox);
+		/* rotation for item frame and painting must be applied at the entity struct for bbox collision to work */
+		switch (swapAxis) {
+		case MODEL_SWAP_XZ: swap(sizes[VX], sizes[VZ]); break;
+		case MODEL_SWAP_ZY: swap(sizes[VY], sizes[VZ]); break;
+		}
 	}
 	return modelId;
 }
@@ -455,6 +456,19 @@ Entity entityAlloc(uint16_t * entityLoc)
 	return entity;
 }
 
+/* item frame and paintings have a rectangular bbox: need to take rotation into account for collision check */
+static int entitySwapAxis(Entity entity)
+{
+	int angle = roundf(entity->rotation[1] * (180 / M_PIf)); /* X axis acutally */
+	entity->enflags |= ENFLAG_BBOXROTATED;
+	if (angle == 90 || angle == 270 || angle == -90)
+		return MODEL_SWAP_ZY;
+	angle = roundf(entity->rotation[0] * (180 / M_PIf)); /* Y axis */
+	if (angle == 90 || angle == 270 || angle == -90)
+		return MODEL_SWAP_XZ;
+	return MODEL_DONT_SWAP;
+}
+
 /* get model to use for rendering this entity */
 int entityGetModelId(Entity entity)
 {
@@ -463,7 +477,7 @@ int entityGetModelId(Entity entity)
 
 	/* block pushed by piston */
 	if (entity->blockId > 0)
-		return entityAddModel(entity->blockId, nbt.mem ? NBT_GetInt(&nbt, NBT_FindNode(&nbt, 0, "blockCnx"), 0) : 0, NULL, &entity->szx);
+		return entityAddModel(entity->blockId, nbt.mem ? NBT_GetInt(&nbt, NBT_FindNode(&nbt, 0, "blockCnx"), 0) : 0, NULL, &entity->szx, MODEL_DONT_SWAP);
 
 	if (strncmp(id, "minecraft:", 10) == 0)
 		id += 10;
@@ -488,7 +502,7 @@ int entityGetModelId(Entity entity)
 		{
 			ItemID_t itemId = itemGetByName(block, False);
 			if (itemId > 0)
-				return entityAddModel(entity->blockId = itemId | data, 0, NULL, &entity->szx);
+				return entityAddModel(entity->blockId = itemId | data, 0, NULL, &entity->szx, MODEL_DONT_SWAP);
 		}
 	}
 	else if (strcasecmp(id, "painting") == 0)
@@ -500,7 +514,7 @@ int entityGetModelId(Entity entity)
 			if (off >= 0)
 			{
 				entity->enflags = ENFLAG_POPIFPUSHED;
-				return entityAddModel(ITEMID(ENTITY_PAINTINGS, off), 0, NULL, &entity->szx);
+				return entityAddModel(ITEMID(ENTITY_PAINTINGS, off), 0, NULL, &entity->szx, entitySwapAxis(entity));
 			}
 		}
 	}
@@ -520,12 +534,12 @@ int entityGetModelId(Entity entity)
 			{
 				/*
 				 * filled map will use a slightly bigger model and need a cartograph entry to render the map bitmap
-				 * note: data in this case refers to id in data/map_%d.dat, this number can be arbitrary large.
+				 * note: data in this case refers to id in data/map_%d.dat, this number can be arbitrarily large.
 				 */
 				entity->entype  = ENTYPE_FILLEDMAP;
 				entity->enflags = ENFLAG_POPIFPUSHED;
 				entity->blockId = ENTITY_ITEM | data;
-				return entityAddModel(ITEMID(ENTITY_ITEMFRAME_FULL, 0), 0, NULL, &entity->szx);
+				return entityAddModel(ITEMID(ENTITY_ITEMFRAME_FULL, 0), 0, NULL, &entity->szx, entitySwapAxis(entity));
 			}
 			else if (blockId > 0)
 			{
@@ -536,7 +550,7 @@ int entityGetModelId(Entity entity)
 			}
 		}
 		/* item will be allocated later */
-		return entityAddModel(ITEMID(ENTITY_ITEMFRAME, 0), 0, NULL, &entity->szx);
+		return entityAddModel(ITEMID(ENTITY_ITEMFRAME, 0), 0, NULL, &entity->szx, entitySwapAxis(entity));
 	}
 	else if (strcasecmp(id, "item") == 0)
 	{
@@ -551,7 +565,7 @@ int entityGetModelId(Entity entity)
 			entity->rotation[3] = 0.5; /* scale actually */
 			//if (isBlockId(blockId))
 			//	entity->pos[VY] += 0.25f;
-			return entityAddModel(entity->blockId = blockId | data, 0, NULL, &entity->szx);
+			return entityAddModel(entity->blockId = blockId | data, 0, NULL, &entity->szx, MODEL_DONT_SWAP);
 		}
 	}
 	entity->szx = entity->szy = entity->szz = BASEVTX; /* 1x1x1 */
@@ -743,8 +757,6 @@ void entityParse(Chunk c, NBTFile nbt, int offset)
 			/* set entity->pos as well */
 			memcpy(entity->motion, pos, sizeof pos);
 
-			quadTreeInsertItem(entity);
-
 			/* rotation also depends on how the initial model is oriented :-/ */
 			entity->rotation[0] = fmod((360 - pos[7]) * M_PIf / 180, 2*M_PIf);
 			entity->rotation[1] = - pos[8] * (2*M_PIf / 360);
@@ -761,10 +773,11 @@ void entityParse(Chunk c, NBTFile nbt, int offset)
 				entity->enflags |= ENFLAG_FULLLIGHT;
 			entityGetLight(c, pos+3, entity->light, entity->enflags & ENFLAG_FULLLIGHT, 0);
 			entityAddToCommandList(entity);
+			quadTreeInsertItem(entity);
 
 			/* alloc an entity for the item in the frame */
 			if (entity->blockId > 0)
-				prev = worldItemAddItemFrame(entity, next+1);
+				prev = worldItemAddItemInFrame(entity, next+1);
 		}
 	}
 }
@@ -979,18 +992,23 @@ void entityGetBoundsForFace(Entity entity, int face, vec4 V0, vec4 V1)
 		0, 2, 1, 0
 	};
 
-	DATA8 dir = offsets + face * 4;
+	DATA8 dir = offsets + (face & 7) * 4;
 	uint8_t x = dir[0];
 	uint8_t y = dir[1];
 	uint8_t z = dir[2];
 	uint8_t t = z;
-	float   scale = entity->rotation[3] * 0.5f / BASEVTX;
+	float   scale = ENTITY_SCALE(entity);
 	float   pts[6];
+	DATA16  bbox;
 
+	if (face & 8)
+		bbox = entityGetModelById(entity->VBObank)->bbox;
+	else
+		bbox = &entity->szx;
 	if (dir[3]) t += 3;
-	pts[VX+3] = entity->szx * scale; pts[VX] = - pts[VX+3];
-	pts[VY+3] = entity->szy * scale; pts[VY] = - pts[VY+3];
-	pts[VZ+3] = entity->szz * scale; pts[VZ] = - pts[VZ+3];
+	pts[VX+3] = bbox[VX] * scale; pts[VX] = - pts[VX+3];
+	pts[VY+3] = bbox[VY] * scale; pts[VY] = - pts[VY+3];
+	pts[VZ+3] = bbox[VZ] * scale; pts[VZ] = - pts[VZ+3];
 
 	V0[x] = pts[x];
 	V0[y] = pts[y];
@@ -1035,17 +1053,22 @@ int entityRaypick(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos)
 				int   j;
 
 				/* order must be the same than entity.vsh */
-				if (list->rotation[0] > 0)
-					/* rotation along VY is CW, we want trigo here, hence the +3 */
-					matRotate(rotation, list->rotation[0], VY);
-				else
-					matIdent(rotation);
-				if (list->rotation[1] > 0)
+				if ((list->enflags & ENFLAG_BBOXROTATED) == 0)
 				{
-					mat4 RX;
-					matRotate(RX, list->rotation[1], VX);
-					matMult3(rotation, rotation, RX);
+					if (list->rotation[0] > 0)
+						/* rotation along VY is CW, we want trigo here, hence the +3 */
+						matRotate(rotation, list->rotation[0], VY);
+					else
+						matIdent(rotation);
+					if (list->rotation[1] > 0)
+					{
+						mat4 RX;
+						matRotate(RX, list->rotation[1], VX);
+						matMult3(rotation, rotation, RX);
+					}
 				}
+				else matIdent(rotation);
+
 				/* assume rectangular bounding box (not necessarily axis aligned though) */
 				for (j = 0; j < 6; j ++)
 				{
@@ -1110,6 +1133,7 @@ uint16_t entityClear(EntityBuffer buf, int index)
 	EntityBank bank;
 
 	Entity entity = buf->entities + index;
+	quadTreeDeleteItem(entity);
 	buf->usage[index>>5] ^= 1 << (index & 31);
 	buf->count --;
 	entity->tile = NULL;
@@ -1244,7 +1268,7 @@ void entityDeleteById(Map map, int entityId)
 				{
 					/* map removed from item frame: reset frame model to normal */
 					entity->entype  = ENTYPE_FRAME;
-					entity->VBObank = entityAddModel(ITEMID(ENTITY_ITEMFRAME, 0), 0, NULL, &entity->szx);
+					entity->VBObank = entityAddModel(ITEMID(ENTITY_ITEMFRAME, 0), 0, NULL, &entity->szx, entitySwapAxis(entity));
 					entity->entype  = 0;
 					entityResetModel(entity);
 					cartoDelMap(entityId+1);
@@ -1252,7 +1276,7 @@ void entityDeleteById(Map map, int entityId)
 				else entityClear(buffer, slot);
 			}
 		}
-		else
+		else /* stand-alone entity */
 		{
 			prev = entityGetPrev(c, entity, entityId);
 			*prev = entity->next;
@@ -1351,7 +1375,7 @@ void entityAnimate(void)
 		if (remain > 0)
 		{
 			float oldPos[3];
-			float scale = entity->rotation[3] * 0.5f / BASEVTX;
+			float scale = ENTITY_SCALE(entity);
 			float sizes[3] = {
 				entity->szx * scale,
 				entity->szy * scale,
@@ -1487,6 +1511,7 @@ void entityUpdateInfo(Entity entity, Chunk checkIfChanged)
 		EntityBank bank;
 		int j;
 		for (j = BANK_NUM(entity->VBObank), bank = HEAD(entities.banks); j > 0; j --, NEXT(bank));
+		quadTreeChangePos(entity);
 		glBindBuffer(GL_ARRAY_BUFFER, bank->vboLoc);
 		glBufferSubData(GL_ARRAY_BUFFER, entity->mdaiSlot * INFO_SIZE, INFO_SIZE - LIGHT_SIZE, entity->pos);
 
@@ -1812,7 +1837,7 @@ void entityRenderBBox(void)
 		float  vertex[6];
 		DATA8  index;
 		NVGCTX vg = globals.nvgCtx;
-		float  scale = sel->rotation[3] * 0.5f / BASEVTX;
+		float  scale = ENTITY_SCALE(sel);
 		int    i, j;
 		nvgStrokeColorRGBA8(vg, "\xff\xff\xff\xff");
 		nvgBeginPath(vg);

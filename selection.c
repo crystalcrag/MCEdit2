@@ -837,30 +837,6 @@ void selectionIterEntities(SIT_CallProc cb, APTR data)
 		cb(NULL, &i, data);
 
 	fprintf(stderr, "bbox test = %d\n", bboxTest);
-
-	#if 0
-	Chunk c = mapGetChunk(globals.level, posf);
-
-	for (; dz >= 0; dz --, c += chunkNeighbor[c->neighbor + 1] /* going south */)
-	{
-		Chunk chunk;
-		for (i = 0, chunk = c; i <= dx; i ++, chunk += chunkNeighbor[chunk->neighbor + 2] /* going east */)
-		{
-			vec4 coord;
-			int  id, cur;
-
-			for (id = cur = chunk->entityList; entityIter(&id, coord); cur = id)
-			{
-				if (posf[VX] <= coord[VX] && coord[VX] <= posf[VX+3] &&
-				    posf[VY] <= coord[VY] && coord[VY] <= posf[VY+3] &&
-				    posf[VZ] <= coord[VZ] && coord[VZ] <= posf[VZ+3])
-				{
-					cb(NULL, &cur, data);
-				}
-			}
-		}
-	}
-	#endif
 }
 
 /* keep a list of all entities we will have to copy */

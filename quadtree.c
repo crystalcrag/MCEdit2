@@ -1,5 +1,5 @@
 /*
- * quadtree.c : space partioning based on quad tree.
+ * quadtree.c : space partioning based on a quad tree.
  *
  * inspired by https://www.gamedev.net/tutorials/programming/general-and-gameplay-programming/introduction-to-octrees-r3529/
  *
@@ -16,7 +16,6 @@
 #include "entities.h"
 
 #define MIN_SIZE     1
-#define ENT_SIZE(x)  (x*(0.5f/BASEVTX))
 #define QUAD_BATCH   96
 
 /* private datatypes */
@@ -36,6 +35,7 @@ static QuadTree quadTreeAlloc(void)
 {
 	QuadBatch * prev;
 	QuadBatch   mem;
+	/* alloc the in batch, but we need to avoid relocating pointers (no realloc()) */
 	for (mem = &qmem, prev = NULL; mem->count == QUAD_BATCH; prev = &qmem.next, mem = mem->next);
 	if (mem == NULL)
 	{
@@ -77,8 +77,9 @@ void quadTreeInit(int x, int z, int size)
 	size |= size >> 16;
 	size ++;
 
-	tree->x = x - (size >> 1);
-	tree->z = z - (size >> 1);
+	/* use chunk boundary: less likely that an entity is split between these */
+	tree->x = (x & ~15) - (size >> 1);
+	tree->z = (z & ~15) - (size >> 1);
 	tree->size = size;
 
 	fprintf(stderr, "quad tree size = %d\n", size);
@@ -116,8 +117,9 @@ static void quadTreeInsert(QuadTree root, Entity item)
 		float sz = root->size * 0.5f;
 		float x2 = x + sz;
 		float z2 = z + sz;
-		float szEntX = ENT_SIZE(item->szx);
-		float szEntZ = ENT_SIZE(item->szz);
+		float scale = ENTITY_SCALE(item);
+		float szEntX = item->szx * scale;
+		float szEntZ = item->szz * scale;
 		uint8_t quadrant = 0;
 
 		if (item->pos[VX] + szEntX <  x2) ; else
@@ -235,6 +237,10 @@ static void quadTreePrune(QuadTree root, Entity item)
 /* high-level interface for removing an item */
 void quadTreeDeleteItem(Entity item)
 {
+	/* not every entity are in quad tree (temporary ones aren't) */
+	if ((item->enflags & ENFLAG_INQUADTREE) == 0)
+		return;
+
 	QuadTree root  = qroot;
 	Entity   prune = quadTreeRemoveItem(root, item);
 
@@ -257,9 +263,11 @@ void quadTreeDeleteItem(Entity item)
 void quadTreeInsertItem(Entity item)
 {
 	QuadTree root = qroot;
-	float szEntX = ENT_SIZE(item->szx);
-	float szEntZ = ENT_SIZE(item->szz);
+	float scale  = ENTITY_SCALE(item);
+	float szEntX = item->szx * scale;
+	float szEntZ = item->szz * scale;
 
+	item->enflags |= ENFLAG_INQUADTREE;
 	/* check if quadtree is big enough */
 	for (;;)
 	{
@@ -298,8 +306,9 @@ void quadTreeChangePos(Entity item)
 {
 	QuadTree root = qroot;
 	QuadTree node = item->qnode;
-	float X2 = ENT_SIZE(item->szx);
-	float Z2 = ENT_SIZE(item->szz);
+	float SZ = ENTITY_SCALE(item);
+	float X2 = item->szx * SZ;
+	float Z2 = item->szz * SZ;
 	float X  = item->pos[VX] - X2;
 	float Z  = item->pos[VZ] - Z2;
 	X2 += item->pos[VX];
@@ -342,15 +351,16 @@ void quadTreeIntersect(QuadTree root, float bbox[6], Entity * first)
 	for (item = root->items; item; item = item->qnext)
 	{
 		bboxTest ++;
-		float SX = ENT_SIZE(item->szx);
-		float SZ = ENT_SIZE(item->szz);
-		float SY = ENT_SIZE(item->szy);
+		float scale = ENTITY_SCALE(item);
+		float SX = item->szx * scale;
+		float SZ = item->szz * scale;
+		float SY = item->szy * scale;
 		float X  = item->pos[VX];
 		float Y  = item->pos[VY];
 		float Z  = item->pos[VZ];
-		if (bbox[VX] < X+SX && bbox[VX+3] >= X-SX &&
-		    bbox[VY] < Y+SY && bbox[VY+3] >= Y-SY &&
-		    bbox[VZ] < Z+SZ && bbox[VZ+3] >= Z-SZ)
+		if (bbox[VX] < X+SX && bbox[VX+3] > X-SX &&
+		    bbox[VY] < Y+SY && bbox[VY+3] > Y-SY &&
+		    bbox[VZ] < Z+SZ && bbox[VZ+3] > Z-SZ)
 		{
 			/* intersecting bounding box */
 			item->qselect = *first;
@@ -395,15 +405,6 @@ static void quadTreeRender(QuadTree root, APTR vg, float bbox[4])
 	nvgStroke(vg);
 	int i;
 
-/*	Entity item;
-	for (item = root->items; item; item = item->qnext)
-	{
-		if ((int) item->pos[VX] == 233 &&
-			(int) item->pos[VY] == 107 &&
-			(int) item->pos[VZ] == 975)
-			puts("here");
-	}
-*/
 	if (root->nbLeaf > 0)
 	for (i = 0; i < 4; i ++)
 	{
@@ -434,5 +435,4 @@ void quadTreeDebug(APTR vg)
 	};
 	quadTreeRender(qroot, vg, bbox);
 }
-
 #endif

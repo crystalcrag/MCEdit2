@@ -546,21 +546,26 @@ Bool playerAddInventory(Player p, Item add)
 		}
 
 		/* check if it is already in inventory */
+		slot = -1;
 		do {
-			for (item = p->inventory.items, slot = 0; slot < PLAYER_MAX_ITEMS && !(item->id == itemId && item->extra == NULL); slot ++, item ++);
+			for (item = p->inventory.items, slot ++; slot < PLAYER_MAX_ITEMS && !(item->id == itemId && item->extra == NULL); slot ++, item ++);
 
 			if (slot < PLAYER_MAX_ITEMS)
 			{
-				int remain = itemAddCount(item, add->count);
-				if (remain > 0)
-				{
-					/* not enough space */
-					add->count = remain;
-				}
+				if (slot < MAXCOLINV)
+					p->inventory.selected = slot;
+				if (p->pmode == MODE_SURVIVAL)
+					add->count = itemAddCount(item, add->count);
+				else
+					break;
 			}
 			else /* not in inventory: try to add them in the first free slot */
 			{
-				for (item = p->inventory.items, slot = 0; slot < PLAYER_MAX_ITEMS && item->id > 0; slot ++, item ++);
+				item = p->inventory.items;
+				if (item[p->inventory.selected].id == 0)
+					slot = p->inventory.selected, item += slot;
+				else
+					for (slot = 0; slot < PLAYER_MAX_ITEMS && item->id > 0; slot ++, item ++);
 
 				if (slot < PLAYER_MAX_ITEMS)
 				{
@@ -571,6 +576,7 @@ Bool playerAddInventory(Player p, Item add)
 						item[0] = active[0];
 						item = active;
 					}
+					else p->inventory.selected = slot;
 					/*
 					 * <tileEntity> is a raw pointer within chunk NBT from world map, it can be freed at any time,
 					 * but will be serialized within levelDat in playerUpdateNBT()

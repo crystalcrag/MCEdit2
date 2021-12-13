@@ -1607,7 +1607,7 @@ void renderWorld(void)
 	{
 		debugCoord(vg, render.camera, render.debugTotalTri/3);
 		entityRenderBBox();
-		quadTreeDebug(globals.nvgCtx);
+		//quadTreeDebug(globals.nvgCtx);
 	}
 	nvgEndFrame(vg);
 

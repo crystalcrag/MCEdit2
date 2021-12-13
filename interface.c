@@ -1574,10 +1574,13 @@ void mcuiDeletePartial(void)
  */
 static struct
 {
-	SIT_Widget view, name;
+	SIT_Widget view, name, error;
 	DATA8      lastHover;
 	float      scale;
 	double     lastClick;
+	vec4       validStart;
+	uint8_t    validSpot[7];
+	uint8_t    axis, side;
 
 }	mcuiPaintings;
 
@@ -1646,6 +1649,55 @@ static void mcuiPaintingName(int id)
 	else name = "";
 
 	SIT_SetValues(mcuiPaintings.name, SIT_Title, name, NULL);
+	SIT_SetValues(mcuiPaintings.error, SIT_Visible, False, NULL);
+}
+
+static Bool mcuiPaintingsFindLocation(vec4 ret)
+{
+	int8_t * normal = &cubeNormals[mcuiPaintings.side * 4];
+	DATA8    size  = mcuiPaintings.lastHover;
+	uint8_t  tileW = size[2] - size[0];
+	uint8_t  tileH = size[3] - size[1];
+	uint8_t  i, j;
+
+	/* not the most efficient algo: check all positions until we found one */
+	for (j = 0; j < tileH; j ++)
+	{
+		for (i = 0; i < tileW; i ++)
+		{
+			/* we start checking from lower-left corner of painting (placed on block selected) up to upper-right */
+			uint8_t k;
+			uint8_t y = 3 - j;
+			uint8_t mask = ((1 << tileW) - 1) << (3 - i);
+			DATA8   valid = mcuiPaintings.validSpot + y;
+
+			for (k = 0; k < tileH && (valid[k] & mask) == mask; k ++);
+			if (k == tileH)
+			{
+				/* we found a spot */
+				memcpy(ret, mcuiPaintings.validStart, sizeof (vec4));
+				ret[VY] -= j;
+				ret[mcuiPaintings.axis] -= i;
+
+				/* also check that there are no entities in the area */
+				Entity first = NULL;
+				float  bbox[6], tmp;
+				memcpy(bbox, ret, 12);
+				bbox[VX] += normal[VX];
+				bbox[VX] += normal[VY];
+				bbox[VX] += normal[VZ];
+				bbox[VX+3] = bbox[VX] + (normal[VX] == 0 ? tileW : normal[VX] / 16.f);
+				bbox[VZ+3] = bbox[VZ] + (normal[VZ] == 0 ? tileW : normal[VZ] / 16.f);
+				bbox[VY+3] = bbox[VY] + tileH;
+				if (bbox[VX] > bbox[VX+3]) swap_tmp(bbox[VX], bbox[VX+3], tmp);
+				if (bbox[VZ] > bbox[VZ+3]) swap_tmp(bbox[VZ], bbox[VZ+3], tmp);
+				quadTreeIntersect(NULL, bbox, &first);
+				if (first == NULL)
+					return True;
+			}
+		}
+	}
+	return False;
 }
 
 /* SITE_OnMouseMove over paintings */
@@ -1669,8 +1721,13 @@ static int mcuiSelectPaintings(SIT_Widget w, APTR cd, APTR ud)
 			double curTime = FrameGetTime();
 			if ((curTime - mcuiPaintings.lastClick) < 750)
 			{
-				worldItemCreatePainting(globals.level, (mcuiPaintings.lastHover - paintings.location) >> 2);
-				SIT_Exit(1);
+				vec4 pos;
+				if (mcuiPaintingsFindLocation(pos) &&
+				    worldItemCreatePainting(globals.level, (mcuiPaintings.lastHover - paintings.location) >> 2, pos))
+				{
+					SIT_Exit(1);
+				}
+				else SIT_SetValues(mcuiPaintings.error, SIT_Visible, True, NULL);
 			}
 			else mcuiPaintings.lastClick = curTime;
 		}
@@ -1685,6 +1742,50 @@ static int mcuiPaintingsResize(SIT_Widget w, APTR cd, APTR ud)
 	int tiles = (globals.height >> 1) / PAINTINGS_TILE_H;
 	SIT_SetValues(mcuiPaintings.view, SIT_Width, tiles * PAINTINGS_TILE_W, SIT_Height, tiles * PAINTINGS_TILE_H, NULL);
 	return 1;
+}
+
+/* check how much space we have around selected position */
+static void mcuiGetBlockArea(void)
+{
+	vec4         pos;
+	MapExtraData sel = renderGetSelectedBlock(pos, NULL);
+	int8_t *     normal = &cubeNormals[sel->side * 4];
+	uint8_t      dx, dz, i, j;
+	DATA8        valid;
+
+	/* paintings can only be placed in S, E, N, W plane (second axis is always Y) */
+	if (normal[0] == 0) dx = 1, dz = 0, mcuiPaintings.axis = VX;
+	else                dx = 0, dz = 1, mcuiPaintings.axis = VZ;
+
+	/*
+	 * check if can find a 4x4 (max painting size) area that include the initial pos
+	 * since max size of a painting is 4x4, the max area around selected block is 7x7 (3 blocks
+	 * away from selection)
+	 */
+	struct BlockIter_t iter;
+	mcuiPaintings.side = sel->side;
+	memcpy(mcuiPaintings.validStart, pos, sizeof mcuiPaintings.validStart);
+	memset(mcuiPaintings.validSpot, 0, sizeof mcuiPaintings.validSpot);
+	pos[mcuiPaintings.axis] -= 3;
+	pos[VY] -= 3;
+	mapInitIter(globals.level, &iter, pos, False);
+
+	/* any non-air block is a valid block to place a painting */
+	for (i = 0, valid = mcuiPaintings.validSpot; i < 7; i ++, mapIter(&iter, -dx*7, 1, -dz*7), valid ++)
+	{
+		struct BlockIter_t front = iter;
+		mapIter(&front, normal[VX], 0, normal[VZ]);
+		for (j = 0; j < 7; j ++, mapIter(&iter, dx, 0, dz), mapIter(&front, dx, 0, dz))
+		{
+			if (! front.blockIds || front.blockIds[front.offset] == 0)
+			{
+				/* only air in front */
+				Block b = iter.blockIds ? &blockIds[iter.blockIds[iter.offset]] : NULL;
+				if (b && (b->type == SOLID || b->type == CUST || b->type == TRANS))
+					valid[0] |= 1 << j;
+			}
+		}
+	}
 }
 
 void mcuiShowPaintings(void)
@@ -1703,9 +1804,12 @@ void mcuiShowPaintings(void)
 		"<label name=name left=WIDGET,title,0.5em right=FORM top=OPPOSITE,title>"
 		"<canvas name=view#table top=WIDGET,title,0.5em height=", tiles * PAINTINGS_TILE_H, "width=", tiles * PAINTINGS_TILE_W, "/>"
 		"<button name=ko title=Cancel top=WIDGET,view,0.5em right=FORM>"
+		"<label name=error title='This painting does not fit here' visible=0 top=MIDDLE,ko>"
 	);
 
 	mcui.resize = mcuiPaintingsResize;
+
+	mcuiGetBlockArea();
 
 	SIT_Widget view = mcuiPaintings.view = SIT_GetById(diag, "view");
 	SIT_AddCallback(view, SITE_OnPaint,     mcuiRenderPaintings, NULL);
@@ -1713,6 +1817,7 @@ void mcuiShowPaintings(void)
 	SIT_AddCallback(SIT_GetById(diag, "ko"), SITE_OnActivate, mcuiExitWnd, NULL);
 
 	mcuiPaintings.name = SIT_GetById(diag, "name");
+	mcuiPaintings.error = SIT_GetById(diag, "error");
 	mcuiPaintings.lastHover = NULL;
 	mcuiPaintings.lastClick = 0;
 

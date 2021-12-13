@@ -21,7 +21,6 @@
 #include "mapUpdate.h"
 #include "cartograph.h"
 #include "entities.h"
-#include "worldItems.h"
 #include "render.h"
 #include "globals.h"
 
@@ -30,7 +29,6 @@ struct
 	Entity   preview;
 	uint16_t slot;
 	uint8_t  createSide;
-	vec4     createPos;        /* paintings are created asynchronously */
 	float    previewOffVY;
 }	worldItem;
 
@@ -92,6 +90,7 @@ void worldItemDup(Map map, vec info, int entityId)
 	dup->enflags   = entity->enflags;
 	dup->blockId   = entity->blockId;
 	dup->tile      = NBT_Copy(entity->tile);
+	quadTreeInsertItem(dup);
 
 	NBTFile_t nbt = {.mem = dup->tile};
 	NBTIter_t iter;
@@ -128,7 +127,7 @@ void worldItemDup(Map map, vec info, int entityId)
 /* model for full frame is oriented in the XY plane: grab coord of south face and apply entity transformation */
 static void worldItemGetFrameCoord(Entity entity, float vertex[12])
 {
-	entityGetBoundsForFace(entity, SIDE_SOUTH, vertex, vertex+3);
+	entityGetBoundsForFace(entity, SIDE_SOUTH | 8, vertex, vertex+3);
 	/* we need 3 points because rotation will move them, and we need to preserve backface orientation */
 	vertex[6] = vertex[0];
 	vertex[7] = vertex[4];
@@ -151,22 +150,18 @@ static void worldItemGetFrameCoord(Entity entity, float vertex[12])
 	matMultByVec3(vertex+3, rotate, vertex+3);
 	matMultByVec3(vertex+6, rotate, vertex+6);
 
-	float num = entity->rotation[3];
-	vec3AddMult(vertex,   entity->pos, num);
-	vec3AddMult(vertex+3, entity->pos, num);
-	vec3AddMult(vertex+6, entity->pos, num);
+	vec3Add(vertex,   entity->pos);
+	vec3Add(vertex+3, entity->pos);
+	vec3Add(vertex+6, entity->pos);
 
 	/* 4th point: simple geometry from previous 3 points */
 	vertex[VX+9] = vertex[VX] + (vertex[VX+3] - vertex[VX+6]);
 	vertex[VY+9] = vertex[VY] + (vertex[VY+3] - vertex[VY+6]);
 	vertex[VZ+9] = vertex[VZ] + (vertex[VZ+3] - vertex[VZ+6]);
-
-//	fprintf(stderr, "coord = %g,%g,%g - %g,%g,%g\n", vertex[VX], vertex[VY], vertex[VZ], vertex[VX+3], vertex[VY+3], vertex[VZ+3]);
-//	fprintf(stderr, "        %g,%g,%g - %g,%g,%g\n", vertex[VX+6], vertex[VY+6], vertex[VZ+6], vertex[VX+9], vertex[VY+9], vertex[VZ+9]);
 }
 
 /* add the item within the frame in the list of entities to render */
-Entity worldItemAddItemFrame(Entity frame, int entityId)
+Entity worldItemAddItemInFrame(Entity frame, int entityId)
 {
 	if (frame->entype == ENTYPE_FRAMEITEM)
 	{
@@ -252,96 +247,7 @@ static void worldItemFillPos(vec4 dest, vec4 src, int side, int orientX, vec siz
 		dest[5] += 2*M_PIf;
 }
 
-/* get exact coordinates of entity model in world coordinates */
-static void worldItemGetCoord(float outCoord[6], float posAndRot[6], VTXBBox bbox)
-{
-	uint8_t i;
-	for (i = 0; i < 3; i ++)
-	{
-		outCoord[i] = FROMVERTEX(bbox->pt1[i]);
-		outCoord[i+3] = FROMVERTEX(bbox->pt2[i]);
-	}
-
-	if (posAndRot[5] > 0)
-	{
-		mat4 rotateX;
-		matRotate(rotateX, posAndRot[5], VX);
-		matMultByVec3(outCoord,   rotateX, outCoord);
-		matMultByVec3(outCoord+3, rotateX, outCoord+3);
-	}
-
-	if (posAndRot[4] > 0)
-	{
-		mat4 rotateY;
-		matRotate(rotateY, posAndRot[4], VY);
-		matMultByVec3(outCoord,   rotateY, outCoord);
-		matMultByVec3(outCoord+3, rotateY, outCoord+3);
-	}
-	float tmp;
-	if (outCoord[VX] > outCoord[VX+3]) swap_tmp(outCoord[VX], outCoord[VX+3], tmp);
-	if (outCoord[VY] > outCoord[VY+3]) swap_tmp(outCoord[VY], outCoord[VY+3], tmp);
-	if (outCoord[VZ] > outCoord[VZ+3]) swap_tmp(outCoord[VZ], outCoord[VZ+3], tmp);
-
-	vecAdd(outCoord,   outCoord,   posAndRot);
-	vecAdd(outCoord+3, outCoord+3, posAndRot);
-}
-
-
-/* check if bounding box of entity overlaps another entity/blocks */
-static Bool worldItemFitIn(int entityId, float posAndRot[8], VTXBBox bbox)
-{
-#if 0
-	float coord[6];
-	float diff[3];
-
-	worldItemGetCoord(coord, posAndRot, bbox);
-	vecSub(diff, coord + 3, coord);
-	if (diff[0] < diff[1]) diff[0] = diff[1];
-	if (diff[0] < diff[2]) diff[0] = diff[2];
-
-	while (entityId != ENTITY_END)
-	{
-		Entity      entity = entityGetById(entityId);
-		EntityModel model  = entityGetModelById(entity->VBObank);
-		VTXBBox     size   = model->bbox;
-		float       maxSz  = 0;
-		uint8_t     i;
-
-		if (entity->ref)
-		{
-			/* entity within another: check <ref> instead */
-			entityId = entity->next;
-			continue;
-		}
-
-		for (i = 0; i < 3; i ++)
-		{
-			float sz = (size->pt2[i] - size->pt1[i]) * (1.f/BASEVTX);
-			if (maxSz < sz) maxSz = sz;
-		}
-		maxSz += diff[0];
-		maxSz *= maxSz;
-
-		/* quick heuristic */
-		if (vecDistSquare(posAndRot, entity->pos) < maxSz)
-		{
-			/* need more expansive check */
-			float coord2[6];
-			worldItemGetCoord(coord2, entity->pos, size);
-			if (coord[VX] < coord2[VX+3] && coord[VX+3] > coord2[VX] &&
-				coord[VY] < coord2[VY+3] && coord[VY+3] > coord2[VY] &&
-				coord[VZ] < coord2[VZ+3] && coord[VZ+3] > coord2[VZ])
-				return False;
-		}
-		entityId = entity->next;
-	}
-#endif
-	return True;
-}
-
-
-
-void worldItemCreatePainting(Map map, int paintingId)
+Bool worldItemCreatePainting(Map map, int paintingId, vec4 pos)
 {
 	NBTFile_t nbt = {.page = 127};
 	STRPTR    name;
@@ -362,20 +268,13 @@ void worldItemCreatePainting(Map map, int paintingId)
 	size[VY] = loc[3] - loc[1];
 	size[VZ] = 1/16.;
 
-	worldItemFillPos(posAndRot, worldItem.createPos, worldItem.createSide, 0, size);
+	worldItemFillPos(posAndRot, pos, worldItem.createSide, 0, size);
 	c = mapGetChunk(map, posAndRot);
-	if (c == NULL) return; /* outside map? */
-	#if 0
-	if (! worldItemFitIn(c->entityList, posAndRot, entityGetModelById(entityGetModelBank(ITEMID(ENTITY_ITEMFRAME, 0)))->bbox))
-	{
-		/* does not fit: cancel creation */
-		fprintf(stderr, "can't fit painting in %g, %g, %g\n", (double) posAndRot[VX], (double) posAndRot[VY], (double) posAndRot[VZ]);
-		return;
-	}
-	#endif
+	if (c == NULL) return False; /* outside map? */
 
 	entity = entityAlloc(&slot);
 	memcpy(entity->pos, posAndRot, sizeof posAndRot);
+	quadTreeInsertItem(entity);
 	worldItemCreateGeneric(&nbt, entity, "painting");
 	NBT_Add(&nbt,
 		TAG_String, "Motive", buffer,
@@ -396,6 +295,7 @@ void worldItemCreatePainting(Map map, int paintingId)
 	/* flag chunk for saving later */
 	entityMarkListAsModified(map, c);
 	renderAddModif();
+	return True;
 }
 
 static int worldItemCreateItemFrame(Map map, vec4 pos, int side)
@@ -413,20 +313,36 @@ static int worldItemCreateItemFrame(Map map, vec4 pos, int side)
 
 	worldItemFillPos(posAndRot, pos, side, side == SIDE_TOP ? -90 : side == SIDE_BOTTOM ? 90 : 0, size);
 	c = mapGetChunk(map, posAndRot);
+	if (c == NULL) return 0; /* outside map? */
 
-	#if 0
-	if (! worldItemFitIn(c->entityList, posAndRot, entityGetModelById(entityGetModelBank(ITEMID(ENTITY_ITEMFRAME, 0)))->bbox))
+	/* create first a dummy entity to check if there is space to place it here */
+	struct Entity_t dummy;
+	memset(&dummy, 0, sizeof dummy);
+	memcpy(dummy.pos, posAndRot, sizeof posAndRot);
+	dummy.rotation[3] = 1;
+	dummy.name = "item_frame";
+	dummy.VBObank = entityGetModelId(&dummy);
+	dummy.enflags |= ENFLAG_FULLLIGHT;
+
+	/* check if there are other entities in this space */
+	size[VX] = ENTITY_SCALE(&dummy);
+	memcpy(posAndRot+3, posAndRot, 12);
+	posAndRot[VX] -= size[VX];   posAndRot[VX+3] += size[VX];
+	posAndRot[VY] -= size[VY];   posAndRot[VY+3] += size[VY];
+	posAndRot[VZ] -= size[VZ];   posAndRot[VZ+3] += size[VZ];
+	Entity first = NULL;
+	quadTreeIntersect(NULL, posAndRot, &first);
+	if (first)
 	{
 		/* does not fit: cancel creation */
 		fprintf(stderr, "can't fit item frame in %g, %g, %g\n", (double) posAndRot[VX], (double) posAndRot[VY], (double) posAndRot[VZ]);
 		return 0;
 	}
-	#endif
 
 	entity = entityAlloc(&slot);
-	memcpy(entity->pos, posAndRot, sizeof posAndRot);
-	if (c == NULL) return 0; /* outside map? */
-	worldItemCreateGeneric(&nbt, entity, "item_frame");
+	memcpy(entity, &dummy, sizeof dummy);
+	entity->mdaiSlot = MDAI_INVALID_SLOT;
+	worldItemCreateGeneric(&nbt, entity, dummy.name);
 	NBT_Add(&nbt, TAG_Compound_End);
 
 	entity->next = c->entityList;
@@ -434,12 +350,10 @@ static int worldItemCreateItemFrame(Map map, vec4 pos, int side)
 	c->entityList = slot;
 
 	entity->tile = nbt.mem;
-	entity->rotation[3] = 1;
-	entity->VBObank = entityGetModelId(entity);
-	entity->enflags |= ENFLAG_FULLLIGHT;
 	entityGetLight(c, entity->pos, entity->light, True, 0);
 	entityAddToCommandList(entity);
 	entityMarkListAsModified(map, c);
+	quadTreeInsertItem(entity);
 	renderAddModif();
 	return slot + 1;
 }
@@ -454,7 +368,6 @@ int worldItemCreate(Map map, int itemId, vec4 pos, int side)
 		return worldItemCreateItemFrame(map, pos, side);
 	case 0: /* ask for a painting first */
 		if (side >= SIDE_TOP) break;
-		memcpy(worldItem.createPos, pos, 12);
 		worldItem.createSide = side;
 		mceditUIOverlay(MCUI_OVERLAY_PAINTING);
 	}
@@ -500,7 +413,7 @@ void worldItemUseItemOn(Map map, int entityId, ItemID_t itemId, vec4 pos)
 			entity->blockId = itemId | ENTITY_ITEM;
 			entity->entype = strcmp(buffer, "minecraft:filled_map") == 0 ? ENTYPE_FILLEDMAP : ENTYPE_FRAMEITEM;
 			uint16_t next = entity->next;
-			entity = worldItemAddItemFrame(entity, entityId);
+			entity = worldItemAddItemInFrame(entity, entityId);
 			entity->next = next;
 			entityMarkListAsModified(map, chunk);
 			renderAddModif();
@@ -530,7 +443,7 @@ void worldItemPreview(vec4 camera, vec4 pos, ItemID_t itemId)
 			angle += M_PIf;
 		/* shader wants a positive angle */
 		preview->rotation[0] = normAngle(angle);
-		preview->VBObank = entityAddModel(preview->blockId = itemId, 0, NULL, &preview->szx);
+		preview->VBObank = entityAddModel(preview->blockId = itemId, 0, NULL, &preview->szx, MODEL_DONT_SWAP);
 
 		worldItem.previewOffVY = preview->szy * preview->rotation[3] * 0.25f / BASEVTX;
 		preview->pos[VY] += worldItem.previewOffVY;
@@ -601,6 +514,7 @@ void worldItemAdd(Map map)
 
 			preview->next = chunk->entityList;
 			preview->name = NBT_Payload(&nbt, NBT_FindNode(&nbt, 0, "id"));
+			quadTreeInsertItem(preview);
 			chunk->entityList = worldItem.slot;
 
 			preview->tile = nbt.mem;

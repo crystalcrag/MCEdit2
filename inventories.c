@@ -1,6 +1,6 @@
 /*
  * inventories.c: generic inventory interface management: move/drag/split/draw items between inventories
- *                sing mouse or keyboard.
+ *                with mouse or keyboard.
  *
  * written by T.Pierron, oct 2020.
  */

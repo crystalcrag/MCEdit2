@@ -1,6 +1,10 @@
 =========== Week 49 ===========
+Sun Dec 12:
+	* quadtree integration mostly done.
+	* painting placement improved: look for place without overlapping entities or clipping walls.
+
 Sat Dec 11:
-	* quadtree integration conitnued.
+	* quadtree integration continued.
 
 Fri Dec 10:
 	* started quadtree integration.

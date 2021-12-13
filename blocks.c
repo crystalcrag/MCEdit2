@@ -321,7 +321,7 @@ static void blockSetUVAndNormals(DATA16 vert, int inv, int setUV, float * vertex
 }
 
 /* needed by entity models */
-void blockCenterModel(DATA16 vertex, int count, int dU, int dV, Bool shiftY, VTXBBox bbox, DATA16 sizes)
+void blockCenterModel(DATA16 vertex, int count, int dU, int dV, Bool shiftY, DATA16 sizes)
 {
 	uint16_t buffer[6];
 	DATA16   start = vertex;
@@ -358,12 +358,6 @@ void blockCenterModel(DATA16 vertex, int count, int dU, int dV, Bool shiftY, VTX
 		vertex[1] -= shift[1];
 		vertex[2] -= shift[2];
 	}
-	if (bbox)
-	{
-		min = bbox->pt1;
-		max = bbox->pt2;
-	}
-
 	sizes[VX] = max[VX] - min[VX];
 	sizes[VY] = max[VY] - min[VY];
 	sizes[VZ] = max[VZ] - min[VZ];

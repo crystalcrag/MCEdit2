@@ -45,7 +45,7 @@ void entityCopyToMap(APTR duplicated, Map map);
 
 VTXBBox entityGetBBox(int id);
 
-void worldItemCreatePainting(Map, int paintingId);
+Bool worldItemCreatePainting(Map, int paintingId, vec4 pos);
 void worldItemUseItemOn(Map, int entityId, ItemID_t, vec4 pos);
 void worldItemPreview(vec4 camera, vec4 pos, ItemID_t);
 int  worldItemCreate(Map, int itemId, vec4 pos, int side);
@@ -113,6 +113,7 @@ extern Paintings_t paintings;      /* convert painting string id to model id */
 #define ENTITY_BATCH               (1 << ENTITY_SHIFT)
 #define BANK_NUM(vbo)              ((vbo) & 63)
 #define MDAI_INVALID_SLOT          0xffff
+#define ENTITY_SCALE(entity)       ((entity)->rotation[3] * (0.5f / BASEVTX))
 
 typedef struct Entity_t            Entity_t;
 typedef struct EntityEntry_t *     EntityEntry;
@@ -128,8 +129,8 @@ EntityModel entityGetModelById(int modelBank);
 struct Entity_t
 {
 	uint16_t next;                 /* first ENTITY_SHIFT bits: index in buffer, remain: buffer index (linked list within chunk) */
-	uint16_t VBObank;              /* model id: first 6bits: bank index, remain: model index */
 	uint16_t mdaiSlot;             /* GL draw index in VBObank */
+	uint16_t VBObank;              /* model id: first 6bits: bank index, remain: model index */
 	uint8_t  enflags;              /* entity with some special processing (see below) */
 	uint8_t  entype;
 	ItemID_t blockId;
@@ -170,6 +171,8 @@ enum                               /* possible flags for Entity_t.enflags */
 	ENFLAG_FIXED       = 2,        /* can't be pushed by piston */
 	ENFLAG_FULLLIGHT   = 4,        /* lighting similar to SOLID voxel */
 	ENFLAG_OVERLAP     = 8,        /* overlap partition of a quad tree */
+	ENFLAG_BBOXROTATED = 16,       /* don't apply rotation/scale on bbox */
+	ENFLAG_INQUADTREE  = 32,       /* entity is in quad tree (will need removal) */
 };
 
 struct EntityEntry_t               /* HashTable entry */
@@ -251,15 +254,25 @@ void   entityAddToCommandList(Entity);
 void   entityResetModel(Entity);
 void   entityGetLight(Chunk, vec4 pos, DATA32 light, Bool full, int debugLight);
 void   entityMarkListAsModified(Map, Chunk);
-int    entityAddModel(ItemID_t, int cnx, CustModel cust, DATA16 sizes);
+int    entityAddModel(ItemID_t, int cnx, CustModel cust, DATA16 sizes, int swapAxis);
 void   entityDeleteSlot(int slot);
 void   entityUpdateInfo(Entity, Chunk checkIfChanged);
+void   entityGetBoundsForFace(Entity entity, int face, vec4 V0, vec4 V1);
+
+enum                  /* possible values for swapAxis */
+{
+	MODEL_DONT_SWAP,
+	MODEL_SWAP_XZ,    /* rotation of 90/270 on Y */
+	MODEL_SWAP_ZY     /* rotation of 90/270 on X */
+};
+
 
 void quadTreeClear(void);
 void quadTreeDeleteItem(Entity item);
 void quadTreeInsertItem(Entity item);
 void quadTreeChangePos(Entity item);
 
+Entity worldItemAddItemInFrame(Entity frame, int entityId);
 
 #endif
 #endif

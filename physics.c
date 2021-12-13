@@ -359,14 +359,12 @@ Bool physicsMoveEntity(Map map, PhysicsEntity entity, float speed)
  * entity moved: check if other entities must be moved along
  */
 
-static Bool physicsPushEntity(float broad[6], vec4 pos, float scale, VTXBBox bbox, float dir[3])
+static Bool physicsPushEntity(float broad[6], vec4 pos, float size[3], float dir[3])
 {
-	DATA16 pt1 = bbox->pt1;
-	DATA16 pt2 = bbox->pt2;
 	float inter[] = {
-		fminf(FROMVERTEX(pt2[VX]) * scale + pos[VX], broad[VX+3]) - fmaxf(FROMVERTEX(pt1[VX]) * scale + pos[VX], broad[VX]),
-		fminf(FROMVERTEX(pt2[VY]) * scale + pos[VY], broad[VY+3]) - fmaxf(FROMVERTEX(pt1[VY]) * scale + pos[VY], broad[VY]),
-		fminf(FROMVERTEX(pt2[VZ]) * scale + pos[VZ], broad[VZ+3]) - fmaxf(FROMVERTEX(pt1[VZ]) * scale + pos[VZ], broad[VZ])
+		fminf(pos[VX] + size[VX], broad[VX+3]) - fmaxf(pos[VX] - size[VX], broad[VX]),
+		fminf(pos[VY] + size[VY], broad[VY+3]) - fmaxf(pos[VY] - size[VY], broad[VY]),
+		fminf(pos[VZ] + size[VZ], broad[VZ+3]) - fmaxf(pos[VZ] - size[VZ], broad[VZ])
 	};
 
 	if (inter[VX] < EPSILON || inter[VY] < EPSILON || inter[VZ] < EPSILON)
@@ -387,11 +385,10 @@ void physicsEntityMoved(Map map, APTR self, vec4 start, vec4 end, float size[3])
 {
 	float broad[6];
 	float dir[3];
-	float maxSize;
 	int   i;
 
 	/* compute broad phase box */
-	for (i = 0, maxSize = 0; i < 3; i ++)
+	for (i = 0; i < 3; i ++)
 	{
 		/* <start> and <end> are the center of entity: bbox must be centered */
 		broad[i]   = fminf(start[i], end[i]) - size[i];
@@ -400,37 +397,24 @@ void physicsEntityMoved(Map map, APTR self, vec4 start, vec4 end, float size[3])
 		dir[i] = diff < -EPSILON ? -1 : diff > EPSILON ? 1 : 0;
 	}
 
-	float center[] = {
-		(broad[VX] + broad[VX+3]) * 0.5f,
-		(broad[VY] + broad[VY+3]) * 0.5f,
-		(broad[VZ] + broad[VZ+3]) * 0.5f
-	};
-
-	/* need to check which *chunks* the broad rectangle intersect (cannot just check the voxels) */
-	int DX = CPOS(broad[VX+3]) - CPOS(broad[VX]);
-	int DZ = CPOS(broad[VZ+3]) - CPOS(broad[VZ]);
-
-	Chunk c = mapGetChunk(map, broad);
-
-	for (; DZ >= 0; DZ --, c += chunkNeighbor[c->neighbor + 1] /* going south */)
+	Entity list = NULL;
+	int count = 0;
+	quadTreeIntersect(NULL, broad, &list);
+	for (; list; list = list->qselect, count ++)
 	{
-		Chunk chunk;
-		for (i = 0, chunk = c; i <= DX; i ++, chunk += chunkNeighbor[chunk->neighbor + 2] /* going east */)
-		{
-			Entity entity;
-			int id;
+		if (list == self || (list->enflags & ENFLAG_FIXED)) continue;
 
-			for (id = chunk->entityList; id != ENTITY_END; id = entity->next)
-			{
-				entity = entityGetById(id);
-				if (entity == self || (entity->enflags & ENFLAG_FIXED)) continue;
+		float scale = ENTITY_SCALE(list);
+		float bbox[] = {
+			list->szx * scale,
+			list->szy * scale,
+			list->szz * scale
+		};
 
-				/* they can indeed be intersecting */
-				if (physicsPushEntity(broad, entity->pos, entity->rotation[3], NULL, dir))
-					entityUpdateInfo(entity, chunk);
-			}
-		}
+		if (physicsPushEntity(broad, list->pos, bbox, dir))
+			entityUpdateInfo(list, mapGetChunk(map, list->pos));
 	}
+	fprintf(stderr, "intersect = %d\r", count);
 	/* check for players */
 	//physicsPushEntity(broad, player->pos, 1, &playerBBox, dir);
 }
