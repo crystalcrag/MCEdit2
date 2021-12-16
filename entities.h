@@ -28,12 +28,12 @@ int  entityRaypick(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos);
 void entityUpdateOrCreate(Chunk, vec4 pos, int blockId, vec4 dest, int ticks, DATA8 tile);
 void entityDebugCmd(Chunk);
 int  entityCount(int start);
-Bool entityIter(Entity * entity, int * entityId);
 int  entityGetModel(int entityId, int * vtxCount);
 void entityGetItem(int entityId, Item ret);
 void entityGetPos(int entityId, float ret[3]);
 void entityRenderBBox(void);
 int  entityCreatePlayer(void);
+int  entityGetId(Entity entity);
 
 /* clone entities with selection */
 APTR entityCopy(int vtxCount, vec4 origin, DATA16 entityIds, int maxEntities, DATA32 models, int maxModels);
@@ -56,13 +56,24 @@ void worldItemDup(Map map, vec info, int entityId);
 
 void quadTreeInit(int x, int z, int size);
 void quadTreeDebug(APTR vg);
-void quadTreeIntersect(QuadTree root, float bbox[6], Entity * first);
+Entity * quadTreeIntersect(float bbox[6], int * count, int filter);
 
+#define QTI_FILTER(flag,result)    ((flag) | ((result)<<16))
 #define ENTITY_END                 0xffff
 #define ENTITY_PAINTINGS           0x800
 #define ENTITY_ITEMFRAME           0x801
 #define ENTITY_ITEMFRAME_FULL      0x802
 #define ENTITY_ITEM                0x80000000  /* differentiate world item from block entity */
+
+enum                               /* possible flags for Entity_t.enflags */
+{
+	ENFLAG_POPIFPUSHED = 1,        /* if pushed by piston: convert to item */
+	ENFLAG_FIXED       = 2,        /* can't be pushed by piston */
+	ENFLAG_FULLLIGHT   = 4,        /* lighting similar to SOLID voxel */
+	ENFLAG_OVERLAP     = 8,        /* overlap partition of a quad tree */
+	ENFLAG_BBOXROTATED = 16,       /* don't apply rotation/scale on bbox */
+	ENFLAG_INQUADTREE  = 32,       /* entity is in quad tree (will need removal) */
+};
 
 enum /* transform param for entityCopyTransform() */
 {
@@ -144,8 +155,8 @@ struct Entity_t
 	uint16_t szx, szy, szz;        /* bbox of entity */
 
 	/* quadtree fields */
-	Entity   qnext, qselect;
-	QuadTree qnode;
+	Entity   qnext;                /* linked list of entities in a quad tree leaf node */
+	QuadTree qnode;                /* quadtree node where entity is */
 };
 
 struct QuadTree_t                  /* quadtree for entity collision check (28b) */
@@ -163,16 +174,6 @@ enum                               /* possible values for Entity_t.entype */
 	ENTYPE_FRAME     = 1,          /* item frame (no items in it) */
 	ENTYPE_FILLEDMAP = 2,          /* blockId contains map id to use on disk (data/map_%d.dat) */
 	ENTYPE_FRAMEITEM = 3,          /* blockId contains item/block id within the frame */
-};
-
-enum                               /* possible flags for Entity_t.enflags */
-{
-	ENFLAG_POPIFPUSHED = 1,        /* if pushed by piston: convert to item */
-	ENFLAG_FIXED       = 2,        /* can't be pushed by piston */
-	ENFLAG_FULLLIGHT   = 4,        /* lighting similar to SOLID voxel */
-	ENFLAG_OVERLAP     = 8,        /* overlap partition of a quad tree */
-	ENFLAG_BBOXROTATED = 16,       /* don't apply rotation/scale on bbox */
-	ENFLAG_INQUADTREE  = 32,       /* entity is in quad tree (will need removal) */
 };
 
 struct EntityEntry_t               /* HashTable entry */

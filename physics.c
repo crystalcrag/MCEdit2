@@ -12,8 +12,11 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <malloc.h>
 #include "entities.h"
 #include "physics.h"
+#include "player.h"
+#include "globals.h"
 
 
 float physicsSweptAABB(float bboxStart[6], vec4 dir, float block[6], DATA8 normal)
@@ -42,6 +45,8 @@ float physicsSweptAABB(float bboxStart[6], vec4 dir, float block[6], DATA8 norma
 			invEntry = block[i+3] - bboxStart[i],
 			invExit  = block[i]   - bboxStart[i+3];
 
+		/* entities pushing each other at non exact floating point position will cause weird values for invEntry */
+		if (fabsf(invEntry) < 0.001f) invEntry = 0;
 		/* time of collision */
 		entry = invEntry / dir[i];
 		exit  = invExit / dir[i];
@@ -69,6 +74,7 @@ float physicsSweptAABB(float bboxStart[6], vec4 dir, float block[6], DATA8 norma
  */
 int physicsCheckCollision(Map map, vec4 start, vec4 end, VTXBBox bbox, float autoClimb)
 {
+	static uint8_t priority[] = {1, 0, 2};
 	struct BlockIter_t iter;
 	float   minMax[6];
 	float   elevation;
@@ -137,7 +143,6 @@ int physicsCheckCollision(Map map, vec4 start, vec4 end, VTXBBox bbox, float aut
 						dist = physicsSweptAABB(minMax, dir, bboxFloat, &axis);
 						if (dist < 1 && elevation < bboxFloat[VY+3])
 							elevation = bboxFloat[VY+3];
-						static uint8_t priority[] = {1, 0, 2};
 						if (dist < shortestDist || (dist == 0 && priority[axis] > priority[curAxis]))
 							shortestDist = dist, curAxis = axis;
 					}
@@ -162,6 +167,35 @@ int physicsCheckCollision(Map map, vec4 start, vec4 end, VTXBBox bbox, float aut
 		i ++;
 		if (i > dy) break;
 		mapIter(&iter, -dx, 1, -dz);
+	}
+
+	/* also need to check for collision with entity */
+	if (shortestDist > 0)
+	{
+		int count;
+		Entity * list = quadTreeIntersect(broad, &count, QTI_FILTER(ENFLAG_FIXED, ENFLAG_FIXED));
+		if (count > 0)
+		{
+			for (i = 0; i < count; i ++)
+			{
+				Entity entity = list[i];
+				float dist = ENTITY_SCALE(entity);
+				float SZX = entity->szx * dist;
+				float SZY = entity->szy * dist;
+				float SZZ = entity->szz * dist;
+				float bboxFloat[6] = {
+					[0] = entity->pos[VX] - SZX,   [3] = entity->pos[VX] + SZX,
+					[1] = entity->pos[VY] - SZY,   [4] = entity->pos[VY] + SZY,
+					[2] = entity->pos[VZ] - SZZ,   [5] = entity->pos[VZ] + SZZ
+				};
+				uint8_t axis;
+				dist = physicsSweptAABB(minMax, dir, bboxFloat, &axis);
+				if (dist < 1 && elevation < bboxFloat[VY+3])
+					elevation = bboxFloat[VY+3];
+				if (dist < shortestDist || (dist == 0 && priority[axis] > priority[curAxis]))
+					shortestDist = dist, curAxis = axis;
+			}
+		}
 	}
 
 	/* next: analyze what we gathered and try to find the minimum distance to avoid boxes collided */
@@ -385,7 +419,7 @@ void physicsEntityMoved(Map map, APTR self, vec4 start, vec4 end, float size[3])
 {
 	float broad[6];
 	float dir[3];
-	int   i;
+	int   i, count;
 
 	/* compute broad phase box */
 	for (i = 0; i < 3; i ++)
@@ -397,24 +431,44 @@ void physicsEntityMoved(Map map, APTR self, vec4 start, vec4 end, float size[3])
 		dir[i] = diff < -EPSILON ? -1 : diff > EPSILON ? 1 : 0;
 	}
 
-	Entity list = NULL;
-	int count = 0;
-	quadTreeIntersect(NULL, broad, &list);
-	for (; list; list = list->qselect, count ++)
+	Entity * list = quadTreeIntersect(broad, &count, QTI_FILTER(ENFLAG_FIXED, 0));
+	if (count > 0)
 	{
-		if (list == self || (list->enflags & ENFLAG_FIXED)) continue;
+		list = memcpy(alloca(count * sizeof *list), list, count * sizeof *list);
+		for (i = 0; i < count; i ++)
+		{
+			Entity entity = list[i];
+			if (entity == self || (entity->enflags & ENFLAG_FIXED)) continue;
 
-		float scale = ENTITY_SCALE(list);
-		float bbox[] = {
-			list->szx * scale,
-			list->szy * scale,
-			list->szz * scale
-		};
+			float scale = ENTITY_SCALE(entity);
+			float bbox[] = {
+				entity->szx * scale,
+				entity->szy * scale,
+				entity->szz * scale
+			};
 
-		if (physicsPushEntity(broad, list->pos, bbox, dir))
-			entityUpdateInfo(list, mapGetChunk(map, list->pos));
+			if (physicsPushEntity(broad, entity->pos, bbox, dir))
+				entityUpdateInfo(entity, mapGetChunk(map, entity->pos));
+		}
 	}
-	fprintf(stderr, "intersect = %d\r", count);
-	/* check for players */
-	//physicsPushEntity(broad, player->pos, 1, &playerBBox, dir);
+	/* check for players XXX needs to be stored in the quadtree */
+	Player p;
+	for (p = HEAD(map->players); p; NEXT(p))
+	{
+		float bbox[] = {
+			(playerBBox.pt2[VX] - ORIGINVTX) * (1.0f/BASEVTX),
+			(playerBBox.pt2[VY] - ORIGINVTX) * (0.5f/BASEVTX),
+			(playerBBox.pt2[VZ] - ORIGINVTX) * (1.0f/BASEVTX)
+		};
+		/* player pos is at feet level, we need center */
+		float pos[3];
+		memcpy(pos, p->pos, sizeof pos);
+		pos[VY] += bbox[VY];
+		if (physicsPushEntity(broad, pos, bbox, dir))
+		{
+			memcpy(p->pushedTo, pos, sizeof pos);
+			p->pushedTo[VY] -= bbox[VY];
+			p->keyvec |= PLAYER_PUSHED;
+		}
+	}
 }

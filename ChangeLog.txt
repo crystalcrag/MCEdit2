@@ -1,3 +1,13 @@
+=========== Week 50 ===========
+wed Dec 15:
+	* collision bug laboriously tracked to a lack of floating point precision.
+
+Tue Dec 14:
+	* collision bug not fixed: collision with moving entity not working.
+
+Mon Dec 13:
+	* entity collision in physics AABB.
+
 =========== Week 49 ===========
 Sun Dec 12:
 	* quadtree integration mostly done.

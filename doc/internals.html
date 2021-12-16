@@ -1730,7 +1730,7 @@ per model (assuming no rotations and scaling).
 <p>Collision detection is implemented using a swept AABB algorithm and correction is done through sliding
 adjustment and was strongly inspired by <a href="https://www.gamedev.net/tutorials/programming/general-and-gameplay-programming/swept-aabb-collision-detection-and-response-r3084/">this article</a>.
 
-<p>One aspect related to collision detection, is entities enumeration. Since entities are spread all
+<p>One aspect related to collision detection, is <b>entities enumeration</b>. Since entities are spread all
 over the world and don't rely on the voxel grid, enumerating them without scanning the majority of
 them, each time a collision detection need to be performed is somewhat challenging.
 
@@ -1739,30 +1739,29 @@ tend to move a lot (that's the main interest of entities: moving freely, unlike 
 knowing which entities intersect an AABB, will be a very frequent query, and it better be optimized
 to not fall into that dreaded O(N<sup>2</sup>) complexity.
 
-<p>One may be tempted to use the chunk itself as a crude block map space partioning. In practice, it
-not that good of an idea, since a 16x16 area is quite big, even bigger if you consider
-that entities are referenced through their center and therefore can overlap a nearby chunk depending
-on their size. In practice, it means you'll have to scan more than one chunk each time you want to do
-a collision check on a given entity.
-
-<p>This will become prohibitly expensive if a lot of entities are crammed in a single chunk.
-
-<p>Therefore the solution chosen to solve this problem in this engine was to use a dynamic self-balancing
-quadtree. First, you might wonder <b>why just a quadtree and not an octree</b>? The main reason for using a
-quadtree is that entities are primarily spread on the XZ plane and very little on the Y axis: adding
-another dimension to the tree would add very little performance gain, but lots of uneeded complexity
-and extra memory usage. An octree would have made more sense it were used for other purposes, like
-frustum culling or raypicking.
+<p>The solution used in this engine is to use a dynamic self-balancing quadtree. First, you might wonder
+<b>why just a quadtree and not an octree</b>? The main reason for using a quadtree is that entities are
+primarily spread on the XZ plane and very little on the Y axis: adding another dimension to the tree
+would add very little performance gain, but lots of uneeded complexity and extra memory usage. An
+octree would have made more sense it were used for other purposes, like frustum culling or raypicking.
 
 <h4>Block map or quad tree?</h4>
 
-<p>Another question worth answering is: is it cheaper (in terms of memory allocation) to use a finer
-block map grid at the chunk level instead of using a quadtree? This question is particularly interesting
-since an entity can be uniquely identified using a 16bit integer (no need for a full pointer address).
+<p>Another question worth answering is: <b>is it cheaper to use a block map instead of a quadtree?</b>
 
-<p>The resolution of the quadtree is "limited" to a 1x1 grid at the finest level. Using a block map
-of this size is too expensive though: 512 bytes per chunk, which in pratice would have to be allocated
-for almost every chunk, since entities are almost everywhere in a typical <prod>Minecraft</prod> map.
+<p>One may be tempted to use the chunk itself as a crude block map for space partioning. In practice, it
+not that good of an idea, since a 16x16 area is quite big, even bigger if you consider that entities are
+referenced through their center and therefore can overlap a nearby chunk depending on their size. In
+practice, it means you'll have to scan more than one chunk each time you want to do a collision check
+on a given entity.
+
+<p>What if we use a finer block map grid? This can be interesting since an entity can be uniquely
+identified using a 16bit integer (no need for a full pointer address).
+
+<p>The resolution of the quadtree is "limited" to a 1x1 grid at the finest level (which is quite small
+actually). Using a block map of this size is too expensive though: 512 bytes per chunk, which in pratice
+would have to be allocated for almost every chunk, since entities are almost everywhere in a typical
+<prod>Minecraft</prod> map.
 
 <p>Therefore, there are only 2 choices left: a 2x2 or 4x4 grid (8x8 and 16x16 being too coarse). Which
 adds respectively 128 and 32bytes per chunk. On a far render distance (32x32 grid of chunk loaded),
@@ -1770,25 +1769,26 @@ as far as memory usage goes, that would be 128K and 32K of memory needed, which 
 a quadtree need (around 10K), and the quadtree will give you way more precision than a 4x4 grid.
 
 <p>Conclusion: a quadtree is more efficient as far as memory is concerned, but will require a bit more
-CPU usage.
+CPU usage. Just a reminder to not waste any time implementing this.
 
 <h4>Auto-resize quad tree</h4>
 
-<p>The problem with using a quadtree in a voxel world is that its size must accomodate the player movement.
-If the player moves a lot in the XZ plane, at some point the quadtree will hold reference to objects
-that are completely outside render distance, which is a waste of memory usage and CPU to reach the 
-leaf nodes of the tree.
+<p>The problem with using a quadtree in a voxel world is that its size must <b>accomodate the player
+movements</b>. If the player moves a lot in the XZ plane, at some point the quadtree will hold reference
+to objects that are completely outside render distance, which is a waste of memory usage and CPU to
+reach the leaf nodes of the tree.
 
-<p>The way it is handled in this implementation, is by auto-resizing the quad tree: when adding an item
-in th tree, if its initial position is outside of the current bounding box of the quadtree,
+<p>The way it is handled in this implementation, is by <b>auto-resizing the quad tree</b>: when adding
+an item in th tree, if its initial position is outside of the current bounding box of the quadtree,
 as many top layers as necessary will be added, until the object position is included in the bounding
 box.
 
 <p>When an object is deleted, this implementation will try extra hard to prune empty branches and/or
 relocate leaf node to higher level layers. These operations are not that expensive and thus the tree
 will be self-balancing. This is important, because otherwise as the player moves, top layers will
-kept being added to cover the increasing distance between spawn area and current position. At some
-the tree will have so many layers, that it will become more expensive that a simple block map.
+kept being added to cover the increasing distance between the spawn area and the current position. At
+some the tree will have so many layers, that it will have to perform as many bounding box checks as
+a 16x16 block map (which is what the quadtree was supposed to avoid).
 
 <p>/* ... */
 

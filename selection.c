@@ -776,7 +776,7 @@ void selectionEditBrush(Bool simplified)
 	SIT_ManageWidget(diag);
 }
 
-static void selectionGetRange(int points[6])
+void selectionGetRange(int points[6])
 {
 	int * p;
 	int   i;
@@ -824,19 +824,16 @@ void selectionIterEntities(SIT_CallProc cb, APTR data)
 {
 	float bbox[6];
 	int   pos[6], i;
-	Entity first = NULL;
 
-	extern int bboxTest;
-
-	bboxTest = 0;
 	selectionGetRange(pos);
 	for (i = 0; i < 6; bbox[i] = pos[i], i ++);
-	quadTreeIntersect(NULL, bbox, &first);
+	Entity * list = quadTreeIntersect(bbox, pos, 0);
 
-	while (entityIter(&first, &i))
-		cb(NULL, &i, data);
-
-	fprintf(stderr, "bbox test = %d\n", bboxTest);
+	for (i = 0; i < pos[0]; i ++)
+	{
+		pos[1] = entityGetId(list[i]);
+		cb(NULL, pos + 1, data);
+	}
 }
 
 /* keep a list of all entities we will have to copy */

@@ -793,7 +793,7 @@ Entity entityGetById(int id)
 }
 
 /* converse of entityGetById() */
-static int entityGetId(Entity entity)
+int entityGetId(Entity entity)
 {
 	EntityBuffer buffer;
 	int i;
@@ -803,19 +803,6 @@ static int entityGetId(Entity entity)
 			return i | (entity - buffer->entities);
 
 	return ENTITY_END;
-}
-
-
-Bool entityIter(Entity * entity, int * entityId)
-{
-	EntityBuffer buffer;
-	Entity cur = *entity;
-	int id;
-	if (cur == NULL) return False;
-	for (id = 0, buffer = HEAD(entities.list); ! (buffer->entities <= cur && cur < EOT(buffer->entities)); NEXT(buffer), id += ENTITY_BATCH);
-	id += cur - buffer->entities;
-	*entity = cur->qselect;
-	return True;
 }
 
 #ifdef DEBUG /* stderr not available in release build */
@@ -1388,6 +1375,7 @@ void entityAnimate(void)
 
 			EntityBank bank;
 			for (j = BANK_NUM(entity->VBObank), bank = HEAD(entities.banks); j > 0; j --, NEXT(bank));
+			quadTreeChangePos(entity);
 			physicsEntityMoved(globals.level, entity, oldPos, entity->pos, sizes);
 			/* update VBO */
 			glBindBuffer(GL_ARRAY_BUFFER, bank->vboLoc);
@@ -1455,6 +1443,9 @@ void entityUpdateOrCreate(Chunk c, vec4 pos, int blockId, vec4 dest, int ticks, 
 		entity->enflags |= ENFLAG_FULLLIGHT;
 	entityGetLight(c, pos, entity->light, entity->enflags & ENFLAG_FULLLIGHT, 1);
 	entityAddToCommandList(entity);
+
+	if ((entity->enflags & ENFLAG_INQUADTREE) == 0)
+		quadTreeInsertItem(entity);
 
 	/* push it into the animate list */
 	if (entities.animCount == entities.animMax)

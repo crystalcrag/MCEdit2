@@ -363,6 +363,7 @@ int main(int nb, char * argv[])
 	globals.yawPitch = &mcedit.player.angleh;
 	mcedit.state  = GAMELOOP_WORLD;
 	wayPointsRead();
+	ListAddTail(&globals.level->players, &mcedit.player.node);
 
 	if (globals.level == NULL)
 	{
@@ -444,7 +445,6 @@ void mceditWorld(void)
 					break;
 				case SDLK_F7:
 					globals.breakPoint = ! globals.breakPoint;
-					renderPointToBlock(800, 400);
 					break;
 				#endif
 				case SDLK_TAB:

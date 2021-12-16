@@ -245,6 +245,9 @@ VTXBBox mapGetBBox(BlockIter iterator, int * count, int * cnxFlags)
 	if (block->bboxPlayer == BBOX_NONE || (id & block->bboxIgnoreBit))
 		return NULL;
 
+	if (block->id == RSPISTONHEAD && chunkGetTileEntity(iterator->ref, (int[3]) {iterator->x, iterator->yabs, iterator->z}))
+		return NULL;
+
 	*cnxFlags = 0xffff;
 	switch (block->special) {
 	case BLOCK_DOOR:

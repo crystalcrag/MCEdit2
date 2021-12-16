@@ -122,8 +122,11 @@ static void playerSetDir(Player p)
 	case PLAYER_MOVE_BACK |
 	     PLAYER_STRAFE_RIGHT: angle += M_PI_2f + M_PI_4f; break;
 	default:
-		p->dir[VX] = p->dir[VZ] = 0;
-		p->keyvec |= PLAYER_STOPPING;
+		if (p->velocity[VX] != 0 || p->velocity[VZ] != 0)
+		{
+			p->dir[VX] = p->dir[VZ] = 0;
+			p->keyvec |= PLAYER_STOPPING;
+		}
 		return;
 	}
 
@@ -325,37 +328,45 @@ void playerMove(Player p)
 	if (diff < 1) return;
 	if (diff > 100) diff = 100; /* lots of lag :-/ */
 	diff *= 1/1000.f;
-	p->tick = globals.curTime;
 
 	memcpy(orig_pos, p->pos, 16);
-	if (keyvec & (PLAYER_UP|PLAYER_DOWN))
+	if (keyvec & PLAYER_PUSHED)
 	{
-		playerAdjustVelocityY(p, diff);
-		p->pos[VY] += p->velocity[VY];
+		/* pushed by an entity: check collision with terrain first before setting its posistion */
+		memcpy(p->pos, p->pushedTo, 12);
+		p->keyvec &= ~ PLAYER_PUSHED;
 	}
-	if (keyvec & (PLAYER_STRAFE_LEFT|PLAYER_STRAFE_RIGHT|PLAYER_MOVE_FORWARD|PLAYER_MOVE_BACK|PLAYER_STOPPING))
+	else
 	{
-		playerAdjustVelocity(p, diff);
-		p->pos[VX] += p->velocity[VX] * diff;
-		p->pos[VZ] += p->velocity[VZ] * diff;
-	}
-	if (keyvec & PLAYER_FALL)
-	{
-		/* jumping or falling */
-		p->velocity[VY] += diff * p->viscosity;
-		p->pos[VY] -= p->velocity[VY];
-		if (p->velocity[VY] > MAX_FALL * p->viscosity)
-			p->velocity[VY] = MAX_FALL * p->viscosity;
-	}
-	if (keyvec & PLAYER_CLIMB)
-	{
-		/* smooth vertical transition */
-		p->velocity[VY] += 2*diff;
-		p->pos[VY] += p->velocity[VY];
-		if (p->pos[VY] > p->targetY)
+		if (keyvec & (PLAYER_UP|PLAYER_DOWN))
 		{
-			p->pos[VY] = p->targetY, p->keyvec &= ~ PLAYER_CLIMB;
-			p->velocity[VY] = 0;
+			playerAdjustVelocityY(p, diff);
+			p->pos[VY] += p->velocity[VY];
+		}
+		if (keyvec & (PLAYER_STRAFE_LEFT|PLAYER_STRAFE_RIGHT|PLAYER_MOVE_FORWARD|PLAYER_MOVE_BACK|PLAYER_STOPPING))
+		{
+			playerAdjustVelocity(p, diff);
+			p->pos[VX] += p->velocity[VX] * diff;
+			p->pos[VZ] += p->velocity[VZ] * diff;
+		}
+		if (keyvec & PLAYER_FALL)
+		{
+			/* jumping or falling */
+			p->velocity[VY] += diff * p->viscosity;
+			p->pos[VY] -= p->velocity[VY];
+			if (p->velocity[VY] > MAX_FALL * p->viscosity)
+				p->velocity[VY] = MAX_FALL * p->viscosity;
+		}
+		if (keyvec & PLAYER_CLIMB)
+		{
+			/* smooth vertical transition */
+			p->velocity[VY] += 2*diff;
+			p->pos[VY] += p->velocity[VY];
+			if (p->pos[VY] > p->targetY)
+			{
+				p->pos[VY] = p->targetY, p->keyvec &= ~ PLAYER_CLIMB;
+				p->velocity[VY] = 0;
+			}
 		}
 	}
 	if (p->pmode <= MODE_CREATIVE)
@@ -379,7 +390,7 @@ void playerMove(Player p)
 			p->keyvec |= PLAYER_CLIMB;
 			//fprintf(stderr, "auto-climbing to %g (from %g)\n", (double) p->targetY, (double) p->pos[VY]);
 		}
-		diff = p->onground;
+		uint8_t ground = p->onground;
 		if ((keyvec & PLAYER_FALL) == 0 || p->velocity[VY] >= 0)
 			p->onground = physicsCheckOnGround(globals.level, p->pos, &playerBBox);
 		//fprintf(stderr, "pos = %g, %g, %g, ground: %d\n", p->pos[0], p->pos[1], p->pos[2], p->onground);
@@ -399,9 +410,9 @@ void playerMove(Player p)
 				p->keyvec |= PLAYER_UP;
 			}
 		}
-		else if (diff != p->onground)
+		else if (ground != p->onground)
 		{
-			if (diff == 0)
+			if (ground == 0)
 			{
 				/* cancel fall */
 				p->velocity[VY] = 0;
@@ -424,6 +435,10 @@ void playerMove(Player p)
 	}
 	vecSub(orig_pos, p->pos, orig_pos);
 	vecAdd(p->lookat, p->lookat, orig_pos);
+	if ((keyvec & PLAYER_PUSHED) && (keyvec & ~PLAYER_PUSHED))
+		playerMove(p);
+	else
+		p->tick = globals.curTime;
 }
 
 void playerTeleport(Player p, vec4 pos, float rotation[2])

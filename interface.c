@@ -1680,8 +1680,8 @@ static Bool mcuiPaintingsFindLocation(vec4 ret)
 				ret[mcuiPaintings.axis] -= i;
 
 				/* also check that there are no entities in the area */
-				Entity first = NULL;
-				float  bbox[6], tmp;
+				float bbox[6], tmp;
+				int   count;
 				memcpy(bbox, ret, 12);
 				bbox[VX] += normal[VX];
 				bbox[VX] += normal[VY];
@@ -1691,8 +1691,8 @@ static Bool mcuiPaintingsFindLocation(vec4 ret)
 				bbox[VY+3] = bbox[VY] + tileH;
 				if (bbox[VX] > bbox[VX+3]) swap_tmp(bbox[VX], bbox[VX+3], tmp);
 				if (bbox[VZ] > bbox[VZ+3]) swap_tmp(bbox[VZ], bbox[VZ+3], tmp);
-				quadTreeIntersect(NULL, bbox, &first);
-				if (first == NULL)
+				quadTreeIntersect(bbox, &count, 0);
+				if (count == 0)
 					return True;
 			}
 		}

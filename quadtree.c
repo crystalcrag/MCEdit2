@@ -27,15 +27,22 @@ struct QuadBatch_t
 	uint8_t count;
 };
 
-static struct QuadBatch_t      qmem;
-static struct QuadTree_t *     qroot;
-typedef struct QuadBatch_t *   QuadBatch;
+struct QuadSelect_t
+{
+	Entity * list;
+	int      count, max;
+};
+
+static struct QuadBatch_t    qmem;
+static struct QuadTree_t *   qroot;
+static struct QuadSelect_t   qselected;
+typedef struct QuadBatch_t * QuadBatch;
 
 static QuadTree quadTreeAlloc(void)
 {
 	QuadBatch * prev;
 	QuadBatch   mem;
-	/* alloc the in batch, but we need to avoid relocating pointers (no realloc()) */
+	/* alloc the node in batch, but we need to avoid relocating pointers (no realloc()) */
 	for (mem = &qmem, prev = NULL; mem->count == QUAD_BATCH; prev = &qmem.next, mem = mem->next);
 	if (mem == NULL)
 	{
@@ -82,10 +89,14 @@ void quadTreeInit(int x, int z, int size)
 	tree->z = (z & ~15) - (size >> 1);
 	tree->size = size;
 
+	/* pre-allocate some space */
+	qselected.list = malloc(sizeof *qselected.list * 32);
+	qselected.max  = 32;
+
 	fprintf(stderr, "quad tree size = %d\n", size);
 }
 
-/* start from scratch */
+/* start from scratch (will have to call quadTreeInit() first) */
 void quadTreeClear(void)
 {
 	QuadBatch mem;
@@ -94,15 +105,13 @@ void quadTreeClear(void)
 		mem->count = 0;
 		memset(mem->usage, 0, sizeof mem->usage);
 	}
+	free(qselected.list);
+	memset(&qselected, 0, sizeof qselected);
+	qroot = NULL;
 }
 
 static void quadTreeInsert(QuadTree root, Entity item)
 {
-/*	if ((int) item->pos[VX] == 233 &&
-		(int) item->pos[VY] == 107 &&
-		(int) item->pos[VZ] == 975)
-		puts("here"); */
-
 	if ((root->items == NULL && root->nbLeaf == 0) || root->size <= MIN_SIZE)
 	{
 		insert:
@@ -256,6 +265,7 @@ void quadTreeDeleteItem(Entity item)
 		quadTreeFree(root);
 		root = qroot = quadrant;
 		root->parent = NULL;
+		fprintf(stderr, "quad tree size = %d\n", root->size);
 	}
 }
 
@@ -295,6 +305,7 @@ void quadTreeInsertItem(Entity item)
 			super->quadrants[quadrant] = root;
 			super->nbLeaf = 1;
 			root = qroot = super;
+			fprintf(stderr, "quad tree size = %d\n", root->size);
 		}
 		else break;
 	}
@@ -338,19 +349,16 @@ void quadTreeChangePos(Entity item)
 	if (prune) quadTreePrune(root, prune);
 }
 
-int bboxTest;
-
 /* that's the main purpose of this datatype: get all nodes that intersect <bbox> without having to scan everything */
-void quadTreeIntersect(QuadTree root, float bbox[6], Entity * first)
+static void quadTreeFindEntities(QuadTree root, float bbox[6], int filter)
 {
-	if (root == NULL)
-		root = qroot;
-
 	/* check for top-level node first */
 	Entity item;
 	for (item = root->items; item; item = item->qnext)
 	{
-		bboxTest ++;
+		if ((item->enflags & filter) != (filter >> 16))
+			continue;
+
 		float scale = ENTITY_SCALE(item);
 		float SX = item->szx * scale;
 		float SZ = item->szz * scale;
@@ -363,8 +371,14 @@ void quadTreeIntersect(QuadTree root, float bbox[6], Entity * first)
 		    bbox[VZ] < Z+SZ && bbox[VZ+3] > Z-SZ)
 		{
 			/* intersecting bounding box */
-			item->qselect = *first;
-			*first = item;
+			if (qselected.count == qselected.max)
+			{
+				qselected.max += 32;
+				Entity * list = realloc(qselected.list, qselected.max * sizeof *qselected.list);
+				if (! list) continue;
+				qselected.list = list;
+			}
+			qselected.list[qselected.count++] = item;
 		}
 	}
 	if (root->nbLeaf > 0)
@@ -385,9 +399,17 @@ void quadTreeIntersect(QuadTree root, float bbox[6], Entity * first)
 			if ((check & 1) == 0) continue;
 			QuadTree quadrant = root->quadrants[i];
 			if (quadrant)
-				quadTreeIntersect(quadrant, bbox, first);
+				quadTreeFindEntities(quadrant, bbox, filter);
 		}
 	}
+}
+
+Entity * quadTreeIntersect(float bbox[6], int * count, int filter)
+{
+	qselected.count = 0;
+	quadTreeFindEntities(qroot, bbox, filter);
+	*count = qselected.count;
+	return qselected.list;
 }
 
 #ifdef DEBUG
@@ -395,11 +417,12 @@ void quadTreeIntersect(QuadTree root, float bbox[6], Entity * first)
 #define MARGIN    20
 #include "nanovg.h"
 #include "globals.h"
+#include "selection.h"
 static void quadTreeRender(QuadTree root, APTR vg, float bbox[4])
 {
 	float x = (root->x - bbox[0]) * bbox[2] + MARGIN;
 	float z = (root->z - bbox[1]) * bbox[3] + MARGIN;
-	nvgStrokeColorRGBA8(vg, "\x20\xff\x20\xff");
+	nvgStrokeColorRGBA8(vg, "\x20\x20\x20\xff");
 	nvgBeginPath(vg);
 	nvgRect(vg, x, z, root->size * bbox[2], root->size * bbox[3]);
 	nvgStroke(vg);
@@ -434,5 +457,15 @@ void quadTreeDebug(APTR vg)
 		(globals.height - 2*MARGIN) / (float) qroot->size
 	};
 	quadTreeRender(qroot, vg, bbox);
+	if ((globals.selPoints&3) == 3)
+	{
+		int points[6];
+		selectionGetRange(points);
+		nvgStrokeColorRGBA8(vg, "\xff\xff\xff\xff");
+		nvgBeginPath(vg);
+		nvgRect(vg, (points[0] - bbox[0]) * bbox[2], (points[2] - bbox[1]) * bbox[3],
+			(points[3] - points[0]) * bbox[2], (points[5] - points[2]) * bbox[3]);
+		nvgStroke(vg);
+	}
 }
 #endif

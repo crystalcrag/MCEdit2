@@ -61,7 +61,7 @@ struct Inventory_t
 	TEXT     infoTxt[128];
 };
 
-enum /* flags values */
+enum /* offhand values */
 {
 	PLAYER_OFFHAND  = 1,  /* off-hand selected */
 	PLAYER_ALTPOINT = 2,  /* use second pt of selection */
@@ -90,8 +90,13 @@ void playerSetMode(Player, int mode);
 void playerTeleport(Player, vec4 pos, float rotation[2]);
 void playerMove(Player);
 
+#ifdef BLOCKS_H
+extern struct VTXBBox_t playerBBox;
+#endif
+
 struct Player_t
 {
+	ListNode node;
 	vec4     pos;              /* position of feet */
 	vec4     lookat;           /* position looking at (to be used as param to matLookAt()) */
 	float    angleh, anglev;   /* yaw, pitch (in radians) */
@@ -109,6 +114,7 @@ struct Player_t
 	uint32_t tick;             /* time diff between update */
 	NBTFile  levelDat;         /* complete NBT decoding of level.dat */
 	InvBuf   inventory;
+	vec4     pushedTo;         /* player pushed by another entities */
 };
 
 enum /* possible values for <pmode> */
@@ -131,7 +137,8 @@ enum /* possible values for <keyvec> */
 	PLAYER_FALL         = 0x0080,
 	PLAYER_CLIMB        = 0x0100,
 	PLAYER_STOPPING     = 0x0200,
-	PLAYER_JUMPKEY      = 0x0400
+	PLAYER_JUMPKEY      = 0x0400,
+	PLAYER_PUSHED       = 0x0800,
 };
 
 #endif

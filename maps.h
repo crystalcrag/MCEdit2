@@ -44,6 +44,7 @@ struct Map_t
 	Chunk     center;              /* chunks + mapX + mapZ * mapArea */
 	ListHead  gpuBanks;            /* VBO for chunk mesh (GPUBank) */
 	ListHead  genList;             /* chunks to process (Chunk) */
+	ListHead  players;             /* list of player on this map (Player) */
 	Chunk     genLast;
 	DATAS16   chunkOffsets;        /* array 16*9: similar to chunkNeighbor[] */
 	char      path[MAX_PATHLEN];   /* path to level.dat */
