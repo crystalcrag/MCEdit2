@@ -680,6 +680,8 @@ possible properties:
 	<li><tt>REDSTONE</tt>
 	<li><tt>CROPS</tt>
 	<li><tt>RAILS</tt>
+	<li><tt>FILLBY</tt>: blocks that should not be in survival/creative inventory, but can be used
+	as to fill space using extended command (fill and geometric brush).
   </ul>
   <li><tt>special</tt>: special behavior to activate in the engine. Possible choices:
   <ul>
@@ -857,7 +859,8 @@ with an integer assigned to it. Beside this property, you can also use these one
   That way the coordinates will work no matter what resolution the file is, the default tile set is 16x16px,
   but you can use whatever size you want (tiles needs to be square though). Although allowed, it is
   strongly discouraged to use a size that is not a power of 2, due to mipmapping (texture will "bleed"
-  at the edge of tiles).
+  at the edge of tiles). You can omit that field, in which case it will use the same texture coordinates
+  than the previous state (as declared in the file).
 
   <p>This field is expecting an array of integers. The number of coordinates will depend on the type of the block:
   <ul>
@@ -880,7 +883,8 @@ with an integer assigned to it. Beside this property, you can also use these one
   <li><tt>quad</tt>: an array of symbols indicating which quad to render for this block. Each symbol
   can be one of the following enumeration value:
   <ul>
-    <li><tt>CROSS</tt>: used for crops, flower, grass, ...
+    <li><tt>CROSS</tt>: used for flower, grass, ...
+	<li><tt>SQUARE</tt>: usually crops.
     <li><tt>NORTH</tt>: attached to north of block (ladder, vines).
     <li><tt>SOUTH</tt>: attached to south face.
     <li><tt>EAST</tt>: east face.
@@ -1225,12 +1229,12 @@ and split into <tt>GL_TRIANGLE_STRIP</tt> in a geometry shader.
 
   <brow><hdr>4: </hdr><bitpart class="sz9" bit="32">9: <em>Vlo</em></bitpart><bitpart class="sz9" bit="23">9: <em>U</em></bitpart><bitpart class="sz14" bit="14">14: <em>DZ3</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
 
-  <brow><hdr>5: </hdr><bitpart class="sz8" bit="32">8: <em>Vsz</em></bitpart><bitpart class="sz8" bit="24">8: <em>Usz</em></bitpart><bitpart class="sz3" bit="16">&nbsp;</bitpart><bitpart class="sz1"><em>X</em></bitpart><bitpart class="sz3" bit="12">3: <em>N</em></bitpart><bitpart class="sz9" bit="9">9: <em>OCS</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
+  <brow><hdr>5: </hdr><bitpart class="sz8" bit="32">8: <em>Vsz</em></bitpart><bitpart class="sz8" bit="24">8: <em>Usz</em></bitpart><bitpart class="sz2" bit="16">&nbsp;</bitpart><bitpart class="sz1"><em>D</em></bitpart><bitpart class="sz1"><em>X</em></bitpart><bitpart class="sz3" bit="12">3: <em>N</em></bitpart><bitpart class="sz9" bit="9">9: <em>OCS</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
 
   <brow><hdr>6: </hdr><bitpart class="sz8" bit="32">8: <em>Sky/Block</em></bitpart><bitpart class="sz8" bit="24">8: <em>Sky/Block</em></bitpart><bitpart class="sz8" bit="16">8: <em>Sky/Block</em></bitpart><bitpart class="sz8" bit="8">8: <em>Sky/Block</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
 </bits>
 
-<p>As of writing this, there are still some space left in the data: 3bits to be precise, which is not
+<p>As of writing this, there are still some space left in the data: 2bits to be precise, which is not
 very much. Each field has the following meaning:
 
 <ul>
@@ -1263,6 +1267,10 @@ very much. Each field has the following meaning:
   <li><tt>X</tt>: knowing the texture coordinate of 2 vertices is not enough to fully find all the
   coordinates of the 2 remaining vertices. At this point there are 2 possibilities: keep U or V coordinate
   for V2 and V1. This is the purpose of this bit: if set to one, keep X for V1.
+
+  <li><tt>D</tt>: dual-sided quad: this quad must not be culled by the back-face culling test of OpenGL.
+  Vertex data will be rearranged in the geometry shader to make the test pass, without the need of
+  extra vertices.
 
   <li><tt>OCS</tt>: ambient occlusion value for 4 vertices, each value being encoded on 2bits.
 

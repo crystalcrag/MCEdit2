@@ -126,7 +126,7 @@ enum /* NBT update tag */
 
 /* chunk vertex data */
 #define FLAG_TEX_KEEPX                 (1 << 12)
-#define FLAG_NORM_UP                   (1 << 13)
+#define FLAG_DUAL_SIDE                 (1 << 13)
 
 #ifdef CHUNK_IMPL                      /* private stuff below */
 

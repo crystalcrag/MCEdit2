@@ -33,7 +33,6 @@ void main(void)
 	mat4 MVP   = projMatrix * mvMatrix;
 	bool keepX = (normFlags[0] & (1 << 3)) > 0;
 
-	/* ascending quad */
 	normal = int(normFlags[0] & 7);
 
 	/* shading per face (OCS is done in fragment shader) */
@@ -45,8 +44,19 @@ void main(void)
 	rswire = normal == 7 ? (skyBlockLight[0] & 15) + 1 : 0;
 	ocsmap = ocsField[0];
 
+	vec3 V1 = vertex1[0];
+	vec3 V2 = vertex2[0];
+	vec3 V3 = vertex3[0];
+	vec3 V4 = vertex3[0] + (vertex2[0] - vertex1[0]);
+	if ((normFlags[0] & (1 << 4)) > 0 && dot(vertex1[0] - camera.xyz, cross(V3-V1, V2-V1)) < 0)
+	{
+		/* this face must not be culled by back-face culling, but using current vertex emit order, it will */
+		V2 = V1; V1 = vertex2[0];
+		V3 = V4; V4 = vertex3[0];
+	}
+
 	/* first vertex */
-	gl_Position = MVP * vec4(vertex1[0], 1);
+	gl_Position = MVP * vec4(V1, 1);
 	skyLight    = float(bitfieldExtract(skyBlockLight[0], 28, 4)) * shade;
 	blockLight  = float(bitfieldExtract(skyBlockLight[0], 24, 4)) * shade;
 	ocspos      = vec2(Usz, 0);
@@ -55,7 +65,7 @@ void main(void)
 	EmitVertex();
 
 	/* second vertex */
-	gl_Position = MVP * vec4(vertex2[0], 1);
+	gl_Position = MVP * vec4(V2, 1);
 	skyLight    = float(bitfieldExtract(skyBlockLight[0], 4, 4)) * shade;
 	blockLight  = float(bitfieldExtract(skyBlockLight[0], 0, 4)) * shade;
 	ocspos      = vec2(0, 0);
@@ -63,7 +73,7 @@ void main(void)
 	EmitVertex();
 			
 	/* third vertex */
-	gl_Position = MVP * vec4(vertex3[0], 1);
+	gl_Position = MVP * vec4(V3, 1);
 	skyLight    = float(bitfieldExtract(skyBlockLight[0], 20, 4)) * shade;
 	blockLight  = float(bitfieldExtract(skyBlockLight[0], 16, 4)) * shade;
 	ocspos      = vec2(Usz, Vsz);
@@ -71,7 +81,7 @@ void main(void)
 	EmitVertex();
 
 	/* fourth vertex */
-	gl_Position = MVP * vec4(vertex3[0] + (vertex2[0] - vertex1[0]), 1);
+	gl_Position = MVP * vec4(V4, 1);
 	skyLight    = float(bitfieldExtract(skyBlockLight[0], 12, 4)) * shade;
 	blockLight  = float(bitfieldExtract(skyBlockLight[0], 8,  4)) * shade;
 	ocspos      = vec2(0, Vsz);

@@ -737,6 +737,7 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 			block.bbox = BBOX_AUTO;
 		}
 
+		/* fence gate: opened state has no collision */
 		value = jsonValue(keys, "bboxPlayerIgnoreBit");
 		if (value) block.bboxIgnoreBit = atoi(value);
 

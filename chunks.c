@@ -1219,7 +1219,7 @@ static void chunkGenQuad(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 	DATA8   tex   = &b->nzU;
 	DATA8   sides = &b->pxU;
 	Chunk   chunk = neighbors[6]->chunk;
-	int     vtx   = b->special == BLOCK_NOSIDE || b->pxU <= QUAD_SQUARE ? VERTEX_DATA_SIZE*2 : VERTEX_DATA_SIZE;
+	int     dual  = b->special == BLOCK_NOSIDE || b->pxU <= QUAD_SQUARE ? FLAG_DUAL_SIDE : 0;
 	int     seed  = neighbors[6]->Y ^ chunk->X ^ chunk->Z;
 	uint8_t x, y, z, light;
 
@@ -1252,72 +1252,65 @@ static void chunkGenQuad(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 	}
 
 	do {
-		static uint8_t vtxIndices[] = {3,0,2,    0,3,1}; /* front vertex, back vertex */
+		uint16_t U, V, X1, Y1, Z1;
+		uint8_t  side, norm, j;
+		DATA32   out;
+		DATA8    coord;
 
-		uint8_t side, norm, i, j;
-		DATA8   indices;
-		DATA32  out;
-
-		if (BUF_LESS_THAN(buffer, vtx))
+		if (BUF_LESS_THAN(buffer, VERTEX_DATA_SIZE))
 			buffer->flush(buffer);
 
 		out   = buffer->cur;
 		side  = *sides;
 		norm  = quadSides[side];
-		for (indices = vtxIndices, i = vtx; i > 0; indices += 3, out += VERTEX_INT_SIZE, i -= VERTEX_DATA_SIZE)
+
+		coord = cubeVertex + quadIndices[side*4+3];
+
+		/* first vertex */
+		X1 = VERTEX(coord[0] + x);
+		Y1 = VERTEX(coord[1] + y);
+		Z1 = VERTEX(coord[2] + z);
+
+		j = (b->rotate&3) * 8;
+		U = (texCoord[j]   + tex[0]) << 4;
+		V = (texCoord[j+1] + tex[1]) << 4;
+
+		/* second and third vertex */
+		coord  = cubeVertex + quadIndices[side*4];
+		out[0] = X1 | (Y1 << 16);
+		out[1] = Z1 | (RELDX(coord[0] + x) << 16) | ((V & 512) << 21);
+		out[2] = RELDY(coord[1] + y) | (RELDZ(coord[2] + z) << 14);
+		coord  = cubeVertex + quadIndices[side*4+2];
+		out[3] = RELDX(coord[0] + x) | (RELDY(coord[1] + y) << 14);
+		out[4] = RELDZ(coord[2] + z) | (U << 14) | (V << 23);
+
+		/* tex size, norm and ocs: none */
+		out[5] = (((texCoord[j+4] + tex[0]) * 16 + 128 - U) << 16) | dual |
+		         (((texCoord[j+5] + tex[1]) * 16 + 128 - V) << 24) | (norm << 9);
+
+		if (texCoord[j] == texCoord[j + 6]) out[5] |= FLAG_TEX_KEEPX;
+		/* skylight/blocklight: uniform on all vertices */
+		out[6] = light | (light << 8) | (light << 16) | (light << 24);
+
+		if (b->special == BLOCK_JITTER)
 		{
-			uint16_t U, V, X1, Y1, Z1;
-			DATA8    coord;
-
-			coord = cubeVertex + quadIndices[side*4+indices[0]];
-
-			/* first vertex */
-			X1 = VERTEX(coord[0] + x);
-			Y1 = VERTEX(coord[1] + y);
-			Z1 = VERTEX(coord[2] + z);
-
-			j = (b->rotate&3) * 8;
-			U = (texCoord[j]   + tex[0]) << 4;
-			V = (texCoord[j+1] + tex[1]) << 4;
-
-			/* second and third vertex */
-			coord  = cubeVertex + quadIndices[side*4+indices[1]];
-			out[0] = X1 | (Y1 << 16);
-			out[1] = Z1 | (RELDX(coord[0] + x) << 16) | ((V & 512) << 21);
-			out[2] = RELDY(coord[1] + y) | (RELDZ(coord[2] + z) << 14);
-			coord  = cubeVertex + quadIndices[side*4+indices[2]];
-			out[3] = RELDX(coord[0] + x) | (RELDY(coord[1] + y) << 14);
-			out[4] = RELDZ(coord[2] + z) | (U << 14) | (V << 23);
-
-			/* tex size, norm and ocs: none */
-			out[5] = (((texCoord[j+4] + tex[0]) * 16 + 128 - U) << 16) |
-					 (((texCoord[j+5] + tex[1]) * 16 + 128 - V) << 24) | (norm << 9);
-
-			if (texCoord[j] == texCoord[j + 6]) out[5] |= FLAG_TEX_KEEPX;
-			/* skylight/blocklight: uniform on all vertices */
-			out[6] = light | (light << 8) | (light << 16) | (light << 24);
-
-			if (b->special == BLOCK_JITTER)
-			{
-				/* add some jitter to X,Z coord for QUAD_CROSS */
-				uint8_t jitter = seed ^ (x ^ y ^ z);
-				if (jitter & 1) out[0] += BASEVTX/16;
-				if (jitter & 2) out[1] += BASEVTX/16;
-				if (jitter & 4) out[0] -= (BASEVTX/16) << 16;
-				if (jitter & 8) out[0] -= (BASEVTX/32) << 16;
-			}
-			else if (norm < 6)
-			{
-				/* offset 1/16 of a block in the direction of their normal */
-				int8_t * normal = cubeNormals + norm * 4;
-				int      base   = side <= QUAD_SQUARE4 ? BASEVTX/4 : BASEVTX/16;
-				out[0] += normal[0] * base;
-				out[0] += normal[1] * base << 16;
-				out[1] += normal[2] * base;
-			}
+			/* add some jitter to X,Z coord for QUAD_CROSS */
+			uint8_t jitter = seed ^ (x ^ y ^ z);
+			if (jitter & 1) out[0] += BASEVTX/16;
+			if (jitter & 2) out[1] += BASEVTX/16;
+			if (jitter & 4) out[0] -= (BASEVTX/16) << 16;
+			if (jitter & 8) out[0] -= (BASEVTX/32) << 16;
+		}
+		else if (norm < 6)
+		{
+			/* offset 1/16 of a block in the direction of their normal */
+			int8_t * normal = cubeNormals + norm * 4;
+			int      base   = side <= QUAD_SQUARE4 ? BASEVTX/4 : BASEVTX/16;
+			out[0] += normal[0] * base + (normal[1] * base << 16);
+			out[1] += normal[2] * base;
 		}
 		sides ++;
-		buffer->cur = out;
+		buffer->cur = out + VERTEX_INT_SIZE;
 	} while (*sides);
 }
 
@@ -1587,9 +1580,9 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 }
 
 /*
- * neighbor is a half-block (slab or stairs): skyval and blocklight will be 0 for these: not good.
+ * Neighbor is a half-block (slab or stairs): skyval and blocklight will be 0 for these: not good.
  * it will create a dark patch to the side this half-block is connected.
- * to prevent this, we have to reapply skyval and blocklight propagation as if the block was transparent :-/
+ * To prevent this, we have to reapply skyval and blocklight propagation as if the block was transparent :-/
  */
 static uint8_t chunkPatchLight(struct BlockIter_t iter)
 {
@@ -1621,7 +1614,7 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 	DATA8    tex;
 	DATA8    blocks = neighbors[6]->blockIds;
 	int      side, sides, occlusion, slab, rotate;
-	int      i, j, k, n;
+	int      i, j, k, n, dual;
 	uint8_t  x, y, z, data, hasLights;
 
 	x = (pos & 15);
@@ -1629,6 +1622,7 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 	y = (pos >> 8);
 	hasLights = (neighbors[6]->cdFlags & CDFLAG_NOLIGHT) == 0;
 	sides = xsides[x] | ysides[y] | zsides[z];
+	dual = b->special == BLOCK_LIQUID && buffer->alpha ? FLAG_DUAL_SIDE : 0;
 
 	/* outer loop: iterate over each faces (6) */
 	for (i = 0, side = 1, occlusion = -1, tex = &b->nzU, rotate = b->rotate, j = (rotate&3) * 8, slab = 0; i < DIM(cubeIndices);
@@ -1795,7 +1789,7 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 			coord  = cubeVertex + cubeIndices[i+2];
 			out[3] = RELDX(coord[0]+x) | (RELDY(coord[1]+y) << 14);
 			out[4] = RELDZ(coord[2]+z) | (texU << 14) | (texV << 23);
-			out[5] = (((texCoord[j+4] + tex[0]) * 16 + 128 - texU) << 16) |
+			out[5] = (((texCoord[j+4] + tex[0]) * 16 + 128 - texU) << 16) | dual |
 			         (((texCoord[j+5] + tex[1]) * 16 + 128 - texV) << 24) | (i << 7);
 			out[6] = 0;
 
