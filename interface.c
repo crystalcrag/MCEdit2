@@ -2130,5 +2130,3 @@ void mcuiFilter(void)
 
 	SIT_ManageWidget(diag);
 }
-
-

@@ -1,5 +1,5 @@
 /*
- * cartograph.c : handle in-game maps (the one you can display in a item frame). Use same techniques
+ * cartograph.c : handle in-game maps (the one you can display in an item frame). Use same techniques
  *                as signs: copy map in a texture bank (1024x1024) and render them in a quad as decals.
  *
  * Written by T.Pierron, oct 2021.

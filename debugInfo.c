@@ -896,6 +896,6 @@ void debugLoadSaveState(STRPTR path, Bool load)
 		SetINIValueInt(path, "Debug/ShowChunks", debug.showChunks);
 		SetINIValueInt(path, "Debug/LightValue", debug.showLightValue);
 		SetINIValueInt(path, "Debug/ShowHeightMap", debug.showHeightMap);
-		// SetINIValueInt(path, "DBGZoom", debug.zoom);
+		// SetINIValueInt(path, "Debug/Zoom", debug.zoom);
 	}
 }

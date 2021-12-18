@@ -16,7 +16,6 @@
 #include <math.h>
 #include "SIT.h"
 #include "entities.h"
-#include "redstone.h" /* TICK_PER_SECOND */
 #include "blockUpdate.h"
 #include "mapUpdate.h"
 #include "cartograph.h"
@@ -271,14 +270,8 @@ static int entityGenModel(EntityBank bank, ItemID_t itemId, int cnx, CustModel c
 		case SOLID:
 			if (b->special == BLOCK_STAIRS)
 			{
-				/* use inventory item for these */
-				DATA16 model = blockIds[itemId>>4].model;
-				if (model)
-				{
-					count = model[-1];
-					memcpy(buffer, model, count * BYTES_PER_VERTEX);
-					break;
-				}
+				count = blockModelStairs(buffer, itemId);
+				break;
 			}
 			// no break;
 		case TRANS:
@@ -1370,7 +1363,13 @@ void entityAnimate(void)
 			};
 			memcpy(oldPos, entity->pos, 12);
 			for (j = 0; j < 3; j ++)
-				entity->pos[j] += (entity->motion[j] - entity->pos[j]) * (time - anim->prevTime) / remain;
+			{
+				/* entity->pos will drift due to infinitesimal error accumulation on iterative sum */
+				scale = entity->pos[j] += (entity->motion[j] - entity->pos[j]) * (time - anim->prevTime) / remain;
+				/* physics collision are very picky about not exceeding bouding box :-/ */
+				if ((scale - oldPos[j]) * (entity->motion[j] - scale) < 0)
+					entity->pos[j] = entity->motion[j];
+			}
 			anim->prevTime = time;
 
 			EntityBank bank;
@@ -1456,12 +1455,7 @@ void entityUpdateOrCreate(Chunk c, vec4 pos, int blockId, vec4 dest, int ticks, 
 	anim = entities.animate + entities.animCount;
 	entities.animCount ++;
 	anim->prevTime = (int) globals.curTime;
-	anim->stopTime =
-	#ifdef DEBUG
-		anim->prevTime + ticks * 100 * (1000 / TICK_PER_SECOND);
-	#else
-		anim->prevTime + ticks * (1000 / TICK_PER_SECOND);
-	#endif
+	anim->stopTime = anim->prevTime + ticks * globals.redstoneTick;
 	anim->entity = entity;
 
 //	fprintf(stderr, "adding entity %d at %p / %d\n", entities.animCount, tile, slot);

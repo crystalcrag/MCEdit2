@@ -1,5 +1,12 @@
 =========== Week 50 ===========
-wed Dec 15:
+Fri Dec 17:
+	* quick options done.
+	* entity position in animation clamp to max pos (caused glitch through blocks pushed by piston).
+
+Thu Dec 16:
+	* quick options dialog (and SIT_SLIDER bug fixes).
+
+Wed Dec 15:
 	* collision bug laboriously tracked to a lack of floating point precision.
 
 Tue Dec 14:

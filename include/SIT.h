@@ -256,26 +256,27 @@ enum
 	SIT_ExitCode         = 65,   /* CSG: Int * */
 	SIT_StyleSheet       = 66,   /* _S_: String */
 	SIT_CompositedAreas  = 67,   /* __G: DATA8 */
+	SIT_FontScale        = 68,   /* _SG: Int (percentage) */
 
 	/* Dialog tags */
-	SIT_DialogStyles     = 68,   /* C__: Bitfield */
+	SIT_DialogStyles     = 69,   /* C__: Bitfield */
 
 	/* Label tags */
-	SIT_Overflow         = 69,   /* C___: Enum */
-	SIT_ImagePath        = 70,   /* CSGR: String */
-	SIT_LabelSize        = 71,   /* CSGR: Int (see macro SITV_LabelSize) */
+	SIT_Overflow         = 70,   /* C___: Enum */
+	SIT_ImagePath        = 71,   /* CSGR: String */
+	SIT_LabelSize        = 72,   /* CSGR: Int (see macro SITV_LabelSize) */
 
 	/* Push/Toggle button */
-	SIT_ButtonType       = 72,   /* C___: Enum */
-	SIT_CheckState       = 73,   /* CSG_: Enum */
-	SIT_RadioGroup       = 74,   /* C___: Int */
-	SIT_CurValue         = 75,   /* CSG_: Pointer */
-	SIT_RadioID          = 76,   /* C___: Int */
+	SIT_ButtonType       = 73,   /* C___: Enum */
+	SIT_CheckState       = 74,   /* CSG_: Enum */
+	SIT_RadioGroup       = 75,   /* C___: Int */
+	SIT_CurValue         = 76,   /* CSG_: Pointer */
+	SIT_RadioID          = 77,   /* C___: Int */
 
 	/* Edit field */
-	SIT_EditType         = 77,   /* C__: Int */
-	SIT_ReadOnly         = 78,   /* CSG: Bool */
-	SIT_PlaceHolder      = 79,   /* CSG: String */
+	SIT_EditType         = 78,   /* C__: Enum */
+	SIT_ReadOnly         = 79,   /* CSG: Bool */
+	SIT_PlaceHolder      = 80,   /* CSG: String */
 	SIT_StartSel         = 81,   /* CSG: Int */
 	SIT_EndSel           = 82,   /* CSG: Int */
 	SIT_EditBuffer       = 83,   /* C__: String */
@@ -289,6 +290,7 @@ enum
 	SIT_Lexer            = 90,   /* _SG: SIT_CallProc */
 	SIT_LexerData        = 91,   /* _SG: APTR */
 	SIT_EditAddText      = 92,   /* _S_: STRPTR */
+	// SIT_CurValue      = 75,   /* _SG: Pointer (already defined for SIT_BUTTON) */
 
 	/* List box */
 	SIT_ListBoxFlags     = 93,   /* C__: Enum */
@@ -323,6 +325,7 @@ enum
 	SIT_IsDragged        = 118,  /* __G: Bool */
 	SIT_ArrowType        = 119,  /* C__: Enum */
 	SIT_WheelMult        = 120,  /* CSG: Int */
+	// SIT_CurValue      = 75,   /* _SG: Int * (slider only, already defined for SIT_BUTTON) */
 
 	/* ComboBox */
 	SIT_InitialValues    = 121,  /* CSG: String */

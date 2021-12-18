@@ -56,6 +56,13 @@ typedef struct MCGlobals_t
 	/* nanovg context */
 	struct NVGcontext * nvgCtx;
 
+	/* quick options */
+	float compassSize;
+	int   fieldOfVision;
+	int   renderDist;
+	int   redstoneTick;
+	int   guiScale;
+
 	/* easier to place break points :-/ */
 	int breakPoint;
 

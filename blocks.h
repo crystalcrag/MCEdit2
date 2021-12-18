@@ -35,6 +35,7 @@ Bool    blockIsSideHidden(int blockId, DATA16 face, int side);
 int     blockAdjustPlacement(int blockId, BlockOrient info);
 int     blockAdjustOrient(int blockId, BlockOrient info, vec4 inter);
 int     blockGenModel(int vbo, int blockId);
+int     blockModelStairs(DATA16 buffer, int blockId);
 int     blockCountModelVertex(float * vert, int count);
 DATA8   blockGetDurability(float dura);
 DATA8   blockCreateTileEntity(int blockId, vec4 pos, APTR arg);

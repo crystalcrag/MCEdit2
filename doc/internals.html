@@ -1784,11 +1784,11 @@ as many top layers as necessary will be added, until the object position is incl
 box.
 
 <p>When an object is deleted, this implementation will try extra hard to prune empty branches and/or
-relocate leaf node to higher level layers. These operations are not that expensive and thus the tree
-will be self-balancing. This is important, because otherwise as the player moves, top layers will
-kept being added to cover the increasing distance between the spawn area and the current position. At
-some the tree will have so many layers, that it will have to perform as many bounding box checks as
-a 16x16 block map (which is what the quadtree was supposed to avoid).
+relocate leaf node to higher level layers. These operations are not that expensive, otherwise as the
+player moves, top layers will kept being added to cover the increasing distance between the spawn area
+and the current position. At some point, the tree will have so many layers, that it will be necessary
+to perform as many bounding box checks as a 16x16 block map (which is what the quadtree was supposed
+to avoid).
 
 <p>/* ... */
 

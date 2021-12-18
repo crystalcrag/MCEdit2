@@ -332,7 +332,7 @@ void playerMove(Player p)
 	memcpy(orig_pos, p->pos, 16);
 	if (keyvec & PLAYER_PUSHED)
 	{
-		/* pushed by an entity: check collision with terrain first before setting its posistion */
+		/* pushed by an entity: check collision with terrain first before setting the position */
 		memcpy(p->pos, p->pushedTo, 12);
 		p->keyvec &= ~ PLAYER_PUSHED;
 	}

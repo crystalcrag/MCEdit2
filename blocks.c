@@ -2702,7 +2702,7 @@ static int blockConvertVertex(DATA32 source, DATA32 end, DATA16 dest, int max)
 	return i;
 }
 
-static int blockModelStairs(DATA16 buffer, int blockId)
+int blockModelStairs(DATA16 buffer, int blockId)
 {
 	uint32_t temp[VERTEX_INT_SIZE * 30];
 	uint16_t blockIds3x3[27];

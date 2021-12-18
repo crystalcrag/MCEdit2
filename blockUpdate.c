@@ -658,7 +658,7 @@ void mapUpdateToBlock36(Map map, RSWire list, int count, int dir, BlockIter iter
 		struct BlockIter_t iter = *iterator;
 		mapIter(&iter, list->dx, list->dy, list->dz);
 
-		/* place tile entity of block 36 into source block (like piston head) */
+		/* place tile entity of block 36 into source block (like piston head) XXX should be in dest block */
 		NBTFile_t tile = {.page = 127};
 		int       cnx  = 0;
 		TEXT      itemId[128];
@@ -680,7 +680,6 @@ void mapUpdateToBlock36(Map map, RSWire list, int count, int dir, BlockIter iter
 			cnx = 1;
 		}
 
-		/* XXX shouldn't this be an entity instead of a tile entity ? */
 		DATA8 compound = chunkDeleteTileEntity(iter.ref, (int[3]){iter.x, iter.yabs, iter.z}, True);
 
 		NBT_Add(&tile,
@@ -1056,7 +1055,7 @@ static void updateDebugSorted(int start)
 
 void updateAdd(BlockIter iter, int blockId, int nbTick)
 {
-	TileTick update = updateInsert(iter->cd, iter->offset, globals.curTime + nbTick * (1000 / TICK_PER_SECOND));
+	TileTick update = updateInsert(iter->cd, iter->offset, globals.curTime + nbTick * globals.redstoneTick);
 	update->blockId = blockId;
 }
 
@@ -1065,7 +1064,7 @@ void updateAddRSUpdate(struct BlockIter_t iter, int side, int nbTick)
 	if (side != RSSAMEBLOCK)
 		mapIter(&iter, relx[side], rely[side], relz[side]);
 
-	TileTick update = updateInsert(iter.cd, iter.offset, globals.curTime + nbTick * (1000 / TICK_PER_SECOND));
+	TileTick update = updateInsert(iter.cd, iter.offset, globals.curTime + nbTick * globals.redstoneTick);
 	update->blockId = BLOCK_UPDATE;
 }
 

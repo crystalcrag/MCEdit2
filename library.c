@@ -127,7 +127,7 @@ static void libraryGenThumb(LibBrush lib)
 		mat4 P;
 		library.uboShader = renderInitUBO();
 		glBindBuffer(GL_UNIFORM_BUFFER, library.uboShader);
-		matPerspective(P, DEF_FOV, 1, NEAR_PLANE, 1000);
+		matPerspective(P, globals.fieldOfVision, 1, NEAR_PLANE, 1000);
 		glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof (mat4), P);
 	}
 

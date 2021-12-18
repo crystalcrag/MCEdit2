@@ -485,7 +485,7 @@ static int renderGetSize(SIT_Widget w, APTR cd, APTR ud)
 
 	/* aspect ratio (needed by particle.gsh) */
 	shading[1] = globals.width / (float) globals.height;
-	matPerspective(render.matPerspective, DEF_FOV, shading[1], NEAR_PLANE, 1000);
+	matPerspective(render.matPerspective, globals.fieldOfVision, shading[1], NEAR_PLANE, 1000);
 	glViewport(0, 0, globals.width, globals.height);
 
 	glBindBuffer(GL_UNIFORM_BUFFER, render.uboShader);
@@ -647,7 +647,7 @@ Bool renderInitStatic(void)
 
 	/* pre-conpute perspective projection matrix */
 	shading[1] = globals.width / (float) globals.height;
-	matPerspective(render.matPerspective, DEF_FOV, shading[1], NEAR_PLANE, 1000);
+	matPerspective(render.matPerspective, globals.fieldOfVision, shading[1], NEAR_PLANE, 1000);
 
 	render.uboShader = renderInitUBO();
 	glBindBufferBase(GL_UNIFORM_BUFFER, UBO_BUFFER_INDEX, render.uboShader);
@@ -1522,7 +1522,7 @@ void renderWorld(void)
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
 	/* draw the compass */
-	float scale = globals.height * (render.compassOffset > 0 ? 0.11 : 0.15);
+	float scale = globals.height * globals.compassSize * (render.compassOffset > 0 ? 0.11f : 0.15f);
 	NVGcontext * vg = globals.nvgCtx;
 
 	nvgBeginFrame(vg, globals.width, globals.height, 1);
@@ -1726,6 +1726,20 @@ void renderSaveRestoreState(Bool save)
 		if (editWnd) SIT_InsertDialog(editWnd);
 		SIT_InsertDialog(render.blockInfo);
 	}
+}
+
+void renderSetFOV(int fov)
+{
+	matPerspective(render.matPerspective, globals.fieldOfVision, shading[1], NEAR_PLANE, 1000);
+	/* must be same as the one used in the vertex shader */
+	matMult(globals.matMVP, render.matPerspective, render.matModel);
+	/* we will need that matrix sooner or later */
+	matInverse(globals.matInvMVP, globals.matMVP);
+
+	glBindBuffer(GL_UNIFORM_BUFFER, render.uboShader);
+	glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof (mat4), render.matPerspective);
+
+	render.setFrustum = 1;
 }
 
 /*

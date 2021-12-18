@@ -25,6 +25,7 @@
 #include "library.h"
 #include "entities.h"
 #include "waypoints.h"
+#include "worldSelect.h"
 #include "SIT.h"
 
 GameState_t mcedit;
@@ -62,7 +63,12 @@ static void prefsInit(void)
 
 	globals.width  = GetINIValueInt(ini, "WndWidth",   1600);
 	globals.height = GetINIValueInt(ini, "WndHeight",  1080);
-	mcedit.maxDist = GetINIValueInt(ini, "RenderDist", 4);
+	/* they should be in section [Options], but global is fine too */
+	globals.renderDist    = GetINIValueInt(ini, "RenderDist",    4);
+	globals.redstoneTick  = GetINIValueInt(ini, "RedstoneTick",  100);
+	globals.compassSize   = GetINIValueInt(ini, "CompassSize",   100) * 0.01f;
+	globals.fieldOfVision = GetINIValueInt(ini, "FieldOfVision", 80);
+	globals.guiScale      = GetINIValueInt(ini, "GuiScale",      100);
 
 	CopyString(mcedit.capture, GetINIValueStr(ini, "CaptureDir", "screenshots"), sizeof mcedit.capture);
 
@@ -265,7 +271,11 @@ static int mceditTrackFocus(SIT_Widget w, APTR cd, APTR ud)
 /* ESC key pressed: cancel stuff, if nothing to cancel, exit then */
 static int mceditCancelStuff(SIT_Widget w, APTR cd, APTR ud)
 {
-	if (selectionCancelClone(NULL, NULL, NULL))
+	if (optionsExit(NULL, NULL, NULL))
+	{
+		;
+	}
+	else if (selectionCancelClone(NULL, NULL, NULL))
 	{
 		if (globals.selPoints == 0)
 			renderSetSelectionPoint(RENDER_SEL_CLEAR);
@@ -334,6 +344,7 @@ int main(int nb, char * argv[])
 		{SITK_FlagCtrl + 'd', SITE_OnActivate, NULL, mceditClearSelection},
 		{SITK_FlagCtrl + 'l', SITE_OnActivate, NULL, mceditShowLibrary},
 		{SITK_FlagCtrl + 'i', SITE_OnActivate, NULL, mceditShowWorldInfo},
+		{SITK_FlagCtrl + 'o', SITE_OnActivate, NULL, optionsQuickAccess},
 		{SITK_Escape,         SITE_OnActivate, NULL, mceditCancelStuff},
 		{0}
 	};
@@ -346,6 +357,7 @@ int main(int nb, char * argv[])
 		SIT_AccelTable,  accels,
 		SIT_ExitCode,    &mcedit.exit,
 		SIT_SetAppIcon,  1,
+		SIT_FontScale,   globals.guiScale,
 		NULL
 	);
 	SIT_GetValues(globals.app, SIT_NVGcontext, &globals.nvgCtx, NULL);
@@ -358,8 +370,8 @@ int main(int nb, char * argv[])
 		return 1;
 	}
 
-//	globals.level = renderInitWorld("TestMesh", mcedit.maxDist);
-	globals.level = renderInitWorld("World1_12", mcedit.maxDist);
+//	globals.level = renderInitWorld("TestMesh", globals.renderDist);
+	globals.level = renderInitWorld("World1_12", globals.renderDist);
 	globals.yawPitch = &mcedit.player.angleh;
 	mcedit.state  = GAMELOOP_WORLD;
 	wayPointsRead();
@@ -405,9 +417,6 @@ void mceditWorld(void)
 	uint8_t   ignore = 0;
 	uint8_t   capture = 0;
 	uint8_t   sunMove = 0;
-	#ifdef DEBUG
-	uint8_t   paused = 0;
-	#endif
 
 	renderSetInventory(&mcedit.player.inventory);
 	renderSetViewMat(mcedit.player.pos, mcedit.player.lookat, &mcedit.player.angleh);
@@ -434,10 +443,6 @@ void mceditWorld(void)
 					renderShowBlockInfo(True, DEBUG_BLOCK|DEBUG_SELECTION);
 					break;
 				#ifdef DEBUG
-				case SDLK_BACKSPACE:
-					paused = ! paused;
-					FramePauseUnpause(paused);
-					break;
 				case SDLK_F1:
 					SDL_GetMouseState(&mcedit.mouseX, &mcedit.mouseY);
 					//fprintf(stderr, "mouse pos = %d, %d\n", mcedit.mouseX, mcedit.mouseY);
@@ -463,7 +468,7 @@ void mceditWorld(void)
 					if ((globals.selPoints & 8) == 0)
 						mceditCommands(MCUI_OVERLAY_DELALL);
 					break;
-				case SDLK_F3: // DEBUG
+				case SDLK_F3:
 					if (event.key.keysym.mod & KMOD_CTRL)
 					{
 						renderFrustum(True);
@@ -477,21 +482,6 @@ void mceditWorld(void)
 				case SDLK_F10: // DEBUG
 					playerSaveLocation(&mcedit.player);
 					mapSaveLevelDat(globals.level);
-					break;
-				case SDLK_EQUALS:
-				case SDLK_PLUS:
-					if (mapSetRenderDist(globals.level, mcedit.maxDist+1))
-					{
-						renderSetViewMat(mcedit.player.pos, mcedit.player.lookat, &mcedit.player.angleh);
-						mcedit.maxDist ++;
-					}
-					break;
-				case SDLK_MINUS:
-					if (mapSetRenderDist(globals.level, mcedit.maxDist-1))
-					{
-						renderSetViewMat(mcedit.player.pos, mcedit.player.lookat, &mcedit.player.angleh);
-						mcedit.maxDist --;
-					}
 					break;
 				case SDLK_i:
 					if (SDLMtoSIT(event.key.keysym.mod) == 0)

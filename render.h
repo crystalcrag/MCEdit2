@@ -12,7 +12,6 @@
 #include "utils.h"
 
 #define NEAR_PLANE     0.1f
-#define DEF_FOV        80
 #define FONTSIZE       30
 #define FONTSIZE_MSG   20
 #define ITEMSCALE      1.3f
@@ -37,6 +36,7 @@ void renderSetCompassOffset(float offset);
 void renderSetSelectionPoint(int action);
 int  renderGetTerrain(int size[2], int * texId);
 int  renderInitUBO(void);
+void renderSetFOV(int fov);
 Bool renderRotatePreview(int dir);
 MapExtraData renderGetSelectedBlock(vec4 pos, int * blockModel);
 
