@@ -12,8 +12,7 @@ layout (location=5) in uvec3 lightWTB;
 
 #include "uniformBlock.glsl"
 
-flat out int   isBlock;
-flat out int   isSelected;
+flat out uint  flags;
      out vec2  texcoord;
      out float skyLight;
      out float blockLight;
@@ -89,6 +88,5 @@ void main(void)
 	blockLight *= shade;
 	skyLight   *= shade;
 
-	isBlock = 1;
-	isSelected = int(offsets.w);
+	flags = int(offsets.w);
 }

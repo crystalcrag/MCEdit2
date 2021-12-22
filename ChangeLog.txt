@@ -1,6 +1,14 @@
+=========== Week 51 ===========
+Tue Dec 21:
+	* minecart positionning continued: 2d test program seems working: integrations started.
+
+Mon Dec 20:
+	* minecart movements based on rails beneath started.
+
 =========== Week 50 ===========
-Fri Dec 18:
+Sat Dec 18:
 	* dual-side quads are now handled in geometry shader instead of CPU (a bit less of CPU, GPU and memory usage).
+	* started minecart logic.
 
 Fri Dec 17:
 	* quick options done.

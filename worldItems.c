@@ -20,9 +20,9 @@
 #include "blockUpdate.h"
 #include "mapUpdate.h"
 #include "cartograph.h"
-#include "entities.h"
 #include "render.h"
 #include "globals.h"
+#include "minecarts.h"
 
 struct
 {
@@ -32,6 +32,121 @@ struct
 	float    previewOffVY;
 }	worldItem;
 
+
+/* item frame and paintings have a rectangular bbox: need to take rotation into account for collision check */
+static int worldItemSwapAxis(Entity entity)
+{
+	int angle = roundf(entity->rotation[1] * (180 / M_PIf)); /* X axis acutally */
+	entity->enflags |= ENFLAG_BBOXROTATED;
+	if (angle == 90 || angle == 270 || angle == -90)
+		return MODEL_SWAP_ZY;
+	angle = roundf(entity->rotation[0] * (180 / M_PIf)); /* Y axis */
+	if (angle == 90 || angle == 270 || angle == -90)
+		return MODEL_SWAP_XZ;
+	return MODEL_DONT_SWAP;
+}
+
+static int worldItemParseFallingBlock(NBTFile nbt, Entity entity)
+{
+	STRPTR block = NULL;
+	int    data  = 0;
+	int    off;
+
+	NBTIter_t prop;
+	//entity->pos[VY] += 0.5f;
+	NBT_IterCompound(&prop, entity->tile);
+	while ((off = NBT_Iter(&prop)) >= 0)
+	{
+		switch (FindInList("Data,Block", prop.name, 0)) {
+		case 0: data  = NBT_GetInt(nbt, off, 0); break;
+		case 1: block = NBT_Payload(nbt, off);
+		}
+	}
+	if (block)
+	{
+		ItemID_t itemId = itemGetByName(block, False);
+		if (itemId > 0)
+			return entityAddModel(entity->blockId = itemId | data, 0, NULL, &entity->szx, MODEL_DONT_SWAP);
+	}
+	return 0;
+}
+
+static int worldItemParsePainting(NBTFile nbt, Entity entity)
+{
+	int off = NBT_FindNode(nbt, 0, "Motive");
+	if (off >= 0)
+	{
+		off = FindInList(paintings.names, NBT_Payload(nbt, off), 0);
+		if (off >= 0)
+		{
+			entity->enflags = ENFLAG_POPIFPUSHED;
+			return entityAddModel(ITEMID(ENTITY_PAINTINGS, off), 0, NULL, &entity->szx, worldItemSwapAxis(entity));
+		}
+	}
+	return 0;
+}
+
+static int worldItemParseItemFrame(NBTFile nbt, Entity entity)
+{
+	int item = NBT_FindNode(nbt, 0, "Item");
+	entity->entype = ENTYPE_FRAME;
+	entity->enflags = ENFLAG_POPIFPUSHED;
+	if (item >= 0)
+	{
+		STRPTR   tech = NBT_Payload(nbt, NBT_FindNode(nbt, item, "id"));
+		int      data = NBT_GetInt(nbt, NBT_FindNode(nbt, item, "Damage"), 0);
+		ItemID_t blockId = itemGetByName(tech, True);
+
+		/* note: don't compare <tech> with filled_map, older NBT contained numeric id */
+		if (blockId == itemGetByName("filled_map", False))
+		{
+			/*
+			 * filled map will use a slightly bigger model and need a cartograph entry to render the map bitmap
+			 * note: data in this case refers to id in data/map_%d.dat, this number can be arbitrarily large.
+			 */
+			entity->entype  = ENTYPE_FILLEDMAP;
+			entity->enflags = ENFLAG_POPIFPUSHED;
+			entity->blockId = ENTITY_ITEM | data;
+			return entityAddModel(ITEMID(ENTITY_ITEMFRAME_FULL, 0), 0, NULL, &entity->szx, worldItemSwapAxis(entity));
+		}
+		else if (blockId > 0)
+		{
+			/* we will have to alloc another entity for the item in the frame */
+			entity->entype  = ENTYPE_FRAMEITEM;
+			entity->enflags = ENFLAG_POPIFPUSHED;
+			entity->blockId = ENTITY_ITEM | blockId | data;
+		}
+	}
+	/* item will be allocated later */
+	return entityAddModel(ITEMID(ENTITY_ITEMFRAME, 0), 0, NULL, &entity->szx, worldItemSwapAxis(entity));
+}
+
+static int worldItemParseItem(NBTFile nbt, Entity entity)
+{
+	/* item laying in the world */
+	int desc = NBT_FindNode(nbt, 0, "Item");
+//	int count = NBT_GetInt(nbt, NBT_FindNode(nbt, desc, "Count"), 1);
+	int data = NBT_GetInt(nbt, NBT_FindNode(nbt, desc, "Damage"), 0);
+	ItemID_t blockId = itemGetByName(NBT_Payload(nbt, NBT_FindNode(nbt, desc, "id")), False);
+
+	if (blockId > 0)
+	{
+		entity->rotation[3] = 0.5; /* scale actually */
+		//if (isBlockId(blockId))
+		//	entity->pos[VY] += 0.25f;
+		return entityAddModel(entity->blockId = blockId | data, 0, NULL, &entity->szx, MODEL_DONT_SWAP);
+	}
+	return 0;
+}
+
+void worldItemInit(void)
+{
+	entityRegisterType("falling_block", worldItemParseFallingBlock);
+	entityRegisterType("painting",      worldItemParsePainting);
+	entityRegisterType("item_frame",    worldItemParseItemFrame);
+	entityRegisterType("item",          worldItemParseItem);
+	entityRegisterType("minecart",      minecartParse);
+}
 
 static void worldItemRAD2MC(float rad[2], float mcangle[2])
 {
@@ -417,6 +532,34 @@ void worldItemUseItemOn(Map map, int entityId, ItemID_t itemId, vec4 pos)
 			entity->next = next;
 			entityMarkListAsModified(map, chunk);
 			renderAddModif();
+		}
+	}
+}
+
+/* entity->type == ENTITY_FRAME */
+void worldItemDelete(Entity entity)
+{
+	/* item in item frame: only delete this item */
+	NBTFile_t nbt = {.mem = entity->tile};
+	int item = NBT_FindNode(&nbt, 0, "Item");
+	if (item >= 0)
+	{
+		nbt.mem = NBT_Copy(entity->tile);
+		nbt.usage = NBT_Size(nbt.mem)+4; /* XXX want TAG_EndCompound too */
+		NBT_Delete(&nbt, item, -1);
+		entity->name = NBT_Payload(&nbt, NBT_FindNode(&nbt, 0, "id"));
+		/* item in frame is about to be deleted, modify item frame entity then */
+		if (entity->ref)
+			entity = entity->ref;
+		entity->tile = nbt.mem;
+		/* NBT compound from item and frame is the same */
+		if (entity->entype == ENTYPE_FILLEDMAP)
+		{
+			/* map removed from item frame: reset frame model to normal */
+			entity->entype  = ENTYPE_FRAME;
+			entity->VBObank = entityAddModel(ITEMID(ENTITY_ITEMFRAME, 0), 0, NULL, &entity->szx, worldItemSwapAxis(entity));
+			entity->entype  = 0;
+			entityResetModel(entity);
 		}
 	}
 }

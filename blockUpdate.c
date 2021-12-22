@@ -21,13 +21,17 @@
 extern struct BlockSides_t blockSides; /* from blocks.c */
 static struct UpdatePrivate_t updates;
 
-static int8_t railsNeigbors[] = { /* find the potential 2 neighbors of a rail based on data table */
+int8_t railsNeigbors[] = { /* find the potential 2 neighbors of a rail based on data table */
 	0, 0, 1, SIDE_SOUTH,   0, 0,-1, SIDE_NORTH,      /* N/S */
 	1, 0, 0, SIDE_EAST,   -1, 0, 0, SIDE_WEST,       /* E/W */
 	1, 1, 0, SIDE_EAST,   -1, 0, 0, SIDE_WEST,       /* ASCE */
 	1, 0, 0, SIDE_EAST,   -1, 1, 0, SIDE_WEST,       /* ASCW */
 	0, 1,-1, SIDE_NORTH,   0, 0, 1, SIDE_SOUTH,      /* ASCN */
 	0, 1, 1, SIDE_SOUTH,   0, 0,-1, SIDE_NORTH,      /* ASCS */
+	0, 0, 1, SIDE_SOUTH,   1, 0, 0, SIDE_EAST,       /* curved S/E */
+	0, 0, 1, SIDE_SOUTH,  -1, 0, 0, SIDE_WEST,       /* curved S/W */
+	0, 0,-1, SIDE_NORTH,  -1, 0, 0, SIDE_WEST,       /* curved N/W */
+	0, 0,-1, SIDE_NORTH,   1, 0, 0, SIDE_EAST,       /* curved N/E */
 };
 
 /* minecraft update order is S, E, W, N; default neighbor enumeration will be ordered S, E, N, W */

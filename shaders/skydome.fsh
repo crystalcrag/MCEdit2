@@ -4,10 +4,9 @@ in vec3 pos;
 in vec3 sun_norm;
 in vec3 star_pos;
 //---------UNIFORM------------
-layout (binding=1) uniform sampler2D tint;//the color of the sky on the half-sphere where the sun is. (time x height)
-layout (binding=2) uniform sampler2D tint2;//the color of the sky on the opposite half-sphere. (time x height)
-layout (binding=3) uniform sampler2D sun;//sun texture (radius x time)
-layout (binding=4) uniform sampler2D moon;//moon texture (circular)
+layout (binding=2) uniform sampler2D tint;//the color of the sky on the half-sphere where the sun is. (time x height)
+layout (binding=3) uniform sampler2D tint2;//the color of the sky on the opposite half-sphere. (time x height)
+layout (binding=4) uniform sampler2D sun;
 layout (binding=5) uniform sampler2D clouds1;//light clouds texture (spherical UV projection)
 layout (binding=6) uniform sampler2D clouds2;//heavy clouds texture (spherical UV projection)
 uniform float weather;//mixing factor (0.5 to 1.0)

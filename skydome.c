@@ -57,14 +57,12 @@ Bool skydomeInit(void)
 	skydome.texTint    = textureLoad(RESDIR SKYDIR, "tint.png",    0, NULL);
 	skydome.texTint2   = textureLoad(RESDIR SKYDIR, "tint2.png",   0, NULL);
 	skydome.texSun     = textureLoad(RESDIR SKYDIR, "sun.png",     0, NULL);
-	skydome.texMoon    = textureLoad(RESDIR SKYDIR, "moon.png",    0, NULL);
 	skydome.texClouds  = textureLoad(RESDIR SKYDIR, "clouds1.png", 0, NULL);
-	skydome.texClouds2 = textureLoad(RESDIR SKYDIR, "clouds2.png", 0, NULL);
+	skydome.texClouds2 = textureLoad(RESDIR SKYDIR, "clouds1.png", 0, NULL);
 
-	glActiveTexture(GL_TEXTURE1); glBindTexture(GL_TEXTURE_2D, skydome.texTint);
-	glActiveTexture(GL_TEXTURE2); glBindTexture(GL_TEXTURE_2D, skydome.texTint2);
-	glActiveTexture(GL_TEXTURE3); glBindTexture(GL_TEXTURE_2D, skydome.texSun);
-	glActiveTexture(GL_TEXTURE4); glBindTexture(GL_TEXTURE_2D, skydome.texMoon);
+	glActiveTexture(GL_TEXTURE2); glBindTexture(GL_TEXTURE_2D, skydome.texTint);
+	glActiveTexture(GL_TEXTURE3); glBindTexture(GL_TEXTURE_2D, skydome.texTint2);
+	glActiveTexture(GL_TEXTURE4); glBindTexture(GL_TEXTURE_2D, skydome.texSun);
 	glActiveTexture(GL_TEXTURE5); glBindTexture(GL_TEXTURE_2D, skydome.texClouds);
 	glActiveTexture(GL_TEXTURE6); glBindTexture(GL_TEXTURE_2D, skydome.texClouds2);
 

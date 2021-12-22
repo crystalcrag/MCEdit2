@@ -76,6 +76,7 @@ void setShaderValue(int prog, const char * field, int args, float * array);
 #define M_PIf                                  3.1415926535f
 #define M_PI_2f                                1.5707963267f
 #define M_PI_4f                                0.7853981633f
+#define M_SQRT1_2f                             0.7071067811f
 #define DEG_TO_RAD                             (M_PIf / 180)
 #define RAD_TO_DEG                             (180 / M_PIf)
 

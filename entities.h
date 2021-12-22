@@ -60,9 +60,6 @@ Entity * quadTreeIntersect(float bbox[6], int * count, int filter);
 
 #define QTI_FILTER(flag,result)    ((flag) | ((result)<<16))
 #define ENTITY_END                 0xffff
-#define ENTITY_PAINTINGS           0x800
-#define ENTITY_ITEMFRAME           0x801
-#define ENTITY_ITEMFRAME_FULL      0x802
 #define ENTITY_ITEM                0x80000000  /* differentiate world item from block entity */
 
 enum                               /* possible flags for Entity_t.enflags */
@@ -70,9 +67,10 @@ enum                               /* possible flags for Entity_t.enflags */
 	ENFLAG_POPIFPUSHED = 1,        /* if pushed by piston: convert to item */
 	ENFLAG_FIXED       = 2,        /* can't be pushed by piston */
 	ENFLAG_FULLLIGHT   = 4,        /* lighting similar to SOLID voxel */
-	ENFLAG_OVERLAP     = 8,        /* overlap partition of a quad tree */
+	ENFLAG_OVERLAP     = 8,        /* overlap partition of a quad tree (set by quad tree, do not set manually) */
 	ENFLAG_BBOXROTATED = 16,       /* don't apply rotation/scale on bbox */
 	ENFLAG_INQUADTREE  = 32,       /* entity is in quad tree (will need removal) */
+	ENTITY_TEXENTITES  = 64,       /* use texture sampler for entities */
 };
 
 enum /* transform param for entityCopyTransform() */
@@ -83,7 +81,11 @@ enum /* transform param for entityCopyTransform() */
 
 enum /* entity id and models */
 {
-	ENTITY_UNKNOWN,
+	ENTITY_UNKNOWN        = 0,     /* internal id, not saved in NBT */
+	ENTITY_PAINTINGS      = 0x800,
+	ENTITY_ITEMFRAME      = 0x801,
+	ENTITY_ITEMFRAME_FULL = 0x802,
+	ENTITY_MINECART       = 0x803,
 	ENTITY_CHICKEN,
 	ENTITY_SHEEP,
 	ENTITY_COW,
@@ -133,7 +135,10 @@ typedef struct EntityBank_t *      EntityBank;
 typedef struct EntityModel_t *     EntityModel;
 typedef struct EntityHash_t        EntityHash_t;
 typedef struct EntityAnim_t *      EntityAnim;
+typedef struct EntityType_t *      EntityType;
 typedef struct CustModel_t *       CustModel;
+
+typedef int (*EntityParseCb_t)(NBTFile, Entity);
 
 EntityModel entityGetModelById(int modelBank);
 
@@ -201,6 +206,7 @@ struct EntityModel_t               /* where model data is and bounding box info 
 {
 	uint16_t first;                /* position in vboModel */
 	uint16_t count;                /* vertex count */
+	uint16_t texAtlas;             /* texture atlas to use */
 	uint16_t bbox[3];              /* bounding box in BASEVTX unit */
 };
 
@@ -214,10 +220,16 @@ struct EntityBank_t                /* contains models up to 65536 vertices (BANK
 	int         vao;               /* gl buffers needed by glMultiDrawArraysIndirect() */
 	int         vboModel;          /* VBO to quote models from */
 	int         vboLoc;            /* meta data for entity (glAttribDivisor == 1) */
-	int         vboMDAI;           /* MultiDrawArrayIndirect command buffer */
+	int         vboMDAI;           /* glMultiDrawArraysIndirect() command buffer */
 	int         mdaiCount;
 	int         mdaiMax;
 	DATA32      mdaiUsage;
+};
+
+struct EntityType_t                /* callbacks to parse content of NBT records */
+{
+	STRPTR          type;          /* one callback per entity id */
+	EntityParseCb_t cb;
 };
 
 struct EntitiesPrivate_t           /* static vars for entity.c */
@@ -228,9 +240,13 @@ struct EntitiesPrivate_t           /* static vars for entity.c */
 	EntityAnim   animate;
 	int          animCount;
 	int          animMax;
+	EntityType   type;
+	int          typeCount;
+	int          typeMax;
 	int          shader;
 	Entity       selected;
 	int          selectedId;       /* entity id */
+	int          texEntity;
 };
 
 struct EntityAnim_t
@@ -243,10 +259,12 @@ struct EntityAnim_t
 struct CustModel_t
 {
 	float *  model;
-	int      vertex;
+	uint16_t vertex;
+	uint16_t texId;
 	uint16_t U, V;
 };
 
+void   entityRegisterType(STRPTR id, EntityParseCb_t);
 Entity entityAlloc(uint16_t * entityLoc);
 Entity entityGetById(int id);
 int    entityGetModelId(Entity);
@@ -274,6 +292,8 @@ void quadTreeInsertItem(Entity item);
 void quadTreeChangePos(Entity item);
 
 Entity worldItemAddItemInFrame(Entity frame, int entityId);
+void   worldItemInit(void);
+void   worldItemDelete(Entity);
 
 #endif
 #endif

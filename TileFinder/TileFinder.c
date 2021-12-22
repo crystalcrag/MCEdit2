@@ -272,11 +272,11 @@ static void setImage(Image img)
 		GFX_FlattenImage(img, BGCOLOR);
 
 	int height, zoom = 1;
+	int width = img->width;
 	SIT_GetValues(ctrl.app, SIT_ScreenHeight, &height, NULL);
-	if (img->height * 2 < height * 9 / 10)
-		zoom = 2;
+	if (width < 1024) width = 1024;
 
-	SIT_SetValues(ctrl.canvas, SIT_MinWidth, img->width * zoom, SIT_MinHeight, img->height * zoom, NULL);
+	SIT_SetValues(ctrl.canvas, SIT_MinWidth, width * zoom, SIT_MinHeight, img->height * zoom, NULL);
 	SIT_SetValues(ctrl.canvas, VIT_Image, img, VIT_Factor, (double) zoom, NULL);
 
 	ctrl.defU = img->width  / 16 - 1;
