@@ -204,7 +204,8 @@ void particlesSmoke(Map map, int blockId, vec4 pos)
 {
 	Particle p = particlesAlloc();
 	if (p == NULL) return;
-	int range = RandRange(500, 1500);
+	Block b = &blockIds[blockId >> 4];
+	int range = RandRange(b->particleTTL, b->particleTTL * 3);
 	int UV    = (31 * 16 + ((9*16) << 9));
 	vec4 offset;
 
@@ -222,8 +223,6 @@ void particlesSmoke(Map map, int blockId, vec4 pos)
 
 	p->size = 6 + rand() % 6;
 	p->UV = PARTICLE_SMOKE | (UV << 10) | (p->size << 6);
-
-	Block b = blockIds + (blockId >> 4);
 
 	if ((blockId >> 4) == RSWIRE)
 	{
@@ -246,14 +245,14 @@ static Emitter particlesAddEmitter(vec4 pos, int blockId, int type, int interval
 	Emitter old  = emitters.buffer;
 	Emitter emit = emitterAlloc();
 
-	/* relocate <*next> if it pointed within emitters.buffer :-/ */
+	/* relocate <*next> if it was pointing within emitters.buffer :-/ */
 	if (old != emitters.buffer && (DATAS16) old <= *next && *next < (DATAS16) (old + emitters.count-1))
 		*next = (int16_t *) ((DATA8) emitters.buffer + ((DATA8) *next - (DATA8) old));
 
 	if (emit)
 	{
 		if (interval < 16)
-			interval = 16;
+			interval = blockIds[blockId >> 4].emitInterval;
 
 		memcpy(emit->loc, pos, sizeof emit->loc);
 		emit->type = type;
@@ -368,7 +367,7 @@ static void particleMakeActive(Map map)
 		{
 			int  xzy = *emit & 0xfff;
 			vec4 loc = {c->X + (xzy & 15), cd->Y + (xzy >> 8), c->Z + ((xzy >> 4) & 15)};
-			Emitter e = particlesAddEmitter(loc, particleGetBlockId(cd, xzy), (*emit >> 12) + 1, 750, &cur);
+			Emitter e = particlesAddEmitter(loc, particleGetBlockId(cd, xzy), (*emit >> 12) + 1, 0, &cur);
 			*cur = e - emitters.buffer;
 			cur = &e->next;
 		}
@@ -413,7 +412,7 @@ void particlesChunkUpdate(Map map, ChunkData cd)
 			{
 				/* new emitter */
 				vec4 loc = {chunk->X + (newOffset & 15), cd->Y + (newOffset >> 8), chunk->Z + ((newOffset >> 4) & 15)};
-				Emitter e = particlesAddEmitter(loc, particleGetBlockId(cd, newOffset), (*newIds >> 12) + 1, 750, &start);
+				Emitter e = particlesAddEmitter(loc, particleGetBlockId(cd, newOffset), (*newIds >> 12) + 1, 0, &start);
 				e->next = oldEmit;
 				*start = e - emitters.buffer;
 				start = &e->next;

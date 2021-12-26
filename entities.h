@@ -294,6 +294,7 @@ void quadTreeChangePos(Entity item);
 Entity worldItemAddItemInFrame(Entity frame, int entityId);
 void   worldItemInit(void);
 void   worldItemDelete(Entity);
+void   worldItemCreateGeneric(NBTFile nbt, Entity entity, STRPTR name);
 
 #endif
 #endif

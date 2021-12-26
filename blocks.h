@@ -45,7 +45,6 @@ int     blockInvCountVertex(DATA16 model, int faceId);
 int     blockInvCopyFromModel(DATA16 ret, DATA16 model, int faceId);
 int     blockAdjustInventory(int blockId);
 Bool    blockGetAlphaTex(DATA8 bitmap, int U, int V);
-void    blockAnimate(void);
 
 void    halfBlockGenMesh(WriteBuffer, DATA8 model, int size /* 2 or 8 */, DATA8 xyz, BlockState, DATA16 blockIds, DATA8 skyBlock, int genSides);
 DATA8   halfBlockGetModel(BlockState, int size /* 1, 2 or 8 */, DATA16 blockIds);
@@ -82,6 +81,9 @@ struct Block_t                   /* per id information */
 	uint8_t  pushable;           /* can be pushed by piston or /retracted by sticky piston */
 	uint8_t  updateNearby;       /* 6 nearby blocks can be changed if block is placed/deleted (chunk meshing optimization if not) */
 	uint8_t  bboxIgnoreBit;      /* ignore some states for player bounding box (fence gate) */
+
+	uint16_t emitInterval;       /* particles emitter interval in millisec */
+	uint16_t particleTTL;        /* minimum particle life time in millisec */
 
 	float    density;            /* entity/particle physics */
 	float    viscosity;          /* semi-solid block with reduced gravity */
@@ -186,6 +188,9 @@ enum                             /* values for Block_t.special */
 	BLOCK_JITTER,                /* add a small random XYZ offset to block mesh (QUAD only) */
 	BLOCK_LASTSPEC,
 	BLOCK_BED,
+
+	/* these flags are set on BlockState, but not on Block */
+	BLOCK_DUALSIDE  = 32,        /* back face should not be culled */
 	BLOCK_CNXTEX    = 64,        /* relocate texture to connected texture row */
 	BLOCK_NOCONNECT = 128,       /* SOLID blocks for which connected models should not connect or CUST that have no connected models */
 };
@@ -378,12 +383,11 @@ enum                       /* special values for Block_t.rswire */
 #define MODELFLAGS         0xf0
 #define FACEIDSHIFT        8
 #define ALLFACEIDS         0xffffff
+
 #define PAINTINGS_TILE_W   16
 #define PAINTINGS_TILE_H   9
 #define PAINTINGS_TILE_X   16
 #define PAINTINGS_TILE_Y   (32+14)
-#define LAVA_TILE_X        13
-#define LAVA_TILE_Y        14
 
 /*
  * mostly private stuff below that point

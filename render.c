@@ -1451,7 +1451,12 @@ void renderWorld(void)
 	renderPrepVisibleChunks(globals.level);
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, render.texBlock);
-	blockAnimate();
+	/* 20 times per second max */
+	if (globals.curTime - render.animUpdate >= 50)
+	{
+		render.animUpdate = globals.curTime;
+		textureAnimate();
+	}
 
 	/* first pass: main terrain */
 	GPUBank bank;

@@ -1115,7 +1115,7 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 		cur->emitters[0] = 0;
 
 	/* default sorting for alpha quads */
-	cur->yaw = 3.14926535 * 1.5;
+	cur->yaw = M_PIf * 1.5f;
 	cur->pitch = 0;
 	cur->cdFlags &= ~(CDFLAG_CHUNKAIR | CDFLAG_PENDINGMESH);
 
@@ -1336,7 +1336,7 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 	DATA8   blocks = neighbors[6]->blockIds, p;
 	int     sides, side, count, connect;
 	int     x, y, z;
-	uint8_t Y, data, light;
+	uint8_t Y, data, light, dualside;
 
 	x = (pos & 15);
 	z = (pos >> 4) & 15;
@@ -1484,6 +1484,7 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 	x *= BASEVTX;
 	y *= BASEVTX;
 	z *= BASEVTX;
+	dualside = blockIds[b->id >> 4].special & BLOCK_DUALSIDE;
 
 	/* vertex and light info still need to be adjusted */
 	for (count = model[-1]; count > 0; count -= 6, model += 6 * INT_PER_VERTEX)
@@ -1537,6 +1538,7 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 		         ((GET_VCOORD(coord) + 128 - V) << 24) | (GET_NORMAL(model) << 9);
 		out[6] = light | (light << 8) | (light << 16) | (light << 24);
 		coord  = model + INT_PER_VERTEX * 3;
+		if (dualside) out[5] |= FLAG_DUAL_SIDE;
 
 		/* flip tex */
 		if (U == GET_UCOORD(coord)) out[5] |= FLAG_TEX_KEEPX;

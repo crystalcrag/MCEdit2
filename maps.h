@@ -69,9 +69,9 @@ struct MapExtraData_t              /* extra info returned from mapPointToObject(
 {
 	ChunkData cd;                  /* sub-chunk where block is */
 	Chunk     chunk;
-	ItemID_t  blockId;             /* (blockid << 4) | metadata */
+	ItemID_t  blockId;             /* (blockid << 4) | metadata: blockId being pointed to */
 	uint16_t  offset;              /* offset in ChunkData.blocksIds[] */
-	uint16_t  entity;              /* entity selected instead of block if > 0 */
+	uint16_t  entity;              /* entity selected instead of block if > 0 (priority over blockId) */
 	uint8_t   side;                /* 0:S, 1:E, 2:N, 3:W, 4:T, 5:B */
 	uint8_t   cnxFlags;            /* connected flags */
 	uint8_t   topHalf;             /* slab/stairs placement */
@@ -81,7 +81,7 @@ struct MapExtraData_t              /* extra info returned from mapPointToObject(
 
 enum                               /* extra values for MapExtraData_t.side */
 {
-	SIDE_ENTITY,                   /* <entity> field is an entityId */
+	SIDE_ENTITY = 10,              /* <entity> field is an entityId */
 	SIDE_WAYPOINT,                 /* <entity> is a waypoint id */
 };
 

@@ -24,6 +24,8 @@ typedef struct Item_t *        Item;
 typedef struct Item_t          ItemBuf;
 typedef struct ItemDesc_t *    ItemDesc;
 
+typedef Bool (*UseItem_t)(ItemID_t id, vec4 pos, int pointToId);
+
 ItemDesc itemGetById(ItemID_t id);
 ItemDesc itemGetByIndex(int i);
 Bool     itemCreate(const char * file, STRPTR * keys, int line);
@@ -39,6 +41,8 @@ void     itemDecodeEnchants(DATA8 nbt, STRPTR title, int max);
 int      itemGetInventoryByCat(Item buffer, int cat);
 ItemID_t itemCanCreateBlock(ItemID_t blockId, STRPTR * name);
 int      itemGenMesh(ItemID_t blockId, DATA16 vertex);
+Bool     itemRegisterUse(STRPTR tech, UseItem_t cb);
+Bool     itemUse(ItemID_t, vec4 pos, int pointToId);
 
 struct Item_t                  /* for rendering */
 {
@@ -53,18 +57,19 @@ struct Item_t                  /* for rendering */
 
 struct ItemDesc_t              /* from itemTable.js */
 {
-	ItemID_t id;               /* item id */
-	STRPTR   name;             /* human readable name */
-	uint8_t  stack;            /* max items in a stack */
-	uint8_t  category;         /* for creative inventory */
-	uint8_t  texU;             /* texture location in items.png */
-	uint8_t  texV;
-	uint16_t next;
-	uint16_t durability;
-	uint16_t refBlock;         /* blockId this item is for */
-	uint16_t glInvId;          /* vbo slot for inventory */
-	STRPTR   tech;             /* technical name */
-	STRPTR   tile;
+	ItemID_t  id;              /* item id */
+	STRPTR    name;            /* human readable name */
+	uint8_t   stack;           /* max items in a stack */
+	uint8_t   category;        /* for creative inventory */
+	uint8_t   texU;            /* texture location in items.png */
+	uint8_t   texV;
+	uint16_t  next;
+	uint16_t  durability;
+	uint16_t  refBlock;        /* blockId this item is for */
+	uint16_t  glInvId;         /* vbo slot for inventory */
+	STRPTR    tech;            /* technical name */
+	STRPTR    tile;
+	UseItem_t use;             /* callback when player wants to use this item */
 };
 
 #ifdef ITEMS_IMPL

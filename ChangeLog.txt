@@ -1,4 +1,16 @@
 =========== Week 51 ===========
+Sat Dec 25:
+	* added animated fire texture and particles.
+
+Fri Dec 24:
+	* implemented ladder logic.
+
+Thu Dec 23:
+	* improved waypoints shader to reduce distortion at the edge (still have some magic numbers).
+
+Wed Dec 22:
+	* can place minecart (regular) on rails.
+
 Tue Dec 21:
 	* minecart positionning continued: 2d test program seems working: integrations started.
 
@@ -1142,7 +1154,7 @@ Mon Dec 28:
 
 =========== Week 52 ===========
 Sun Dec 27:
-	* addded placement constraint check before placing a block.
+	* added placement constraint check before placing a block.
 	* render tall flowers correctly.
 
 Fri Dec 25:

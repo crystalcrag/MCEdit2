@@ -183,6 +183,7 @@ struct RenderWorld_t
 	int        oldBlockPos[3];     /* check if we need to change tooltip message */
 	APTR       blockInfo;          /* SIT_TOOLTIP */
 	ItemID_t   previewItemId;      /* id of preview item entity */
+	double     animUpdate;
 };
 
 struct MeshBuffer_t                /* temporary buffer used to collect data from chunkUpdate() */

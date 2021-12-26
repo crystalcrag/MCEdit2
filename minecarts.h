@@ -7,7 +7,8 @@
 #ifndef MC_MINECARTS_H
 #define MC_MINECARTS_H
 
-int minecartParse(NBTFile file, Entity entity);
+Bool minecartTryUsing(ItemID_t itemId, vec4 pos, int pointToBlock);
+int  minecartParse(NBTFile file, Entity entity);
 
 
 enum

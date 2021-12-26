@@ -763,7 +763,7 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 				int flag = FindInList(
 					"NORMAL,CHEST,DOOR,NOSIDE,HALF,STAIRS,GLASS,FENCE,FENCE2,"
 					"WALL,RSWIRE,LEAVES,LIQUID,DOOR_TOP,TALLFLOWER,RAILS,TRAPDOOR,"
-					"SIGN,PLATE,SOLIDOUTER,JITTER,NOCONNECT,CNXTEX", value, 0
+					"SIGN,PLATE,SOLIDOUTER,JITTER,NOCONNECT,CNXTEX,DUALSIDE", value, 0
 				);
 				if (flag < 0)
 				{
@@ -774,6 +774,7 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 				/* these 2 needs to be flags, not enum */
 				case BLOCK_LASTSPEC:   block.special |= BLOCK_NOCONNECT; break;
 				case BLOCK_LASTSPEC+1: block.special |= BLOCK_CNXTEX; break;
+				case BLOCK_LASTSPEC+2: block.special |= BLOCK_DUALSIDE; break;
 				default:               block.special  = flag;
 				}
 				value = next;
@@ -929,6 +930,20 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 
 		/* types of particles emitted continuously */
 		value = jsonValue(keys, "particle");
+		block.emitInterval = 750;
+		block.particleTTL = 500;
+		if (value && *value == '[')
+		{
+			value ++;
+			STRPTR p = strchr(value, ',');
+			if (p)
+			{
+				*p ++ = 0;
+				block.emitInterval = strtoul(p, &p, 10);
+				if (*p == ',')
+					block.particleTTL = strtoul(p+1, &p, 10);
+			}
+		}
 		block.particle = FindInList("BITS,SMOKE,NETHER", value, 0) + 1;
 
 		/* density (g/cm³): used by particles and entity physics */
@@ -1114,8 +1129,8 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 						return False;
 					}
 					/* internal types that need to be skipped */
-					if (type > QUAD_SQUARE) type += 4; else
 					if (type > QUAD_CROSS)  type ++;
+					if (type > QUAD_SQUARE) type += 3;
 					*quad = type;
 					value = next;
 				}
@@ -1364,9 +1379,6 @@ void blockParseConnectedTexture(void)
 			b->invState --;
 		if ((b->special & BLOCK_CNXTEX) == 0) continue;
 		BlockState state = blockGetById(b->id << 4);
-
-		/* extra flags are not needed at the block level anymore */
-		b->special &= 31;
 
 		/* gather connected texture info (texture will be generated in blockPostProcessTexture) */
 		while ((state->id >> 4) == b->id)
@@ -3063,7 +3075,7 @@ void blockGetEmitterLocation(int blockId, float loc[3])
 		{
 			bbox += bbox[0];
 			loc[0] = RandRange(bbox[0], bbox[3]) * 0.0625f;
-			loc[1] = RandRange(bbox[1], bbox[4]) * 0.0625f;
+			loc[1] = 0.5; //RandRange(bbox[1], bbox[4]) * 0.0625f;
 			loc[2] = RandRange(bbox[2], bbox[5]&31) * 0.0625f;
 			return;
 		}
@@ -3233,77 +3245,3 @@ DATA8 blockGetDurability(float dura)
 	return blocks.duraColors + ((int) (blocks.duraMax * dura) << 2);
 }
 
-/*
- * animate some textures (for now only Lava)
- * Minecraft generates lava texture on the fly using the method described here:
- * - https://github.com/UnknownShadow200/ClassiCube/wiki/Minecraft-Classic-lava-animation-algorithm#lava
- *
- * this code has been quoted almost verbatim from classicube source.
- */
-void blockAnimate(void)
-{
-	static float L_soupHeat[256];
-	static float L_potHeat[256];
-	static float L_flameHeat[256];
-	static uint8_t bitmap[16*16*4];
-
-	float soupHeat, potHeat, col;
-	int8_t x, y;
-	int i;
-	DATA8 p;
-	for (y = 0, i = 0, p = bitmap; y < 16; y++)
-	{
-		for (x = 0; x < 16; x++, p += 4)
-		{
-			/* Lookup table for (int)(1.2 * sin([ANGLE] * 22.5 * MATH_DEG2RAD)); */
-			/* [ANGLE] is integer x/y, so repeats every 16 intervals */
-			static int8_t sin_adj_table[16] = { 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, -1, -1, -1, 0, 0 };
-			int xx = x + sin_adj_table[y & 0xF], yy = y + sin_adj_table[x & 0xF];
-
-			#define mask  15
-			#define shift 4
-			soupHeat =
-				L_soupHeat[((yy - 1) & mask) << shift | ((xx - 1) & mask)] +
-				L_soupHeat[((yy - 1) & mask) << shift | (xx       & mask)] +
-				L_soupHeat[((yy - 1) & mask) << shift | ((xx + 1) & mask)] +
-
-				L_soupHeat[(yy & mask) << shift | ((xx - 1) & mask)] +
-				L_soupHeat[(yy & mask) << shift | (xx       & mask)] +
-				L_soupHeat[(yy & mask) << shift | ((xx + 1) & mask)] +
-
-				L_soupHeat[((yy + 1) & mask) << shift | ((xx - 1) & mask)] +
-				L_soupHeat[((yy + 1) & mask) << shift | (xx       & mask)] +
-				L_soupHeat[((yy + 1) & mask) << shift | ((xx + 1) & mask)];
-
-			potHeat =
-				L_potHeat[i] +                                          /* x    , y     */
-				L_potHeat[y << shift | ((x + 1) & mask)] +              /* x + 1, y     */
-				L_potHeat[((y + 1) & mask) << shift | x] +              /* x    , y + 1 */
-				L_potHeat[((y + 1) & mask) << shift | ((x + 1) & mask)];/* x + 1, y + 1 */
-			#undef shift
-			#undef mask
-
-			L_soupHeat[i] = soupHeat * 0.1f + potHeat * 0.2f;
-
-			L_potHeat[i] += L_flameHeat[i];
-			if (L_potHeat[i] < 0.0f) L_potHeat[i] = 0.0f;
-
-			L_flameHeat[i] -= 0.06f * 0.01f;
-			if (RandRange(0, 1) <= 0.005f) L_flameHeat[i] = 1.5f * 0.01f;
-
-			/* Output the pixel */
-			col = 2.0f * L_soupHeat[i];
-			if (col < 0) col = 0;
-			if (col > 1) col = 1;
-
-			p[0] = col * 100.0f + 155.0f;
-			p[1] = col * col * 255.0f;
-			p[2] = col * col * col * col * 128.0f;
-			p[3] = 255;
-			i++;
-		}
-	}
-
-	/* terrain texture must be bound on GL_TEXTURE_2D */
-	glTexSubImage2D(GL_TEXTURE_2D, 0, LAVA_TILE_X * 16, LAVA_TILE_Y * 16, 16, 16, GL_RGBA, GL_UNSIGNED_BYTE, bitmap);
-}

@@ -154,6 +154,8 @@ int physicsCheckCollision(Map map, vec4 start, vec4 end, VTXBBox bbox, float aut
 					Block block = &blockIds[iter.blockIds[iter.offset]];
 					if (block->viscosity > 0 && end[VT] > block->viscosity)
 						end[VT] = block->viscosity;
+					if (block->id == 65)
+						ret |= INSIDE_LADDER;
 				}
 
 				k ++;
@@ -221,7 +223,7 @@ int physicsCheckCollision(Map map, vec4 start, vec4 end, VTXBBox bbox, float aut
 			autoClimb = 0;
 		}
 		/* axis we collided with, we can't go further in this direction */
-		else dir[curAxis] = 0, ret = 1 << curAxis;
+		else dir[curAxis] = 0, ret |= 1 << curAxis;
 
 		/* repeat this on the velocity left */
 		if (fabsf(dir[VX]) > EPSILON ||
@@ -304,6 +306,84 @@ Bool physicsCheckOnGround(Map map, vec4 start, VTXBBox bbox)
 		mapIter(&iter, -dx, 0, 1);
 	}
 	return False;
+}
+
+/* physicsCheckCollision detected we are near a ladder, check if we can climb it */
+int physicsCheckIfCanClimb(Map map, vec4 pos, VTXBBox bbox)
+{
+	int8_t i, j, k, ladder;
+	float  broad[6];
+	for (i = 0; i < 3; i ++)
+	{
+		broad[i]   = pos[i] + FROMVERTEX(bbox->pt1[i]);
+		broad[3+i] = pos[i] + FROMVERTEX(bbox->pt2[i]);
+	}
+
+	int8_t dx = (int) broad[VX+3] - (int) broad[VX];
+	int8_t dy = (int) broad[VY+3] - (int) broad[VY];
+	int8_t dz = (int) broad[VZ+3] - (int) broad[VZ];
+
+	struct BlockIter_t iter;
+	mapInitIter(map, &iter, broad, False);
+	for (i = ladder = 0; ; )
+	{
+		next_layer:
+		for (j = 0; ; )
+		{
+			for (k = 0; ; )
+			{
+				int id = getBlockId(&iter);
+				if ((id >> 4) != 65) goto bail;
+
+				static uint8_t enlargeAxis[] = {5, 8, 2, 5, 0, 3, 8, 8};
+				VTXBBox box = blockGetBBox(blockGetById(id));
+				uint8_t axis = enlargeAxis[id&7];
+
+				if (axis >= 6) goto bail;
+
+				vec4 rel = {iter.ref->X + iter.x, iter.yabs, iter.ref->Z + iter.z};
+				float bboxFloat[6];
+				for (id = 0; id < 3; id ++)
+				{
+					bboxFloat[id]   = rel[id] + FROMVERTEX(box->pt1[id]);
+					bboxFloat[3+id] = rel[id] + FROMVERTEX(box->pt2[id]);
+				}
+				/* bbox of "active" ladder will be half of a full block (ie: vertical slab) */
+				if (axis < 3)
+					bboxFloat[axis] -= (bboxFloat[axis+3] - bboxFloat[axis]) * 7;
+				else
+					bboxFloat[axis] += (bboxFloat[axis] - bboxFloat[axis-3]) * 7;
+				/* check if intersecting entity bbox */
+				if (bboxFloat[VX] >= broad[VX+3] || bboxFloat[VX+3] <= broad[VX] ||
+					bboxFloat[VY] >= broad[VY+3] || bboxFloat[VY+3] <= broad[VY] ||
+					bboxFloat[VZ] >= broad[VZ+3] || bboxFloat[VZ+3] <= broad[VZ])
+				{
+					bail:
+					k ++;
+					if (k > dx) break;
+					mapIter(&iter, 1, 0, 0);
+				}
+				else
+				{
+					/* one ladder per Y layer within entity bbox is all we need */
+					ladder = (ladder << 1) | 1;
+					i ++;
+					if (i > dy) goto break_all;
+					mapIter(&iter, -k, 1, -j);
+					goto next_layer;
+				}
+			}
+			j ++;
+			if (j > dz) break;
+			mapIter(&iter, -dx, 0, 1);
+		}
+		i ++;
+		if (i > dy) break;
+		mapIter(&iter, -dx, 1, -dz);
+	}
+	break_all:
+	/* check if (ladder+1) is a power of 2: this means there are no gaps in ladder */
+	return ladder > 0 && ((ladder + 1) & ladder) == 0;
 }
 
 void physicsInitEntity(PhysicsEntity entity, int blockId)

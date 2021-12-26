@@ -77,6 +77,7 @@ void setShaderValue(int prog, const char * field, int args, float * array);
 #define M_PI_2f                                1.5707963267f
 #define M_PI_4f                                0.7853981633f
 #define M_SQRT1_2f                             0.7071067811f
+#define M_SQRT2f                               1.4142135623f
 #define DEG_TO_RAD                             (M_PIf / 180)
 #define RAD_TO_DEG                             (180 / M_PIf)
 
@@ -142,10 +143,8 @@ typedef void (*PostProcess_t)(DATA8 * data, int * w, int * h, int bpp);
 
 /* texture load */
 int  textureLoad(const char * dir, const char * name, int clamp, PostProcess_t);
-int  textureCheckboard(int w, int h, int cellsz, DATA8 color1, DATA8 color2);
-int  textureLoadCubeMap(const char * basename, int single);
-int  textureGen(DATA8 data, int w, int h, int bpp);
 void textureDump(int glTex, int w, int h);
+void textureAnimate(void);
 
 /* texture save */
 int textureSavePNG(const char * path, DATA8 pixels, int stride, int width, int height, int bpp);

@@ -352,10 +352,15 @@ void playerMove(Player p)
 		if (keyvec & PLAYER_FALL)
 		{
 			/* jumping or falling */
-			p->velocity[VY] += diff * p->viscosity;
-			p->pos[VY] -= p->velocity[VY];
-			if (p->velocity[VY] > MAX_FALL * p->viscosity)
-				p->velocity[VY] = MAX_FALL * p->viscosity;
+			float dy;
+			if (p->ladder == 0)
+			{
+				dy = p->velocity[VY] += diff * p->viscosity;
+				if (p->velocity[VY] > MAX_FALL * p->viscosity)
+					p->velocity[VY] = MAX_FALL * p->viscosity;
+			}
+			else dy = p->velocity[VY] * diff;
+			p->pos[VY] -= dy;
 		}
 		if (keyvec & PLAYER_CLIMB)
 		{
@@ -374,11 +379,27 @@ void playerMove(Player p)
 		/* bounding box of voxels will constraint movement in these modes */
 		float oldVisco = p->viscosity;
 		int collision = physicsCheckCollision(globals.level, orig_pos, p->pos, &playerBBox, (keyvec & PLAYER_FALL) ? 0 : 0.5);
+		int climb = -1;
 
 //		fprintf(stderr, "velocityY %.2f, pos = %.2f => %.2f [%g - %d], dirY: %g\n", p->velocity[VY], orig_pos[VY], p->pos[VY], p->targetY, collision,
 //			p->dir[VY]);
 //		fprintf(stderr, "Velocity = %.2f x %.2f, dir = %.2f x %.2f (%d)\n", (double) p->velocity[VX], (double) p->velocity[VZ],
 //			p->dir[VX], p->dir[VZ], collision);
+
+		if ((collision & INSIDE_LADDER) && (climb = physicsCheckIfCanClimb(globals.level, p->pos, &playerBBox)))
+		{
+			if ((collision & 5) && (keyvec & PLAYER_MOVE_FORWARD))
+				p->ladder = 2, p->velocity[VY] = -1;
+			else
+				p->ladder = 1, p->velocity[VY] = 2;
+			/* can't change position here, need to do collision check first */
+			p->keyvec |= PLAYER_FALL;
+		}
+		else if (p->ladder)
+		{
+			p->ladder = 0;
+			p->velocity[VY] = 0;
+		}
 
 		if (collision & 1) p->velocity[VX] = 0;
 		if (collision & 4) p->velocity[VZ] = 0;
@@ -393,6 +414,7 @@ void playerMove(Player p)
 		uint8_t ground = p->onground;
 		if ((keyvec & PLAYER_FALL) == 0 || p->velocity[VY] >= 0)
 			p->onground = physicsCheckOnGround(globals.level, p->pos, &playerBBox);
+
 		//fprintf(stderr, "pos = %g, %g, %g, ground: %d\n", p->pos[0], p->pos[1], p->pos[2], p->onground);
 		if (p->viscosity != oldVisco && ! p->fly)
 		{
@@ -409,6 +431,10 @@ void playerMove(Player p)
 				p->keyvec &= ~ PLAYER_FALL;
 				p->keyvec |= PLAYER_UP;
 			}
+		}
+		else if (p->ladder == 2)
+		{
+			;
 		}
 		else if (ground != p->onground)
 		{

@@ -228,7 +228,7 @@ void mapUpdateTable(BlockIter iter, int val, int table)
 	if (table == SKYLIGHT_OFFSET || table == BLOCKLIGHT_OFFSET)
 	{
 		/* entity light in this chunk needs to be updated */
-		iter->cd->cdFlags |= CDFLAG_UPDATENEARBY;
+		//iter->cd->cdFlags |= CDFLAG_UPDATENEARBY; // dec 26, 2021: why need to set this flag?
 		iter->ref->cflags |= CFLAG_ETTLIGHT;
 	}
 
@@ -1404,7 +1404,7 @@ int mapUpdateGetCnxGraph(ChunkData cd, int start, DATA8 visited)
 	return cnx;
 }
 
-/* extended selection: select all similar blocks within a 16x16x16 area */
+/* extended selection: select all similar blocks within a 32x32x32 area */
 void mapUpdateFloodFill(Map map, vec4 pos, uint8_t visited[4096], int8_t minMax[8])
 {
 	struct BlockIter_t iter;
@@ -1426,7 +1426,7 @@ void mapUpdateFloodFill(Map map, vec4 pos, uint8_t visited[4096], int8_t minMax[
 		track.usage -= 3;
 		if (track.pos == track.max) track.pos = 0;
 
-		/* no more than 16x16x16 */
+		/* no more than 32x32x32 */
 		for (i = 0; i < 3; i ++)
 		{
 			int8_t x = XYZ[i];
@@ -1448,7 +1448,7 @@ void mapUpdateFloodFill(Map map, vec4 pos, uint8_t visited[4096], int8_t minMax[
 				int8_t x = XYZ[0] + relx[i];
 				int8_t y = XYZ[1] + rely[i];
 				int8_t z = XYZ[2] + relz[i];
-				/* that's why it is limited to 16x16x16: <visited> can only hold 4096 bits */
+				/* that's why it is limited to 32x32x32: <visited> can only hold 32Kbits */
 				int xzy = (x & 31) + (z & 31) * 32 + (y & 15) * 1024;
 				if ((visited[xzy>>3] & mask8bit[xzy&7]) == 0)
 				{

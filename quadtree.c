@@ -315,6 +315,9 @@ void quadTreeInsertItem(Entity item)
 /* relocate one item in the quad tree */
 void quadTreeChangePos(Entity item)
 {
+	if ((item->enflags & ENFLAG_INQUADTREE) == 0)
+		return;
+
 	QuadTree root = qroot;
 	QuadTree node = item->qnode;
 	float SZ = ENTITY_SCALE(item);

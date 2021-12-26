@@ -146,6 +146,8 @@ void worldItemInit(void)
 	entityRegisterType("item_frame",    worldItemParseItemFrame);
 	entityRegisterType("item",          worldItemParseItem);
 	entityRegisterType("minecart",      minecartParse);
+
+	itemRegisterUse("minecart", minecartTryUsing);
 }
 
 static void worldItemRAD2MC(float rad[2], float mcangle[2])
@@ -165,19 +167,21 @@ static void worldItemRAD2MC(float rad[2], float mcangle[2])
 }
 
 /* add the pre-defined fields of a world item in the <nbt> fragment */
-static void worldItemCreateGeneric(NBTFile nbt, Entity entity, STRPTR name)
+void worldItemCreateGeneric(NBTFile nbt, Entity entity, STRPTR name)
 {
 	EntityUUID_t uuid;
-	TEXT         id[64];
 	double       pos64[3];
 	float        rotation[2];
+	STRPTR       id;
 	DATA8        p, e;
 
 	pos64[VX] = entity->pos[VX];
 	pos64[VY] = entity->pos[VY];
 	pos64[VZ] = entity->pos[VZ];
 	worldItemRAD2MC(entity->rotation, rotation);
-	sprintf(id, "minecraft:%s", name);
+	if (strncmp(id = name, "minecraft:", 10))
+		sprintf(id = alloca(strlen(name) + 11), "minecraft:%s", name);
+
 	for (p = uuid.uuid8, e = p + sizeof uuid.uuid8; p < e; *p++ = rand());
 	NBT_Add(nbt,
 		TAG_List_Double, "Motion", 3,

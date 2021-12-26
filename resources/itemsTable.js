@@ -4,7 +4,7 @@
 	{id: 256, state: 0, name: "Iron Shovel",          stack: 1, cat: ALLCAT,   tex: [ 4, 5], durability: IRON},
 	{id: 257, state: 0, name: "Iron Pickaxe",         stack: 1, cat: ALLCAT,   tex: [ 4, 6], durability: IRON},
 	{id: 258, state: 0, name: "Iron Axe",             stack: 1, cat: ALLCAT,   tex: [ 4, 7], durability: IRON},
-	{id: 259, state: 0, name: "Flint and Steel",      stack: 1, cat: ALLCAT,   tex: [ 8,13], durability: 64},
+	{id: 259, state: 0, name: "Flint and Steel",      stack: 1, cat: ALLCAT,   tex: [ 8,13], durability: 64, createBlock: "fire"},
 	{id: 260, state: 0, name: "Apple",                stack:64, cat: CROPS,    tex: [12, 0]},
 	{id: 261, state: 0, name: "Bow",                  stack: 1, cat: ALLCAT,   tex: [ 0, 5], durability: 384},
 	{id: 262, state: 0, name: "Arrow",                stack:64, cat: ALLCAT,   tex: [ 1, 4]},

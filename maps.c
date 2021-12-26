@@ -242,6 +242,7 @@ VTXBBox mapGetBBox(BlockIter iterator, int * count, int * cnxFlags)
 	int id = getBlockId(iterator);
 	Block block = blockIds + (id >> 4);
 
+	/* opened fence gates mostly */
 	if (block->bboxPlayer == BBOX_NONE || (id & block->bboxIgnoreBit))
 		return NULL;
 
@@ -353,7 +354,7 @@ static Bool mapBlockIsFaceVisible(Map map, vec4 pos, int blockId, int8_t * offse
 	return True;
 }
 
-/* find the object (block, entity or waypoint) pointed by tracing a ray using direction <dir> or <yawPitch> */
+/* find the object (block, entity or waypoint) pointed by tracing a ray using direction <dir> */
 Bool mapPointToObject(Map map, vec4 camera, vec4 dir, vec4 ret, MapExtraData data)
 {
 	static float normals[] = { /* S, E, N, W, T, B */
@@ -428,6 +429,7 @@ Bool mapPointToObject(Map map, vec4 camera, vec4 dir, vec4 ret, MapExtraData dat
 					if (norm[2] == 0 && ! (V0[2] <= inter[2] && inter[2] <= V1[2])) continue;
 					if (check)
 					{
+						memcpy(data->inter, inter, sizeof data->inter);
 						data->side = i;
 						mapCheckOtherObjects(inter);
 						return True;

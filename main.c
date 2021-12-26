@@ -793,6 +793,7 @@ void mceditPlaceBlock(void)
 			else
 				id = block = (desc->refBlock << 4) | (block & 15);
 		}
+		else itemUse(id, sel->inter, sel->blockId);
 	}
 	if (sel->entity > 0) /* pointing at an entity */
 	{

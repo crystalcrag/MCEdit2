@@ -124,131 +124,207 @@ int textureLoad(const char * dir, const char * name, int clamp, PostProcess_t pr
 	return 0;
 }
 
-/* XX in the name will be replaced by texture part (need power of 2 on intel) */
-int textureLoadCubeMap(const char * basename, int single)
+#define FIRE_WIDTH                  32
+#define FIRE_HEIGHT                 32
+#define	MIN_VAL                     0
+#define	MAX_COL                     256
+#define LAVA_TILE_X                 13
+#define LAVA_TILE_Y                 14
+#define FIRE_TILE_X                 20
+#define FIRE_TILE_Y                 7
+
+struct FireEffect_t
 {
-	static char * ext[] = {"yp", "yn", "xn", "xp", "zn", "zp"};
-	static int    type[] = {
-		GL_TEXTURE_CUBE_MAP_POSITIVE_Y,
-		GL_TEXTURE_CUBE_MAP_NEGATIVE_Y,
-		GL_TEXTURE_CUBE_MAP_NEGATIVE_X,
-		GL_TEXTURE_CUBE_MAP_POSITIVE_X,
-		GL_TEXTURE_CUBE_MAP_NEGATIVE_Z,
-		GL_TEXTURE_CUBE_MAP_POSITIVE_Z
+	uint8_t decay;                  /* cooling particle speed (higher number = lower flame) */
+	uint8_t smooth;                 /* how chaotic flames will look (higher number = less chaotic) */
+	uint8_t spreadRate;             /* spread to nearby cells (higher number = more turbulence) */
+	uint8_t distribution;           /* another turbulence parameter */
+	uint8_t chaos;
+	uint8_t init;
+	int     flammability;           /* how intense foyer will be (higher number = more heat) */
+	int     maxHeat;
+	uint8_t palette[256*4];
+	uint8_t foyer[FIRE_WIDTH];
+	uint8_t bitmap[FIRE_WIDTH * (FIRE_HEIGHT + 1)];
+	DATA8   temp;
+};
+
+void textureAnimate(void)
+{
+	static float L_soupHeat[256];
+	static float L_potHeat[256];
+	static float L_flameHeat[256];
+	static uint8_t bitmap[16*16*4];
+
+	float soupHeat, potHeat, col;
+	int8_t x, y;
+	int i;
+	DATA8 p;
+
+	/* from https://github.com/UnknownShadow200/ClassiCube/blob/master/src/Animations.c */
+	for (y = 0, i = 0, p = bitmap; y < 16; y++)
+	{
+		for (x = 0; x < 16; x++, p += 4)
+		{
+			/* Lookup table for (int)(1.2 * sin([ANGLE] * 22.5 * MATH_DEG2RAD)); */
+			/* [ANGLE] is integer x/y, so repeats every 16 intervals */
+			static int8_t sin_adj_table[16] = { 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, -1, -1, -1, 0, 0 };
+			int xx = x + sin_adj_table[y & 0xF], yy = y + sin_adj_table[x & 0xF];
+
+			#define mask  15
+			#define shift 4
+			soupHeat =
+				L_soupHeat[((yy - 1) & mask) << shift | ((xx - 1) & mask)] +
+				L_soupHeat[((yy - 1) & mask) << shift | (xx       & mask)] +
+				L_soupHeat[((yy - 1) & mask) << shift | ((xx + 1) & mask)] +
+
+				L_soupHeat[(yy & mask) << shift | ((xx - 1) & mask)] +
+				L_soupHeat[(yy & mask) << shift | (xx       & mask)] +
+				L_soupHeat[(yy & mask) << shift | ((xx + 1) & mask)] +
+
+				L_soupHeat[((yy + 1) & mask) << shift | ((xx - 1) & mask)] +
+				L_soupHeat[((yy + 1) & mask) << shift | (xx       & mask)] +
+				L_soupHeat[((yy + 1) & mask) << shift | ((xx + 1) & mask)];
+
+			potHeat =
+				L_potHeat[i] +                                          /* x    , y     */
+				L_potHeat[y << shift | ((x + 1) & mask)] +              /* x + 1, y     */
+				L_potHeat[((y + 1) & mask) << shift | x] +              /* x    , y + 1 */
+				L_potHeat[((y + 1) & mask) << shift | ((x + 1) & mask)];/* x + 1, y + 1 */
+			#undef shift
+			#undef mask
+
+			L_soupHeat[i] = soupHeat * 0.1f + potHeat * 0.2f;
+
+			L_potHeat[i] += L_flameHeat[i];
+			if (L_potHeat[i] < 0.0f) L_potHeat[i] = 0.0f;
+
+			L_flameHeat[i] -= 0.06f * 0.01f;
+			if (RandRange(0, 1) <= 0.005f) L_flameHeat[i] = 1.5f * 0.01f;
+
+			/* Output the pixel */
+			col = 2.0f * L_soupHeat[i];
+			if (col < 0) col = 0;
+			if (col > 1) col = 1;
+
+			p[0] = col * 100.0f + 155.0f;
+			p[1] = col * col * 255.0f;
+			p[2] = col * col * col * col * 128.0f;
+			p[3] = 255;
+			i++;
+		}
+	}
+
+	/* terrain texture must be bound on GL_TEXTURE_2D */
+	glTexSubImage2D(GL_TEXTURE_2D, 0, LAVA_TILE_X * 16, LAVA_TILE_Y * 16, 16, 16, GL_RGBA, GL_UNSIGNED_BYTE, bitmap);
+
+
+	/*
+	 * animated fire texture: render it in a 32x32 area, because it is too pixelated in a 16x16 tile
+	 */
+
+	static struct FireEffect_t fire = {
+		.decay = 12,
+		.smooth = 3,
+		.flammability = 399,
+		.maxHeat = 256,
+		.chaos = 100,
+		.spreadRate = 40,
+		.distribution = 1
 	};
-	int texId, i;
-	int w, h, bpp, format, cspace;
 
-	if (single)
+	if (! fire.init)
 	{
-		int   coord[6];
-		int   tx, ty, stride;
-		DATA8 data = stbi_load(basename, &w, &h, &bpp, 0);
-		if (data == NULL) return 0;
-		switch (bpp) {
-		case 1: format = GL_LUMINANCE8; cspace = 0; break;
-		case 2: format = GL_LUMINANCE8_ALPHA8; cspace = 0; break;
-		case 3: format = GL_RGB8;  cspace = GL_RGB; break;
-		case 4: format = GL_RGBA8; cspace = GL_RGBA;
-		default: return 0; /* should not happen */
-		}
-		tx = w/4*bpp;
-		ty = h/3;
-		stride = w * bpp;
-		coord[0] = tx;
-		coord[1] = coord[0] + ty * stride * 2;
-		coord[2] = ty * stride;
-		coord[3] = coord[2] + 2 * tx;
-		coord[4] = coord[3] + tx;
-		coord[5] = coord[2] + tx;
-		glGenTextures(1, &texId);
-		glBindTexture(GL_TEXTURE_CUBE_MAP, texId);
-		for (i = 0; i < 6; i ++)
+		/* setup some lookup tables */
+		DATA8 pal;
+		int r = 256+256+255;
+		int g = 256+255;
+		int b = 255, nb;
+		fire.init = True;
+
+		for (pal = fire.palette + 255*4, nb = 255; nb >= 0; nb --, pal -= 4)
 		{
-			DATA8 s, d;
-			int   j;
-			for (s = data + coord[i], d = data, j = ty; j > 0; j --, memcpy(d, s, tx), d += tx, s += stride);
-//			textureDump(data, w/4, ty, 3);
-			glTexImage2D(type[i], 0, format, tx/bpp, ty, 0, cspace, GL_UNSIGNED_BYTE, data);
+			pal[0] = (r > 255 ? 255 : r);
+			pal[1] = (g > 255 ? 255 : g);
+			pal[2] = (b > 255 ? 255 : b);
+			pal[3] = nb >= 48 ? 255 : 0; /* avoid using alpha other than 0 or 255 */
+			r -= 3; if (r < 0) r = 0;
+			g -= 3; if (g < 0) g = 0;
+			b -= 3; if (b < 0) b = 0;
 		}
-		free(data);
-	}
-	else
-	{
-		/* load as separate texture */
-		STRPTR name = strcpy(alloca(strlen(basename) + 5), basename);
-		STRPTR sep  = strstr(name, "XX");
 
-		if (sep == NULL)
-			return 0;
-
-		glGenTextures(1, &texId);
-		glBindTexture(GL_TEXTURE_CUBE_MAP, texId);
-
-		for (i = 0; i < 6; i ++)
-		{
-			memcpy(sep, ext[i], 2);
-			DATA8 data = stbi_load(name, &w, &h, &bpp, 0);
-			if (! data)
-			{
-				glDeleteTextures(1, &texId);
-				return 0;
-			}
-			switch (bpp) {
-			case 1: format = GL_LUMINANCE8; cspace = 0; break;
-			case 2: format = GL_LUMINANCE8_ALPHA8; cspace = 0; break;
-			case 3: format = GL_RGB8;  cspace = GL_RGB; break;
-			case 4: format = GL_RGBA8; cspace = GL_RGBA;
-			default: return 0; /* should not happen */
-			}
-			glTexImage2D(type[i], 0, format, w, h, 0, cspace, GL_UNSIGNED_BYTE, data);
-			checkOpenGLError("glTexImage2D");
-			free(data);
-			// textureSetAniso();
-		}
-	}
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	checkOpenGLError("loadTextureCubeMap");
-	return texId;
-}
-
-/* generate a checkboard texture, useful for debug */
-int textureCheckboard(int w, int h, int cellsz, DATA8 color1, DATA8 color2)
-{
-	DATA8 bitmap, d, s, s2;
-	int   i, j, k, stride;
-
-	bitmap = malloc(w * h * 3);
-	if (! bitmap) return 0;
-
-	for (j = 0, stride = w * 3, d = bitmap, s = color1; j < h; j ++)
-	{
-		for (s2 = s, i = 0, k = cellsz; i < w; i ++, d += 3)
-		{
-			memcpy(d, s2, 3);
-			k --; if (k == 0) s2 = (s2 == color1 ? color2 : color1), k = cellsz;
-		}
-		k = j + cellsz - 1;
-		if (k >= h) k = h - 1;
-		for (; j < k; d += stride, j ++)
-			memcpy(d, d - stride, stride);
-		s = (s == color1 ? color2 : color1);
+		memset(fire.bitmap, MIN_VAL, sizeof fire.bitmap);
+		memset(fire.foyer,  MIN_VAL, sizeof fire.foyer);
+		fire.temp = malloc(FIRE_WIDTH * FIRE_HEIGHT * 4);
 	}
 
-	GLuint texId;
-	glGenTextures(1, &texId);
-	glBindTexture(GL_TEXTURE_2D, texId);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, w, h, 0, GL_RGB, GL_UNSIGNED_BYTE, bitmap);
-	free(bitmap);
-	glGenerateMipmap(GL_TEXTURE_2D);
-	return texId;
+	DATA8 pRow, pNextRow;
+
+	/* compute heat of foyer (first line): next ones will be derived from previous row */
+	memcpy(fire.bitmap, fire.foyer, FIRE_WIDTH);
+	memset(fire.bitmap, 5, fire.distribution);
+	memset(fire.bitmap + FIRE_WIDTH - fire.distribution - 1, 5, fire.distribution);
+
+	/* distribution fire particles (main effect is here) */
+	for (y = FIRE_HEIGHT, pRow = fire.bitmap + y * FIRE_WIDTH; y >= 0; y--, pRow -= FIRE_WIDTH)
+	{
+		pNextRow = pRow - FIRE_WIDTH;
+		for (x = 0; x < FIRE_WIDTH; x++)
+		{
+			if (pNextRow[x] == MIN_VAL) continue;
+			int off = rand() % (fire.distribution + 1);
+			int val = pNextRow[x] - (rand() % (fire.decay+1));
+			int pos = x + (rand() & 1 ? off : -off);
+
+			if (0 <= pos && pos < FIRE_WIDTH)
+				pRow[pos] = val < MIN_VAL ? MIN_VAL : val;
+		}
+	}
+
+	/* add "heat" into the foyer */
+	if (rand() % (400 - fire.flammability) == 0)
+		memset(fire.foyer + rand() % (FIRE_WIDTH - 15), 128 /* added heat */, 15);
+
+	/* extend flams according to fire.spreadRate and fire.maxHeat */
+	for (x = 0; x < FIRE_WIDTH; x++)
+	{
+		if (fire.foyer[x] < fire.maxHeat)
+		{
+			int val = rand() % fire.chaos+1;
+			val -= fire.chaos / 2;
+			val += fire.spreadRate;
+			val += fire.foyer[x];
+
+			if (val > fire.maxHeat)
+				fire.foyer[x] = fire.maxHeat;
+			else if (val < MIN_VAL)
+				fire.foyer[x] = MIN_VAL;
+			else
+				fire.foyer[x] = val;
+		}
+		else fire.foyer[x] = fire.maxHeat;
+	}
+
+	/* smooth values a bit if needed */
+	if (fire.smooth > 0)
+	{
+		for (x = fire.smooth; x < FIRE_WIDTH-fire.smooth; x ++)
+		{
+			int val = 0;
+			for (y = x - fire.smooth; y < x + 1 + fire.smooth; y++)
+				val += fire.foyer[y];
+
+			fire.foyer[x] = val / (2*fire.smooth+1);
+		}
+	}
+
+	/* transfer bitmap to GPU */
+	DATA32 src, dst;
+	for (y = 0, pRow = fire.bitmap, src = (DATA32) fire.palette, dst = (DATA32) fire.temp + (FIRE_HEIGHT - 1) * FIRE_WIDTH; y < FIRE_HEIGHT;
+	     y ++, dst -= FIRE_WIDTH)
+	{
+		for (x = 0; x < FIRE_WIDTH; dst[x] = src[*pRow], x ++, pRow ++);
+	}
+	glTexSubImage2D(GL_TEXTURE_2D, 0, FIRE_TILE_X * 16, FIRE_TILE_Y * 16, FIRE_WIDTH, FIRE_HEIGHT, GL_RGBA, GL_UNSIGNED_BYTE, fire.temp);
 }
 

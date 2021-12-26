@@ -381,6 +381,28 @@ ItemDesc itemGetById(ItemID_t id)
 	}
 }
 
+/* register a callback when item is used by player */
+Bool itemRegisterUse(STRPTR tech, UseItem_t cb)
+{
+	ItemID_t id = itemGetByName(tech, True);
+
+	if (id > 0)
+	{
+		ItemDesc desc = itemGetById(id);
+		desc->use = cb;
+		return True;
+	}
+	return False;
+}
+
+Bool itemUse(ItemID_t id, vec4 pos, int pointToId)
+{
+	ItemDesc desc = itemGetById(id);
+	if (desc && desc->use)
+		return desc->use(id, pos, pointToId);
+	return False;
+}
+
 ItemDesc itemGetByIndex(int i)
 {
 	return i < items.count ? items.table + i : NULL;
@@ -396,7 +418,7 @@ int itemGetInventoryByCat(Item buffer, int cat)
 	for (state = blockGetById(ID(1, 0)); state < blockLast; state ++)
 	{
 		uint8_t bcat = state->inventory & CATFLAGS;
-		if (cat > 0 ? bcat != cat : bcat == 0)
+		if (cat > 0 ? bcat != cat : bcat == 0 || bcat == FILLBY)
 			continue;
 
 		if (buffer)

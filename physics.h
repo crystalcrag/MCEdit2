@@ -16,6 +16,7 @@ void physicsEntityMoved(Map map, APTR self, vec4 start, vec4 end, float sizes[3]
 Bool physicsCheckOnGround(Map map, vec4 start, VTXBBox bbox);
 void physicsInitEntity(PhysicsEntity entity, int block);
 Bool physicsMoveEntity(Map, PhysicsEntity, float speed);
+int  physicsCheckIfCanClimb(Map map, vec4 pos, VTXBBox bbox);
 
 struct PhysicsEntity_t
 {
@@ -28,5 +29,7 @@ struct PhysicsEntity_t
 	uint8_t negXZ;             /* &1: dir[VX] is negative, &2: dir[Vz] is negative */
 	VTXBBox bbox;              /* bounding box of entity */
 };
+
+#define INSIDE_LADDER    8     /* special bit field returned by physicsCheckCollision() */
 
 #endif
