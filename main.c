@@ -408,6 +408,17 @@ static uint8_t toolbarCmds[] = {
 	MCUI_OVERLAY_SAVESEL, MCUI_OVERLAY_FILTER, MCUI_OVERLAY_DELPARTIAL, MCUI_OVERLAY_PIXELART
 };
 
+void minecartPushManual(int entityId, int up);
+
+static void mceditPushManual(int up)
+{
+	vec4 pos;
+	MapExtraData sel = renderGetSelectedBlock(pos, NULL);
+
+	if (sel->entity > 0)
+		minecartPushManual(sel->entity, up);
+}
+
 /*
  * Main loop for editing world
  */
@@ -450,6 +461,10 @@ void mceditWorld(void)
 					break;
 				case SDLK_F7:
 					globals.breakPoint = ! globals.breakPoint;
+					break;
+				case SDLK_UP:
+				case SDLK_DOWN:
+					mceditPushManual(event.key.keysym.sym == SDLK_UP);
 					break;
 				#endif
 				case SDLK_TAB:

@@ -1,3 +1,7 @@
+=========== Week 52 ===========
+Tue Dec 28:
+	* minecart movement follows rails and direction.
+
 =========== Week 51 ===========
 Sat Dec 25:
 	* added animated fire texture and particles.

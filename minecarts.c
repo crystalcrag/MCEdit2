@@ -16,27 +16,70 @@
 
 extern int8_t railsNeigbors[]; /* from blockUpdate.c */
 
-static Bool minecartGetNextCoord(vec4 start, float dest[3], struct BlockIter_t iter, float dist, int dir)
+static void getRailCoord(float railCoord[6], int data)
 {
-	uint8_t data;
+	int8_t * neighbor = railsNeigbors + data * 8, i;
+	memcpy(railCoord + 3, railCoord, 12);
+	for (i = 0; i < 2; i ++, neighbor += 4, railCoord += 3)
+	{
+		switch (neighbor[3]) {
+		case SIDE_SOUTH: railCoord[VZ] += 0.5f; break;
+		case SIDE_EAST:  railCoord[VX] += 0.5f; break;
+		case SIDE_NORTH: railCoord[VZ] -= 0.5f; break;
+		case SIDE_WEST:  railCoord[VX] -= 0.5f;
+		}
+		if (neighbor[VY])
+			railCoord[VY] ++;
+	}
+}
+
+static Bool minecartGetNextCoord(vec4 start, float dest[3], struct BlockIter_t iter, float dist, int opposite)
+{
 	uint8_t oldDir = 255;
+	float   initAngle = dest[0];
 	memcpy(dest, start, 12);
 	for (;;)
 	{
-		data = iter.blockIds[DATA_OFFSET + (iter.offset >> 1)];
-		if (iter.offset & 1) data >>= 4;
-		else data &= 15;
-		if (iter.blockIds[iter.offset] != RSRAILS)
-			data &= 7; /* &8 is usually powered state: don't care here */
+		int blockId = getBlockId(&iter);
+		if (blockIds[blockId >> 4].special != BLOCK_RAILS)
+		{
+			/* can be one block below */
+			mapIter(&iter, 0, -1, 0);
+			blockId = getBlockId(&iter);
+		}
+		uint8_t data = blockId & 15;
+		if ((blockId >> 4) != RSRAILS)
+			data &= 7; /* data & 8 is usually powered state for other rails: don't care here */
 
+		vec4 next = {iter.ref->X + iter.x + 0.5f, iter.yabs + RAILS_THICK, iter.ref->Z + iter.z + 0.5f};
 		int8_t * neighbor = railsNeigbors + data * 8;
-		if (oldDir == 255 ? dir > 0 : neighbor[3] == opp[oldDir]) neighbor += 4;
+		if (oldDir == 255)
+		{
+			float railCoord[6];
+			memcpy(railCoord, next, 12);
+			getRailCoord(railCoord, data);
+			/* advance in the direction of the cart and check which point from rail is closer == direction to go */
+			float dx1 = start[VX] + sinf(initAngle);
+			float dz1 = start[VZ] + cosf(initAngle);
+			float dx2 = dx1 - railCoord[VX+3];
+			float dz2 = dz1 - railCoord[VZ+3];
+			dx1 -= railCoord[VX];
+			dz1 -= railCoord[VZ];
+			if (opposite ^ (dx1 * dx1 + dz1 * dz1 > dx2 * dx2 + dz2 * dz2))
+				neighbor += 4;
+		}
+		else if (neighbor[3] == opp[oldDir]) neighbor += 4;
 		oldDir = neighbor[3];
 
 		mapIter(&iter, relx[oldDir], rely[oldDir], relz[oldDir]);
-		vec4 next = {iter.ref->X + iter.x, iter.yabs, iter.ref->Z + iter.z};
-		float remain = 0;
+		switch (oldDir) {
+		case SIDE_SOUTH: next[VZ] += 0.5f; break;
+		case SIDE_EAST:  next[VX] += 0.5f; break;
+		case SIDE_NORTH: next[VZ] -= 0.5f; break;
+		case SIDE_WEST:  next[VX] -= 0.5f;
+		}
 		/* assumes that entity center is on track */
+		float remain = 0;
 		switch (data) {
 		case RAILS_NS:   remain = fabsf(dest[VZ] - next[VZ]); break;
 		case RAILS_EW:   remain = fabsf(dest[VX] - next[VX]); break;
@@ -47,7 +90,7 @@ static Bool minecartGetNextCoord(vec4 start, float dest[3], struct BlockIter_t i
 		case RAILS_CURBED_NW:
 		case RAILS_CURSET_NE:
 		case RAILS_ASCE:
-		case RAILS_ASCW: remain = fabsf(dest[VX] - next[VX]) * M_SQRT2f;
+		case RAILS_ASCW: remain = fabsf(dest[VX] - next[VX]) * M_SQRT2f; break;
 		default: return False;
 		}
 		if (dist < remain)
@@ -80,29 +123,147 @@ static void minecartSetOrient(Entity entity)
 	}
 
 	float coord[6];
-	float dist = entity->szx * (0.25f/BASEVTX);
+	float dist = entity->szx * (0.5f/BASEVTX);
 
+	coord[0] = coord[3] = entity->rotation[0];
 	if (minecartGetNextCoord(entity->motion, coord,   iter, dist, 0) &&
-	    minecartGetNextCoord(entity->motion, coord+3, iter, dist, 4))
+	    minecartGetNextCoord(entity->motion, coord+3, iter, dist, 1))
 	{
 		entity->pos[VX] = (coord[VX] + coord[VX+3]) * 0.5f;
 		entity->pos[VY] = (coord[VY] + coord[VY+3]) * 0.5f;
 		entity->pos[VZ] = (coord[VZ] + coord[VZ+3]) * 0.5f;
 		coord[VX+3] -= coord[VX];
-		entity->rotation[0] = atan2(coord[VZ+3] - coord[VZ], coord[VX+3]);
+		entity->rotation[0] = normAngle(M_PIf + M_PI_2f - atan2f(coord[VZ+3] - coord[VZ], coord[VX+3]));
 	//	entity->rotation[1] = atan2(coord[VY+3] - coord[VY], coord[VX+3]);
+
+		fprintf(stderr, "coord = %g, %g, %g, angle = %d\n", PRINT_COORD(entity->motion),
+			(int) (entity->rotation[0] * 180 / M_PIf));
 	}
+}
+
+static int minecartPushUpTo(vec4 pos, float dest[3], BlockIter iter, float XZ, int dir)
+{
+	#if 0
+	uint8_t axis = dir & 1 ? VX : VZ;
+	uint8_t oldDir = 255;
+	for (;;)
+	{
+		int blockId = getBlockId(iter);
+		if (blockIds[blockId >> 4].special != BLOCK_RAILS)
+		{
+			/* can be one block below */
+			mapIter(iter, 0, -1, 0);
+			blockId = getBlockId(iter);
+		}
+		uint8_t data = blockId & 15;
+		if ((blockId >> 4) != RSRAILS)
+			data &= 7; /* powered state for other rails */
+
+		float railPos[6] = {iter->ref->X + iter->x + 0.5f, iter->yabs, iter->ref->Z + iter->z + 0.5f};
+		getRailCoord(railPos, data);
+
+		float pos1 = railPos[axis];
+		float pos2 = railPos[axis+3];
+		if (pos1 > pos2)
+		{
+			float tmp;
+			swap_tmp(pos1, pos2, tmp);
+			swap(dirs[0], dirs[1]);
+		}
+
+		if (XZ < pos1)
+		{
+			i = dirs[0];
+			if (i == oldDir)
+				/* back to where we came from: not good */
+				return 0;
+			mapIter(iter, relx[i], rely[i], relz[i]);
+			oldDir = opp[i];
+		}
+		else if (XZ > pos2)
+		{
+			i = dirs[1];
+			if (i == oldDir)
+				return 0;
+			mapIter(iter, relx[i], rely[i], relz[i]);
+			oldDir = opp[i];
+		}
+		else if (fabsf(pos1 - pos2) < EPSILON)
+		{
+			/* cannot reach */
+			return 0;
+		}
+		else /* can get closer */
+		{
+			dest[axis] = XZ;
+			pos2 -= pos1;
+			pos1 = fabsf(pos[axis] - XZ);
+			axis = 2 - axis;
+			dest[axis] = pos[axis] + (railPos[axis+3] - railPos[axis]) * pos1 / pos2;
+			dest[VY] = railPos[VY] + RAILS_THICK;
+			return 1;
+		}
+	}
+	#endif
+	return 0;
+}
+
+int minecartPush(Entity entity, float broad[6])
+{
+	float scale = ENTITY_SCALE(entity);
+	float size[3] = {
+		entity->szx * scale, 0,
+		entity->szz * scale
+	};
+	vec pos = entity->motion;
+
+	float inter[] = {
+		fminf(pos[VX] + size[VX], broad[VX+3]) - fmaxf(pos[VX] - size[VX], broad[VX]), 0,
+		fminf(pos[VZ] + size[VZ], broad[VZ+3]) - fmaxf(pos[VZ] - size[VZ], broad[VZ])
+	};
+
+	/* try to push the minecart out of the broad bbox */
+	uint8_t axis = inter[0] > inter[1] ? VZ : VX;
+	uint8_t push;
+	float   dest[3], dist;
+
+	if (pos[axis] + size[axis] < broad[axis+3])
+	{
+		dist = pos[axis] - inter[axis];
+		push = axis == VX ? SIDE_WEST : SIDE_NORTH;
+	}
+	else if (pos[axis] - size[axis] > broad[axis])
+	{
+		dist = pos[axis] + inter[axis];
+		push = axis == VX ? SIDE_EAST : SIDE_SOUTH;
+	}
+	else return 0;
+
+	struct BlockIter_t iter;
+	mapInitIter(globals.level, &iter, entity->pos, False);
+	if (minecartPushUpTo(pos, dest, &iter, dist, push))
+	{
+		fprintf(stderr, "moving to %g, %g, %g\n", PRINT_COORD(dest));
+		memcpy(entity->motion, dest, 12);
+		memcpy(entity->pos, dest, 12);
+		minecartSetOrient(entity);
+		entity->pos[VY] += (entity->szy >> 1) * (1.0f/BASEVTX);
+		entityUpdateInfo(entity, NULL); //iter.ref);
+		return 1;
+	}
+	return 0;
 }
 
 /* extract info from NBT structure */
 int minecartParse(NBTFile file, Entity entity)
 {
-	entity->enflags |= ENTITY_TEXENTITES;
+	entity->enflags |= ENFLAG_TEXENTITES | ENFLAG_HASBBOX;
+	entity->entype = ENTYPE_MINECART;
 	int modelId = entityAddModel(ITEMID(ENTITY_MINECART, 0), 0, NULL, &entity->szx, MODEL_DONT_SWAP);
-	/* entity->pos is position on screen, ->motion is where it is on rail */
+	/* entity->pos is position on screen, ->motion is where it is on the rail */
 	memcpy(entity->motion, entity->pos, sizeof entity->motion);
 	/* entity position is at the bottom of minecart */
-	//minecartSetOrient(entity);
+	minecartSetOrient(entity);
 	entity->pos[VY] += (entity->szy >> 1) * (1.0f/BASEVTX);
 	return modelId;
 }
@@ -135,8 +296,9 @@ static Bool minecartCreate(vec4 pos, STRPTR tech)
 	entity->tile = nbt.mem;
 	entity->pos[VT] = 2;
 	entity->rotation[3] = 1; /* scale */
-	entity->enflags |= ENTITY_TEXENTITES;
+	entity->enflags |= ENFLAG_TEXENTITES | ENFLAG_HASBBOX;
 	entity->enflags &= ~ENFLAG_FULLLIGHT;
+	entity->entype = ENTYPE_MINECART;
 	entityGetLight(c, entity->pos, entity->light, False, 0);
 	entityAddToCommandList(entity);
 
@@ -171,6 +333,7 @@ Bool minecartTryUsing(ItemID_t itemId, vec4 pos, int pointToBlock)
 	vec   points;
 	int   i, data;
 
+	/* click on a rail: find the loation where to place minecart */
 	memset(lines, 0, sizeof lines);
 	lines[0] = lines[2] = (int) pos[VX] + 0.5f;
 	lines[1] = lines[3] = (int) pos[VZ] + 0.5f;
@@ -185,26 +348,29 @@ Bool minecartTryUsing(ItemID_t itemId, vec4 pos, int pointToBlock)
 		case SIDE_WEST:  points[0] -= 0.5f;
 		}
 	}
+	/* <pos> == raypicking intersection with rail */
 	lines[4] = pos[VX]; lines[6] = pos[VX] + (lines[1] - lines[3]);
 	lines[5] = pos[VZ]; lines[7] = pos[VZ] + (lines[2] - lines[0]);
 
+	/* intersection between ideal rail path and normal (XZ plane only) */
 	lineIntersect(lines);
+
+	/* check if there are entities in the way at this location */
 	points = lines + 2;
 	points[VX] = lines[0] - 0.5f;
 	points[VZ] = lines[1] - 0.5f;
 	points[VY] = (int) pos[VY];
 	points[VX+3] = lines[0] + 0.5f;
-	points[VZ+3] = lines[0] + 0.5f;
+	points[VZ+3] = lines[1] + 0.5f;
 	points[VY+3] = points[VY]+1;
 
-	/* check if there are entities in the way */
 	quadTreeIntersect(points, &i, 0);
 	if (i == 0)
 	{
 		TEXT techName[32];
 		points[VX] = lines[0];
 		points[VZ] = lines[1];
-		points[VY] += 1/16.f; /* sit right on top of rail */
+		points[VY] += RAILS_THICK; /* sit right on top of rail */
 		itemGetTechName(itemId, techName, sizeof techName, False);
 		minecartCreate(points, techName);
 		return True;
@@ -212,3 +378,23 @@ Bool minecartTryUsing(ItemID_t itemId, vec4 pos, int pointToBlock)
 	return False;
 }
 
+void minecartPushManual(int entityId, int up)
+{
+	Entity entity = entityGetById(entityId-1);
+
+	if (entity && entity->entype == ENTYPE_MINECART)
+	{
+		struct BlockIter_t iter;
+		float dest[3];
+		mapInitIter(globals.level, &iter, entity->motion, False);
+		dest[0] = entity->rotation[0];
+		if (minecartGetNextCoord(entity->motion, dest, iter, 0.05, 1-up))
+		{
+			memcpy(entity->motion, dest, 12);
+			memcpy(entity->pos, dest, 12);
+			minecartSetOrient(entity);
+			entity->pos[VY] += (entity->szy >> 1) * (1.0f/BASEVTX);
+			entityUpdateInfo(entity, iter.ref);
+		}
+	}
+}

@@ -285,6 +285,7 @@ static int wayPointsFinishEdit(SIT_Widget w, APTR cd, APTR ud)
 		{
 			if (name[0] == 0)
 			{
+				/* empty location: use player position/rotation instead */
 				memcpy(wp->location, waypoints.playerPos, 12);
 				memcpy(wp->rotation, waypoints.playerRotation, 8);
 			}
@@ -298,6 +299,7 @@ static int wayPointsFinishEdit(SIT_Widget w, APTR cd, APTR ud)
 					float val = strtof(name, &end);
 					if (end > name) wp->location[i] = val;
 					else break;
+					name = end;
 					if (*name == ',') name ++;
 				}
 			}

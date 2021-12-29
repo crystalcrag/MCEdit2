@@ -776,8 +776,13 @@ void renderSetViewMat(vec4 pos, vec4 lookat, float * yawPitch)
 	/* we will need that matrix sooner or later */
 	matInverse(globals.matInvMVP, globals.matMVP);
 
+	old[VX] = lookat[VX] - pos[VX];
+	old[VY] = lookat[VY] - pos[VY];
+	old[VZ] = lookat[VZ] - pos[VZ];
+
 	glBindBuffer(GL_UNIFORM_BUFFER, render.uboShader);
-	glBufferSubData(GL_UNIFORM_BUFFER, UBO_CAMERA_OFFFSET, sizeof (vec4), render.camera);
+	glBufferSubData(GL_UNIFORM_BUFFER, UBO_CAMERA_OFFSET, sizeof (vec4), render.camera);
+	glBufferSubData(GL_UNIFORM_BUFFER, UBO_LOOKAT_OFFSET, sizeof old, old);
 
 	uint8_t oldDir = globals.direction;
 	render.setFrustum = 1;
@@ -1612,7 +1617,7 @@ void renderWorld(void)
 	{
 		debugCoord(vg, render.camera, render.debugTotalTri/3);
 		entityRenderBBox();
-		//quadTreeDebug(globals.nvgCtx);
+		quadTreeDebug(globals.nvgCtx);
 	}
 	nvgEndFrame(vg);
 

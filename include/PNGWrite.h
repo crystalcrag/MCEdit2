@@ -307,7 +307,7 @@ int textureConvertToCMap(DATA8 bitmap, int width, int height)
 	}
 
 	/*
-	 * apply a floyd-steinberg dithering with out current color map:
+	 * apply a floyd-steinberg dithering with our current color map:
 	 *      X  7
 	 *   3  5  1
 	 */

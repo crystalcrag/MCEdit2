@@ -81,6 +81,9 @@ void setShaderValue(int prog, const char * field, int args, float * array);
 #define DEG_TO_RAD                             (M_PIf / 180)
 #define RAD_TO_DEG                             (180 / M_PIf)
 
+/* circumvent -Wdouble-promotion when printing coords */
+#define PRINT_COORD(coord)                     (double) (coord)[VX], (double) (coord)[VY], (double) (coord)[VZ]
+
 /* Q'n'D JSON parser */
 typedef Bool (*JSONParseCb_t)(const char * file, STRPTR * keys, int line);
 Bool   jsonParse(const char * file, JSONParseCb_t cb);

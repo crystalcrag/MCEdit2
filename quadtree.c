@@ -359,7 +359,7 @@ static void quadTreeFindEntities(QuadTree root, float bbox[6], int filter)
 	Entity item;
 	for (item = root->items; item; item = item->qnext)
 	{
-		if ((item->enflags & filter) != (filter >> 16))
+		if (filter & ENFLAG_EQUALZERO ? (item->enflags & filter) == 0 : (item->enflags & filter) != 0)
 			continue;
 
 		float scale = ENTITY_SCALE(item);
@@ -431,6 +431,19 @@ static void quadTreeRender(QuadTree root, APTR vg, float bbox[4])
 	nvgStroke(vg);
 	int i;
 
+	nvgStrokeColorRGBA8(vg, "\xff\xff\xff\xff");
+	Entity item;
+	for (item = root->items; item; item = item->qnext)
+	{
+		float scale = ENTITY_SCALE(item);
+		float SX = item->szx * scale;
+		float SZ = item->szz * scale;
+		nvgBeginPath(vg);
+		nvgRect(vg, (item->pos[VX] - SX - bbox[0]) * bbox[2] + MARGIN, (item->pos[VZ] - SZ - bbox[1]) * bbox[3] + MARGIN,
+			SX * 2 * bbox[2], SZ * 2 * bbox[3]);
+		nvgStroke(vg);
+	}
+
 	if (root->nbLeaf > 0)
 	for (i = 0; i < 4; i ++)
 	{
@@ -464,9 +477,9 @@ void quadTreeDebug(APTR vg)
 	{
 		int points[6];
 		selectionGetRange(points);
-		nvgStrokeColorRGBA8(vg, "\xff\xff\xff\xff");
+		nvgStrokeColorRGBA8(vg, "\xff\xff\x20\xff");
 		nvgBeginPath(vg);
-		nvgRect(vg, (points[0] - bbox[0]) * bbox[2], (points[2] - bbox[1]) * bbox[3],
+		nvgRect(vg, (points[0] - bbox[0]) * bbox[2] + MARGIN, (points[2] - bbox[1]) * bbox[3] + MARGIN,
 			(points[3] - points[0]) * bbox[2], (points[5] - points[2]) * bbox[3]);
 		nvgStroke(vg);
 	}

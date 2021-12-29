@@ -58,7 +58,6 @@ void quadTreeInit(int x, int z, int size);
 void quadTreeDebug(APTR vg);
 Entity * quadTreeIntersect(float bbox[6], int * count, int filter);
 
-#define QTI_FILTER(flag,result)    ((flag) | ((result)<<16))
 #define ENTITY_END                 0xffff
 #define ENTITY_ITEM                0x80000000  /* differentiate world item from block entity */
 
@@ -70,7 +69,10 @@ enum                               /* possible flags for Entity_t.enflags */
 	ENFLAG_OVERLAP     = 8,        /* overlap partition of a quad tree (set by quad tree, do not set manually) */
 	ENFLAG_BBOXROTATED = 16,       /* don't apply rotation/scale on bbox */
 	ENFLAG_INQUADTREE  = 32,       /* entity is in quad tree (will need removal) */
-	ENTITY_TEXENTITES  = 64,       /* use texture sampler for entities */
+	ENFLAG_TEXENTITES  = 64,       /* use texture sampler for entities */
+	ENFLAG_HASBBOX     = 128,      /* other entities can collide with these */
+
+	ENFLAG_EQUALZERO   = 256       /* extra <filter> parameter for quadTreeIntersect() */
 };
 
 enum /* transform param for entityCopyTransform() */
@@ -146,9 +148,13 @@ struct Entity_t
 {
 	uint16_t next;                 /* first ENTITY_SHIFT bits: index in buffer, remain: buffer index (linked list within chunk) */
 	uint16_t mdaiSlot;             /* GL draw index in VBObank */
+
 	uint16_t VBObank;              /* model id: first 6bits: bank index, remain: model index */
 	uint8_t  enflags;              /* entity with some special processing (see below) */
 	uint8_t  entype;
+
+	uint16_t szx, szy, szz;        /* bbox of entity */
+
 	ItemID_t blockId;
 	float    motion[3];
 	float    pos[4];               /* X, Y, Z and extra info for shader */
@@ -157,7 +163,6 @@ struct Entity_t
 	DATA8    tile;                 /* start of NBT Compound for this entity */
 	Entity   ref;
 	STRPTR   name;                 /* from NBT ("id" key) */
-	uint16_t szx, szy, szz;        /* bbox of entity */
 
 	/* quadtree fields */
 	Entity   qnext;                /* linked list of entities in a quad tree leaf node */
@@ -179,6 +184,7 @@ enum                               /* possible values for Entity_t.entype */
 	ENTYPE_FRAME     = 1,          /* item frame (no items in it) */
 	ENTYPE_FILLEDMAP = 2,          /* blockId contains map id to use on disk (data/map_%d.dat) */
 	ENTYPE_FRAMEITEM = 3,          /* blockId contains item/block id within the frame */
+	ENTYPE_MINECART  = 4
 };
 
 struct EntityEntry_t               /* HashTable entry */

@@ -3075,7 +3075,7 @@ void blockGetEmitterLocation(int blockId, float loc[3])
 		{
 			bbox += bbox[0];
 			loc[0] = RandRange(bbox[0], bbox[3]) * 0.0625f;
-			loc[1] = 0.5; //RandRange(bbox[1], bbox[4]) * 0.0625f;
+			loc[1] = RandRange(bbox[1], bbox[4]) * 0.0625f;
 			loc[2] = RandRange(bbox[2], bbox[5]&31) * 0.0625f;
 			return;
 		}

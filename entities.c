@@ -694,7 +694,7 @@ void entityParse(Chunk c, NBTFile nbt, int offset)
 			entity->pos[VT] = 0;
 			entity->name = id;
 			entity->VBObank = entityGetModelId(entity);
-			if (entity->enflags & ENTITY_TEXENTITES)
+			if (entity->enflags & ENFLAG_TEXENTITES)
 				entity->pos[VT] = 2;
 			if (entity->VBObank == 0) /* unknown entity */
 				entity->pos[VY] += 0.5f;

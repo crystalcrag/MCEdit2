@@ -92,10 +92,10 @@ void renderItems(Item items, int count, float scale);
 
 #define UBO_BUFFER_INDEX           2 /* must match what's declared in uniformBlock.glsl */
 #define UBO_MVMATRIX_OFFSET        (sizeof (mat4))
-#define UBO_VECLIGHT_OFFSET        (2 * sizeof (mat4))
-#define UBO_CAMERA_OFFFSET         (2 * sizeof (mat4) + sizeof (vec4))
-#define UBO_NORMALS                (2 * sizeof (mat4) + sizeof (vec4) * 2)
-#define UBO_SHADING_OFFSET         (2 * sizeof (mat4) + sizeof (vec4) * 8)
+#define UBO_LOOKAT_OFFSET          (2 * sizeof (mat4))
+#define UBO_CAMERA_OFFSET          (UBO_LOOKAT_OFFSET + sizeof (vec4))
+#define UBO_NORMALS                (UBO_CAMERA_OFFSET + sizeof (vec4))
+#define UBO_SHADING_OFFSET         (UBO_NORMALS + sizeof (vec4) * 6)
 
 #ifdef RENDER_IMPL /* private */
 #include "maps.h"

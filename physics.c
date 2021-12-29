@@ -1,10 +1,10 @@
 /*
  * physics.c: simulate physics (collision and movement) for entities
  *
- * collision is implementing using a swept AABB, with a sliding correction, inspired by:
+ * collision is implemented with a swept AABB, and a sliding correction, inspired by:
  * https://www.gamedev.net/tutorials/programming/general-and-gameplay-programming/swept-aabb-collision-detection-and-response-r3084/
  *
- * Written by T.Pierron, June 2021.
+ * written by T.Pierron, june 2021.
  */
 
 #define ENTITY_IMPL
@@ -16,6 +16,7 @@
 #include "entities.h"
 #include "physics.h"
 #include "player.h"
+#include "minecarts.h"
 #include "globals.h"
 
 
@@ -175,12 +176,19 @@ int physicsCheckCollision(Map map, vec4 start, vec4 end, VTXBBox bbox, float aut
 	if (shortestDist > 0)
 	{
 		int count;
-		Entity * list = quadTreeIntersect(broad, &count, QTI_FILTER(ENFLAG_FIXED, ENFLAG_FIXED));
+		Entity * list = quadTreeIntersect(broad, &count, ENFLAG_FIXED | ENFLAG_HASBBOX);
 		if (count > 0)
 		{
 			for (i = 0; i < count; i ++)
 			{
 				Entity entity = list[i];
+				if ((entity->enflags & ENFLAG_FIXED) == 0)
+				{
+					if (entity->entype == ENTYPE_MINECART)
+						minecartPush(entity, broad);
+					fprintf(stderr, "entity %s being pushed\n", entity->name);
+					continue;
+				}
 				float dist = ENTITY_SCALE(entity);
 				float SZX = entity->szx * dist;
 				float SZY = entity->szy * dist;
@@ -382,7 +390,7 @@ int physicsCheckIfCanClimb(Map map, vec4 pos, VTXBBox bbox)
 		mapIter(&iter, -dx, 1, -dz);
 	}
 	break_all:
-	/* check if (ladder+1) is a power of 2: this means there are no gaps in ladder */
+	/* check if (ladder+1) is a power of 2: this means there are no gaps in the ladder column */
 	return ladder > 0 && ((ladder + 1) & ladder) == 0;
 }
 
@@ -511,7 +519,7 @@ void physicsEntityMoved(Map map, APTR self, vec4 start, vec4 end, float size[3])
 		dir[i] = diff < -EPSILON ? -1 : diff > EPSILON ? 1 : 0;
 	}
 
-	Entity * list = quadTreeIntersect(broad, &count, QTI_FILTER(ENFLAG_FIXED, 0));
+	Entity * list = quadTreeIntersect(broad, &count, ENFLAG_FIXED | ENFLAG_EQUALZERO);
 	if (count > 0)
 	{
 		list = memcpy(alloca(count * sizeof *list), list, count * sizeof *list);

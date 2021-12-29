@@ -966,7 +966,7 @@ void vecCrossProduct(vec4 res, vec4 A, vec4 B)
 float normAngle(float angle)
 {
 	if (angle < 0) angle += 2*M_PIf; else
-	if (angle > 2*M_PIf) angle -= 2*M_PIf;
+	if (angle >= 2*M_PIf) angle -= 2*M_PIf;
 	if (angle == -0.0f) angle = 0;
 	return angle;
 }
