@@ -2226,27 +2226,11 @@ static int blockGenWireModel(DATA16 buffer, int count)
 	vertex = alloca(count * BYTES_PER_VERTEX);
 	memcpy(vertex, buffer, count * BYTES_PER_VERTEX);
 
-	// XXX what that's for ?
-	// int lastEdge = 0;
 	/* generate mesh wire from mesh triangles */
 	for (p = vertex, edge = edges, cur = vertex, faces = total = i = 0; i < count; i += 6, p += 2 * INT_PER_VERTEX)
 	{
 		uint16_t index[4];
 		uint8_t  normal = GET_NORMAL(p);
-		#if 0
-		if (p[3] & 32768)
-		{
-			/* new primitive */
-			int end = (edge - edges) >> 1;
-			if (popcount(faces) == 1)
-			{
-				/* primitive with only one face: add all new edge to the list */
-				for (j = lastEdge; j < end; edgeFace[j] = 63, j ++);
-			}
-			lastEdge = end;
-			faces = 0;
-		}
-		#endif
 		for (j = 0; j < 4; j ++, p += INT_PER_VERTEX)
 		{
 			for (dup = vertex; dup < cur; dup += INT_PER_VERTEX)

@@ -17,6 +17,7 @@
 #include "physics.h"
 #include "player.h"
 #include "minecarts.h"
+#include "mapUpdate.h"
 #include "globals.h"
 
 
@@ -155,8 +156,11 @@ int physicsCheckCollision(Map map, vec4 start, vec4 end, VTXBBox bbox, float aut
 					Block block = &blockIds[iter.blockIds[iter.offset]];
 					if (block->viscosity > 0 && end[VT] > block->viscosity)
 						end[VT] = block->viscosity;
+					/* note: we cannot do a more precise check, because we need final position first */
 					if (block->id == 65)
 						ret |= INSIDE_LADDER;
+					if (block->special == BLOCK_PLATE)
+						ret |= INSIDE_PLATE;
 				}
 
 				k ++;
@@ -394,6 +398,54 @@ int physicsCheckIfCanClimb(Map map, vec4 pos, VTXBBox bbox)
 	return ladder > 0 && ((ladder + 1) & ladder) == 0;
 }
 
+/* player might have activated/exited a pressure plate */
+void physicsCheckPressurePlate(Map map, vec4 start, vec4 end, VTXBBox bbox)
+{
+	int8_t i, j, k;
+	float  entityBBox[6];
+	float  broad[6];
+
+	for (i = 0; i < 3; i ++)
+	{
+		entityBBox[i]   = FROMVERTEX(bbox->pt1[i]);
+		entityBBox[3+i] = FROMVERTEX(bbox->pt2[i]);
+		broad[i]   = fminf(start[i], end[i]) + entityBBox[i];
+		broad[3+i] = fmaxf(start[i], end[i]) + entityBBox[i+3];
+	}
+
+	int8_t dx = (int) broad[VX+3] - (int) broad[VX];
+	int8_t dy = (int) broad[VY+3] - (int) broad[VY];
+	int8_t dz = (int) broad[VZ+3] - (int) broad[VZ];
+
+	vecAdd(entityBBox,   entityBBox,   end);
+	vecAdd(entityBBox+3, entityBBox+3, end);
+
+	/* scan all pressure plates intersected */
+	struct BlockIter_t iter;
+	mapInitIter(map, &iter, broad, False);
+	for (i = 0; ; )
+	{
+		for (j = 0; ; )
+		{
+			for (k = 0; ; )
+			{
+				Block b = &blockIds[iter.blockIds[iter.offset]];
+				if (b->special == BLOCK_PLATE)
+					mapUpdatePressurePlate(&iter, entityBBox);
+				k ++;
+				if (k > dx) break;
+				mapIter(&iter, 1, 0, 0);
+			}
+			j ++;
+			if (j > dz) break;
+			mapIter(&iter, -dx, 0, 1);
+		}
+		i ++;
+		if (i > dy) break;
+		mapIter(&iter, -dx, 1, -dz);
+	}
+}
+
 void physicsInitEntity(PhysicsEntity entity, int blockId)
 {
 	float density = blockIds[blockId>>4].density - blockIds[0].density;
@@ -534,9 +586,11 @@ void physicsEntityMoved(Map map, APTR self, vec4 start, vec4 end, float size[3])
 				entity->szy * scale,
 				entity->szz * scale
 			};
+			float oldPos[3];
+			memcpy(oldPos, entity->pos, 12);
 
 			if (physicsPushEntity(broad, entity->pos, bbox, dir))
-				entityUpdateInfo(entity, mapGetChunk(map, entity->pos));
+				entityUpdateInfo(entity, oldPos);
 		}
 	}
 	/* check for players XXX needs to be stored in the quadtree */

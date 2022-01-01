@@ -432,7 +432,7 @@ void selectionRender(void)
 /*
  * clone selection tool: create a mini-map from the selected blocks
  */
-#define chunkDeleteIterTE(iter,ext)    chunkDeleteTileEntity((iter).ref, (int[3]){(iter).x-1, (iter).yabs-1, (iter).z-1}, ext)
+#define chunkDeleteIterTE(iter)   chunkDeleteTileEntity((iter).ref, (int[3]){(iter).x-1, (iter).yabs-1, (iter).z-1}, True)
 #define chunkAddIterTE(iter,tile) \
 { \
 	int xyz[] = {(iter).x-1, (iter).yabs-1, (iter).z-1}; \
@@ -557,7 +557,7 @@ int selectionCopyBlocks(SIT_Widget w, APTR cd, APTR ud)
 					if (dst.ref == NULL) continue; /* outside map :-/ */
 					if (air == 0 && blockId == 0) continue;
 					if (water == 0 && blockGetById(blockId)->special == BLOCK_LIQUID) continue;
-					DATA8 tile = chunkDeleteIterTE(src, True);
+					DATA8 tile = chunkDeleteIterTE(src);
 					mapUpdate(map, NULL, blockId, tile, UPDATE_SILENT);
 				}
 			}
@@ -1162,7 +1162,7 @@ static void selectionBrushRotate(void)
 				int x2 = dz - z + 1;
 				int z2 = x;
 				int off = 0;
-				DATA8 tile = chunkDeleteIterTE(iter, True);
+				DATA8 tile = chunkDeleteIterTE(iter);
 				if (tile)
 				{
 					struct BlockIter_t te = iter;
@@ -1283,7 +1283,7 @@ static void selectionBrushRoll(void)
 					dst.blockIds[dst.offset] = blockId >> 4;
 					mapUpdateData(&dst, blockId & 15);
 
-					DATA8 tile = chunkDeleteIterTE(src, True);
+					DATA8 tile = chunkDeleteIterTE(src);
 					if (tile) chunkAddIterTE(dst, tile);
 				}
 			}
@@ -1314,7 +1314,7 @@ static void selectionBrushRoll(void)
 					dst.blockIds[dst.offset] = blockId >> 4;
 					mapUpdateData(&dst, blockId & 15);
 
-					DATA8 tile = chunkDeleteIterTE(src, True);
+					DATA8 tile = chunkDeleteIterTE(src);
 					if (tile) chunkAddIterTE(dst, tile);
 				}
 			}
@@ -1384,8 +1384,8 @@ static void selectionBrushFlip(void)
 
 				iterHI.blockIds[iterHI.offset] = idHI >> 4;
 				iterLO.blockIds[iterLO.offset] = idLO >> 4;
-				DATA8 tileLO = chunkDeleteIterTE(iterHI, True);
-				DATA8 tileHI = chunkDeleteIterTE(iterLO, True);
+				DATA8 tileLO = chunkDeleteIterTE(iterHI);
+				DATA8 tileHI = chunkDeleteIterTE(iterLO);
 				mapUpdateData(&iterLO, idLO & 15);
 				mapUpdateData(&iterHI, idHI & 15);
 				if (tileLO) chunkAddIterTE(iterLO, tileLO);
@@ -1472,8 +1472,8 @@ static void selectionBrushMirror(void)
 				iterMIN.blockIds[iterMIN.offset] = idMIN >> 4;
 				mapUpdateData(&iterMIN, idMIN & 15);
 				mapUpdateData(&iterMAX, idMAX & 15);
-				DATA8 tileMIN = chunkDeleteIterTE(iterMAX, True);
-				DATA8 tileMAX = chunkDeleteIterTE(iterMIN, True);
+				DATA8 tileMIN = chunkDeleteIterTE(iterMAX);
+				DATA8 tileMAX = chunkDeleteIterTE(iterMIN);
 				if (tileMIN) chunkAddIterTE(iterMIN, tileMIN);
 				if (tileMAX) chunkAddIterTE(iterMAX, tileMAX);
 			}

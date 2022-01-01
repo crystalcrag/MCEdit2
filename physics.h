@@ -11,12 +11,13 @@
 
 typedef struct PhysicsEntity_t *         PhysicsEntity;
 
-int  physicsCheckCollision(Map map, vec4 start, vec4 end, VTXBBox bbox, float autoClimb);
-void physicsEntityMoved(Map map, APTR self, vec4 start, vec4 end, float sizes[3]);
-Bool physicsCheckOnGround(Map map, vec4 start, VTXBBox bbox);
+int  physicsCheckCollision(Map, vec4 start, vec4 end, VTXBBox bbox, float autoClimb);
+void physicsEntityMoved(Map, APTR self, vec4 start, vec4 end, float sizes[3]);
+Bool physicsCheckOnGround(Map, vec4 start, VTXBBox bbox);
 void physicsInitEntity(PhysicsEntity entity, int block);
 Bool physicsMoveEntity(Map, PhysicsEntity, float speed);
-int  physicsCheckIfCanClimb(Map map, vec4 pos, VTXBBox bbox);
+int  physicsCheckIfCanClimb(Map, vec4 pos, VTXBBox bbox);
+void physicsCheckPressurePlate(Map, vec4 start, vec4 end, VTXBBox bbox);
 
 struct PhysicsEntity_t
 {
@@ -30,6 +31,10 @@ struct PhysicsEntity_t
 	VTXBBox bbox;              /* bounding box of entity */
 };
 
-#define INSIDE_LADDER    8     /* special bit field returned by physicsCheckCollision() */
+enum                           /* special bit field returned by physicsCheckCollision() */
+{
+	INSIDE_LADDER = 8,
+	INSIDE_PLATE  = 16,
+};
 
 #endif

@@ -870,7 +870,7 @@
 
 	{id: 70, name: "Stone pressure plate", type: CUST, bbox: MAX, bboxPlayer: NONE, inv: MODEL, cat: REDSTONE, rswire: ALLDIR,
 		placement: "ground", rsupdate: GENERATE, special: PLATE, pushable: DROPITEM, invmodel: [ /* a bit bigger */
-			191,16,1,16,0,0,0,0,0,0,0,0,0,16,8224,8240,32,16,8224,8240,32,16,8224,8240,32,16,8224,8240,32,16,8224,8240,32,16,8224,8240,32,16
+			191,16,2,16,0,0,0,0,0,0,0,0,0,16,8224,8240,32,16,8224,8240,32,16,8224,8240,32,16,8224,8240,32,16,8224,8240,32,16,8224,8240,32,16
 		]},
 		{state: 0, name: "-", tex: [1, 0], model: [
 			31,14,1,14,1,0,1,0,0,0,0,0,0,7712,8225,8239,7726,544,7726,7727,545,17,530,544,31,529,7711,7712,530,530,7712,7726,544,
@@ -912,7 +912,7 @@
 
 	{id: 72, name: "Wooden pressure plate", type: CUST, bbox: MAX, bboxPlayer: NONE, inv: MODEL, cat: REDSTONE, rswire: ALLDIR,
 		placement: "ground", rsupdate: GENERATE, special: PLATE, pushable: DROPITEM, density: WOOD, invmodel: [ /* a bit bigger */
-		191,16,1,16,0,0,0,0,0,0,0,0,0,64,8272,8288,80,64,8272,8288,80,64,8272,8288,80,64,8272,8288,80,64,8272,8288,80,64,8272,8288,80,
+			191,16,2,16,0,0,0,0,0,0,0,0,0,64,8272,8288,80,64,8272,8288,80,64,8272,8288,80,64,8272,8288,80,64,8272,8288,80,64,8272,8288,80,
 		]},
 		{state: 0, name: "-", tex: [4, 0], model: [
 			31,14,1,14,1,0,1,0,0,0,0,0,0,7760,8273,8287,7774,592,7774,7775,593,65,578,592,79,577,7759,7760,578,578,7760,7774,592,
@@ -1964,7 +1964,7 @@
 	{id: 147, name: "Gold pressure plate", type: CUST, bbox: MAX, bboxPlayer: NONE, inv: MODEL, invState: 0, placement: "ground", density: 20,
 		cat: REDSTONE, rswire: ALLDIR, rsupdate: GENERATE, special: PLATE, pushable: DROPITEM, tech: "light_weighted_pressure_plate"},
 		{state: 0, tex: [7, 1, 7, 1, 7, 1, 7, 1], model: [
-			159,14,1,14,1,0,1,0,0,0,0,0,0,8320,16528,16544,8336,8320,16528,16544,8336,8320,16528,16544,8336,8320,16528,16544,8336,8320,16528,16544,8336,8320,16528,16544,8336,
+			159,16,2,16,0,0,0,0,0,0,0,0,0,8320,16528,16544,8336,8320,16528,16544,8336,8320,16528,16544,8336,8320,16528,16544,8336,8320,16528,16544,8336,8320,16528,16544,8336,
 		]},
 		{state: 1, name: "-(power_1)", model: [
 			31,14,0.5,14,1,0,1,0,0,0,0,0,0,16016,16529,16543,16030,16030,16031,8849,8848,8321,8834,8848,8335,16015,16016,8834,8833,8834,16016,16030,8848,
@@ -1987,7 +1987,7 @@
 	{id: 148, name: "Iron pressure plate", type: CUST, bbox: MAX, bboxPlayer: NONE, inv: MODEL, invState: 0, placement: "ground", density: IRON,
 		cat: REDSTONE, rswire: ALLDIR, rsupdate: GENERATE, special: PLATE, pushable: DROPITEM, tech: "heavy_weighted_pressure_plate"},
 		{state: 0, tex: [6, 1, 6, 1, 6, 1, 6, 1], model: [
-			159,14,1,14,1,0,1,0,0,0,0,0,0,8304,16512,16528,8320,8304,16512,16528,8320,8304,16512,16528,8320,8304,16512,16528,8320,
+			159,16,2,16,0,0,0,0,0,0,0,0,0,8304,16512,16528,8320,8304,16512,16528,8320,8304,16512,16528,8320,8304,16512,16528,8320,
 			106848,115056,115072,106864,8320,16528,16544,8336,
 		]},
 		{state: 1, name: "-(power_1)", model: [
@@ -3051,6 +3051,14 @@
 		{state: 3, name: "+south", tex: [4,21, 2,21, 0,21, 2,21, 1,21, 1,21,  2048]},
 		{state: 4, name: "+west",  tex: [2,21, 0,21, 2,21, 4,21, 1,21, 1,21,  1280]},
 		{state: 5, name: "+east",  tex: [2,21, 4,21, 2,21, 0,21, 1,21, 1,21,  3840]},
+
+		{state: 8, name: "+(active,_down)",
+		                           tex: [1,21, 2,21, 1,21, 2,21, 3,21, 4,21,  68]},
+		{state: 9, name: "+up",    tex: [1,21, 2,21, 1,21, 2,21, 4,21, 3,21,  102]},
+		{state:10, name: "+north", tex: [3,21, 2,21, 4,21, 2,21, 1,21, 1,21,  512]},
+		{state:11, name: "+south", tex: [4,21, 2,21, 3,21, 2,21, 1,21, 1,21,  2048]},
+		{state:12, name: "+west",  tex: [2,21, 3,21, 2,21, 4,21, 1,21, 1,21,  1280]},
+		{state:13, name: "+east",  tex: [2,21, 4,21, 2,21, 3,21, 1,21, 1,21,  3840]},
 
 	{id: 219, name: "White shulker box", type: TRANS, inv: CUBE, cat: DECO, invState: 0, orient: FULL, tile: 1, pushable: DROPITEM},
 		{state: 0, name: "+down",  tex: [3,25, 3,25, 3,25, 3,25, 3,27, 3,26,  170]},

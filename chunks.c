@@ -81,6 +81,12 @@ ChunkData chunkCreateEmpty(Chunk c, int y)
 	return cd;
 }
 
+
+/*
+ * tile entities hash table: all tile entities within a chunk are stored in a hash table where
+ * keys == tile entity coord (in chunk local coordinates) and value = NBT stream.
+ */
+
 #define chunkHashSize(count)     ((count) * sizeof (struct TileEntityEntry_t) + sizeof (struct TileEntityHash_t))
 #define EOF_MARKER               0xffff
 
@@ -92,7 +98,7 @@ static DATA8 chunkInsertTileEntity(TileEntityHash hash, TileEntityEntry ent)
 	TileEntityEntry dest = (TileEntityEntry) (hash + 1);
 	int             slot = ent->xzy % hash->max;
 
-	for (old = NULL, free = dest + slot; free->data && free->xzy != ent->xzy; )
+	for (old = NULL, free = dest + slot; free->data && (free->xzy & TILE_COORD) != ent->xzy; )
 	{
 		old = free;
 		if (free->next == EOF_MARKER)
@@ -140,12 +146,12 @@ static TileEntityHash chunkCreateTileEntityHash(Chunk c, int count)
 
 /*
  * pre-conditions:
- *    0 <= XYZ[0] <= 15    &&
- *    0 <= XYZ[1] <= 65535 &&
- *    0 <= XYZ[2] <= 15
+ *    0 <= XYZ[VX] <= 15    &&
+ *    0 <= XYZ[VY] <= 65535 &&
+ *    0 <= XYZ[VZ] <= 15
  * ie: X, Z are relative to chunk <c>, Y is absolute coord
  */
-Bool chunkAddTileEntity(Chunk c, int * XYZ, DATA8 mem)
+Bool chunkAddTileEntity(Chunk c, int XYZ[3], DATA8 mem)
 {
 	struct TileEntityEntry_t entry = {.data = mem};
 
@@ -169,7 +175,7 @@ Bool chunkAddTileEntity(Chunk c, int * XYZ, DATA8 mem)
 
 		count = roundToUpperPrime(hash->count);
 		reloc = calloc(chunkHashSize(count), 1);
-		fprintf(stderr, "enlarging hash table from %d to %d at %d, %d\n", hash->count, count, c->X, c->Z);
+		//fprintf(stderr, "enlarging hash table from %d to %d at %d, %d\n", hash->count, count, c->X, c->Z);
 		if (! reloc) return False;
 		c->tileEntities = reloc;
 
@@ -187,7 +193,7 @@ Bool chunkAddTileEntity(Chunk c, int * XYZ, DATA8 mem)
 		hash = reloc;
 	}
 	mem = chunkInsertTileEntity(hash, &entry);
-	if (mem)
+	if (mem > TILE_OBSERVED_DATA)
 	{
 		/* tile entity was replaced instead of added */
 		if (! (c->nbt.mem <= mem && mem < c->nbt.mem + c->nbt.usage))
@@ -199,7 +205,7 @@ Bool chunkAddTileEntity(Chunk c, int * XYZ, DATA8 mem)
 }
 
 /* update X, Y, Z field of tile NBT record */
-void chunkUpdateTilePosition(Chunk c, int * XYZ, DATA8 tile)
+void chunkUpdateTilePosition(Chunk c, int XYZ[3], DATA8 tile)
 {
 	NBTFile_t nbt = {.mem = tile};
 	NBTIter_t iter;
@@ -268,8 +274,7 @@ void chunkExpandEntities(Chunk c)
 	}
 }
 
-/* get tile entity data based on its coordinates within chunk (same as chunkAddTileEntity()) */
-DATA8 chunkGetTileEntity(Chunk c, int * XYZ)
+static TileEntityEntry chunkGetTileEntry(Chunk c, int XYZ[3])
 {
 	if (! c->tileEntities) return NULL;
 	TileEntityHash  hash = c->tileEntities;
@@ -278,16 +283,23 @@ DATA8 chunkGetTileEntity(Chunk c, int * XYZ)
 	TileEntityEntry ent  = base + xzy % hash->max;
 
 	if (ent->data == NULL) return NULL;
-	while (ent->xzy != xzy)
+	while ((ent->xzy & TILE_COORD) != xzy)
 	{
 		if (ent->next == EOF_MARKER) return NULL;
 		ent = base + ent->next;
 	}
-	return ent->data;
+	return ent;
+}
+
+/* get tile entity data based on its coordinates within chunk (same as chunkAddTileEntity()) */
+DATA8 chunkGetTileEntity(Chunk c, int XYZ[3])
+{
+	TileEntityEntry entry = chunkGetTileEntry(c, XYZ);
+	return entry && entry->data != TILE_OBSERVED_DATA ? entry->data : NULL;
 }
 
 /* tile entity has been deleted: remove ref from hash */
-DATA8 chunkDeleteTileEntity(Chunk c, int * XYZ, Bool extract)
+DATA8 chunkDeleteTileEntity(Chunk c, int XYZ[3], Bool extract)
 {
 	if (! c->tileEntities) return False;
 	TileEntityHash  hash = c->tileEntities;
@@ -297,41 +309,54 @@ DATA8 chunkDeleteTileEntity(Chunk c, int * XYZ, Bool extract)
 	DATA8           data = ent->data;
 
 	if (data == NULL) return False;
-	while (ent->xzy != xzy)
+
+	while ((ent->xzy & TILE_COORD) != xzy)
 	{
 		if (ent->next == EOF_MARKER) return False;
 		ent = base + ent->next;
 		data = ent->data;
 	}
-	if (ent->prev != EOF_MARKER)
+	if ((ent->xzy & ~TILE_COORD) == 0)
 	{
-		TileEntityEntry prev = base + ent->prev;
-		prev->next = ent->next;
-		if (ent->next != EOF_MARKER)
+		if (ent->prev != EOF_MARKER)
 		{
-			TileEntityEntry next = base + ent->next;
-			next->prev = ent->prev;
+			TileEntityEntry prev = base + ent->prev;
+			prev->next = ent->next;
+			if (ent->next != EOF_MARKER)
+			{
+				TileEntityEntry next = base + ent->next;
+				next->prev = ent->prev;
+			}
 		}
+		else if (ent->next != EOF_MARKER)
+		{
+			/* removing first link in the chain: need to move next item here */
+			TileEntityEntry next = base + ent->next;
+			memmove(ent, base, sizeof *ent);
+			ent->prev = EOF_MARKER;
+			ent = next;
+		}
+		hash->count --;
+		ent->data = NULL;
 	}
-	else if (ent->next != EOF_MARKER)
-	{
-		/* removing first link in the chain: need to move next item here */
-		TileEntityEntry next = base + ent->next;
-		memmove(ent, base, sizeof *ent);
-		ent->prev = EOF_MARKER;
-		ent = next;
-	}
+	else ent->data = TILE_OBSERVED_DATA;
+
 	// fprintf(stderr, "deleting tile entity at %d, %d, %d\n", c->X + XYZ[0], XYZ[1], c->Z + XYZ[2]);
-	if (extract)
+	/* mapUpdate() will need this information to check if there are observers who need to be notified */
+	XYZ[0] |= ent->xzy >> (TILE_OBSERVED_OFFSET-4);
+
+	if (data > TILE_OBSERVED_DATA)
 	{
-		if (c->nbt.mem <= data && data < c->nbt.mem + c->nbt.usage)
-			data = NBT_Copy(data);
+		if (extract)
+		{
+			if (c->nbt.mem <= data && data < c->nbt.mem + c->nbt.usage)
+				data = NBT_Copy(data);
+		}
+		else if (! (c->nbt.mem <= data && data < c->nbt.mem + c->nbt.usage))
+			free(data);
+		return data;
 	}
-	else if (! (c->nbt.mem <= data && data < c->nbt.mem + c->nbt.usage))
-		free(data);
-	hash->count --;
-	ent->data = NULL;
-	return data;
+	return NULL;
 }
 
 /* only free memory related to tile/entity */
@@ -342,7 +367,7 @@ void chunkDeleteTile(Chunk c, DATA8 tile)
 }
 
 /* iterate over all tile entities defined in this chunk (*offset needs to be initially set to 0) */
-DATA8 chunkIterTileEntity(Chunk c, int * XYZ, int * offset)
+DATA8 chunkIterTileEntity(Chunk c, int XYZ[3], int * offset)
 {
 	if (! c->tileEntities) return NULL;
 	TileEntityHash  hash = c->tileEntities;
@@ -352,13 +377,13 @@ DATA8 chunkIterTileEntity(Chunk c, int * XYZ, int * offset)
 
 	for (i = *offset; i < hash->max; i ++, ent ++)
 	{
-		if (ent->data)
+		if (ent->data && ent->data != TILE_OBSERVED_DATA)
 		{
 			if (XYZ)
 			{
 				XYZ[VX] = c->X + (ent->xzy & 15);
 				XYZ[VZ] = c->Z + ((ent->xzy >> 4) & 15);
-				XYZ[VY] = ent->xzy >> 8;
+				XYZ[VY] = (ent->xzy >> 8) & 0xffff;
 			}
 			*offset = i + 1;
 			return ent->data;
@@ -366,6 +391,49 @@ DATA8 chunkIterTileEntity(Chunk c, int * XYZ, int * offset)
 	}
 	return NULL;
 }
+
+/*
+ * cheap trick to handle observer: add a fake tile entity to the observed location
+ * if there is already a tile entity, mark it as "observable".
+ * whenever there is an update in this block, the mapUpdate() function will have to retrieve the
+ * tile entity anyway, without having to scan 6 surrounding blocks for every block update.
+ */
+static void chunkMakeObservable(ChunkData cd, int offset, int side)
+{
+	struct BlockIter_t iter;
+	mapInitIterOffset(&iter, cd, offset);
+	mapIter(&iter, relx[side], rely[side], relz[side]);
+
+	int XYZ[] = {iter.x, iter.yabs, iter.z};
+	TileEntityEntry entry = chunkGetTileEntry(iter.ref, XYZ);
+	if (entry == NULL)
+	{
+		chunkAddTileEntity(iter.ref, XYZ, TILE_OBSERVED_DATA);
+		entry = chunkGetTileEntry(iter.ref, XYZ);
+	}
+	/* the block can be observed on multiple side */
+	entry->xzy |= 1 << (opp[side] + TILE_OBSERVED_OFFSET);
+}
+
+void chunkUnobserve(ChunkData cd, int offset, int side)
+{
+	struct BlockIter_t iter;
+	mapInitIterOffset(&iter, cd, offset);
+	mapIter(&iter, relx[side], rely[side], relz[side]);
+	int XYZ[] = {iter.x, iter.yabs, iter.z};
+	TileEntityEntry entry = chunkGetTileEntry(iter.ref, XYZ);
+
+	if (entry)
+	{
+		entry->xzy &= ~(1 << (opp[side] + TILE_OBSERVED_OFFSET));
+		if ((entry->xzy & ~TILE_COORD) == 0 && entry->data == TILE_OBSERVED_DATA)
+			chunkDeleteTileEntity(iter.ref, XYZ, False);
+	}
+}
+
+/*
+ * chunk loading/saving
+ */
 
 Bool chunkLoad(Chunk chunk, const char * path, int x, int z)
 {
@@ -590,8 +658,14 @@ static int chunkSaveExtra(int tag, APTR cbparam, NBTFile nbt)
 		/* list of tile entities modified */
 		hash = chunk->tileEntities;
 		if (nbt == NULL)
+		{
 			/* return total count of tile entities */
-			return hash ? hash->count : 0;
+			int count;
+			/* dummy tile entities for observed blocks must not be saved in NBT */
+			for (i = hash->max-1, count = 0, ent = (TileEntityEntry) (hash + 1); i >= 0; i --, ent ++)
+				if (ent->data > TILE_OBSERVED_DATA) count ++;
+			return count;
+		}
 
 		if ((chunk->saveFlags & CHUNK_NBT_TILEENTITIES) == 0)
 		{
@@ -609,7 +683,7 @@ static int chunkSaveExtra(int tag, APTR cbparam, NBTFile nbt)
 		/* this will certainly change the order of tile entities each time it is saved (not that big of a deal though) */
 		for (i = chunk->cdIndex - 1, ent = (TileEntityEntry) (hash + 1) + i; i < hash->max; i ++, ent ++)
 		{
-			if (ent->data == NULL) continue;
+			if (ent->data <= TILE_OBSERVED_DATA) continue;
 			NBTIter_t iter;
 			NBT_IterCompound(&iter, ent->data);
 			while (NBT_Iter(&iter) >= 0);
@@ -652,7 +726,7 @@ static int chunkSaveExtra(int tag, APTR cbparam, NBTFile nbt)
 		{
 			chunk->saveFlags |= CHUNK_NBT_SECTION;
 			chunk->cdIndex = 0;
-			if (chunk->entOffset < 0)
+			if (chunk->secOffset < 0)
 			{
 				chunkAddNBTEntry(nbt, "Sections", CHUNK_NBT_SECTION);
 				return 1;
@@ -1085,7 +1159,7 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer opaque, BlockState b
 static void chunkGenCube(ChunkData neighbors[], WriteBuffer opaque, BlockState b, DATAS16 chunkOffsets, int pos);
 int mapUpdateGetCnxGraph(ChunkData, int start, DATA8 visited);
 
-#include "globals.h"
+#include "globals.h" /* .breakPoint */
 
 /*
  * transform chunk data into something useful for the vertex shader (blocks.vsh)
@@ -1130,10 +1204,9 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 		BlockState state;
 		uint8_t    data;
 		uint8_t    block;
-		DATA8      blocks = cur->blockIds;
 
-		data  = blocks[DATA_OFFSET + (pos >> 1)]; if (pos & 1) data >>= 4; else data &= 15;
-		block = blocks[pos];
+		data  = cur->blockIds[DATA_OFFSET + (pos >> 1)]; if (pos & 1) data >>= 4; else data &= 15;
+		block = cur->blockIds[pos];
 		state = blockGetById(ID(block, data));
 
 //		if (globals.breakPoint && pos == 120)
@@ -1143,9 +1216,14 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 		if (! blockIsFullySolid(state) && (slotsXZ[pos & 0xff] || slotsY[pos >> 8]) && (visited[pos>>3] & mask8bit[pos&7]) == 0)
 			cur->cnxGraph |= mapUpdateGetCnxGraph(cur, pos, visited);
 
-		if (hasLights && blockIds[block].particle)
-			if (block != 55 || data > 0) // XXX needs to be declared in blockTable.js :-/
+		if (hasLights)
+		{
+			if (blockIds[block].particle && (block != RSWIRE || data > 0)) // XXX needs to be somewhat declared in blockTable.js :-/
 				chunkAddEmitters(cur, pos, blockIds[block].particle - 1);
+
+			if (block == RSOBSERVER)
+				chunkMakeObservable(cur, pos, blockSides.piston[data&7]);
+		}
 
 		switch (state->type) {
 		case QUAD:

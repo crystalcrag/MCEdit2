@@ -236,7 +236,7 @@ void worldItemDup(Map map, vec info, int entityId)
 	dup->next = chunk->entityList;
 	dup->name = NBT_Payload(&nbt, NBT_FindNode(&nbt, 0, "id"));
 	chunk->entityList = slot;
-	entityGetLight(chunk, dup->pos, dup->light, dup->enflags & ENFLAG_FULLLIGHT, 0);
+	entityGetLight(chunk, dup->pos, dup->light, dup->enflags & ENFLAG_FULLLIGHT);
 	entityAddToCommandList(dup);
 	mapAddToSaveList(map, chunk);
 	if ((chunk->cflags & CFLAG_REBUILDETT) == 0)
@@ -408,7 +408,8 @@ Bool worldItemCreatePainting(Map map, int paintingId, vec4 pos)
 	entity->rotation[3] = 1;
 	entity->VBObank = entityGetModelId(entity);
 	entity->enflags &= ~ENFLAG_FULLLIGHT;
-	entityGetLight(c, entity->pos, entity->light, False, 0);
+	entity->chunkRef = c;
+	entityGetLight(c, entity->pos, entity->light, False);
 	entityAddToCommandList(entity);
 
 	/* flag chunk for saving later */
@@ -466,10 +467,11 @@ static int worldItemCreateItemFrame(Map map, vec4 pos, int side)
 
 	entity->next = c->entityList;
 	entity->name = NBT_Payload(&nbt, NBT_FindNode(&nbt, 0, "id"));
+	entity->chunkRef = c;
 	c->entityList = slot;
 
 	entity->tile = nbt.mem;
-	entityGetLight(c, entity->pos, entity->light, True, 0);
+	entityGetLight(c, entity->pos, entity->light, True);
 	entityAddToCommandList(entity);
 	entityMarkListAsModified(map, c);
 	quadTreeInsertItem(entity);
@@ -540,7 +542,7 @@ void worldItemUseItemOn(Map map, int entityId, ItemID_t itemId, vec4 pos)
 	}
 }
 
-/* entity->type == ENTITY_FRAME */
+/* entity->entype == ENTITY_FRAME */
 void worldItemDelete(Entity entity)
 {
 	/* item in item frame: only delete this item */
@@ -608,6 +610,8 @@ void worldItemUpdatePreviewPos(vec4 camera, vec4 pos)
 
 	if (preview)
 	{
+		float oldPos[3];
+		memcpy(oldPos, preview->pos, 12);
 		memcpy(preview->pos, pos, 12);
 		preview->pos[VY] += worldItem.previewOffVY;
 		float angle = atan2f(pos[VX] - camera[VX], pos[VZ] - camera[VZ]);
@@ -618,7 +622,7 @@ void worldItemUpdatePreviewPos(vec4 camera, vec4 pos)
 			angle += M_PIf;
 		preview->rotation[0] = normAngle(angle);
 		/* note: this entity is not linked to any chunk, no need to update entityList */
-		entityUpdateInfo(preview, NULL);
+		entityUpdateInfo(preview, oldPos);
 	}
 }
 
@@ -666,7 +670,8 @@ void worldItemAdd(Map map)
 
 			preview->tile = nbt.mem;
 			preview->enflags &= ~ENFLAG_FULLLIGHT;
-			entityGetLight(chunk, preview->pos, preview->light, False, 0);
+			preview->chunkRef = chunk;
+			entityGetLight(chunk, preview->pos, preview->light, False);
 			entityMarkListAsModified(map, chunk);
 			worldItem.preview = NULL;
 			worldItem.slot = 0;

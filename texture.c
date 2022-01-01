@@ -237,9 +237,9 @@ void textureAnimate(void)
 	{
 		/* setup some lookup tables */
 		DATA8 pal;
-		int r = 256+256+255;
-		int g = 256+255;
-		int b = 255, nb;
+		int r = 256+256+255-48;
+		int g = 256+255-48;
+		int b = 255-48, nb;
 		fire.init = True;
 
 		for (pal = fire.palette + 255*4, nb = 255; nb >= 0; nb --, pal -= 4)

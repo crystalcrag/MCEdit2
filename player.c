@@ -13,6 +13,7 @@
 #include "physics.h"
 #include "entities.h"
 #include "SIT.h"
+#include "mapUpdate.h"
 #include "globals.h"
 
 #define JUMP_STRENGTH          0.29f
@@ -386,6 +387,11 @@ void playerMove(Player p)
 //		fprintf(stderr, "Velocity = %.2f x %.2f, dir = %.2f x %.2f (%d)\n", (double) p->velocity[VX], (double) p->velocity[VZ],
 //			p->dir[VX], p->dir[VZ], collision);
 
+		if ((collision & INSIDE_PLATE) || p->plate)
+		{
+			physicsCheckPressurePlate(globals.level, orig_pos, p->pos, &playerBBox);
+			p->plate = collision & INSIDE_PLATE;
+		}
 		if ((collision & INSIDE_LADDER) && (climb = physicsCheckIfCanClimb(globals.level, p->pos, &playerBBox)))
 		{
 			if ((collision & 5) && (keyvec & PLAYER_MOVE_FORWARD))

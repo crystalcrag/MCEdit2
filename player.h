@@ -110,6 +110,7 @@ struct Player_t
 	uint8_t  liquid;           /* is in a liquid (water:1 or lava:2) */
 
 	uint8_t  ladder;           /* 0: no ladder collision, 1: collision, 2: collision + climbing */
+	uint8_t  plate;            /* >0: pressure plate activated */
 	uint16_t keyvec;           /* bitfield of PLAYER_* */
 
 	uint32_t tick;             /* time diff between update */

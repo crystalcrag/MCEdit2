@@ -51,8 +51,6 @@
   <a class="sub2" href="#meshcust"><span><tt>CUST</tt> voxel</span></a>
     <a class="sub3" href="#cnxmodels"><span>Connected models</span></a>
 
-<a class="sub1" href="#nbt2"><span>NBT API</a>
-
 <a class="sub1" href="#entities"><span>Entities</span></a>
   <a class="sub2" href="#structure"><span>Data structure</span></a>
   <a class="sub2" href="#collision"><span>Collision detection</span></a>
@@ -1567,60 +1565,6 @@ means that the face will always be included (like the central piece of a fence).
 
 <p>/* ... */
 
-<h2 id="nbt2">NBT API</h2>
-
-<p>NBT API in this engine does not exactly follow a traditional API you might expect for manipulating
-a tree of arbitrary data types. The main problem that this API was trying to solve is to keep 
-everything related to an NBT tree as close as possible in memory, to benefit from cache locality.
-
-<p>This is actually the main focus of this API: it <b>strongly</b> favors read over write access. The
-rationale for this choice being that most chunks in a map will never be modified at all, and for those
-that will, most of time it is simply a matter of overwriting some tables (<tt>BlockLight</tt>,
-<tt>Blocks</tt>, <tt>Data</tt>, ...).
-
-<p>There are a few lists (<tt>TileEntities</tt>, <tt>Entities</tt>, <tt>TileTicks</tt>, ...) where the
-content can change significantly, and this is where this API will be a bit more tedious to use than other
-APIs.
-
-<p>The gist of how this API works is to serialize the content of a NBT file into a <b>single memory
-block</b>. This block will be reallocated if the first allocation was not enough, but <b>everything</b>
-will be kept into a contiguous block of memory. Therefore the binary representation of the NBT structure
-in memory will actually be <b>very close</b> to how it is stored on disk (if it were uncompressed): save
-a few memory alignment constraints and byte ordering, and you could write the buffer almost directly
-to disk.
-
-<p>Sadly, that also means, in order to use this API, you'll need to have a pretty good understanding
-on how NBT is structured on disk, because that API is a very shallow abstraction over that. A refresher
-will be available in the next section.
-
-<p>NBT files usually contains lots of small blocks, that would be spread all over the memory if allocated
-inidvidually. This API is also particularly efficient with memory when you need a small NBT fragment
-(around hundreds of bytes): it is possible to only use stack memory and therefore perform no allocations.
-
-<h3 id="nbtread"><span>NBT structure</span></h3>
-
-<p>This section is a quick refresher on how NBT is structured (uncompressed). This format can store
-arbitrary data types, in a tree-like format with branch nested as deep as you want.
-
-<p>NBT supports <b>3 major families of types</b>:
-<ol>
-  <li><b>Scalar</b>: designate an imeediate value, which can be an integer (1, 2, 4 or 8 bytes), a
-  floating point number (32 or 64bits) or a string.
-  <li><b>List</b>: contains a finite number of scalar and/or compound.
-  <li><b>Compound</b>: an arbitrary number of scalar, one after the other: a field terminator is used
-  to mark the end of the block.
-</ol>
-
-<h3 id="nbtread"><span>Basic reading functions</span></h3>
-
-<h3 id="nbtinc"><span>Incremental write</span></h3>
-
-<h3 id="nbtfrag"><span>Edit NBT fragment</span></h3>
-
-<h3 id="nbtpost"><span>Branch post-processing</span></h3>
-
-<p>/* ... */
-
 <h2 id="entities">Entities</h2>
 
 <p>Entities in this engine refer to a model that is not aligned to the voxel grid: it can have arbitrary
@@ -1787,7 +1731,7 @@ to objects that are completely outside render distance, which is a waste of memo
 reach the leaf nodes of the tree.
 
 <p>The way it is handled in this implementation, is by <b>auto-resizing the quad tree</b>: when adding
-an item in th tree, if its initial position is outside of the current bounding box of the quadtree,
+an item in the tree, if its initial position is outside of the current bounding box of the quadtree,
 as many top layers as necessary will be added, until the object position is included in the bounding
 box.
 

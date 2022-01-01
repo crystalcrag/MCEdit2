@@ -144,14 +144,14 @@ static struct
 	GLuint vboLoc;
 	GLuint vboMDAI;
 	int    size, count, graph;
-	int    X, Z, Y;
+	int    X, Z, Y, maxY;
 
 }	debugChunk;
 
 /* show limits of the chunk where the player is currently */
 void debugInit(void)
 {
-	/* debug chunk data: will use blocks.vsh */
+	/* debug chunk data: will use terrain.vsh */
 	glGenBuffers(3, &debugChunk.vbo);
 	glGenVertexArrays(1, &debugChunk.vao);
 	glBindVertexArray(debugChunk.vao);
@@ -161,6 +161,7 @@ void debugInit(void)
 	glEnableVertexAttribArray(0);
 	glVertexAttribIPointer(1, 2, GL_UNSIGNED_SHORT, BYTES_PER_VERTEX, (void *) 6);
 	glEnableVertexAttribArray(1);
+	/* per instance vertex data */
 	glBindBuffer(GL_ARRAY_BUFFER, debugChunk.vboLoc);
 	glBufferData(GL_ARRAY_BUFFER, 12 * CHUNK_LIMIT, NULL, GL_STATIC_DRAW);
 	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, 0);
@@ -265,7 +266,7 @@ static void debugBuildCnxGraph(int cnxGraph)
 
 void debugShowChunkBoundary(Chunk cur, int Y)
 {
-	if (cur->X != debugChunk.X || cur->Z != debugChunk.Z)
+	if (cur->X != debugChunk.X || cur->Z != debugChunk.Z || cur->maxy != debugChunk.maxY)
 	{
 		int     max = cur->maxy;
 		MDAICmd cmd;
@@ -274,6 +275,7 @@ void debugShowChunkBoundary(Chunk cur, int Y)
 
 		debugChunk.X = cur->X;
 		debugChunk.Z = cur->Z;
+		debugChunk.maxY = cur->maxy;
 		glBindBuffer(GL_ARRAY_BUFFER, debugChunk.vboLoc);
 		glBindBuffer(GL_DRAW_INDIRECT_BUFFER, debugChunk.vboMDAI);
 		loc = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
@@ -333,6 +335,8 @@ void debugShowChunkBoundary(Chunk cur, int Y)
 			}
 		}
 	}
+
+	/* a bit overkill to use that draw call for debug */
 	glUseProgram(render.shaderItems);
 	glBindVertexArray(debugChunk.vao);
 	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, debugChunk.vboMDAI);

@@ -62,11 +62,15 @@ static QuadTree quadTreeAlloc(void)
 static void quadTreeFree(QuadTree node)
 {
 	QuadBatch mem;
-	for (mem = &qmem; (mem->batch <= node && node < EOT(mem->batch)); mem = mem->next);
-	if (mem)
+	for (mem = &qmem; mem; mem = mem->next)
 	{
-		int slot = node - mem->batch;
-		mem->usage[slot>>5] &= ~(1 << (slot & 31));
+		if (mem->batch <= node && node < EOT(mem->batch))
+		{
+			int slot = node - mem->batch;
+			mem->usage[slot>>5] &= ~(1 << (slot & 31));
+			mem->count --;
+			break;
+		}
 	}
 }
 

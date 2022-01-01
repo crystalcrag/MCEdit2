@@ -71,8 +71,9 @@ enum                               /* possible flags for Entity_t.enflags */
 	ENFLAG_INQUADTREE  = 32,       /* entity is in quad tree (will need removal) */
 	ENFLAG_TEXENTITES  = 64,       /* use texture sampler for entities */
 	ENFLAG_HASBBOX     = 128,      /* other entities can collide with these */
+	ENFLAG_USEMOTION   = 256,      /* use entity->motion as position */
 
-	ENFLAG_EQUALZERO   = 256       /* extra <filter> parameter for quadTreeIntersect() */
+	ENFLAG_EQUALZERO   = 512       /* extra <filter> parameter for quadTreeIntersect() */
 };
 
 enum /* transform param for entityCopyTransform() */
@@ -150,11 +151,12 @@ struct Entity_t
 	uint16_t mdaiSlot;             /* GL draw index in VBObank */
 
 	uint16_t VBObank;              /* model id: first 6bits: bank index, remain: model index */
-	uint8_t  enflags;              /* entity with some special processing (see below) */
+	uint16_t enflags;              /* entity with some special processing (see below) */
 	uint8_t  entype;
 
 	uint16_t szx, szy, szz;        /* bbox of entity */
 
+	Chunk    chunkRef;             /* chunk where entity is (should match what's in <pos>) */
 	ItemID_t blockId;
 	float    motion[3];
 	float    pos[4];               /* X, Y, Z and extra info for shader */
@@ -169,7 +171,7 @@ struct Entity_t
 	QuadTree qnode;                /* quadtree node where entity is */
 };
 
-struct QuadTree_t                  /* quadtree for entity collision check (28b) */
+struct QuadTree_t                  /* quadtree for entity collision check (36b) */
 {
 	float    x, z;
 	uint16_t size;                 /* always a power of 2 */
@@ -277,11 +279,11 @@ int    entityGetModelId(Entity);
 int    entityGetModelBank(ItemID_t);
 void   entityAddToCommandList(Entity);
 void   entityResetModel(Entity);
-void   entityGetLight(Chunk, vec4 pos, DATA32 light, Bool full, int debugLight);
+void   entityGetLight(Chunk, vec4 pos, DATA32 light, Bool full);
 void   entityMarkListAsModified(Map, Chunk);
 int    entityAddModel(ItemID_t, int cnx, CustModel cust, DATA16 sizes, int swapAxis);
 void   entityDeleteSlot(int slot);
-void   entityUpdateInfo(Entity, Chunk checkIfChanged);
+void   entityUpdateInfo(Entity, vec4 oldPos);
 void   entityGetBoundsForFace(Entity entity, int face, vec4 V0, vec4 V1);
 
 enum                  /* possible values for swapAxis */

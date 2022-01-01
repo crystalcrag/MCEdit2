@@ -1,4 +1,13 @@
 =========== Week 52 ===========
+Fri Dec 31:
+	* added redstone logic for observers.
+
+Thu Dec 30:
+	* added pressure plate signal propagation (stone and wooden only).
+
+Wed Dec 29:
+	* entities could be saved in the wrong chunk.
+
 Tue Dec 28:
 	* minecart movement follows rails and direction.
 

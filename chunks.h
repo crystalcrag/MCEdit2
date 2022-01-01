@@ -28,12 +28,12 @@ Bool      chunkSave(Chunk, const char * path);
 void      chunkUpdate(Chunk update, ChunkData air, DATAS16 chunkOffsets, int layer);
 int       chunkFree(Chunk);
 ChunkData chunkCreateEmpty(Chunk, int layer);
-DATA8     chunkGetTileEntity(Chunk, int * XYZ);
-DATA8     chunkDeleteTileEntity(Chunk, int * XYZ, Bool extract);
-DATA8     chunkIterTileEntity(Chunk, int * XYZ, int * offset);
-Bool      chunkAddTileEntity(Chunk, int * XYZ, DATA8 mem);
+DATA8     chunkGetTileEntity(Chunk, int XYZ[3]);
+DATA8     chunkDeleteTileEntity(Chunk, int XYZ[3], Bool extract);
+DATA8     chunkIterTileEntity(Chunk, int XYZ[3], int * offset);
+Bool      chunkAddTileEntity(Chunk, int XYZ[3], DATA8 mem);
 Bool      chunkUpdateNBT(Chunk, int blockOffset, NBTFile nbt);
-Bool      chunkGetTilePosition(Chunk, int * XYZ, DATA8 tile);
+void      chunkUnobserve(ChunkData, int offset, int side);
 void      chunkUpdateTilePosition(Chunk, int * XYZ, DATA8 tile);
 void      chunkMarkForUpdate(Chunk);
 void      chunkUpdateEntities(Chunk);
@@ -132,19 +132,22 @@ enum /* NBT update tag */
 
 #define STATIC_HASH(hash, min, max)    (min <= (DATA8) hash && (DATA8) hash < max)
 #define TILE_ENTITY_ID(XYZ)            ((XYZ[1] << 8) | (XYZ[2] << 4) | XYZ[0])
+#define TILE_OBSERVED_OFFSET           26
+#define TILE_OBSERVED_DATA             ((DATA8)1)
+#define TILE_COORD                     ((1 << TILE_OBSERVED_OFFSET)-1)
 
 typedef struct TileEntityHash_t *      TileEntityHash;
 typedef struct TileEntityEntry_t *     TileEntityEntry;
 
-struct TileEntityEntry_t
+struct TileEntityEntry_t               /* one entry in the hash table of tile entities */
 {
-	uint32_t xzy;
-	uint16_t prev;
-	uint16_t next;
-	DATA8    data;
+	uint32_t xzy;                      /* TILE_ENTITY_ID() */
+	uint16_t prev;                     /* needed if we have to delete an entry */
+	uint16_t next;                     /* needed to scan collision */
+	DATA8    data;                     /* NBT stream */
 };
 
-struct TileEntityHash_t
+struct TileEntityHash_t                /* will be followed by <max> TileEntityEntry_t */
 {
 	uint32_t count;
 	uint32_t max;

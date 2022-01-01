@@ -18,7 +18,6 @@
 #include "entities.h"
 #include "globals.h"
 
-extern struct BlockSides_t blockSides; /* from blocks.c */
 static struct UpdatePrivate_t updates;
 
 int8_t railsNeigbors[] = { /* find the potential 2 neighbors of a rail based on data table */
@@ -795,8 +794,11 @@ int mapUpdateComparator(Map map, BlockIter iterator, int blockId, Bool init, DAT
 	}
 
 	/* only function supported function so far: maintain signal */
-	int offset = NBT_FindNode(&nbt, 0, "OutputSignal");
-	NBT_SetInt(&nbt, offset, signal);
+	if (nbt.mem)
+	{
+		int offset = NBT_FindNode(&nbt, 0, "OutputSignal");
+		NBT_SetInt(&nbt, offset, signal);
+	}
 
 	if (signal > 0 && (blockId & 8) == 0)
 		return blockId | 8;
@@ -804,6 +806,51 @@ int mapUpdateComparator(Map map, BlockIter iterator, int blockId, Bool init, DAT
 		return blockId & ~8;
 
 	return blockId;
+}
+
+/* player entered or exited a pressure plate */
+void mapUpdatePressurePlate(BlockIter iter, float entityBBox[6])
+{
+	int blockId = getBlockId(iter);
+	VTXBBox bbox = blockGetBBox(blockGetById(blockId & ~15)); /* use bbox of non-activated plate */
+	float plateBBox[6] = {iter->ref->X + iter->x, iter->yabs, iter->ref->Z + iter->z};
+	int i;
+
+	memcpy(plateBBox + 3, plateBBox, 12);
+	for (i = 0; i < 3; i ++)
+	{
+		plateBBox[i]   += FROMVERTEX(bbox->pt1[i]);
+		plateBBox[3+i] += FROMVERTEX(bbox->pt2[i]);
+	}
+
+	if (plateBBox[VX] >= entityBBox[VX+3] || plateBBox[VX+3] <= entityBBox[VX] ||
+		plateBBox[VY] >= entityBBox[VY+3] || plateBBox[VY+3] <= entityBBox[VY] ||
+		plateBBox[VZ] >= entityBBox[VZ+3] || plateBBox[VZ+3] <= entityBBox[VZ])
+	{
+		/* not intersecting */
+		if ((blockId & 15) > 0)
+			/* is activate: start an update tick to release it after a delay */
+			updateAdd(iter, blockId & ~15, (blockId >> 4) == 72 ? TICK_PER_SECOND * 1.5 : TICK_PER_SECOND);
+	}
+	else /* within bbox of plate */
+	{
+		if ((blockId & 15) == 0)
+			/* not activated yet: do not update in this function, do it outside this context */
+			updateAdd(iter, blockId | 1, 0);
+	}
+}
+
+void mapUpdateObserver(BlockIter iterator, int from)
+{
+	struct BlockIter_t iter;
+	int i;
+	for (iter = *iterator, i = 0; from > 0; from >>= 1, i ++)
+	{
+		mapIter(&iter, xoff[i], yoff[i], zoff[i]);
+		int blockId = getBlockId(&iter);
+		if ((blockId >> 4) == RSOBSERVER && (blockId & 8) == 0 && blockSides.piston[blockId&7] == opp[i])
+			updateAdd(&iter, blockId | 8, 1);
+	}
 }
 
 /* return the activated state of <blockId>, but does not modify any tables */
@@ -1072,13 +1119,14 @@ void updateAddRSUpdate(struct BlockIter_t iter, int side, int nbTick)
 	update->blockId = BLOCK_UPDATE;
 }
 
-/* XXX move this crap somewhere else ... */
+/* XXX move this somewhere else ... */
 void mapUpdateChangeRedstone(Map map, BlockIter iterator, int side, RSWire dir);
 
 /* usually redstone devices (repeater, torch) update surrounding blocks after a delay */
 void updateTick(void)
 {
 	int i = 0, time = globals.curTime;
+	mapUpdateInit(NULL);
 	/* more tile ticks can be added while scanning this list */
 	while (updates.count > 0)
 	{

@@ -291,7 +291,7 @@ static int mceditCancelStuff(SIT_Widget w, APTR cd, APTR ud)
 
 static int mceditExit(SIT_Widget w, APTR cd, APTR ud)
 {
-	SIT_Exit(2);
+	SIT_Exit(1);
 	return 1;
 }
 

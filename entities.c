@@ -531,7 +531,7 @@ void entityAddToCommandList(Entity entity)
 	else bank->mdaiCount ++, bank->dirty = 1; /* redo the list from scratch */
 }
 
-void entityGetLight(Chunk c, vec4 pos, DATA32 light, Bool full, int debugLight)
+void entityGetLight(Chunk c, vec4 pos, DATA32 light, Bool full)
 {
 	int Y = CPOS(pos[1]);
 	if (Y < 0)
@@ -595,15 +595,6 @@ void entityGetLight(Chunk c, vec4 pos, DATA32 light, Bool full, int debugLight)
 		mapInitIterOffset(&iter, cd, CHUNK_POS2OFFSET(c, pos));
 		memset(light, mapGetSkyBlockLight(&iter), LIGHT_SIZE);
 	}
-
-	#if 0
-	if (debugLight)
-	{
-		fprintf(stderr, "light entity at %g, %g, %g%s:\n", pos[0], pos[1], pos[2], full ? " (full)" : "");
-		for (Y = 0; Y < LIGHT_SIZE/4; Y ++)
-			fprintf(stderr, " - %08x\n", light[Y]);
-	}
-	#endif
 }
 
 EntityModel entityGetModelById(int modelBank)
@@ -673,6 +664,8 @@ void entityParse(Chunk c, NBTFile nbt, int offset)
 		if (id && !(pos[3] == 0 && pos[4] == 0 && pos[6] == 0))
 		{
 			uint16_t next;
+			if (pos[3] < c->X || pos[3] >= c->X+16 || pos[5] < c->Z || pos[5] >= c->Z+16)
+				fprintf(stderr, "entity %s not in the correct chunk: %g, %g\n", id, (double) (pos[3] - c->X), (double) (pos[5] - c->Z));
 			Entity entity = entityAlloc(&next);
 
 			if (prev)
@@ -693,6 +686,7 @@ void entityParse(Chunk c, NBTFile nbt, int offset)
 			entity->next = ENTITY_END;
 			entity->pos[VT] = 0;
 			entity->name = id;
+			entity->chunkRef = c;
 			entity->VBObank = entityGetModelId(entity);
 			if (entity->enflags & ENFLAG_TEXENTITES)
 				entity->pos[VT] = 2;
@@ -700,7 +694,7 @@ void entityParse(Chunk c, NBTFile nbt, int offset)
 				entity->pos[VY] += 0.5f;
 			if (entity->blockId > 0)
 				entity->enflags |= ENFLAG_FULLLIGHT;
-			entityGetLight(c, pos+3, entity->light, entity->enflags & ENFLAG_FULLLIGHT, 0);
+			entityGetLight(c, pos+3, entity->light, entity->enflags & ENFLAG_FULLLIGHT);
 			entityAddToCommandList(entity);
 			quadTreeInsertItem(entity);
 
@@ -1149,7 +1143,7 @@ void entityDeleteById(Map map, int entityId)
 	int slot = entityId & (ENTITY_BATCH-1);
 	for (buffer = HEAD(entities.list); i > 0; i --, NEXT(buffer));
 	entity = buffer->entities + slot;
-	c = mapGetChunk(map, entity->pos);
+	c  = entity->chunkRef;
 
 	if (c)
 	{
@@ -1224,6 +1218,11 @@ Bool entityGetNBT(NBTFile nbt, int * id)
 	*id = entity->next;
 	nbt->mem = entity->tile;
 	nbt->usage = NBT_Size(entity->tile);
+
+	/* update position/rotation */
+	NBT_SetFloat(nbt, NBT_FindNode(nbt, 0, "Pos"), entity->enflags & ENFLAG_USEMOTION ? entity->motion : entity->pos, 3);
+	NBT_SetFloat(nbt, NBT_FindNode(nbt, 0, "Rotation"), entity->rotation, 2);
+
 	return True;
 }
 
@@ -1282,27 +1281,15 @@ void entityAnimate(void)
 			{
 				/* entity->pos will drift due to infinitesimal error accumulation on iterative sum */
 				scale = entity->pos[j] += (entity->motion[j] - entity->pos[j]) * (time - anim->prevTime) / remain;
-				/* physics collision are very picky about not exceeding bouding box :-/ */
+				/* physics collision are very picky about not exceeding bounding box :-/ */
 				if ((scale - oldPos[j]) * (entity->motion[j] - scale) < 0)
 					entity->pos[j] = entity->motion[j];
 			}
 			anim->prevTime = time;
 
-			EntityBank bank;
-			for (j = BANK_NUM(entity->VBObank), bank = HEAD(entities.banks); j > 0; j --, NEXT(bank));
-			quadTreeChangePos(entity);
-			physicsEntityMoved(globals.level, entity, oldPos, entity->pos, sizes);
 			/* update VBO */
-			glBindBuffer(GL_ARRAY_BUFFER, bank->vboLoc);
-			glBufferSubData(GL_ARRAY_BUFFER, entity->mdaiSlot * INFO_SIZE, 12, entity->pos);
-			if ((int) oldPos[0] != (int) entity->pos[0] ||
-				(int) oldPos[1] != (int) entity->pos[1] ||
-				(int) oldPos[2] != (int) entity->pos[2])
-			{
-				/* XXX check if chunk has changed */
-				entityGetLight(mapGetChunk(globals.level, entity->pos), entity->pos, entity->light, entity->enflags & ENFLAG_FULLLIGHT, 1);
-				glBufferSubData(GL_ARRAY_BUFFER, entity->mdaiSlot * INFO_SIZE + INFO_SIZE-LIGHT_SIZE, LIGHT_SIZE, entity->light);
-			}
+			entityUpdateInfo(entity, oldPos);
+			physicsEntityMoved(globals.level, entity, oldPos, entity->pos, sizes);
 			anim ++;
 		}
 		else /* anim done: remove entity */
@@ -1312,7 +1299,7 @@ void entityAnimate(void)
 			memcpy(dest, entity->motion, 12);
 			entities.animCount --;
 			/* remove from list */
-			Chunk c = mapGetChunk(globals.level, dest);
+			Chunk c = entity->chunkRef;
 			memmove(anim, anim + 1, (i - 1) * sizeof *anim);
 			entityDelete(c, tile);
 			updateFinished(tile, dest);
@@ -1349,6 +1336,7 @@ void entityUpdateOrCreate(Chunk c, vec4 pos, int blockId, vec4 dest, int ticks, 
 	memcpy(entity->motion, dest, 12);
 	entity->blockId = blockId;
 	entity->tile = tile;
+	entity->chunkRef = c;
 	entity->rotation[3] = 1;
 	vecAddNum(entity->pos,    0.5f);
 	vecAddNum(entity->motion, 0.5f);
@@ -1356,7 +1344,7 @@ void entityUpdateOrCreate(Chunk c, vec4 pos, int blockId, vec4 dest, int ticks, 
 	entity->enflags |= ENFLAG_FIXED;
 	if (b->type != CUST || b->special == BLOCK_SOLIDOUTER)
 		entity->enflags |= ENFLAG_FULLLIGHT;
-	entityGetLight(c, pos, entity->light, entity->enflags & ENFLAG_FULLLIGHT, 1);
+	entityGetLight(c, pos, entity->light, entity->enflags & ENFLAG_FULLLIGHT);
 	entityAddToCommandList(entity);
 
 	if ((entity->enflags & ENFLAG_INQUADTREE) == 0)
@@ -1389,7 +1377,7 @@ void entityUpdateLight(Chunk c)
 		if (entity->ref)
 			memcpy(light, entity->ref->light, sizeof light);
 		else
-			entityGetLight(c, entity->pos, light, entity->enflags & ENFLAG_FULLLIGHT, 0);
+			entityGetLight(c, entity->pos, light, entity->enflags & ENFLAG_FULLLIGHT);
 		if (memcmp(light, entity->light, LIGHT_SIZE))
 		{
 			EntityBank bank;
@@ -1405,24 +1393,32 @@ void entityUpdateLight(Chunk c)
 }
 
 /* push data into vertex buffer */
-void entityUpdateInfo(Entity entity, Chunk checkIfChanged)
+void entityUpdateInfo(Entity entity, vec4 oldPos)
 {
-	if (entity)
+	EntityBank bank;
+	int j;
+	for (j = BANK_NUM(entity->VBObank), bank = HEAD(entities.banks); j > 0; j --, NEXT(bank));
+	quadTreeChangePos(entity);
+	Chunk cur = entity->chunkRef;
+
+	if (cur)
 	{
-		EntityBank bank;
-		int j;
-		for (j = BANK_NUM(entity->VBObank), bank = HEAD(entities.banks); j > 0; j --, NEXT(bank));
-		quadTreeChangePos(entity);
-		glBindBuffer(GL_ARRAY_BUFFER, bank->vboLoc);
-		glBufferSubData(GL_ARRAY_BUFFER, entity->mdaiSlot * INFO_SIZE, INFO_SIZE - LIGHT_SIZE, entity->pos);
+		if ((int) oldPos[0] != (int) entity->pos[0] ||
+			(int) oldPos[1] != (int) entity->pos[1] ||
+			(int) oldPos[2] != (int) entity->pos[2])
+		{
+			entityGetLight(cur, entity->pos, entity->light, entity->enflags & ENFLAG_FULLLIGHT);
+		}
 
 		/* check if we need to move the entity in a different chunk */
-		if (checkIfChanged && (checkIfChanged->X != ((int) entity->pos[VX] & ~15) || checkIfChanged->Z != ((int) entity->pos[VZ] & ~15)))
+		if (cur->X != ((int) entity->pos[VX] & ~15) || cur->Z != ((int) entity->pos[VZ] & ~15))
 		{
-			Chunk chunk = mapGetChunk(globals.level, entity->pos);
 			DATA16 prev;
-			int slot, entityId = entityGetId(entity);
-			for (prev = &checkIfChanged->entityList, slot = *prev; slot != ENTITY_END && slot != entityId; slot = *prev)
+			Chunk  dest = mapGetChunk(globals.level, entity->pos);
+			int    entityId = entityGetId(entity);
+			int    slot;
+
+			for (prev = &cur->entityList, slot = *prev; slot != ENTITY_END && slot != entityId; slot = *prev)
 			{
 				Entity next = entityGetById(slot);
 				prev = &next->next;
@@ -1432,12 +1428,15 @@ void entityUpdateInfo(Entity entity, Chunk checkIfChanged)
 				/* relocate to another chunk */
 				//fprintf(stderr, "moving entity into another chunk\n");
 				*prev = entity->next;
-				entity->next = chunk->entityList;
-				chunk->entityList = entityId;
-				entityMarkListAsModified(globals.level, chunk);
+				entity->next = dest->entityList;
+				dest->entityList = entityId;
+				entityMarkListAsModified(globals.level, cur);
+				entityMarkListAsModified(globals.level, dest);
 			}
 		}
 	}
+	glBindBuffer(GL_ARRAY_BUFFER, bank->vboLoc);
+	glBufferSubData(GL_ARRAY_BUFFER, entity->mdaiSlot * INFO_SIZE, INFO_SIZE - LIGHT_SIZE, entity->pos);
 }
 
 #ifdef DEBUG

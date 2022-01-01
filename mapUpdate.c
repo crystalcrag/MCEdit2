@@ -40,8 +40,6 @@ extern uint8_t  updateChunks[];
 /* track iteratively blocks that needs change for blocklight/skylight */
 static struct MapUpdate_t track;
 
-extern struct BlockSides_t blockSides;
-
 /* return how many units of skylight a block will reduce incoming light */
 static inline int blockGetSkyOpacity(int blockId, int min)
 {
@@ -1102,6 +1100,7 @@ static void mapUpdateDeleteRedstone(Map map, BlockIter iterator, int blockId)
 		mapUpdateChangeRedstone(map, iterator, RSSAMEBLOCK, NULL);
 		break;
 	case RSREPEATER_ON:
+	case RSCOMPARATOR:
 		iterator->blockIds[iterator->offset] = 0;
 		mapUpdateChangeRedstone(map, iterator, blockSides.repeater[blockId & 3] ^ 2, NULL);
 		break;
@@ -1253,8 +1252,12 @@ static int mapUpdateIfPowered(Map map, BlockIter iterator, int oldId, int blockI
 		if (init)
 			iterator->blockIds[iterator->offset] = blockId >> 4;
 		return ID(RSWIRE, redstoneSignalStrength(iterator, True));
+	case RSOBSERVER:
+		/* already log a tile tick to unpower */
+		if (blockId & 8) updateAdd(iterator, blockId & ~8, 1);
+		break;
 	default:
-		if (b->orientHint == ORIENT_LEVER)
+		if (b->orientHint == ORIENT_LEVER || b->special == BLOCK_PLATE)
 		{
 			/* buttons & lever */
 			if ((oldId >> 4) == (blockId >> 4))
@@ -1642,7 +1645,7 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 	if (iter.blockIds == NULL)
 	{
 		/* try to build above or below build limit */
-		/* if (blockId == 0) */ return;
+		return;
 	}
 
 	int oldId = iter.blockIds[iter.offset] << 4;
@@ -1677,7 +1680,7 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 	//fprintf(stderr, "setting block %g, %g, %g to %d:%d\n", pos[0], pos[1], pos[2], blockId >> 4, blockId & 15);
 	if (iter.cd == chunkAir)
 	{
-		/* force chunk allocation :-/ */
+		/* force chunk allocation */
 		mapUpdateTable(&iter, 0, DATA_OFFSET);
 		data = iter.blockIds + DATA_OFFSET + (iter.offset >> 1);
 	}
@@ -1719,14 +1722,14 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 	}
 
 	/* redstone signal if any */
-	if ((b->rsupdate & RSUPDATE_SEND) && (blockId>>4) != RSREPEATER_ON)
+	if ((b->rsupdate & RSUPDATE_SEND) && b->id != RSREPEATER_ON)
 	{
-		if (blockIds[blockId>>4].orientHint == ORIENT_LEVER)
+		if (b->orientHint == ORIENT_LEVER)
 		{
 			/* buttons & lever */
 			mapUpdateChangeRedstone(map, &iter, blockSides.lever[blockId&7], NULL);
 		}
-		else if ((blockId>>4) == RSWIRE && (blockId & 15) < (oldId & 15))
+		else if (b->id == RSWIRE && (blockId & 15) < (oldId & 15))
 		{
 			mapUpdateDeleteSignal(&iter, blockId);
 		}
@@ -1734,6 +1737,8 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 		{
 			mapUpdatePropagateSignal(&iter);
 			mapUpdateChangeRedstone(map, &iter, RSSAMEBLOCK, NULL);
+			if (b->special == BLOCK_PLATE)
+				mapUpdateChangeRedstone(map, &iter, SIDE_BOTTOM, NULL);
 		}
 	}
 	else if (b->type == SOLID)
@@ -1765,6 +1770,16 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 
 		if ((iter.ref->cflags & CFLAG_REBUILDTE) == 0)
 			chunkMarkForUpdate(iter.ref);
+	}
+	if ((oldId >> 4) == RSOBSERVER && (blockId >> 4) != RSOBSERVER)
+	{
+		/* observer deleted: remove tile */
+		chunkUnobserve(iter.cd, iter.offset, blockSides.piston[oldId & 7]);
+	}
+	if (XYZ[0] > 15)
+	{
+		mapUpdateObserver(&iter, XYZ[0] >> 4);
+		XYZ[0] &= 15;
 	}
 
 	if (tile)

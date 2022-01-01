@@ -130,7 +130,7 @@ struct BlockSides_t              /* convert block data into SIDE_* enum */
 	uint8_t torch[8];            /* side within the block it is attached */
 	uint8_t lever[8];            /* buttons and lever: where it is attached (within its block) */
 	uint8_t sign[8];             /* wall sign only */
-	uint8_t piston[8];           /* where extended part is */
+	uint8_t piston[8];           /* where extended part is (note: also observed face for observer) */
 	uint8_t repeater[4];         /* side where power is coming from (to get where it is output to, XOR the value with 2) */
 	uint8_t SWNE[4];             /* generic orient */
 };
@@ -307,7 +307,7 @@ enum                             /* common redstone devices */
 	RSHOPPER       = 154,  // TODO
 	RSDROPPER      = 158,
 	SLIMEBLOCK     = 165,
-	RSOBSERVER     = 218   // TODO
+	RSOBSERVER     = 218
 };
 
 #define blockGetByIdData(id,data) (blockStates + blockStateIndex[((id) << 4) | (data)])
@@ -455,6 +455,7 @@ struct BlockVertex_t       /* store custom block model vertex data (needed by ch
 extern struct Block_t            blockIds[];
 extern struct BlockState_t *     blockStates;
 extern struct BlockState_t *     blockLast;
+extern struct BlockSides_t       blockSides;
 extern uint16_t                  blockStateIndex[];
 extern uint8_t                   blockTexResol;   /* resolution of textures in terrain.png; default is 16 */
 

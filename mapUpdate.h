@@ -18,6 +18,8 @@ int  mapUpdateGate(BlockIter, int id, Bool init);
 int  mapUpdateDoor(BlockIter, int blockId, Bool init);
 int  mapUpdatePiston(Map, BlockIter, int blockId, Bool init, DATA8 * tile);
 int  mapUpdateComparator(Map, BlockIter, int blockId, Bool init, DATA8 * tile);
+void mapUpdatePressurePlate(BlockIter iter, float entityBBox[6]);
+void mapUpdateObserver(BlockIter iter, int from);
 void mapUpdateTable(BlockIter, int val, int table);
 Bool mapActivate(Map, vec4 pos);
 int  mapActivateBlock(BlockIter, vec4 pos, int blockId);
