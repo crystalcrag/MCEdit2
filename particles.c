@@ -200,13 +200,14 @@ void particlesExplode(Map map, int count, int blockId, vec4 pos)
 	}
 }
 
+/* init a smoke particle */
 void particlesSmoke(Map map, int blockId, vec4 pos)
 {
 	Particle p = particlesAlloc();
 	if (p == NULL) return;
 	Block b = &blockIds[blockId >> 4];
 	int range = RandRange(b->particleTTL, b->particleTTL * 3);
-	int UV    = (31 * 16 + ((9*16) << 9));
+	int UV    = 31 * 16 + ((9*16) << 9);
 	vec4 offset;
 
 	blockGetEmitterLocation(blockId, offset);
@@ -237,6 +238,33 @@ void particlesSmoke(Map map, int blockId, vec4 pos)
 		p->color = 15 - (rand() & 3) + (56 << 4);
 	}
 	else p->color = (rand() & 15) | (60 << 4);
+}
+
+/* init a dust particle */
+void particlesDust(Map map, int blockId, vec4 pos)
+{
+	Particle p = particlesAlloc();
+	BlockState state = blockGetById(blockId);
+	Block b = &blockIds[blockId >> 4];
+	if (p == NULL) return;
+	int range = RandRange(b->particleTTL, b->particleTTL * 2);
+	int UV    = state->nzU * 16 + 8 + ((state->nzV * 16 + 8) << 9);
+
+	memset(p, 0, sizeof *p);
+	p->physics.loc[0] = pos[0] + RandRange(0.1, 0.9);
+	p->physics.loc[1] = pos[1] - 0.01f;
+	p->physics.loc[2] = pos[2] + RandRange(0.1, 0.9);
+	p->physics.friction[VY] = 0.00125;
+	p->time = globals.curTime + range;
+	p->physics.dir[VY] = -RandRange(0.01, 0.04);
+	p->physics.bbox = &particleBBox;
+	p->ttl = range;
+	p->color = RandRange(64, 256); /* speed-up or slow down rotation */
+
+	particlesGetBlockInfo(map, p->physics.loc, &p->physics.light);
+
+	p->size = 6 + rand() % 3;
+	p->UV = PARTICLE_DUST | (UV << 10) | (p->size << 6);
 }
 
 #ifndef NOEMITTERS
@@ -288,7 +316,7 @@ static int particleGetBlockId(ChunkData cd, int offset)
 }
 
 #if 0
-static void debugEmitters(void)
+void emitterDebug(void)
 {
 	int z, y, i;
 	fprintf(stderr, "emitter grid:\n");
@@ -304,6 +332,20 @@ static void debugEmitters(void)
 			fprintf(stderr, p[2] < 0 ? "|    \n" : "| %2d \n", p[2]);
 		}
 		fprintf(stderr, "   ---+----+---\n");
+	}
+
+	int count[PARTICLE_MAX] = {0};
+	for (i = 0; i < emitters.count; i ++)
+	{
+		uint16_t cur  = emitters.active[i];
+		Emitter  emit = emitters.buffer + cur;
+		count[emit->type] ++;
+	}
+
+	for (i = 1; i < PARTICLE_MAX; i ++)
+	{
+		static STRPTR names[] = {NULL, "BITS", "SMOKE", "DUST", "DRIP"};
+		fprintf(stderr, "- %s: %d\n", names[i], count[i]);
 	}
 }
 #endif
@@ -506,7 +548,10 @@ int particlesAnimate(Map map)
 
 		if (emit->time <= curTimeMS)
 		{
-			particlesSmoke(map, emit->blockId, emit->loc);
+			switch (emit->type) {
+			case PARTICLE_SMOKE: particlesSmoke(map, emit->blockId, emit->loc); break;
+			case PARTICLE_DUST:  particlesDust(map, emit->blockId, emit->loc); break;
+			}
 			int next = emit->interval;
 			if (next == 0) next = 500;
 			emit->time = curTimeMS + RandRange(next>>1, next);
@@ -569,7 +614,16 @@ int particlesAnimate(Map map)
 				info[1] = p->color;
 				/* color will get darker over time */
 				p->UV &= 0x7ffff;
-				p->UV |= ((int) ((globals.curTime - (p->time - p->ttl)) / p->ttl * 7) * 8 + 9 * 16) << 19;
+				p->UV |= ((int) ((globals.curTime - (p->time - p->ttl)) / p->ttl * 8) * 8 + 9 * 16) << 19;
+				break;
+			case PARTICLE_DUST:
+				{
+					float ttl = (globals.curTime - (p->time - p->ttl)) / p->ttl;
+					int   rotation = ((int) (ttl * (1<<19)) * p->color >> 7) & ((1<<20)-1);
+					int   frame = ttl * 8;
+					if (frame > 7) frame = 7;
+					info[1] = p->physics.light | (rotation << 12) | (frame << 8);
+				}
 			}
 			buf += PARTICLES_VBO_SIZE/4;
 			count ++;
@@ -578,7 +632,7 @@ int particlesAnimate(Map map)
 			{
 				/* update light values */
 				particlesGetBlockInfo(map, p->physics.loc, &p->physics.light);
-				info[1] = p->physics.light;
+				info[1] = (info[1] & ~0xff) | p->physics.light;
 			}
 
 			if (count == 1000) goto break_all;
@@ -603,8 +657,6 @@ void particlesRender(void)
 	glDepthMask(GL_FALSE);
 
 	glUseProgram(particles.shader);
-//	glBindBuffer(GL_UNIFORM_BUFFER, render.uboShader);
-
 	glBindVertexArray(particles.vao);
 	glDrawArrays(GL_POINTS, 0, count);
 	glDepthMask(GL_TRUE);

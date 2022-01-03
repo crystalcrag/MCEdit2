@@ -19,3 +19,5 @@ layout (std140, binding = 2) uniform param
 #define MIDVTX        4
 #define ASPECT_RATIO  shading[0].y
 #define FULL_BRIGHT   shading[0].z > 0
+#define TEX_COORD_X   (1/512.)
+#define TEX_COORD_Y   (1/1024.)

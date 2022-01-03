@@ -24,10 +24,10 @@
 int8_t xoff[] = {0,  1, -1, -1, 1,  0, 0};
 int8_t zoff[] = {1, -1, -1,  1, 0,  0, 0};
 int8_t yoff[] = {0,  0,  0,  0, 1, -2, 1};
-int8_t relx[] = {0,  1,  0, -1, 0,  0};
-int8_t rely[] = {0,  0,  0,  0, 1, -1};
-int8_t relz[] = {1,  0, -1,  0, 0,  0};
-int8_t opp[]  = {2,  3,  0,  1, 5,  4};
+int8_t relx[] = {0,  1,  0, -1, 0,  0, 0};
+int8_t rely[] = {0,  0,  0,  0, 1, -1, 0};
+int8_t relz[] = {1,  0, -1,  0, 0,  0, 0};
+int8_t opp[]  = {2,  3,  0,  1, 5,  4, 0};
 
 
 extern uint8_t  slotsXZ[]; /* from chunks.c */
@@ -330,7 +330,7 @@ static void trackAddUpdate(BlockIter iter, int blockId, DATA8 tile)
 		track.updates = list;
 	}
 
-	/* redstone need a 2 pass system */
+	/* redstone needs a 2 pass system */
 	BlockUpdate update = track.updates + mapFirstFree(track.updateUsage, max);
 
 	track.updateCount ++;
@@ -352,13 +352,16 @@ static void trackAddUpdate(BlockIter iter, int blockId, DATA8 tile)
 static void mapUpdateSkyLightBlock(BlockIter iterator)
 {
 	struct BlockIter_t iter = *iterator;
-	int8_t max, level, old, sky;
+	int8_t max, level, newsky, sky;
 	int    i, height;
 
-	sky = mapGetSky(iterator) - blockGetSkyOpacity(iter.blockIds[iter.offset], 0);
 	mapUpdateInitTrack(track);
-	mapUpdateTable(iterator, sky < 0 ? 0 : sky, SKYLIGHT_OFFSET);
 	track.unique = 1;
+
+	sky = mapGetSky(iterator);
+	newsky = sky - blockGetSkyOpacity(iter.blockIds[iter.offset], 0);
+	if (sky != newsky)
+		trackAdd(MAXSKY | (6 << 5), 0, 0);
 
 	i = CHUNK_BLOCK_POS(iter.x, iter.z, 0);
 	height = iter.ref->heightMap[i];
@@ -366,13 +369,11 @@ static void mapUpdateSkyLightBlock(BlockIter iterator)
 	{
 		/* block is higher than heightmap (or at the same level) */
 		int j;
-		sky = mapGetSky(&iter) - blockGetSkyOpacity(iter.blockIds[iter.offset], 0);
 		/* block is not blocking sky (ie: glass) */
-		if (sky == MAXSKY) return;
-		if (sky < 0) sky = 0;
-		mapUpdateTable(&iter, sky, SKYLIGHT_OFFSET);
+		if (newsky == MAXSKY) return;
+		if (newsky < 0) newsky = 0;
 		/* block is set at a higher position */
-		for (j = iter.yabs - (sky == 0); j >= height; j --)
+		for (j = iter.yabs - 1; j >= height; j --)
 		{
 			trackAdd(MAXSKY | (4<<5), j - iter.yabs, 0);
 		}
@@ -432,16 +433,16 @@ static void mapUpdateSkyLightBlock(BlockIter iterator)
 		if (max > 0)
 		{
 			/* not a local maximum */
-			old = max - blockGetSkyOpacity(neighbor.blockIds[neighbor.offset], 1);
-			if (old <= 0) old = 0;
-			mapUpdateTable(&neighbor, old, SKYLIGHT_OFFSET);
+			newsky = max - blockGetSkyOpacity(neighbor.blockIds[neighbor.offset], 1);
+			if (newsky <= 0) newsky = 0;
+			mapUpdateTable(&neighbor, newsky, SKYLIGHT_OFFSET);
 
-			if (old > 0)
+			if (newsky > 0)
 			/* check if surrounding need increase in sky level */
 			for (i = 0; i < 6; i ++)
 			{
 				mapIter(&neighbor, xoff[i], yoff[i], zoff[i]);
-				int8_t min = old - blockGetSkyOpacity(neighbor.blockIds[neighbor.offset], 1);
+				int8_t min = newsky - blockGetSkyOpacity(neighbor.blockIds[neighbor.offset], 1);
 				level = mapGetSky(&neighbor);
 
 				if (level < min)
@@ -450,13 +451,36 @@ static void mapUpdateSkyLightBlock(BlockIter iterator)
 					trackAdd((XYZ[0]&31) + relx[i] + (opp[i] << 5), XYZ[1] + rely[i], XYZ[2] + relz[i]);
 				}
 			}
-			if (sky == old)
+			if (sky == newsky)
 				goto skip;
 		}
 		else /* it is a local maximum */
 		{
 			mapIter(&neighbor, relx[dir], rely[dir], relz[dir]);
 			level = mapGetSky(&neighbor) - blockGetSkyOpacity(initial.blockIds[initial.offset], 1);
+			if (XYZ[1] == 0)
+			{
+				/* painful but required: local max can be somewhere other than <dir> */
+				for (i = 0, neighbor = initial; i < 6; i ++)
+				{
+					mapIter(&neighbor, xoff[i], yoff[i], zoff[i]);
+					if (mapGetSky(&neighbor) == sky)
+					{
+						/* that could be another local max */
+						uint8_t j;
+						for (j = 0; j < 6; j ++)
+						{
+							mapIter(&neighbor, xoff[j], yoff[j], zoff[j]);
+							if (j != i && mapGetSky(&neighbor) > sky)
+							{
+								level = sky - blockGetSkyOpacity(initial.blockIds[initial.offset], 1);
+								goto break_all;
+							}
+						}
+					}
+				}
+			}
+			break_all:
 			mapUpdateTable(&initial, level <= 0 ? 0 : level, SKYLIGHT_OFFSET);
 		}
 		/* check if neighbors depend on light level of cell we just changed */
@@ -466,9 +490,9 @@ static void mapUpdateSkyLightBlock(BlockIter iterator)
 			if (i == dir) continue;
 			level = blockGetSkyOpacity(neighbor.blockIds[neighbor.offset], 1);
 			if (level == MAXSKY) continue;
-			old = sky - level;
+			newsky = sky - level;
 			level = mapGetSky(&neighbor);
-			if (level > 0 && (level == old || (XYZ[1] == 0 && i >= 4 && level == sky)))
+			if (level > 0 && level == newsky)
 			{
 				/* incorrect light level here */
 				trackAdd((XYZ[0]&31) + relx[i] + (opp[i] << 5), XYZ[1] + rely[i], XYZ[2] + relz[i]);
@@ -843,7 +867,7 @@ static void mapUpdateAddRSUpdate(struct BlockIter_t iter, RSWire cnx)
 	{
 		for (i = 0; i < 6; i ++)
 		{
-			/* we cannot perform the update yet, we need the signal to be updated all the way :-/ */
+			/* we cannot perform the update yet, we need the signal to be updated all the way */
 			mapIter(&iter, xoff[i], yoff[i], zoff[i]);
 			int id = getBlockId(&iter);
 			Block neighbor = &blockIds[id>>4];
@@ -851,7 +875,7 @@ static void mapUpdateAddRSUpdate(struct BlockIter_t iter, RSWire cnx)
 			case ORIENT_TORCH:
 				if (blockSides.torch[id&7] != opp[i]) continue;
 				break;
-			case ORIENT_SWNE: /* repeater */
+			case ORIENT_SWNE: /* repeater, comparator */
 				if (i > 4 || blockSides.repeater[id&3] != opp[i]) continue;
 			}
 			if (neighbor->rsupdate & RSUPDATE_RECV)

@@ -11,11 +11,13 @@
  * - info.x[bit19 - 28] : V texture coord (10bits, [0~1023])
  * - info.y[bit0  -  3] : block light
  * - info.y[bit4  -  7] : sky light
+ * - info.y[bit8  - 11] : texture offset
  */
 layout (location=0) in  vec3 position;
 layout (location=1) in ivec2 info;
 
 flat out float size;
+flat out float angle;
 flat out int   texbase;
 flat out int   type;
 flat out int   light;
@@ -27,9 +29,17 @@ void main(void)
 	size    = (info.x >> 6) & 15;
 	texbase = info.x >> 10;
 
+	int rotation;
 	switch (type) {
 	case 1: // bits
+	case 3: // dust
 		light = info.y & 0xff;
+		color = (info.y >> 8) & 7;
+		rotation = info.y >> 12;
+		if (rotation > 0)
+			angle = rotation * (2 * 3.1415926535 / 524288);
+		else
+			angle = 0;
 		break;
 	case 2: // smoke
 		color = info.y;

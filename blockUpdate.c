@@ -757,9 +757,15 @@ int mapUpdatePiston(Map map, BlockIter iterator, int blockId, Bool init, DATA8 *
 }
 
 
-/* check if comparator state need to change based on nearby power levels */
+/*
+ * check if comparator state need to change based on nearby power levels; comparator data values:
+ * - bit0-1: orientation (SWNE)
+ * - bit2:   subtraction mode
+ * - bit3:   powered
+ */
 int mapUpdateComparator(Map map, BlockIter iterator, int blockId, Bool init, DATA8 * tile)
 {
+	static uint8_t rot90side[] = {SIDE_EAST, SIDE_NORTH, SIDE_WEST, SIDE_SOUTH};
 	struct BlockIter_t input = *iterator;
 	NBTFile_t nbt = {.page = 127};
 	if (tile == NULL)
@@ -767,10 +773,31 @@ int mapUpdateComparator(Map map, BlockIter iterator, int blockId, Bool init, DAT
 	else
 		nbt.mem = *tile;
 
+	/* get signal power for rear side */
 	uint8_t side = blockSides.repeater[blockId & 3];
-	uint8_t signal;
+	uint8_t rear, left, right, signal;
 	mapIter(&input, relx[side], 0, relz[side]);
-	signal = redstoneSignalStrength(&input, False);
+	rear = redstoneSignalStrength(&input, False);
+
+	/* get signal from both sides */
+	input = *iterator;
+	side  = rot90side[side];
+	mapIter(&input, relx[side], 0, relz[side]);
+	left  = redstoneSignalStrength(&input, False);
+
+	input = *iterator;
+	side  = opp[side];
+	mapIter(&input, relx[side], 0, relz[side]);
+	right = redstoneSignalStrength(&input, False);
+
+	if (blockId & 4)
+	{
+		/* subtraction mode */
+		if (left < right) left = right; /* max(left, right) */
+		signal = rear > left ? rear - left : 0;
+	}
+	else /* comparator mode */
+		signal = rear * (left <= rear && right <= rear);
 
 	if (init)
 	{

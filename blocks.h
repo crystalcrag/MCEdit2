@@ -202,7 +202,9 @@ enum                             /* possible values for block_t.particle */
 	PARTICLE_NONE,
 	PARTICLE_BITS,               /* bits of texture from blocks, exploding */
 	PARTICLE_SMOKE,              /* cycle through texture located at 31, 9, moving up in the air */
-	PARTICLE_NETHER              /* nether particle coming toward the block (ender chest) */
+	PARTICLE_DUST,               /* smoke particle going down using texture of block */
+	PARTICLE_DRIP,               /* similar to dust, but slowly emerge from ceiling */
+	PARTICLE_MAX                 /* sentinel */
 };
 
 enum                             /* values for BlockState.pxU if BlockState.type == QUAD */
@@ -302,7 +304,7 @@ enum                             /* common redstone devices */
 	RSREPEATER_OFF = 93,
 	RSREPEATER_ON  = 94,
 	RSLAMP         = 123,
-	RSCOMPARATOR   = 149,  // TODO
+	RSCOMPARATOR   = 149,
 	RSBLOCK        = 152,
 	RSHOPPER       = 154,  // TODO
 	RSDROPPER      = 158,

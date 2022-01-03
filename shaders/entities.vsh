@@ -63,7 +63,7 @@ void main(void)
 	float V = float(((info.x >> 6) & ~7) | (info.y & 7));
 	if (V == 1023) V = 1024;
 	if (U == 511)  U = 512;
-	texcoord = vec2(U * 0.001953125 /* 1/512. */, V * 0.0009765625 /* 1/1024. */);
+	texcoord = vec2(U * TEX_COORD_X, V * TEX_COORD_Y);
 
 	/* distribute sky/block light according to normal direction */
 	uint light, corner;

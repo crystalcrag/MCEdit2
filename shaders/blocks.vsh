@@ -54,8 +54,8 @@ void main(void)
 	);
 
 	texCoord = vec4(
-		float(U) * 0.001953125,  float(U + Usz - 128) * 0.001953125,
-		float(V) * 0.0009765625, float(V + Vsz - 128) * 0.0009765625
+		float(U) * TEX_COORD_X, float(U + Usz - 128) * TEX_COORD_X,
+		float(V) * TEX_COORD_Y, float(V + Vsz - 128) * TEX_COORD_Y
 	);
 	skyBlockLight = FULL_BRIGHT ? 0xf0f0f0f0 : info.z;
 	ocsField = bitfieldExtract(info.y, 0, 9) | (bitfieldExtract(position.w, 28, 4) << 9) | (bitfieldExtract(position.z, 28, 4) << 13);

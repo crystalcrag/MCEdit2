@@ -1,4 +1,16 @@
+#
+# END OF 2021
+#
+
 =========== Week 52 ===========
+Sun Jan 2:
+	* added dust particles type.
+	* added water/lava hack to render seamless transition between different height.
+
+Sat Jan 1:
+	* added comparator and subtraction mode of redstone comparator.
+	* fixed some skylight incorrect updates.
+
 Fri Dec 31:
 	* added redstone logic for observers.
 

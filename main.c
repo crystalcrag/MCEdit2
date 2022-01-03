@@ -461,6 +461,7 @@ void mceditWorld(void)
 					break;
 				case SDLK_F7:
 					globals.breakPoint = ! globals.breakPoint;
+					FramePauseUnpause(globals.breakPoint);
 					break;
 				case SDLK_UP:
 				case SDLK_DOWN:

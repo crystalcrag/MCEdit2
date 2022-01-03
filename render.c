@@ -1767,7 +1767,7 @@ static MeshBuffer renderAllocMeshBuf(ListHead * head)
 	return mesh;
 }
 
-/* partial mesh data; note: <size> is at most 4096 */
+/* partial mesh data */
 static void renderFlush(WriteBuffer buffer)
 {
 	MeshBuffer list = buffer->mesh;

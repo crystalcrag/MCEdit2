@@ -53,7 +53,8 @@
 	{id: 7, name: "Bedrock", type: SOLID, inv: CUBE, cat: BUILD, pushable: NO, density: 30},
 		{state: 0, name: "Bedrock",  tex: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]},
 
-	{id: 8, name: "Water", type: TRANS, special: LIQUID, tech: "flowing_water", opacLight: 3, opacSky: 3, viscosity: 0.075, pushable: DESTROY, density: WATER},
+	{id: 8, name: "Water", type: TRANS, special: LIQUID, tech: "flowing_water", opacLight: 3, opacSky: 3, viscosity: 0.075, pushable: DESTROY,
+		density: WATER, particle: DRIP},
 		{state: 0, name: "+flowing", tex: [13,12,13,12,13,12,13,12,13,12,13,12]},
 		{state: 1, name: "-"},
 		{state: 2, name: "-"},
@@ -71,7 +72,8 @@
 		{state:14, name: "-"},
 		{state:15, name: "-"},
 
-	{id: 9, name: "Water", type: TRANS, special: LIQUID, opacLight: 3, opacSky: 3, cat: FILLBY, inv: CUBE, invState: 0, viscosity: 0.075, pushable: DESTROY, density: WATER},
+	{id: 9, name: "Water", type: TRANS, special: LIQUID, opacLight: 3, opacSky: 3, cat: FILLBY, inv: CUBE, invState: 0, viscosity: 0.075,
+		pushable: DESTROY, density: WATER, particle: DRIP},
 		{state: 0, name: "+still", tex: [13,12,13,12,13,12,13,12,13,12,13,12]},
 		{state: 1, name: "-"},
 		{state: 2, name: "-"},
@@ -89,7 +91,7 @@
 		{state:14, name: "-"},
 		{state:15, name: "-"},
 
-	{id: 10, name: "Lava", type: TRANS, special: LIQUID, bbox: NONE, emitLight: 15, viscosity: 0.7, tech: "flowing_lava", pushable: DESTROY},
+	{id: 10, name: "Lava", type: TRANS, special: LIQUID, bbox: NONE, emitLight: 15, viscosity: 0.7, tech: "flowing_lava", pushable: DESTROY, particle: DRIP},
 		{state: 0, name: "+flowing", tex: [13,14,13,14,13,14,13,14,13,14,13,14]},
 		{state: 1, name: "-"},
 		{state: 2, name: "-"},
@@ -107,7 +109,8 @@
 		{state:14, name: "-"},
 		{state:15, name: "-"},
 
-	{id: 11, name: "Lava", type: TRANS, special: LIQUID, bbox: NONE, emitLight: 15, cat: FILLBY, inv: CUBE, invState: 0, viscosity: 0.7, pushable: DESTROY},
+	{id: 11, name: "Lava", type: TRANS, special: LIQUID, bbox: NONE, emitLight: 15, cat: FILLBY, inv: CUBE, invState: 0, viscosity: 0.7,
+		pushable: DESTROY, particle: DRIP},
 		{state: 0, name: "+still", tex: [13,14,13,14,13,14,13,14,13,14,13,14]},
 		{state: 1, name: "-"},
 		{state: 2, name: "-"},
@@ -125,11 +128,11 @@
 		{state:14, name: "-"},
 		{state:15, name: "-"},
 
-	{id: 12, name: "Sand", type: SOLID, inv: CUBE, cat: BUILD, gravity: 1},
+	{id: 12, name: "Sand", type: SOLID, inv: CUBE, cat: BUILD, gravity: 1, particle: [DUST, 1000, 800]},
 		{state: 0, name: "-",        tex: [ 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1]},
 		{state: 1, name: "Red sand", tex: [11, 1,11, 1,11, 1,11, 1,11, 1,11, 1]},
 
-	{id: 13, name: "Gravel", type: SOLID, inv: CUBE, cat: BUILD, gravity: 1},
+	{id: 13, name: "Gravel", type: SOLID, inv: CUBE, cat: BUILD, gravity: 1, particle: [DUST, 1000, 800]},
 		{state: 0, tex: [3, 1, 3, 1, 3, 1, 3, 1, 3, 1, 3, 1]},
 
 	{id: 14, name: "Gold ore", type: SOLID, inv: CUBE, cat: BUILD},

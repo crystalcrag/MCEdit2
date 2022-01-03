@@ -54,6 +54,15 @@ void main(void)
 		V2 = V1; V1 = vertex2[0];
 		V3 = V4; V4 = vertex3[0];
 	}
+	if ((normFlags[0] & (1 << 5)) > 0)
+	{
+		/* liquid: lower some of the edges depending on what's nearby XXX need a better approach than this :-/ */
+		uint lowerEdge = ocsmap >> 13;
+		if ((lowerEdge & 1) > 0) V1.y -= 0.2;
+		if ((lowerEdge & 2) > 0) V2.y -= 0.2;
+		if ((lowerEdge & 4) > 0) V3.y -= 0.2;
+		if ((lowerEdge & 8) > 0) V4.y -= 0.2;
+	}
 
 	/* first vertex */
 	gl_Position = MVP * vec4(V1, 1);

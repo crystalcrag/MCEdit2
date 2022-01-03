@@ -17,6 +17,7 @@ void main(void)
 		color = texture(blockTex, texCoord);
 		break;
 	case 2: // smoke
+	case 3: // dust
 		color = texture(blockTex, texCoord) * texture(blockTex, texColor);
 	}
 	float sky = 0.80 * skyBlockLight.x * skyBlockLight.x + 0.2; if (sky < 0) sky = 0;

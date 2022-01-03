@@ -271,7 +271,7 @@ int redstoneConnectTo(struct BlockIter_t iter, RSWire connectTo)
 	return list - connectTo;
 }
 
-/* list blocks pushed/retracted by piston (<iter> must point to piston block) */
+/* list blocks pushed/retracted by piston (<iter> must point to piston block or piston head if extended) */
 int redstonePushedByPiston(struct BlockIter_t iter, RSWire list)
 {
 	int blockId = getBlockId(&iter);

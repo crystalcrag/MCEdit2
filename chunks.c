@@ -1218,8 +1218,14 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 
 		if (hasLights)
 		{
-			if (blockIds[block].particle && (block != RSWIRE || data > 0)) // XXX needs to be somewhat declared in blockTable.js :-/
-				chunkAddEmitters(cur, pos, blockIds[block].particle - 1);
+			uint8_t particle = blockIds[block].particle;
+			if (particle > 0 && (block != RSWIRE || data > 0)) // XXX needs to be somewhat declared in blockTable.js :-/
+			{
+				if (particle < PARTICLE_DUST ||
+					/* needs an air block below */
+					(pos >= 256 ? cur->blockIds[pos-256] : neighbors[5]->blockIds[pos+256*15]) == 0)
+					chunkAddEmitters(cur, pos, particle - 1);
+			}
 
 			if (block == RSOBSERVER)
 				chunkMakeObservable(cur, pos, blockSides.piston[data&7]);
@@ -1695,7 +1701,7 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 	DATA8    blocks = neighbors[6]->blockIds;
 	int      side, sides, occlusion, slab, rotate;
 	int      i, j, k, n, dual;
-	uint8_t  x, y, z, data, hasLights;
+	uint8_t  x, y, z, data, hasLights, liquid;
 
 	x = (pos & 15);
 	z = (pos >> 4) & 15;
@@ -1703,6 +1709,7 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 	hasLights = (neighbors[6]->cdFlags & CDFLAG_NOLIGHT) == 0;
 	sides = xsides[x] | ysides[y] | zsides[z];
 	dual = b->special == BLOCK_LIQUID && buffer->alpha ? FLAG_DUAL_SIDE : 0;
+	liquid = 0;
 
 	/* outer loop: iterate over each faces (6) */
 	for (i = 0, side = 1, occlusion = -1, tex = &b->nzU, rotate = b->rotate, j = (rotate&3) * 8, slab = 0; i < DIM(cubeIndices);
@@ -1826,6 +1833,16 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 				}
 				tex = texUV + (tex - &b->nzU);
 			}
+			if (b->special == BLOCK_LIQUID)
+			{
+				for (k = 18; k < 27; k ++)
+				{
+					static uint8_t raisedEdge[] = {2, 3, 1, 10, 15, 5, 8, 12, 4};
+					if (blockIds[blockIds3x3[k]>>4].special == BLOCK_LIQUID)
+						liquid |= raisedEdge[k-18];
+				}
+				liquid ^= 15;
+			}
 		}
 
 		if (b->special == BLOCK_HALF || b->special == BLOCK_STAIRS)
@@ -1910,19 +1927,18 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 			}
 			if (b->special == BLOCK_LIQUID)
 			{
+				uint8_t edges = 0;
 				switch (i >> 2) {
-				case SIDE_SOUTH:
-				case SIDE_NORTH:
-				case SIDE_EAST:
-				case SIDE_WEST: /* reduce Y and texture by 0.2 unit */
-					nbor = blockGetById(blockIds3x3[22]);
-					if (nbor->special == BLOCK_LIQUID) break;
-					out[3] += (BASEVTX/8) << 14;
-					out[4] += 2 << 23;
-					out[5] -= 2 << 24;
-					// no break;
-				case SIDE_TOP: /* reduce Y by 0.2 unit */
-					out[0] -= (BASEVTX/8) << 16;
+				case SIDE_SOUTH: edges = (liquid&12)>>2; break;
+				case SIDE_NORTH: edges = ((liquid&1)<<1) | ((liquid&2)>>1); break;
+				case SIDE_EAST:  edges = (liquid&1) | ((liquid & 4) >> 1); break;
+				case SIDE_WEST:  edges = (liquid&2) | ((liquid & 8) >> 3); break;
+				case SIDE_TOP:   edges = liquid;
+				}
+				if (edges)
+				{
+					out[5] |= FLAG_TRIANGLE;
+					out[2] |= edges << 28;
 				}
 			}
 		}

@@ -55,7 +55,7 @@ struct ChunkData_t                     /* one sub-chunk of 16x16x16 blocks */
 
 	DATA8     blockIds;                /* 16*16*16 = XZY ordered, note: point directly to NBT struct (4096 bytes) */
 //	DATA8     addId;                   /* 4bits (2048 bytes) */
-	DATA16    emitters;                /* pos (10bits) + type (6bits) for particles emitters */
+	DATA16    emitters;                /* pos (12bits) + type (4bits) for particles emitters */
 
 	/* VERTEX_ARRAY_BUFFER location */
 	void *    glBank;                  /* GPUBank (filled by renderStoreArray()) */
@@ -127,6 +127,7 @@ enum /* NBT update tag */
 /* chunk vertex data */
 #define FLAG_TEX_KEEPX                 (1 << 12)
 #define FLAG_DUAL_SIDE                 (1 << 13)
+#define FLAG_TRIANGLE                  (1 << 14)
 
 #ifdef CHUNK_IMPL                      /* private stuff below */
 

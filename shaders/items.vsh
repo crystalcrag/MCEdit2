@@ -31,9 +31,9 @@ flat out int rswire;
 void main(void)
 {
 	vec4 pos = vec4(
-		(float(position.x) - 15360) * 0.00048828125,
-		(float(position.y) - 15360) * 0.00048828125,
-		(float(position.z) - 15360) * 0.00048828125,
+		(float(position.x) - 15360) * BASEVTX,
+		(float(position.y) - 15360) * BASEVTX,
+		(float(position.z) - 15360) * BASEVTX,
 		1
 	);
 	float U = float(bitfieldExtract(info.x, 0, 9));
@@ -48,7 +48,7 @@ void main(void)
 		shade = shading[normal].x / 15;
 
 	rswire     = normal == 7 ? 1 : 0;
-	tc         = vec2(U * 0.001953125, V * 0.0009765625);
+	tc         = vec2(U * TEX_COORD_X, V * TEX_COORD_Y);
 	skyLight   = float(bitfieldExtract(info.y, 12, 4)) * shade;
 	blockLight = float(bitfieldExtract(info.y,  8, 4)) * shade;
 

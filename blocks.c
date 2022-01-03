@@ -944,7 +944,7 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 					block.particleTTL = strtoul(p+1, &p, 10);
 			}
 		}
-		block.particle = FindInList("BITS,SMOKE,NETHER", value, 0) + 1;
+		block.particle = FindInList("BITS,SMOKE,DUST,DRIP", value, 0) + 1;
 
 		/* density (g/cm³): used by particles and entity physics */
 		value = jsonValue(keys, "density");
