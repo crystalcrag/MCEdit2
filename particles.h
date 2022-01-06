@@ -16,6 +16,7 @@ void particlesRender(void);
 void particlesExplode(Map map, int count, int blockId, vec4 pos);
 int  particlesAnimate(Map map);
 void particlesChunkUpdate(Map map, ChunkData cd);
+Bool particleCanSpawn(ChunkData cd, int pos, int blockId, int particleType);
 
 #define PARTICLES_VBO_SIZE        (5*4)
 #define PARTICLES_MAX             1024
@@ -23,6 +24,7 @@ void particlesChunkUpdate(Map map, ChunkData cd);
 /*
  * private stuff below
  */
+#ifdef PARTICLES_IMPL
 typedef struct Particle_t *       Particle;
 typedef struct Particle_t         Particle_t;
 typedef struct ParticleList_t *   ParticleList;
@@ -34,6 +36,7 @@ struct Particle_t
 	PHYSENT_t physics;            /* collision detection */
 	uint32_t  UV;                 /* tex coord to use */
 	uint8_t   size;
+	uint8_t   delay;
 	uint16_t  ttl;                /* time to live (ms) */
 	uint16_t  color;              /* color modulation (offset in terrain.png) */
 	int       time;
@@ -41,17 +44,17 @@ struct Particle_t
 
 struct Emitter_t
 {
-	float    loc[3];              /* world coord */
-	uint8_t  type;                /* PARTICLE_* (declared in blocks.h) */
-	uint8_t  unused;
-	uint16_t interval;            /* time in ms before creating a new particle */
+	ChunkData cd;                 /* world coord */
+	uint8_t   Y;
+	uint8_t   type;               /* PARTICLE_* (declared in blocks.h) */
+	uint16_t  interval;           /* time in ms before creating a new particle */
 
-	uint16_t blockId;             /* blockId (ID+META) that generates the particle */
-	int16_t  next;                /* linked list of emitters within a chunk (offset in emitters.buffer) */
+	int16_t   next;               /* linked list of emitters within a chunk (offset in emitters.buffer) */
+	uint16_t  count;              /* number of emitters in the area */
 
-	uint32_t area;                /* used by DUST and DRIP: area where blocks might be (loc[] is at 0,0 of a XZ layer in the ChunkData) */
+	uint32_t  area;               /* used by DUST and DRIP: area where blocks might be (loc[] is at 0,0 of a XZ layer in the ChunkData) */
 	                              /* contains bitfield where nth bit set to 1 means a the nth Z row contains a block emitter */
-	uint32_t time;
+	uint32_t  time;
 };
 
 struct ParticleList_t
@@ -70,7 +73,6 @@ struct ParticlePrivate_t
 	double   lastTime;
 	int      shader;              /* OpenGL stuff */
 	int      vao, vbo;
-	int      uniformRot;
 };
 
 struct EmitterPrivate_t
@@ -86,5 +88,5 @@ struct EmitterPrivate_t
 	uint8_t  offsets[27];         /* +/- 1 for X, Z, Y for locating chunk 0-26 */
 	uint8_t  dirtyList;           /* <active> needs to be rebuilt */
 };
-
+#endif
 #endif

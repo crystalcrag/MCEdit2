@@ -4,6 +4,7 @@
  * written by T.Pierron, dec 2020
  */
 
+#define PARTICLES_IMPL
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -200,11 +201,11 @@ void particlesExplode(Map map, int count, int blockId, vec4 pos)
 	}
 }
 
-/* init a smoke particle */
-void particlesSmoke(Map map, int blockId, vec4 pos)
+/* init a SMOKE particle */
+static Particle particlesSmoke(Map map, int blockId, vec4 pos)
 {
 	Particle p = particlesAlloc();
-	if (p == NULL) return;
+	if (p == NULL) return NULL;
 	Block b = &blockIds[blockId >> 4];
 	int range = RandRange(b->particleTTL, b->particleTTL * 3);
 	int UV    = 31 * 16 + ((9*16) << 9);
@@ -237,16 +238,17 @@ void particlesSmoke(Map map, int blockId, vec4 pos)
 	{
 		p->color = 15 - (rand() & 3) + (56 << 4);
 	}
-	else p->color = (rand() & 15) | (60 << 4);
+	else p->color = (rand() & 15) | (60 << 4); /* torch, fire */
+	return p;
 }
 
-/* init a dust particle */
-void particlesDust(Map map, int blockId, vec4 pos)
+/* init a DUST particle */
+static Particle particlesDust(Map map, int blockId, vec4 pos)
 {
 	Particle p = particlesAlloc();
 	BlockState state = blockGetById(blockId);
 	Block b = &blockIds[blockId >> 4];
-	if (p == NULL) return;
+	if (p == NULL) return NULL;
 	int range = RandRange(b->particleTTL, b->particleTTL * 2);
 	int UV    = state->nzU * 16 + 8 + ((state->nzV * 16 + 8) << 9);
 
@@ -259,16 +261,47 @@ void particlesDust(Map map, int blockId, vec4 pos)
 	p->physics.dir[VY] = -RandRange(0.01, 0.04);
 	p->physics.bbox = &particleBBox;
 	p->ttl = range;
-	p->color = RandRange(64, 256); /* speed-up or slow down rotation */
+	p->color = RandRange(64, 255); /* speed-up or slow down rotation */
 
 	particlesGetBlockInfo(map, p->physics.loc, &p->physics.light);
 
 	p->size = 6 + rand() % 3;
 	p->UV = PARTICLE_DUST | (UV << 10) | (p->size << 6);
+	return p;
 }
 
+/* init a DRIP particle */
+static Particle particlesDrip(Map map, int blockId, vec4 pos)
+{
+	Particle p = particlesAlloc();
+	BlockState state = blockGetById(blockId);
+	Block b = &blockIds[blockId >> 4];
+	if (p == NULL) return NULL;
+	int UV = state->nzU * 16 + 8 + ((state->nzV * 16 + 8) << 9);
+
+	memset(p, 0, sizeof *p);
+	p->physics.loc[0] = pos[0] + RandRange(0.1, 0.9);
+	p->physics.loc[1] = pos[1] - 1.05f;
+	p->physics.loc[2] = pos[2] + RandRange(0.1, 0.9);
+	p->time = globals.curTime + 5000;
+	p->physics.dir[VY] = -0.01;
+	p->physics.friction[VY] = 0.005;
+	p->physics.bbox = &particleBBox;
+	p->physics.rebound = b->density;
+	p->ttl = 5000;
+
+	particlesGetBlockInfo(map, p->physics.loc, &p->physics.light);
+	p->physics.loc[1] -= 0.1f;
+	if (b->emitLight > 0) p->physics.light |= b->emitLight;
+
+	p->size = 2 + rand() % 3;
+	p->UV = PARTICLE_DRIP | (UV << 10) | (p->size << 6);
+	return p;
+}
+
+
 #ifndef NOEMITTERS
-static Emitter particlesAddEmitter(vec4 pos, int blockId, int type, int interval, int16_t ** next)
+static Emitter particlesAddEmitter(ChunkData cd, DATA16 data, int16_t ** next)
 {
 	Emitter old  = emitters.buffer;
 	Emitter emit = emitterAlloc();
@@ -279,15 +312,14 @@ static Emitter particlesAddEmitter(vec4 pos, int blockId, int type, int interval
 
 	if (emit)
 	{
-		if (interval < 16)
-			interval = blockIds[blockId >> 4].emitInterval;
-
-		memcpy(emit->loc, pos, sizeof emit->loc);
-		emit->type = type;
-		emit->interval = interval;
+		emit->cd = cd;
+		emit->Y = (data[0] & 7) * 2;
+		emit->type = ((data[0] >> 3) & 31) + 1;
+		emit->interval = data[1];
 		emit->time = globals.curTime + 100;
-		emit->blockId = blockId;
 		emit->next = -1;
+		emit->area = data[2] | (data[3] << 16);
+		emit->count = data[0] >> 8;
 
 		// fprintf(stderr, "adding emitter at %g,%g,%g for %d:%d\n", pos[0], pos[1], pos[2], blockId>>4, blockId & 15);
 	}
@@ -308,12 +340,6 @@ static void particlesDelChain(int16_t last)
 #define XPOS(flags)     ((flags&3)-1)
 #define ZPOS(flags)     (((flags>>2)&3)-1)
 #define YPOS(flags)     ((flags>>4)-1)
-
-static int particleGetBlockId(ChunkData cd, int offset)
-{
-	uint8_t data = cd->blockIds[DATA_OFFSET + (offset >> 1)];
-	return (cd->blockIds[offset] << 4) | (offset & 1 ? data >> 4 : data & 15);
-}
 
 #if 0
 void emitterDebug(void)
@@ -350,6 +376,7 @@ void emitterDebug(void)
 }
 #endif
 
+/* activate particle emitters from the 27 ChunkData surrounding the player */
 static void particleMakeActive(Map map)
 {
 	static uint8_t neighbors[] = { /* 27 neighbor ChunkData */
@@ -358,9 +385,9 @@ static void particleMakeActive(Map map)
 		3, 1, 9, 2, 0, 8, 6, 4, 12,
 	};
 	int16_t oldIds[27];
-	int   i, j;
-	int   pos[] = {CPOS(map->cx), CPOS(map->cy), CPOS(map->cz)};
-	Chunk chunk = map->center;
+	int     i, j;
+	int     pos[] = {CPOS(map->cx), CPOS(map->cy), CPOS(map->cz)};
+	Chunk   chunk = map->center;
 
 	if (memcmp(pos, emitters.cacheLoc, sizeof pos) == 0)
 		return;
@@ -405,11 +432,9 @@ static void particleMakeActive(Map map)
 		ChunkData cd = c->layer[y];
 		int16_t * cur = emitters.startIds + i;
 		if (cd->emitters)
-		for (emit = cd->emitters + 2, j = emit[-2]; j > 0; j --, emit ++)
+		for (emit = cd->emitters + 2, j = emit[-2]; j > 0; j --, emit += CHUNK_EMIT_SIZE)
 		{
-			int  xzy = *emit & 0xfff;
-			vec4 loc = {c->X + (xzy & 15), cd->Y + (xzy >> 8), c->Z + ((xzy >> 4) & 15)};
-			Emitter e = particlesAddEmitter(loc, particleGetBlockId(cd, xzy), (*emit >> 12) + 1, 0, &cur);
+			Emitter e = particlesAddEmitter(cd, emit, &cur);
 			*cur = e - emitters.buffer;
 			cur = &e->next;
 		}
@@ -425,6 +450,7 @@ void particlesChunkUpdate(Map map, ChunkData cd)
 	int   pos[] = {emitters.cacheLoc[0] - (chunk->X >> 4), (cd->Y >> 4) - emitters.cacheLoc[1], emitters.cacheLoc[2] - (chunk->Z >> 4)};
 	int   i;
 
+	/* only care about updated emitter list within the 27 surrounding ChunkData of the player (ie: 3x3x3 ChunkData grid) */
 	if (abs(pos[0]) <= 1 && abs(pos[1]) <= 1 && abs(pos[2]) <= 1)
 	{
 		DATA16  newIds = cd->emitters;
@@ -433,28 +459,51 @@ void particlesChunkUpdate(Map map, ChunkData cd)
 		Emitter old;
 		int     oldEmit;
 
+		/* current emitters in <start>, new emitter in <newIds>: need to update emitter list accordingly */
+
 		oldEmit = *start;
 		/* current emitters must not be reset (because timer will be reset) */
 		if (newIds)
-		for (i = newIds[0], newIds += 2; i > 0; i --, newIds ++)
+		for (i = newIds[0], newIds += 2; i > 0; i --, newIds += CHUNK_EMIT_SIZE)
 		{
-			int newOffset = *newIds & 0xfff;
-			int oldOffset;
-			if (oldEmit >= 0)
+			uint8_t newOffset = newIds[0] & 7;
+			uint8_t oldOffset;
+			old = emitters.buffer + oldEmit;
+			oldOffset = oldEmit >= 0 ? old->Y : 16;
+
+			if (oldOffset == newOffset)
 			{
-				old = emitters.buffer + oldEmit;
-				oldOffset =
-					((int) old->loc[0] - chunk->X) +
-					((int) old->loc[2] - chunk->Z) * 16 +
-					((int) old->loc[1] - cd->Y)    * 256;
+				/* there can be multiple emitters at the same Y: use type and interval */
+				uint8_t type = (newIds[0] >> 3) & 31;
+				DATAS16 prev;
+				int     chain;
+				Emitter e;
+				for (chain = oldEmit, prev = start; chain >= 0; prev = &e->next, chain = *prev)
+				{
+					e = emitters.buffer + chain;
+					if (e->Y > newOffset) break;
+					if (e->type == type && e->interval == newIds[1])
+					{
+						/* already in the list */
+						e->area = newIds[2] | (newIds[3] << 16);
+						e->count = newIds[0] >> 8;
+						/* move to front of list to mark it as processed */
+						if (prev != start)
+						{
+							*prev = e->next;
+							e->next = *start;
+							*start = chain;
+							start = &e->next;
+						}
+						goto nextloop;
+					}
+				}
 			}
-			else oldOffset = 4096;
 
 			if (newOffset < oldOffset)
 			{
 				/* new emitter */
-				vec4 loc = {chunk->X + (newOffset & 15), cd->Y + (newOffset >> 8), chunk->Z + ((newOffset >> 4) & 15)};
-				Emitter e = particlesAddEmitter(loc, particleGetBlockId(cd, newOffset), (*newIds >> 12) + 1, 0, &start);
+				Emitter e = particlesAddEmitter(cd, newIds, &start);
 				e->next = oldEmit;
 				*start = e - emitters.buffer;
 				start = &e->next;
@@ -468,17 +517,12 @@ void particlesChunkUpdate(Map map, ChunkData cd)
 				old = emitters.buffer + oldEmit;
 				emitters.usage[oldEmit>>5] ^= 1 << (oldEmit & 31);
 				*start = old->next;
-				newIds --;
+				newIds -= CHUNK_EMIT_SIZE;
 				i ++;
 				emitters.count --;
 				emitters.dirtyList = 1;
 			}
-			else /* update blockId */
-			{
-				old = emitters.buffer + oldEmit;
-				old->blockId = particleGetBlockId(cd, newOffset);
-				start = &old->next;
-			}
+			nextloop:
 			oldEmit = *start;
 		}
 		if (*start >= 0)
@@ -499,6 +543,38 @@ static int emitterSort(const void * item1, const void * item2)
 	Emitter emit1 = emitters.buffer + * (DATA16) item1;
 	Emitter emit2 = emitters.buffer + * (DATA16) item2;
 	return emit1->time - emit2->time;
+}
+
+Bool particleCanSpawn(ChunkData cd, int pos, int metadata, int particleType)
+{
+	if (cd->blockIds[pos] == RSWIRE && metadata == 0)
+		return False;
+
+	if (particleType < PARTICLE_DUST)
+		return True;
+
+	struct BlockIter_t iter;
+	mapInitIterOffset(&iter, cd, pos);
+	mapIter(&iter, 0, -1, 0);
+	if (iter.blockIds == NULL)
+		return False;
+
+	/* DUST and DRIP: needs an air block below */
+	uint8_t block = iter.blockIds[iter.offset];
+	switch (particleType) {
+	case PARTICLE_DUST:
+		return block == 0;
+	case PARTICLE_DRIP:
+		/* immediately below must be solid */
+		if (blockIsFullySolid(blockGetByIdData(block, 0)))
+		{
+			/* then must be an air block */
+			mapIter(&iter, 0, -1, 0);
+			return iter.blockIds && iter.blockIds[iter.offset] == 0;
+		}
+		else return False;
+	}
+	return True;
 }
 
 /* will make it easier to update the list later */
@@ -527,6 +603,62 @@ static void particleSortEmitters(void)
 	//debugEmitters();
 }
 
+extern uint8_t multiplyDeBruijnBitPosition[]; /* from maps.c */
+
+/* emitters cover an area: narrow that area for particle constructors */
+static void emitterSpawnParticles(Map map, Emitter emit)
+{
+	ChunkData cd = emit->cd;
+	DATA8 blocks = cd->blockIds;
+	uint32_t area = emit->area;
+	uint8_t  data, i, range;
+	int count = emit->count+1;
+	int X = cd->chunk->X;
+	int Z = cd->chunk->Z;
+	int Y = cd->Y + emit->Y;
+	int zcoord = 0;
+	int offset = emit->Y << 8;
+
+	range = count >= 127 ? 255 : count << 1;
+
+	while (area > 0 && count > 0)
+	{
+		/* find first bit set to 1, by counting leading zero */
+		int slotZ = multiplyDeBruijnBitPosition[((uint32_t)((area & -(signed)area) * 0x077CB531U)) >> 27];
+		area  >>= slotZ;
+		area   ^= 1;
+		offset += slotZ << 4;
+		zcoord += slotZ;
+		if (zcoord >= 16) zcoord -= 16, Y ++;
+		/* 16 blocks to check */
+		for (i = 0; i < 16; i ++, offset ++)
+		{
+			Block b = &blockIds[blocks[offset]];
+			if (b->particle == emit->type && b->emitInterval == emit->interval)
+			{
+				data = blocks[DATA_OFFSET + (offset >> 1)];
+				if (offset & 1) data >>= 4;
+				else data &= 15;
+				if (particleCanSpawn(cd, offset, data, emit->type))
+				{
+					Particle p;
+					vec4 pos = {X + i, Y, Z + zcoord};
+					switch (emit->type) {
+					case PARTICLE_SMOKE: p = particlesSmoke(map, ID(b->id, data), pos); break;
+					case PARTICLE_DUST:  p = particlesDust(map, ID(b->id, data), pos); break;
+					case PARTICLE_DRIP:  p = particlesDrip(map, ID(b->id, data), pos); break;
+					default: continue;
+					}
+					if (p) p->delay = RandRange(0, range);
+					count --;
+				}
+			}
+		}
+		offset -= 16;
+	}
+}
+
+
 /* move particles */
 int particlesAnimate(Map map)
 {
@@ -540,6 +672,7 @@ int particlesAnimate(Map map)
 	if (emitters.dirtyList)
 		particleSortEmitters();
 
+	#if 1
 	if (emitters.count)
 	for (count = emitters.count; ; )
 	{
@@ -548,10 +681,7 @@ int particlesAnimate(Map map)
 
 		if (emit->time <= curTimeMS)
 		{
-			switch (emit->type) {
-			case PARTICLE_SMOKE: particlesSmoke(map, emit->blockId, emit->loc); break;
-			case PARTICLE_DUST:  particlesDust(map, emit->blockId, emit->loc); break;
-			}
+			emitterSpawnParticles(map, emit);
 			int next = emit->interval;
 			if (next == 0) next = 500;
 			emit->time = curTimeMS + RandRange(next>>1, next);
@@ -566,6 +696,7 @@ int particlesAnimate(Map map)
 		}
 		else break;
 	}
+	#endif
 
 	if (particles.count == 0)
 	{
@@ -583,6 +714,8 @@ int particlesAnimate(Map map)
 	float speed = (float) ((globals.curTime - particles.lastTime) / 250);
 	#endif
 
+	uint32_t diff = globals.curTime - particles.lastTime;
+
 //	fprintf(stderr, "speed = %f, diff = %d\n", speed, time - particles.lastTime);
 
 	for (list = HEAD(particles.buffers), count = 0; list; NEXT(list))
@@ -591,6 +724,15 @@ int particlesAnimate(Map map)
 		for (i = list->count, nth = 0, p = list->buffer; i > 0; p ++, nth ++)
 		{
 			if (p->time == 0) continue; i --;
+			if (p->delay > 0)
+			{
+				if (p->delay > diff)
+				{
+					p->delay -= diff;
+					continue;
+				}
+				else p->delay = 0;
+			}
 			if (p->time < curTimeMS)
 			{
 				/* expired particle */
@@ -608,6 +750,7 @@ int particlesAnimate(Map map)
 			type = p->UV&63;
 			switch (type) {
 			case PARTICLE_BITS:
+			case PARTICLE_DRIP:
 				info[1] = p->physics.light;
 				break;
 			case PARTICLE_SMOKE:

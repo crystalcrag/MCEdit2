@@ -14,6 +14,7 @@ void main(void)
 	int bit;
 	switch (ptype) {
 	case 1: // bits
+	case 4: // drip
 		color = texture(blockTex, texCoord);
 		break;
 	case 2: // smoke

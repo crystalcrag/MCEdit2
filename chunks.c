@@ -17,6 +17,7 @@
 #include "entities.h"
 #include "NBT2.h"
 #include "sign.h"
+#include "particles.h"
 
 /*
  * reading chunk from disk
@@ -1063,9 +1064,6 @@ uint16_t hasCnx[] = {
 0, 16384, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 };
 
-/* this table will tell for a given integer [0,255] which rightmost bit is set to 0 (i.e: simple allocator) */
-uint8_t firstFree[256];
-
 uint8_t mask8bit[] = {0x80, 0x40, 0x20, 0x10, 0x08, 0x04, 0x02, 0x01};
 
 /* yep, more look-up table init */
@@ -1127,31 +1125,61 @@ void chunkInitStatic(void)
 		slotsXZ[pos] = (x == 0 ? 1 << SIDE_WEST  : x == 15 ? 1 << SIDE_EAST  : 0) |
 		               (z == 0 ? 1 << SIDE_NORTH : z == 15 ? 1 << SIDE_SOUTH : 0);
 	}
-
-	for (pos = 0; pos < 256; pos ++)
-	{
-		int j, k;
-		for (j = pos, k = 0; j&1; k ++, j >>= 1);
-		firstFree[pos] = k;
-	}
 }
 
-static void chunkAddEmitters(ChunkData cd, int pos, int type)
+/*
+ * emitters will cover a XZY area of 16x16x2: for a given particle emitter, there would be at most
+ * 8 allocated per ChunkData: redstone dust and lava needs A LOT of them, and they are usually
+ * all located on the same XZ plane: allocating one emitter per blocks is kind of wasteful.
+ *
+ * to help emitters locate a block source, we use a 32bit bitfield: out of the 512 blocks covered,
+ * this bitfield will tell in which X/Y row to look for the source: there will still be 16 blocks to
+ * scan, but it will be extremely cheap to do.
+ */
+static void chunkAddEmitters(ChunkData cd, int interval, int pos, int type, DATA16 emitters)
 {
 	DATA16 list = cd->emitters;
-	if (list == NULL || list[0] == list[1])
+	if (emitters[type] > 0)
 	{
-		if (list == NULL)
+		/* maybe already in the list */
+		DATA16 emit = list + emitters[type];
+		if (emit[1] != interval)
 		{
-			list = malloc(16 * sizeof *list);
-			list[0] = 0;
-			list[1] = 14;
+			/* same type, but different interval, check if there is one with the same interval */
+			DATA16 eof;
+			for (eof = list + list[0] * CHUNK_EMIT_SIZE + 2; emit < eof; emit += CHUNK_EMIT_SIZE)
+				if (((emit[0] >> 3) & 31) == type && emit[1] == interval) goto found;
+			/* no emitters with same type and interval: alloc a new one (this case is pretty rare though) */
+			goto alloc;
 		}
-		else list = realloc(list, (list[1] + 18) * sizeof *list), list[1] += 16;
-		cd->emitters = list;
+		found:
+		list = emit;
+		if (list[0] < 0xff00)
+			list[0] += 0x100; /* count */
 	}
-	list[list[0]+2] = pos | (type << 12);
-	list[0] ++;
+	else /* not created yet: add one */
+	{
+		alloc:
+		if (list == NULL || list[0] == list[1])
+		{
+			int max = list ? list[1] + 8 : 8;
+			list = realloc(list, max * CHUNK_EMIT_SIZE*2 + 4);
+			if (list == NULL) return;
+			if (max == 8) list[0] = 0;
+			list[1] = max;
+			cd->emitters = list;
+		}
+		list[0] ++;
+		list += (list[0]-1) * CHUNK_EMIT_SIZE*2 + 2;
+		emitters[type] = list - cd->emitters;
+		/* type, pos and count */
+		list[0] = (pos >> 9) | (type << 3);
+		list[1] = interval;
+		/* 32bit bitfield for location hint */
+		list[2] = list[3] = 0;
+	}
+	/* mark this X row as containing at least one emitter */
+	list[2 + ((pos >> 8) & 1)] |= 1 << ((pos >> 4) & 15);
 }
 
 static void chunkGenQuad(ChunkData neighbors[], WriteBuffer buffer, BlockState b, int pos);
@@ -1171,8 +1199,9 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 	struct WriteBuffer_t alpha, opaque;
 	ChunkData neighbors[7];    /* S, E, N, W, T, B, current */
 	ChunkData cur;
-	int i, pos, air;
-	uint8_t hasLights;
+	int       i, pos, air;
+	uint16_t  emitters[PARTICLE_MAX];
+	uint8_t   Y, hasLights;
 
 	renderInitBuffer(neighbors[6] = cur = c->layer[layer], &opaque, &alpha);
 
@@ -1199,60 +1228,62 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 //	if (c->X == -208 && cur->Y == 48 && c->Z == -48)
 //		globals.breakPoint = 1;
 
-	for (pos = air = 0; pos < 16*16*16; pos ++)
+	for (Y = 0, pos = air = 0; Y <16; Y ++)
 	{
-		BlockState state;
-		uint8_t    data;
-		uint8_t    block;
+		int XZ;
+		if ((Y & 1) == 0)
+			memset(emitters, 0, sizeof emitters);
 
-		data  = cur->blockIds[DATA_OFFSET + (pos >> 1)]; if (pos & 1) data >>= 4; else data &= 15;
-		block = cur->blockIds[pos];
-		state = blockGetById(ID(block, data));
-
-//		if (globals.breakPoint && pos == 120)
-//			globals.breakPoint = 2;
-
-		/* 3d flood fill for cave culling */
-		if (! blockIsFullySolid(state) && (slotsXZ[pos & 0xff] || slotsY[pos >> 8]) && (visited[pos>>3] & mask8bit[pos&7]) == 0)
-			cur->cnxGraph |= mapUpdateGetCnxGraph(cur, pos, visited);
-
-		if (hasLights)
+		/* scan one XZ layer at a time */
+		for (XZ = 0; XZ < 256; XZ ++, pos ++)
 		{
-			uint8_t particle = blockIds[block].particle;
-			if (particle > 0 && (block != RSWIRE || data > 0)) // XXX needs to be somewhat declared in blockTable.js :-/
+			BlockState state;
+			uint8_t    data;
+			uint8_t    block;
+
+			data  = cur->blockIds[DATA_OFFSET + (pos >> 1)]; if (pos & 1) data >>= 4; else data &= 15;
+			block = cur->blockIds[pos];
+			state = blockGetById(ID(block, data));
+
+//			if (globals.breakPoint && pos == 120)
+//				globals.breakPoint = 2;
+
+			/* 3d flood fill for cave culling */
+			if ((slotsXZ[pos & 0xff] || slotsY[pos >> 8]) && ! blockIsFullySolid(state) && (visited[pos>>3] & mask8bit[pos&7]) == 0)
+				cur->cnxGraph |= mapUpdateGetCnxGraph(cur, pos, visited);
+
+			if (hasLights)
 			{
-				if (particle < PARTICLE_DUST ||
-					/* needs an air block below */
-					(pos >= 256 ? cur->blockIds[pos-256] : neighbors[5]->blockIds[pos+256*15]) == 0)
-					chunkAddEmitters(cur, pos, particle - 1);
+				uint8_t particle = blockIds[block].particle;
+				if (particle > 0 && particleCanSpawn(cur, pos, data, particle))
+					chunkAddEmitters(cur, blockIds[block].emitInterval, pos, particle - 1, emitters);
+
+				if (block == RSOBSERVER)
+					chunkMakeObservable(cur, pos, blockSides.piston[data&7]);
 			}
 
-			if (block == RSOBSERVER)
-				chunkMakeObservable(cur, pos, blockSides.piston[data&7]);
-		}
-
-		switch (state->type) {
-		case QUAD:
-			chunkGenQuad(neighbors, &opaque, state, pos);
-			break;
-		case CUST:
-			if (state->custModel)
-			{
-				chunkGenCust(neighbors, STATEFLAG(state, ALPHATEX) ? &alpha : &opaque, state, chunkOffsets, pos);
-				/* SOLIDOUTER: custom block with ambient occlusion */
-				if (state->special != BLOCK_SOLIDOUTER)
-					break;
+			switch (state->type) {
+			case QUAD:
+				chunkGenQuad(neighbors, &opaque, state, pos);
+				break;
+			case CUST:
+				if (state->custModel)
+				{
+					chunkGenCust(neighbors, STATEFLAG(state, ALPHATEX) ? &alpha : &opaque, state, chunkOffsets, pos);
+					/* SOLIDOUTER: custom block with ambient occlusion */
+					if (state->special != BLOCK_SOLIDOUTER)
+						break;
+				}
+				/* else no break; */
+			case TRANS:
+			case SOLID:
+				chunkGenCube(neighbors, STATEFLAG(state, ALPHATEX) ? &alpha : &opaque, state, chunkOffsets, pos);
+				break;
+			default:
+				if (state->id == 0) air ++;
 			}
-			/* else no break; */
-		case TRANS:
-		case SOLID:
-			chunkGenCube(neighbors, STATEFLAG(state, ALPHATEX) ? &alpha : &opaque, state, chunkOffsets, pos);
-			break;
-		default:
-			if (state->id == 0) air ++;
 		}
 	}
-
 	/* entire sub-chunk is composed of air: check if we can get rid of it */
 	if (air == 4096 && (cur->cdFlags & CDFLAG_NOLIGHT) == 0)
 	{

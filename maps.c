@@ -36,34 +36,25 @@ static struct Frustum_t frustum = {
 int16_t   chunkNeighbor[16*9];
 ChunkData chunkAir;
 
+uint8_t multiplyDeBruijnBitPosition[] = {
+	0, 1, 28, 2, 29, 14, 24, 3, 30, 22, 20, 15, 25, 17, 4, 8,
+	31, 27, 13, 23, 21, 19, 16, 7, 26, 12, 18, 6, 11, 5, 10, 9
+};
+
 extern uint8_t openDoorDataToModel[];
-extern uint8_t firstFree[];
 
 int mapFirstFree(DATA32 usage, int count)
 {
 	int base, i;
 	for (i = count, base = 0; i > 0; i --, usage ++, base += 32)
 	{
-		uint32_t bits = *usage;
-		if (bits == 0xffffffff) continue;
-		int slot = firstFree[bits & 0xff];
-		if (slot == 8)
-		{
-			bits >>= 8;
-			slot += firstFree[bits & 0xff];
-			if (slot == 16)
-			{
-				bits >>= 8;
-				slot += firstFree[bits & 0xff];
-				if (slot == 24)
-				{
-					slot += firstFree[bits >> 8];
-					if (slot == 32) continue;
-				}
-			}
-		}
-		*usage |= 1 << slot;
-		return base + slot;
+		/* from https://graphics.stanford.edu/~seander/bithacks.html#ZerosOnRightMultLookup */
+		uint32_t bits = *usage ^ 0xffffffff;
+		if (bits == 0) continue;
+		/* count leading 0 */
+		bits = multiplyDeBruijnBitPosition[((uint32_t)((bits & -(signed)bits) * 0x077CB531U)) >> 27];
+		*usage |= 1 << bits;
+		return base + bits;
 	}
 	return -1;
 }
@@ -1303,7 +1294,6 @@ static ChunkData mapAllocFakeChunk(Map map)
 	ChunkFake * prev;
 	ChunkFake   cf;
 	ChunkData   cd;
-	uint32_t    usage;
 	int         slot;
 
 	for (prev = &map->cdPool, cf = *prev; cf && cf->usage == 0xffffffff; prev = &cf->next, cf = cf->next);
@@ -1315,21 +1305,7 @@ static ChunkData mapAllocFakeChunk(Map map)
 		*prev = cf;
 	}
 
-	usage = cf->usage;
-	slot = firstFree[usage & 0xff];
-	if (slot == 8)
-	{
-		usage >>= 8;
-		slot += firstFree[usage & 0xff];
-		if (slot == 16)
-		{
-			usage >>= 8;
-			slot += firstFree[usage & 0xff];
-			if (slot == 24)
-				slot += firstFree[usage >> 8];
-		}
-	}
-
+	slot = mapFirstFree(&cf->usage, 1);
 	cd = (ChunkData) (cf->buffer + FAKE_CHUNK_SIZE * slot);
 	memset(cd, 0, FAKE_CHUNK_SIZE);
 	cd->slot   = slot+1;

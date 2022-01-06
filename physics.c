@@ -462,14 +462,14 @@ void physicsInitEntity(PhysicsEntity entity, int blockId)
 	if (entity->dir[VZ] < 0) entity->negXZ |= 2, entity->dir[VZ] = - entity->dir[VZ];
 }
 
-static void physicsChangeEntityDir(PhysicsEntity entity)
+static void physicsChangeEntityDir(PhysicsEntity entity, float friction)
 {
 	float angle = RandRange(0, 2 * M_PI);
 	entity->dir[VY] = 0;
 	entity->dir[VX] = cosf(angle) * 0.01f;
 	entity->dir[VZ] = sinf(angle) * 0.01f;
-	entity->friction[VZ] = -0.001;
-	entity->friction[VX] = -0.001;
+	entity->friction[VZ] = friction;
+	entity->friction[VX] = friction;
 	if (entity->dir[VX] < 0) entity->negXZ |= 1, entity->dir[VX] = - entity->dir[VX];
 	if (entity->dir[VZ] < 0) entity->negXZ |= 2, entity->dir[VZ] = - entity->dir[VZ];
 }
@@ -503,7 +503,24 @@ Bool physicsMoveEntity(Map map, PhysicsEntity entity, float speed)
 
 	if (axis & 2)
 	{
-		if (! entity->VYblocked)
+		if (entity->rebound == 255)
+		{
+			entity->VYblocked = 1;
+			entity->rebound = 0;
+			entity->dir[VY] = 0;
+		}
+		else if (entity->rebound)
+		{
+			float dir = -entity->dir[VY] * 0.4f / entity->rebound;
+			physicsChangeEntityDir(entity, 0.0001);
+			entity->dir[VX] *= 2;
+			entity->dir[VZ] *= 2;
+			entity->dir[VY] = dir;
+			entity->rebound = 255;
+			entity->friction[VX] *= 1.5f;
+			entity->friction[VZ] *= 1.5f;
+		}
+		else if (! entity->VYblocked)
 		{
 			entity->VYblocked = 1;
 			if (DY > 0)
@@ -513,7 +530,7 @@ Bool physicsMoveEntity(Map map, PhysicsEntity entity, float speed)
 					/* make it fall down */
 					entity->friction[VY] = 0.02;
 				else /* find a hole in the ceiling */
-					physicsChangeEntityDir(entity);
+					physicsChangeEntityDir(entity, -0.001);
 			}
 			else /* hit the ground */
 			{

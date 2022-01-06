@@ -28,6 +28,7 @@ struct PhysicsEntity_t
 	uint8_t VYblocked;         /* hit the ground */
 	uint8_t light;             /* blocklight (bit0~3) skylight (bit4~7) */
 	uint8_t negXZ;             /* &1: dir[VX] is negative, &2: dir[Vz] is negative */
+	uint8_t rebound;           /* rebound when hitting the ground */
 	VTXBBox bbox;              /* bounding box of entity */
 };
 

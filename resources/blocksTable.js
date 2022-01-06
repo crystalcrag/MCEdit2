@@ -128,11 +128,11 @@
 		{state:14, name: "-"},
 		{state:15, name: "-"},
 
-	{id: 12, name: "Sand", type: SOLID, inv: CUBE, cat: BUILD, gravity: 1, particle: [DUST, 1000, 800]},
+	{id: 12, name: "Sand", type: SOLID, inv: CUBE, cat: BUILD, gravity: 1, particle: DUST},
 		{state: 0, name: "-",        tex: [ 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1]},
 		{state: 1, name: "Red sand", tex: [11, 1,11, 1,11, 1,11, 1,11, 1,11, 1]},
 
-	{id: 13, name: "Gravel", type: SOLID, inv: CUBE, cat: BUILD, gravity: 1, particle: [DUST, 1000, 800]},
+	{id: 13, name: "Gravel", type: SOLID, inv: CUBE, cat: BUILD, gravity: 1, particle: DUST},
 		{state: 0, tex: [3, 1, 3, 1, 3, 1, 3, 1, 3, 1, 3, 1]},
 
 	{id: 14, name: "Gold ore", type: SOLID, inv: CUBE, cat: BUILD},

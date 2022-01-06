@@ -930,8 +930,8 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 
 		/* types of particles emitted continuously */
 		value = jsonValue(keys, "particle");
-		block.emitInterval = 750;
-		block.particleTTL = 500;
+		block.emitInterval = 0xffff;
+		block.particleTTL = 0xffff;
 		if (value && *value == '[')
 		{
 			value ++;
@@ -945,6 +945,21 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 			}
 		}
 		block.particle = FindInList("BITS,SMOKE,DUST,DRIP", value, 0) + 1;
+		if (block.emitInterval == 0xffff)
+		{
+			/* default values */
+			switch (block.particle) {
+			case PARTICLE_BITS:
+			case PARTICLE_SMOKE:
+				block.emitInterval = 750;
+				block.particleTTL = 500;
+				break;
+			case PARTICLE_DUST:
+			case PARTICLE_DRIP:
+				block.emitInterval = 4000;
+				block.particleTTL = 800;
+			}
+		}
 
 		/* density (g/cm³): used by particles and entity physics */
 		value = jsonValue(keys, "density");

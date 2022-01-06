@@ -33,6 +33,7 @@ void main(void)
 	switch (type) {
 	case 1: // bits
 	case 3: // dust
+	case 4: // drip
 		light = info.y & 0xff;
 		color = (info.y >> 8) & 7;
 		rotation = info.y >> 12;

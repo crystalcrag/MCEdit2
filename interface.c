@@ -1088,6 +1088,8 @@ static int mcuiFillCheckProgress(SIT_Widget w, APTR cd, APTR ud)
 	if (timeMS - mcuiRepWnd.processStart > 250)
 	{
 		/* wait a bit before showing/updating progress bar */
+		SIT_Widget msg = SIT_GetById(mcuiRepWnd.prog, "../text");
+		if (msg) SIT_SetValues(msg, SIT_Visible, False, NULL);
 		SIT_SetValues(mcuiRepWnd.prog, SIT_Visible, True, SIT_ProgressPos, (int)
 			(uint64_t) mcuiRepWnd.processCurrent * 100 / mcuiRepWnd.processTotal, NULL);
 		mcuiRepWnd.processStart = timeMS;
@@ -1260,21 +1262,22 @@ void mcuiFillOrReplace(Bool fillWithBrush)
 		"<canvas composited=1 name=fill.inv left=WIDGET,msg,0.5em top=WIDGET,inv,0.5em nextCtrl=LAST/>"
 	);
 
+	vec points = selectionGetPoints();
+	vec size   = mcuiRepWnd.size;
+	size[0] = (int) fabsf(points[VX] - points[VX+4]) + 1;
+	size[1] = (int) fabsf(points[VZ] - points[VZ+4]) + 1;
+	size[2] = (int) fabsf(points[VY] - points[VY+4]) + 1;
+	if (globals.direction & 1)
+	{
+		float tmp = size[0];
+		size[0] = size[1];
+		size[1] = tmp;
+	}
+
 	if (fillWithBrush)
 	{
 		/* interface to fill selection with a geometric brush */
 		TEXT cylinder[32];
-		vec points = selectionGetPoints();
-		vec size   = mcuiRepWnd.size;
-		size[0] = (int) fabsf(points[VX] - points[VX+4]) + 1;
-		size[1] = (int) fabsf(points[VZ] - points[VZ+4]) + 1;
-		size[2] = (int) fabsf(points[VY] - points[VY+4]) + 1;
-		if (globals.direction & 1)
-		{
-			float tmp = size[0];
-			size[0] = size[1];
-			size[1] = tmp;
-		}
 		mcuiRepWnd.axisCylinder = selectionCylinderAxis(size, globals.direction);
 		sprintf(cylinder, "Cylinder (%c)", "WLH"[mcuiRepWnd.axisCylinder]);
 
@@ -1321,6 +1324,7 @@ void mcuiFillOrReplace(Bool fillWithBrush)
 	}
 	else /* fill/replace entire selection */
 	{
+		uint32_t volume = size[0] * size[1] * size[2];
 		SIT_CreateWidgets(diag,
 			"<button name=doreplace title='Replace by:' curValue=", &mcuiRepWnd.doReplace, "buttonType=", SITV_CheckBox,
 			" left=WIDGET,fill,0.5em top=MIDDLE,fill>"
@@ -1336,6 +1340,14 @@ void mcuiFillOrReplace(Bool fillWithBrush)
 			"<progress name=prog visible=0 title='%d%%' left=FORM right=WIDGET,ok,1em top=MIDDLE,ok>"
 			"<tooltip name=info delayTime=", SITV_TooltipManualTrigger, "displayTime=10000 toolTipAnchor=", SITV_TooltipFollowMouse, ">"
 		);
+		if (volume > 1)
+		{
+			TEXT msg[64];
+			FormatNumber(msg, sizeof msg, "Volume: %d blocks", volume);
+			SIT_CreateWidgets(diag,
+				"<label name=text title=", msg, "left=FORM right=WIDGET,ok,1em top=MIDDLE,ok>"
+			);
+		}
 		mcuiRepWnd.XYZ[0] = NULL;
 	}
 	SIT_SetAttributes(diag, "<searchtxt top=MIDDLE,search><inv right=WIDGET,scroll,0.2em><msg top=MIDDLE,fill>");

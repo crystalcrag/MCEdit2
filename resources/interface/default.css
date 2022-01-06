@@ -154,7 +154,7 @@ tab .exch:active { border: 0.1em inset #ccc; background-color: transparent, #8b8
 tab #del.exch { background: rgba(red, 0.1); text-align: center; vertical-align: middle; padding-top: 0.2em; text-shadow: none }
 tab #del.exch:active { background: red }
 
-progress { background-color: #8b8b8b; vertical-align: middle; text-align: center; border: 2px inset #bbb; color: white }
+progress { background-color: #8b8b8b; vertical-align: middle; text-align: center; border: 2px inset #bbb; color: white; padding: 0.2em }
 progress bar { background-color: #23ba1f; border: 2px outset #23ba1f; color: white }
 
 .inv { background-color: #8b8b8b }

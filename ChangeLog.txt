@@ -1,6 +1,14 @@
+=========== Week 1 ===========
+Tue Jan 4:
+	* added jitter delay to particle emitters if more than 1 block.
+
+Mon Jan 3:
+	* started refactoring of particle emitters: use area instead of single block.
+
 #
 # END OF 2021
 #
+
 
 =========== Week 52 ===========
 Sun Jan 2:
