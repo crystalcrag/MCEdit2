@@ -26,6 +26,7 @@
 #include "entities.h"
 #include "waypoints.h"
 #include "worldSelect.h"
+#include "undoredo.h"
 #include "SIT.h"
 
 GameState_t mcedit;
@@ -268,6 +269,12 @@ static int mceditTrackFocus(SIT_Widget w, APTR cd, APTR ud)
 	return 0;
 }
 
+static int mceditUndo(SIT_Widget w, APTR cd, APTR ud)
+{
+	undoOperation();
+	return 1;
+}
+
 /* ESC key pressed: cancel stuff, if nothing to cancel, exit then */
 static int mceditCancelStuff(SIT_Widget w, APTR cd, APTR ud)
 {
@@ -345,6 +352,7 @@ int main(int nb, char * argv[])
 		{SITK_FlagCtrl + 'l', SITE_OnActivate, NULL, mceditShowLibrary},
 		{SITK_FlagCtrl + 'i', SITE_OnActivate, NULL, mceditShowWorldInfo},
 		{SITK_FlagCtrl + 'o', SITE_OnActivate, NULL, optionsQuickAccess},
+		{SITK_FlagCtrl + 'z', SITE_OnActivate, NULL, mceditUndo},
 		{SITK_Escape,         SITE_OnActivate, NULL, mceditCancelStuff},
 		{0}
 	};
@@ -461,7 +469,8 @@ void mceditWorld(void)
 					break;
 				case SDLK_F7:
 					globals.breakPoint = ! globals.breakPoint;
-					FramePauseUnpause(globals.breakPoint);
+					undoDebug();
+					//FramePauseUnpause(globals.breakPoint);
 					break;
 				case SDLK_UP:
 				case SDLK_DOWN:
@@ -534,8 +543,8 @@ void mceditWorld(void)
 					switch (playerProcessKey(&mcedit.player, key, SDLMtoSIT(event.key.keysym.mod))) {
 					case 0: goto forwardKeyPress;
 					case 1:
-						/* just switched to offhand */
-						if (globals.selPoints == 0)
+						/* just switched to offhand: force block highlight (avoid block preview) */
+						if (globals.selPoints < 3)
 							renderSetSelectionPoint(mcedit.player.inventory.offhand & 1 ? RENDER_SEL_INIT : RENDER_SEL_CLEAR);
 						break;
 					case 2:
@@ -802,7 +811,7 @@ void mceditPlaceBlock(void)
 	if (! isBlockId(id))
 	{
 		ItemDesc desc = itemGetById(id);
-		if (desc->refBlock)
+		if (desc && desc->refBlock)
 		{
 			if (blockIds[desc->refBlock].special == BLOCK_SIGN)
 				id = block;

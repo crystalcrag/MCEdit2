@@ -32,8 +32,9 @@ void main(void)
 	uint U   = bitfieldExtract(info.x, 14, 9);
 	uint V   = bitfieldExtract(info.x, 23, 9) | (bitfieldExtract(position.y, 30, 1) << 9);
 
-	if (V == 1023) V = 1024;
-	if (U == 511)  U = 512;
+	/* only 10 and 9 bits of precision, ideally we woud need 11 and 10, but that trick does the job nicely */
+	if (V+Vsz-128 == 1023) Vsz ++;
+	if (U+Usz-128 == 511)  Usz ++;
 
 	vertex1 = vec3(
 		(float(bitfieldExtract(position.x,  0, 16)) - ORIGINVTX) * BASEVTX + offsets.x,
@@ -41,7 +42,7 @@ void main(void)
 		(float(bitfieldExtract(position.y,  0, 16)) - ORIGINVTX) * BASEVTX + offsets.z
 	);
 
-	/* 2nd and 3rd vertex are relative to 1st (saves 2 bits per coord) */
+	/* 2nd and 3rd vertex are relative to 1st (saves 2 bits per coord, 6 in total) */
 	vertex2 = vec3(
 		float(bitfieldExtract(position.y, 16, 14)) * BASEVTX - MIDVTX + vertex1.x,
 		float(bitfieldExtract(position.z,  0, 14)) * BASEVTX - MIDVTX + vertex1.y,

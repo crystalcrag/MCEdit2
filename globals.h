@@ -23,10 +23,10 @@ typedef struct MCGlobals_t
 	 */
 	uint8_t selPoints;
 
-	/* cardimal direction player is facing: 0 = south, 1 = east, 2 = north, 3 = west */
+	/* cardinal direction player is facing: 0 = south, 1 = east, 2 = north, 3 = west */
 	uint8_t direction;
 
-	/* edit box is active: restrict some kbd shortcut */
+	/* edit box is active: restrict some keyboard shortcut */
 	uint8_t inEditBox;
 
 	/* map being edited */

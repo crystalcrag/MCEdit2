@@ -1127,15 +1127,7 @@ void chunkInitStatic(void)
 	}
 }
 
-/*
- * emitters will cover a XZY area of 16x16x2: for a given particle emitter, there would be at most
- * 8 allocated per ChunkData: redstone dust and lava needs A LOT of them, and they are usually
- * all located on the same XZ plane: allocating one emitter per blocks is kind of wasteful.
- *
- * to help emitters locate a block source, we use a 32bit bitfield: out of the 512 blocks covered,
- * this bitfield will tell in which X/Y row to look for the source: there will still be 16 blocks to
- * scan, but it will be extremely cheap to do.
- */
+/* check odc/internals.html to have an overview on how particle emitters are managed */
 static void chunkAddEmitters(ChunkData cd, int interval, int pos, int type, DATA16 emitters)
 {
 	DATA16 list = cd->emitters;

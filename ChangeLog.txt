@@ -1,4 +1,14 @@
 =========== Week 1 ===========
+Fri Jan 7:
+	* undo/redo continued (blocks/tile entities can be restored).
+
+Thu Jan 6:
+	* undo/redo continued (selection can be restored).
+
+Wed Jan 5:
+	* particle area mostly done: added drip particle.
+	* started undo/redo (finally).
+
 Tue Jan 4:
 	* added jitter delay to particle emitters if more than 1 block.
 

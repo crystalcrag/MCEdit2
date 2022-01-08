@@ -143,7 +143,7 @@ static void minecartSetOrient(Entity entity)
 		entity->rotation[0] = normAngle(M_PIf + M_PI_2f - atan2f(coord[VZ+3] - coord[VZ], coord[VX+3]));
 	//	entity->rotation[1] = normAngle(atan2(coord[VY+3] - coord[VY], coord[VX+3]));
 
-		fprintf(stderr, "coord = %g, %g, %g, angle = %d\n", PRINT_COORD(entity->motion),
+		fprintf(stderr, "minecart coord = %g, %g, %g, angle = %d\n", PRINT_COORD(entity->motion),
 			(int) (entity->rotation[0] * 180 / M_PIf));
 	}
 }

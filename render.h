@@ -27,6 +27,7 @@ void renderPointToBlock(int mx, int my);
 void renderShowBlockInfo(Bool show, int what);
 void renderSetInventory(Inventory);
 void renderAddModif(void);
+void renderCancelModif(void);
 void renderAllSaved(void);
 void renderFrustum(Bool snapshot);
 void renderSaveRestoreState(Bool save);
@@ -38,6 +39,7 @@ int  renderGetTerrain(int size[2], int * texId);
 int  renderInitUBO(void);
 void renderSetFOV(int fov);
 Bool renderRotatePreview(int dir);
+void renderSetSelection(DATA32 points);
 MapExtraData renderGetSelectedBlock(vec4 pos, int * blockModel);
 
 enum /* possible values for <action> of renderSetSelectionPoint */

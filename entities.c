@@ -664,8 +664,8 @@ void entityParse(Chunk c, NBTFile nbt, int offset)
 		if (id && !(pos[3] == 0 && pos[4] == 0 && pos[6] == 0))
 		{
 			uint16_t next;
-			if (pos[3] < c->X || pos[3] >= c->X+16 || pos[5] < c->Z || pos[5] >= c->Z+16)
-				fprintf(stderr, "entity %s not in the correct chunk: %g, %g\n", id, (double) (pos[3] - c->X), (double) (pos[5] - c->Z));
+			//if (pos[3] < c->X || pos[3] >= c->X+16 || pos[5] < c->Z || pos[5] >= c->Z+16)
+			//	fprintf(stderr, "entity %s not in the correct chunk: %g, %g\n", id, (double) (pos[3] - c->X), (double) (pos[5] - c->Z));
 			Entity entity = entityAlloc(&next);
 
 			if (prev)
@@ -679,8 +679,7 @@ void entityParse(Chunk c, NBTFile nbt, int offset)
 
 			/* rotation also depends on how the initial model is oriented :-/ */
 			entity->rotation[0] = fmod((360 - pos[7]) * M_PIf / 180, 2*M_PIf);
-			entity->rotation[1] = - pos[8] * (2*M_PIf / 360);
-			if (entity->rotation[1] < 0) entity->rotation[1] += 2*M_PIf;
+			entity->rotation[1] = normAngle(- pos[8] * (2*M_PIf / 360));
 
 			entity->tile = nbt->mem + offset;
 			entity->next = ENTITY_END;

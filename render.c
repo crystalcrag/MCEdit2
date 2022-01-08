@@ -1,7 +1,7 @@
 /*
  * render.c : render world using openGL: this is the heart of the rendering engine.
  *
- * VBO/VAO are allocated here.
+ * VBO/VAO for chunks are allocated here.
  *
  * written by T.Pierron, july 2020
  */
@@ -21,6 +21,7 @@
 #include "entities.h"
 #include "cartograph.h"
 #include "waypoints.h"
+#include "undoredo.h"
 #include "nanovg.h"
 #include "SIT.h"
 #include "globals.h"
@@ -292,6 +293,9 @@ void renderSetSelectionPoint(int action)
 		break;
 
 	case RENDER_SEL_CLEAR:
+		if ((render.debugInfo & DEBUG_SELECTION) == 0) break;
+		if (globals.selPoints == 3)
+			undoLog(LOG_SELECTION, selectionGetPoints());
 		render.inventory->offhand &= ~(PLAYER_ALTPOINT | PLAYER_OFFHAND);
 		render.debugInfo &= ~DEBUG_SELECTION;
 		render.selection.selFlags &= ~SEL_MOVE;
@@ -300,6 +304,7 @@ void renderSetSelectionPoint(int action)
 		break;
 
 	case RENDER_SEL_AUTO:
+		/* auto-select similar block */
 		if (render.selection.selFlags & SEL_POINTTO)
 		{
 			if (render.selection.extra.entity > 0)
@@ -318,6 +323,7 @@ void renderSetSelectionPoint(int action)
 		break;
 
 	case RENDER_SEL_AUTOMOVE:
+		/* move clone selection to where mouse is pointing */
 		render.debugInfo |= DEBUG_SELECTION;
 		render.selection.selFlags |= SEL_MOVE;
 		break;
@@ -329,7 +335,6 @@ void renderSetSelectionPoint(int action)
 	case RENDER_SEL_ADDPT:
 		/* click on a block */
 		if ((render.selection.selFlags & SEL_POINTTO) == 0)
-			/* need a block being pointed at */
 			break;
 
 		selectionSetPoint(render.scale, render.selection.current,
@@ -339,6 +344,13 @@ void renderSetSelectionPoint(int action)
 		else
 			render.inventory->offhand ^= PLAYER_ALTPOINT;
 	}
+}
+
+void renderSetSelection(DATA32 points)
+{
+	render.inventory->offhand = 1;
+	selectionSetPoint(render.scale, (vec4) {points[0], points[1], points[2]}, SEL_POINT_1);
+	selectionSetPoint(render.scale, (vec4) {points[3], points[4], points[5]}, SEL_POINT_2);
 }
 
 void inventorySetTooltip(SIT_Widget toolTip, Item item, STRPTR extra);
@@ -1693,6 +1705,21 @@ void renderAddModif(void)
 	render.modifCount ++;
 	render.message.chrLen = sprintf(render.message.text, LangStrPlural(NULL, render.modifCount, "%d unsaved edit", "%d unsaved edits"), render.modifCount);
 	render.message.pxLen  = nvgTextBounds(globals.nvgCtx, 0, 0, render.message.text, render.message.text + render.message.chrLen, NULL);
+}
+
+/* an operation was undone (called from undoredo.c) */
+void renderCancelModif(void)
+{
+	/* hmm, should not happen */
+	if (render.modifCount == 0) return;
+
+	render.modifCount --;
+	if (render.modifCount > 0)
+	{
+		render.modifCount --;
+		renderAddModif();
+	}
+	else render.message.chrLen = 0;
 }
 
 void renderAllSaved(void)

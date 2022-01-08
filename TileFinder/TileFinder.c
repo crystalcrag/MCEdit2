@@ -1781,7 +1781,7 @@ int my_main(int nb, char * argv[])
 
 	GFX_EnableGL(ctrl.cube);
 
-	setImage(GFX_LoadImage(nb > 1 ? argv[1] : "Terrain.png"));
+	setImage(GFX_LoadImage(nb > 1 ? argv[1] : "../resources/terrain.png"));
 	if (ctrl.nbBlocks == 0)
 		blockAdd(16, 16, 16);
 

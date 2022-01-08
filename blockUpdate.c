@@ -179,7 +179,7 @@ static void mapUpdateNearbyRails(Map map, vec4 pos, int blockId, DATA16 nbors)
 		{
 			/* yes, we can */
 			flags2 |= opposite[i];
-			mapUpdate(map, loc, (id & ~15) | mapGetRailData(id, flags2), NULL, False);
+			mapUpdate(map, loc, (id & ~15) | mapGetRailData(id, flags2), NULL, UPDATE_UNDOLINK);
 			data |= flags & (0x111 << i);
 			if (popcount(data&15) == 2) break;
 		}
@@ -203,9 +203,9 @@ void mapUpdateBlock(Map map, vec4 pos, int blockId, int oldBlockId, DATA8 tile)
 		switch (blockIds[blockId >> 4].special) {
 		case BLOCK_TALLFLOWER:
 			/* weird state values from minecraft :-/ */
-			if ((blockId & 15) == 10) return;
-			mapSetData(map, pos, (blockId & 15) - 10);              pos[VY] ++;
-			mapUpdate(map, pos, (blockId & ~15) | 10, NULL, False); pos[VY] --;
+			//if ((blockId & 15) == 10) return;
+			mapSetData(map, pos, (blockId & 15) - 10); pos[VY] ++;
+			mapUpdate(map, pos, (blockId & ~15) | 10, NULL, UPDATE_UNDOLINK); pos[VY] --;
 			break;
 		case BLOCK_DOOR:
 			if ((oldBlockId >> 4) != (blockId >> 4))
@@ -215,7 +215,7 @@ void mapUpdateBlock(Map map, vec4 pos, int blockId, int oldBlockId, DATA8 tile)
 				/* need to update bottom data part */
 				mapSetData(map, pos, (blockId & 3) | neighbors[0]); pos[VY] ++;
 				/* and create top part */
-				mapUpdate(map, pos, ((blockId & 15) < 4 ? 8 : 9) | (neighbors[0] >> 1) | (blockId & ~15), NULL, False);
+				mapUpdate(map, pos, ((blockId & 15) < 4 ? 8 : 9) | (neighbors[0] >> 1) | (blockId & ~15), NULL, UPDATE_UNDOLINK);
 				pos[VY] --;
 			}
 			else /* existing door: only update bottom part */
@@ -230,7 +230,7 @@ void mapUpdateBlock(Map map, vec4 pos, int blockId, int oldBlockId, DATA8 tile)
 				pos[VX] += bedOffsetX[blockId & 3];
 				pos[VZ] += bedOffsetZ[blockId & 3];
 				/* mapUpdate() will update coord of tile entity */
-				mapUpdate(map, pos, blockId + 8, NBT_Copy(tile), False);
+				mapUpdate(map, pos, blockId + 8, NBT_Copy(tile), UPDATE_UNDOLINK);
 			}
 			break;
 		case BLOCK_RAILS:
@@ -273,7 +273,7 @@ void mapUpdateBlock(Map map, vec4 pos, int blockId, int oldBlockId, DATA8 tile)
 			/* extended piston: delete extension */
 			i = blockSides.piston[oldBlockId & 7];
 			vec4 loc = {pos[VX] + relx[i], pos[VY] + rely[i], pos[VZ] + relz[i]};
-			mapUpdate(map, loc, 0, NULL, False);
+			mapUpdate(map, loc, 0, NULL, UPDATE_UNDOLINK);
 			return;
 		}
 
@@ -297,7 +297,7 @@ void mapUpdateBlock(Map map, vec4 pos, int blockId, int oldBlockId, DATA8 tile)
 						loc[VX] = pos[VX] + normal[VX];
 						loc[VY] = pos[VY] + normal[VY];
 						loc[VZ] = pos[VZ] + normal[VZ];
-						mapUpdate(map, loc, 0, NULL, False);
+						mapUpdate(map, loc, 0, NULL, UPDATE_UNDOLINK);
 						break;
 					}
 					check >>= 3;
@@ -333,7 +333,7 @@ void mapUpdateBlock(Map map, vec4 pos, int blockId, int oldBlockId, DATA8 tile)
 					loc[VX] = pos[VX] + normal[VX];
 					loc[VY] = pos[VY] + normal[VY];
 					loc[VZ] = pos[VZ] + normal[VZ];
-					mapUpdate(map, loc, 0, NULL, False);
+					mapUpdate(map, loc, 0, NULL, UPDATE_UNDOLINK);
 					break;
 				}
 			}
@@ -347,7 +347,8 @@ void mapUpdateBlock(Map map, vec4 pos, int blockId, int oldBlockId, DATA8 tile)
 				pos[VY] ++;
 			else
 				pos[VY] --;
-			mapUpdate(map, pos, 0, NULL, False);
+			if ((mapGetBlockId(map, pos, NULL) & ~15) == (blockId & ~15))
+				mapUpdate(map, pos, 0, NULL, UPDATE_UNDOLINK);
 			break;
 		case BLOCK_DOOR:
 			/* remove all parts of door */
@@ -356,7 +357,8 @@ void mapUpdateBlock(Map map, vec4 pos, int blockId, int oldBlockId, DATA8 tile)
 				pos[VY] --;
 			else
 				pos[VY] ++;
-			mapUpdate(map, pos, 0, NULL, False);
+			if ((mapGetBlockId(map, pos, NULL) & ~15) == (blockId & ~15))
+				mapUpdate(map, pos, 0, NULL, UPDATE_UNDOLINK);
 			break;
 		case BLOCK_BED:
 			/* remove both parts of bed */
@@ -371,7 +373,8 @@ void mapUpdateBlock(Map map, vec4 pos, int blockId, int oldBlockId, DATA8 tile)
 				pos[VX] -= bedOffsetX[blockId & 3];
 				pos[VZ] -= bedOffsetZ[blockId & 3];
 			}
-			mapUpdate(map, pos, 0, NULL, False);
+			if ((mapGetBlockId(map, pos, NULL) & ~15) == (blockId & ~15))
+				mapUpdate(map, pos, 0, NULL, UPDATE_UNDOLINK);
 			break;
 		}
 	}
@@ -631,7 +634,7 @@ static Bool mapUpdateAddPistonExt(Map map, struct BlockIter_t iter, int blockId,
 		memcpy(src, dest, 12);
 		memcpy(dest, tmp, 12);
 	}
-	else mapUpdate(map, dest, ID(RSPISTONEXT, 0), NULL, UPDATE_KEEPLIGHT);
+	else mapUpdate(map, dest, ID(RSPISTONEXT, 0), NULL, UPDATE_KEEPLIGHT | UPDATE_DONTLOG);
 
 	blockId = itemGetByName(NBT_PayloadFromStream(tile, 0, "id"), False);
 	/* create or update the moving block */
@@ -696,7 +699,7 @@ void mapUpdateToBlock36(Map map, RSWire list, int count, int dir, BlockIter iter
 			TAG_Raw_Ptr, "blockTE",   compound,
 			TAG_Compound_End
 		);
-		mapUpdate(map, src, ID(RSPISTONEXT, 0), tile.mem, UPDATE_KEEPLIGHT);
+		mapUpdate(map, src, ID(RSPISTONEXT, 0), tile.mem, UPDATE_KEEPLIGHT | UPDATE_DONTLOG);
 		//fprintf(stderr, "adding block 36 (from %s) at %g,%g,%g\n", blockName, src[0], src[1], src[2]);
 
 		entityUpdateOrCreate(iter.ref, src, (list->blockId << 4) | list->data, dst, 1, tile.mem);
@@ -706,7 +709,7 @@ void mapUpdateToBlock36(Map map, RSWire list, int count, int dir, BlockIter iter
 		uint8_t block = iter.blockIds[iter.offset];
 		if (block != RSPISTONEXT && block != RSPISTONHEAD)
 //			fprintf(stderr, "adding extra block 36 (from %s) at %g,%g,%g\n", blockName, dst[0], dst[1], dst[2]),
-			mapUpdate(map, dst, ID(RSPISTONEXT, 0), NULL, UPDATE_KEEPLIGHT);
+			mapUpdate(map, dst, ID(RSPISTONEXT, 0), NULL, UPDATE_KEEPLIGHT | UPDATE_DONTLOG);
 	}
 }
 
@@ -1182,7 +1185,7 @@ void updateTick(void)
 			mapInitIterOffset(&iter, cd, off);
 			mapUpdateChangeRedstone(globals.level, &iter, RSSAMEBLOCK, NULL);
 		}
-		else mapUpdate(globals.level, pos, id, NULL, False);
+		else mapUpdate(globals.level, pos, id, NULL, UPDATE_DONTLOG);
 	}
 	if (i > 0)
 	{

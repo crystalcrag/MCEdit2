@@ -230,9 +230,10 @@ int playerProcessKey(Player p, int key, int mod)
 void playerLookAt(Player p, int dx, int dy)
 {
 	/* keep yaw between 0 and 2 * pi */
-	float yaw = fmod(p->angleh + dx * sensitivity, 2*M_PI);
+	float yaw = p->angleh + dx * sensitivity;
 	float pitch = p->anglev - dy * sensitivity;
 	if (yaw < 0) yaw += 2*M_PIf;
+	if (yaw > 2*M_PIf) yaw -= 2*M_PIf;
 	/* and pitch between -pi and pi */
 	if (pitch < -M_PI_2f+EPSILON) pitch = -M_PI_2f+EPSILON;
 	if (pitch >  M_PI_2f-EPSILON) pitch =  M_PI_2f-EPSILON;

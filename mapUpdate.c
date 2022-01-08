@@ -18,6 +18,7 @@
 #include "particles.h"
 #include "redstone.h"
 #include "entities.h"
+#include "undoredo.h"
 #include "NBT2.h"
 
 /* order is S, E, N, W, T, B ({xyz}off last slot is to get back to starting pos) */
@@ -1104,7 +1105,7 @@ void mapUpdateChangeRedstone(Map map, BlockIter iterator, int side, RSWire dir)
 			if (newId != blockId)
 			{
 				vec4 pos = {iter.ref->X + iter.x, iter.yabs, iter.ref->Z + iter.z};
-				mapUpdate(map, pos, newId, NULL, False);
+				mapUpdate(map, pos, newId, NULL, UPDATE_DONTLOG);
 			}
 		}
 	}
@@ -1553,10 +1554,10 @@ void mapUpdateFlush(Map map)
 				newId  = mapUpdateIfPowered(map, &iter, offset, offset, False, NULL);
 				if (offset != newId)
 				{
-					mapUpdate(map, pos, newId, NULL, False);
+					mapUpdate(map, pos, newId, NULL, UPDATE_DONTLOG);
 				}
 			}
-			else mapUpdate(map, pos, update->blockId, update->tile, UPDATE_SILENT);
+			else mapUpdate(map, pos, update->blockId, update->tile, UPDATE_SILENT | UPDATE_DONTLOG);
 			i --;
 		}
 	}
@@ -1649,8 +1650,7 @@ void mapUpdateEnd(Map map)
 void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 {
 	struct BlockIter_t iter;
-	uint8_t silent = blockUpdate & UPDATE_SILENT; /* no particles */
-	uint8_t doLight = (blockUpdate & UPDATE_KEEPLIGHT) == 0;
+	uint8_t updateFlags = blockUpdate;
 
 	if (pos == NULL)
 	{
@@ -1658,13 +1658,6 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 		iter = *track.iter;
 	}
 	else mapInitIter(map, &iter, pos, blockId > 0);
-
-	blockUpdate &= 15;
-	if (blockUpdate)
-	{
-		track.modif = NULL;
-		track.list  = &track.modif;
-	}
 
 	if (iter.blockIds == NULL)
 	{
@@ -1677,8 +1670,14 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 	DATA8 data = iter.blockIds + DATA_OFFSET + (iter.offset >> 1);
 	Block b = &blockIds[blockId >> 4];
 
-	if (b->tall && ! mapHasEnoughSpace(iter, b, blockId))
-		return;
+	blockUpdate &= 15;
+	if (blockUpdate)
+	{
+		track.modif = NULL;
+		track.list  = &track.modif;
+		if (b->tall && ! mapHasEnoughSpace(iter, b, blockId))
+			return;
+	}
 
 	if (b->updateNearby || (oldId > 0 && blockIds[oldId >> 4].updateNearby))
 		iter.cd->cdFlags |= CDFLAG_UPDATENEARBY;
@@ -1713,7 +1712,7 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 	if (iter.offset & 1) *data = (*data & 0x0f) | ((blockId & 0xf) << 4);
 	else                 *data = (*data & 0xf0) | (blockId & 0xf);
 
-	if (doLight)
+	if ((updateFlags & UPDATE_KEEPLIGHT) == 0)
 	{
 		/* update skyLight */
 		uint8_t opac   = blockGetSkyOpacity(blockId>>4, 0);
@@ -1769,23 +1768,32 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 	{
 		/* quickly check if it needs a redstone update */
 		uint8_t i;
+		struct BlockIter_t neighbor = iter;
 		for (i = 0; i < 6; i ++)
 		{
-			mapIter(&iter, xoff[i], yoff[i], zoff[i]);
-			b = &blockIds[iter.blockIds[iter.offset]];
+			mapIter(&neighbor, xoff[i], yoff[i], zoff[i]);
+			b = &blockIds[neighbor.blockIds[neighbor.offset]];
 			/* extremely likely there are nothing around */
 			if (b->rsupdate & RSUPDATE_SEND)
 			{
 				/* maybe */
-				mapIter(&iter, -relx[i], -rely[i], -relz[i]);
-				mapUpdateChangeRedstone(map, &iter, RSSAMEBLOCK, NULL);
+				mapIter(&neighbor, -relx[i], -rely[i], -relz[i]);
+				mapUpdateChangeRedstone(map, &neighbor, RSSAMEBLOCK, NULL);
 				break;
 			}
 		}
 	}
 
+	if ((updateFlags & UPDATE_DONTLOG) == 0)
+	{
+		DATA8 tileEntity = chunkGetTileEntity(iter.ref, XYZ);
+		undoLog(updateFlags & UPDATE_UNDOLINK ? LOG_BLOCK | UNDO_LINK : LOG_BLOCK, oldId, tileEntity,
+			(uint32_t[3]) {iter.x + iter.ref->X, iter.yabs, iter.z + iter.ref->Z});
+	}
 	/* block replaced: check if there is a tile entity to delete */
 	DATA8 oldTile = chunkDeleteTileEntity(iter.ref, XYZ, False);
+	/* <oldTile> points to freed memory, do not dereference! */
+
 	if (oldTile)
 	{
 		if (blockIds[oldId >> 4].special == BLOCK_SIGN)
@@ -1800,9 +1808,10 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 		/* observer deleted: remove tile */
 		chunkUnobserve(iter.cd, iter.offset, blockSides.piston[oldId & 7]);
 	}
+	/* somewhat hack: the XYZ position is monitored by one or more observers */
 	if (XYZ[0] > 15)
 	{
-		mapUpdateObserver(&iter, XYZ[0] >> 4);
+		mapUpdateObserver(&iter, XYZ[0] >> 4 /* SENWTB bitfield */);
 		XYZ[0] &= 15;
 	}
 
@@ -1829,13 +1838,12 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 		mapUpdateMesh(map);
 		renderPointToBlock(-1, -1);
 	}
-	/* transfer modified chunk in a list, but don't re-generate mesh yet */
-	// else mapUpdateListChunk(map);
 
+	/* deleted block: remove everyhting there is in this location and add breaking particles if needed */
 	if (blockId == 0)
 	{
 		updateRemove(iter.cd, iter.offset, True);
-		if (! silent)
+		if ((updateFlags & UPDATE_SILENT) == 0)
 			particlesExplode(map, 4, oldId, pos);
 	}
 }

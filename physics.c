@@ -511,14 +511,15 @@ Bool physicsMoveEntity(Map map, PhysicsEntity entity, float speed)
 		}
 		else if (entity->rebound)
 		{
-			float dir = -entity->dir[VY] * 0.4f / entity->rebound;
+			float dir = -entity->dir[VY] * RandRange(0.4f, 0.6f) / entity->rebound;
 			physicsChangeEntityDir(entity, 0.0001);
 			entity->dir[VX] *= 2;
 			entity->dir[VZ] *= 2;
 			entity->dir[VY] = dir;
 			entity->rebound = 255;
-			entity->friction[VX] *= 1.5f;
-			entity->friction[VZ] *= 1.5f;
+			entity->friction[VX] *= 2;
+			entity->friction[VZ] *= 2;
+			entity->friction[VY] *= 2;
 		}
 		else if (! entity->VYblocked)
 		{
