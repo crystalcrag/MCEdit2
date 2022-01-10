@@ -30,6 +30,7 @@
 #include "render.h"
 #include "player.h"
 #include "sign.h"
+#include "undoredo.h"
 #include "globals.h"
 
 static struct MCInterface_t mcui;
@@ -1080,6 +1081,7 @@ static int mcuiFillCheckProgress(SIT_Widget w, APTR cd, APTR ud)
 		/* done */
 		mapUpdateEnd(globals.level);
 		mcuiRepWnd.asyncCheck = NULL;
+		undoLog(LOG_REGION_END);
 		SIT_Exit(1);
 		/* will cancel the timer */
 		return -1;
@@ -1097,7 +1099,7 @@ static int mcuiFillCheckProgress(SIT_Widget w, APTR cd, APTR ud)
 	return 0;
 }
 
-/* OnActivate on fill button */
+/* OnActivate on fill/replace button */
 static int mcuiFillBlocks(SIT_Widget w, APTR cd, APTR ud)
 {
 	/* these functions will start a thread: processing the entire selection can be long, so don't hang the interface in the meantime */
@@ -1122,6 +1124,11 @@ static int mcuiFillBlocks(SIT_Widget w, APTR cd, APTR ud)
 
 	/* better not to click twice on this button */
 	SIT_SetValues(w, SIT_Enabled, False, NULL);
+
+	/* register an undo operation for this */
+	int range[6];
+	selectionGetRange(range, True);
+	undoLog(LOG_REGION_START, range);
 
 	/* this function will monitor the thread progress */
 	mcuiRepWnd.asyncCheck = SIT_ActionAdd(w, mcuiRepWnd.processStart = globals.curTimeUI, globals.curTimeUI + 1e9, mcuiFillCheckProgress, NULL);
@@ -1205,6 +1212,7 @@ static int mcuiFillStop(SIT_Widget w, APTR cd, APTR ud)
 		mcuiRepWnd.asyncCheck = NULL;
 		/* show what's been modified */
 		mapUpdateEnd(globals.level);
+		undoLog(LOG_REGION_END);
 	}
 	return 1;
 }
@@ -1411,6 +1419,7 @@ static int mcuiDeleteProgress(SIT_Widget w, APTR cd, APTR ud)
 		/* done */
 		mapUpdateEnd(globals.level);
 		mcuiRepWnd.asyncCheck = NULL;
+		undoLog(LOG_REGION_END);
 		SIT_Exit(1);
 		/* will cancel the timer */
 		return -1;
@@ -1463,6 +1472,11 @@ void mcuiDeleteAll(void)
 
 	/* if the interface is stopped early, we need to be notified */
 	SIT_AddCallback(globals.app, SITE_OnFinalize, mcuiFillStop, NULL);
+
+	/* register an undo operation for this */
+	int range[6];
+	selectionGetRange(range, True);
+	undoLog(LOG_REGION_START, range);
 
 	/* this function will monitor the thread progress */
 	globals.curTimeUI = FrameGetTime();

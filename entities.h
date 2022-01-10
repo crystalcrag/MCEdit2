@@ -15,25 +15,25 @@
 typedef struct Entity_t *   Entity;
 typedef struct QuadTree_t * QuadTree;
 
-Bool entityInitStatic(void);
-void entityParse(Chunk, NBTFile nbt, int offset);
-void entityUnload(Chunk);
-void entityAnimate(void);
-void entityRender(void);
-void entityDebug(int id);
-void entityUpdateLight(Chunk);
-void entityDeleteById(Map, int entityId);
-void entityInfo(int id, STRPTR buffer, int max);
-int  entityRaypick(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos);
-void entityUpdateOrCreate(Chunk, vec4 pos, int blockId, vec4 dest, int ticks, DATA8 tile);
-void entityDebugCmd(Chunk);
-int  entityCount(int start);
-int  entityGetModel(int entityId, int * vtxCount);
-void entityGetItem(int entityId, Item ret);
-void entityGetPos(int entityId, float ret[3]);
-void entityRenderBBox(void);
-int  entityCreatePlayer(void);
-int  entityGetId(Entity entity);
+Entity entityParse(Chunk, NBTFile nbt, int offset, Entity prev);
+Bool   entityInitStatic(void);
+void   entityUnload(Chunk);
+void   entityAnimate(void);
+void   entityRender(void);
+void   entityDebug(int id);
+void   entityUpdateLight(Chunk);
+void   entityDeleteById(Map, int entityId);
+void   entityInfo(int id, STRPTR buffer, int max);
+int    entityRaypick(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos);
+void   entityUpdateOrCreate(Chunk, vec4 pos, int blockId, vec4 dest, int ticks, DATA8 tile);
+void   entityDebugCmd(Chunk);
+int    entityCount(int start);
+int    entityGetModel(int entityId, int * vtxCount);
+void   entityGetItem(int entityId, Item ret);
+void   entityGetPos(int entityId, float ret[3]);
+void   entityRenderBBox(void);
+int    entityCreatePlayer(void);
+int    entityGetId(Entity entity);
 
 /* clone entities with selection */
 APTR entityCopy(int vtxCount, vec4 origin, DATA16 entityIds, int maxEntities, DATA32 models, int maxModels);
@@ -299,7 +299,7 @@ void quadTreeDeleteItem(Entity item);
 void quadTreeInsertItem(Entity item);
 void quadTreeChangePos(Entity item);
 
-Entity worldItemAddItemInFrame(Entity frame, int entityId);
+Entity worldItemAddItemInFrame(Chunk chunk, Entity frame, int entityId);
 void   worldItemInit(void);
 void   worldItemDelete(Entity);
 void   worldItemCreateGeneric(NBTFile nbt, Entity entity, STRPTR name);

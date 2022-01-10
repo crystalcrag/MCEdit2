@@ -1,4 +1,10 @@
 =========== Week 1 ===========
+Sun Jan 9:
+	* undo/redo entities change/deleted/added.
+
+Sat Jan 8:
+	* undo/redo entire selection.
+
 Fri Jan 7:
 	* undo/redo continued (blocks/tile entities can be restored).
 
@@ -1095,7 +1101,7 @@ Sun Jan 31:
 	* started implementing proper handling of blocks translucency (depth peeling).
 
 Sat Jan 30:
-	* sign editing mostly working done for now.
+	* sign editing mostly working for now.
 
 Fri Jan 29:
 	* sign editing continued.

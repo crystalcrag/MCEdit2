@@ -629,7 +629,7 @@ Bool playerAddInventory(Player p, Item add)
 					 * <tileEntity> is a raw pointer within chunk NBT from world map, it can be freed at any time,
 					 * but will be serialized within levelDat in playerUpdateNBT()
 					 */
-					item->id = add->id;
+					item->id = itemId;
 					item->count = add->count;
 					item->extra = add->extra;
 					item->uses = add->uses;

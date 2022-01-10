@@ -21,6 +21,7 @@
 #include "cartograph.h"
 #include "render.h"
 #include "physics.h"
+#include "undoredo.h"
 #include "globals.h"
 #include "glad.h"
 
@@ -633,75 +634,72 @@ void entityResetModel(Entity entity)
 
 
 /* extract information from NBT records */
-void entityParse(Chunk c, NBTFile nbt, int offset)
+Entity entityParse(Chunk chunk, NBTFile nbt, int offset, Entity prev)
 {
-	/* <offset> points to a TAG_List_Compound of entities */
-	NBTIter_t list;
-	Entity    prev = NULL;
-	NBT_InitIter(nbt, offset, &list);
-	while ((offset = NBT_Iter(&list)) >= 0)
+	/* <offset> must point to a TAG_Compound */
+	STRPTR id;
+	float  pos[11];
+	int    off;
+
+	/* iterate over the properties of one entity */
+	NBTIter_t iter;
+	NBT_IterCompound(&iter, nbt->mem + offset);
+	memset(pos, 0, sizeof pos); id = NULL;
+	pos[10] = 1;
+	while ((off = NBT_Iter(&iter)) >= 0)
 	{
-		STRPTR id;
-		float  pos[11];
-		int    off;
-
-		/* iterate over the properties of one entity */
-		NBTIter_t iter;
-		NBT_IterCompound(&iter, nbt->mem + offset);
-		memset(pos, 0, sizeof pos); id = NULL;
-		pos[10] = 1;
-		while ((off = NBT_Iter(&iter)) >= 0)
-		{
-			off += offset;
-			switch (FindInList("Motion,Pos,Rotation,id", iter.name, 0)) {
-			case 0: NBT_GetFloat(nbt, off, pos,   3); break;
-			case 1: NBT_GetFloat(nbt, off, pos+3, 3); break;
-			case 2: NBT_GetFloat(nbt, off, pos+7, 2); break;
-			case 3: id = NBT_Payload(nbt, off);
-			}
-		}
-
-		if (id && !(pos[3] == 0 && pos[4] == 0 && pos[6] == 0))
-		{
-			uint16_t next;
-			//if (pos[3] < c->X || pos[3] >= c->X+16 || pos[5] < c->Z || pos[5] >= c->Z+16)
-			//	fprintf(stderr, "entity %s not in the correct chunk: %g, %g\n", id, (double) (pos[3] - c->X), (double) (pos[5] - c->Z));
-			Entity entity = entityAlloc(&next);
-
-			if (prev)
-				prev->next = next;
-			prev = entity;
-			if (c->entityList == ENTITY_END)
-				c->entityList = next;
-
-			/* set entity->pos as well */
-			memcpy(entity->motion, pos, sizeof pos);
-
-			/* rotation also depends on how the initial model is oriented :-/ */
-			entity->rotation[0] = fmod((360 - pos[7]) * M_PIf / 180, 2*M_PIf);
-			entity->rotation[1] = normAngle(- pos[8] * (2*M_PIf / 360));
-
-			entity->tile = nbt->mem + offset;
-			entity->next = ENTITY_END;
-			entity->pos[VT] = 0;
-			entity->name = id;
-			entity->chunkRef = c;
-			entity->VBObank = entityGetModelId(entity);
-			if (entity->enflags & ENFLAG_TEXENTITES)
-				entity->pos[VT] = 2;
-			if (entity->VBObank == 0) /* unknown entity */
-				entity->pos[VY] += 0.5f;
-			if (entity->blockId > 0)
-				entity->enflags |= ENFLAG_FULLLIGHT;
-			entityGetLight(c, pos+3, entity->light, entity->enflags & ENFLAG_FULLLIGHT);
-			entityAddToCommandList(entity);
-			quadTreeInsertItem(entity);
-
-			/* alloc an entity for the item in the frame */
-			if (entity->blockId > 0)
-				prev = worldItemAddItemInFrame(entity, next+1);
+		off += offset;
+		switch (FindInList("Motion,Pos,Rotation,id", iter.name, 0)) {
+		case 0: NBT_GetFloat(nbt, off, pos,   3); break;
+		case 1: NBT_GetFloat(nbt, off, pos+3, 3); break;
+		case 2: NBT_GetFloat(nbt, off, pos+7, 2); break;
+		case 3: id = NBT_Payload(nbt, off);
 		}
 	}
+
+	if (id && !(pos[3] == 0 && pos[4] == 0 && pos[6] == 0))
+	{
+		uint16_t next;
+		//if (pos[3] < c->X || pos[3] >= c->X+16 || pos[5] < c->Z || pos[5] >= c->Z+16)
+		//	fprintf(stderr, "entity %s not in the correct chunk: %g, %g\n", id, (double) (pos[3] - c->X), (double) (pos[5] - c->Z));
+		Entity entity = entityAlloc(&next);
+		entity->next = ENTITY_END;
+
+		if (prev)
+			prev->next = next;
+		else if (chunk->entityList == ENTITY_END)
+			chunk->entityList = next;
+		else
+			entity->next = chunk->entityList, chunk->entityList = next;
+		prev = entity;
+
+		/* set entity->pos as well */
+		memcpy(entity->motion, pos, sizeof pos);
+
+		/* rotation also depends on how the initial model is oriented :-/ */
+		entity->rotation[0] = fmod((360 - pos[7]) * M_PIf / 180, 2*M_PIf);
+		entity->rotation[1] = normAngle(- pos[8] * (2*M_PIf / 360));
+
+		entity->tile = nbt->mem + offset;
+		entity->pos[VT] = 0;
+		entity->name = id;
+		entity->chunkRef = chunk;
+		entity->VBObank = entityGetModelId(entity);
+		if (entity->enflags & ENFLAG_TEXENTITES)
+			entity->pos[VT] = 2;
+		if (entity->VBObank == 0) /* unknown entity */
+			entity->pos[VY] += 0.5f;
+		if (entity->blockId > 0)
+			entity->enflags |= ENFLAG_FULLLIGHT;
+		entityGetLight(chunk, pos+3, entity->light, entity->enflags & ENFLAG_FULLLIGHT);
+		entityAddToCommandList(entity);
+		quadTreeInsertItem(entity);
+
+		/* alloc an entity for the item in the frame */
+		if (entity->blockId > 0)
+			prev = worldItemAddItemInFrame(chunk, entity, next+1);
+	}
+	return prev;
 }
 
 Entity entityGetById(int id)
@@ -1133,7 +1131,7 @@ void entityDeleteById(Map map, int entityId)
 {
 	EntityBuffer buffer;
 	Entity entity;
-	Chunk c;
+	Chunk chunk;
 
 	if (entityId == 0) return;
 	entityId --;
@@ -1142,32 +1140,38 @@ void entityDeleteById(Map map, int entityId)
 	int slot = entityId & (ENTITY_BATCH-1);
 	for (buffer = HEAD(entities.list); i > 0; i --, NEXT(buffer));
 	entity = buffer->entities + slot;
-	c  = entity->chunkRef;
+	chunk = entity->chunkRef;
 
-	if (c)
+	if (chunk)
 	{
 		DATA16 prev;
-		entityMarkListAsModified(map, c);
+		entityMarkListAsModified(map, chunk);
 
 		/* unlink from chunk active entities */
 		if (entity->ref || entity->entype == ENTYPE_FILLEDMAP)
 		{
+			uint8_t delMap = False;
 			/* unlink from chunk linked list */
 			if (entity->entype != ENTYPE_FILLEDMAP)
 			{
-				prev = entityGetPrev(c, entity, entityId);
+				prev = entityGetPrev(chunk, entity, entityId);
 				*prev = entity->next;
 			}
-			chunkDeleteTile(c, entity->tile);
+			else delMap = True;
+			Entity ref = entity->ref;
+			undoLog(LOG_ENTITY_CHANGED, ref->pos, ref->tile, entityGetId(ref));
+			//XXX tile entity still needed
+			//chunkDeleteTile(chunk, entity->tile);
+			/* will only remove NBT record of item */
 			worldItemDelete(entity);
-			if (entity->entype == ENTYPE_FILLEDMAP)
+			if (delMap)
 				cartoDelMap(entityId+1);
 			else
 				entityClear(buffer, slot);
 		}
 		else /* stand-alone entity */
 		{
-			prev = entityGetPrev(c, entity, entityId);
+			prev = entityGetPrev(chunk, entity, entityId);
 			*prev = entity->next;
 			/* item in item frame: also delete */
 			if (entity->next != ENTITY_END)
@@ -1180,7 +1184,8 @@ void entityDeleteById(Map map, int entityId)
 				}
 			}
 
-			chunkDeleteTile(c, entity->tile);
+			undoLog(LOG_ENTITY_DEL, entity->pos, entity->tile, 0);
+			chunkDeleteTile(chunk, entity->tile);
 			entityClear(buffer, slot);
 		}
 	}

@@ -271,7 +271,11 @@ void chunkExpandEntities(Chunk c)
 	{
 		NBTHdr hdr = (NBTHdr) (c->nbt.mem + off);
 		if (hdr->count == 0) return; /* empty list */
-		entityParse(c, &c->nbt, off);
+		NBTIter_t list;
+		Entity    prev = NULL;
+		NBT_InitIter(&c->nbt, off, &list);
+		while ((off = NBT_Iter(&list)) >= 0)
+			prev = entityParse(c, &c->nbt, off, prev);
 	}
 }
 

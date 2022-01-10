@@ -38,7 +38,7 @@ void selectionSetClonePt(vec4 pos, int side);
 int  selectionCancelClone(SIT_Widget w, APTR cd, APTR ud);
 int  selectionCopyBlocks(SIT_Widget w, APTR cd, APTR ud);
 void selectionFreeBrush(Map brush);
-void selectionGetRange(int points[6]);
+void selectionGetRange(int points[6], Bool relative);
 
 enum /* flags for <shape> parameter of function selectionFillWithShape() */
 {

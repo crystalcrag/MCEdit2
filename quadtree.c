@@ -480,11 +480,11 @@ void quadTreeDebug(APTR vg)
 	if ((globals.selPoints&3) == 3)
 	{
 		int points[6];
-		selectionGetRange(points);
+		selectionGetRange(points, True);
 		nvgStrokeColorRGBA8(vg, "\xff\xff\x20\xff");
 		nvgBeginPath(vg);
 		nvgRect(vg, (points[0] - bbox[0]) * bbox[2] + MARGIN, (points[2] - bbox[1]) * bbox[3] + MARGIN,
-			(points[3] - points[0]) * bbox[2], (points[5] - points[2]) * bbox[3]);
+			points[3] * bbox[2], points[5] * bbox[3]);
 		nvgStroke(vg);
 	}
 }

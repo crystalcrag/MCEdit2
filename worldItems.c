@@ -21,8 +21,9 @@
 #include "mapUpdate.h"
 #include "cartograph.h"
 #include "render.h"
-#include "globals.h"
 #include "minecarts.h"
+#include "undoredo.h"
+#include "globals.h"
 
 struct
 {
@@ -117,7 +118,7 @@ static int worldItemParseItemFrame(NBTFile nbt, Entity entity)
 			entity->blockId = ENTITY_ITEM | blockId | data;
 		}
 	}
-	/* item will be allocated later */
+	/* item in frame will be allocated later (worldItemAddItemInFrame) */
 	return entityAddModel(ITEMID(ENTITY_ITEMFRAME, 0), 0, NULL, &entity->szx, worldItemSwapAxis(entity));
 }
 
@@ -280,7 +281,7 @@ static void worldItemGetFrameCoord(Entity entity, float vertex[12])
 }
 
 /* add the item within the frame in the list of entities to render */
-Entity worldItemAddItemInFrame(Entity frame, int entityId)
+Entity worldItemAddItemInFrame(Chunk chunk, Entity frame, int entityId)
 {
 	if (frame->entype == ENTYPE_FRAMEITEM)
 	{
@@ -292,6 +293,7 @@ Entity worldItemAddItemInFrame(Entity frame, int entityId)
 		item->next = ENTITY_END;
 		item->blockId = frame->blockId & ~ENTITY_ITEM;
 		item->tile = frame->tile;
+		item->chunkRef = chunk;
 		frame->blockId = 0;
 		memcpy(item->motion, frame->motion, INFO_SIZE + 12);
 		item->pos[VT] = 0; /* selection */
@@ -414,6 +416,7 @@ Bool worldItemCreatePainting(Map map, int paintingId, vec4 pos)
 
 	/* flag chunk for saving later */
 	entityMarkListAsModified(map, c);
+	undoLog(LOG_ENTITY_ADDED, slot);
 	renderAddModif();
 	return True;
 }
@@ -475,6 +478,7 @@ static int worldItemCreateItemFrame(Map map, vec4 pos, int side)
 	entityAddToCommandList(entity);
 	entityMarkListAsModified(map, c);
 	quadTreeInsertItem(entity);
+	undoLog(LOG_ENTITY_ADDED, slot);
 	renderAddModif();
 	return slot + 1;
 }
@@ -528,13 +532,14 @@ void worldItemUseItemOn(Map map, int entityId, ItemID_t itemId, vec4 pos)
 					TAG_Compound_End
 			);
 			NBT_Add(&tile, TAG_Compound_End); /* end of whole entity */
+			undoLog(LOG_ENTITY_CHANGED, entity->pos, entity->tile, entityId-1);
 			chunkDeleteTile(chunk, entity->tile);
 			entity->name = NBT_Payload(&tile, NBT_FindNode(&tile, 0, "id"));
 			entity->tile = tile.mem;
 			entity->blockId = itemId | ENTITY_ITEM;
 			entity->entype = strcmp(buffer, "minecraft:filled_map") == 0 ? ENTYPE_FILLEDMAP : ENTYPE_FRAMEITEM;
 			uint16_t next = entity->next;
-			entity = worldItemAddItemInFrame(entity, entityId);
+			entity = worldItemAddItemInFrame(chunk, entity, entityId);
 			entity->next = next;
 			entityMarkListAsModified(map, chunk);
 			renderAddModif();
@@ -551,7 +556,7 @@ void worldItemDelete(Entity entity)
 	if (item >= 0)
 	{
 		nbt.mem = NBT_Copy(entity->tile);
-		nbt.usage = NBT_Size(nbt.mem)+4; /* XXX want TAG_EndCompound too */
+		nbt.usage = NBT_Size(nbt.mem)+4; /* want TAG_EndCompound too */
 		NBT_Delete(&nbt, item, -1);
 		entity->name = NBT_Payload(&nbt, NBT_FindNode(&nbt, 0, "id"));
 		/* item in frame is about to be deleted, modify item frame entity then */
@@ -667,6 +672,7 @@ void worldItemAdd(Map map)
 			preview->name = NBT_Payload(&nbt, NBT_FindNode(&nbt, 0, "id"));
 			quadTreeInsertItem(preview);
 			chunk->entityList = worldItem.slot;
+			undoLog(LOG_ENTITY_ADDED, worldItem.slot);
 
 			preview->tile = nbt.mem;
 			preview->enflags &= ~ENFLAG_FULLLIGHT;

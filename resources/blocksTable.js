@@ -594,7 +594,7 @@
 		{state: 4, name: "+north", model: [SAME_AS, ID(50, 1), 1599]},
 		{state: 5, name: "+up",    model: [SAME_AS, ID(50, 0)]},
 
-	{id: 51, name: "Fire", type: CUST, inv: NONE, emitLight: 15, density: 0.1, special: DUALSIDE, particle: [SMOKE, 200, 1500], bbox: MAX, bboxPlayer: NONE},
+	{id: 51, name: "Fire", type: CUST, inv: NONE, emitLight: 15, density: 0.2, special: DUALSIDE, particle: [SMOKE, 200, 1500], bbox: MAX, bboxPlayer: NONE},
 		{state: 0, name: "-",       tex: [20, 8], emit: [4], model: [
 			257,16,16,16,0,-5,-4,-30,0,0,0,0,0,57776,74192,74224,57808,
 			260,16,16,16,0,-5,4,30,0,0,0,0,0,57776,74192,74224,57808,

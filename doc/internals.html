@@ -54,6 +54,13 @@
 <a class="sub1" href="#entities"><span>Entities</span></a>
   <a class="sub2" href="#structure"><span>Data structure</span></a>
   <a class="sub2" href="#collision"><span>Collision detection</span></a>
+
+<a class="sub1" href="#emitters"><span>Particle emitters</span></a>
+
+<br>
+<br>
+<br>
+
 </div>
 
 <div id="content">
@@ -1584,7 +1591,7 @@ there are a lot of moving parts, with lots of datatypes:
   a NBT record associated.
 
   <li><tt>struct EntityBuffer_t</tt> : <tt>struct Entity_t</tt> are allocated in batch (<tt>ENTITY_BATCH</tt>
-  count, 128 by default). It is easier to handle entities if pointers are not reallocated, so that reference
+  count, 256 by default). It is easier to handle entities if pointers are not reallocated, so that reference
   can be held within datatypes. Allocating them in batch, will somewhat keep those entities close in memory.
 
   <li><tt>struct EntityBank_t</tt> : hold model data that will be used to render entities: we'll use
@@ -1651,7 +1658,7 @@ the number of entities can be in the thousands.
 data) is and the metadata necessary for each instance (one per entity). One entire bank can then be rendered
 using a single OpenGL draw call, using <tt>glMultiDrawArraysIndirect()</tt>.
 
-<p>Banks therefore have to manage 2 arrays: model vertex data (<tt>vboModel</tt> and <tt>models</tt>)
+<p>Banks therefore have to manage 2 groups of arrays: model vertex data (<tt>vboModel</tt> and <tt>models</tt>)
 and per instance information (<tt>vboLoc</tt> and <tt>vboMDAI</tt>):
 <ul>
   <li><tt>vboModel</tt> is an OpenGL array buffer that can hold at most 64K <a href="#vtx10bytes">vertex</a>
@@ -1660,12 +1667,12 @@ and per instance information (<tt>vboLoc</tt> and <tt>vboMDAI</tt>):
 
   <p>To keep track of what's inside this <tt>VBO</tt>, we need a new array: <tt>struct EntityModel_t * models</tt>.
   This array will contain where the model is located in <tt>vboModel</tt> (vertex index and vertex count).
-  And while we are here, the model structure will also hold a reference to the model bounding box.
-  This bounding box assumes that no rotations and no scaling are applied to the model.
+  And while we are here, the model structure will also contain to the model bounding box (derived from
+  vertex data). This bounding box assumes that no rotations and no scaling are applied to the model.
 
   <li><tt>vboLoc</tt> is a per instance array buffer (<tt>glVertexAttribDivisor()</tt> set to 1). There
   is one instance slot per entity. All entities that use a model from the bank will be rendered in the
-  same draw call, no matter how many entities rerferences this model.
+  same draw call, no matter how many entities references this model.
 
   <p>Therefore <tt>vboLoc</tt> and <tt>vboMDAI</tt> can be resized at some point.
 </ul>
@@ -1674,8 +1681,10 @@ and per instance information (<tt>vboLoc</tt> and <tt>vboMDAI</tt>):
 encodes both the bank and the model id within an integer: the first 6bits encodes the bank number, the
 remaining encodes the index in the <tt>models</tt> array.
 
-<p>Bounding box are allocated the same way than entities: in batch of the same size and one bounding box
-per model (assuming no rotations and scaling).
+<p>Bounding boxes are stored within the <tt>struct EntityModel_t</tt> datatype. In theory, they can be
+extracted from <tt>BlockState_t</tt>, but it is way too much work. Bounding box for entities are always
+assumed to be AABB, ie: no rotation taken into account when checking collision (but scaling will be).
+Raypicking (ie: pointing an entity with mouse) will take rotation into account though.
 
 <h3 id="collision"><span>Collision detection/correction</span></h3>
 
@@ -1742,7 +1751,63 @@ and the current position. At some point, the tree will have so many layers, that
 to perform as many bounding box checks as a 16x16 block map (which is what the quadtree was supposed
 to avoid).
 
-<p>/* ... */
+
+
+
+
+<h2 id="emitters">Particle emitters</h2>
+
+<p>Here is the way particle emitters are handled in this engine:
+
+<ol>
+  <li>While a chunk is turned into a mesh of quads (<tt>chunkUpdate()</tt> in <tt>chunks.c</tt>),
+  each voxel is checked for a type of particle they can emit. If the conditions are met, a list of
+  potential emitters is stored at the <tt>ChunkData</tt> level. The emitters are not immediately
+  made active, only those close to player position will. This list store emitters as 4 16bit
+  integers. They are not accessed through a <tt>struct</tt>, because it involves bitfield and the
+  struct is not necessarily aligned (also this "struct" is used in only 3 different functions in the
+  entire engine).
+
+  <li><b>Emitters cover an area</b>. A first implementation allocated one emitter per block. In practice,
+  this was not a very good idea, because some blocks are very common and can allocate lots of emitters,
+  like lava or powered redstone dust. Instead, an emitter cover an XZY area of 16x16x2 (ie: 2 vertical
+  layers of a chunk). That means for a particular type of particle emitted, at most 8 emitters will
+  be created (for a given chunk).
+
+  <li>When a particle has to be created, the emitter will search through its area where the block
+  is or are located. Since the area covers 512 voxels, a 32bit bitfield is used to narrow the search:
+  each bit indicate in which Z row to look for a block. That means at most 16 blocks have to scanned
+  per row, which is pretty cheap, because it is a contiguous memory buffer.
+
+  <li>The emitter also holds how many blocks there are in the area that can spawn particles. Therefore
+  the search will continue until all emitters are found.
+
+  <li>Emitters are grouped by type and interval: since all blocks are scanned at the same time, if
+  timing interval is different it has to be done in a different emitter.
+
+</ol>
+
+<p>This schema shows how the information is stored at the <tt>ChunkData</tt> level (in <tt>emitters</tt>
+field):
+<bits>
+  <brow><hdr>0: </hdr><bitpart class="sz8" bit="16">8: <em>count</em></bitpart><bitpart class="sz5" bit="8">5: <em>type</em></bitpart><bitpart class="sz3" bit="3">3: <em>Y</em></bitpart></brow>
+
+  <brow><hdr>1: </hdr><bitpart class="sz16" bit="16">16: <em>interval</em> (ms)</bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
+
+  <brow><hdr>2: </hdr><bitpart class="sz16" bit="16">16: <em>area LO</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
+
+  <brow><hdr>3: </hdr><bitpart class="sz16" bit="16">16: <em>area HI</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
+</bits>
+
+<p><b>Note</b>: <tt>count</tt> is only 8bits instead of 9. In practice having more than 256 block
+emitters in a 16x16x2 region is extremely rare (lava lakes can easily reach that number though, but
+not more than 256). Also note that numbering in this field starts at 0. 0 means there is 1 block that
+can emit particles.
+
+<p>Once player location is known, emitters from all 27 <tt>ChunkData</tt> surrounding the player are
+made active. As the player moves, this list will be adjusted by removing the emitters that are too far
+away, and making active the one that got within 1 chunk distance away from the player. The emitters
+that are still within range must not be changed, otherwise their timing will be reset.
 
 
 </div>

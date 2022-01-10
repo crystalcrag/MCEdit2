@@ -776,7 +776,7 @@ void selectionEditBrush(Bool simplified)
 	SIT_ManageWidget(diag);
 }
 
-void selectionGetRange(int points[6])
+void selectionGetRange(int points[6], Bool relative)
 {
 	int * p;
 	int   i;
@@ -788,6 +788,13 @@ void selectionGetRange(int points[6])
 		if (p[0] > p[3]) swap(p[0], p[3]);
 		p[3] ++;
 	}
+	if (relative)
+	{
+		/* want size, not coord */
+		points[3] -= points[0];
+		points[4] -= points[1];
+		points[5] -= points[2];
+	}
 }
 
 /* iterator over tile entities (within selection from map) */
@@ -795,7 +802,7 @@ void selectionIterTE(SIT_CallProc cb, APTR data)
 {
 	int dx, dz, i, j;
 	int pos[6];
-	selectionGetRange(pos);
+	selectionGetRange(pos, False);
 	dx = pos[3] - pos[0];
 	dz = pos[5] - pos[2];
 
@@ -825,7 +832,7 @@ void selectionIterEntities(SIT_CallProc cb, APTR data)
 	float bbox[6];
 	int   pos[6], i;
 
-	selectionGetRange(pos);
+	selectionGetRange(pos, False);
 	for (i = 0; i < 6; bbox[i] = pos[i], i ++);
 	Entity * list = quadTreeIntersect(bbox, pos, 0);
 

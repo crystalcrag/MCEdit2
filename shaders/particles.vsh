@@ -43,6 +43,7 @@ void main(void)
 			angle = 0;
 		break;
 	case 2: // smoke
+		angle = 0;
 		color = info.y;
 		light = 0xf0;
 	}

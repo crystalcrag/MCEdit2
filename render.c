@@ -348,7 +348,9 @@ void renderSetSelectionPoint(int action)
 
 void renderSetSelection(DATA32 points)
 {
+	render.debugInfo |= DEBUG_SELECTION;
 	render.inventory->offhand = 1;
+	render.invCache ++;
 	selectionSetPoint(render.scale, (vec4) {points[0], points[1], points[2]}, SEL_POINT_1);
 	selectionSetPoint(render.scale, (vec4) {points[3], points[4], points[5]}, SEL_POINT_2);
 }
