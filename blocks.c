@@ -851,10 +851,8 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 		}
 
 		value = jsonValue(keys, "gravity");
-		if (value && atoi(value) > 0)
-		{
-			block.gravity = 1;
-		}
+		if (value)
+			block.gravity = atoi(value);
 
 		/* can this block be affected by piston */
 		value = jsonValue(keys, "pushable");

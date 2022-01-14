@@ -18,6 +18,7 @@ void physicsInitEntity(PhysicsEntity entity, int block);
 Bool physicsMoveEntity(Map, PhysicsEntity, float speed);
 int  physicsCheckIfCanClimb(Map, vec4 pos, VTXBBox bbox);
 void physicsCheckPressurePlate(Map, vec4 start, vec4 end, VTXBBox bbox);
+void physicsChangeEntityDir(PhysicsEntity, float friction);
 
 struct PhysicsEntity_t
 {

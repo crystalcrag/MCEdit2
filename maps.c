@@ -1257,7 +1257,7 @@ int mapConnectChest(Map map, MapExtraData sel, MapExtraData ret)
 	}
 
 	ret->offset  = iter.offset;
-	ret->blockId = iter.blockIds[iter.offset] << 4;
+	ret->blockId = getBlockId(&iter);
 	ret->chunk   = iter.ref;
 	ret->cd      = iter.cd;
 

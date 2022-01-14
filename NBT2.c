@@ -470,6 +470,20 @@ Bool NBT_Add(NBTFile nbt, ...)
 	return True;
 }
 
+/* alloc a bit more memory */
+APTR NBT_AddMem(NBTFile nbt, int size)
+{
+	/* more often than, memory will already be allocated */
+	int total = nbt->usage + size;
+	if (total > nbt->max)
+	{
+		DATA8 mem = realloc(nbt->mem, total);
+		if (mem == NULL) return NULL;
+		nbt->mem = mem;
+	}
+	return nbt->mem + nbt->usage;
+}
+
 /* copy a chunk of a NBT, mem is actually a NBTHdr */
 DATA8 NBT_Copy(DATA8 mem)
 {

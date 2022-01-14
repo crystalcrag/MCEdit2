@@ -9,9 +9,12 @@
 
 #include "maps.h"
 
+typedef void (*UpdateCb_t)(Map map, ChunkData cd, int offset);
+
 void updateTick(void);
 void updateFinished(DATA8 tile, vec4 dest);
 void updateAdd(BlockIter iter, int blockId, int nbTick);
+void updateAddTickCallback(BlockIter iter, int nbTick, UpdateCb_t cb);
 void updateAddRSUpdate(struct BlockIter_t iter, int side, int nbTick);
 void updateRemove(ChunkData cd, int offset, Bool clearSorted);
 Bool updateAlloc(int max);
@@ -29,12 +32,13 @@ typedef struct TileTick_t *    TileTick;
 
 struct TileTick_t
 {
-	uint16_t  prev;
-	uint16_t  next;
-	ChunkData cd;
-	uint16_t  offset;
-	ItemID_t  blockId;
-	int       tick;
+	uint16_t   prev;
+	uint16_t   next;
+	ChunkData  cd;
+	uint16_t   offset;
+	ItemID_t   blockId;
+	int        tick;
+	UpdateCb_t cb;
 };
 
 struct UpdatePrivate_t

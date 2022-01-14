@@ -23,7 +23,6 @@ static struct VTXBBox_t  particleBBox = {
 };
 
 //#define NOEMITTERS
-//#define SLOW
 
 Bool particlesInit(void)
 {
@@ -123,6 +122,13 @@ static void particlesGetBlockInfo(Map map, vec4 pos, DATA8 plight)
 	mapInitIter(map, &iter, pos, False);
 	if (iter.cd)
 	{
+		/* need to check for half slab or stairs */
+		Block b = &blockIds[getBlockId(&iter) >> 4];
+		if (b->special == BLOCK_HALF || b->special == BLOCK_STAIRS)
+		{
+			/* non-full block, but sky/light value is 0, check on top then */
+			mapIter(&iter, 0, 1, 0);
+		}
 		uint8_t light = iter.blockIds[(iter.offset >> 1) + BLOCKLIGHT_OFFSET];
 		uint8_t sky   = iter.blockIds[(iter.offset >> 1) + SKYLIGHT_OFFSET];
 		if (iter.offset & 1) light = (sky & 0xf0) | (light >> 4);
@@ -190,11 +196,7 @@ void particlesExplode(Map map, int count, int blockId, vec4 pos)
 				U = (U * 16 + (int) (x * step * 16)) | ((V * 16 + (int) (y * step * 16)) << 9);
 				p->size = 2 + rand() % 8;
 				p->UV = PARTICLE_BITS | (p->size << 6) | (U << 10);
-				#ifndef SLOW
 				p->ttl = RandRange(1000, 1500);
-				#else
-				p->ttl = 8000;
-				#endif
 				p->time = globals.curTime + p->ttl;
 			}
 		}
@@ -708,12 +710,7 @@ int particlesAnimate(Map map)
 	buf = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
 
 	/* this scale factor will make particles move at a constant speed no matter at what fps the screen is refreshed */
-	#ifndef SLOW
 	float speed = (float) ((globals.curTime - particles.lastTime) / 25);
-	#else
-	float speed = (float) ((globals.curTime - particles.lastTime) / 250);
-	#endif
-
 	uint32_t diff = globals.curTime - particles.lastTime;
 
 //	fprintf(stderr, "speed = %f, diff = %d\n", speed, time - particles.lastTime);

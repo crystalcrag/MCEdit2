@@ -23,6 +23,7 @@
 #include "render.h"
 #include "minecarts.h"
 #include "undoredo.h"
+#include "physics.h"
 #include "globals.h"
 
 struct
@@ -47,6 +48,9 @@ static int worldItemSwapAxis(Entity entity)
 	return MODEL_DONT_SWAP;
 }
 
+/*
+ * callbacks to parse NBT records from chunk
+ */
 static int worldItemParseFallingBlock(NBTFile nbt, Entity entity)
 {
 	STRPTR block = NULL;
@@ -142,6 +146,7 @@ static int worldItemParseItem(NBTFile nbt, Entity entity)
 
 void worldItemInit(void)
 {
+	/* will be called from entities.c */
 	entityRegisterType("falling_block", worldItemParseFallingBlock);
 	entityRegisterType("painting",      worldItemParsePainting);
 	entityRegisterType("item_frame",    worldItemParseItemFrame);
@@ -195,6 +200,100 @@ void worldItemCreateGeneric(NBTFile nbt, Entity entity, STRPTR name)
 		TAG_String,      "id", id,
 		TAG_End
 	);
+}
+
+/* create a tile entity and structure necessary for managing it */
+void worldItemCreateBlock(Entity entity, Bool fallingEntity)
+{
+	PhysicsEntity physics;
+	VTXBBox bbox;
+	NBTFile_t nbt = {.page = 255};
+	TEXT blockDesc[128];
+	int blockId = entity->blockId & ~ENTITY_ITEM;
+
+	itemGetTechName(blockId, blockDesc, sizeof blockDesc, False);
+
+	worldItemCreateGeneric(&nbt, entity, fallingEntity ? "falling_block" : "item");
+	if (fallingEntity)
+	{
+		NBT_Add(&nbt,
+			TAG_String, "Block", blockDesc,
+			TAG_Byte,   "Data",  blockId & 15,
+			TAG_Compound_End
+		);
+	}
+	else /* world item */
+	{
+		NBT_Add(&nbt,
+			TAG_Compound, "Item",
+				TAG_String, "id", blockDesc,
+				TAG_Byte,   "Count", 1,
+				TAG_Short,  "Damage", blockId & 15,
+			TAG_Compound_End
+		);
+		NBT_Add(&nbt, TAG_Compound_End);
+	}
+	entity->tile = nbt.mem;
+	entity->private = physics = NBT_AddMem(&nbt, sizeof *physics + sizeof *bbox);
+
+	memset(physics, 0, sizeof *physics);
+	physicsInitEntity(physics, blockId);
+	memcpy(physics->loc, entity->pos, sizeof physics->loc);
+	physics->bbox = bbox = (VTXBBox) (physics+1);
+	physics->light = entity->light[0] & 0xff;
+	if (fallingEntity)
+	{
+		physics->dir[VY] = -0.001;
+		physics->friction[VY] = 0.001;
+	}
+	else
+	{
+		physicsChangeEntityDir(physics, 0.004);
+		physics->dir[VX] *= 8;
+		physics->dir[VZ] *= 8;
+		physics->dir[VY] = 0.1f;
+	}
+
+	float scale = entity->rotation[3] * 0.5f;
+	uint16_t size[] = {
+		entity->szx * scale,
+		entity->szy * scale,
+		entity->szz * scale
+	};
+
+	bbox->pt1[0] = ORIGINVTX - size[VX];
+	bbox->pt1[1] = ORIGINVTX - size[VY];
+	bbox->pt1[2] = ORIGINVTX - size[VZ];
+
+	bbox->pt2[0] = ORIGINVTX + size[VX];
+	bbox->pt2[1] = ORIGINVTX + size[VY];
+	bbox->pt2[2] = ORIGINVTX + size[VZ];
+}
+
+/* falling block reach some solid ground: check if we can turn it back to block or item */
+void worldItemPlaceOrCreate(Entity entity)
+{
+	struct BlockIter_t iter;
+
+	/* entity->pos[VY] can be right in the middle of 2 voxel, grab bottom of entity then */
+	float Y = entity->pos[VY] - entity->szy * (0.5f/BASEVTX) + 0.01f;
+	mapInitIter(globals.level, &iter, (float[3]) {entity->pos[VX], Y, entity->pos[VZ]}, False);
+
+	if (iter.blockIds)
+	{
+		Block b = &blockIds[iter.blockIds[iter.offset]];
+		if (b->id == 0 || b->pushable == PUSH_DESTROY)
+		{
+			mapUpdateInit(&iter);
+			mapUpdate(globals.level, NULL, entity->blockId, NULL, UPDATE_SILENT);
+			mapUpdateEnd(globals.level);
+			return;
+		}
+	}
+
+	/* can't place entity as block, convert to item then */
+	vec4 pos = {(int) entity->pos[VX], (int) entity->pos[VY], (int) entity->pos[VZ]};
+	entityUpdateOrCreate(iter.ref, pos, entity->blockId | ENTITY_ITEM, pos, UPDATE_BY_PHYSICS, NULL);
 }
 
 void worldItemDup(Map map, vec info, int entityId)

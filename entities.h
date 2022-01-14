@@ -25,7 +25,7 @@ void   entityUpdateLight(Chunk);
 void   entityDeleteById(Map, int entityId);
 void   entityInfo(int id, STRPTR buffer, int max);
 int    entityRaypick(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos);
-void   entityUpdateOrCreate(Chunk, vec4 pos, int blockId, vec4 dest, int ticks, DATA8 tile);
+void   entityUpdateOrCreate(Chunk, vec4 pos, ItemID_t blockId, vec4 dest, int ticks, DATA8 tile);
 void   entityDebugCmd(Chunk);
 int    entityCount(int start);
 int    entityGetModel(int entityId, int * vtxCount);
@@ -58,8 +58,9 @@ void quadTreeInit(int x, int z, int size);
 void quadTreeDebug(APTR vg);
 Entity * quadTreeIntersect(float bbox[6], int * count, int filter);
 
+#define UPDATE_BY_PHYSICS          -1 /* special param for <ticks> of entityUpdateOrCreate() */
 #define ENTITY_END                 0xffff
-#define ENTITY_ITEM                0x80000000  /* differentiate world item from block entity */
+#define ENTITY_ITEM                0x80000000  /* differentiate world item from block entity (Entity_t.blockId) */
 
 enum                               /* possible flags for Entity_t.enflags */
 {
@@ -72,8 +73,9 @@ enum                               /* possible flags for Entity_t.enflags */
 	ENFLAG_TEXENTITES  = 64,       /* use texture sampler for entities */
 	ENFLAG_HASBBOX     = 128,      /* other entities can collide with these */
 	ENFLAG_USEMOTION   = 256,      /* use entity->motion as position */
+	ENFLAG_INANIM      = 512,      /* used in a animated sequence (need to remove ref when deleted) */
 
-	ENFLAG_EQUALZERO   = 512       /* extra <filter> parameter for quadTreeIntersect() */
+	ENFLAG_EQUALZERO   = 1024      /* extra <filter> parameter for quadTreeIntersect() */
 };
 
 enum /* transform param for entityCopyTransform() */
@@ -152,8 +154,8 @@ struct Entity_t
 
 	uint16_t VBObank;              /* model id: first 6bits: bank index, remain: model index */
 	uint16_t enflags;              /* entity with some special processing (see below) */
-	uint8_t  entype;
 
+	uint8_t  entype;
 	uint16_t szx, szy, szz;        /* bbox of entity */
 
 	Chunk    chunkRef;             /* chunk where entity is (should match what's in <pos>) */
@@ -165,6 +167,7 @@ struct Entity_t
 	DATA8    tile;                 /* start of NBT Compound for this entity */
 	Entity   ref;
 	STRPTR   name;                 /* from NBT ("id" key) */
+	APTR     private;              /* private stuff allocated by entity */
 
 	/* quadtree fields */
 	Entity   qnext;                /* linked list of entities in a quad tree leaf node */
@@ -286,7 +289,7 @@ void   entityDeleteSlot(int slot);
 void   entityUpdateInfo(Entity, vec4 oldPos);
 void   entityGetBoundsForFace(Entity entity, int face, vec4 V0, vec4 V1);
 
-enum                  /* possible values for swapAxis */
+enum                  /* possible values for swapAxis of entityAddModel() */
 {
 	MODEL_DONT_SWAP,
 	MODEL_SWAP_XZ,    /* rotation of 90/270 on Y */
@@ -303,6 +306,8 @@ Entity worldItemAddItemInFrame(Chunk chunk, Entity frame, int entityId);
 void   worldItemInit(void);
 void   worldItemDelete(Entity);
 void   worldItemCreateGeneric(NBTFile nbt, Entity entity, STRPTR name);
+void   worldItemCreateBlock(Entity, Bool fallingEntity);
+void   worldItemPlaceOrCreate(Entity);
 
 #endif
 #endif

@@ -33,6 +33,8 @@ void mapUpdateEnd(Map);
 
 enum /* extra flags for blockUpdate param from mapUpdate() */
 {
+	UPDATE_NEARBY    = 3,          /* trigger update to nearby block */
+	UPDATE_GRAVITY   = 2,          /* only update gravity affected block (also included by UPDATE_NEARBY) */
 	UPDATE_SILENT    = 16,         /* don't generate particles */
 	UPDATE_KEEPLIGHT = 32,         /* don't change block and sky light (blocks will need an update later though) */
 	UPDATE_DONTLOG   = 64,         /* don't store modification in undo log */

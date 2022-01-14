@@ -303,6 +303,15 @@ DATA8 chunkGetTileEntity(Chunk c, int XYZ[3])
 	return entry && entry->data != TILE_OBSERVED_DATA ? entry->data : NULL;
 }
 
+DATA8 chunkGetTileEntityFromOffset(Chunk c, int Y, int offset)
+{
+	int XYZ[3];
+	XYZ[0] = offset & 15; offset >>= 4;
+	XYZ[2] = offset & 15;
+	XYZ[1] = Y + (offset >> 4);
+	return chunkGetTileEntity(c, XYZ);
+}
+
 /* tile entity has been deleted: remove ref from hash */
 DATA8 chunkDeleteTileEntity(Chunk c, int XYZ[3], Bool extract)
 {
@@ -1423,15 +1432,6 @@ static void chunkGenQuad(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 		sides ++;
 		buffer->cur = out + VERTEX_INT_SIZE;
 	} while (*sides);
-}
-
-static DATA8 chunkGetTileEntityFromOffset(Chunk c, int Y, int offset)
-{
-	int XYZ[3];
-	XYZ[0] = offset & 15; offset >>= 4;
-	XYZ[2] = offset & 15;
-	XYZ[1] = Y + (offset >> 4);
-	return chunkGetTileEntity(c, XYZ);
 }
 
 /* custom model mesh: anything that doesn't fit quad or full/half block */

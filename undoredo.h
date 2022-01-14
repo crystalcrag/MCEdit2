@@ -19,7 +19,7 @@ enum
 };
 
 void undoLog(int type, ...);
-void undoOperation(void);
+void undoOperation(int redo);
 void undoDebug(void);
 
 #define UNDO_LINK                  0x80

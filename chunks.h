@@ -30,6 +30,7 @@ void      chunkUpdate(Chunk update, ChunkData air, DATAS16 chunkOffsets, int lay
 int       chunkFree(Chunk);
 ChunkData chunkCreateEmpty(Chunk, int layer);
 DATA8     chunkGetTileEntity(Chunk, int XYZ[3]);
+DATA8     chunkGetTileEntityFromOffset(Chunk, int Y, int offset);
 DATA8     chunkDeleteTileEntity(Chunk, int XYZ[3], Bool extract);
 DATA8     chunkIterTileEntity(Chunk, int XYZ[3], int * offset);
 Bool      chunkAddTileEntity(Chunk, int XYZ[3], DATA8 mem);

@@ -1,6 +1,20 @@
+=========== Week 2 ===========
+Thu Jan 13:
+	* cascading falling entity done.
+
+Wed Jan 12:
+	* falling entity mostly done.
+
+Tue Jan 11:
+	* falling entity logic and physics started.
+
+Mon Jan 10:
+	* sign edit was broken (again).
+	* final test with undo and redo implemented.
+
 =========== Week 1 ===========
 Sun Jan 9:
-	* undo/redo entities change/deleted/added.
+	* undo/redo entities changed/deleted/added.
 
 Sat Jan 8:
 	* undo/redo entire selection.

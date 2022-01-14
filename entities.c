@@ -134,6 +134,7 @@ int entityGetModelBank(ItemID_t id)
 	if (entities.hash.count == 0)
 		return 0;
 
+	id &= ~ENTITY_ITEM; /* will use same models as normal blocks */
 	int i = id % entities.hash.max;
 	EntityEntry entry = entities.hash.list + i;
 	if (entry->VBObank == 0)
@@ -214,8 +215,7 @@ extern int blockInvModelCube(DATA16 ret, BlockState b, DATA8 texCoord);
 /* get vertex count for entity id */
 static int entityModelCount(ItemID_t id, int cnx)
 {
-	if (id & ENTITY_ITEM) /* same as normal block/item */
-		id &= ~ENTITY_ITEM;
+	id &= ~ENTITY_ITEM; /* same as normal block/item */
 	if (isBlockId(id))
 	{
 		/* normal block */
@@ -1147,6 +1147,21 @@ void entityDeleteById(Map map, int entityId)
 		DATA16 prev;
 		entityMarkListAsModified(map, chunk);
 
+		if (entity->enflags & ENFLAG_INANIM)
+		{
+			if (entity->enflags & ENFLAG_FIXED)
+				/* block pushed by piston: cannot be removed until anim is done */
+				return;
+			/* animated entities: need to be removed from anim list */
+			EntityAnim anim;
+			for (anim = entities.animate, i = entities.animCount; i > 0 && anim->entity != entity; i --, anim ++);
+			if (i > 0)
+			{
+				if (i > 1) memmove(anim, anim + 1, sizeof *anim * (i - 1));
+				entities.animCount --;
+			}
+		}
+
 		/* unlink from chunk active entities */
 		if (entity->ref || entity->entype == ENTYPE_FILLEDMAP)
 		{
@@ -1271,7 +1286,40 @@ void entityAnimate(void)
 	{
 		Entity entity = anim->entity;
 		int remain = anim->stopTime - time;
-		if (remain > 0)
+		if (anim->stopTime == UPDATE_BY_PHYSICS)
+		{
+			float oldPos[3];
+			PhysicsEntity physics = entity->private;
+			memcpy(oldPos, entity->pos, 12);
+			physicsMoveEntity(globals.level, physics, (time - anim->prevTime) / 50.f);
+
+			memcpy(entity->pos, physics->loc, 12);
+			entityUpdateInfo(entity, oldPos);
+			anim->prevTime = time;
+			if (fabsf(physics->dir[VX]) < EPSILON &&
+			    fabsf(physics->dir[VY]) < EPSILON &&
+			    fabsf(physics->dir[VZ]) < EPSILON)
+			{
+				if (entity->blockId & ENTITY_ITEM)
+				{
+					/* just remove the anim, but keep the entity */
+					entities.animCount --;
+					entity->enflags &= ~ENFLAG_INANIM;
+					memmove(anim, anim + 1, entities.animCount * sizeof *anim);
+				}
+				else /* remove anim and convert entity to block or item */
+				{
+					/* convert back to block or item if we can't */
+					worldItemPlaceOrCreate(entity);
+					entityDelete(entity->chunkRef, entity->tile);
+					/* remove from list */
+					entities.animCount --;
+					memmove(anim, anim + 1, entities.animCount * sizeof *anim);
+				}
+			}
+			else anim ++;
+		}
+		else if (remain > 0)
 		{
 			float oldPos[3];
 			float scale = ENTITY_SCALE(entity);
@@ -1301,11 +1349,10 @@ void entityAnimate(void)
 			DATA8 tile = entity->tile;
 			vec4  dest;
 			memcpy(dest, entity->motion, 12);
-			entities.animCount --;
 			/* remove from list */
-			Chunk c = entity->chunkRef;
-			memmove(anim, anim + 1, (i - 1) * sizeof *anim);
-			entityDelete(c, tile);
+			entities.animCount --;
+			memmove(anim, anim + 1, entities.animCount * sizeof *anim);
+			entityDelete(entity->chunkRef, tile);
 			updateFinished(tile, dest);
 			finalize = 1;
 		}
@@ -1315,7 +1362,7 @@ void entityAnimate(void)
 }
 
 /* block entity */
-void entityUpdateOrCreate(Chunk c, vec4 pos, int blockId, vec4 dest, int ticks, DATA8 tile)
+void entityUpdateOrCreate(Chunk chunk, vec4 pos, ItemID_t blockId, vec4 dest, int ticks, DATA8 tile)
 {
 	EntityAnim anim;
 	Entity     entity;
@@ -1331,24 +1378,25 @@ void entityUpdateOrCreate(Chunk c, vec4 pos, int blockId, vec4 dest, int ticks, 
 	if (slot == 0)
 	{
 		entity = entityAlloc(&slot);
-		entity->next = c->entityList;
-		c->entityList = slot;
+		entity->next = chunk->entityList;
+		entity->blockId = blockId;
+		chunk->entityList = slot;
 	}
 
-	Block b = &blockIds[blockId>>4];
+	Block b = &blockIds[(blockId>>4) & 0xfff];
 	memcpy(entity->pos, pos, 12);
 	memcpy(entity->motion, dest, 12);
 	entity->blockId = blockId;
 	entity->tile = tile;
-	entity->chunkRef = c;
-	entity->rotation[3] = 1;
+	entity->chunkRef = chunk;
+	entity->rotation[3] = blockId & ENTITY_ITEM ? 0.5 : 1;
 	vecAddNum(entity->pos,    0.5f);
 	vecAddNum(entity->motion, 0.5f);
 	entity->VBObank = entityGetModelId(entity);
-	entity->enflags |= ENFLAG_FIXED;
+	entity->enflags |= ENFLAG_INANIM;
 	if (b->type != CUST || b->special == BLOCK_SOLIDOUTER)
 		entity->enflags |= ENFLAG_FULLLIGHT;
-	entityGetLight(c, pos, entity->light, entity->enflags & ENFLAG_FULLLIGHT);
+	entityGetLight(chunk, pos, entity->light, entity->enflags & ENFLAG_FULLLIGHT);
 	entityAddToCommandList(entity);
 
 	if ((entity->enflags & ENFLAG_INQUADTREE) == 0)
@@ -1363,7 +1411,16 @@ void entityUpdateOrCreate(Chunk c, vec4 pos, int blockId, vec4 dest, int ticks, 
 	anim = entities.animate + entities.animCount;
 	entities.animCount ++;
 	anim->prevTime = (int) globals.curTime;
-	anim->stopTime = anim->prevTime + ticks * globals.redstoneTick;
+	if (ticks == UPDATE_BY_PHYSICS)
+	{
+		worldItemCreateBlock(entity, (blockId & ENTITY_ITEM) == 0);
+		anim->stopTime = UPDATE_BY_PHYSICS;
+	}
+	else
+	{
+		entity->enflags |= ENFLAG_FIXED;
+		anim->stopTime = anim->prevTime + ticks * globals.redstoneTick;
+	}
 	anim->entity = entity;
 
 //	fprintf(stderr, "adding entity %d at %p / %d\n", entities.animCount, tile, slot);

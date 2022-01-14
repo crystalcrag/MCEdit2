@@ -1140,6 +1140,12 @@ void updateAdd(BlockIter iter, int blockId, int nbTick)
 	update->blockId = blockId;
 }
 
+void updateAddTickCallback(BlockIter iter, int nbTick, UpdateCb_t cb)
+{
+	TileTick update = updateInsert(iter->cd, iter->offset, globals.curTime + nbTick * globals.redstoneTick);
+	update->cb = cb;
+}
+
 void updateAddRSUpdate(struct BlockIter_t iter, int side, int nbTick)
 {
 	if (side != RSSAMEBLOCK)
@@ -1160,11 +1166,12 @@ void updateTick(void)
 	/* more tile ticks can be added while scanning this list */
 	while (updates.count > 0)
 	{
-		int       id   = updates.sorted[0];
-		TileTick  list = updates.list + id;
-		int       off  = list->offset;
-		ChunkData cd   = list->cd;
-		vec4      pos;
+		int        id   = updates.sorted[0];
+		TileTick   list = updates.list + id;
+		int        off  = list->offset;
+		ChunkData  cd   = list->cd;
+		UpdateCb_t cb   = list->cb;
+		vec4       pos;
 		if (list->tick > time) break;
 		pos[0] = cd->chunk->X + (off & 15);
 		pos[2] = cd->chunk->Z + ((off>>4) & 15);
@@ -1179,7 +1186,11 @@ void updateTick(void)
 		//updateDebugSorted(0);
 
 		/* this can modify updates.sorted */
-		if (id == BLOCK_UPDATE)
+		if (cb)
+		{
+			cb(globals.level, cd, off);
+		}
+		else if (id == BLOCK_UPDATE)
 		{
 			struct BlockIter_t iter;
 			mapInitIterOffset(&iter, cd, off);

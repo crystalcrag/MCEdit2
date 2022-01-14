@@ -21,16 +21,16 @@
 static struct UndoPrivate_t journal;
 
 /* store a chunk of memory in the undo log */
-static void undoAddMem(APTR buffer, int size)
+static void undoAddMem(ListHead * head, APTR buffer, int size)
 {
-	UndoLogBuf log = TAIL(journal.undoLog);
+	UndoLogBuf log = TAIL(*head);
 
 	do {
 		if (log == NULL)
 		{
 			log = malloc(sizeof *log + UNDO_LOG_SIZE - 4);
 			log->usage = 0;
-			ListAddHead(&journal.undoLog, &log->node);
+			ListAddHead(head, &log->node);
 		}
 		int remain = UNDO_LOG_SIZE - log->usage;
 		if (remain > size)
@@ -71,10 +71,10 @@ static void undoGetMem(APTR mem, int max, UndoLogBuf log, int offset)
 	}
 }
 
-static inline void undoFlushRepeat(void)
+static inline void undoFlushRepeat(ListHead * head)
 {
 	*journal.regionRepeatLoc = UNDO_BLOCK_REPEAT;
-	undoAddMem(&journal.regionRepeat, sizeof journal.regionRepeat);
+	undoAddMem(head, &journal.regionRepeat, sizeof journal.regionRepeat);
 	journal.regionBytes += sizeof journal.regionRepeat;
 	journal.regionRepeat = 0;
 	journal.regionRepeatId = -1;
@@ -85,8 +85,7 @@ void undoLog(int type, ...)
 {
 	va_list args;
 
-	if (journal.inUndo)
-		return;
+	ListHead * head = journal.inUndo == 1 ? &journal.redoLog : &journal.undoLog;
 
 	va_start(args, type);
 	switch (type & 0x7f) {
@@ -101,55 +100,59 @@ void undoLog(int type, ...)
 			mem.size[VY] = points[VY+4];
 			mem.size[VZ] = points[VZ+4];
 			mem.typeSize = (sizeof mem << 8) | type;
-			undoAddMem(&mem, sizeof mem);
+			undoAddMem(head, &mem, sizeof mem);
 		}
 		break;
 	case LOG_BLOCK: /* single block changed: add its previous state in */
+	{
+		uint16_t  blockId = va_arg(args, int);
+		DATA8     tile    = va_arg(args, DATA8);
+		ChunkData cd      = va_arg(args, ChunkData);
+		int       offset  = va_arg(args, int);
+		uint32_t  point[3];
+		point[VX] = cd->chunk->X + (offset & 15); offset >>= 4;
+		point[VZ] = cd->chunk->Z + (offset & 15);
+		point[VY] = cd->Y + (offset >> 4);
 		if (journal.inSelection == 0)
 		{
 			struct UndoBlock_t mem;
-			mem.itemId = va_arg(args, int);
-			DATA8  tile  = va_arg(args, DATA8);
-			DATA32 point = va_arg(args, DATA32);
-			int    size  = 0;
+			mem.itemId = blockId;
+			int size  = 0;
 			if (tile)
 			{
 				/* no pointers outside this module must be stored in the journal */
 				size = NBT_Size(tile) + 4;
-				undoAddMem(tile, size);
+				undoAddMem(head, tile, size);
 			}
 			memcpy(mem.loc, point, sizeof mem.loc);
 			mem.typeSize = ((sizeof mem + size) << 8) | type;
 			if (tile) mem.itemId |= HAS_TILEENTITY;
-			undoAddMem(&mem, sizeof mem);
+			undoAddMem(head, &mem, sizeof mem);
 		}
 		else /* the difference with previous branch, is that we won't have to store location */
 		{
-			uint16_t blockId = va_arg(args, int);
-			DATA8    tile    = va_arg(args, DATA8);
-			DATA32   point   = va_arg(args, DATA32);
-			int      offset  =  (point[VX] - journal.regionLoc[VX]) +
-			                   ((point[VY] - journal.regionLoc[VY]) * journal.regionSize[VZ] +
-			                     point[VZ] - journal.regionLoc[VZ]) * journal.regionSize[VX];
+			offset = (point[VX] - journal.regionLoc[VX]) +
+			        ((point[VY] - journal.regionLoc[VY]) * journal.regionSize[VZ] +
+			          point[VZ] - journal.regionLoc[VZ]) * journal.regionSize[VX];
 			if (offset != journal.regionOffset)
 			{
 				/* non-contiguous modification: need to add a skip count */
 				int skip = journal.regionOffset < 0 ? offset : offset - journal.regionOffset;
 				if (journal.regionRepeat > 1)
-					undoFlushRepeat();
+					undoFlushRepeat(head);
 				else
 					journal.regionRepeatId = -1;
 				/* note: selection can be processed top to bottom, moving to another Y layer will generate a negative offset */
 				if (-32768 <= skip && skip <= 32767)
 				{
 					uint16_t store[2] = {UNDO_BLOCK_SKIP, skip};
-					undoAddMem(store, sizeof store);
+					undoAddMem(head, store, sizeof store);
 					journal.regionBytes += sizeof store;
 				}
 				else /* hmm, very sparse modifications */
 				{
 					uint16_t store[3] = {UNDO_BLOCK_SKIP32, skip, skip >> 16};
-					undoAddMem(store, sizeof store);
+					undoAddMem(head, store, sizeof store);
 					journal.regionBytes += sizeof store;
 				}
 			}
@@ -157,25 +160,25 @@ void undoLog(int type, ...)
 			if (tile)
 			{
 				if (journal.regionRepeat > 1)
-					undoFlushRepeat();
+					undoFlushRepeat(head);
 				/* store tile entity before block id */
 				int size = NBT_Size(tile) + 4;
 				uint16_t info[] = {UNDO_BLOCK_TILEENT, size};
 				journal.regionBytes += 4 + size;
 				/* need a 4 bytes header though */
-				undoAddMem(info, sizeof info);
-				undoAddMem(tile, size);
+				undoAddMem(head, info, sizeof info);
+				undoAddMem(head, tile, size);
 			}
 			else if (journal.regionRepeatId == blockId)
 			{
 				/* compress selection using run-length encoding */
 				if (journal.regionRepeat == 0xffff)
-					undoFlushRepeat();
+					undoFlushRepeat(head);
 				journal.regionRepeat ++;
 				if (journal.regionRepeat == 1)
 				{
 					/* this method will save bytes only with 3 or more consecutive blocks of the same type */
-					undoAddMem(&blockId, sizeof blockId);
+					undoAddMem(head, &blockId, sizeof blockId);
 					journal.regionBytes += 2;
 					UndoLogBuf log = TAIL(journal.undoLog);
 					journal.regionRepeatLoc = (DATA16) (log->buffer + log->usage - 2);
@@ -183,10 +186,10 @@ void undoLog(int type, ...)
 				break;
 			}
 			else journal.regionRepeatId = blockId, journal.regionRepeat = 0;
-			undoAddMem(&blockId, sizeof blockId);
+			undoAddMem(head, &blockId, sizeof blockId);
 			journal.regionBytes += 2;
 		}
-		break;
+	}	break;
 	case LOG_ENTITY_DEL:
 	case LOG_ENTITY_CHANGED:
 		{
@@ -197,16 +200,16 @@ void undoLog(int type, ...)
 			int   size = NBT_Size(nbt) + 4;
 			/* NBT content first */
 			mem.entityId = va_arg(args, int);
-			undoAddMem(nbt, size);
+			undoAddMem(head, nbt, size);
 			mem.typeSize = type | ((size + sizeof mem) << 8);
-			undoAddMem(&mem, sizeof mem);
+			undoAddMem(head, &mem, sizeof mem);
 		}
 		break;
 	case LOG_ENTITY_ADDED:
 		{
 			/* simply log the entityId, no need for NBT content */
 			uint32_t info[] = {va_arg(args, int), type | (8 << 8)};
-			undoAddMem(info, sizeof info);
+			undoAddMem(head, info, sizeof info);
 		}
 		break;
 	case LOG_REGION_START: /* won't store anything in the log (yet) */
@@ -225,21 +228,24 @@ void undoLog(int type, ...)
 		if (journal.inSelection == 1)
 		{
 			if (journal.regionRepeat > 1)
-				undoFlushRepeat();
+				undoFlushRepeat(head);
 			struct UndoSelection_t mem;
 			memcpy(mem.start, journal.regionLoc, 2 * sizeof mem.start);
 			mem.typeSize = LOG_REGION_START | ((journal.regionBytes + sizeof mem) << 8);
-			undoAddMem(&mem, sizeof mem);
+			undoAddMem(head, &mem, sizeof mem);
 			journal.inSelection = 0;
 		}
 	}
 }
 
 #ifdef DEBUG
-void undoDebug(void)
+void undoDebugLog(STRPTR name, ListHead * head)
 {
-	UndoLogBuf log = TAIL(journal.undoLog);
+	UndoLogBuf log;
 	int offset;
+	for (offset = 0, log = HEAD(*head); log; offset += log->usage, NEXT(log));
+	fprintf(stderr, "%s log, usage: %d bytes\n", name, offset);
+	log = TAIL(*head);
 	if (log == NULL || log->usage == 0) return;
 	for (offset = log->usage; log; )
 	{
@@ -301,6 +307,13 @@ void undoDebug(void)
 		}
 	}
 }
+
+void undoDebug(void)
+{
+	undoDebugLog("undo", &journal.undoLog);
+	undoDebugLog("redo", &journal.redoLog);
+}
+
 #endif
 
 static void inline undoNextBlock(int XYZ[3], int * start)
@@ -321,8 +334,10 @@ static void inline undoNextBlock(int XYZ[3], int * start)
 /* cancel modifications done from selection */
 static void undoSelection(int * start, UndoLogBuf log, int offset, int bytes)
 {
-	DATA8 tile = NULL;
-	int   XYZ[3] = {0, 0, 0};
+	uint16_t regionRepeat = 0;
+	DATA8    tile = NULL;
+	int      XYZ[3] = {0, 0, 0};
+
 	for (offset -= bytes; offset < 0; PREV(log), offset += log->usage);
 
 	mapUpdateInit(NULL);
@@ -349,7 +364,7 @@ static void undoSelection(int * start, UndoLogBuf log, int offset, int bytes)
 		switch (blockId) {
 		case UNDO_BLOCK_REPEAT:
 			undoRead(&blockId, 2);
-			for (count = blockId, blockId = journal.regionRepeat; count > 0; count --)
+			for (count = blockId, blockId = regionRepeat; count > 0; count --)
 			{
 				mapUpdate(globals.level, (vec4) {start[VX] + XYZ[VX], start[VY] + XYZ[VY], start[VZ] + XYZ[VZ]}, blockId, NULL, UPDATE_SILENT | UPDATE_DONTLOG);
 				undoNextBlock(XYZ, start);
@@ -384,7 +399,7 @@ static void undoSelection(int * start, UndoLogBuf log, int offset, int bytes)
 		default:
 			mapUpdate(globals.level, (vec4) {start[VX] + XYZ[VX], start[VY] + XYZ[VY], start[VZ] + XYZ[VZ]}, blockId, tile, UPDATE_SILENT | UPDATE_DONTLOG);
 			undoNextBlock(XYZ, start);
-			journal.regionRepeat = blockId;
+			regionRepeat = blockId;
 			tile = NULL;
 		}
 	}
@@ -393,15 +408,17 @@ static void undoSelection(int * start, UndoLogBuf log, int offset, int bytes)
 }
 
 /* cancel last operation stored in the log */
-void undoOperation(void)
+void undoOperation(int redo)
 {
-	UndoLogBuf log = TAIL(journal.undoLog);
+	ListHead * head = redo ? &journal.redoLog : &journal.undoLog;
+	UndoLogBuf log = TAIL(*head);
 	if (log == NULL || log->usage == 0) return;
 	int offset = log->usage;
 	uint32_t typeSize;
+	uint8_t  meshUpdated = 0;
 	undoGetMem(&typeSize, sizeof typeSize, log, offset);
 
-	journal.inUndo = 1;
+	journal.inUndo = 1 + redo;
 	for (;;)
 	{
 		uint8_t link = typeSize & UNDO_LINK;
@@ -425,10 +442,12 @@ void undoOperation(void)
 					tile = malloc(mem.typeSize);
 					undoGetMem(tile, mem.typeSize, log, offset - sizeof mem);
 				}
-				if (journal.inUndo == 1)
+				if (meshUpdated == 0)
+				{
 					mapUpdateInit(NULL);
+					meshUpdated = 1;
+				}
 				mapUpdate(globals.level, (vec4) {mem.loc[0], mem.loc[1], mem.loc[2]}, mem.itemId & 0xfffff, tile, UPDATE_SILENT);
-				journal.inUndo = 2;
 				/* if this operation is part of a group: only one modif has been registered for the whole group */
 				if ((typeSize & UNDO_LINK) == 0)
 					renderCancelModif();
@@ -482,9 +501,9 @@ void undoOperation(void)
 			typeSize = 0;
 			do {
 				offset -= typeSize;
-				ListRemTail(&journal.undoLog);
+				ListRemTail(head);
 				free(log);
-				log = TAIL(journal.undoLog);
+				log = TAIL(*head);
 				if (log == NULL) return;
 				typeSize = log->usage;
 			}
@@ -500,7 +519,7 @@ void undoOperation(void)
 		}
 		else break;
 	}
-	if (journal.inUndo == 2)
+	if (meshUpdated)
 		mapUpdateEnd(globals.level);
 	journal.inUndo = 0;
 }

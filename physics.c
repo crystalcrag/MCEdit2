@@ -462,7 +462,7 @@ void physicsInitEntity(PhysicsEntity entity, int blockId)
 	if (entity->dir[VZ] < 0) entity->negXZ |= 2, entity->dir[VZ] = - entity->dir[VZ];
 }
 
-static void physicsChangeEntityDir(PhysicsEntity entity, float friction)
+void physicsChangeEntityDir(PhysicsEntity entity, float friction)
 {
 	float angle = RandRange(0, 2 * M_PI);
 	entity->dir[VY] = 0;
@@ -511,7 +511,7 @@ Bool physicsMoveEntity(Map map, PhysicsEntity entity, float speed)
 		}
 		else if (entity->rebound)
 		{
-			float dir = -entity->dir[VY] * RandRange(0.4f, 0.6f) / entity->rebound;
+			float dir = -entity->dir[VY] * RandRange(0.3f, 0.4f) / entity->rebound;
 			physicsChangeEntityDir(entity, 0.0001);
 			entity->dir[VX] *= 2;
 			entity->dir[VZ] *= 2;
@@ -535,8 +535,14 @@ Bool physicsMoveEntity(Map map, PhysicsEntity entity, float speed)
 			}
 			else /* hit the ground */
 			{
+				#if 0
+				/* XXX what that's for ?? */
 				entity->dir[VY] = -0.1f * speed;
 				entity->friction[VY] = 0.02f * (1/5.f) * (entity->density - blockIds[0].density);
+				#else
+				entity->dir[VY] = 0;
+				entity->friction[VY] = 0;
+				#endif
 			}
 		}
 	}

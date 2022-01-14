@@ -21,6 +21,7 @@
 #include "maps.h"
 #include "render.h"
 #include "blocks.h"
+#include "undoredo.h"
 #include "NBT2.h"
 #include "globals.h"
 
@@ -326,7 +327,10 @@ void signSetText(Chunk chunk, vec4 pos, DATA8 msg)
 			XYZ[0] &= 15;
 			XYZ[2] &= 15;
 
-			tile = blockCreateTileEntity(cd->blockIds[CHUNK_BLOCK_POS(XYZ[0], XYZ[2], XYZ[1]&15)] << 4, pos, text);
+			struct BlockIter_t iter = {.blockIds = cd->blockIds, .offset = CHUNK_BLOCK_POS(XYZ[0], XYZ[2], XYZ[1]&15)};
+			int blockId = getBlockId(&iter);
+			undoLog(LOG_BLOCK, blockId, chunkGetTileEntity(chunk, XYZ), cd, iter.offset);
+			tile = blockCreateTileEntity(blockId, pos, text);
 			if (tile == NULL) break;
 			chunkAddTileEntity(chunk, XYZ, tile);
 			chunkMarkForUpdate(chunk);

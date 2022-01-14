@@ -243,7 +243,7 @@ static int mceditShowWorldInfo(SIT_Widget w, APTR cd, APTR ud)
 	return 1;
 }
 
-
+/* Ctrl+D: clear selection */
 static int mceditClearSelection(SIT_Widget w, APTR cd, APTR ud)
 {
 	renderSetSelectionPoint(RENDER_SEL_CLEAR);
@@ -269,9 +269,12 @@ static int mceditTrackFocus(SIT_Widget w, APTR cd, APTR ud)
 	return 0;
 }
 
-static int mceditUndo(SIT_Widget w, APTR cd, APTR ud)
+static int mceditUndoRedo(SIT_Widget w, APTR cd, APTR ud)
 {
-	undoOperation();
+	if (cd == (APTR) (SITK_FlagCtrl + 'z'))
+		undoOperation(0); /* undo */
+	else
+		undoOperation(1); /* redo */
 	return 1;
 }
 
@@ -352,7 +355,8 @@ int main(int nb, char * argv[])
 		{SITK_FlagCtrl + 'l', SITE_OnActivate, NULL, mceditShowLibrary},
 		{SITK_FlagCtrl + 'i', SITE_OnActivate, NULL, mceditShowWorldInfo},
 		{SITK_FlagCtrl + 'o', SITE_OnActivate, NULL, optionsQuickAccess},
-		{SITK_FlagCtrl + 'z', SITE_OnActivate, NULL, mceditUndo},
+		{SITK_FlagCtrl + 'z', SITE_OnActivate, NULL, mceditUndoRedo},
+		{SITK_FlagCtrl + 'y', SITE_OnActivate, NULL, mceditUndoRedo},
 		{SITK_Escape,         SITE_OnActivate, NULL, mceditCancelStuff},
 		{0}
 	};
@@ -854,7 +858,7 @@ void mceditPlaceBlock(void)
 		 * udpdate the map and all the tables associated, will also trigger cascading updates
 		 * if needed
 		 */
-		mapUpdate(globals.level, pos, block, tile, True);
+		mapUpdate(globals.level, pos, block, tile, UPDATE_NEARBY);
 		renderAddModif();
 	}
 	else /* selected an item: check if we can create an entity instead */
@@ -889,6 +893,7 @@ static NBTHdr mceditGetEnderItems(void)
 void mceditUIOverlay(int type)
 {
 	static ItemBuf oldPlayerInv[MAXCOLINV * 4];
+	struct MapExtraData_t link;
 
 	SDL_Event event;
 	Item      item;
@@ -906,6 +911,7 @@ void mceditUIOverlay(int type)
 	MapExtraData sel = NULL;
 	itemCount = 0;
 	enderItems = 0;
+	itemConnect = 0;
 	item = NULL;
 	switch (type) {
 	case MCUI_OVERLAY_BLOCK:
@@ -922,7 +928,6 @@ void mceditUIOverlay(int type)
 
 		if (sel)
 		{
-			struct MapExtraData_t link;
 			Block  b    = &blockIds[sel->blockId>>4];
 			STRPTR tech = b->tech;
 			STRPTR sep  = strchr(tech, '_');
@@ -1088,6 +1093,7 @@ void mceditUIOverlay(int type)
 	case MCUI_OVERLAY_BLOCK:
 	{
 		NBTFile_t chest = {0};
+		NBTFile_t chest2 = {0};
 		NBTFile_t playerInv = {0};
 
 		if (itemCount > 0 && memcmp(item, item + itemCount, itemCount * sizeof *item))
@@ -1101,7 +1107,19 @@ void mceditUIOverlay(int type)
 				NBT_Free(&chest);
 				memset(&chest, 0, sizeof chest);
 			}
-			else mapSerializeItems(sel, "Items", item, itemCount, &chest);
+			/* double-chest items need to be split in 2 different tile entity */
+			else switch (itemConnect) {
+			case 1:
+				mapSerializeItems(sel,   "Items", item,    27, &chest);
+				mapSerializeItems(&link, "Items", item+27, 27, &chest2);
+				break;
+			case 2:
+				mapSerializeItems(&link, "Items", item,    27, &chest2);
+				mapSerializeItems(sel,   "Items", item+27, 27, &chest);
+				break;
+			default:
+				mapSerializeItems(sel, "Items", item, itemCount, &chest);
+			}
 		}
 
 		if (mcedit.player.pmode >= MODE_CREATIVE && memcmp(oldPlayerInv, mcedit.player.inventory.items, sizeof oldPlayerInv))
@@ -1110,6 +1128,14 @@ void mceditUIOverlay(int type)
 
 		if (chest.mem)
 		{
+			if (chest2.mem)
+			{
+				/* double-chest are split in 2 */
+				undoLog(LOG_BLOCK | UNDO_LINK, link.blockId, chunkGetTileEntityFromOffset(link.chunk, link.cd->Y, link.offset),
+					link.cd, link.offset);
+				chunkUpdateNBT(link.chunk, link.offset + (link.cd->Y<<8), &chest2);
+			}
+			undoLog(LOG_BLOCK, sel->blockId, chunkGetTileEntityFromOffset(sel->chunk, sel->cd->Y, sel->offset), sel->cd, sel->offset);
 			chunkUpdateNBT(sel->chunk, sel->offset + (sel->cd->Y<<8), &chest);
 			mapAddToSaveList(globals.level, sel->chunk);
 			renderAddModif();

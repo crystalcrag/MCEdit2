@@ -1300,6 +1300,41 @@ static int mapUpdateIfPowered(Map map, BlockIter iterator, int oldId, int blockI
 	return blockId;
 }
 
+/* tile tick update for gravity blocks: check if we need to convert it to falling block entity */
+static void mapUpdateToEntity(Map map, ChunkData cd, int offset)
+{
+	struct BlockIter_t iter;
+	mapInitIterOffset(&iter, cd, offset);
+	mapIter(&iter, 0, -1, 0);
+	if (iter.blockIds && iter.blockIds[iter.offset] == 0)
+	{
+		mapIter(&iter, 0, 1, 0);
+		Chunk chunk = cd->chunk;
+		vec4 pos = {chunk->X + iter.x, iter.yabs, chunk->Z + iter.z};
+		int blockId = getBlockId(&iter);
+		/* 1 tick is enough for a block to be deleted */
+		if (blockId > 0)
+		{
+			mapUpdateInit(&iter);
+			mapUpdate(map, NULL, 0, NULL, UPDATE_SILENT | UPDATE_GRAVITY);
+			mapUpdateEnd(map);
+			entityUpdateOrCreate(chunk, pos, blockId, pos, UPDATE_BY_PHYSICS, NULL);
+		}
+	}
+}
+
+/* gravity affected block: check if there is an air block below */
+static void mapUpdateCheckGravity(struct BlockIter_t iter)
+{
+	mapIter(&iter, 0, -1, 0);
+	if (iter.blockIds[iter.offset] == 0)
+	{
+		/* yes, will be converted to entity in 1 tick */
+		mapIter(&iter, 0, 1, 0);
+		updateAddTickCallback(&iter, 1, mapUpdateToEntity);
+	}
+}
+
 /*
  * link chunks that have been modified in the update
  */
@@ -1650,7 +1685,6 @@ void mapUpdateEnd(Map map)
 void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 {
 	struct BlockIter_t iter;
-	uint8_t updateFlags = blockUpdate;
 
 	if (pos == NULL)
 	{
@@ -1670,14 +1704,15 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 	DATA8 data = iter.blockIds + DATA_OFFSET + (iter.offset >> 1);
 	Block b = &blockIds[blockId >> 4];
 
-	blockUpdate &= 15;
-	if (blockUpdate)
+	if (blockUpdate & 1)
 	{
 		track.modif = NULL;
 		track.list  = &track.modif;
 		if (b->tall && ! mapHasEnoughSpace(iter, b, blockId))
 			return;
 	}
+	if (b->gravity && (blockUpdate & UPDATE_GRAVITY))
+		mapUpdateCheckGravity(iter);
 
 	if (b->updateNearby || (oldId > 0 && blockIds[oldId >> 4].updateNearby))
 		iter.cd->cdFlags |= CDFLAG_UPDATENEARBY;
@@ -1685,8 +1720,7 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 	if (iter.offset & 1) oldId |= *data >> 4;
 	else                 oldId |= *data & 15;
 
-	if (oldId == blockId)
-		// XXX tile entity might differ
+	if (oldId == blockId && tile == NULL)
 		return;
 
 	/* this needs to be done before tables are updated */
@@ -1712,7 +1746,7 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 	if (iter.offset & 1) *data = (*data & 0x0f) | ((blockId & 0xf) << 4);
 	else                 *data = (*data & 0xf0) | (blockId & 0xf);
 
-	if ((updateFlags & UPDATE_KEEPLIGHT) == 0)
+	if ((blockUpdate & UPDATE_KEEPLIGHT) == 0)
 	{
 		/* update skyLight */
 		uint8_t opac   = blockGetSkyOpacity(blockId>>4, 0);
@@ -1764,7 +1798,7 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 				mapUpdateChangeRedstone(map, &iter, SIDE_BOTTOM, NULL);
 		}
 	}
-	else if (b->type == SOLID)
+	else if (blockUpdate & UPDATE_NEARBY)
 	{
 		/* quickly check if it needs a redstone update */
 		uint8_t i;
@@ -1781,14 +1815,16 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 				mapUpdateChangeRedstone(map, &neighbor, RSSAMEBLOCK, NULL);
 				break;
 			}
+			/* trigger falling entity on nearby block, causing cascading avalanche of blocks */
+			if (b->gravity && (blockUpdate & UPDATE_NEARBY))
+				mapUpdateCheckGravity(neighbor);
 		}
 	}
 
-	if ((updateFlags & UPDATE_DONTLOG) == 0)
+	if ((blockUpdate & UPDATE_DONTLOG) == 0)
 	{
 		DATA8 tileEntity = chunkGetTileEntity(iter.ref, XYZ);
-		undoLog(updateFlags & UPDATE_UNDOLINK ? LOG_BLOCK | UNDO_LINK : LOG_BLOCK, oldId, tileEntity,
-			(uint32_t[3]) {iter.x + iter.ref->X, iter.yabs, iter.z + iter.ref->Z});
+		undoLog(blockUpdate & UPDATE_UNDOLINK ? LOG_BLOCK | UNDO_LINK : LOG_BLOCK, oldId, tileEntity, iter.cd, iter.offset);
 	}
 	/* block replaced: check if there is a tile entity to delete */
 	DATA8 oldTile = chunkDeleteTileEntity(iter.ref, XYZ, False);
@@ -1825,7 +1861,7 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 	}
 
 	/* trigger a block update, it might call mapUpdate recursively */
-	if (blockUpdate)
+	if (blockUpdate & 1)
 	{
 		/* update nearby block if needed */
 		mapUpdateBlock(map, pos, blockId, oldId, tile);
@@ -1843,7 +1879,7 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 	if (blockId == 0)
 	{
 		updateRemove(iter.cd, iter.offset, True);
-		if ((updateFlags & UPDATE_SILENT) == 0)
+		if ((blockUpdate & UPDATE_SILENT) == 0)
 			particlesExplode(map, 4, oldId, pos);
 	}
 }
@@ -1869,7 +1905,7 @@ Bool mapActivate(Map map, vec4 pos)
 
 	if (block > 0)
 	{
-		mapUpdate(map, pos, block, NULL, True);
+		mapUpdate(map, pos, block, NULL, UPDATE_NEARBY);
 		renderAddModif();
 		return True;
 	}

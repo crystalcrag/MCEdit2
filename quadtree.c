@@ -363,7 +363,7 @@ static void quadTreeFindEntities(QuadTree root, float bbox[6], int filter)
 	Entity item;
 	for (item = root->items; item; item = item->qnext)
 	{
-		if (filter & ENFLAG_EQUALZERO ? (item->enflags & filter) == 0 : (item->enflags & filter) != 0)
+		if (filter & ENFLAG_EQUALZERO ? (item->enflags & filter) == 0 : (item->enflags & filter) != filter)
 			continue;
 
 		float scale = ENTITY_SCALE(item);
