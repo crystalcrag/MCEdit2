@@ -698,7 +698,7 @@ void worldItemPreview(vec4 camera, vec4 pos, ItemID_t itemId)
 		preview->rotation[0] = normAngle(angle);
 		preview->VBObank = entityAddModel(preview->blockId = itemId, 0, NULL, &preview->szx, MODEL_DONT_SWAP);
 
-		worldItem.previewOffVY = preview->szy * preview->rotation[3] * 0.25f / BASEVTX;
+		worldItem.previewOffVY = preview->szy * preview->rotation[3] * 0.5f / BASEVTX;
 		preview->pos[VY] += worldItem.previewOffVY;
 
 		/* fully bright, to somewhat highlight that this item has not been placed yet */

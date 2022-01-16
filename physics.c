@@ -559,31 +559,40 @@ Bool physicsMoveEntity(Map map, PhysicsEntity entity, float speed)
 
 static Bool physicsPushEntity(float broad[6], vec4 pos, float size[3], float dir[3])
 {
-	float inter[] = {
-		fminf(pos[VX] + size[VX], broad[VX+3]) - fmaxf(pos[VX] - size[VX], broad[VX]),
-		fminf(pos[VY] + size[VY], broad[VY+3]) - fmaxf(pos[VY] - size[VY], broad[VY]),
-		fminf(pos[VZ] + size[VZ], broad[VZ+3]) - fmaxf(pos[VZ] - size[VZ], broad[VZ])
-	};
-
-	if (inter[VX] < EPSILON || inter[VY] < EPSILON || inter[VZ] < EPSILON)
+	if (fminf(pos[VX] + size[VX], broad[VX+3]) - fmaxf(pos[VX] - size[VX], broad[VX]) < EPSILON ||
+	    fminf(pos[VY] + size[VY], broad[VY+3]) - fmaxf(pos[VY] - size[VY], broad[VY]) < EPSILON ||
+	    fminf(pos[VZ] + size[VZ], broad[VZ+3]) - fmaxf(pos[VZ] - size[VZ], broad[VZ]) < EPSILON)
 		/* does not intersect */
-		return False;
+	    return False;
 
-	float endPos[] = {
-		pos[VX] + dir[VX] * inter[VX],
-		pos[VY] + dir[VY] * inter[VY],
-		pos[VZ] + dir[VZ] * inter[VZ]
-	};
+	float endPos[3];
+
+	if (dir[VX] < 0) endPos[VX] = broad[VX]   - size[VX]; else
+	if (dir[VX] > 0) endPos[VX] = broad[VX+3] + size[VX]; else endPos[VX] = pos[VX];
+	if (dir[VY] < 0) endPos[VY] = broad[VY]   - size[VY]; else
+	if (dir[VY] > 0) endPos[VY] = broad[VY+3] + size[VY]; else endPos[VY] = pos[VY];
+	if (dir[VZ] < 0) endPos[VZ] = broad[VZ]   - size[VZ]; else
+	if (dir[VZ] > 0) endPos[VZ] = broad[VZ+3] + size[VZ]; else endPos[VZ] = pos[VZ];
+
 	//physicsCheckCollision(map, pos, endPos, bbox, 0.5);
 	memcpy(pos, endPos, 12);
 	return True;
 }
 
-void physicsEntityMoved(Map map, APTR self, vec4 start, vec4 end, float size[3])
+void physicsEntityMoved(Map map, APTR self, vec4 start, vec4 end)
 {
 	float broad[6];
+	float size[3];
 	float dir[3];
 	int   i, count;
+
+	{
+		Entity entity = self;
+		float scale = ENTITY_SCALE(entity);
+		size[VX] = entity->szx * scale;
+		size[VY] = entity->szy * scale;
+		size[VZ] = entity->szz * scale;
+	}
 
 	/* compute broad phase box */
 	for (i = 0; i < 3; i ++)
@@ -632,6 +641,7 @@ void physicsEntityMoved(Map map, APTR self, vec4 start, vec4 end, float size[3])
 		pos[VY] += bbox[VY];
 		if (physicsPushEntity(broad, pos, bbox, dir))
 		{
+			/* we'll need to check collision before we can set the new coord */
 			memcpy(p->pushedTo, pos, sizeof pos);
 			p->pushedTo[VY] -= bbox[VY];
 			p->keyvec |= PLAYER_PUSHED;

@@ -10,6 +10,7 @@
 
 void libraryCopySelection(Map brush);
 void libraryShow(int type);
+int  libraryImport(SIT_Widget w, APTR cd, APTR ud);
 
 #ifdef MCLIBRARY_IMPL /* private stuff below */
 #include "NBT2.h"
@@ -28,9 +29,11 @@ struct MCLibrary_t
 	int        nbBrushes;
 	uint8_t    saveBrush;       /* action when select callback is triggered */
 	uint8_t    saveFromLib;     /* otherwise save clone selection */
+	uint8_t    confirm;         /* expensive operation about to be done, ask confirmation first */
 	SIT_Widget copyWnd;         /* list of copied brush (top right corner of screen) */
 	SIT_Widget copyList, save;
 	SIT_Widget use, del;
+	SIT_Widget exportTo;
 };
 
 struct LibBrush_t

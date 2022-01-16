@@ -247,6 +247,7 @@ static Particle particlesSmoke(Map map, int blockId, vec4 pos)
 /* init a DUST particle */
 static Particle particlesDust(Map map, int blockId, vec4 pos)
 {
+	if ((rand() & 255) < 127) return NULL;
 	Particle p = particlesAlloc();
 	BlockState state = blockGetById(blockId);
 	Block b = &blockIds[blockId >> 4];
@@ -275,6 +276,7 @@ static Particle particlesDust(Map map, int blockId, vec4 pos)
 /* init a DRIP particle */
 static Particle particlesDrip(Map map, int blockId, vec4 pos)
 {
+	if ((rand() & 255) < 127) return NULL;
 	Particle p = particlesAlloc();
 	BlockState state = blockGetById(blockId);
 	Block b = &blockIds[blockId >> 4];
@@ -613,15 +615,13 @@ static void emitterSpawnParticles(Map map, Emitter emit)
 	ChunkData cd = emit->cd;
 	DATA8 blocks = cd->blockIds;
 	uint32_t area = emit->area;
-	uint8_t  data, i, range;
+	uint8_t  data, i;
 	int count = emit->count+1;
 	int X = cd->chunk->X;
 	int Z = cd->chunk->Z;
 	int Y = cd->Y + emit->Y;
 	int zcoord = 0;
 	int offset = emit->Y << 8;
-
-	range = count >= 127 ? 255 : count << 1;
 
 	while (area > 0 && count > 0)
 	{
@@ -651,7 +651,7 @@ static void emitterSpawnParticles(Map map, Emitter emit)
 					case PARTICLE_DRIP:  p = particlesDrip(map, ID(b->id, data), pos); break;
 					default: continue;
 					}
-					if (p) p->delay = RandRange(0, range);
+					if (p) p->delay = RandRange(0, 255);
 					count --;
 				}
 			}
@@ -674,7 +674,6 @@ int particlesAnimate(Map map)
 	if (emitters.dirtyList)
 		particleSortEmitters();
 
-	#if 1
 	if (emitters.count)
 	for (count = emitters.count; ; )
 	{
@@ -698,7 +697,6 @@ int particlesAnimate(Map map)
 		}
 		else break;
 	}
-	#endif
 
 	if (particles.count == 0)
 	{
@@ -723,12 +721,12 @@ int particlesAnimate(Map map)
 			if (p->time == 0) continue; i --;
 			if (p->delay > 0)
 			{
-				if (p->delay > diff)
+				if (p->delay > (diff >> 2))
 				{
-					p->delay -= diff;
+					p->delay -= (diff >> 2);
 					continue;
 				}
-				else p->delay = 0;
+				else p->delay = 0, p->time = (uint32_t) globals.curTime + p->ttl;
 			}
 			if (p->time < curTimeMS)
 			{

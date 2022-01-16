@@ -249,9 +249,9 @@ static int FSCloseDialog(SIT_Widget w, APTR cd, APTR ud)
 }
 
 /* ask a question to the user with Yes/No as possible answer */
-static void FSYesNo(FSView view, STRPTR msg, SIT_CallProc cb, Bool yesNo)
+static void FSYesNo(SIT_Widget parent, STRPTR msg, SIT_CallProc cb, Bool yesNo, APTR userData)
 {
-	SIT_Widget ask = SIT_CreateWidget("ask.bg", SIT_DIALOG, view->list,
+	SIT_Widget ask = SIT_CreateWidget("ask.bg", SIT_DIALOG, parent,
 		SIT_DialogStyles, SITV_Plain | SITV_Modal | SITV_Movable,
 		#ifdef FSVIEW_CAPTUREESC
 		SIT_AccelTable,   EOT(accels) - 2,
@@ -272,10 +272,10 @@ static void FSYesNo(FSView view, STRPTR msg, SIT_CallProc cb, Bool yesNo)
 	}
 	else /* only a "no" button */
 	{
-		SIT_CreateWidgets(ask, "<button name=ok right=FORM title=Ok top=WIDGET,label,0.8em buttonType=", SITV_DefaultButton, ">");
+		SIT_CreateWidgets(ask, "<button name=ok right=FORM title=Ok top=WIDGET,label,0.8em buttonType=", SITV_CancelButton, ">");
 		cb = FSCloseDialog;
 	}
-	SIT_AddCallback(SIT_GetById(ask, "ok"), SITE_OnActivate, cb, view);
+	SIT_AddCallback(SIT_GetById(ask, "ok"), SITE_OnActivate, cb, userData);
 	SIT_ManageWidget(ask);
 }
 
@@ -469,7 +469,7 @@ static void FSDoPaste(FSView view, FSStat stat)
 					{
 						fatal_error:
 						snprintf(dst, sizeof dst, "error %s '%s' to '%s':<br><br>%s", view->operation == 'c' ? "copying" : "moving", src, dst, GetError());
-						FSYesNo(view, dst, NULL, False);
+						FSYesNo(view->list, dst, NULL, False, view);
 						return;
 					}
 				}
@@ -1034,7 +1034,7 @@ static int FSDeleteItem(SIT_Widget w, APTR cd, APTR ud)
 	}
 	else snprintf(warn, sizeof warn, "<b>Are you sure you want to <u>permanently</u> delete the file '%s' ?</b>", item->name);
 
-	FSYesNo(view, warn, FSDoDeleteItems, True);
+	FSYesNo(view->list, warn, FSDoDeleteItems, True, view);
 	return 1;
 }
 
@@ -1077,7 +1077,7 @@ static int FSSaveAs(SIT_Widget w, APTR cd, APTR ud)
 
 	if (IsDir(full))
 	{
-		FSYesNo(view, "A directory with the same name already exists: use a different name.", NULL, False);
+		FSYesNo(view->list, "A directory with the same name already exists: use a different name.", NULL, False, view);
 	}
 	else if (w && FileExists(full)) /* w == NULL means user confirmed overwrite */
 	{
@@ -1086,7 +1086,7 @@ static int FSSaveAs(SIT_Widget w, APTR cd, APTR ud)
 		max = strlen(format) + strlen(name);
 		sprintf(full = alloca(max), format, name);
 
-		FSYesNo(view, full, FSChooseName, True);
+		FSYesNo(view->list, full, FSChooseName, True, view);
 	}
 	else view->notify(w, view, full);
 

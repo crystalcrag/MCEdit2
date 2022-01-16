@@ -1,4 +1,12 @@
 =========== Week 2 ===========
+Sat Jan 15:
+	* copy/pasting schematics (from/to clipboard).
+	* bug fixed with piston pushing entities.
+
+Thu Jan 14:
+	* started slime block physics.
+	* particle emitters delay logic slightly tuned: more delay between particles spawned.
+
 Thu Jan 13:
 	* cascading falling entity done.
 

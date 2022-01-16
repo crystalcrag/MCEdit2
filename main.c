@@ -169,39 +169,6 @@ static int mceditSaveChanges(SIT_Widget w, APTR cd, APTR ud)
 	return 1;
 }
 
-/* ask player a coordinate to jump to */
-static int mceditGoto(SIT_Widget w, APTR cd, APTR ud)
-{
-	FrameSaveRestoreTime(True);
-	mceditUIOverlay(MCUI_OVERLAY_GOTO);
-	FrameSaveRestoreTime(False);
-	return 1;
-}
-
-/* Ctrl+C: copy current brush to library */
-static int mceditCopyToLibrary(SIT_Widget w, APTR cd, APTR ud)
-{
-	if (globals.selPoints == 3)
-	{
-		Map brush = selectionCopy();
-		if (brush)
-		{
-			libraryCopySelection(brush);
-			return 1;
-		}
-	}
-	return 0;
-}
-
-/* Ctrl+L: show library */
-static int mceditShowLibrary(SIT_Widget w, APTR cd, APTR ud)
-{
-	FrameSaveRestoreTime(True);
-	mceditUIOverlay(MCUI_OVERLAY_LIBRARY);
-	FrameSaveRestoreTime(False);
-	return 1;
-}
-
 /* handle extended selection toolbar actions */
 static void mceditCommands(int cmd)
 {
@@ -234,22 +201,6 @@ static void mceditCommands(int cmd)
 	}
 }
 
-/* Ctrl+I: world info */
-static int mceditShowWorldInfo(SIT_Widget w, APTR cd, APTR ud)
-{
-	FrameSaveRestoreTime(True);
-	mceditUIOverlay(MCUI_OVERLAY_WORLDINFO);
-	FrameSaveRestoreTime(False);
-	return 1;
-}
-
-/* Ctrl+D: clear selection */
-static int mceditClearSelection(SIT_Widget w, APTR cd, APTR ud)
-{
-	renderSetSelectionPoint(RENDER_SEL_CLEAR);
-	return 1;
-}
-
 /* enable auto-repeat for text widget */
 static int mceditTrackFocus(SIT_Widget w, APTR cd, APTR ud)
 {
@@ -269,12 +220,37 @@ static int mceditTrackFocus(SIT_Widget w, APTR cd, APTR ud)
 	return 0;
 }
 
-static int mceditUndoRedo(SIT_Widget w, APTR cd, APTR ud)
+static int mceditMenuCommand(SIT_Widget w, APTR cd, APTR ud)
 {
-	if (cd == (APTR) (SITK_FlagCtrl + 'z'))
-		undoOperation(0); /* undo */
-	else
-		undoOperation(1); /* redo */
+	/* cd == shortcut used to trigger this callback */
+	switch ((int) cd & 0xff) {
+	case 'z': undoOperation(0); break; /* undo */
+	case 'y': undoOperation(1); break; /* redo */
+	case 'v': libraryImport(globals.app, 0, 0); break;
+	case 'd': renderSetSelectionPoint(RENDER_SEL_CLEAR); break;
+	case 'i': /* world info */
+		FrameSaveRestoreTime(True);
+		mceditUIOverlay(MCUI_OVERLAY_WORLDINFO);
+		FrameSaveRestoreTime(False);
+		break;
+	case 'l': /* schematics library */
+		FrameSaveRestoreTime(True);
+		mceditUIOverlay(MCUI_OVERLAY_LIBRARY);
+		FrameSaveRestoreTime(False);
+		break;
+	case 'g': /* waypoint editor / goto */
+		FrameSaveRestoreTime(True);
+		mceditUIOverlay(MCUI_OVERLAY_GOTO);
+		FrameSaveRestoreTime(False);
+		break;
+	case 'c': /* copy selection to library */
+		if (globals.selPoints == 3)
+		{
+			Map brush = selectionCopy();
+			if (brush)
+				libraryCopySelection(brush);
+		}
+	}
 	return 1;
 }
 
@@ -349,14 +325,15 @@ int main(int nb, char * argv[])
 		{SITK_FlagCapture + SITK_FlagAlt + SITK_F4, SITE_OnActivate, NULL, mceditExit},
 		{SITK_FlagCapture + SITK_FlagCtrl + 's',    SITE_OnActivate, NULL, mceditSaveChanges},
 
-		{SITK_FlagCtrl + 'g', SITE_OnActivate, NULL, mceditGoto},
-		{SITK_FlagCtrl + 'c', SITE_OnActivate, NULL, mceditCopyToLibrary},
-		{SITK_FlagCtrl + 'd', SITE_OnActivate, NULL, mceditClearSelection},
-		{SITK_FlagCtrl + 'l', SITE_OnActivate, NULL, mceditShowLibrary},
-		{SITK_FlagCtrl + 'i', SITE_OnActivate, NULL, mceditShowWorldInfo},
+		{SITK_FlagCtrl + 'g', SITE_OnActivate, NULL, mceditMenuCommand},
+		{SITK_FlagCtrl + 'c', SITE_OnActivate, NULL, mceditMenuCommand},
+		{SITK_FlagCtrl + 'd', SITE_OnActivate, NULL, mceditMenuCommand},
+		{SITK_FlagCtrl + 'l', SITE_OnActivate, NULL, mceditMenuCommand},
+		{SITK_FlagCtrl + 'i', SITE_OnActivate, NULL, mceditMenuCommand},
 		{SITK_FlagCtrl + 'o', SITE_OnActivate, NULL, optionsQuickAccess},
-		{SITK_FlagCtrl + 'z', SITE_OnActivate, NULL, mceditUndoRedo},
-		{SITK_FlagCtrl + 'y', SITE_OnActivate, NULL, mceditUndoRedo},
+		{SITK_FlagCtrl + 'z', SITE_OnActivate, NULL, mceditMenuCommand},
+		{SITK_FlagCtrl + 'y', SITE_OnActivate, NULL, mceditMenuCommand},
+		{SITK_FlagCtrl + 'v', SITE_OnActivate, NULL, mceditMenuCommand},
 		{SITK_Escape,         SITE_OnActivate, NULL, mceditCancelStuff},
 		{0}
 	};
@@ -749,7 +726,7 @@ void mceditPlaceBlock(void)
 	if (mcedit.forceSel == 2)
 	{
 		/* pointing at a world item entity */
-		if (sel->side == SIDE_ENTITY)
+		if (sel && sel->side == SIDE_ENTITY)
 		{
 			struct Item_t buffer = {0};
 			entityGetItem(sel->entity, &buffer);

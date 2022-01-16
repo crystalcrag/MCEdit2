@@ -2,7 +2,7 @@
  * NBT2.c : parse a NBT (Named Binary Tag) file format. requires zlib from zlib.net
  *          this is version 2, using a different API with an improved memory management.
  *
- * This API is described more in details in doc/internals.html.
+ * This API is described more in details in doc/NBT.html.
  *
  * Written by T.Pierron, aug 2020.
  */
@@ -1634,6 +1634,21 @@ int NBT_ParseIO(NBTFile file, FILE * in, int offset)
 			gzClose(io);
 			return 1;
 		}
+	}
+	return 0;
+}
+
+int NBT_ParseZlib(NBTFile file, DATA8 stream, int bytes)
+{
+	ZStream io = gzOpen(stream, 2, bytes);
+
+	memset(file, 0, sizeof *file);
+	if (io)
+	{
+		file->page = 4095;
+		NBT_ParseFile(file, io, 0);
+		gzClose(io);
+		return 1;
 	}
 	return 0;
 }

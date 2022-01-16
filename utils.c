@@ -506,6 +506,128 @@ int jsonParseString(DATA8 dst, DATA8 src, int max)
 	return d - dst;
 }
 
+/*
+ * base64 encoder/decoder
+ */
+static uint8_t base64chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+static uint8_t base64rev[128] = {
+	0,0,0,0,0,0,0,0,0,0,
+	0,0,0,0,0,0,0,0,0,0,
+	0,0,0,0,0,0,0,0,0,0,
+	0,0,0,0,0,0,0,0,0,0,
+	0,0,0,62,0,0,0,63,52,53,
+	54,55,56,57,58,59,60,61,0,0,
+	0,0,0,0,0,0,1,2,3,4,
+	5,6,7,8,9,10,11,12,13,14,
+	15,16,17,18,19,20,21,22,23,24,
+	25,0,0,0,0,0,0,26,27,28,
+	29,30,31,32,33,34,35,36,37,38,
+	39,40,41,42,43,44,45,46,47,48,
+	49,50,51
+};
+
+#define WORDWRAP        80  /* wrap base64 every WORDWRAP chars (need to be multiple of 4) */
+
+/* give a slightly upper estimate of the size it would take to encode the number of <bytes> */
+int base64EncodeLength(int bytes)
+{
+	/* size is deterministic and does not depend on source content: for every 3 input bytes => 4 output bytes */
+	int size = (bytes + 2) * 4 / 3;
+
+	/* we will also add newlines to prevent the string from being too long */
+	return size + (size / WORDWRAP) + 2;
+}
+
+/* encode <source> as a base64 string */
+int base64Encode(DATA8 dest, int dstMax, DATA8 source, int srcMax)
+{
+	DATA8 d, s;
+	int   wrap;
+
+	for (wrap = WORDWRAP, s = source, d = dest; srcMax > 0; srcMax -= 3, s += 3)
+	{
+		uint32_t triple;
+		switch (srcMax) {
+		default: /* 3 bytes or more */
+			triple = (s[0] << 16) | (s[1] << 8) | s[2];
+			*d ++ = base64chars[(triple >> 18) & 0x3f];
+			*d ++ = base64chars[(triple >> 12) & 0x3f];
+			*d ++ = base64chars[(triple >>  6) & 0x3f];
+			*d ++ = base64chars[triple & 0x3f];
+			break;
+		case 2:
+			triple = (s[0] << 16) | (s[1] << 8);
+			*d ++ = base64chars[triple >> 18];
+			*d ++ = base64chars[(triple >> 12) & 0x3f];
+			*d ++ = base64chars[(triple >>  6) & 0x3f];
+			*d ++ = '=';
+			break;
+		case 1:
+			*d ++ = base64chars[s[0] >> 2];
+			*d ++ = base64chars[(s[0] & 3) << 4];
+			*d ++ = '=';
+			*d ++ = '=';
+		}
+
+		wrap -= 4;
+		if (wrap == 0)
+			*d ++ = '\n', wrap = WORDWRAP;
+	}
+	if (d > dest && d[-1] != '\n')
+		*d++ = '\n';
+	return d - dest;
+}
+
+int base64Decode(DATA8 source, int length)
+{
+	DATA8 src, dst, max;
+
+	for (src = dst = source, max = src + length; src < max; )
+	{
+		/* try to extract 4 bytes */
+		uint8_t quad[4] = {0, 0, 0, 0}, i;
+		for (i = 0; src < max && i < 4; src ++)
+		{
+			uint8_t chr = src[0];
+			if ((chr & 0x80) == 0 && ((quad[i] = base64rev[chr]) > 0 || chr == 'A'))
+				i ++;
+		}
+
+		*dst ++ = (quad[0] << 2) | (quad[1] >> 4);
+		*dst ++ = (quad[1] << 4) | (quad[2] >> 2);
+		*dst ++ = (quad[2] << 6) | quad[3];
+	}
+	return dst - source;
+}
+
+/* convert <src> into HTML stream suitable to be displayed, without overflowing <dest> */
+void escapeHTML(DATA8 dest, int max, DATA8 src)
+{
+	DATA8 end = dest + max;
+	DATA8 p   = strchr(dest, 0);
+	DATA8 s;
+
+	for (s = src; *s && p < end; s ++)
+	{
+		DATA8   text;
+		uint8_t chr = *s;
+		uint8_t len;
+		switch (chr) {
+		case '<': text = "&lt;"; len = 4; break;
+		case '>': text = "&gt;"; len = 4; break;
+		case '&': text = "&amp;"; len = 5; break;
+		default:  text = &chr; len = 1;
+		}
+		if (p + len >= end)
+		{
+			memcpy(end-5, "...", 4);
+			return;
+		}
+		else memcpy(p, text, len), p += len;
+	}
+	if (p < end-1) p[0] = 0;
+	else p[-1] = 0;
+}
 
 /*
  * classical matrix/vector related operations

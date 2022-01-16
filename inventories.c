@@ -16,11 +16,11 @@
 #include "inventories.h"
 #include "globals.h"
 
-struct
+struct /* keep track of all inventories currently opened in a given interface */
 {
 	SIT_CallProc transfer;
 	SIT_Widget   toolTip;
-	MCInventory  groups[10];
+	MCInventory  groups[10];      /* well, at most 10 actually: ought to be enough(TM) */
 	uint8_t      groupCount;
 	uint8_t      groupIdStart;
 	uint8_t      groupOther;

@@ -19,8 +19,14 @@
 #include "MCEdit.h"
 #include "globals.h"
 #include "NBT2.h"
+#include "extra.h"
+#include "FSView.c"
+
 
 static struct MCLibrary_t library;
+
+static Bool librarySaveAsStream(Map brush);
+static Map libraryNBTToBrush(NBTFile);
 
 /* SITE_OnActivate on "Save" button */
 static int librarySaveCopy(SIT_Widget w, APTR cd, APTR ud)
@@ -202,6 +208,122 @@ static int libraryGetOffset(SIT_Widget w, APTR cd, APTR ud)
 	return 1;
 }
 
+static int libraryExport(SIT_Widget w, APTR cd, APTR ud);
+
+/* user confirmed its action */
+static int libraryForceExport(SIT_Widget w, APTR cd, APTR ud)
+{
+	library.confirm = 1;
+	libraryExport(NULL, NULL, NULL);
+	SIT_CloseDialog(w);
+	return 1;
+}
+
+/* copy selected brush into clipboard as text */
+static int libraryExport(SIT_Widget w, APTR cd, APTR ud)
+{
+	LibBrush brush;
+	Map      map;
+	int      sel = -1;
+	int      copied = 0;
+	int      page;
+
+	SIT_GetValues(library.copyList, SIT_SelectedIndex, &sel, SIT_ItemCount, &page, NULL);
+	if (sel < 0)
+	{
+		/* select first one if none selected */
+		if (page == 0) return 0;
+		SIT_SetValues(library.copyList, SIT_SelectedIndex, sel = 0, NULL);
+	}
+	SIT_GetValues(library.copyList, SIT_RowTag(sel), &brush, NULL);
+
+	map  = brush->data;
+	page = (map->size[VX] * map->size[VY] * map->size[VZ]) >> 13;
+	if (page < 1) page = 1;
+
+	/* page is a rough estimate of the number of 4Kb pages needed to store the text */
+	if (page >= 256 && ! library.confirm)
+	{
+		TEXT msg[128];
+		/* not recommended to store large amount of text into the clipboard */
+		FormatNumber(msg, sizeof msg, "Copying this schematics to memory will require about %d Kb.<br><br>Are you sure you want to continue?", page * 4);
+		FSYesNo(library.copyWnd, msg, libraryForceExport, True, NULL);
+		return 0;
+	}
+
+	if (librarySaveAsStream(map = brush->data))
+	{
+		/* compress the stream with zlib (using deflate method, not gzip) */
+		int   bytes;
+		DATA8 stream = NBT_Compress(&map->levelDat, &bytes, page, NULL, NULL);
+
+		if (stream)
+		{
+			static TEXT header[] = "# MCEdit Schematics v1: encoding=base64, zlib-deflate, NBT\n";
+			/* finally convert to base64 */
+			#define SZHDR      (sizeof header - 1)
+			int max = base64EncodeLength(bytes) + SZHDR;
+			DATA8 clipboard = malloc(max);
+			if (clipboard)
+			{
+				strcpy(clipboard, header);
+				max = base64Encode(clipboard + SZHDR, max - SZHDR, stream, bytes) + SZHDR;
+				SIT_CopyToClipboard(clipboard, max);
+				free(clipboard);
+				copied = 1;
+			}
+			#undef SZHDR
+			free(stream);
+		}
+		NBT_Free(&map->levelDat);
+	}
+	library.confirm = 0;
+	if (copied == 0)
+	{
+		fprintf(stderr, "failed to copy schematics to clipboard\n");
+	}
+	return 0;
+}
+
+/* try to convert the content of the clipboard into a brush */
+int libraryImport(SIT_Widget w, APTR cd, APTR ud)
+{
+	int   size;
+	DATA8 text = SIT_GetFromClipboard(&size);
+
+	if (text)
+	{
+		/* need to starts with this header */
+		DATA8 sep;
+		if (strncasecmp(text, "# MCEdit Schematics", 19) == 0 && (sep = strchr(text, '\n')))
+		{
+			NBTFile_t nbt;
+			size = base64Decode(sep, size - (sep - text));
+			NBT_ParseZlib(&nbt, sep, size);
+			free(text);
+			Map brush = libraryNBTToBrush(&nbt);
+			if (brush)
+			{
+				if (library.copyWnd)
+					libraryAddBrush(brush);
+				else
+					selectionUseBrush(brush, False);
+			}
+		}
+		else
+		{
+			TEXT msg[256];
+			strcpy(msg, "<b>Clipboard does not appear to contain a schematics.</b> It starts with:<br><br>");
+			escapeHTML(msg, 128, text);
+			strcat(msg, "<br><br><note>Note</note>: should starts with \"# MCEdit Schematics\".");
+			FSYesNo(w, msg, NULL, False, NULL);
+			free(text);
+		}
+	}
+
+	return 1;
+}
+
 /* user just hit Ctrl+C in world editor */
 void libraryCopySelection(Map brush)
 {
@@ -219,11 +341,17 @@ void libraryCopySelection(Map brush)
 			"<button name=use.act title=Use enabled=0 left=WIDGET,save,0.5em>"
 			"<button name=ko.act title=Delete enabled=0 left=WIDGET,use,0.5em>"
 			"<listbox columnNames=X name=list left=FORM right=FORM listBoxFlags=", SITV_NoHeaders, "top=WIDGET,save,0.5em rowMaxVisible=4>"
+			"<button name=clip.act title='To clipboard' top=WIDGET,list,0.5em>"
+			"<button name=paste.act title='Paste' top=OPPOSITE,clip left=WIDGET,clip,0.5em>"
 		);
 		library.copyList = SIT_GetById(diag, "list");
 		library.save     = SIT_GetById(diag, "save");
 		library.use      = SIT_GetById(diag, "use");
 		library.del      = SIT_GetById(diag, "ko");
+
+		SIT_AddCallback(SIT_GetById(diag, "clip"),  SITE_OnActivate, libraryExport, NULL);
+		SIT_AddCallback(SIT_GetById(diag, "paste"), SITE_OnActivate, libraryImport, NULL);
+
 		SIT_AddCallback(library.save,     SITE_OnActivate, librarySaveCopy, library.copyList);
 		SIT_AddCallback(library.use,      SITE_OnActivate, libraryUseCopy,  library.copyList);
 		SIT_AddCallback(library.del,      SITE_OnActivate, libraryDelCopy,  library.copyList);
@@ -333,8 +461,22 @@ static Bool libraryParseSchematics(LibBrush lib, DATA16 size)
 	return True;
 }
 
+static Map libraryNBTToBrush(NBTFile nbt)
+{
+	struct LibBrush_t lib = {};
+	uint16_t size[] = {
+		[VY] = NBT_GetInt(nbt, NBT_FindNode(nbt, 0, "Height"), 0),
+		[VZ] = NBT_GetInt(nbt, NBT_FindNode(nbt, 0, "Length"), 0),
+		[VX] = NBT_GetInt(nbt, NBT_FindNode(nbt, 0, "Width"), 0)
+	};
+	memcpy(&lib.nbt, nbt, sizeof lib.nbt);
+	libraryParseSchematics(&lib, size);
+	return lib.data;
+}
+
+
 /* save brush as a MCEdit v1 schematic file */
-static Bool librarySaveSchematics(Map brush, STRPTR path)
+static Bool librarySaveAsStream(Map brush)
 {
 	NBTFile_t nbt = {.page = 511};
 	int size[] = {brush->size[VX] - 2,
@@ -391,16 +533,26 @@ static Bool librarySaveSchematics(Map brush, STRPTR path)
 
 	//NBT_Dump(&nbt, 0, 0, 0);
 
-	bytes = NBT_Save(&nbt, path, NULL, NULL);
-	NBT_Free(&nbt);
+	memcpy(&brush->levelDat, &nbt, sizeof nbt);
 
-	return bytes > 0;
+	return nbt.usage > 0;
 }
 
 /*
  * user's library interface
  */
 
+static Bool librarySaveSchematics(Map brush, STRPTR path)
+{
+	if (librarySaveAsStream(brush))
+	{
+		int bytes = NBT_Save(&brush->levelDat, path, NULL, NULL);
+		NBT_Free(&brush->levelDat);
+		memset(&brush->levelDat, 0, sizeof brush->levelDat);
+		return bytes > 0;
+	}
+	return False;
+}
 
 static Bool libraryExtractThumb(LibBrush lib, STRPTR path, DATA16 size)
 {
@@ -426,9 +578,6 @@ static Bool libraryExtractThumb(LibBrush lib, STRPTR path, DATA16 size)
 	}
 	return lib->nvgFBO > 0;
 }
-
-#include "extra.h"
-#include "FSView.c"
 
 /* generate a preview from schematic */
 static int libraryGenPreview(SIT_Widget w, APTR cd, APTR ud)
@@ -570,7 +719,7 @@ static int librarySelectName(SIT_Widget w, APTR cd, APTR ud)
 		{
 			TEXT error[256];
 			snprintf(error, sizeof error, "Failed to save '%s': %s\n", (STRPTR) ud, GetError());
-			FSYesNo(view, error, NULL, False);
+			FSYesNo(view->list, error, NULL, False, view);
 		}
 		else SIT_Exit(1);
 		/* no mesh allocated: only a temporary brush */
@@ -595,7 +744,6 @@ static int librarySelectName(SIT_Widget w, APTR cd, APTR ud)
 		}
 		/* else not yet generated */
 	}
-	//fprintf(stderr, "name = %s\n", (STRPTR) ud);
 	return 1;
 }
 

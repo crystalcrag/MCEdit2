@@ -116,7 +116,7 @@ int optionsQuickAccess(SIT_Widget unused1, APTR unused2, APTR unused3)
 		" buddyLabel=", "Redstone tick:", &max, ">"
 		"<label name=msg left=WIDGET,tick,0.5em top=MIDDLE,tick title='ms (def: 100)'>"
 
-		"<button name=ko.act title=Close top=WIDGET,tick,0.5em right=FORM>"
+		"<button name=ko.act title=Use top=WIDGET,tick,0.5em right=FORM>"
 		"<button name=ok.act title=Save top=OPPOSITE,ko right=WIDGET,ko,0.5em nextCtrl=ko buttonType=", SITV_DefaultButton, ">"
 		"<button name=def.act title=Default top=OPPOSITE,ko right=WIDGET,ok,0.5em nextCtrl=ok>"
 	);

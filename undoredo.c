@@ -44,6 +44,13 @@ static void undoAddMem(ListHead * head, APTR buffer, int size)
 	while (size > 0);
 }
 
+static void undoFreeLog(ListHead * head)
+{
+	UndoLogBuf log, next;
+	for (log = HEAD(*head); log; next = (UndoLogBuf) log->node.ln_Next, free(log), log = next);
+	memset(head, 0, sizeof *head);
+}
+
 /* retrieve some memory from the log */
 static void undoGetMem(APTR mem, int max, UndoLogBuf log, int offset)
 {
@@ -83,9 +90,18 @@ static inline void undoFlushRepeat(ListHead * head)
 /* register an operation in the log */
 void undoLog(int type, ...)
 {
-	va_list args;
+	va_list    args;
+	ListHead * head;
 
-	ListHead * head = journal.inUndo == 1 ? &journal.redoLog : &journal.undoLog;
+	if (journal.inUndo == 0)
+	{
+		UndoLogBuf log = HEAD(journal.redoLog);
+		if (log && log->usage > 0)
+			/* redo log is now out of sync, so discard everything */
+			undoFreeLog(&journal.redoLog);
+		head = &journal.undoLog;
+	}
+	else head = &journal.redoLog;
 
 	va_start(args, type);
 	switch (type & 0x7f) {
@@ -313,7 +329,6 @@ void undoDebug(void)
 	undoDebugLog("undo", &journal.undoLog);
 	undoDebugLog("redo", &journal.redoLog);
 }
-
 #endif
 
 static void inline undoNextBlock(int XYZ[3], int * start)

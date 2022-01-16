@@ -54,6 +54,7 @@
 <a class="sub1" href="#entities"><span>Entities</span></a>
   <a class="sub2" href="#structure"><span>Data structure</span></a>
   <a class="sub2" href="#collision"><span>Collision detection</span></a>
+  <a class="sub2" href="#partitioning"><span>Space partionning</span></a>
 
 <a class="sub1" href="#emitters"><span>Particle emitters</span></a>
 
@@ -1690,6 +1691,11 @@ Raypicking (ie: pointing an entity with mouse) will take rotation into account t
 
 <p>Collision detection is implemented using a swept AABB algorithm and correction is done through sliding
 adjustment and was strongly inspired by <a href="https://www.gamedev.net/tutorials/programming/general-and-gameplay-programming/swept-aabb-collision-detection-and-response-r3084/">this article</a>.
+
+<p>This algotrithm works extremely well in all use case, but it has one major limitation: it tends to
+break down when bounding box are already intersecting.
+
+<h3 id="partitioning"><span>Space partionning</span></h3>
 
 <p>One aspect related to collision detection, is <b>entities enumeration</b>. Since entities are spread all
 over the world and don't rely on the voxel grid, enumerating them without scanning the majority of

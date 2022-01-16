@@ -1,6 +1,7 @@
 /*
- * mapUpdate.c : keep various tables (Blocks, Data, HeightMap, SkyLight, BlockLight)
- *               up to date, according to user changes.
+ * mapUpdate.c : keep various tables (Blocks, Data, HeightMap, SkyLight, BlockLight) up to date,
+ *               according to user changes: this is the main module for voxel manipulation (including
+ *               a good chunk of redstone logic).
  *
  * written by T.Pierron, sep 2020
  */
@@ -1592,7 +1593,7 @@ void mapUpdateFlush(Map map)
 					mapUpdate(map, pos, newId, NULL, UPDATE_DONTLOG);
 				}
 			}
-			else mapUpdate(map, pos, update->blockId, update->tile, UPDATE_SILENT | UPDATE_DONTLOG);
+			else mapUpdate(map, pos, update->blockId, update->tile, UPDATE_GRAVITY | UPDATE_SILENT | UPDATE_DONTLOG);
 			i --;
 		}
 	}

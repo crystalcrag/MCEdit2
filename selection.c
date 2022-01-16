@@ -397,6 +397,7 @@ void selectionRender(void)
 {
 	if (globals.selPoints)
 	{
+		glEnable(GL_CULL_FACE);
 		if (globals.selPoints & (1 << SEL_POINT_CLONE))
 		{
 			/* draw the brush (only once, no matter how many repeats there are) */
@@ -1100,6 +1101,10 @@ void selectionUseBrush(Map lib, Bool dup)
 	/* simplified edit window */
 	selectionEditBrush(True);
 	renderSetSelectionPoint(RENDER_SEL_AUTOMOVE);
+	vec4 pos;
+	MapExtraData extra = renderGetSelectedBlock(pos, NULL);
+	if (extra)
+		selectionSetClonePt(pos, extra->side);
 }
 
 

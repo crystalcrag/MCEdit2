@@ -1,5 +1,6 @@
 /*
- * Chunks.c : manage loading, saving and meshing of chunks.
+ * Chunks.c : manage loading, saving and most importantly: meshing of chunks; this is where vertex data
+ *            is created for the GPU (ie: for shaders blocks.(vsh|gsh|fsh)).
  *
  * Written by T.Pierron, jan 2020
  */

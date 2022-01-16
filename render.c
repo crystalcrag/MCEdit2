@@ -1,5 +1,5 @@
 /*
- * render.c : render world using openGL: this is the heart of the rendering engine.
+ * render.c : render world using openGL: this is the core of the rendering engine.
  *
  * VBO/VAO for chunks are allocated here.
  *
@@ -1631,7 +1631,7 @@ void renderWorld(void)
 	{
 		debugCoord(vg, render.camera, render.debugTotalTri/3);
 		entityRenderBBox();
-		//quadTreeDebug(globals.nvgCtx);
+		quadTreeDebug(globals.nvgCtx);
 	}
 	nvgEndFrame(vg);
 

@@ -89,6 +89,12 @@ typedef Bool (*JSONParseCb_t)(const char * file, STRPTR * keys, int line);
 Bool   jsonParse(const char * file, JSONParseCb_t cb);
 STRPTR jsonValue(STRPTR * keys, STRPTR key);
 int    jsonParseString(DATA8 dst, DATA8 src, int max);
+void   escapeHTML(DATA8 dest, int max, DATA8 src);
+
+/* base64 encoder/decoder */
+int base64EncodeLength(int bytes);
+int base64Encode(DATA8 dest, int dstMax, DATA8 source, int srcMax);
+int base64Decode(DATA8 source, int length);
 
 /* res can point to A or B */
 void matTranspose(mat4 A);

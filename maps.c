@@ -1,5 +1,6 @@
 /*
- * maps.c : anvil file format handling, load chunks according to player position
+ * maps.c : anvil file format handling, load chunks according to player position, perform frustum and
+ *          cave culling, also handle logic for ray-picking (ie: pointing at blocks).
  *
  * Written by T.Pierron, jan 2020
  */

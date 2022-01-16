@@ -241,7 +241,11 @@ static int entityModelCount(ItemID_t id, int cnx)
 			if (b->custModel == NULL) return 36; /* assume cube, if no model */
 			if (cnx == 0)
 			{
-				cnx = b->custModel[-1];
+				if (b->special == BLOCK_CHEST)
+					/* don't want double chest models */
+					cnx = blockInvCountVertex(b->custModel, 1);
+				else
+					cnx = b->custModel[-1];
 				if (b->special == BLOCK_SOLIDOUTER)
 					cnx += 36;
 			}
@@ -304,7 +308,11 @@ static int entityGenModel(EntityBank bank, ItemID_t itemId, int cnx, CustModel c
 			}
 			else if (b->custModel)
 			{
-				if (cnx > 0)
+				if (b->special == BLOCK_CHEST)
+				{
+					count = blockInvCopyFromModel(buffer, b->custModel, 1);
+				}
+				else if (cnx > 0)
 				{
 					/* filter some parts out */
 					count = blockInvCopyFromModel(buffer, b->custModel, cnx);
@@ -1277,11 +1285,12 @@ void entityGetPos(int entityId, float ret[3])
 		memset(ret, 0, 12);
 }
 
+#define ANIM_REMAIN(ptr)     ((DATA8) (entities.animate + entities.animCount) - (DATA8) ptr)
 
 void entityAnimate(void)
 {
 	EntityAnim anim;
-	int i, j, time = globals.curTime, finalize = 0;
+	int i, time = globals.curTime, finalize = 0;
 	for (i = entities.animCount, anim = entities.animate; i > 0; i --)
 	{
 		Entity entity = anim->entity;
@@ -1305,7 +1314,7 @@ void entityAnimate(void)
 					/* just remove the anim, but keep the entity */
 					entities.animCount --;
 					entity->enflags &= ~ENFLAG_INANIM;
-					memmove(anim, anim + 1, entities.animCount * sizeof *anim);
+					memmove(anim, anim + 1, ANIM_REMAIN(anim));
 				}
 				else /* remove anim and convert entity to block or item */
 				{
@@ -1314,7 +1323,7 @@ void entityAnimate(void)
 					entityDelete(entity->chunkRef, entity->tile);
 					/* remove from list */
 					entities.animCount --;
-					memmove(anim, anim + 1, entities.animCount * sizeof *anim);
+					memmove(anim, anim + 1, ANIM_REMAIN(anim));
 				}
 			}
 			else anim ++;
@@ -1322,26 +1331,21 @@ void entityAnimate(void)
 		else if (remain > 0)
 		{
 			float oldPos[3];
-			float scale = ENTITY_SCALE(entity);
-			float sizes[3] = {
-				entity->szx * scale,
-				entity->szy * scale,
-				entity->szz * scale
-			};
+			int j;
 			memcpy(oldPos, entity->pos, 12);
 			for (j = 0; j < 3; j ++)
 			{
 				/* entity->pos will drift due to infinitesimal error accumulation on iterative sum */
-				scale = entity->pos[j] += (entity->motion[j] - entity->pos[j]) * (time - anim->prevTime) / remain;
+				float pos = entity->pos[j] += (entity->motion[j] - entity->pos[j]) * (time - anim->prevTime) / remain;
 				/* physics collision are very picky about not exceeding bounding box :-/ */
-				if ((scale - oldPos[j]) * (entity->motion[j] - scale) < 0)
+				if ((pos - oldPos[j]) * (entity->motion[j] - pos) < 0)
 					entity->pos[j] = entity->motion[j];
 			}
 			anim->prevTime = time;
 
 			/* update VBO */
 			entityUpdateInfo(entity, oldPos);
-			physicsEntityMoved(globals.level, entity, oldPos, entity->pos, sizes);
+			physicsEntityMoved(globals.level, entity, oldPos, entity->pos);
 			anim ++;
 		}
 		else /* anim done: remove entity */
@@ -1349,9 +1353,11 @@ void entityAnimate(void)
 			DATA8 tile = entity->tile;
 			vec4  dest;
 			memcpy(dest, entity->motion, 12);
+			/* due to lag, entity animation can skip entirely the branch before this "else" */
+			physicsEntityMoved(globals.level, entity, entity->pos, entity->motion);
 			/* remove from list */
 			entities.animCount --;
-			memmove(anim, anim + 1, entities.animCount * sizeof *anim);
+			memmove(anim, anim + 1, ANIM_REMAIN(anim));
 			entityDelete(entity->chunkRef, tile);
 			updateFinished(tile, dest);
 			finalize = 1;
