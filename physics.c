@@ -557,7 +557,7 @@ Bool physicsMoveEntity(Map map, PhysicsEntity entity, float speed)
  * entity moved: check if other entities must be moved along
  */
 
-static Bool physicsPushEntity(float broad[6], vec4 pos, float size[3], float dir[3])
+static Bool physicsPushEntity(float broad[6], vec4 pos, float size[3], char dir[3], PhysicsEntity phys)
 {
 	if (fminf(pos[VX] + size[VX], broad[VX+3]) - fmaxf(pos[VX] - size[VX], broad[VX]) < EPSILON ||
 	    fminf(pos[VY] + size[VY], broad[VY+3]) - fmaxf(pos[VY] - size[VY], broad[VY]) < EPSILON ||
@@ -566,16 +566,32 @@ static Bool physicsPushEntity(float broad[6], vec4 pos, float size[3], float dir
 	    return False;
 
 	float endPos[3];
+	uint8_t axis = 0;
 
-	if (dir[VX] < 0) endPos[VX] = broad[VX]   - size[VX]; else
-	if (dir[VX] > 0) endPos[VX] = broad[VX+3] + size[VX]; else endPos[VX] = pos[VX];
-	if (dir[VY] < 0) endPos[VY] = broad[VY]   - size[VY]; else
-	if (dir[VY] > 0) endPos[VY] = broad[VY+3] + size[VY]; else endPos[VY] = pos[VY];
-	if (dir[VZ] < 0) endPos[VZ] = broad[VZ]   - size[VZ]; else
-	if (dir[VZ] > 0) endPos[VZ] = broad[VZ+3] + size[VZ]; else endPos[VZ] = pos[VZ];
+	if (dir[VY] == 0) endPos[VY] = pos[VY]; else
+	if ((broad[VY] + broad[VY+3]) * 0.5f < pos[VY]) endPos[VY] = broad[VY+3] + size[VY], axis = 2;
+	else endPos[VY] = broad[VY] - size[VY], axis = 2;
+
+	if (dir[VX] < 0) endPos[VX] = broad[VX]   - size[VX], axis |= 1; else
+	if (dir[VX] > 0) endPos[VX] = broad[VX+3] + size[VX], axis |= 1; else endPos[VX] = pos[VX];
+//	if (dir[VY] < 0) endPos[VY] = broad[VY]   - size[VY]; else
+//	if (dir[VY] > 0) endPos[VY] = broad[VY+3] + size[VY]; else endPos[VY] = pos[VY];
+	if (dir[VZ] < 0) endPos[VZ] = broad[VZ]   - size[VZ], axis |= 4; else
+	if (dir[VZ] > 0) endPos[VZ] = broad[VZ+3] + size[VZ], axis |= 4; else endPos[VZ] = pos[VZ];
+
+	fprintf(stderr, "pushing entity from %g to %g\n", (double) pos[VY], (double) endPos[VY]);
 
 	//physicsCheckCollision(map, pos, endPos, bbox, 0.5);
 	memcpy(pos, endPos, 12);
+
+	if (phys)
+	{
+		memcpy(phys->loc, endPos, 12);
+		if (axis & 1) phys->dir[VX] = 0, phys->friction[VX] = 0;
+		if (axis & 2) phys->dir[VY] = 0, phys->friction[VY] = 0;
+		if (axis & 4) phys->dir[VZ] = 0, phys->friction[VZ] = 0;
+	}
+
 	return True;
 }
 
@@ -583,7 +599,7 @@ void physicsEntityMoved(Map map, APTR self, vec4 start, vec4 end)
 {
 	float broad[6];
 	float size[3];
-	float dir[3];
+	char  dir[3];
 	int   i, count;
 
 	{
@@ -622,7 +638,7 @@ void physicsEntityMoved(Map map, APTR self, vec4 start, vec4 end)
 			float oldPos[3];
 			memcpy(oldPos, entity->pos, 12);
 
-			if (physicsPushEntity(broad, entity->pos, bbox, dir))
+			if (physicsPushEntity(broad, entity->pos, bbox, dir, entity->private))
 				entityUpdateInfo(entity, oldPos);
 		}
 	}
@@ -639,7 +655,7 @@ void physicsEntityMoved(Map map, APTR self, vec4 start, vec4 end)
 		float pos[3];
 		memcpy(pos, p->pos, sizeof pos);
 		pos[VY] += bbox[VY];
-		if (physicsPushEntity(broad, pos, bbox, dir))
+		if (physicsPushEntity(broad, pos, bbox, dir, NULL))
 		{
 			/* we'll need to check collision before we can set the new coord */
 			memcpy(p->pushedTo, pos, sizeof pos);

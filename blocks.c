@@ -2466,9 +2466,10 @@ int blockAdjustOrient(int blockId, BlockOrient info, vec4 inter)
 		case BLOCK_SIGN:
 			if (side >= 4)
 			{
-				int data = (info->yaw + M_PI_2f + M_PIf/16) / (M_PIf/8);
+				int data = (info->yaw + M_PIf/32) / (M_PIf/8);
+				if (data < 0)  data += 16; else
 				if (data > 15) data -= 16;
-				return ID(63, data);
+				return ID(63, (data+4) & 15);
 			}
 			else return blockId + orientFull[side];
 		}

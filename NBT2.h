@@ -42,7 +42,6 @@ void  NBT_IterCompound(NBTIter, DATA8 mem);
 APTR  NBT_Payload(NBTFile, int offset);
 APTR  NBT_ArrayStart(NBTFile root, int offset, int * size);
 APTR  NBT_PayloadFromStream(DATA8 stream, int offset, STRPTR name);
-APTR  NBT_AddMem(NBTFile nbt, int size);
 Bool  NBT_Add(NBTFile nbt, ...);
 Bool  NBT_Delete(NBTFile nbt, int offset, int nth);
 DATA8 NBT_Copy(DATA8 mem);

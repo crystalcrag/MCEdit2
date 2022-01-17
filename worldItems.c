@@ -110,16 +110,16 @@ static int worldItemParseItemFrame(NBTFile nbt, Entity entity)
 			 * note: data in this case refers to id in data/map_%d.dat, this number can be arbitrarily large.
 			 */
 			entity->entype  = ENTYPE_FILLEDMAP;
-			entity->enflags = ENFLAG_POPIFPUSHED;
-			entity->blockId = ENTITY_ITEM | data;
+			entity->enflags = ENFLAG_POPIFPUSHED | ENFLAG_ITEM;
+			entity->blockId = data;
 			return entityAddModel(ITEMID(ENTITY_ITEMFRAME_FULL, 0), 0, NULL, &entity->szx, worldItemSwapAxis(entity));
 		}
 		else if (blockId > 0)
 		{
 			/* we will have to alloc another entity for the item in the frame */
 			entity->entype  = ENTYPE_FRAMEITEM;
-			entity->enflags = ENFLAG_POPIFPUSHED;
-			entity->blockId = ENTITY_ITEM | blockId | data;
+			entity->enflags = ENFLAG_POPIFPUSHED | ENFLAG_ITEM;
+			entity->blockId = blockId | data;
 		}
 	}
 	/* item in frame will be allocated later (worldItemAddItemInFrame) */
@@ -139,6 +139,7 @@ static int worldItemParseItem(NBTFile nbt, Entity entity)
 		entity->rotation[3] = 0.5; /* scale actually */
 		//if (isBlockId(blockId))
 		//	entity->pos[VY] += 0.25f;
+		entity->enflags |= ENFLAG_ITEM;
 		return entityAddModel(entity->blockId = blockId | data, 0, NULL, &entity->szx, MODEL_DONT_SWAP);
 	}
 	return 0;
@@ -206,19 +207,17 @@ void worldItemCreateGeneric(NBTFile nbt, Entity entity, STRPTR name)
 void worldItemCreateBlock(Entity entity, Bool fallingEntity)
 {
 	PhysicsEntity physics;
-	VTXBBox bbox;
-	NBTFile_t nbt = {.page = 255};
-	TEXT blockDesc[128];
-	int blockId = entity->blockId & ~ENTITY_ITEM;
+	NBTFile_t     nbt = {.page = 255};
+	TEXT          blockDesc[128];
 
-	itemGetTechName(blockId, blockDesc, sizeof blockDesc, False);
+	itemGetTechName(entity->blockId, blockDesc, sizeof blockDesc, False);
 
 	worldItemCreateGeneric(&nbt, entity, fallingEntity ? "falling_block" : "item");
 	if (fallingEntity)
 	{
 		NBT_Add(&nbt,
 			TAG_String, "Block", blockDesc,
-			TAG_Byte,   "Data",  blockId & 15,
+			TAG_Byte,   "Data",  entity->blockId & 15,
 			TAG_Compound_End
 		);
 	}
@@ -228,18 +227,17 @@ void worldItemCreateBlock(Entity entity, Bool fallingEntity)
 			TAG_Compound, "Item",
 				TAG_String, "id", blockDesc,
 				TAG_Byte,   "Count", 1,
-				TAG_Short,  "Damage", blockId & 15,
+				TAG_Short,  "Damage", entity->blockId & 15,
 			TAG_Compound_End
 		);
 		NBT_Add(&nbt, TAG_Compound_End);
 	}
-	entity->tile = nbt.mem;
-	entity->private = physics = NBT_AddMem(&nbt, sizeof *physics + sizeof *bbox);
 
-	memset(physics, 0, sizeof *physics);
-	physicsInitEntity(physics, blockId);
+	entity->tile = nbt.mem;
+	entityAllocPhysics(entity);
+	physics = entity->private;
+	physicsInitEntity(physics, entity->blockId);
 	memcpy(physics->loc, entity->pos, sizeof physics->loc);
-	physics->bbox = bbox = (VTXBBox) (physics+1);
 	physics->light = entity->light[0] & 0xff;
 	if (fallingEntity)
 	{
@@ -253,21 +251,6 @@ void worldItemCreateBlock(Entity entity, Bool fallingEntity)
 		physics->dir[VZ] *= 8;
 		physics->dir[VY] = 0.1f;
 	}
-
-	float scale = entity->rotation[3] * 0.5f;
-	uint16_t size[] = {
-		entity->szx * scale,
-		entity->szy * scale,
-		entity->szz * scale
-	};
-
-	bbox->pt1[0] = ORIGINVTX - size[VX];
-	bbox->pt1[1] = ORIGINVTX - size[VY];
-	bbox->pt1[2] = ORIGINVTX - size[VZ];
-
-	bbox->pt2[0] = ORIGINVTX + size[VX];
-	bbox->pt2[1] = ORIGINVTX + size[VY];
-	bbox->pt2[2] = ORIGINVTX + size[VZ];
 }
 
 /* falling block reach some solid ground: check if we can turn it back to block or item */
@@ -390,7 +373,7 @@ Entity worldItemAddItemInFrame(Chunk chunk, Entity frame, int entityId)
 		frame->next = next;
 		item->ref = frame;
 		item->next = ENTITY_END;
-		item->blockId = frame->blockId & ~ENTITY_ITEM;
+		item->blockId = frame->blockId;
 		item->tile = frame->tile;
 		item->chunkRef = chunk;
 		frame->blockId = 0;
@@ -635,7 +618,7 @@ void worldItemUseItemOn(Map map, int entityId, ItemID_t itemId, vec4 pos)
 			chunkDeleteTile(chunk, entity->tile);
 			entity->name = NBT_Payload(&tile, NBT_FindNode(&tile, 0, "id"));
 			entity->tile = tile.mem;
-			entity->blockId = itemId | ENTITY_ITEM;
+			entity->blockId = itemId;
 			entity->entype = strcmp(buffer, "minecraft:filled_map") == 0 ? ENTYPE_FILLEDMAP : ENTYPE_FRAMEITEM;
 			uint16_t next = entity->next;
 			entity = worldItemAddItemInFrame(chunk, entity, entityId);
@@ -696,9 +679,10 @@ void worldItemPreview(vec4 camera, vec4 pos, ItemID_t itemId)
 			angle += M_PIf;
 		/* shader wants a positive angle */
 		preview->rotation[0] = normAngle(angle);
+		preview->enflags = ENFLAG_ITEM;
 		preview->VBObank = entityAddModel(preview->blockId = itemId, 0, NULL, &preview->szx, MODEL_DONT_SWAP);
 
-		worldItem.previewOffVY = preview->szy * preview->rotation[3] * 0.5f / BASEVTX;
+		worldItem.previewOffVY = preview->szy * preview->rotation[3] * (0.5f/BASEVTX);
 		preview->pos[VY] += worldItem.previewOffVY;
 
 		/* fully bright, to somewhat highlight that this item has not been placed yet */
@@ -719,7 +703,8 @@ void worldItemUpdatePreviewPos(vec4 camera, vec4 pos)
 		memcpy(preview->pos, pos, 12);
 		preview->pos[VY] += worldItem.previewOffVY;
 		float angle = atan2f(pos[VX] - camera[VX], pos[VZ] - camera[VZ]);
-		if (isBlockId(preview->blockId) && blockIds[preview->blockId>>4].special == BLOCK_STAIRS)
+		ItemID_t itemId = preview->blockId;
+		if (isBlockId(itemId) && blockIds[itemId>>4].special == BLOCK_STAIRS)
 			/* viewed from front instead of side */
 			angle += M_PI_2f;
 		else
@@ -762,7 +747,7 @@ void worldItemAdd(Map map)
 				TAG_Compound, "Item",
 					TAG_String, "id", itemName,
 					TAG_Byte,   "Count", 1,
-					TAG_Short,  "Damage", 0,
+					TAG_Short,  "Damage", preview->blockId & 15,
 				TAG_Compound_End
 			);
 			NBT_Add(&nbt, TAG_Compound_End);
@@ -775,9 +760,10 @@ void worldItemAdd(Map map)
 
 			preview->tile = nbt.mem;
 			preview->enflags &= ~ENFLAG_FULLLIGHT;
-			preview->chunkRef = chunk;
 			entityGetLight(chunk, preview->pos, preview->light, False);
 			entityMarkListAsModified(map, chunk);
+			entityUpdateInfo(preview, NULL);
+			preview->chunkRef = chunk;
 			worldItem.preview = NULL;
 			worldItem.slot = 0;
 			renderAddModif();

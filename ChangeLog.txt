@@ -1,4 +1,8 @@
 =========== Week 2 ===========
+Sun Jan 16:
+	* standing sign placement was broken (again).
+	* world items react to world change (piston, blocks placed/removed).
+
 Sat Jan 15:
 	* copy/pasting schematics (from/to clipboard).
 	* bug fixed with piston pushing entities.

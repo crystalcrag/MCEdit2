@@ -33,7 +33,8 @@ void   entityGetItem(int entityId, Item ret);
 void   entityGetPos(int entityId, float ret[3]);
 void   entityRenderBBox(void);
 int    entityCreatePlayer(void);
-int    entityGetId(Entity entity);
+int    entityGetId(Entity);
+void   entityUpdateNearby(BlockIter, int blockId);
 
 /* clone entities with selection */
 APTR entityCopy(int vtxCount, vec4 origin, DATA16 entityIds, int maxEntities, DATA32 models, int maxModels);
@@ -60,7 +61,6 @@ Entity * quadTreeIntersect(float bbox[6], int * count, int filter);
 
 #define UPDATE_BY_PHYSICS          -1 /* special param for <ticks> of entityUpdateOrCreate() */
 #define ENTITY_END                 0xffff
-#define ENTITY_ITEM                0x80000000  /* differentiate world item from block entity (Entity_t.blockId) */
 
 enum                               /* possible flags for Entity_t.enflags */
 {
@@ -74,8 +74,9 @@ enum                               /* possible flags for Entity_t.enflags */
 	ENFLAG_HASBBOX     = 128,      /* other entities can collide with these */
 	ENFLAG_USEMOTION   = 256,      /* use entity->motion as position */
 	ENFLAG_INANIM      = 512,      /* used in a animated sequence (need to remove ref when deleted) */
+	ENFLAG_ITEM        = 1024,     /* differentiate world item from block entity (Entity_t.blockId) */
 
-	ENFLAG_EQUALZERO   = 1024      /* extra <filter> parameter for quadTreeIntersect() */
+	ENFLAG_EQUALZERO   = 2048      /* extra <filter> parameter for quadTreeIntersect() */
 };
 
 enum /* transform param for entityCopyTransform() */
@@ -132,6 +133,9 @@ extern Paintings_t paintings;      /* convert painting string id to model id */
 #define BANK_NUM(vbo)              ((vbo) & 63)
 #define MDAI_INVALID_SLOT          0xffff
 #define ENTITY_SCALE(entity)       ((entity)->rotation[3] * (0.5f / BASEVTX))
+#define ENTITY_ITEM                0x80000000
+
+#include "physics.h"
 
 typedef struct Entity_t            Entity_t;
 typedef struct EntityEntry_t *     EntityEntry;
@@ -141,7 +145,9 @@ typedef struct EntityModel_t *     EntityModel;
 typedef struct EntityHash_t        EntityHash_t;
 typedef struct EntityAnim_t *      EntityAnim;
 typedef struct EntityType_t *      EntityType;
+typedef struct EntityPhysBatch_t * EntityPhysBatch;
 typedef struct CustModel_t *       CustModel;
+typedef struct PhysicsBBox_t *     PhysicsBBox;
 
 typedef int (*EntityParseCb_t)(NBTFile, Entity);
 
@@ -243,11 +249,28 @@ struct EntityType_t                /* callbacks to parse content of NBT records 
 	EntityParseCb_t cb;
 };
 
+struct PhysicsBBox_t               /* to alloc bbox at the same time */
+{
+	struct PhysicsEntity_t physics;
+	struct VTXBBox_t       bbox;
+};
+
+#define PHYSBOX    struct PhysicsBBox_t
+
+struct EntityPhysBatch_t           /* provide buffers to process physics fo a moving entity */
+{
+	ListNode node;
+	uint32_t usage[4];
+	uint8_t  count;
+	PHYSBOX  mem[128];
+};
+
 struct EntitiesPrivate_t           /* static vars for entity.c */
 {
 	EntityHash_t hash;
 	ListHead     list;             /* EntityBuffer */
 	ListHead     banks;            /* EntityBank */
+	ListHead     physBatch;        /* EntityPhysBatch */
 	EntityAnim   animate;
 	int          animCount;
 	int          animMax;
@@ -288,6 +311,8 @@ int    entityAddModel(ItemID_t, int cnx, CustModel cust, DATA16 sizes, int swapA
 void   entityDeleteSlot(int slot);
 void   entityUpdateInfo(Entity, vec4 oldPos);
 void   entityGetBoundsForFace(Entity entity, int face, vec4 V0, vec4 V1);
+void   entityFreePhysics(Entity);
+void   entityAllocPhysics(Entity);
 
 enum                  /* possible values for swapAxis of entityAddModel() */
 {

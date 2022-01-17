@@ -134,7 +134,6 @@ int entityGetModelBank(ItemID_t id)
 	if (entities.hash.count == 0)
 		return 0;
 
-	id &= ~ENTITY_ITEM; /* will use same models as normal blocks */
 	int i = id % entities.hash.max;
 	EntityEntry entry = entities.hash.list + i;
 	if (entry->VBObank == 0)
@@ -215,7 +214,6 @@ extern int blockInvModelCube(DATA16 ret, BlockState b, DATA8 texCoord);
 /* get vertex count for entity id */
 static int entityModelCount(ItemID_t id, int cnx)
 {
-	id &= ~ENTITY_ITEM; /* same as normal block/item */
 	if (isBlockId(id))
 	{
 		/* normal block */
@@ -267,7 +265,6 @@ static int entityGenModel(EntityBank bank, ItemID_t itemId, int cnx, CustModel c
 	uint16_t U, V;
 	uint16_t sizes[3];
 	uint16_t atlas;
-	itemId &= ~ENTITY_ITEM;
 
 	U = V = atlas = 0;
 	buffer += bank->vtxCount * INT_PER_VERTEX;
@@ -478,6 +475,65 @@ Entity entityAlloc(uint16_t * entityLoc)
 	return entity;
 }
 
+/* used to manage movement based on physics.c for an entity */
+void entityAllocPhysics(Entity entity)
+{
+	EntityPhysBatch batch;
+	PhysicsBBox phys;
+	VTXBBox bbox;
+
+	for (batch = HEAD(entities.physBatch); batch; NEXT(batch))
+	{
+		if (batch->count < DIM(batch->mem))
+		{
+			int i = mapFirstFree(batch->usage, 4);
+			batch->count ++;
+			phys = batch->mem + i;
+			memset(phys, 0, sizeof *phys);
+			goto init;
+		}
+	}
+	batch = calloc(sizeof *batch, 1);
+	ListAddTail(&entities.physBatch, &batch->node);
+	batch->count = 1;
+	batch->usage[0] = 1;
+	phys = batch->mem;
+	init:
+	entity->private = phys;
+	phys->physics.bbox = bbox = &phys->bbox;
+	memcpy(phys->physics.loc, entity->pos, 12);
+	/* convert bbox of entity */
+	float scale = entity->rotation[3] * 0.5f;
+	uint16_t size[] = {
+		entity->szx * scale,
+		entity->szy * scale,
+		entity->szz * scale
+	};
+
+	bbox->pt1[0] = ORIGINVTX - size[VX];
+	bbox->pt1[1] = ORIGINVTX - size[VY];
+	bbox->pt1[2] = ORIGINVTX - size[VZ];
+
+	bbox->pt2[0] = ORIGINVTX + size[VX];
+	bbox->pt2[1] = ORIGINVTX + size[VY];
+	bbox->pt2[2] = ORIGINVTX + size[VZ];
+}
+
+void entityFreePhysics(Entity entity)
+{
+	EntityPhysBatch batch;
+	PhysicsBBox phys = entity->private;
+	for (batch = HEAD(entities.physBatch); batch; NEXT(batch))
+	{
+		if (batch->mem <= phys && phys < EOT(batch->mem))
+		{
+			int i = phys - batch->mem;
+			batch->usage[i>>5] &= ~(1 << (i & 31));
+			break;
+		}
+	}
+}
+
 /* get model to use for rendering this entity */
 int entityGetModelId(Entity entity)
 {
@@ -562,6 +618,7 @@ void entityGetLight(Chunk c, vec4 pos, DATA32 light, Bool full)
 		uint8_t x, y, z, i;
 		ChunkData cd = c->layer[Y];
 		mapInitIterOffset(&iter, cd, CHUNK_POS2OFFSET(c, pos));
+		skyBlockLight[13] = mapGetSkyBlockLight(&iter);
 		mapIter(&iter, -1, -1, -1);
 		for (y = i = 0; ; )
 		{
@@ -569,7 +626,8 @@ void entityGetLight(Chunk c, vec4 pos, DATA32 light, Bool full)
 			{
 				for (x = 0; ; )
 				{
-					skyBlockLight[i++] = mapGetSkyBlockLight(&iter);
+					Block b = &blockIds[iter.blockIds[iter.offset]];
+					skyBlockLight[i++] = b->opacSky == MAXSKY ? skyBlockLight[13] : mapGetSkyBlockLight(&iter);
 					x ++;
 					if (x == 3) break;
 					mapIter(&iter, 1, 0, 0);
@@ -697,7 +755,7 @@ Entity entityParse(Chunk chunk, NBTFile nbt, int offset, Entity prev)
 			entity->pos[VT] = 2;
 		if (entity->VBObank == 0) /* unknown entity */
 			entity->pos[VY] += 0.5f;
-		if (entity->blockId > 0)
+		if (entity->blockId > 0 && (entity->enflags & ENFLAG_ITEM) == 0)
 			entity->enflags |= ENFLAG_FULLLIGHT;
 		entityGetLight(chunk, pos+3, entity->light, entity->enflags & ENFLAG_FULLLIGHT);
 		entityAddToCommandList(entity);
@@ -1305,11 +1363,12 @@ void entityAnimate(void)
 			memcpy(entity->pos, physics->loc, 12);
 			entityUpdateInfo(entity, oldPos);
 			anim->prevTime = time;
-			if (fabsf(physics->dir[VX]) < EPSILON &&
-			    fabsf(physics->dir[VY]) < EPSILON &&
-			    fabsf(physics->dir[VZ]) < EPSILON)
+			if (physics->dir[VX] < EPSILON && fabsf(physics->friction[VX] < EPSILON) &&
+			    physics->dir[VY] < EPSILON && fabsf(physics->friction[VY] < EPSILON) &&
+			    physics->dir[VZ] < EPSILON && fabsf(physics->friction[VZ] < EPSILON))
 			{
-				if (entity->blockId & ENTITY_ITEM)
+				entityFreePhysics(entity);
+				if (entity->enflags & ENFLAG_ITEM)
 				{
 					/* just remove the anim, but keep the entity */
 					entities.animCount --;
@@ -1373,7 +1432,9 @@ void entityUpdateOrCreate(Chunk chunk, vec4 pos, ItemID_t blockId, vec4 dest, in
 	EntityAnim anim;
 	Entity     entity;
 	uint16_t   slot;
+	uint8_t    item = (blockId & ENTITY_ITEM) > 0;
 
+	blockId &= ~ENTITY_ITEM;
 	/* check if it is already in the list */
 	for (slot = entities.animCount, anim = entities.animate, entity = NULL; slot > 0; slot --, anim ++)
 	{
@@ -1395,11 +1456,14 @@ void entityUpdateOrCreate(Chunk chunk, vec4 pos, ItemID_t blockId, vec4 dest, in
 	entity->blockId = blockId;
 	entity->tile = tile;
 	entity->chunkRef = chunk;
-	entity->rotation[3] = blockId & ENTITY_ITEM ? 0.5 : 1;
+	entity->rotation[3] = item ? 0.5 : 1;
 	vecAddNum(entity->pos,    0.5f);
 	vecAddNum(entity->motion, 0.5f);
 	entity->VBObank = entityGetModelId(entity);
 	entity->enflags |= ENFLAG_INANIM;
+	if (item)
+		entity->enflags |= ENFLAG_ITEM;
+
 	if (b->type != CUST || b->special == BLOCK_SOLIDOUTER)
 		entity->enflags |= ENFLAG_FULLLIGHT;
 	entityGetLight(chunk, pos, entity->light, entity->enflags & ENFLAG_FULLLIGHT);
@@ -1419,7 +1483,8 @@ void entityUpdateOrCreate(Chunk chunk, vec4 pos, ItemID_t blockId, vec4 dest, in
 	anim->prevTime = (int) globals.curTime;
 	if (ticks == UPDATE_BY_PHYSICS)
 	{
-		worldItemCreateBlock(entity, (blockId & ENTITY_ITEM) == 0);
+		/* XXX 2nd param should be a param of this function */
+		worldItemCreateBlock(entity, ! item);
 		anim->stopTime = UPDATE_BY_PHYSICS;
 	}
 	else
@@ -1503,7 +1568,116 @@ void entityUpdateInfo(Entity entity, vec4 oldPos)
 		}
 	}
 	glBindBuffer(GL_ARRAY_BUFFER, bank->vboLoc);
-	glBufferSubData(GL_ARRAY_BUFFER, entity->mdaiSlot * INFO_SIZE, INFO_SIZE - LIGHT_SIZE, entity->pos);
+	glBufferSubData(GL_ARRAY_BUFFER, entity->mdaiSlot * INFO_SIZE, INFO_SIZE, entity->pos);
+}
+
+/* entity being pushed by external force: shove it in the given direction */
+static void entityInitMove(Entity entity, int side)
+{
+	static float   sideDir[]  = {0.10, 0.10, -0.10, -0.10, 0.20, 0.1};
+	static float   sideFric[] = {0.01, 0.01, -0.01, -0.01, 0.02, 0.1};
+	static uint8_t axisDir[]  = {VZ, VX, VZ, VX, VY, VY};
+	PhysicsEntity physics;
+	entityAllocPhysics(entity);
+	physics = entity->private;
+
+//	fprintf(stderr, "init move for %s [*(Entity)0x%p] dir %c\n", entity->name, entity, "SENWTB"[side]);
+
+	physics->dir[axisDir[side]] = sideDir[side];
+	physics->friction[axisDir[side]] = sideFric[side];
+
+	/* push it into the animate list */
+	if (entities.animCount == entities.animMax)
+	{
+		entities.animMax += ENTITY_BATCH;
+		entities.animate = realloc(entities.animate, entities.animMax * sizeof *entities.animate);
+	}
+	undoLog(LOG_ENTITY_CHANGED, entity->pos, entity->tile, entityGetId(entity));
+	EntityAnim anim = entities.animate + entities.animCount;
+	entities.animCount ++;
+	entity->enflags |= ENFLAG_INANIM;
+	anim->prevTime = (int) globals.curTime;
+	anim->stopTime = UPDATE_BY_PHYSICS;
+	anim->entity = entity;
+}
+
+/* a block has been updated nearby, check if it affects entities */
+void entityUpdateNearby(BlockIter iterator, int blockId)
+{
+	float bbox[6] = {
+		iterator->ref->X + iterator->x,
+		iterator->yabs,
+		iterator->ref->Z + iterator->z
+	};
+	int i, count;
+	uint8_t dirFlags = 0;
+	bbox[VX+3] = bbox[VX] + 1;
+	bbox[VZ+3] = bbox[VZ] + 1;
+	bbox[VY+3] = bbox[VY] + 1.125f; /* +0.125 == to check entity on top of block */
+
+	Entity * list = quadTreeIntersect(bbox, &count, ENFLAG_FIXED | ENFLAG_EQUALZERO);
+
+	bbox[VY+3] -= 0.125f;
+	for (i = 0; i < count; i ++)
+	{
+		Entity entity = list[i];
+		vec    pos = entity->pos;
+		if (entity->enflags & ENFLAG_INANIM) continue;
+		if (bbox[VX] <= pos[VX] && pos[VX] <= bbox[VX+3] &&
+		    bbox[VY] <= pos[VY] && pos[VY] <= bbox[VY+3] &&
+		    bbox[VZ] <= pos[VZ] && pos[VZ] <= bbox[VZ+3])
+		{
+			/* inside bbox: check if we need to move it somewhere else */
+			if (dirFlags == 0)
+			{
+				struct BlockIter_t iter = *iterator;
+				uint8_t j;
+				for (j = 0; j < 4; j ++)
+				{
+					mapIter(&iter, xoff[j], yoff[j], zoff[j]);
+					Block b = &blockIds[getBlockId(&iter) >> 4];
+					if (b->bboxPlayer == BBOX_NONE)
+						dirFlags |= 1 << j;
+				}
+				/* no need to do this again */
+				dirFlags |= 1 << SIDE_TOP;
+			}
+			if (dirFlags & 15)
+			{
+				/* there are room to move it on the side: check the closest gap */
+				uint8_t dirX = 1 << SIDE_WEST;
+				uint8_t dirZ = 1 << SIDE_NORTH;
+				uint8_t dir  = 0;
+				float   dx   = pos[VX] - (int) pos[VX]; if (dx >= 0.5f) dx = 1 - dx, dirX = 1 << SIDE_EAST;
+				float   dz   = pos[VZ] - (int) pos[VZ]; if (dz >= 0.5f) dz = 1 - dz, dirZ = 1 << SIDE_SOUTH;
+
+				if (dx < dz)
+				{
+					/* first check east/west */
+					dir = dirFlags & dirX;
+					if (dir == 0)
+						dir = dirFlags & dirZ;
+				}
+				else /* first check north/south */
+				{
+					dir = dirFlags & dirZ;
+					if (dir == 0)
+						dir = dirFlags & dirX;
+				}
+				if (dir == 0)
+					dir = dirFlags;
+				entityInitMove(entity, dir & 1 ? SIDE_SOUTH : dir & 2 ? SIDE_EAST : dir & 4 ? SIDE_NORTH : SIDE_WEST);
+			}
+			else /* inside a block and no way on the side: item elevate */
+			{
+				entityInitMove(entity, SIDE_TOP);
+			}
+		}
+		else /* outside bbox: probably has to be moved down */
+		{
+			entityInitMove(entity, SIDE_BOTTOM);
+		}
+	}
 }
 
 #ifdef DEBUG

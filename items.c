@@ -495,7 +495,7 @@ static void itemGenQuad(DATA16 out, int x1, int z1, int x2, int z2, int norm, DA
 		DATA8 point = cubeVertex + index[0];
 		out[VX] = ((point[VX] ? x2 : x1) * BASEVTX) / blockTexResol + ORIGINVTX;
 		out[VZ] = ((point[VZ] ? z2 : z1) * BASEVTX) / blockTexResol + ORIGINVTX;
-		out[VY] = (point[VY]  ? BASEVTX/12 : 0) + ORIGINVTX;
+		out[VY] = (point[VY]  ? BASEVTX/24 : -BASEVTX/24) + ORIGINVTX;
 		{
 			int V = tex[1] ? V2 : V1;
 			out[3] = (tex[0] ? U2 : U1) | ((V & ~7) << 6);
@@ -624,8 +624,8 @@ int itemGenMesh(ItemID_t blockId, DATA16 out)
 		/* top and bottom quad */
 		if (vertex)
 		{
-			itemGenQuad(vertex, rect[0], rect[1], rect[2], rect[3], SIDE_TOP, texUV); vertex += QUAD_VERTEX;
-			//itemGenQuad(vertex, rect[0], rect[1], rect[2], rect[3], SIDE_BOTTOM, texUV);
+			itemGenQuad(vertex, rect[0], rect[1], rect[2], rect[3], SIDE_TOP, texUV);    vertex += QUAD_VERTEX;
+			itemGenQuad(vertex, rect[0], rect[1], rect[2], rect[3], SIDE_BOTTOM, texUV); vertex += QUAD_VERTEX;
 
 			/* need to shift vertex by -rect[0], -rect[1] */
 			uint16_t dx = (rect[0] * BASEVTX) / blockTexResol;

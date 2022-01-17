@@ -1817,9 +1817,11 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 				break;
 			}
 			/* trigger falling entity on nearby block, causing cascading avalanche of blocks */
-			if (b->gravity && (blockUpdate & UPDATE_NEARBY))
+			if (b->gravity && (blockUpdate & UPDATE_GRAVITY))
 				mapUpdateCheckGravity(neighbor);
 		}
+		/* check for entities too */
+		entityUpdateNearby(&iter, blockId);
 	}
 
 	if ((blockUpdate & UPDATE_DONTLOG) == 0)
