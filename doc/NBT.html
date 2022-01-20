@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta http-equiv="Content-type" content="text/html; charset=utf-8">
+  <link rel="stylesheet" href="./api.css" type="text/css">
+  <title>NBT API v2</title>
+</head>
+<body>
+
+<div id="logo">
+<a name="robo_top_of_doc">NBT API v2</a>
+</div>
+
+<div id="toc">
+<p>TABLE OF CONTENTS</p>
+<li><a href="#NBTapi">NBT API</a></li>
+<li><a href="#NBTspec">NBT Structure</a></li>
+<li><a href="#NBTspecapi">NBT Structure in API</a></li>
+<li><a href="#NBT_Parse">NBT_Parse</a></li>
+<li><a href="#NBT_ParseIO">NBT_ParseIO</a></li>
+<li><a href="#NBT_FindNode">NBT_FindNode</a></li>
+<li><a href="#NBT_FindNodeFromStream">NBT_FindNodeFromStream</a></li>
+<li><a href="#NBT_FindBranch">NBT_FindBranch</a></li>
+<li><a href="#NBT_Save">NBT_Save</a></li>
+<li><a href="#NBT_Iter">NBT_Iter</a></li>
+<li><a href="#NBT_FormatSection">NBT_FormatSection</a></li>
+<li><a href="#NBT_SetHdrSize">NBT_SetHdrSize</a></li>
+<li><a href="#NBT_Insert">NBT_Insert</a></li>
+<li><a href="#NBT_AddOrUpdateKey">NBT_AddOrUpdateKey</a></li>
+<li><a href="#NBT_ToFloat">NBT_ToFloat</a></li>
+<li><a href="#NBT_ToString">NBT_ToString</a></li>
+<li><a href="#NBT_ToInt">NBT_ToInt</a></li>
+<li><a href="#NBT_Size">NBT_Size</a></li>
+<li><a href="#NBT_MarkForUpdate">NBT_MarkForUpdate</a></li>
+<li><a href="#NBT_InitIter">NBT_InitIter</a></li>
+<li><a href="#NBT_IterCompound">NBT_IterCompound</a></li>
+<li><a href="#NBT_Payload">NBT_Payload</a></li>
+<li><a href="#NBT_ArrayStart">NBT_ArrayStart</a></li>
+<li><a href="#NBT_PayloadFromStream">NBT_PayloadFromStream</a></li>
+<li><a href="#NBT_SetFloat">NBT_SetFloat</a></li>
+<li><a href="#NBT_SetInt">NBT_SetInt</a></li>
+<li><a href="#NBT_Add">NBT_Add</a></li>
+<li><a href="#NBT_Delete">NBT_Delete</a></li>
+<li><a href="#NBT_Copy">NBT_Copy</a></li>
+<li><a href="#NBT_Compress">NBT_Compress</a></li>
+<br>
+<br>
+</div>
+
+
+<div id="content">
+
+<h2 id="NBTapi">NBT API [ Module ]</h2>
+
+<p class="item_name">INTRODUCTION</p>
+
+<p>[ <a href="#content">Top</a> ]
+
+<p>NBT API in this engine does not exactly follow a traditional API you might expect for manipulating
+a tree of arbitrary data types. The main problem that this API was trying to solve is to keep 
+everything related to an NBT tree as close as possible in memory, to benefit from cache locality.
+
+<p>This is actually the main focus of this API: it <b>strongly</b> favors read over write access. The
+rationale for this choice being that most chunks in a map will never be modified at all, and for those
+that will, most of time it is simply a matter of overwriting some tables (<tt>BlockLight</tt>,
+<tt>Blocks</tt>, <tt>Data</tt>, ...).
+
+<p>There are a few lists (<tt>TileEntities</tt>, <tt>Entities</tt>, <tt>TileTicks</tt>, ...) where the
+content can change significantly, and this is where this API will be a bit more tedious to use than other
+APIs.
+
+<p>The gist of how this API works is to serialize the content of a NBT file into a <b>single memory
+block</b>. This block will be reallocated if the first allocation was not enough, but <b>everything</b>
+will be kept into a contiguous block of memory. Therefore the binary representation of the NBT structure
+in memory will actually be <b>very close</b> to how it is stored on disk (if it were uncompressed): save
+a few memory alignment constraints and byte ordering, and you could write the buffer almost directly
+to disk.
+
+<p>Sadly, that also means, in order to use this API, you'll need to have a pretty good understanding
+on how NBT is structured on disk, because that API is a very shallow abstraction over that. A refresher
+will be available in the next section.
+
+<p>NBT files usually contains lots of small blocks, that would be spread all over the memory if allocated
+inidvidually. This API is also particularly efficient with memory when you need a small NBT fragment
+(around hundreds of bytes): it is possible to only use stack memory and therefore perform no allocations.
+
+
+<h2 id="NBTspec">NBT Structure [ Spec ]</h2>
+
+<p>[ <a href="#content">Top</a> ]
+
+<p class="item_name">INTRODUCTION</p>
+
+<p>This section is a quick refresher on how NBT is structured (uncompressed). This format can store
+arbitrary data types, in a tree-like format with branch nested as deep as you want.
+
+<p>NBT supports <b>3 major families of types</b>:
+<ol>
+  <li><b>Scalar</b>: designate an immediate value, which can be an integer (1, 2, 4 or 8 bytes), a
+  floating point number (32 or 64bits) or a string.
+  <li><b>List</b>: contains a finite number of scalar and/or compound.
+  <li><b>Compound</b>: an arbitrary number of scalar, one after the other: a field terminator is used
+  to mark the end of the block, therefore it can contain an arbitrary number of items.
+</ol>
+
+<p>Usually an NBT object/file always starts with a <b>Compound</b> or <b>List</b>, otherwise it will
+be limited to a single scalar value, which is not very useful. Each type is stored using a header and
+a payload. The header follows the same structure for every type, the payload is obviously specific to
+each type.
+
+<p>Integers bigger than 1 byte and floatting point types are stored in <b>big endian</b> format.
+
+<p class="item_name">HEADER</p>
+
+<p>Here is the structure of the header:
+<ul>
+  <li><b>1 byte</b>: the first byte encode the type of the record. Here are the possible values:
+  <ul>
+    <li><b>0</b> (<tt>TAG_End</tt>): this type is used to mark the end of a compound.
+	<p><span class="n">Note</span>: a <tt>TAG_End</tt> does not have any payload beyond this single byte.
+    <li><b>1</b> (<tt>TAG_Byte</tt>): used to store an <tt class="t">uint8_t</tt>.
+    <li><b>2</b> (<tt>TAG_Short</tt>): store an <tt class="t">uint16_t</tt>.
+    <li><b>3</b> (<tt>TAG_Int</tt>): store an <tt class="t">uint32_t</tt>.
+    <li><b>4</b> (<tt>TAG_Long</tt>): store an <tt class="t">uint64_t</tt>.
+    <li><b>5</b> (<tt>TAG_Float</tt>): store an <tt class="t">float</tt>.
+    <li><b>6</b> (<tt>TAG_Double</tt>): store an <tt class="t">double</tt>.
+    <li><b>7</b> (<tt>TAG_ByteArray</tt>): store an <tt class="t">uint8_t</tt> array.
+    <li><b>8</b> (<tt>TAG_String</tt>): store an <tt class="t">uint8_t</tt> array
+	<p>The main difference between <tt>TAG_ByteArray</tt> is the maximal length of the array.
+	<li><b>9</b> (<tt>TAG_List</tt>): store an arbitrary number of a given object (which can be scalar or compound).
+	<p><span class="n">Note</span>: a <tt>TAG_List</tt> of <tt>TAG_End</tt> is permitted
+	if the number of items is 0.
+
+	<li><b>10</b> (<tt>TAG_Compound</tt>): store an arbitrary number of scalar/compound, not necessarily
+	of the same types.
+	<p>The last item of a Compound, must be a <tt>TAG_End</tt>.
+    <li><b>11</b> (<tt>TAG_IntArray</tt>): store an <tt class="t">uint32_t</tt> array.
+	
+	<p>Why is it not stored a <tt>TAG_List</tt> of <tt>TAG_Int</tt>, you might ask ? Well, I guess someone forgot this
+	type existed...
+	<p>This type is used by the <tt>HeightMap</tt> entry of a chunk to store the highest
+	value where sky light is at max level.
+  </ul>
+  <li><b>2 bytes</b>: all types, except <tt>TAG_End</tt>, are followed by 2 bytes, which encodes a length
+  <p><span class="n">Note</span>: keep in mind, that this length is stored as a big endian number.
+  <li><b>[length] bytes</b>: will contain a string that is the name of this tag (not the value itself).
+  <li><b><em>remaining</em></b>: payload section.
+</ul>
+
+<p class="item_name">PAYLOAD</p>
+
+<p>Finally, here are the structure of the different payload sections, according to each tag:
+<ul>
+  <li><b>1</b> (<tt>TAG_Byte</tt>): followed by 1 byte: the integer value.
+  <li><b>2</b> (<tt>TAG_Short</tt>): followed by 2 bytes: the integer value in big endian format.
+  <li><b>3</b> (<tt>TAG_Int</tt>): followed by 4 bytes.
+  <li><b>4</b> (<tt>TAG_Long</tt>): followed by 8 bytes.
+  <li><b>5</b> (<tt>TAG_Float</tt>): followed by 4 bytes, encoding a floating point in big endian using the IEEE 754 format).
+  <li><b>6</b> (<tt>TAG_Double</tt>): followed by 8 bytes.
+  <li><b>7</b> (<tt>TAG_ByteArray</tt>): followed by:
+    <ul>
+	  <li><b>4 bytes</b>: encodes a length.
+	  <li><b>[length] bytes</b>: content of the array.
+	</ul>
+  <li><b>8</b> (<tt>TAG_String</tt>): followed by:
+    <ul>
+	  <li><b>2 bytes</b>: encodes a length.
+	  <li><b>[length] bytes</b>: content of the string (usually UTF-8 encoded, not 0-terminated).
+	</ul>
+  <li><b>9</b> (<tt>TAG_List</tt>): followed by:
+    <ul>
+	  <li><b>1 byte</b>: object type stored in this list (any types except <tt>TAG_List</tt>).
+	  <li><b>4 bytes</b>: number of items in the list.
+	  <li><b>...</b>: N objects of given type. In case of scalar, it will N times the size of given scalar.
+	  For compound list the size can be completely arbitrary.
+	</ul>
+	<p class="cont"><span class="n">Note</span>: <tt>TAG_List</tt> of <tt>TAG_Compound</tt> are a bit special though:
+	<ul>
+	  <li>Compounds in a list don't have name. Therefore a Compound entry in a list is simply a list
+	  of scalar values until a <tt>TAG_End</tt> is found.
+	  <li>The list ends when [N] Compound have been read (the list itself is not terminated by a <tt>TAG_End</tt>).
+	</ul>
+  <li><b>10</b> (<tt>TAG_Compound</tt>): immediately followed a new NBT tag, until a <tt>TAG_End</tt> is found.
+  <li><b>11</b> (<tt>TAG_IntArray</tt>): followed by:
+    <ul>
+	  <li><b>4 bytes</b>: length of the array.
+	  <li><b>[length] <tt>TAG_Int</tt></b>: content of the array.
+	</ul>
+	<p>Thanks to this type, 1 (ONE) byte is saved in the uncompressed stream over using a <tt>TAG_List</tt>.
+</ul>
+
+<p>Knowing all of this is kind of important, because, when an NBT is read into memory, it will mimic
+this structure very closely (save a few alignment adjustment and endianess conversion).
+
+<h2 id="NBTspecapi">NBT Structure in API [ Module ]</h2>
+
+<p>[ <a href="#content">Top</a> ]
+
+<p class="item_name">INTRODUCTION</p>
+
+<p>This section will explain how this API process NBT files at a high level: some of the techniques induce
+a few caveats that you need to be aware before being able to understand this API.
+
+
+
+<h2 id="NBTspecapi">NBT usage example</h2>
+
+<p>[ <a href="#content">Top</a> ]
+
+<p class="item_name">INTRODUCTION</p>
+
+<p>This section will show a few common examples that can serve as quick refresher, or just in case you
+don't want to learn everything there is in this documentation.
+
+
+<pre>
+int   NBT_Parse(NBTFile, STRPTR path);
+int   NBT_ParseIO(NBTFile, FILE *, int offset);
+int   NBT_FindNode(NBTFile, int offset, STRPTR name);
+int   NBT_FindNodeFromStream(DATA8 nbt, int offset, STRPTR name);
+int   NBT_FindBranch(NBTFile, int offset, STRPTR branch);
+int   NBT_Save(NBTFile, STRPTR path, NBT_WriteCb_t cb, APTR cbparam);
+int   NBT_Iter(NBTIter iter);
+int   NBT_FormatSection(DATA8 mem, int y);
+int   NBT_SetHdrSize(NBTFile, int offset);
+int   NBT_Insert(NBTFile, STRPTR loc, int type, NBTFile fragment);
+int   NBT_AddOrUpdateKey(NBTFile, STRPTR key, int type, APTR value, int offsetTagList);
+Bool  NBT_ToFloat(NBTFile, int offset, float * array, int nb);
+Bool  NBT_ToString(NBTFile root, int offset, STRPTR buffer, int max);
+int   NBT_ToInt(NBTFile, int offset, int def);
+int   NBT_Size(DATA8 fragment);
+void  NBT_MarkForUpdate(NBTFile, int offset, int tag);
+void  NBT_InitIter(NBTFile, int offset, NBTIter);
+void  NBT_IterCompound(NBTIter, DATA8 mem);
+APTR  NBT_Payload(NBTFile, int offset);
+APTR  NBT_ArrayStart(NBTFile root, int offset, int * size);
+APTR  NBT_PayloadFromStream(DATA8 stream, int offset, STRPTR name);
+Bool  NBT_SetFloat(NBTFile, int offset, float * array, int nb);
+Bool  NBT_SetInt(NBTFile, int offset, int64_t val);
+Bool  NBT_Add(NBTFile nbt, ...);
+Bool  NBT_Delete(NBTFile nbt, int offset, int nth);
+DATA8 NBT_Copy(DATA8 mem);
+DATA8 NBT_Compress(NBTFile, int * size, int page, NBT_WriteCb_t cb, APTR cbparam);
+</pre>
+
+</div> <!-- content -->
+</body>
+</html>

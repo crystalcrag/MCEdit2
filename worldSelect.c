@@ -28,6 +28,7 @@ int optionsExit(SIT_Widget w, APTR cd, APTR save)
 		SetINIValueInt(PREFS_PATH, "Options/GUIScale",      globals.guiScale);
 		SetINIValueInt(PREFS_PATH, "Options/FieldOfVision", globals.fieldOfVision);
 		SetINIValueInt(PREFS_PATH, "Options/RedstoneTick",  globals.redstoneTick);
+		SetINIValueInt(PREFS_PATH, "Options/RenderDist",    globals.renderDist);
 	}
 	if (w == NULL)
 		w = worldSelect.options;

@@ -313,6 +313,7 @@ void   entityUpdateInfo(Entity, vec4 oldPos);
 void   entityGetBoundsForFace(Entity entity, int face, vec4 V0, vec4 V1);
 void   entityFreePhysics(Entity);
 void   entityAllocPhysics(Entity);
+void   entityInitMove(Entity entity, int side, float factor);
 
 enum                  /* possible values for swapAxis of entityAddModel() */
 {

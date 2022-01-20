@@ -1,0 +1,36 @@
+
+
+body         { background-color: white; font-family: sans-serif; margin: 0; padding: 0 }
+#toc         { position: fixed; top: 80px; bottom: 0; overflow: auto; left: 0; width: 18%; background-color: #444; color: white;
+               padding: 10px 0 10px 32px; box-sizing: border-box; margin: 0; box-shadow: 0 0 10px black inset }
+#toc a       { color: white!important }
+#toc a:hover { color: #5f5!important }
+#toc p       { font-weight: bold }
+#toc li      { padding-top: 3px }
+#logo        { font-size: 200%; position: fixed; background: linear-gradient(to bottom, #0065ae, #002e6e); color: white;
+               font-family: Georgia, serif; font-weight: bold; margin: 0; height: 80px; line-height: 80px; text-align: right;
+               padding-right: 20px; z-index: 20; left: 0; right: 0 }
+pre          { margin: 15px; padding: 5px }
+pre.source   { background-color: #ffe; border: dashed #aa9 1px }
+p            { margin: 15px; margin-right: 40px }
+p.item_name  { font-weight: bolder; margin: 5px; font-size: 120% }
+#content     { margin-left: 18%; box-sizing: border-box; color: black; background: white; padding: 80px 20px 1em 20px; text-align: justify }
+#content a   { color: #0065ae; text-decoration: none }
+h1, h2, h3   { background: #ddd; margin: 0 -20px 0 -30px; padding: 1em 1em; font-weight: normal }
+a:hover      { text-decoration: underline }
+span.keyword { color: #00F }
+span.comment { color: #080 }
+span.quote   { color: #F00 }
+span.squote  { color: #F0F }
+span.sign    { color: #008B8B }
+.c           { color:#2222AA }
+.i           { color:#54AAAA }
+.d           { color:#A600F7 }
+v,.o         { color:#FF00FF }
+.s           { color:#7700FF }
+.t           { color:#146A31; font-weight:bold }
+.k           { color:#A62828; font-weight:bold }
+.n           { color:black;   background-color:#FFFF00 }
+li > p       { margin-top: 3px }
+li > p.cont  { margin-top: 0.5em; margin-bottom: 3px }
+dim          { color: #aaa }

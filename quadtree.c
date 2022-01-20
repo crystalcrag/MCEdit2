@@ -43,7 +43,7 @@ static QuadTree quadTreeAlloc(void)
 	QuadBatch * prev;
 	QuadBatch   mem;
 	/* alloc the node in batch, but we need to avoid relocating pointers (no realloc()) */
-	for (mem = &qmem, prev = NULL; mem->count == QUAD_BATCH; prev = &qmem.next, mem = mem->next);
+	for (mem = &qmem, prev = NULL; mem && mem->count == QUAD_BATCH; prev = &qmem.next, mem = mem->next);
 	if (mem == NULL)
 	{
 		mem = malloc(sizeof *mem);

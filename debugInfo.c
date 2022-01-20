@@ -24,6 +24,7 @@ extern struct RenderWorld_t render;
 /* get info on block being pointed at (dumped on stderr though) */
 void debugBlockVertex(SelBlock_t * select)
 {
+	#ifdef DEBUG
 	if (select->selFlags & 1)
 	{
 		struct BlockIter_t iter;
@@ -135,6 +136,7 @@ void debugBlockVertex(SelBlock_t * select)
 		}
 	}
 	else fprintf(stderr, "no block selected");
+	#endif
 }
 
 static struct

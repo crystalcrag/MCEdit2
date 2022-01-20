@@ -276,22 +276,30 @@ static Bool intersectBBox(BlockIter iter, VTXBBox bbox, float minMax[6], float i
 	return inter[VX] < inter[VX+3] && inter[VY] < inter[VY+3] && inter[VZ] < inter[VZ+3];
 }
 
-Bool physicsCheckOnGround(Map map, vec4 start, VTXBBox bbox)
+Bool physicsCheckOnGround(Map map, vec4 start, VTXBBox bbox, vec sizes)
 {
 	struct BlockIter_t iter;
 	float  minMax[6];
 	int8_t i, j;
 
-	for (i = 0; i < 3; i ++)
+	if (bbox)
 	{
-		minMax[i]   = FROMVERTEX(bbox->pt1[i]) + start[i];
-		minMax[3+i] = FROMVERTEX(bbox->pt2[i]) + start[i];
+		for (i = 0; i < 3; i ++)
+		{
+			minMax[i]   = FROMVERTEX(bbox->pt1[i]) + start[i] + EPSILON;
+			minMax[3+i] = FROMVERTEX(bbox->pt2[i]) + start[i] - EPSILON;
+		}
+	}
+	else for (i = 0; i < 3; i ++)
+	{
+		minMax[i]   = start[i] - sizes[i] + EPSILON;
+		minMax[3+i] = start[i] + sizes[i] - EPSILON;
 	}
 
 	int8_t dx = (int) minMax[VX+3] - (int) minMax[VX];
 	int8_t dz = (int) minMax[VZ+3] - (int) minMax[VZ];
 
-	minMax[VY] -= 2*EPSILON;
+	minMax[VY] -= 3*EPSILON;
 
 	mapInitIter(map, &iter, minMax, False);
 	for (i = 0; ; )
@@ -574,16 +582,15 @@ static Bool physicsPushEntity(float broad[6], vec4 pos, float size[3], char dir[
 
 	if (dir[VX] < 0) endPos[VX] = broad[VX]   - size[VX], axis |= 1; else
 	if (dir[VX] > 0) endPos[VX] = broad[VX+3] + size[VX], axis |= 1; else endPos[VX] = pos[VX];
-//	if (dir[VY] < 0) endPos[VY] = broad[VY]   - size[VY]; else
-//	if (dir[VY] > 0) endPos[VY] = broad[VY+3] + size[VY]; else endPos[VY] = pos[VY];
 	if (dir[VZ] < 0) endPos[VZ] = broad[VZ]   - size[VZ], axis |= 4; else
 	if (dir[VZ] > 0) endPos[VZ] = broad[VZ+3] + size[VZ], axis |= 4; else endPos[VZ] = pos[VZ];
 
-	fprintf(stderr, "pushing entity from %g to %g\n", (double) pos[VY], (double) endPos[VY]);
+	//fprintf(stderr, "pushing entity from %g to %g\n", (double) pos[VY], (double) endPos[VY]);
 
 	//physicsCheckCollision(map, pos, endPos, bbox, 0.5);
 	memcpy(pos, endPos, 12);
 
+	/* entity is already moving due to external forces: cancels its movement in the direction it is pushed */
 	if (phys)
 	{
 		memcpy(phys->loc, endPos, 12);
@@ -620,6 +627,10 @@ void physicsEntityMoved(Map map, APTR self, vec4 start, vec4 end)
 		dir[i] = diff < -EPSILON ? -1 : diff > EPSILON ? 1 : 0;
 	}
 
+	uint8_t side = dir[VX] < 0 ? SIDE_WEST   : dir[VX] > 0 ? SIDE_EAST  :
+	               dir[VZ] < 0 ? SIDE_NORTH  : dir[VZ] > 0 ? SIDE_SOUTH :
+	               dir[VY] < 0 ? SIDE_BOTTOM : SIDE_TOP;
+
 	Entity * list = quadTreeIntersect(broad, &count, ENFLAG_FIXED | ENFLAG_EQUALZERO);
 	if (count > 0)
 	{
@@ -639,7 +650,14 @@ void physicsEntityMoved(Map map, APTR self, vec4 start, vec4 end)
 			memcpy(oldPos, entity->pos, 12);
 
 			if (physicsPushEntity(broad, entity->pos, bbox, dir, entity->private))
+			{
 				entityUpdateInfo(entity, oldPos);
+				if (! physicsCheckOnGround(map, entity->pos, NULL, bbox))
+				{
+					entityInitMove(entity, side, 4 /* a nit more force than if shoved by blocks */);
+					entityInitMove(entity, SIDE_BOTTOM, 1);
+				}
+			}
 		}
 	}
 	/* check for players XXX needs to be stored in the quadtree */

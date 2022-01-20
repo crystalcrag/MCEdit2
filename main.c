@@ -360,7 +360,7 @@ int main(int nb, char * argv[])
 	}
 
 //	globals.level = renderInitWorld("TestMesh", globals.renderDist);
-	globals.level = renderInitWorld("World1_12", globals.renderDist);
+	globals.level = renderInitWorld("World5", globals.renderDist);
 	globals.yawPitch = &mcedit.player.angleh;
 	mcedit.state  = GAMELOOP_WORLD;
 	wayPointsRead();

@@ -1176,7 +1176,7 @@ static void chunkAddEmitters(ChunkData cd, int interval, int pos, int type, DATA
 			cd->emitters = list;
 		}
 		list[0] ++;
-		list += (list[0]-1) * CHUNK_EMIT_SIZE*2 + 2;
+		list += (list[0]-1) * CHUNK_EMIT_SIZE + 2;
 		emitters[type] = list - cd->emitters;
 		/* type, pos and count */
 		list[0] = (pos >> 9) | (type << 3);
@@ -2004,7 +2004,7 @@ int chunkFree(Chunk c)
 	}
 	if (c->tileEntities)
 	{
-		chunkFreeHash((TileEntityHash) c->tileEntities, c->nbt.mem, c->nbt.mem + c->nbt.usage);
+		chunkFreeHash((TileEntityHash) c->tileEntities, c->nbt.mem, c->nbt.mem + c->nbt.max);
 		c->tileEntities = NULL;
 	}
 	if (c->cflags & CFLAG_HASENTITY)

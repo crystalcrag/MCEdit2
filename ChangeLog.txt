@@ -1,3 +1,13 @@
+=========== Week 3 ===========
+Wed Jan 19:
+	* skydome generator mostly finished.
+
+Tue Jan 18:
+	* skydome generator ported to SITGL.
+
+Mon Jan 17:
+	* skydome textures regenerated using bezier curves; still need integration, but results look ok.
+
 =========== Week 2 ===========
 Sun Jan 16:
 	* standing sign placement was broken (again).

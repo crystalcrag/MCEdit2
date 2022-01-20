@@ -482,6 +482,9 @@ void entityAllocPhysics(Entity entity)
 	PhysicsBBox phys;
 	VTXBBox bbox;
 
+	/* XXX will probbably need an ECS at some point :-/ */
+	if (entity->private) return;
+
 	for (batch = HEAD(entities.physBatch); batch; NEXT(batch))
 	{
 		if (batch->count < DIM(batch->mem))
@@ -552,7 +555,7 @@ int entityGetModelId(Entity entity)
 	int i;
 	for (entype = entities.type, i = entities.typeCount; i > 0; i --, entype ++)
 	{
-		if (strcmp(entype->type, id) == 0)
+		if (strcasecmp(entype->type, id) == 0)
 		{
 			i = entype->cb(&nbt, entity);
 			if (i > 0) return i;
@@ -1363,9 +1366,9 @@ void entityAnimate(void)
 			memcpy(entity->pos, physics->loc, 12);
 			entityUpdateInfo(entity, oldPos);
 			anim->prevTime = time;
-			if (physics->dir[VX] < EPSILON && fabsf(physics->friction[VX] < EPSILON) &&
+			if (physics->dir[VX] < EPSILON &&
 			    physics->dir[VY] < EPSILON && fabsf(physics->friction[VY] < EPSILON) &&
-			    physics->dir[VZ] < EPSILON && fabsf(physics->friction[VZ] < EPSILON))
+			    physics->dir[VZ] < EPSILON)
 			{
 				entityFreePhysics(entity);
 				if (entity->enflags & ENFLAG_ITEM)
@@ -1571,20 +1574,23 @@ void entityUpdateInfo(Entity entity, vec4 oldPos)
 	glBufferSubData(GL_ARRAY_BUFFER, entity->mdaiSlot * INFO_SIZE, INFO_SIZE, entity->pos);
 }
 
-/* entity being pushed by external force: shove it in the given direction */
-static void entityInitMove(Entity entity, int side)
+/* entity being pushed by block placed in its way: shove it in the given direction */
+void entityInitMove(Entity entity, int side, float factor)
 {
-	static float   sideDir[]  = {0.10, 0.10, -0.10, -0.10, 0.20, 0.1};
-	static float   sideFric[] = {0.01, 0.01, -0.01, -0.01, 0.02, 0.1};
-	static uint8_t axisDir[]  = {VZ, VX, VZ, VX, VY, VY};
+	static float  sideDir[]  = {0.10, 0.10, 0.10, 0.10, 0.20, 0.1};
+	static float  sideFric[] = {0.01, 0.01, 0.01, 0.01, 0.02, 0.1};
+	static int8_t sideNeg[]  = {0, 0, 2, 1, 0, 0};
+	static int8_t axisDir[]  = {VZ, VX, VZ, VX, VY, VY};
 	PhysicsEntity physics;
 	entityAllocPhysics(entity);
 	physics = entity->private;
 
 //	fprintf(stderr, "init move for %s [*(Entity)0x%p] dir %c\n", entity->name, entity, "SENWTB"[side]);
 
-	physics->dir[axisDir[side]] = sideDir[side];
-	physics->friction[axisDir[side]] = sideFric[side];
+	uint8_t axis = axisDir[side];
+	physics->dir[axis] = sideDir[side] * factor;
+	physics->friction[axis] = sideFric[side] * factor;
+	physics->negXZ |= sideNeg[side];
 
 	/* push it into the animate list */
 	if (entities.animCount == entities.animMax)
@@ -1592,13 +1598,16 @@ static void entityInitMove(Entity entity, int side)
 		entities.animMax += ENTITY_BATCH;
 		entities.animate = realloc(entities.animate, entities.animMax * sizeof *entities.animate);
 	}
-	undoLog(LOG_ENTITY_CHANGED, entity->pos, entity->tile, entityGetId(entity));
-	EntityAnim anim = entities.animate + entities.animCount;
-	entities.animCount ++;
-	entity->enflags |= ENFLAG_INANIM;
-	anim->prevTime = (int) globals.curTime;
-	anim->stopTime = UPDATE_BY_PHYSICS;
-	anim->entity = entity;
+	if ((entity->enflags & ENFLAG_INANIM) == 0)
+	{
+		undoLog(LOG_ENTITY_CHANGED, entity->pos, entity->tile, entityGetId(entity));
+		EntityAnim anim = entities.animate + entities.animCount;
+		entities.animCount ++;
+		entity->enflags |= ENFLAG_INANIM;
+		anim->prevTime = (int) globals.curTime;
+		anim->stopTime = UPDATE_BY_PHYSICS;
+		anim->entity = entity;
+	}
 }
 
 /* a block has been updated nearby, check if it affects entities */
@@ -1666,16 +1675,16 @@ void entityUpdateNearby(BlockIter iterator, int blockId)
 				}
 				if (dir == 0)
 					dir = dirFlags;
-				entityInitMove(entity, dir & 1 ? SIDE_SOUTH : dir & 2 ? SIDE_EAST : dir & 4 ? SIDE_NORTH : SIDE_WEST);
+				entityInitMove(entity, dir & 1 ? SIDE_SOUTH : dir & 2 ? SIDE_EAST : dir & 4 ? SIDE_NORTH : SIDE_WEST, 1);
 			}
 			else /* inside a block and no way on the side: item elevate */
 			{
-				entityInitMove(entity, SIDE_TOP);
+				entityInitMove(entity, SIDE_TOP, 1);
 			}
 		}
 		else /* outside bbox: probably has to be moved down */
 		{
-			entityInitMove(entity, SIDE_BOTTOM);
+			entityInitMove(entity, SIDE_BOTTOM, 1);
 		}
 	}
 }

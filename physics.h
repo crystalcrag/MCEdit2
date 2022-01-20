@@ -13,7 +13,7 @@ typedef struct PhysicsEntity_t *         PhysicsEntity;
 
 int  physicsCheckCollision(Map, vec4 start, vec4 end, VTXBBox bbox, float autoClimb);
 void physicsEntityMoved(Map, APTR self, vec4 start, vec4 end);
-Bool physicsCheckOnGround(Map, vec4 start, VTXBBox bbox);
+Bool physicsCheckOnGround(Map, vec4 start, VTXBBox bbox, vec sizes);
 void physicsInitEntity(PhysicsEntity entity, int block);
 Bool physicsMoveEntity(Map, PhysicsEntity, float speed);
 int  physicsCheckIfCanClimb(Map, vec4 pos, VTXBBox bbox);

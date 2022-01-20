@@ -1,17 +1,22 @@
+/*
+ * fragment shader for MCEdit v2
+ *
+ * orignal idea from Simon Rodriguez, https://github.com/kosua20/opengl-skydome
+ */
 #version 430 core
-//---------IN------------
+
 in vec3 pos;
 in vec3 sun_norm;
 in vec3 star_pos;
-//---------UNIFORM------------
-layout (binding=2) uniform sampler2D tint;//the color of the sky on the half-sphere where the sun is. (time x height)
-layout (binding=3) uniform sampler2D tint2;//the color of the sky on the opposite half-sphere. (time x height)
+
+layout (binding=2) uniform sampler2D tint;    // the color of the sky on the half-sphere where the sun is. (time x height)
+layout (binding=3) uniform sampler2D tint2;   // the color of the sky on the opposite half-sphere. (time x height)
 layout (binding=4) uniform sampler2D sun;
-layout (binding=5) uniform sampler2D clouds1;//light clouds texture (spherical UV projection)
-layout (binding=6) uniform sampler2D clouds2;//heavy clouds texture (spherical UV projection)
+layout (binding=5) uniform sampler2D clouds1; // light clouds texture (spherical UV projection)
+
 uniform float weather;//mixing factor (0.5 to 1.0)
 uniform float time;
-//---------OUT------------
+
 out vec4 fragcol;
 
 //---------NOISE GENERATION------------
@@ -29,10 +34,9 @@ float Noise3d(vec3 x)
 	return fract(xhash + yhash + zhash);
 }
 
-#define SUNRADIUS  0.4
+#define SUNRADIUS  0.2
 #define M_PI       3.14159265
 
-//---------MAIN------------
 void main()
 {
 	vec3 color;
@@ -56,16 +60,15 @@ void main()
 	// Reading from the clouds maps
 	// mixing according to the weather (1.0 -> clouds1 (sunny), 0.5 -> clouds2 (rainy))
 	// + time translation along the u-axis (horizontal) for the clouds movement
-	float transparency = mix(texture(clouds2,vec2(u+time,v)).r, texture(clouds1,vec2(u+time,v)).r, (weather-0.5)*2.0);
+	float transparency = texture(clouds1, vec2(u+time,v)).r;
 
-	#if 0
 	// Stars
-	if (sun_norm.y < 0.1) //Night or dawn
+	if (sun_norm.y < 0.1) // night or dawn
 	{
 		float threshold = 0.99;
-		//We generate a random value between 0 and 1
+		// we generate a random value between 0 and 1
 		float star_intensity = Noise3d(normalize(star_pos));
-		//And we apply a threshold to keep only the brightest areas
+		// and we apply a threshold to keep only the brightest areas
 		if (star_intensity >= threshold)
 		{
 			//We compute the star intensity
@@ -73,7 +76,6 @@ void main()
 			color += vec3(star_intensity);
 		}
 	}
-	#endif
 
 	//Sun
 	float radius = length(pos_norm-sun_norm);
@@ -118,8 +120,9 @@ void main()
 	// horizon tweak
 	if (-0.2 <= pos_norm.y && pos_norm.y <= 0.2)
 	{
-		color *= cos(pos_norm.y * 5*M_PI) / 4 + 1.25;
+		// somewhat simulate the Mie scattering
+		float factor = 0.1666 * sun_norm.y * sun_norm.y;
+		color *= (cos(pos_norm.y * 5*M_PI) + 1) * factor + 1;
 	}
-
 	fragcol = vec4(color, 1);
 }

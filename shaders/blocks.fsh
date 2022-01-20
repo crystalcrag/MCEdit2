@@ -51,6 +51,7 @@ void main(void)
 		float pt4 = intensity[bitfieldExtract(ocsmap, 6, 2)] * ocsval;
 		uint extend = ocsmap >> 9;
 
+		/* XXX should probably replace this with SSAO: https://learnopengl.com/Advanced-Lighting/SSAO */
 		if ((ocsmap & 256) > 0)
 		{
 			/* half-block ocs: a bit more expensive to process: need to compute contribution from 4 sides */
