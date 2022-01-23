@@ -22,7 +22,6 @@ struct GameState_t
 	int      state;            /* event loop we currently are */
 	int      mouseX, mouseY;   /* current mouse pos */
 	int      exit;             /* managed by SITGL */
-	int      maxDist;          /* render distance in chunks */
 	uint8_t  forceSel;         /* don't display preview item */
 	TEXT     capture[128];     /* screenshot directory */
 };
@@ -30,7 +29,7 @@ struct GameState_t
 enum /* possible values for state: which game loop are we running */
 {
 	GAMELOOP_WORLDSELECT,
-	GAMELOOP_WORLD,
+	GAMELOOP_WORLDEDIT,
 	GAMELOOP_OVERLAY,
 	GAMELOOP_SIDEVIEW
 };

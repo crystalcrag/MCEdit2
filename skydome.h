@@ -13,6 +13,7 @@
 Bool skydomeInit(void);
 void skydomeRender(void);
 void skydomeMoveSun(int sunMove);
+void skydomeGetSunPos(vec4 pos);
 
 /*
  * private stuff below

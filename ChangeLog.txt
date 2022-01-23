@@ -1,4 +1,13 @@
 =========== Week 3 ===========
+Sat Jan 22:
+	* configuration/key bindings window mostly done.
+
+Fri Jan 21:
+	* shading per face now depends on sun position.
+
+Thu Jan 20:
+	* started integrating world selection (finally!).
+
 Wed Jan 19:
 	* skydome generator mostly finished.
 

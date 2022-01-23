@@ -27,6 +27,18 @@ form.bg combobox { padding: 8px 20px 4px; border-radius: 4px; background: linear
 form.bg combobox arrow { background: transparent url(mask:arrowdown.png) 50% 50% no-repeat; background-size: 70% 50% }
 popup { border: 3px solid black; border-width: 2px; background-color: white; color: black; padding: 12px 6px }
 
+tab.bg { padding: 5px; color: #444; background-color: #c6c6c6; border: 0.2em outset #c6c6c6; border-radius: 0.3em; border-top-left-radius: 0 }
+tab.bg pane { border-radius: 0.3em 0.3em 0 0; text-shadow: none; background-color: #8b8b8b;
+           border: 0.2em outset #8b8b8b; border-bottom: 0; font-size: 0.9em; padding: 3px 7px }
+tab.bg pane:active { background-color: #c6c6c6; border-color: #c6c6c6; border-width: 0.2em; padding: 5px 7px }
+tab.bg pane img { width: 20px }
+tab.bg editbox { background-color: #8b8b8b; border: 0.1em inset #ccc; padding: 2px 4px; -caret-color: #ddd; color: white; text-shadow: 2px 2px #3f3f3f }
+tab.bg .exch { border: 0.1em inset #ccc; background: url(mask:arrowdown.png) no-repeat 50% 70%, url(mask:arrowup.png) no-repeat 50% 30%;
+               background-size: 70% 20%, 70% 20%; color: #888; border-radius: 0; outline: none; padding: 0; box-shadow: 0 0 3px #222 inset }
+tab.bg .exch:active { border: 0.1em inset #ccc; background-color: transparent, #8b8b8b; padding: 0; color: white; box-shadow: 0 0 3px #222 inset }
+tab.bg #del.exch { background: rgba(red, 0.1); text-align: center; vertical-align: middle; padding-top: 0.2em; text-shadow: none }
+tab.bg #del.exch:active { background: red }
+
 /* mcedit style dialog */
 form.mc { background: rgba(black, 0.65); font-size: 0.9em; padding: 0.5em; border-radius: 0.5em }
 form.mc button { padding: 0.2em 0.5em; box-shadow: none; border: 0; outline: 0; text-transform: none; text-shadow: none; background: white; color: black }
@@ -47,26 +59,35 @@ form.mc table td { padding: 0.3em 1.3em 0.3em 0.4em }
 form.mc table td:checked { color: selfore; background: selback }
 form.mc title { font-weight: bold; text-align: center }
 form.mc #icon { border: 2px solid #87cb85 }
+form.mc a { color: #88f }
+form.mc.dark { padding: 1em; background: rgba(black, 0.8) }
+form.mc .key { background: #87cb85; border: 0.2em outset #87cb85; padding: 0.1em 0.5em; border-radius: 0.5em }
+form.mc .key.sel { background: yellow; border-color: yellow }
+form.mc .key:active { background: rgba(#87cb85,0.5); border: 0.2em solid rgba(black, 0.5) }
+form.mc tab { border-top: 0.1em solid #a2f4a0 }
+form.mc tab pane { background-color: rgba(#a2f4a0, 0.3); color: #ccc; padding: 0.5em; border-radius: 0.3em 0.3em 0 0 }
+form.mc tab pane:active { background-color: #a2f4a0; color: black }
+
 dim { color: #aaa }
 note { background: yellow; color: black }
 #error { color: red }
 
-/* world selection */
+
+/* world selection screen */
 #header { background: linear-gradient(to right, rgba(#000,0.5), transparent 50%, rgba(#000,0.5)), url("dirt.png"); padding: 30px;
           background-size: 100% 100%, 64px 64px; border-bottom: 5px solid rgba(0,0,0,0.5) }
 
 #footer { background: linear-gradient(to right, rgba(#000,0.5), transparent 50%, rgba(#000,0.5)),
 		  url("dirt.png"); padding: 20px; background-size: 100% 100%, 64px 64px; border-top: 5px solid rgba(#fff,0.1) }
 
-#worlds { background: linear-gradient(to right, rgba(#000,0.3), rgba(#000,0.5) 20%, rgba(#000,0.3) 80%, rgba(#000,0.5)), url("dirt.png");
-		  box-shadow: black 0 0 20px inset; background-size: 100% 100%, 64px 64px; padding: 20px 6%; color: #ccc }
+#worlds { background: rgba(black,0.5), url(2022-01-20_02.57.39.jpg); background-size: cover, cover;
+		  box-shadow: black 0 0 20px inset; padding: 20px 6%; color: #ccc }
 #worlds { border-spacing: auto 20px }
-#worlds > td { border: 3px solid #888; padding: 2px }
+#worlds > td { border: 3px solid #888; padding: 2px; background: rgba(black, 0.5) }
+#worlds > td:checked { background: linear-gradient(to bottom, #87cb85, #6da46b); border: 2px solid #94df92 }
 #worlds #wname { color: white }
 #worlds td { color: #aaa; text-shadow: 2px 2px rgba(#000,0.5) }
-#worlds td:checked { color: #eee; background: linear-gradient(to bottom, #87cb85, #6da46b); border: 2px solid #94df92 }
-#worlds td:checked td { color: #eee }
-#worlds thead { text-decoration: underline }
+#worlds td:checked { color: #eee }
 
 #toolbar { background: rgba(black,0.7); padding: 10px; box-shadow: 0 0 10px black; font-size: 0.9em }
 
@@ -95,7 +116,8 @@ button:disabled { background: linear-gradient(to bottom, rgba(#87cb85,0.75), rgb
 
 #edit { font-size: 1.5em; padding: 10px 20px 6px }
 #edit:active { box-shadow: 0 0 8px black inset; padding: 12px 22px 8px }
-#edit:disabled { padding: 12px 22px 8px }
+#edit:disabled { padding: 12px 22px 8px; background: linear-gradient(to bottom, rgba(#555, 0.5), rgba(#444, 0.5)); border: 0; color: #aaa;
+			text-shadow: 0.1em 0.1em black; outline: 3px solid black }
 
 .big { font-weight: bold }
 
@@ -142,18 +164,6 @@ tooltip { background-color: rgba(#000,0.9); color: white; text-shadow: 2px 2px #
 tooltip dim { color: #888; text-shadow: none }
 tooltip ench { color: #aaa }
 tooltip b { color: cyan }
-
-tab { padding: 5px; color: #444; background-color: #c6c6c6; border: 0.2em outset #c6c6c6; border-radius: 0.3em; border-top-left-radius: 0 }
-tab pane { border-radius: 0.3em 0.3em 0 0; text-shadow: none; background-color: #8b8b8b;
-           border: 0.2em outset #8b8b8b; border-bottom: 0; font-size: 0.9em; padding: 3px 7px }
-tab pane:active { background-color: #c6c6c6; border-color: #c6c6c6; border-width: 0.2em; padding: 5px 7px }
-tab pane img { width: 20px }
-tab editbox { background-color: #8b8b8b; border: 0.1em inset #ccc; padding: 2px 4px; -caret-color: #ddd; color: white; text-shadow: 2px 2px #3f3f3f }
-tab .exch { border: 0.1em inset #ccc; background: url(mask:arrowdown.png) no-repeat 50% 70%, url(mask:arrowup.png) no-repeat 50% 30%;
-            background-size: 70% 20%, 70% 20%; color: #888; border-radius: 0; outline: none; padding: 0; box-shadow: 0 0 3px #222 inset }
-tab .exch:active { border: 0.1em inset #ccc; background-color: transparent, #8b8b8b; padding: 0; color: white; box-shadow: 0 0 3px #222 inset }
-tab #del.exch { background: rgba(red, 0.1); text-align: center; vertical-align: middle; padding-top: 0.2em; text-shadow: none }
-tab #del.exch:active { background: red }
 
 progress { background-color: #8b8b8b; vertical-align: middle; text-align: center; border: 2px inset #bbb; color: white; padding: 0.2em }
 progress bar { background-color: #23ba1f; border: 2px outset #23ba1f; color: white }

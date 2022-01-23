@@ -32,7 +32,7 @@
 GameState_t mcedit;
 MCGlobals_t globals;
 
-static void takeScreenshot(void)
+int takeScreenshot(SIT_Widget w, APTR cd, APTR ud)
 {
 	time_t      now = time(NULL);
 	struct tm * local = localtime(&now);
@@ -40,6 +40,7 @@ static void takeScreenshot(void)
 	STRPTR      path = alloca(strlen(mcedit.capture) + 64);
 	int         len, num = 2;
 
+	glReadBuffer(GL_FRONT);
 	glReadPixels(0, 0, globals.width, globals.height, GL_RGB, GL_UNSIGNED_BYTE, buffer);
 
 	len = sprintf(path, "%s/%d-%02d-%02d_%02d.%02d.%02d.png", mcedit.capture, local->tm_year+1900, local->tm_mon+1, local->tm_mday,
@@ -56,6 +57,7 @@ static void takeScreenshot(void)
 	textureSavePNG(path, buffer, 0, globals.width, globals.height, 3);
 	fprintf(stderr, "screenshot saved in %s\n", path);
 	free(buffer);
+	return 1;
 }
 
 static void prefsInit(void)
@@ -70,6 +72,7 @@ static void prefsInit(void)
 	globals.compassSize   = GetINIValueInt(ini, "CompassSize",   100) * 0.01f;
 	globals.fieldOfVision = GetINIValueInt(ini, "FieldOfVision", 80);
 	globals.guiScale      = GetINIValueInt(ini, "GuiScale",      100);
+	globals.sensitivity   = GetINIValueInt(ini, "Sensitivity",   100);
 
 	CopyString(mcedit.capture, GetINIValueStr(ini, "CaptureDir", "screenshots"), sizeof mcedit.capture);
 
@@ -89,7 +92,7 @@ static void prefsSave(void)
 #endif
 
 
-static int SDLKtoSIT(int key)
+int SDLKtoSIT(int key)
 {
 	static int mSDLKtoSIT[] = {
 		SDLK_HOME,      SITK_Home,
@@ -147,7 +150,7 @@ static int SDLKtoSIT(int key)
 	return 0;
 }
 
-static int SDLMtoSIT(int mod)
+int SDLMtoSIT(int mod)
 {
 	int ret = 0;
 	if (mod & KMOD_CTRL)  ret |= SITK_FlagCtrl;
@@ -324,6 +327,7 @@ int main(int nb, char * argv[])
 	static SIT_Accel accels[] = {
 		{SITK_FlagCapture + SITK_FlagAlt + SITK_F4, SITE_OnActivate, NULL, mceditExit},
 		{SITK_FlagCapture + SITK_FlagCtrl + 's',    SITE_OnActivate, NULL, mceditSaveChanges},
+		{SITK_FlagCapture + SITK_F2,                SITE_OnActivate, NULL, takeScreenshot},
 
 		{SITK_FlagCtrl + 'g', SITE_OnActivate, NULL, mceditMenuCommand},
 		{SITK_FlagCtrl + 'c', SITE_OnActivate, NULL, mceditMenuCommand},
@@ -353,6 +357,7 @@ int main(int nb, char * argv[])
 	SIT_AddCallback(globals.app, SITE_OnFocus, mceditTrackFocus, NULL);
 	SIT_AddCallback(globals.app, SITE_OnBlur,  mceditTrackFocus, NULL);
 
+#if 0
 	if (! renderInitStatic())
 	{
 		/* shaders compilation failed usually */
@@ -360,9 +365,9 @@ int main(int nb, char * argv[])
 	}
 
 //	globals.level = renderInitWorld("TestMesh", globals.renderDist);
-	globals.level = renderInitWorld("World5", globals.renderDist);
+	globals.level = renderInitWorld("World1_12", globals.renderDist);
+
 	globals.yawPitch = &mcedit.player.angleh;
-	mcedit.state  = GAMELOOP_WORLD;
 	wayPointsRead();
 	ListAddTail(&globals.level->players, &mcedit.player.node);
 
@@ -374,14 +379,19 @@ int main(int nb, char * argv[])
 
 	updateAlloc(32);
 	playerInit(&mcedit.player);
+	mcedit.state = GAMELOOP_WORLDEDIT;
+#else
+	mcedit.state = GAMELOOP_WORLDSELECT;
+#endif
 	FrameSetFPS(40);
 
 	while (mcedit.exit != 1)
 	{
 		mcedit.exit = 0;
 		switch (mcedit.state) {
-		case GAMELOOP_WORLD:    mceditWorld();    break;
-		case GAMELOOP_SIDEVIEW: mceditSideView(); break;
+		case GAMELOOP_WORLDSELECT: mceditWorldSelect(); break;
+		case GAMELOOP_WORLDEDIT:   mceditWorld();       break;
+		case GAMELOOP_SIDEVIEW:    mceditSideView();    break;
 		default: break;
 		}
 	}
@@ -466,9 +476,6 @@ void mceditWorld(void)
 					}
 					mcedit.state = GAMELOOP_SIDEVIEW;
 					mcedit.exit = 2;
-					break;
-				case SDLK_F2:
-					takeScreenshot();
 					break;
 				case SDLK_DELETE:
 					if ((globals.selPoints & 8) == 0)
@@ -1009,13 +1016,6 @@ void mceditUIOverlay(int type)
 			int key;
 			switch (event.type) {
 			case SDL_KEYDOWN:
-				switch (event.key.keysym.sym) {
-				case SDLK_F2:
-					takeScreenshot();
-				default:
-					break;
-				}
-				// no break;
 			case SDL_KEYUP:
 				key = SDLKtoSIT(event.key.keysym.sym);
 				if (key > 0 && SIT_ProcessKey(key, SDLMtoSIT(event.key.keysym.mod), event.type == SDL_KEYDOWN))
@@ -1032,6 +1032,9 @@ void mceditUIOverlay(int type)
 				break;
 			case SDL_MOUSEMOTION:
 				SIT_ProcessMouseMove(event.motion.x, event.motion.y);
+				break;
+			case SDL_VIDEOEXPOSE:
+				SIT_ForceRefresh();
 				break;
 			case SDL_VIDEORESIZE:
 				globals.width  = event.resize.w;
@@ -1157,7 +1160,7 @@ void mceditUIOverlay(int type)
 	SIT_SetValues(globals.app, SIT_RefreshMode, SITV_RefreshAlways, NULL);
 	SDL_EnableUNICODE(0);
 	renderSaveRestoreState(False);
-	mcedit.state = GAMELOOP_WORLD;
+	mcedit.state = GAMELOOP_WORLDEDIT;
 }
 
 /*
@@ -1264,6 +1267,9 @@ void mceditSideView(void)
 			case SDL_QUIT:
 				mcedit.exit = 1;
 				break;
+			case SDL_VIDEOEXPOSE:
+				SIT_ForceRefresh();
+				break;
 			case SDL_VIDEORESIZE:
 				globals.width  = event.resize.w;
 				globals.height = event.resize.h;
@@ -1281,7 +1287,7 @@ void mceditSideView(void)
 		}
 	}
 	debugLoadSaveState(PREFS_PATH, False);
-	mcedit.state = GAMELOOP_WORLD;
+	mcedit.state = GAMELOOP_WORLDEDIT;
 	SIT_Nuke(SITV_NukeCtrl);
 	FrameSaveRestoreTime(False);
 	renderSaveRestoreState(False);

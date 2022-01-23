@@ -13,11 +13,12 @@
 #include "skydome.h"
 #include "models.h"
 #include "maps.h"
+#include "render.h"
 #include "globals.h"
 
 static struct SkyDome_t skydome;
 
-static void skydomeGetSunPos(vec4 pos)
+void skydomeGetSunPos(vec4 pos)
 {
 	pos[0] = cosf(skydome.sunAngle);
 	pos[1] = sinf(skydome.sunAngle);
@@ -28,7 +29,7 @@ static void skydomeGetSunPos(vec4 pos)
 Bool skydomeInit(void)
 {
 	/* sky dome */
-	Model model = modelSphere(1, 40);
+	Model model = modelSphere(1, 10);
 
 	skydome.shader = createGLSLProgram("skydome.vsh", "skydome.fsh", NULL);
 	if (! skydome.shader)
@@ -80,6 +81,7 @@ void skydomeMoveSun(int sunMove)
 	skydome.sunAngle += sunMove & 1 ? -0.01f : 0.01f;
 	skydomeGetSunPos(sunPos);
 	setShaderValue(skydome.shader, "sun_pos", 4, sunPos);
+	glBufferSubData(GL_UNIFORM_BUFFER, UBO_SUNDIR_OFFSET, sizeof (vec4), sunPos);
 }
 
 void skydomeRender(void)

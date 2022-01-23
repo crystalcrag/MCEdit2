@@ -58,6 +58,7 @@ typedef struct MCGlobals_t
 
 	/* quick options */
 	float compassSize;
+	int   sensitivity;
 	int   fieldOfVision;
 	int   renderDist;
 	int   redstoneTick;

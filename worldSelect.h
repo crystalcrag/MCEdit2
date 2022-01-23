@@ -12,4 +12,19 @@ int optionsQuickAccess(SIT_Widget, APTR cd, APTR ud);
 int optionsExit(SIT_Widget, APTR cd, APTR ud);
 
 
+#ifdef WORLDSELECT_IMPL
+struct WorldSelect_t
+{
+	SIT_Widget options;
+	SIT_Widget edit, list;
+	SIT_Widget enterKey;
+	SIT_Widget curKey;
+	STRPTR     folder;
+	int        sensitivity;
+	int        guiScale, lockMouse;
+	int        curKeySym, curKeyMod;
+	int        renderDist, autoEdit;
+	int        fov, fullScreen;
+};
+#endif
 #endif

@@ -72,12 +72,12 @@ void debugLoadSaveState(STRPTR path, Bool load);
 
 enum /* possible flags for paramter <what> of debugToggleInfo() (side view) and renderShowBlockInfo() */
 {
-	DEBUG_BLOCK     = 1,       /* show tooltip about block selected */
-	DEBUG_LIGHT     = 2,       /* 2d view */
-	DEBUG_CHUNK     = 3,       /* 2d view */
-	DEBUG_SELECTION = 4,       /* force block selection */
-	DEBUG_NOCLUTTER = 8,       /* remove all HuD elements */
-	DEBUG_SHOWITEM  = 16       /* show entity preview and info */
+	DEBUG_BLOCK     = 1,           /* show tooltip about block selected */
+	DEBUG_LIGHT     = 2,           /* 2d view */
+	DEBUG_CHUNK     = 3,           /* 2d view */
+	DEBUG_SELECTION = 4,           /* force block selection */
+	DEBUG_NOCLUTTER = 8,           /* remove all HuD elements */
+	DEBUG_SHOWITEM  = 16           /* show entity preview and info */
 };
 
 /* chunk transfer to GPU */
@@ -96,8 +96,10 @@ void renderItems(Item items, int count, float scale);
 #define UBO_MVMATRIX_OFFSET        (sizeof (mat4))
 #define UBO_LOOKAT_OFFSET          (2 * sizeof (mat4))
 #define UBO_CAMERA_OFFSET          (UBO_LOOKAT_OFFSET + sizeof (vec4))
-#define UBO_NORMALS                (UBO_CAMERA_OFFSET + sizeof (vec4))
+#define UBO_SUNDIR_OFFSET          (UBO_CAMERA_OFFSET + sizeof (vec4))
+#define UBO_NORMALS                (UBO_SUNDIR_OFFSET + sizeof (vec4))
 #define UBO_SHADING_OFFSET         (UBO_NORMALS + sizeof (vec4) * 6)
+#define UBO_TOTAL_SIZE             (UBO_SHADING_OFFSET + sizeof (vec4) * 6)
 
 #ifdef RENDER_IMPL /* private */
 #include "maps.h"

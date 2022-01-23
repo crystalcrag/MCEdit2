@@ -24,9 +24,9 @@ out vec2  tc;
 out vec2  ocspos;
 out float skyLight;
 out float blockLight;
-flat out uint rswire;
-flat out uint ocsmap;
-flat out int  normal;
+flat out uint  rswire;
+flat out uint  ocsmap;
+flat out int   normal;
 
 void main(void)
 {
@@ -63,6 +63,11 @@ void main(void)
 		if ((lowerEdge & 4) > 0) V3.y -= 0.2;
 		if ((lowerEdge & 8) > 0) V4.y -= 0.2;
 	}
+
+	
+	shade = 0.2 * max(0, dot(normals[normal < 6 ? normal : 4].xyz, sunDir.xyz)) + 0.8;
+	if (normal == 0 || normal == 2) shade -= 0.1;
+	shade /= 15;
 
 	/* first vertex */
 	gl_Position = MVP * vec4(V1, 1);

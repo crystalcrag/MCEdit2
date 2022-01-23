@@ -523,18 +523,22 @@ int renderInitUBO(void)
 	 * mat4 mvMatrix;
 	 * vec4 lightPos;
 	 * vec4 camera;
+	 * vec4 sunDir;
 	 * vec4 normals[6];
 	 * float shading[6];
 	 */
 	GLuint buffer;
+	vec4   sunDir;
 	glGenBuffers(1, &buffer);
 	glBindBuffer(GL_UNIFORM_BUFFER, buffer);
-	glBufferData(GL_UNIFORM_BUFFER, sizeof (mat4) * 2 + sizeof (vec4) * (2+6+6), NULL, GL_STATIC_DRAW);
+	glBufferData(GL_UNIFORM_BUFFER, UBO_TOTAL_SIZE, NULL, GL_STATIC_DRAW);
+	skydomeGetSunPos(sunDir);
 
 	/* these should rarely change */
 	glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof (mat4), render.matPerspective);
 	glBufferSubData(GL_UNIFORM_BUFFER, UBO_NORMALS, sizeof normals, normals);
 	glBufferSubData(GL_UNIFORM_BUFFER, UBO_SHADING_OFFSET, sizeof shading, shading);
+	glBufferSubData(GL_UNIFORM_BUFFER, UBO_SUNDIR_OFFSET, sizeof (vec4), sunDir);
 	glBindBuffer(GL_UNIFORM_BUFFER, 0);
 	return buffer;
 }

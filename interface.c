@@ -290,7 +290,7 @@ void mcuiCreateInventory(Inventory player)
 	);
 
 	SIT_CreateWidgets(diag,
-		"<tab name=items left=FORM right=FORM top=FORM bottom=FORM tabSpace=4 tabActive=", mcui.curTab, "tabStr='\t\t\t\t\t'>"
+		"<tab name=items.bg left=FORM right=FORM top=FORM bottom=FORM tabSpace=4 tabActive=", mcui.curTab, "tabStr='\t\t\t\t\t'>"
 		" <editbox name=search right=FORM buddyLabel=", "Search:", NULL, ">"
 		" <canvas composited=1 name=inv.inv left=FORM top=WIDGET,search,0.5em nextCtrl=LAST/>"
 		" <scrollbar width=1.2em name=scroll.inv wheelMult=1 top=OPPOSITE,inv,0 bottom=OPPOSITE,inv,0 right=FORM>"

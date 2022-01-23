@@ -1,11 +1,9 @@
-
-
 body         { background-color: white; font-family: sans-serif; margin: 0; padding: 0 }
 #toc         { position: fixed; top: 80px; bottom: 0; overflow: auto; left: 0; width: 18%; background-color: #444; color: white;
                padding: 10px 0 10px 32px; box-sizing: border-box; margin: 0; box-shadow: 0 0 10px black inset }
 #toc a       { color: white!important }
 #toc a:hover { color: #5f5!important }
-#toc p       { font-weight: bold }
+#toc p       { font-weight: bold; margin: 1em 0 }
 #toc li      { padding-top: 3px }
 #logo        { font-size: 200%; position: fixed; background: linear-gradient(to bottom, #0065ae, #002e6e); color: white;
                font-family: Georgia, serif; font-weight: bold; margin: 0; height: 80px; line-height: 80px; text-align: right;
@@ -13,10 +11,12 @@ body         { background-color: white; font-family: sans-serif; margin: 0; padd
 pre          { margin: 15px; padding: 5px }
 pre.source   { background-color: #ffe; border: dashed #aa9 1px }
 p            { margin: 15px; margin-right: 40px }
+p.desc       { margin-left: 80px }
 p.item_name  { font-weight: bolder; margin: 5px; font-size: 120% }
 #content     { margin-left: 18%; box-sizing: border-box; color: black; background: white; padding: 80px 20px 1em 20px; text-align: justify }
 #content a   { color: #0065ae; text-decoration: none }
 h1, h2, h3   { background: #ddd; margin: 0 -20px 0 -30px; padding: 1em 1em; font-weight: normal }
+div.sep      { display: block; border: 0; padding-top: 80px }
 a:hover      { text-decoration: underline }
 span.keyword { color: #00F }
 span.comment { color: #080 }
@@ -28,9 +28,31 @@ span.sign    { color: #008B8B }
 .d           { color:#A600F7 }
 v,.o         { color:#FF00FF }
 .s           { color:#7700FF }
-.t           { color:#146A31; font-weight:bold }
+.t           { color:#14aa31; font-weight:bold }
 .k           { color:#A62828; font-weight:bold }
 .n           { color:black;   background-color:#FFFF00 }
-li > p       { margin-top: 3px }
-li > p.cont  { margin-top: 0.5em; margin-bottom: 3px }
+ul.space li  { margin-top: 0.5em }
+li p         { margin-top: 3px }
+li p.cont    { margin-top: 0.5em; margin-bottom: 3px }
 dim          { color: #aaa }
+table        { border-collapse: collapse; margin: 0.5em 100px 0.5em 30px }
+table thead td,
+table th     { background-color: black; color: white; text-align: center }
+table td,
+table th     { border: 1px solid black; padding: 3px; vertical-align: top }
+table th     { border-bottom-color: white }
+tt           { font-weight: bold; color: blue }
+bits         { display: block; margin: 20px 0 40px 80px }
+brow         { display: block; margin-bottom: 1.5em }
+brow hdr     { font-weight: bold; width: 40px; display: inline-block }
+bitpart em   { color: blue }
+bitpart      { display: inline-block; border-bottom: 2px solid black; text-align: center; position: relative }
+bitpart::before { content: ""; height: 10px; border-left: 2px solid black; left: 0; bottom: 0; position: absolute }
+bitpart::after { content: attr(bit); left: -0.5em; bottom: -1.2em; position: absolute; color: gray }
+bitpart.sz0  { width: 2px; color: transparent }
+bitpart.sz4  { width: 60px }
+bitpart.sz8  { width: 120px }
+bitpart.sz16 { width: 240px }
+bitpart.sz32 { width: 480px }
+.important   { display: block; border: 4px solid #ccc; margin: 1em 100px 1em 2em; padding: 1em; box-shadow: 0 0 10px #ccc; background: #ffa }
+.important::before { content: "\261B"; font-size: 3em; float: left; margin: -0.5em 5px 0 0 }
