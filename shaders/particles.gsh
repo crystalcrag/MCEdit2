@@ -75,6 +75,16 @@ void main(void)
 		tmin = 0;
 		tmax = -8;
 	}
+
+	/* adjust skyight value according to day/night cycle */
+	if (sunDir.y < 0.4)
+	{
+		float sky = (sunDir.y + 0.4) * 1.25;
+		if (sky < 0) sky = 0; /* night time */
+		sky = sqrt(sky);
+		skyBlockLight.x *= sky;
+	}
+
 	texCoord = getTexCoord(base, tmin, tmin);
 	gl_Position = vec4(pos.x + pt1.x, pos.y + pt1.y, pos.z, pos.w);
 	EmitVertex();

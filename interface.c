@@ -1453,8 +1453,8 @@ static int mcuiDeleteProgress(SIT_Widget w, APTR cd, APTR ud)
 
 static int mcuiDeleteEntities(SIT_Widget w, APTR cd, APTR ud)
 {
-	entityDeleteById(globals.level, * (int *) cd + 1);
-	((int *)ud)[0] ++;
+	if (entityDeleteById(globals.level, * (int *) cd + 1))
+		((int *)ud)[0] ++;
 	return 1;
 }
 

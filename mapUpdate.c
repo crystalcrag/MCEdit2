@@ -1683,7 +1683,7 @@ void mapUpdateEnd(Map map)
 /*
  * main entry point for altering voxel tables and keep them consistent.
  */
-void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
+Bool mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 {
 	struct BlockIter_t iter;
 
@@ -1697,7 +1697,7 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 	if (iter.blockIds == NULL)
 	{
 		/* try to build above or below build limit */
-		return;
+		return False;
 	}
 
 	int oldId = iter.blockIds[iter.offset] << 4;
@@ -1710,7 +1710,7 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 		track.modif = NULL;
 		track.list  = &track.modif;
 		if (b->tall && ! mapHasEnoughSpace(iter, b, blockId))
-			return;
+			return False;
 	}
 	if (b->gravity && (blockUpdate & UPDATE_GRAVITY))
 		mapUpdateCheckGravity(iter);
@@ -1722,7 +1722,7 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 	else                 oldId |= *data & 15;
 
 	if (oldId == blockId && tile == NULL)
-		return;
+		return False;
 
 	/* this needs to be done before tables are updated */
 	if (b->type != blockIds[oldId>>4].type)
@@ -1885,6 +1885,7 @@ void mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 		if ((blockUpdate & UPDATE_SILENT) == 0)
 			particlesExplode(map, 4, oldId, pos);
 	}
+	return True;
 }
 
 /* high level function: dispatch to specialized module */

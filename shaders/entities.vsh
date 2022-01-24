@@ -1,8 +1,10 @@
+/*
+ * vertex shader for drawing entities (mobs, falling block, paintings, world items ...).
+ *
+ * vertex data uses the 10 bytes per vertex format (see doc/internals.html for details).
+ */
 #version 430
 
-/*
- * vertex shader for drawing entities (mobs, falling block, paintings, ...).
- */
 layout (location=0) in ivec3 position;
 layout (location=1) in ivec2 info;
 layout (location=2) in vec4  offsets; /* divisor = 1 starting from here */
@@ -54,9 +56,6 @@ void main(void)
 	/* distribute shading per face */
 	vec3 absNorm = abs(normal);
 	absNorm *= 1 / (absNorm.x + absNorm.y + absNorm.z);
-	float shade = shading[normal.x < 0 ? 3 : 1].x * absNorm.x +
-	              shading[normal.z < 0 ? 2 : 0].x * absNorm.z +
-	              shading[normal.y < 0 ? 5 : 4].x * absNorm.y;
 
 	gl_Position = projMatrix * mvMatrix * vec4(pos + offsets.xyz, 1);
 	float U = float(info.x & 511);
@@ -85,8 +84,35 @@ void main(void)
 	blockLight += float(light & 15)   * (1/15.)  * absNorm.y;
 	skyLight   += float(light & 0xf0) * (1/240.) * absNorm.y;
 
-	blockLight *= shade;
-	skyLight   *= shade;
+	/* directionnal lighting from sun */
+	vec3  sunDirXZ = normalize(vec3(sunDir.x, 0, sunDir.z));
+	float shadeSky;
+	float shadeBlock;
+	float dotProdX = dot(vec3(normal.x < 0 ? -1 : 1, 0, 0), sunDirXZ);
+	float dotProdZ = dot(vec3(0, 0, normal.z < 0 ? -1 : 1), sunDirXZ);
+	float dotProd = dot(normal, sunDir.xyz);
+
+	/* faces parallel to Y axis will only use dot product from XZ plane (like blocks.gsh) */
+	dotProdX = (dotProdX < 0 ? 0.1 : 0.2) * dotProdX + 0.8;
+	dotProdZ = (dotProdZ < 0 ? 0.1 : 0.2) * dotProdZ + 0.8;
+	dotProd  = (dotProd  < 0 ? 0.1 : 0.2) * dotProd  + 0.8;
+
+	shadeSky = absNorm.x * dotProdX + absNorm.z * dotProdZ + absNorm.y * dotProd;
+
+	/* lower skylight contribution if we are at dawn/dusk */
+	if (sunDir.y < 0.4)
+	{
+		float sky = (sunDir.y + 0.4) * 1.25;
+		if (sky < 0) sky = 0; /* night time */
+		shadeSky *= sqrt(sky);
+	}
+
+	shadeBlock = shading[normal.x < 0 ? 3 : 1].x * absNorm.x +
+	             shading[normal.z < 0 ? 2 : 0].x * absNorm.z +
+	             shading[normal.y < 0 ? 5 : 4].x * absNorm.y;
+
+	blockLight *= shadeBlock;
+	skyLight   *= shadeSky;
 
 	flags = int(offsets.w);
 }

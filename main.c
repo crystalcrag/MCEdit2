@@ -314,8 +314,6 @@ int main(int nb, char * argv[])
 		return 1;
 	}
 
-	fprintf(stderr, "GL version = %s - vendor = %s\n", (STRPTR) glGetString(GL_VERSION), (STRPTR) glGetString(GL_RENDERER));
-
 	globals.app = SIT_Init(SIT_NVG_FLAGS, globals.width, globals.height, RESDIR INTERFACE "default.css", 1);
 
 	if (! globals.app)
@@ -357,7 +355,7 @@ int main(int nb, char * argv[])
 	SIT_AddCallback(globals.app, SITE_OnFocus, mceditTrackFocus, NULL);
 	SIT_AddCallback(globals.app, SITE_OnBlur,  mceditTrackFocus, NULL);
 
-#if 0
+#if 1
 	if (! renderInitStatic())
 	{
 		/* shaders compilation failed usually */
@@ -739,9 +737,11 @@ void mceditPlaceBlock(void)
 			entityGetItem(sel->entity, &buffer);
 			if (buffer.id > 0 && playerAddInventory(&mcedit.player, &buffer))
 			{
-				entityDeleteById(globals.level, sel->entity);
-				renderAddModif();
-				renderPointToBlock(mcedit.mouseX, mcedit.mouseY);
+				if (entityDeleteById(globals.level, sel->entity))
+				{
+					renderAddModif();
+					renderPointToBlock(mcedit.mouseX, mcedit.mouseY);
+				}
 				mcedit.forceSel = 0;
 			}
 		}
@@ -812,11 +812,8 @@ void mceditPlaceBlock(void)
 	{
 		if (id == 0 /* no block selected in inventory bar */)
 		{
-			if (sel->side == SIDE_ENTITY)
-			{
-				entityDeleteById(globals.level, sel->entity);
+			if (sel->side == SIDE_ENTITY && entityDeleteById(globals.level, sel->entity))
 				renderAddModif();
-			}
 		}
 		else worldItemUseItemOn(globals.level, sel->entity, item->id, pos);
 	}
@@ -842,8 +839,8 @@ void mceditPlaceBlock(void)
 		 * udpdate the map and all the tables associated, will also trigger cascading updates
 		 * if needed
 		 */
-		mapUpdate(globals.level, pos, block, tile, UPDATE_NEARBY);
-		renderAddModif();
+		if (mapUpdate(globals.level, pos, block, tile, UPDATE_NEARBY))
+			renderAddModif();
 	}
 	else /* selected an item: check if we can create an entity instead */
 		worldItemCreate(globals.level, id, pos, sel->side);

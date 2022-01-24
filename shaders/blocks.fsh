@@ -9,38 +9,39 @@ out vec4 color;
 
 in  vec2  tc;
 in  vec2  ocspos;
+in  vec3  vpoint;
 in  float skyLight;
 in  float blockLight;
+in  float fogFactor;
 flat in uint rswire;
 flat in uint ocsmap;
 flat in int  normal;
 
-/*
- * Main texture for blocks
- */
-layout (binding=0) uniform sampler2D blockTex;
+layout (binding=0) uniform sampler2D blockTex; // Main texture for blocks
+layout (binding=2) uniform sampler2D tint;     // the color of the sky on the half-sphere where the sun is. (time x height)
+layout (binding=3) uniform sampler2D tint2;    // the color of the sky on the opposite half-sphere. (time x height)
 
 uniform vec3 biomeColor;
 
 void main(void)
 {
 	color = texture(blockTex, tc);
-	/* prevent writing to the depth buffer: easy way to handle opacity for transparent block */
+	// prevent writing to the depth buffer: easy way to handle opacity for transparent block
 	if (color.a < 0.004)
 		discard;
 	if (rswire >= 1)
 	{
-		/* use color from terrain to shade wire: coord are located at tile 31x3.5 to 32x3.5 */
+		// use color from terrain to shade wire: coord are located at tile 31x3.5 to 32x3.5
 		color *= texture(blockTex, vec2(0.96875 + float(rswire-1) * 0.001953125, 0.0556640625));
 		return;
 	}
 
-	/* ambient occlusion */
+	// ambient occlusion
 	float shade = 0;
 	float shadeLight = 0;
 	if (ocsmap > 0)
 	{
-		/* ambient occlusion for normal blocks */
+		// ambient occlusion for normal blocks
 		const float intensity[] = float[4](0, 0.2, 0.35, 0.5);
 		float dx = ocspos.x; /* [0 ~ 1] */
 		float dy = ocspos.y;
@@ -51,30 +52,30 @@ void main(void)
 		float pt4 = intensity[bitfieldExtract(ocsmap, 6, 2)] * ocsval;
 		uint extend = ocsmap >> 9;
 
-		/* XXX should probably replace this with SSAO: https://learnopengl.com/Advanced-Lighting/SSAO */
+		// XXX should probably replace this with SSAO: https://learnopengl.com/Advanced-Lighting/SSAO
 		if ((ocsmap & 256) > 0)
 		{
-			/* half-block ocs: a bit more expensive to process: need to compute contribution from 4 sides */
+			// half-block ocs: a bit more expensive to process: need to compute contribution from 4 sides
 			#define CORNERSET(pt1, pt2)         (ocsset & ((1 << (pt1*2-2)) | (1 << (pt2*2-2)))) == ((1 << (pt1*2-2)) | (1 << (pt2*2-2)))
 			#define CORNERUNSET(pt1, pt2, pt3)  (ocsset & ((1 << (pt1*2-2)) | (1 << (pt2*2-2)) | (1 << (pt3*2-2)))) != (1 << (pt1*2-2))
 			uint ocsset = (ocsmap | ((ocsmap & 0xaa) >> 1)) & 0x55;
-			/* doc/internals.html or get lost */
+			// doc/internals.html or get lost
 			shade = clamp(CORNERSET(1, 4) ?
 				mix(mix(pt1, 0, (extend & 2)   > 0 ? dy : dy*2),
 				    mix(pt4, 0, (extend & 128) > 0 ? dy : dy*2), dx) : CORNERUNSET(1, 2, 4) ? 0 :
-				mix(mix(pt1, 0, (extend & 1) > 0 ? dx : dx*2), 0, (extend & 2) > 0 ? dy : min(dy*2, 1)), 0, 1); /* top left corner */
+				mix(mix(pt1, 0, (extend & 1) > 0 ? dx : dx*2), 0, (extend & 2) > 0 ? dy : min(dy*2, 1)), 0, 1); // top left corner
 			float left = clamp(CORNERSET(1, 2) ?
 				mix(mix(pt1, 0, (extend & 1) > 0 ? dx : dx*2),
 				    mix(pt2, 0, (extend & 4) > 0 ? dx : dx*2), dy) : CORNERUNSET(2, 1, 3) ? 0 :
-				mix(0, mix(pt2, 0, (extend & 4) > 0 ? dx : dx*2), (extend & 8) > 0 ? dy : max(dy*2-1, 0)), 0, 1) /* bottom left corner */;
+				mix(0, mix(pt2, 0, (extend & 4) > 0 ? dx : dx*2), (extend & 8) > 0 ? dy : max(dy*2-1, 0)), 0, 1); // bottom left corner
 			float right = clamp(CORNERSET(4, 3) ?
 				mix(mix(0, pt4, (extend & 64) > 0 ? dx : dx*2-1),
 			        mix(0, pt3, (extend & 16) > 0 ? dx : dx*2-1), dy) : CORNERUNSET(3, 2, 4) ? 0 :
-				mix(0, mix(0, pt3, (extend & 16) > 0 ? dx : max(dx*2-1, 0)), (extend & 32) > 0 ? dy : max(dy*2-1, 0)), 0, 1); /* bottom right corner */
+				mix(0, mix(0, pt3, (extend & 16) > 0 ? dx : max(dx*2-1, 0)), (extend & 32) > 0 ? dy : max(dy*2-1, 0)), 0, 1); // bottom right corner
 			float bottom = clamp(CORNERSET(2, 3) ?
 				mix(mix(0, pt2, (extend & 8)  > 0 ? dy : dy*2-1),
 			        mix(0, pt3, (extend & 32) > 0 ? dy : dy*2-1), dx) : CORNERUNSET(4, 1, 3) ? 0 :
-				mix(mix(0, pt4, (extend & 64) > 0 ? dx : max(dx*2-1, 0)), 0, (extend & 128) > 0 ? dy : min(dy*2, 1)), 0, 1); /* top right corner */
+				mix(mix(0, pt4, (extend & 64) > 0 ? dx : max(dx*2-1, 0)), 0, (extend & 128) > 0 ? dy : min(dy*2, 1)), 0, 1); // top right corner
 			if (left   > shade) shade = left;
 			if (right  > shade) shade = right;
 			if (bottom > shade) shade = bottom;
@@ -88,12 +89,12 @@ void main(void)
 
 		if (blockLight > skyLight)
 		{
-			/* diminish slightly ambient occlusion if there is blockLight overpowering skyLight */
+			// diminish slightly ambient occlusion if there is blockLight overpowering skyLight
 			shadeLight = (blockLight - skyLight) * shade * 0.8;
 		}
 	}
 
-	/* last tex line: first 16 tex are biome dep */
+	// last tex line: first 16 tex are biome dependant
 	if (tc.y >= 0.96875 && color.x == color.y && color.y == color.z)
 	{
 		color.x *= biomeColor.x;
@@ -104,4 +105,24 @@ void main(void)
 	float sky = 0.9 * skyLight * skyLight + 0.1 - shade; if (sky < 0) sky = 0;
 	float block = (blockLight * blockLight - shadeLight) * (1 - sky);  if (block < 0) block = 0;
 	color *= vec4(sky, sky, sky, 1) + vec4(1.5 * block, 1.2 * block, 1 * block, 0);
+
+	// compute fog contribution -- need to redo what's done in skydome.fsh :-/
+	if (fogFactor < 1)
+	{
+		vec3 pos_norm = normalize(vpoint);
+		float dist = dot(sunDir.xyz, pos_norm);
+
+		//We read the tint texture according to the position of the sun and the weather factor
+		vec3 color_wo_sun = texture(tint2, vec2(min((sunDir.y + 1.0) / 2.0, 0.99), max(0.01, pos_norm.y))).rgb;
+		vec3 color_w_sun  = texture(tint,  vec2(min((sunDir.y + 1.0) / 2.0, 0.99), max(0.01, pos_norm.y))).rgb;
+
+		vec3 skyColor = mix(color_wo_sun, color_w_sun, dist * 0.5 + 0.5);
+		if (-0.2 <= pos_norm.y && pos_norm.y <= 0.2)
+		{
+			// somewhat simulate (poorly) the Mie scattering
+			float factor = 0.1 * sunDir.y * sunDir.y;
+			skyColor *= (cos(pos_norm.y * 5*M_PI) + 1) * factor + 1;
+		}
+		color = mix(vec4(skyColor,1), color, fogFactor);
+	}
 }

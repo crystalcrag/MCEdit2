@@ -1,7 +1,7 @@
 /*
- * fragment shader for MCEdit v2
+ * fragment shader for dynamic skydome of MCEdit v2
  *
- * orignal idea from Simon Rodriguez, https://github.com/kosua20/opengl-skydome
+ * original idea from Simon Rodriguez, https://github.com/kosua20/opengl-skydome
  */
 #version 430 core
 
@@ -77,15 +77,15 @@ void main()
 		}
 	}
 
-	//Sun
+	// Sun
 	float radius = length(pos_norm-sun_norm);
-	if(radius < SUNRADIUS) //We are in the area of the sky which is covered by the sun
+	if(radius < SUNRADIUS) // we are in the area of the sky which is covered by the sun
 	{
 		float time = clamp(sun_norm.y,0.1,0.99);
 		radius = radius / SUNRADIUS;
-		if(radius < 1.0-0.001) //< we need a small bias to avoid flickering on the border of the texture
+		if(radius < 1.0-0.001) // we need a small bias to avoid flickering on the border of the texture
 		{
-			//We read the alpha value from a texture where x = radius and y=height in the sky (~time)
+			// we read the alpha value from a texture where x = radius and y=height in the sky (~time)
 			vec4 sun_color = texture(sun,vec2(radius,time));
 			color = mix(color,sun_color.rgb,sun_color.a);
 		}
@@ -113,16 +113,18 @@ void main()
 	}
 	#endif
 
-	//Final mix
-	//mixing with the cloud color allows us to hide things behind clouds (sun, stars, moon)
+	// final mix
+	// mixing with the cloud color allows us to hide things behind clouds (sun, stars, moon)
 	color = mix(color, cloud_color, clamp((2-weather)*transparency,0,1));
 
 	// horizon tweak
+	#if 1
 	if (-0.2 <= pos_norm.y && pos_norm.y <= 0.2)
 	{
-		// somewhat simulate the Mie scattering
-		float factor = 0.1666 * sun_norm.y * sun_norm.y;
+		// somewhat simulate (poorly) the Mie scattering
+		float factor = 0.1 * sun_norm.y * sun_norm.y;
 		color *= (cos(pos_norm.y * 5*M_PI) + 1) * factor + 1;
 	}
+	#endif
 	fragcol = vec4(color, 1);
 }

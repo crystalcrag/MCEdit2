@@ -148,7 +148,7 @@ static void libraryGenThumb(LibBrush lib)
 	glClearColor(0.3, 0.3, 0.8, 1);
 	glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
 
-	/* this will override the default render.uboShader */
+	/* this will override the default globals.uboShader */
 	glBindBufferBase(GL_UNIFORM_BUFFER, UBO_BUFFER_INDEX, library.uboShader);
 
 	renderDrawMap(brush);

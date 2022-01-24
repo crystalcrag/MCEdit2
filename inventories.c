@@ -582,7 +582,7 @@ void inventoryResetScrollbar(MCInventory inv)
 		SIT_SetValues(inv->scroll, SIT_MaxValue, lines, SIT_PageSize, inv->invRow, SIT_LineHeight, 1, SIT_ScrollPos, inv->top, NULL);
 }
 
-/* SITE_OnScroll: scrollbar position changed */
+/* SITE_OnChange: scrollbar position changed */
 static int inventorySetTop(SIT_Widget w, APTR cd, APTR ud)
 {
 	MCInventory inv = ud;
@@ -858,7 +858,7 @@ void inventoryInit(MCInventory inv, SIT_Widget canvas, int max)
 	SIT_SetValues(canvas, SIT_Width, inv->invCol * inventories.cellSz, SIT_Height, inv->invRow * inventories.cellSz, NULL);
 
 	if (inv->scroll)
-		SIT_AddCallback(inv->scroll, SITE_OnScroll, inventorySetTop, inv);
+		SIT_AddCallback(inv->scroll, SITE_OnChange, inventorySetTop, inv);
 
 	SIT_Widget tip = SIT_GetById(canvas, "/info");
 	if (tip)

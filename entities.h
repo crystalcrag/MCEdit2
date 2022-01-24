@@ -22,7 +22,7 @@ void   entityAnimate(void);
 void   entityRender(void);
 void   entityDebug(int id);
 void   entityUpdateLight(Chunk);
-void   entityDeleteById(Map, int entityId);
+Bool   entityDeleteById(Map, int entityId);
 void   entityInfo(int id, STRPTR buffer, int max);
 int    entityRaypick(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos);
 void   entityUpdateOrCreate(Chunk, vec4 pos, ItemID_t blockId, vec4 dest, int ticks, DATA8 tile);

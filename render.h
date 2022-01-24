@@ -205,6 +205,14 @@ enum                               /* possible values for render.previewItem */
 	PREVIEW_BLOCK   = 2
 };
 
+enum                               /* special index value for shading[] array (must match what's declared in uniformBlock.glsl) */
+{
+	SHADING_ASPECT     = 1,        /* aspect ratio (adjustment for billboard) */
+	SHADING_FULLBRIGHT = 2,        /* DEUBG: turn skylight/blocklight to full no matter what */
+	SHADING_ISINVITEM  = 3,        /* only used by items.vsh */
+	SHADING_FOGDIST    = 5,        /* distance in blocks the fog will extend */
+};
+
 /* debug info */
 void debugBlockVertex(SelBlock_t *);
 void debugInit(void);

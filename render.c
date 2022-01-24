@@ -109,6 +109,7 @@ static void renderSelection(void)
 				goto highlight_bbox;
 			id <<= 4;
 		}
+		//fprintf(stderr, "id = %d\n", id);
 
 		struct BlockOrient_t info = {
 			.pointToId = render.selection.extra.blockId,
@@ -163,7 +164,7 @@ static void renderSelection(void)
 		else
 			render.selection.rotationY90 = 0;
 
-		#if 0
+		#if 1
 		static int oldBlock;
 		if (oldBlock != blockId)
 			fprintf(stderr, "blockId = %d:%d, side = %d, dir = %d\n", (blockId>>4) & 255, blockId & 15, info.side, info.direction), oldBlock = blockId;
@@ -190,7 +191,7 @@ static void renderSelection(void)
 
 		glFrontFace(GL_CCW);
 		glUseProgram(render.shaderItems);
-		glBindBuffer(GL_UNIFORM_BUFFER, render.uboShader);
+		glBindBuffer(GL_UNIFORM_BUFFER, globals.uboShader);
 
 		glBindVertexArray(render.vaoPreview);
 		glDrawArrays(GL_TRIANGLES, 0, vtx);
@@ -207,7 +208,7 @@ static void renderSelection(void)
 		loc[2] = render.selection.current[2];
 
 		glUseProgram(render.selection.shader);
-		glBindBuffer(GL_UNIFORM_BUFFER, render.uboShader);
+		glBindBuffer(GL_UNIFORM_BUFFER, globals.uboShader);
 
 		if (locOffset == 0)
 			locOffset = glGetUniformLocation(render.selection.shader, "info");
@@ -497,12 +498,12 @@ static int renderGetSize(SIT_Widget w, APTR cd, APTR ud)
 	render.scale = globals.width / (3 * 182.f) * ITEMSCALE;
 	render.inventory->update ++;
 
-	/* aspect ratio (needed by particle.gsh) */
-	shading[1] = globals.width / (float) globals.height;
-	matPerspective(render.matPerspective, globals.fieldOfVision, shading[1], NEAR_PLANE, 1000);
+	/* aspect ratio (needed by particle.gsh and waypoints) */
+	shading[SHADING_ASPECT] = globals.width / (float) globals.height;
+	matPerspective(render.matPerspective, globals.fieldOfVision, shading[SHADING_ASPECT], NEAR_PLANE, 1000);
 	glViewport(0, 0, globals.width, globals.height);
 
-	glBindBuffer(GL_UNIFORM_BUFFER, render.uboShader);
+	glBindBuffer(GL_UNIFORM_BUFFER, globals.uboShader);
 	glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof (mat4), render.matPerspective);
 	glBufferSubData(GL_UNIFORM_BUFFER, UBO_SHADING_OFFSET, 16, shading);
 
@@ -525,7 +526,7 @@ int renderInitUBO(void)
 	 * vec4 camera;
 	 * vec4 sunDir;
 	 * vec4 normals[6];
-	 * float shading[6];
+	 * vec4 shading[6];
 	 */
 	GLuint buffer;
 	vec4   sunDir;
@@ -535,6 +536,8 @@ int renderInitUBO(void)
 	skydomeGetSunPos(sunDir);
 
 	/* these should rarely change */
+	shading[SHADING_FOGDIST] = globals.renderDist * 16 + 8;
+	fprintf(stderr, "fog distance = %d\n", (int) shading[SHADING_FOGDIST]);
 	glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof (mat4), render.matPerspective);
 	glBufferSubData(GL_UNIFORM_BUFFER, UBO_NORMALS, sizeof normals, normals);
 	glBufferSubData(GL_UNIFORM_BUFFER, UBO_SHADING_OFFSET, sizeof shading, shading);
@@ -664,11 +667,11 @@ Bool renderInitStatic(void)
 	}
 
 	/* pre-conpute perspective projection matrix */
-	shading[1] = globals.width / (float) globals.height;
-	matPerspective(render.matPerspective, globals.fieldOfVision, shading[1], NEAR_PLANE, 1000);
+	shading[SHADING_ASPECT] = globals.width / (float) globals.height;
+	matPerspective(render.matPerspective, globals.fieldOfVision, shading[SHADING_ASPECT], NEAR_PLANE, 1000);
 
-	render.uboShader = renderInitUBO();
-	glBindBufferBase(GL_UNIFORM_BUFFER, UBO_BUFFER_INDEX, render.uboShader);
+	globals.uboShader = renderInitUBO();
+	glBindBufferBase(GL_UNIFORM_BUFFER, UBO_BUFFER_INDEX, globals.uboShader);
 
 	/* HUD resources */
 	render.compass = nvgCreateImage(globals.nvgCtx, RESDIR INTERFACE "compass.png", 0);
@@ -703,37 +706,6 @@ void renderSetCompassOffset(float offset)
 	render.compassOffset = offset > 0 ? globals.width - offset : 0;
 }
 
-#if 0
-static void renderPickup(void)
-{
-	glEnable(GL_CULL_FACE);
-	glCullFace(GL_BACK);
-	glFrontFace(GL_CCW);
-	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glDisable(GL_DEPTH_TEST);
-	glDisable(GL_STENCIL_TEST);
-
-	glUseProgram(render.shaderCust);
-	glBindBuffer(GL_UNIFORM_BUFFER, render.uboShader);
-
-	glBindBuffer(GL_UNIFORM_BUFFER, render.uboShader);
-	glBufferSubData(GL_UNIFORM_BUFFER, UBO_MVMATRIX_OFFSET, sizeof (mat4), render.pickup.model);
-
-	vec4 loc = {0, 0, 0, 255};
-	glBindBuffer(GL_ARRAY_BUFFER, render.vboInventoryLoc);
-	glBufferData(GL_ARRAY_BUFFER, sizeof loc, loc, GL_STATIC_DRAW);
-
-	int size = blockInvGetModelSize(render.pickup.blockId);
-
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, render.texBlock);
-	glBindVertexArray(render.vaoInventory);
-	glDrawArrays(GL_TRIANGLES, size & 0xfffff, size >> 20);
-	glBindVertexArray(0);
-}
-#endif
-
 Map renderInitWorld(STRPTR path, int renderDist)
 {
 	Map ret = mapInitFromPath(path, renderDist);
@@ -755,7 +727,7 @@ void renderToggleDebug(int what)
 
 	if (what == RENDER_DEBUG_BRIGHT)
 	{
-		shading[2] = render.debug & RENDER_DEBUG_BRIGHT ? 1 : 0;
+		shading[SHADING_FULLBRIGHT] = render.debug & RENDER_DEBUG_BRIGHT ? 1 : 0;
 		glBufferSubData(GL_UNIFORM_BUFFER, UBO_SHADING_OFFSET, 16, shading);
 	}
 }
@@ -798,7 +770,7 @@ void renderSetViewMat(vec4 pos, vec4 lookat, float * yawPitch)
 	old[VY] = lookat[VY] - pos[VY];
 	old[VZ] = lookat[VZ] - pos[VZ];
 
-	glBindBuffer(GL_UNIFORM_BUFFER, render.uboShader);
+	glBindBuffer(GL_UNIFORM_BUFFER, globals.uboShader);
 	glBufferSubData(GL_UNIFORM_BUFFER, UBO_CAMERA_OFFSET, sizeof (vec4), render.camera);
 	glBufferSubData(GL_UNIFORM_BUFFER, UBO_LOOKAT_OFFSET, sizeof old, old);
 
@@ -878,7 +850,7 @@ static void renderDrawItems(int count)
 	glDisable(GL_STENCIL_TEST);
 
 	glUseProgram(render.shaderItems);
-	glBindBuffer(GL_UNIFORM_BUFFER, render.uboShader);
+	glBindBuffer(GL_UNIFORM_BUFFER, globals.uboShader);
 
 	/* change matrix model + projection and shading (slightly darker) */
 	glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof (mat4), ortho);
@@ -1447,11 +1419,9 @@ void renderWorld(void)
 	glClear(GL_DEPTH_BUFFER_BIT);
 
 	/* sky dome */
-	glBindBuffer(GL_UNIFORM_BUFFER, render.uboShader);
+	glBindBuffer(GL_UNIFORM_BUFFER, globals.uboShader);
 	glBufferSubData(GL_UNIFORM_BUFFER, UBO_MVMATRIX_OFFSET, sizeof (mat4), render.matModel);
 	skydomeRender();
-
-	glBindBuffer(GL_UNIFORM_BUFFER, render.uboShader);
 
 //	glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
@@ -1543,7 +1513,7 @@ void renderWorld(void)
 	if (globals.selPoints)
 	{
 		glUseProgram(render.selection.shader);
-		glBindBuffer(GL_UNIFORM_BUFFER, render.uboShader);
+		glBindBuffer(GL_UNIFORM_BUFFER, globals.uboShader);
 		selectionRender();
 	}
 
@@ -1697,7 +1667,7 @@ void renderDrawMap(Map map)
 		}
 	}
 	/* it can be reset by libraryGenThumb() */
-	glBindBufferBase(GL_UNIFORM_BUFFER, UBO_BUFFER_INDEX, render.uboShader);
+	glBindBufferBase(GL_UNIFORM_BUFFER, UBO_BUFFER_INDEX, globals.uboShader);
 }
 
 /*
@@ -1743,6 +1713,14 @@ int renderGetTerrain(int size[2], int * texId)
 
 void renderResetFrustum(void)
 {
+	static int oldDist;
+	int dist = globals.renderDist * 16 + 8;
+	if (oldDist != dist)
+	{
+		shading[SHADING_FOGDIST] = dist;
+		glBindBuffer(GL_UNIFORM_BUFFER, globals.uboShader);
+		glBufferSubData(GL_UNIFORM_BUFFER, UBO_SHADING_OFFSET+16, sizeof shading[1], shading + 1);
+	}
 	render.setFrustum = 1;
 }
 
@@ -1773,13 +1751,13 @@ void renderSaveRestoreState(Bool save)
 
 void renderSetFOV(int fov)
 {
-	matPerspective(render.matPerspective, globals.fieldOfVision, shading[1], NEAR_PLANE, 1000);
+	matPerspective(render.matPerspective, globals.fieldOfVision, shading[SHADING_ASPECT], NEAR_PLANE, 1000);
 	/* must be same as the one used in the vertex shader */
 	matMult(globals.matMVP, render.matPerspective, render.matModel);
 	/* we will need that matrix sooner or later */
 	matInverse(globals.matInvMVP, globals.matMVP);
 
-	glBindBuffer(GL_UNIFORM_BUFFER, render.uboShader);
+	glBindBuffer(GL_UNIFORM_BUFFER, globals.uboShader);
 	glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof (mat4), render.matPerspective);
 
 	render.setFrustum = 1;

@@ -1196,18 +1196,19 @@ void entityMarkListAsModified(Map map, Chunk c)
 }
 
 /* delete entity from memory and NBT */
-void entityDeleteById(Map map, int entityId)
+Bool entityDeleteById(Map map, int entityId)
 {
 	EntityBuffer buffer;
 	Entity entity;
 	Chunk chunk;
 
-	if (entityId == 0) return;
+	if (entityId == 0) return False;
 	entityId --;
 
 	int i = entityId >> ENTITY_SHIFT;
 	int slot = entityId & (ENTITY_BATCH-1);
-	for (buffer = HEAD(entities.list); i > 0; i --, NEXT(buffer));
+	for (buffer = HEAD(entities.list); buffer && i > 0; i --, NEXT(buffer));
+	if (buffer == NULL) return False;
 	entity = buffer->entities + slot;
 	chunk = entity->chunkRef;
 
@@ -1220,7 +1221,7 @@ void entityDeleteById(Map map, int entityId)
 		{
 			if (entity->enflags & ENFLAG_FIXED)
 				/* block pushed by piston: cannot be removed until anim is done */
-				return;
+				return False;
 			/* animated entities: need to be removed from anim list */
 			EntityAnim anim;
 			for (anim = entities.animate, i = entities.animCount; i > 0 && anim->entity != entity; i --, anim ++);
@@ -1272,7 +1273,9 @@ void entityDeleteById(Map map, int entityId)
 			chunkDeleteTile(chunk, entity->tile);
 			entityClear(buffer, slot);
 		}
+		return True;
 	}
+	return False;
 }
 
 /* count the entities in this linked list (used by chunk save) */

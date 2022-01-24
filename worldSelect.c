@@ -1,5 +1,5 @@
 /*
- * worldSelect.c : interface for listing worlds and all dialog related to this screen.
+ * worldSelect.c : interface for listing worlds and all dialog related to this screen (mostly config).
  *
  * written by T.Pierron, dec 2021.
  */
@@ -123,9 +123,9 @@ int optionsQuickAccess(SIT_Widget unused1, APTR unused2, APTR unused3)
 		"<button name=ok.act title=Save top=OPPOSITE,ko right=WIDGET,ko,0.5em nextCtrl=ko buttonType=", SITV_DefaultButton, ">"
 		"<button name=def.act title=Default top=OPPOSITE,ko right=WIDGET,ok,0.5em nextCtrl=ok>"
 	);
-	SIT_AddCallback(SIT_GetById(diag, "compass"),  SITE_OnScroll, optionsSetCompSize, NULL);
-	SIT_AddCallback(SIT_GetById(diag, "fovval"),   SITE_OnScroll, optionsSetFieldOfView, NULL);
-	SIT_AddCallback(SIT_GetById(diag, "guiscale"), SITE_OnScroll, optionsSetScale, NULL);
+	SIT_AddCallback(SIT_GetById(diag, "compass"),  SITE_OnChange, optionsSetCompSize, NULL);
+	SIT_AddCallback(SIT_GetById(diag, "fovval"),   SITE_OnChange, optionsSetFieldOfView, NULL);
+	SIT_AddCallback(SIT_GetById(diag, "guiscale"), SITE_OnChange, optionsSetScale, NULL);
 	SIT_AddCallback(SIT_GetById(diag, "dist"),     SITE_OnChange, optionsSetRenderDist, NULL);
 	SIT_AddCallback(SIT_GetById(diag, "ok"),  SITE_OnActivate, optionsExit, (APTR) 1);
 	SIT_AddCallback(SIT_GetById(diag, "ko"),  SITE_OnActivate, optionsExit, NULL);
@@ -185,10 +185,17 @@ static int worldSelectAbout(SIT_Widget w, APTR cd, APTR ud)
 		"- <a href='https://www.libsdl.org/'>SDL</a> by Sam Lantinga<br>"
 		"- <a href='https://www.zlib.net/'>zlib</a> by Jean-loup Gailly and Mark Adler";
 
+	TEXT vendor[128];
+
+	snprintf(vendor, sizeof vendor, "%s<br>Open GL v%s", (STRPTR) glGetString(GL_RENDERER), (STRPTR) glGetString(GL_VERSION));
+
 	SIT_CreateWidgets(about,
-		"<label name=what style='text-align: center; font-weight: bold' title=", header, ">"
+		"<label name=what.big style='text-align: center' title=", header, ">"
 		"<label name=thanks title=", thanks, "top=WIDGET,what,1em>"
-		"<button name=close.act title=Ok top=WIDGET,thanks,1em buttonType=", SITV_CancelButton,
+		"<label name=gpu.big title='Graphics card in use:' top=WIDGET,thanks,1em left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, ">"
+		"<label name=version title=", vendor, "top=WIDGET,gpu,0.5em>"
+
+		"<button name=close.act title=Ok top=WIDGET,version,1em buttonType=", SITV_CancelButton,
 		" left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, ">"
 	);
 
@@ -229,9 +236,11 @@ static int worldSelectSyncValue(SIT_Widget w, APTR cd, APTR ud)
 	/* buddyEdit is not enough: we need more control over how msg is formatted */
 	switch ((int) userData) {
 	case 0: format = num > 1 ? "%d chunks" : "%d chunk"; break;
-	case 1: format = "%d&#xb0;"; break;
-	case 2:
-	case 3: format = "%d%%"; break;
+	case 1: format = "%d&#xb0;"; break; /* FOV */
+	case 2: format = num == 150 ? "Uncapped FPS" : "%d FPS"; break;
+	case 3: format = "+%d%%"; break;
+	case 4:
+	case 5: format = "%d%%"; break;
 	default: return 0;
 	}
 	sprintf(buffer, format, num);
@@ -248,56 +257,143 @@ static void worldSelectSetCb(SIT_Widget parent, STRPTR name)
 	SIT_Widget slider = SIT_GetById(parent, name);
 	SIT_Widget value  = SIT_GetById(parent, nameval);
 	SIT_GetValues(slider, SIT_CurValue, &curValue, NULL);
-	SIT_AddCallback(slider,  SITE_OnScroll, worldSelectSyncValue, value);
+	SIT_AddCallback(slider,  SITE_OnChange, worldSelectSyncValue, value);
 	worldSelectSyncValue(slider, (APTR) *curValue, value);
 }
 
-#if 0
 static int worldSelectSelectFolder(SIT_Widget w, APTR cd, APTR ud)
 {
 	static SIT_Widget dir;
 
 	if (dir == NULL)
 	{
-		dir = SIT_CreateWidget("dirsel", SIT_DIRSELECT, parent,
-			SIT_Title,    "Select your destination path",
-			SIT_InitPath, "C:/Projects/SITGL",
+		dir = SIT_CreateWidget("dirsel", SIT_DIRSELECT, w,
+			SIT_Title, "Select your destination path",
 			NULL
 		);
 	}
+	STRPTR current;
+	SIT_GetValues(ud, SIT_Title, &current, NULL);
+	SIT_SetValues(dir, SIT_InitPath, current, NULL);
 
 	if (SIT_ManageWidget(dir))
 	{
 		STRPTR path;
 		SIT_GetValues(dir, SIT_InitPath, &path, NULL);
-		fprintf(stderr, "path selected = %s\n", path);
+		SIT_SetValues(ud, SIT_Title, path, NULL);
 	}
 	return 1;
 }
-#endif
 
-static STRPTR bindings[] = {
-	"Forward",            "E",
-	"Backward",           "D",
-	"Strafe left",        "S",
-	"Strafe right",       "F",
-	"Switch to off-hand", "G",
-	"Open inventories",   "I",
-	"Trow item",          "T",
-	"Jump",               "Space",
-	"Place block",        "LMB",
-	"Move view",          "RMB",
-	"Activate device",    "RMB",
-	"Pick block",         "MMB",
-	"Take screenshot",    "F2",
-	"Back in time",       "F5",
-	"Advance time",       "F6",
-	"Switch player mode", "F8",
-	"Save location",      "F10",
-	"Toggle fullscreen",  "F11",
-	"Fly down",           "Shift",
-	"2D slice view",      "Tab"
+static STRPTR bindings1[] = {
+	"Forward",              "E",
+	"Backward",             "D",
+	"Strafe left",          "S",
+	"Strafe right",         "F",
+	"Switch to off-hand",   "G",
+	"Open inventories",     "I",
+	"Trow item",            "T",
+	"Jump",                 "Space",
+	"Fly down",             "Shift",
+	"2D slice view",        "Tab",
+
+	"Place block",          "LMB",
+	"Move view",            "RMB",
+	"Activate device",      "RMB",
+	"Pick block",           "MMB",
 };
+
+static STRPTR bindings2[] = {
+	"Hide HUD",             "F1",
+	"Show debug info",      "F3",
+	"Advance time",         "F6",
+	"Save location",        "F10",
+	"Waypoint editor",      "Ctrl+G",
+	"Library schematics",   "Ctrl+L",
+	"Undo change",          "Ctrl+Z",
+	"Redo change",          "Ctrl+Y",
+	"Take screenshot",      "F2",
+	"Back in time",         "F5",
+	"Switch player mode",   "F8",
+	"Toggle fullscreen",    "F11",
+	"Clear selection",      "Ctrl+D",
+	"Copy selection",       "Ctrl+C",
+	"Paste from clipboard", "Ctrl+V",
+	"World info editor",    "Ctrl+I",
+};
+
+
+static void worldSelectBindings(SIT_Widget parent, STRPTR * bindings, int count, int tab)
+{
+	SIT_Widget prev1 = NULL;
+	SIT_Widget prev2 = NULL;
+	int i;
+
+	for (i = 0, count >>= 1; i < count; i += 2)
+	{
+		TEXT msg[80];
+		/* left column */
+		SIT_Widget button = SIT_CreateWidget("kbd.key", SIT_BUTTON, parent,
+			SIT_Top,      prev1 ? SITV_AttachWidget : SITV_AttachForm, prev1, SITV_Em(0.5),
+			SIT_Title,    bindings[i+1],
+			SIT_Right,    SITV_AttachPosition, SITV_AttachPos(45), SITV_Em(-0.5),
+			SIT_MaxWidth, prev1,
+			SIT_TabNum,   tab,
+			NULL
+		);
+		SIT_AddCallback(button, SITE_OnActivate, worldSelectEnterKey, NULL);
+		sprintf(msg, "%s:", bindings[i]);
+
+		SIT_CreateWidget("label", SIT_LABEL, parent,
+			SIT_Title,          msg,
+			SIT_Top,            SITV_AttachMiddle, button, 0,
+			SIT_LeftAttachment, SITV_AttachForm,
+			SIT_Right,          SITV_AttachWidget, button, SITV_Em(0.5),
+			SIT_TabNum,         tab,
+			NULL
+		);
+		prev1 = button;
+
+		/* right column */
+		button = SIT_CreateWidget("kbd.key", SIT_BUTTON, parent,
+			SIT_Top,             prev2 ? SITV_AttachWidget : SITV_AttachForm, prev2, SITV_Em(0.5),
+			SIT_Title,           bindings[i+count+1],
+			SIT_RightAttachment, SITV_AttachForm,
+			SIT_TabNum,          tab,
+			SIT_MaxWidth,        prev2,
+			NULL
+		);
+		SIT_AddCallback(button, SITE_OnActivate, worldSelectEnterKey, NULL);
+		sprintf(msg, "%s:", bindings[i+count]);
+
+		SIT_CreateWidget("label", SIT_LABEL, parent,
+			SIT_Title,  msg,
+			SIT_Left,   SITV_AttachPosition, SITV_AttachPos(50), 0,
+			SIT_Top,    SITV_AttachMiddle, button, 0,
+			SIT_Right,  SITV_AttachWidget, button, SITV_Em(0.5),
+			SIT_TabNum, tab,
+			NULL
+		);
+		prev2 = button;
+	}
+
+	if (tab == 2 || tab == 3)
+	{
+		static TEXT note[] =
+			"Note:<br>"
+			"&#x25cf; Fly mode is activated by pushing the jump button twice.<br>"
+			"&#x25cf; 'Move view' is only used if 'Mouse lock' option is disabled.<br>"
+			"&#x25cf; To disable a command, click on a button and push 'Esc' key.";
+
+		static TEXT note2[] =
+			"Note:<br>"
+			"&#x25cf; Player mode will toggle between survival, creative and spectator.";
+
+		SIT_CreateWidgets(parent,
+			"<label tabNum=", tab, "name=note title=", tab == 2 ? note : note2, "top=", SITV_AttachWidget, prev1, SITV_Em(0.5), ">"
+		);
+	}
+}
 
 /* config options dialog */
 static int worldSelectConfig(SIT_Widget w, APTR cd, APTR ud)
@@ -313,42 +409,78 @@ static int worldSelectConfig(SIT_Widget w, APTR cd, APTR ud)
 	worldSelect.sensitivity = globals.sensitivity;
 	worldSelect.renderDist  = globals.renderDist;
 	worldSelect.fov         = globals.fieldOfVision;
+	worldSelect.fps         = 40;
 
 	SIT_Widget max = NULL;
+	SIT_Widget max2 = NULL;
 	SIT_CreateWidgets(dialog,
-		"<tab name=tabs tabStr='Configuration options\tKey bindings' tabSpace=", SITV_Em(1), "tabStyle=", SITV_AlignHCenter, ">"
-			"<label tabNum=1 name=title.big title=", "", "left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, ">"
-
-			"<editbox tabNum=1 name=folder width=25em title=", worldSelect.folder, "buddyLabel=", "World folder:", &max, "top=WIDGET,title,1em>"
+		"<tab name=tabs left=FORM right=FORM tabStr='Configuration\tKey bindings\tMenu commands\tGraphics' tabSpace=", SITV_Em(1),
+		"tabStyle=", SITV_AlignHCenter, ">"
+			/*
+			 * general configuration tab
+			 */
+			"<editbox tabNum=1 name=folder width=25em title=", worldSelect.folder, "buddyLabel=", "World folder:", &max, "top=FORM,,1em>"
 			"<button tabNum=1 name=selfolder.act title='...' left=WIDGET,folder,0.5em top=OPPOSITE,folder bottom=OPPOSITE,folder>"
 			"<editbox tabNum=1 name=userdata width=25em title=", "C:\\Users\\tpierron\\Documents\\MCEdit", "buddyLabel=", "User data:", &max, "top=WIDGET,folder,0.5em>"
 			"<button tabNum=1 name=seluser.act title='...' left=WIDGET,userdata,0.5em top=OPPOSITE,userdata bottom=OPPOSITE,userdata>"
-			"<editbox tabNum=1 name=capture width=15em title=", mcedit.capture, "buddyLabel=", "Screenshot saved in:", &max, "top=WIDGET,userdata,0.5em>"
-			"<button tabNum=1 name=capturer.act title='...' left=WIDGET,capture,0.5em top=OPPOSITE,capture bottom=OPPOSITE,capture>"
-			/* render distance */
-			"<slider tabNum=1 name=dist width=15em minValue=1 maxValue=16 curValue=", &worldSelect.renderDist, "buddyLabel=",
-			"Render distance:", &max, "top=WIDGET,capture,0.5em>"
-			"<label tabNum=1 name=distval left=WIDGET,dist,0.5em top=MIDDLE,dist title='12 chunks'>"
-			/* field of view */
-			"<slider tabNum=1 userdata=1 name=fov width=15em minValue=40 maxValue=140 curValue=", &worldSelect.fov, "buddyLabel=",
-			"Field of view:", &max, "top=WIDGET,dist,0.5em>"
-			"<label tabNum=1 name=fovval left=WIDGET,fov,0.5em top=MIDDLE,fov title='80&#xb0;'>"
-			/* mouse sensitivity */
-			"<slider tabNum=1 userdata=2 name=speed width=15em minValue=50 maxValue=200 curValue=", &worldSelect.sensitivity, "buddyLabel=",
-			"Mouse sensitivity:", &max, "top=WIDGET,fov,0.5em>"
-			"<label tabNum=1 name=speedval left=WIDGET,speed,0.5em top=MIDDLE,speed title=100%>"
-			/* gui scale adjustment */
-			"<slider tabNum=1 userdata=3 name=scale width=15em minValue=50 maxValue=200 curValue=", &worldSelect.guiScale, "buddyLabel=",
-				"Interface scale:", &max, "top=WIDGET,speed,0.5em>"
-			"<label tabNum=1 name=scaleval left=WIDGET,scale,0.5em top=MIDDLE,scale title=100%>"
+			"<editbox tabNum=1 name=capture width=25em title=", mcedit.capture, "buddyLabel=", "Screenshot folder:", &max, "top=WIDGET,userdata,0.5em>"
+			"<button tabNum=1 name=capdir.act title='...' left=WIDGET,capture,0.5em top=OPPOSITE,capture bottom=OPPOSITE,capture>"
+			/* language */
+			"<combobox tabNum=1 name=lang width=15em initialValues='English (US)\tFran\xC3\xA7""ais (Canadian)' top=WIDGET,capture,0.5em buddyLabel=", "Language:", &max, ">"
+			"<label tabNum=1 name=warn2#dim left=WIDGET,lang,0.5em top=MIDDLE,lang title=", "(need restart)", ">"
 
-			"<button tabNum=1 name=lock buttonType=", SITV_CheckBox, "curValue=", &worldSelect.lockMouse,
-			" title='Lock mouse when the window has focus' top=WIDGET,scale,0.5em>"
-			"<label tabNum=1 name=warn#dim title=", "Note: it is recommended to use this setting only in full screen.", "top=WIDGET,lock,0.3em left=FORM,,1.2em>"
-			"<button tabNum=1 name=full buttonType=", SITV_CheckBox, "title='Set the window to full screen on startup.'"
-			" curValue=", &worldSelect.fullScreen, "top=WIDGET,warn,0.5em>"
+			/* mouse sensitivity */
+			"<slider tabNum=1 userdata=4 name=speed width=15em minValue=50 maxValue=200 curValue=", &worldSelect.sensitivity, "buddyLabel=",
+			"Mouse sensitivity:", &max, "top=WIDGET,lang,0.5em>"
+			"<label tabNum=1 name=speedval left=WIDGET,speed,0.5em top=MIDDLE,speed>"
+			/* gui scale adjustment */
+			"<slider tabNum=1 userdata=5 name=scale pageSize=1 width=15em minValue=50 maxValue=200 curValue=", &worldSelect.guiScale, "buddyLabel=",
+				"Interface scale:", &max, "top=WIDGET,speed,0.5em>"
+			"<label tabNum=1 name=scaleval left=WIDGET,scale,0.5em top=MIDDLE,scale>"
+			/* preview block */
+			"<button tabNum=1 name=preview checkState=1 buttonType=", SITV_CheckBox,
+			" title='Show preview of block that will be placed (instead of outline)' top=WIDGET,scale,0.5em>"
+			/* full screen */
+			"<button tabNum=1 name=full buttonType=", SITV_CheckBox, "title='Set the window in full screen on startup.'"
+			" curValue=", &worldSelect.fullScreen, "top=WIDGET,preview,0.5em>"
+			/* auto-load */
 			"<button tabNum=1 name=autoload buttonType=", SITV_CheckBox, "title='Automatically load last selected world on startup.'"
 			" curValue=", &worldSelect.autoEdit, "top=WIDGET,full,0.5em>"
+			/* lock mouse */
+			"<button tabNum=1 name=lock buttonType=", SITV_CheckBox, "curValue=", &worldSelect.lockMouse,
+			" title='Lock mouse when the window has the focus' top=WIDGET,autoload,0.5em>"
+			"<label tabNum=1 name=warn#dim title=", "Note: it is recommended to use this setting only in full screen.", "top=WIDGET,lock,0.3em left=FORM,,1.2em>"
+
+			/*
+			 * graphics tab
+			 */
+
+			/* render distance */
+			"<slider tabNum=4 name=dist width=15em minValue=1 pageSize=1 maxValue=16 curValue=", &worldSelect.renderDist, "buddyLabel=",
+			"Render distance:", &max2, "top=FORM,,1em>"
+			"<label tabNum=4 name=distval left=WIDGET,dist,0.5em top=MIDDLE,dist>"
+			/* field of view */
+			"<slider tabNum=4 userdata=1 name=fov width=15em pageSize=1 minValue=40 maxValue=140 curValue=", &worldSelect.fov, "buddyLabel=",
+			"Field of view:", &max2, "top=WIDGET,dist,0.5em>"
+			"<label tabNum=4 name=fovval left=WIDGET,fov,0.5em top=MIDDLE,fov>"
+
+			/* frame per second */
+			"<slider tabNum=4 userdata=2 name=fps width=15em pageSize=1 minValue=20 maxValue=150 curValue=", &worldSelect.fps, "buddyLabel=",
+			"Frame per second:", &max2, "top=WIDGET,fov,0.5em>"
+			"<label tabNum=4 name=fpsval left=WIDGET,fps,0.5em top=MIDDLE,fps>"
+
+			/* brightness */
+			"<slider tabNum=4 userdata=3 name=bright width=15em curValue=", &worldSelect.brightness, "buddyLabel=",
+			"Dark area brightness:", &max2, "top=WIDGET,fps,0.5em>"
+			"<label tabNum=4 name=brightval left=WIDGET,bright,0.5em top=MIDDLE,bright>"
+
+			/* fog */
+			"<button tabNum=4 name=fog buttonType=", SITV_CheckBox, "top=WIDGET,bright,0.5em title=", "Enable fog", ">"
+			"<label name=note#dim tabNum=4 left=FORM right=FORM title=",
+				"Fog will blend terrain with the sky, but you will lose some viewing distance.<br>"
+				"Disabling fog will make the terrain look out of place though.",
+			"top=WIDGET,fog,0.2em left=FORM,,1.2em>"
+
 		"</tab>"
 		"<button name=ko.act title=Cancel right=FORM top=WIDGET,tabs,1em buttonType=", SITV_CancelButton, ">"
 		"<button name=ok.act title=Save right=WIDGET,ko,0.5em top=OPPOSITE,ko buttonType=", SITV_DefaultButton, ">"
@@ -357,63 +489,19 @@ static int worldSelectConfig(SIT_Widget w, APTR cd, APTR ud)
 
 	worldSelect.enterKey = SIT_GetById(dialog, "msg");
 	SIT_AddCallback(worldSelect.enterKey, SITE_OnActivate, worldSelectCancelKbd, NULL);
+	SIT_AddCallback(SIT_GetById(dialog, "selfolder"), SITE_OnActivate, worldSelectSelectFolder, SIT_GetById(dialog, "folder"));
 
 	worldSelectSetCb(dialog, "dist");
 	worldSelectSetCb(dialog, "fov");
+	worldSelectSetCb(dialog, "fps");
+	worldSelectSetCb(dialog, "bright");
 	worldSelectSetCb(dialog, "speed");
 	worldSelectSetCb(dialog, "scale");
 
 	SIT_Widget parent = SIT_GetById(dialog, "tabs");
-	SIT_Widget prev1  = NULL;
-	SIT_Widget prev2  = NULL;
-	int i;
-	for (i = 0; i < DIM(bindings) / 2; i += 2)
-	{
-		TEXT msg[80];
-		/* left column */
-		SIT_Widget button = SIT_CreateWidget("kbd.key", SIT_BUTTON, parent,
-			SIT_Top,      prev1 ? SITV_AttachWidget : SITV_AttachForm, prev1, SITV_Em(0.5),
-			SIT_Title,    bindings[i+1],
-			SIT_Right,    SITV_AttachPosition, SITV_AttachPos(45), SITV_Em(-0.5),
-			SIT_MaxWidth, prev1,
-			SIT_TabNum,   2,
-			NULL
-		);
-		SIT_AddCallback(button, SITE_OnActivate, worldSelectEnterKey, NULL);
-		sprintf(msg, "%s:", bindings[i]);
 
-		SIT_CreateWidget("label", SIT_LABEL, parent,
-			SIT_Title,          msg,
-			SIT_Top,            SITV_AttachMiddle, button, 0,
-			SIT_LeftAttachment, SITV_AttachForm,
-			SIT_Right,          SITV_AttachWidget, button, SITV_Em(0.5),
-			SIT_TabNum,         2,
-			NULL
-		);
-		prev1 = button;
-
-		/* right column */
-		button = SIT_CreateWidget("kbd.key", SIT_BUTTON, parent,
-			SIT_Top,             prev2 ? SITV_AttachWidget : SITV_AttachForm, prev2, SITV_Em(0.5),
-			SIT_Title,           bindings[i+21],
-			SIT_RightAttachment, SITV_AttachForm,
-			SIT_TabNum,          2,
-			SIT_MaxWidth,        prev2,
-			NULL
-		);
-		SIT_AddCallback(button, SITE_OnActivate, worldSelectEnterKey, NULL);
-		sprintf(msg, "%s:", bindings[i+20]);
-
-		SIT_CreateWidget("label", SIT_LABEL, parent,
-			SIT_Title,  msg,
-			SIT_Left,   SITV_AttachPosition, SITV_AttachPos(50), 0,
-			SIT_Top,    SITV_AttachMiddle, button, 0,
-			SIT_Right,  SITV_AttachWidget, button, SITV_Em(0.5),
-			SIT_TabNum, 2,
-			NULL
-		);
-		prev2 = button;
-	}
+	worldSelectBindings(parent, bindings1, DIM(bindings1), 2);
+	worldSelectBindings(parent, bindings2, DIM(bindings2), 3);
 
 	SIT_ManageWidget(dialog);
 

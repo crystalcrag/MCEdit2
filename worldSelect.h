@@ -24,7 +24,8 @@ struct WorldSelect_t
 	int        guiScale, lockMouse;
 	int        curKeySym, curKeyMod;
 	int        renderDist, autoEdit;
-	int        fov, fullScreen;
+	int        fov, fps, fog;
+	int        brightness, fullScreen;
 };
 #endif
 #endif

@@ -1,20 +1,10 @@
+/*
+ * vertex shader for drawing items in inventories (in world items are rendered in entities shader).
+ *
+ * vertex data is based on the 10 bytes per vertex model (check doc/internals.html for details).
+ */
 #version 430 core
 
-/*
- * vertex shader for drawing items (inventory and in world)
- *
- * position and info encode the following values:
- * - position.x
- * - position.y
- * - position.z : position relative to offsets + (position.xyz - 1024) / 2048.
- * - info.x[bit0  -  8] : U tex coord (0 - 511)
- * - info.x[bit9  - 15] : V tex coord (7bits, hi part).
- * - info.y[bit0  -  2] : V tex coord (3bits, lo part).
- * - info.y[bit3  -  5] : side (3bits, normal vector): 0 = south, 1 = east, 2 : north, 3 = west, 4 = top, 5 = bottom, 6 = don't care
- * - info.y[bit6  -  7] : ambient occlusion
- * - info.y[bit8  - 11] : block light value
- * - info.y[bit12 - 15] : sky light value
- */
 layout (location=0) in uvec3 position;
 layout (location=1) in uvec2 info;
 layout (location=2) in vec3  offsets;
@@ -66,7 +56,7 @@ void main(void)
 		else pos = pos * vec4(scale,scale,1,1) + vec4(offsets.x, offsets.y, 20, 0); /* quad */
 		gl_Position = projMatrix * pos;
 	}
-	else /* world items */
+	else /* preview block (show block before placing) */
 	{
 		gl_Position = projMatrix * mvMatrix * (pos + vec4(offsets, 0));
 	}

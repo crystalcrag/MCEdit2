@@ -2113,7 +2113,7 @@ void blockParseBoundingBox(void)
 					j = (state->id & 15) < 8 ? 1 : 2;
 				break;
 			case CUST:
-				switch (b->special) {
+				switch (b->special&31) {
 				case BLOCK_GLASS:  j = 10; break;
 				case BLOCK_RSWIRE: j = 11; break;
 				case BLOCK_FENCE:  j = 12; break;

@@ -9,7 +9,7 @@
 
 #include "maps.h"
 
-void mapUpdate(Map, vec4 pos, int blockId, DATA8 tile, int blockUpdate);
+Bool mapUpdate(Map, vec4 pos, int blockId, DATA8 tile, int blockUpdate);
 void mapUpdateBlock(Map, vec4 pos, int blockId, int oldBlockId, DATA8 tile);
 void mapUpdateDeleteRails(Map, BlockIter, int blockId);
 int  mapUpdateRails(Map, int blockId, BlockIter);

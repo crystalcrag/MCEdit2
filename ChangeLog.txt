@@ -1,6 +1,11 @@
 =========== Week 3 ===========
+Sun Jan 23:
+	* day/night skylight tweaks: make blocklight not directionnal (also added to entity and particles).
+	* implemented first version of fog.
+
 Sat Jan 22:
 	* configuration/key bindings window mostly done.
+	* skylight intensity is adjusted according to sun position.
 
 Fri Jan 21:
 	* shading per face now depends on sun position.

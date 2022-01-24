@@ -60,9 +60,12 @@ typedef struct MCGlobals_t
 	float compassSize;
 	int   sensitivity;
 	int   fieldOfVision;
-	int   renderDist;
+	int   renderDist;       /* in chunks */
 	int   redstoneTick;
 	int   guiScale;
+
+	/* Uniform Buffer Object used by all shaders */
+	int   uboShader;
 
 	/* easier to place break points :-/ */
 	int breakPoint;

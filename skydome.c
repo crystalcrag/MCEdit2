@@ -22,8 +22,10 @@ void skydomeGetSunPos(vec4 pos)
 {
 	pos[0] = cosf(skydome.sunAngle);
 	pos[1] = sinf(skydome.sunAngle);
-	pos[2] = 0;
+	pos[2] = -0.25;
 	pos[3] = 1;
+	vecNormalize(pos, pos);
+	//fprintf(stderr, "y = %.1f\n", (double) pos[1]);
 }
 
 Bool skydomeInit(void)
@@ -55,9 +57,9 @@ Bool skydomeInit(void)
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, model->index * 2, model->indices, GL_STATIC_DRAW);
 	modelFree(model);
 
-	skydome.texTint    = textureLoad(RESDIR SKYDIR, "tint.png",    0, NULL);
-	skydome.texTint2   = textureLoad(RESDIR SKYDIR, "tint2.png",   0, NULL);
-	skydome.texSun     = textureLoad(RESDIR SKYDIR, "sun.png",     0, NULL);
+	skydome.texTint    = textureLoad(RESDIR SKYDIR, "tint.png",    1, NULL);
+	skydome.texTint2   = textureLoad(RESDIR SKYDIR, "tint2.png",   1, NULL);
+	skydome.texSun     = textureLoad(RESDIR SKYDIR, "sun.png",     1, NULL);
 	skydome.texClouds  = textureLoad(RESDIR SKYDIR, "clouds1.png", 0, NULL);
 
 	glActiveTexture(GL_TEXTURE2); glBindTexture(GL_TEXTURE_2D, skydome.texTint);
@@ -66,11 +68,10 @@ Bool skydomeInit(void)
 	glActiveTexture(GL_TEXTURE5); glBindTexture(GL_TEXTURE_2D, skydome.texClouds);
 	glActiveTexture(GL_TEXTURE6); /* XXX needs to be active for texClouds to work ??? why? */
 
-	vec4 sunPos;
-	skydomeGetSunPos(sunPos);
-	setShaderValue(skydome.shader, "sun_pos", 4, sunPos); sunPos[0] = 1;
-	setShaderValue(skydome.shader, "weather", 1, sunPos); sunPos[0] = 0;
-	setShaderValue(skydome.shader, "time",    1, sunPos);
+	float arg = 1;
+	setShaderValue(skydome.shader, "weather",   1, &arg); arg = 0;
+	setShaderValue(skydome.shader, "time",      1, &arg);
+	setShaderValue(skydome.shader, "sun_angle", 1, &skydome.sunAngle);
 
 	return True;
 }
@@ -80,7 +81,8 @@ void skydomeMoveSun(int sunMove)
 	vec4 sunPos;
 	skydome.sunAngle += sunMove & 1 ? -0.01f : 0.01f;
 	skydomeGetSunPos(sunPos);
-	setShaderValue(skydome.shader, "sun_pos", 4, sunPos);
+	setShaderValue(skydome.shader, "sun_angle", 1, &skydome.sunAngle);
+	glBindBuffer(GL_UNIFORM_BUFFER, globals.uboShader);
 	glBufferSubData(GL_UNIFORM_BUFFER, UBO_SUNDIR_OFFSET, sizeof (vec4), sunPos);
 }
 

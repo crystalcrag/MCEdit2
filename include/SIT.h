@@ -532,7 +532,7 @@ enum /* event type (SIT_AddCallback) */
 {	                     // Call data
 	SITE_OnClose,        // Bool *
 	SITE_OnActivate,     // NULL
-	SITE_OnChange,       // STRPTR
+	SITE_OnChange,       // STRPTR (SIT_EDITBOX) or int (everything else)
 	SITE_OnFocus,        // 1
 	SITE_OnBlur,         // 0
 	SITE_OnFinalize,     // NULL
@@ -542,7 +542,6 @@ enum /* event type (SIT_AddCallback) */
 	SITE_OnPaint,        // GC
 	SITE_OnRawKey,       // SIT_OnKey *
 	SITE_OnVanillaKey,   // SIT_OnKey *
-	SITE_OnScroll,       // int
 	SITE_OnSortColumn,   // int
 	SITE_OnSortItem,     // SIT_OnSort *
 	SITE_OnSetOrGet,     // SIT_OnVal *

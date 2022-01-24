@@ -1,12 +1,4 @@
 html { color: white; font-size: 1.5vw }
-dialog { border-radius: 15px; box-shadow: 0 0 20px black; border-bottom: 2px solid rgba(#000,0.3); background: url(wool.png);
-         background-size: 32px 32px; padding: 1.2em 6px 5px 6px }
-dialog title { text-shadow: 0 2px rgba(#000,0.5); text-align: center }
-dialog client { background: url(plank.png); background-size: 64px 64px; padding: 10px; border-radius: 0 0 12px 12px; color: #ccc;
-                border-top: 2px solid rgba(#000,0.3); box-shadow: 0 0 5px black inset }
-dialog close { font-weight: bold; color: #d44; text-shadow: 2px 2px 2px black, -1px -1px 2px white }
-dialog close:hover { color: red }
-dialog close:hover:active { color: red; text-shadow: 2px 2px 2px #ccc, -1px -1px 2px black }
 
 /* minecraft style dialog */
 form.bg { padding: 0.5em; background-color: #c5c5c5; border: 0.2em outset #c5c5c5; color: #444;
@@ -64,9 +56,10 @@ form.mc.dark { padding: 1em; background: rgba(black, 0.8) }
 form.mc .key { background: #87cb85; border: 0.2em outset #87cb85; padding: 0.1em 0.5em; border-radius: 0.5em }
 form.mc .key.sel { background: yellow; border-color: yellow }
 form.mc .key:active { background: rgba(#87cb85,0.5); border: 0.2em solid rgba(black, 0.5) }
-form.mc tab { border-top: 0.1em solid #a2f4a0 }
+form.mc tab { border-top: 0.2em solid #a2f4a0 }
 form.mc tab pane { background-color: rgba(#a2f4a0, 0.3); color: #ccc; padding: 0.5em; border-radius: 0.3em 0.3em 0 0 }
 form.mc tab pane:active { background-color: #a2f4a0; color: black }
+form.mc #note { color: #aaa; line-height: 1.5 }
 
 dim { color: #aaa }
 note { background: yellow; color: black }
