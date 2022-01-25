@@ -475,7 +475,7 @@ void wayPointsEdit(vec4 pos, float rotation[2])
 	waypoints.playerRotation = rotation;
 
 	SIT_CreateWidgets(diag,
-		"<label name=title.big title='Enter the coordinates you want to jump to:' left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, ">"
+		"<label name=title.big title='Enter the coordinates you want to jump to:' left=", SITV_AttachCenter, ">"
 		"<editbox name=X roundTo=2 editType=", SITV_Float, "width=8em curValue=", waypoints.curPos, "top=WIDGET,title,1em buddyLabel=", "X:", NULL, ">"
 		"<editbox name=Y roundTo=2 editType=", SITV_Float, "width=8em curValue=", waypoints.curPos+1, "top=WIDGET,title,1em buddyLabel=", "Y:", NULL, ">"
 		"<editbox name=Z roundTo=2 editType=", SITV_Float, "width=8em curValue=", waypoints.curPos+2, "top=WIDGET,title,1em buddyLabel=", "Z:", NULL, ">"

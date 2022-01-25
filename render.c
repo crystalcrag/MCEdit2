@@ -164,11 +164,24 @@ static void renderSelection(void)
 		else
 			render.selection.rotationY90 = 0;
 
-		#if 1
+		#if 0
 		static int oldBlock;
 		if (oldBlock != blockId)
 			fprintf(stderr, "blockId = %d:%d, side = %d, dir = %d\n", (blockId>>4) & 255, blockId & 15, info.side, info.direction), oldBlock = blockId;
 		#endif
+
+		loc[0] = render.selection.current[0] + offset[0];
+		loc[1] = render.selection.current[1] + offset[1];
+		loc[2] = render.selection.current[2] + offset[2];
+		loc[3] = 255;
+		render.selection.selFlags |= SEL_BLOCKPOS;
+		memcpy(render.selection.blockPos, loc, sizeof loc);
+
+		if (globals.showPreview == 0)
+		{
+			render.selection.blockId = blockId;
+			goto highlight_bbox;
+		}
 
 		if (render.selection.blockId != blockId)
 		{
@@ -176,12 +189,6 @@ static void renderSelection(void)
 			render.selection.blockVtx = blockGenModel(render.vboPreview, blockId);
 			render.selection.blockId  = blockId;
 		}
-		loc[0] = render.selection.current[0] + offset[0];
-		loc[1] = render.selection.current[1] + offset[1];
-		loc[2] = render.selection.current[2] + offset[2];
-		loc[3] = 255;
-		render.selection.selFlags |= SEL_BLOCKPOS;
-		memcpy(render.selection.blockPos, loc, sizeof loc);
 		int vtx = render.selection.blockVtx;
 		int wire = vtx >> 10;
 		vtx &= 1023;
@@ -537,7 +544,6 @@ int renderInitUBO(void)
 
 	/* these should rarely change */
 	shading[SHADING_FOGDIST] = globals.renderDist * 16 + 8;
-	fprintf(stderr, "fog distance = %d\n", (int) shading[SHADING_FOGDIST]);
 	glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof (mat4), render.matPerspective);
 	glBufferSubData(GL_UNIFORM_BUFFER, UBO_NORMALS, sizeof normals, normals);
 	glBufferSubData(GL_UNIFORM_BUFFER, UBO_SHADING_OFFSET, sizeof shading, shading);
@@ -1520,21 +1526,26 @@ void renderWorld(void)
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
 	/* draw the compass */
-	float scale = globals.height * globals.compassSize * (render.compassOffset > 0 ? 0.11f : 0.15f);
+	float scale;
 	NVGcontext * vg = globals.nvgCtx;
 
 	nvgBeginFrame(vg, globals.width, globals.height, 1);
 	nvgFontFaceId(vg, render.debugFont);
 	nvgFontSize(vg, FONTSIZE);
 	nvgTextAlign(vg, NVG_ALIGN_TOP);
-	nvgSave(vg);
-	nvgTranslate(vg, globals.width - scale - render.compassOffset, scale); scale -= 20;
-	nvgRotate(vg, M_PIf - render.yaw);
-	nvgBeginPath(vg);
-	nvgRect(vg, -scale, -scale, scale*2, scale*2);
-	nvgFillPaint(vg, nvgImagePattern(vg, -scale, -scale, scale*2, scale*2, 0, render.compass, 1));
-	nvgFill(vg);
-	nvgRestore(vg);
+
+	if (globals.compassSize > 0)
+	{
+		scale = globals.height * globals.compassSize * (render.compassOffset > 0 ? 0.11f : 0.15f);
+		nvgSave(vg);
+		nvgTranslate(vg, globals.width - scale - render.compassOffset, scale); scale -= 20;
+		nvgRotate(vg, M_PIf - render.yaw);
+		nvgBeginPath(vg);
+		nvgRect(vg, -scale, -scale, scale*2, scale*2);
+		nvgFillPaint(vg, nvgImagePattern(vg, -scale, -scale, scale*2, scale*2, 0, render.compass, 1));
+		nvgFill(vg);
+		nvgRestore(vg);
+	}
 
 //	nvgEndFrame(vg);
 //	return;
@@ -1761,6 +1772,13 @@ void renderSetFOV(int fov)
 	glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof (mat4), render.matPerspective);
 
 	render.setFrustum = 1;
+}
+
+void renderSetFOG(int fogEnabled)
+{
+	shading[SHADING_FOGDIST] = fogEnabled ? globals.renderDist * 16 + 8 : 0;
+	glBindBuffer(GL_UNIFORM_BUFFER, globals.uboShader);
+	glBufferSubData(GL_UNIFORM_BUFFER, UBO_SHADING_OFFSET+16, sizeof shading[1], shading + 1);
 }
 
 /*

@@ -60,6 +60,7 @@ int takeScreenshot(SIT_Widget w, APTR cd, APTR ud)
 	return 1;
 }
 
+/* read config MCEdit.ini, default values are also set here */
 static void prefsInit(void)
 {
 	INIFile ini = ParseINI(PREFS_PATH);
@@ -72,11 +73,27 @@ static void prefsInit(void)
 	globals.compassSize   = GetINIValueInt(ini, "CompassSize",   100) * 0.01f;
 	globals.fieldOfVision = GetINIValueInt(ini, "FieldOfVision", 80);
 	globals.guiScale      = GetINIValueInt(ini, "GuiScale",      100);
-	globals.sensitivity   = GetINIValueInt(ini, "Sensitivity",   100);
+	globals.mouseSpeed    = GetINIValueInt(ini, "MouseSpeed",    100) * 0.01f;
+	globals.brightness    = GetINIValueInt(ini, "Brightness",    0);
+	globals.targetFPS     = GetINIValueInt(ini, "TargetFPS",     40);
+	globals.distanceFOG   = GetINIValueInt(ini, "UseFOG",        0);
+	globals.showPreview   = GetINIValueInt(ini, "UsePreview",    1);
 
-	CopyString(mcedit.capture, GetINIValueStr(ini, "CaptureDir", "screenshots"), sizeof mcedit.capture);
+	mcedit.autoEdit       = GetINIValueInt(ini, "AutoEdit",   0);
+	mcedit.fullScreen     = GetINIValueInt(ini, "FullScreen", 0);
+	mcedit.lockMouse      = GetINIValueInt(ini, "LockMouse",  0);
+
+	CopyString(mcedit.capture,   GetINIValue(ini, "CaptureDir"), sizeof mcedit.capture);
+	CopyString(mcedit.worldsDir, GetINIValue(ini, "WorldsDir"), sizeof mcedit.capture);
+
+	if (mcedit.capture[0] == 0)
+		strcpy(mcedit.capture, "screenshots");
+	if (mcedit.worldsDir[0] == 0)
+		ExpandEnvVarBuf("%appdata%\\,minecraft\\saves", mcedit.worldsDir, sizeof mcedit.worldsDir);
 
 	DOS2Unix(mcedit.capture);
+	DOS2Unix(mcedit.worldsDir);
+
 	selectionLoadState(ini);
 	debugLoadSaveState((STRPTR) ini, True);
 
@@ -363,7 +380,7 @@ int main(int nb, char * argv[])
 	}
 
 //	globals.level = renderInitWorld("TestMesh", globals.renderDist);
-	globals.level = renderInitWorld("World1_12", globals.renderDist);
+	globals.level = renderInitWorld("World5", globals.renderDist);
 
 	globals.yawPitch = &mcedit.player.angleh;
 	wayPointsRead();

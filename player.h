@@ -80,7 +80,6 @@ void playerInit(Player);
 void playerUpdateInventory(Player);
 void playerSaveLocation(Player);
 void playerUpdateNBT(Player);
-void playerSensitivity(float s);
 void playerLookAt(Player, int mx, int my);
 int  playerProcessKey(Player, int key, int pressed);
 void playerInitPickup(PickupBlock);

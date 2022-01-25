@@ -708,7 +708,7 @@ void mcuiShowPixelArt(vec4 playerPos)
 	int sz = SIT_EmToReal(diag, SITV_Em(11));
 
 	SIT_CreateWidgets(diag,
-		"<label name=dlgtitle.big title=", "Pixel art editor", "left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, ">"
+		"<label name=dlgtitle.big title=", "Pixel art editor", "left=", SITV_AttachCenter, ">"
 		"<label name=icon#table top=WIDGET,dlgtitle,0.5em labelSize=", SITV_LabelSize(sz,sz), ">"
 		"<label name=msg title='Rasterize with:' left=WIDGET,icon,1em top=WIDGET,dlgtitle,0.5em>"
 		"<button name=blocks curValue=", &pixArt.rasterizeWith, "title=Blocks buttonType=", SITV_RadioButton, "top=WIDGET,msg,0.5em left=WIDGET,icon,1em>"

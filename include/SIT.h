@@ -400,6 +400,7 @@ typedef enum /* SIT_Attachment */
 
 #define	SITV_AttachPos(percent)  ((ULONG)((percent) * 65536 / 100))
 #define	SITV_OffsetCenter        0x3fffffff /* SIT_AttachPosition only */
+#define SITV_AttachCenter        SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter /* very common */
 
 enum         /* SIT_ButtonType */
 {

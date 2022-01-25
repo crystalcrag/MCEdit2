@@ -38,6 +38,7 @@ void renderSetSelectionPoint(int action);
 int  renderGetTerrain(int size[2], int * texId);
 int  renderInitUBO(void);
 void renderSetFOV(int fov);
+void renderSetFOG(int fogEnabled);
 Bool renderRotatePreview(int dir);
 void renderSetSelection(DATA32 points);
 MapExtraData renderGetSelectedBlock(vec4 pos, int * blockModel);
@@ -210,7 +211,7 @@ enum                               /* special index value for shading[] array (m
 	SHADING_ASPECT     = 1,        /* aspect ratio (adjustment for billboard) */
 	SHADING_FULLBRIGHT = 2,        /* DEUBG: turn skylight/blocklight to full no matter what */
 	SHADING_ISINVITEM  = 3,        /* only used by items.vsh */
-	SHADING_FOGDIST    = 5,        /* distance in blocks the fog will extend */
+	SHADING_FOGDIST    = 5,        /* distance in blocks the fog will extend (0 = disabled) */
 };
 
 /* debug info */

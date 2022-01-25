@@ -57,15 +57,19 @@ typedef struct MCGlobals_t
 	struct NVGcontext * nvgCtx;
 
 	/* quick options */
-	float compassSize;
-	int   sensitivity;
-	int   fieldOfVision;
-	int   renderDist;       /* in chunks */
-	int   redstoneTick;
-	int   guiScale;
+	float   compassSize;      /* % over base value */
+	float   mouseSpeed;       /* % over base value */
+	int     redstoneTick;     /* in millisec */
+	int     targetFPS;        /* < 0 == uncapped */
+	uint8_t fieldOfVision;    /* in degrees */
+	uint8_t guiScale;         /* [50-200] % */
+	uint8_t brightness;       /* [0-100] => map to ambient values [0.2 - 0.4] */
+	uint8_t renderDist;       /* in chunks */
+	uint8_t distanceFOG;      /* 1 = use fog, 0 = don't */
+	uint8_t showPreview;      /* 1 = show preview block, 0 = outline only */
 
 	/* Uniform Buffer Object used by all shaders */
-	int   uboShader;
+	int uboShader;
 
 	/* easier to place break points :-/ */
 	int breakPoint;

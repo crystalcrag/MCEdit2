@@ -92,8 +92,12 @@ void main(void)
 	shadeSky *= sky / 15;
 
 	// fogStrength == how much fragment will blend with sky, 0 = normal fragment color, 1 = fragment will use sky color
-	float fogStrength = clamp(distance(camera.xz, (V1.xz+V4.xz) * 0.5) / FOG_DISTANCE, 0, 1);
-	fogFactor = 1 - fogStrength * fogStrength;
+	if (FOG_DISTANCE > 0)
+	{
+		float fogStrength = clamp(distance(camera.xz, (V1.xz+V4.xz) * 0.5) / FOG_DISTANCE, 0, 1);
+		fogFactor = 1 - fogStrength * fogStrength;
+	}
+	else fogFactor = 1; // disabled
 
 	// first vertex
 	vpoint      = V1 - camera.xyz;

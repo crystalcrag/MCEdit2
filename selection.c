@@ -329,7 +329,7 @@ void selectionSetPoint(float scale, vec4 pos, int point)
 				NULL
 			);
 			SIT_CreateWidgets(diag,
-				"<button name=whole title=Nudge left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, ">"
+				"<button name=whole title=Nudge left=", SITV_AttachCenter, ">"
 				"<label name=size top=WIDGET,whole,0.3em left=FORM right=FORM style='text-align: center; color: white'>"
 				"<button name=first title=Nudge top=WIDGET,size,0.3em>"
 				"<button name=second title=Nudge top=OPPOSITE,first left=WIDGET,first,0.5em>"
@@ -705,7 +705,7 @@ void selectionEditBrush(Bool simplified)
 	SIT_Widget diag = selection.editBrush = SIT_CreateWidget("editbrush.mc", SIT_DIALOG, globals.app,
 		SIT_DialogStyles,  SITV_Plain,
 		SIT_Left,          SITV_AttachForm, NULL, SITV_Em(0.5),
-		SIT_TopAttachment, SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter,
+		SIT_TopAttachment, SITV_AttachCenter,
 		NULL
 	);
 	sprintf(buffer, "<pchar src=roll%s.png> Roll", selection.ext[globals.direction]);
@@ -743,8 +743,8 @@ void selectionEditBrush(Bool simplified)
 	}
 	else /* user selected an object from library.c: there are no extended selection in this case */
 	{
-		SIT_CreateWidgets(diag, "<label name=size top=WIDGET,nudge,1em left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, ">");
-		SIT_SetAttributes(diag, "<nudge left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, "right=NONE top=WIDGET,mirror,0.5em>");
+		SIT_CreateWidgets(diag, "<label name=size top=WIDGET,nudge,1em left=", SITV_AttachCenter, ">");
+		SIT_SetAttributes(diag, "<nudge left=", SITV_AttachCenter, "right=NONE top=WIDGET,mirror,0.5em>");
 		selection.brushSize = SIT_GetById(diag, "size");
 		selectionSetSize();
 	}

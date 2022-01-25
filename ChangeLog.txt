@@ -1,3 +1,7 @@
+=========== Week 4 ===========
+Mon Jan 24:
+	* config editor.
+
 =========== Week 3 ===========
 Sun Jan 23:
 	* day/night skylight tweaks: make blocklight not directionnal (also added to entity and particles).
@@ -5,7 +9,7 @@ Sun Jan 23:
 
 Sat Jan 22:
 	* configuration/key bindings window mostly done.
-	* skylight intensity is adjusted according to sun position.
+	* skylight intensity is adjusted according to sun position (ie: day/night cycle, again: finally!).
 
 Fri Jan 21:
 	* shading per face now depends on sun position.

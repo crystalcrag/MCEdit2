@@ -13,6 +13,7 @@
 #include "globals.h"
 
 #define PREFS_PATH             "MCEdit.ini"
+#define PROG_VERSION           "2.0b1"
 
 typedef struct GameState_t     GameState_t;
 
@@ -22,8 +23,12 @@ struct GameState_t
 	int      state;            /* event loop we currently are */
 	int      mouseX, mouseY;   /* current mouse pos */
 	int      exit;             /* managed by SITGL */
+	uint8_t  autoEdit;         /* edit last selected world on startup */
+	uint8_t  lockMouse;        /* SDL_WM_GrabInput() */
 	uint8_t  forceSel;         /* don't display preview item */
+	uint8_t  fullScreen;       /* go fullscreen on startup */
 	TEXT     capture[128];     /* screenshot directory */
+	TEXT     worldsDir[256];
 };
 
 enum /* possible values for state: which game loop are we running */

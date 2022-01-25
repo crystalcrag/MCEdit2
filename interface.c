@@ -386,8 +386,8 @@ void mcuiEditChestInventory(Inventory player, Item items, int count, Block type)
 		{
 			/* center title and container */
 			SIT_SetAttributes(diag,
-				"<inv left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, ">"
-				"<msg left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, ">"
+				"<inv left=", SITV_AttachCenter, ">"
+				"<msg left=", SITV_AttachCenter, ">"
 			);
 			chest.invRow = chest.invCol = 3;
 		}
@@ -399,8 +399,8 @@ void mcuiEditChestInventory(Inventory player, Item items, int count, Block type)
 	{
 		SIT_CreateWidgets(diag,
 			/* fire should be between slot0 and slot1, but who cares? */
-			"<label name=msg title=Furnace: left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, ">"
-			"<label name=furnace imagePath=furnace.png left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, "top=WIDGET,msg,2em>"
+			"<label name=msg title=Furnace: left=", SITV_AttachCenter, ">"
+			"<label name=furnace imagePath=furnace.png left=", SITV_AttachCenter, "top=WIDGET,msg,2em>"
 			"<canvas composited=1 name=slot0.inv right=WIDGET,furnace,1em bottom=WIDGET,furnace,-0.5em nextCtrl=LAST/>"
 			"<canvas composited=1 name=inv.inv right=WIDGET,furnace,1em top=WIDGET,furnace,-0.5em nextCtrl=LAST/>"
 			"<canvas composited=1 name=slot2.inv left=WIDGET,furnace,1em top=MIDDLE,furnace nextCtrl=LAST/>"
@@ -506,10 +506,10 @@ void mcuiCreateSignEdit(vec4 pos, int blockId)
 		image, - fullw * uv[0] / sz[0] - 1, - fullh * uv[1] / sz[1] - 1, fullw, fullh, fontsz);
 
 	SIT_CreateWidgets(diag,
-		"<label name=msg title='Edit sign message:' left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, ">"
+		"<label name=msg title='Edit sign message:' left=", SITV_AttachCenter, ">"
 		"<editbox name=signedit title=", signText, " wordWrap=", SITV_WWChar, "editType=", SITV_Multiline, "width=", width, "height=", height,
 		" maxLines=4 tabStyle=", SITV_TabEditForbid, "style=", styles, "top=WIDGET,msg,4em>"
-		"<button name=ok title=Done left=OPPOSITE,signedit top=WIDGET,signedit,4em left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, ">"
+		"<button name=ok title=Done left=OPPOSITE,signedit top=WIDGET,signedit,4em left=", SITV_AttachCenter, ">"
 	);
 	SIT_Widget text = SIT_GetById(diag, "signedit");
 	SIT_AddCallback(SIT_GetById(diag, "ok"), SITE_OnActivate, mcuiSaveSign, text);
@@ -1262,7 +1262,7 @@ void mcuiFillOrReplace(Bool fillWithBrush)
 
 	SIT_CreateWidgets(diag,
 		"<label name=dlgtitle.big title=", fillWithBrush ? "Geometric brush fill" : "Fill or replace selection",
-		" left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, ">"
+		" left=", SITV_AttachCenter, ">"
 		"<editbox name=search right=FORM top=WIDGET,dlgtitle,0.3em buddyLabel=", "Search:", NULL, ">"
 		"<canvas composited=1 name=inv.inv left=FORM top=WIDGET,search,0.5em nextCtrl=LAST/>"
 		"<scrollbar width=1.2em name=scroll.inv wheelMult=1 top=OPPOSITE,inv,0 bottom=OPPOSITE,inv,0 right=FORM>"
@@ -1434,7 +1434,7 @@ static int mcuiDeleteProgress(SIT_Widget w, APTR cd, APTR ud)
 				NULL
 			);
 			SIT_CreateWidgets(dialog,
-				"<label name=title.big title='Delete in progress...' left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, ">"
+				"<label name=title.big title='Delete in progress...' left=", SITV_AttachCenter, ">"
 				"<progress name=prog title=%d%% width=15em top=WIDGET,title,0.5em>"
 				"<button name=ko.act title=Cancel buttonType=", SITV_CancelButton, "left=WIDGET,prog,1em top=WIDGET,title,0.5em>"
 			);
@@ -1553,7 +1553,7 @@ void mcuiDeletePartial(void)
 	selectionIterEntities(mcuiCountObjects, &entities);
 
 	SIT_CreateWidgets(diag,
-		"<label name=dlgtitle.big title=", "Partial delete", "left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, ">"
+		"<label name=dlgtitle.big title=", "Partial delete", "left=", SITV_AttachCenter, ">"
 		"<label name=title title='Select the parts you want to delete:' top=WIDGET,dlgtitle,0.5em>"
 		"<button name=blocks buttonType=", SITV_CheckBox, "curValue=", &mcuiDelWnd.blocks, "title=Blocks top=WIDGET,title,0.5em>"
 	);
@@ -1825,7 +1825,7 @@ void mcuiShowPaintings(void)
 	int tiles = (globals.height >> 1) / PAINTINGS_TILE_H;
 
 	SIT_CreateWidgets(diag,
-		"<label name=dlgtitle.big title=", "Select painting", "left=", SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, ">"
+		"<label name=dlgtitle.big title=", "Select painting", "left=", SITV_AttachCenter, ">"
 		"<label name=title title='Double-click on the painting you want to add:' top=WIDGET,dlgtitle,0.5em>"
 		"<label name=name left=WIDGET,title,0.5em right=FORM top=OPPOSITE,title>"
 		"<canvas name=view#table top=WIDGET,title,0.5em height=", tiles * PAINTINGS_TILE_H, "width=", tiles * PAINTINGS_TILE_W, "/>"

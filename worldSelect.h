@@ -16,16 +16,15 @@ int optionsExit(SIT_Widget, APTR cd, APTR ud);
 struct WorldSelect_t
 {
 	SIT_Widget options;
-	SIT_Widget edit, list;
-	SIT_Widget enterKey;
-	SIT_Widget curKey;
-	STRPTR     folder;
+	SIT_Widget enterKey, worlds;
+	SIT_Widget curKey, capture;
 	int        sensitivity;
 	int        guiScale, lockMouse;
 	int        curKeySym, curKeyMod;
 	int        renderDist, autoEdit;
 	int        fov, fps, fog;
 	int        brightness, fullScreen;
+	int        compassSize, showPreview;
 };
 #endif
 #endif

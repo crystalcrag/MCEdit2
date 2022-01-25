@@ -101,11 +101,6 @@ void playerSaveLocation(Player p)
 	NBT_MarkForUpdate(levelDat, 0, 1);
 }
 
-void playerSensitivity(float s)
-{
-	sensitivity = 1/s;
-}
-
 static void playerSetDir(Player p)
 {
 	float angle = p->angleh;
@@ -230,8 +225,8 @@ int playerProcessKey(Player p, int key, int mod)
 void playerLookAt(Player p, int dx, int dy)
 {
 	/* keep yaw between 0 and 2 * pi */
-	float yaw = p->angleh + dx * sensitivity;
-	float pitch = p->anglev - dy * sensitivity;
+	float yaw = p->angleh + dx * sensitivity * globals.mouseSpeed;
+	float pitch = p->anglev - dy * sensitivity * globals.mouseSpeed;
 	if (yaw < 0) yaw += 2*M_PIf;
 	if (yaw > 2*M_PIf) yaw -= 2*M_PIf;
 	/* and pitch between -pi and pi */
