@@ -1,4 +1,12 @@
 =========== Week 4 ===========
+Tue Jan 26:
+	* using an image store as secondary color attachment, works but requires opengl 4.2: sigh.
+	* added small corona around and tweaks to skydome.
+
+Tue Jan 25:
+	* tried using multi-render target: complete failure, can't assign another color buffer to default
+	  framebuffer, yikes!
+
 Mon Jan 24:
 	* config editor.
 

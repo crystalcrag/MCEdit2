@@ -833,7 +833,10 @@ Bool mapSetRenderDist(Map map, int maxDist)
 
 				Chunk source = map->chunks + XC + ZC * oldArea;
 				Chunk dest   = chunks + (XZmid+i) + (XZmid+j) * area;
+				int   nbor   = dest->neighbor;
 				memcpy(dest, source, sizeof *dest);
+				/* <neighbor> is dependent on new map size */
+				dest->neighbor = nbor;
 				source->cflags = 0;
 
 				/* ChunkData ref needs to be readjusted */

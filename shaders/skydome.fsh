@@ -19,6 +19,9 @@ uniform float time;
 
 out vec4 fragcol;
 
+// opengl 4.2 only: write to an image unit
+layout (binding=0, rgba8) uniform image2D skyTex;
+
 //---------NOISE GENERATION------------
 //Noise generation based on a simple hash, to ensure that if a given point on the dome
 //(after taking into account the rotation of the sky) is a star, it remains a star all night long
@@ -34,12 +37,14 @@ float Noise3d(vec3 x)
 	return fract(xhash + yhash + zhash);
 }
 
-#define SUNRADIUS  0.2
+#define SUNRADIUS  0.15
+#define CORONA     (SUNRADIUS*3)
 #define M_PI       3.14159265
 
 void main()
 {
 	vec3 color;
+	vec3 skyColor;
 	vec3 pos_norm = normalize(pos);
 	float dist = dot(sun_norm, pos_norm);
 
@@ -47,7 +52,7 @@ void main()
 	vec3 color_wo_sun = texture(tint2, vec2(min((sun_norm.y + 1.0) / 2.0, 0.99), max(0.01, pos_norm.y))).rgb;
 	vec3 color_w_sun  = texture(tint,  vec2(min((sun_norm.y + 1.0) / 2.0, 0.99), max(0.01, pos_norm.y))).rgb;
 
-	color = mix(color_wo_sun, color_w_sun, dist * 0.5 + 0.5);
+	color = skyColor = mix(color_wo_sun, color_w_sun, dist * 0.5 + 0.5);
 
 	// Computing u and v for the clouds textures (spherical projection)
 	float u = 0.5 + atan(pos_norm.z, pos_norm.x) / (2 * M_PI);
@@ -79,16 +84,22 @@ void main()
 
 	// Sun
 	float radius = length(pos_norm-sun_norm);
-	if(radius < SUNRADIUS) // we are in the area of the sky which is covered by the sun
+	if (radius < SUNRADIUS) // we are in the area of the sky which is covered by the sun
 	{
 		float time = clamp(sun_norm.y,0.1,0.99);
-		radius = radius / SUNRADIUS;
-		if(radius < 1.0-0.001) // we need a small bias to avoid flickering on the border of the texture
+		float normRadius = radius / SUNRADIUS;
+		if(normRadius < 1.0-0.001) // we need a small bias to avoid flickering on the border of the texture
 		{
 			// we read the alpha value from a texture where x = radius and y=height in the sky (~time)
-			vec4 sun_color = texture(sun,vec2(radius,time));
-			color = mix(color,sun_color.rgb,sun_color.a);
+			vec4 sun_color = texture(sun, vec2(normRadius, time));
+			color = mix(color, sun_color.rgb, sun_color.a);
 		}
+	}
+	// corona
+	if (radius < CORONA)
+	{
+		float addcol = 1 - radius / CORONA;
+		color += addcol * addcol * 0.5 * clamp(sun_norm.y+0.5, 0, 1);
 	}
 
 	#if 0
@@ -122,9 +133,12 @@ void main()
 	if (-0.2 <= pos_norm.y && pos_norm.y <= 0.2)
 	{
 		// somewhat simulate (poorly) the Mie scattering
-		float factor = 0.1 * sun_norm.y * sun_norm.y;
-		color *= (cos(pos_norm.y * 5*M_PI) + 1) * factor + 1;
+		float factor = (cos(pos_norm.y * 5*M_PI) + 1) * (0.1 * sun_norm.y * sun_norm.y) + 1;
+		color *= factor;
+		skyColor *= factor;
 	}
 	#endif
+	// cannot attach a second color buffer to the default frame buffer, really ?
+	imageStore(skyTex, ivec2(int(gl_FragCoord.x), int(gl_FragCoord.y)), vec4(skyColor, 1));
 	fragcol = vec4(color, 1);
 }

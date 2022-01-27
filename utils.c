@@ -1227,6 +1227,7 @@ PFNGLUNMAPBUFFERPROC glad_glUnmapBuffer;
 PFNGLCOPYTEXIMAGE2DPROC glad_glCopyTexImage2D;
 PFNGLREADBUFFERPROC glad_glReadBuffer;
 PFNGLDRAWARRAYSINSTANCEDPROC glad_glDrawArraysInstanced;
+PFNGLBINDIMAGETEXTUREPROC glad_glBindImageTexture;
 
 typedef void* (APIENTRYP PFNGLXGETPROCADDRESSPROC_PRIVATE)(const char*);
 PFNGLXGETPROCADDRESSPROC_PRIVATE gladGetProcAddressPtr;
@@ -1326,7 +1327,8 @@ int gladLoadGL(void)
 		 && (glad_glProgramUniform1fv        = load(name = "glProgramUniform1fv"))
 		 && (glad_glProgramUniform1ui        = load(name = "glProgramUniform1ui"))
 		 && (glad_glDrawArraysInstanced      = load(name = "glDrawArraysInstanced"))
-		 && (glad_glMultiDrawArraysIndirect  = load(name = "glMultiDrawArraysIndirect")))
+		 && (glad_glMultiDrawArraysIndirect  = load(name = "glMultiDrawArraysIndirect"))
+		 && (glad_glBindImageTexture         = load(name = "glBindImageTexture")))
 		{
 			return 1;
 		}

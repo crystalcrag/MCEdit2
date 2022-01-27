@@ -20,7 +20,6 @@ in uint normFlags[];
 in vec3 offsets[];
 
 out vec2  tc;
-out vec3  vpoint;
 out vec2  ocspos;
 out float skyLight;
 out float blockLight;
@@ -100,7 +99,6 @@ void main(void)
 	else fogFactor = 1; // disabled
 
 	// first vertex
-	vpoint      = V1 - camera.xyz;
 	gl_Position = MVP * vec4(V1, 1);
 	skyLight    = float(bitfieldExtract(skyBlockLight[0], 28, 4)) * shadeSky;
 	blockLight  = float(bitfieldExtract(skyBlockLight[0], 24, 4)) * shadeBlock;
@@ -110,7 +108,6 @@ void main(void)
 	EmitVertex();
 
 	// second vertex
-	vpoint      = V2 - camera.xyz;
 	gl_Position = MVP * vec4(V2, 1);
 	skyLight    = float(bitfieldExtract(skyBlockLight[0], 4, 4)) * shadeSky;
 	blockLight  = float(bitfieldExtract(skyBlockLight[0], 0, 4)) * shadeBlock;
@@ -119,7 +116,6 @@ void main(void)
 	EmitVertex();
 			
 	// third vertex
-	vpoint      = V3 - camera.xyz;
 	gl_Position = MVP * vec4(V3, 1);
 	skyLight    = float(bitfieldExtract(skyBlockLight[0], 20, 4)) * shadeSky;
 	blockLight  = float(bitfieldExtract(skyBlockLight[0], 16, 4)) * shadeBlock;
@@ -128,7 +124,6 @@ void main(void)
 	EmitVertex();
 
 	// fourth vertex
-	vpoint      = V4 - camera.xyz;
 	gl_Position = MVP * vec4(V4, 1);
 	skyLight    = float(bitfieldExtract(skyBlockLight[0], 12, 4)) * shadeSky;
 	blockLight  = float(bitfieldExtract(skyBlockLight[0], 8,  4)) * shadeBlock;

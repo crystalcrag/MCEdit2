@@ -379,8 +379,11 @@ int main(int nb, char * argv[])
 		return 1;
 	}
 
+	if (nb > 1)
+		globals.level = renderInitWorld(argv[1], globals.renderDist);
+	else
 //	globals.level = renderInitWorld("TestMesh", globals.renderDist);
-	globals.level = renderInitWorld("World5", globals.renderDist);
+	globals.level = renderInitWorld("World1_12", globals.renderDist);
 
 	globals.yawPitch = &mcedit.player.angleh;
 	wayPointsRead();
@@ -1312,9 +1315,26 @@ void mceditSideView(void)
 int WINAPI WinMain(
     HINSTANCE hInstance,
     HINSTANCE hPrevInstance,
-    LPSTR lpCmdLine,
+    LPSTR CmdLine,
     int nCmdShow)
 {
-	return main(0, NULL);
+	/* CmdLine parameter is not unicode aware even with UNICODE macro set */
+	int      nb, i;
+	LPWSTR * argv = CommandLineToArgvW(GetCommandLineW(), &nb);
+
+	/* convert strings to UTF8 */
+	for (i = 0; i < nb; )
+	{
+		int len = wcslen(argv[i]);
+		int sz  = UTF16ToUTF8(NULL, 0, (STRPTR) argv[i], len) + 1;
+
+		CmdLine = alloca(sz);
+
+		sz = UTF16ToUTF8(CmdLine, sz, (STRPTR) argv[i], len);
+
+		argv[i++] = (LPWSTR) CmdLine;
+	}
+
+	return main(nb, (STRPTR *) argv);
 }
 #endif

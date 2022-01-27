@@ -31,7 +31,7 @@ void skydomeGetSunPos(vec4 pos)
 Bool skydomeInit(void)
 {
 	/* sky dome */
-	Model model = modelSphere(1, 10);
+	Model model = modelSphere(500, 10);
 
 	skydome.shader = createGLSLProgram("skydome.vsh", "skydome.fsh", NULL);
 	if (! skydome.shader)

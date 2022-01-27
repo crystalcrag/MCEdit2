@@ -654,7 +654,7 @@ void physicsEntityMoved(Map map, APTR self, vec4 start, vec4 end)
 				entityUpdateInfo(entity, oldPos);
 				if (! physicsCheckOnGround(map, entity->pos, NULL, bbox))
 				{
-					entityInitMove(entity, side, 4 /* a nit more force than if shoved by blocks */);
+					entityInitMove(entity, side, 4 /* a bit more force than if shoved by blocks */);
 					entityInitMove(entity, SIDE_BOTTOM, 1);
 				}
 			}

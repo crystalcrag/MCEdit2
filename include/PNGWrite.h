@@ -339,7 +339,7 @@ int textureConvertToCMap(DATA8 bitmap, int width, int height)
 				if (bestDist > dist)
 				{
 					best = k;
-					//if (distr < minDist && distg < minDist && distb < minDist) break;
+					if (distr < minDist && distg < minDist && distb < minDist) break;
 					bestDist = dist;
 				}
 			}

@@ -13,7 +13,7 @@
 #include "globals.h"
 
 #define PREFS_PATH             "MCEdit.ini"
-#define PROG_VERSION           "2.0b1"
+#define MCEDIT_VERSION         "2.0b1"
 
 typedef struct GameState_t     GameState_t;
 
@@ -28,7 +28,7 @@ struct GameState_t
 	uint8_t  forceSel;         /* don't display preview item */
 	uint8_t  fullScreen;       /* go fullscreen on startup */
 	TEXT     capture[128];     /* screenshot directory */
-	TEXT     worldsDir[256];
+	TEXT     worldsDir[256];   /* folder where saved worlds are */
 };
 
 enum /* possible values for state: which game loop are we running */

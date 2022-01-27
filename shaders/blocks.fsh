@@ -9,7 +9,6 @@ out vec4 color;
 
 in  vec2  tc;
 in  vec2  ocspos;
-in  vec3  vpoint;
 in  float skyLight;
 in  float blockLight;
 in  float fogFactor;
@@ -18,8 +17,9 @@ flat in uint ocsmap;
 flat in int  normal;
 
 layout (binding=0) uniform sampler2D blockTex; // Main texture for blocks
-layout (binding=2) uniform sampler2D tint;     // the color of the sky on the half-sphere where the sun is. (time x height)
-layout (binding=3) uniform sampler2D tint2;    // the color of the sky on the opposite half-sphere. (time x height)
+
+// current sky texture as rendered y skydone.fsh (need opengl 4.2+ for that though :-/)
+layout (binding=0, rgba8) uniform image2D skyTex;
 
 uniform vec3 biomeColor;
 
@@ -109,20 +109,7 @@ void main(void)
 	// compute fog contribution -- need to redo what's done in skydome.fsh :-/
 	if (fogFactor < 1)
 	{
-		vec3 pos_norm = normalize(vpoint);
-		float dist = dot(sunDir.xyz, pos_norm);
-
-		//We read the tint texture according to the position of the sun and the weather factor
-		vec3 color_wo_sun = texture(tint2, vec2(min((sunDir.y + 1.0) / 2.0, 0.99), max(0.01, pos_norm.y))).rgb;
-		vec3 color_w_sun  = texture(tint,  vec2(min((sunDir.y + 1.0) / 2.0, 0.99), max(0.01, pos_norm.y))).rgb;
-
-		vec3 skyColor = mix(color_wo_sun, color_w_sun, dist * 0.5 + 0.5);
-		if (-0.2 <= pos_norm.y && pos_norm.y <= 0.2)
-		{
-			// somewhat simulate (poorly) the Mie scattering
-			float factor = 0.1 * sunDir.y * sunDir.y;
-			skyColor *= (cos(pos_norm.y * 5*M_PI) + 1) * factor + 1;
-		}
-		color = mix(vec4(skyColor,1), color, fogFactor);
+		vec4 skyColor = imageLoad(skyTex, ivec2(int(gl_FragCoord.x), int(gl_FragCoord.y)));
+		color = mix(skyColor, color, fogFactor);
 	}
 }

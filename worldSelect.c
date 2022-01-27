@@ -26,6 +26,8 @@ int optionsExit(SIT_Widget w, APTR cd, APTR save)
 {
 	if (save)
 	{
+		if (globals.compassSize < 50)
+			globals.compassSize = 0;
 		SetINIValueInt(PREFS_PATH, "Options/CompassSize",   lroundf(globals.compassSize * 100));
 		SetINIValueInt(PREFS_PATH, "Options/GUIScale",      globals.guiScale);
 		SetINIValueInt(PREFS_PATH, "Options/FieldOfVision", globals.fieldOfVision);
@@ -193,7 +195,7 @@ static int worldSelectAbout(SIT_Widget w, APTR cd, APTR ud)
 	);
 
 	static char header[] =
-		"<a href='https://github.com/crystalcrag/MCEdit2'>MCEdit</a> "PROG_VERSION" for MS-Win32-x86<br>"
+		"<a href='https://github.com/crystalcrag/MCEdit2'>MCEdit</a> "MCEDIT_VERSION" for MS-Win32-x86<br>"
 		"Written by T.Pierron.<br>"
 		"Compiled on " __DATE__ " with gcc " TOSTRING(__GNUC__) "." TOSTRING(__GNUC_MINOR__) "." TOSTRING(__GNUC_PATCHLEVEL__);
 
@@ -237,6 +239,7 @@ static int worldSelectEnterKey(SIT_Widget w, APTR cd, APTR ud)
 	worldSelect.curKeyMod = 0;
 	return 1;
 }
+
 /* <a> onclick */
 static int worldSelectCancelKbd(SIT_Widget w, APTR cd, APTR ud)
 {
@@ -316,6 +319,7 @@ static int worldSelectSave(SIT_Widget w, APTR cd, APTR save)
 	 * the whole reason we edited <worldSelect> instead of <globals> is that we can cancel any changes done
 	 * in this interface; the drawback is we'll have to copy everything back if user accepts its changes
 	 */
+	int oldScale = globals.guiScale;
 	globals.compassSize   = worldSelect.compassSize * 0.01f;
 	globals.mouseSpeed    = worldSelect.sensitivity * 0.01f;
 	globals.fieldOfVision = worldSelect.fov;
@@ -339,9 +343,9 @@ static int worldSelectSave(SIT_Widget w, APTR cd, APTR save)
 
 	if (save)
 	{
+		SetINIValueInt(PREFS_PATH, "Options/MouseSpeed",   lroundf(globals.mouseSpeed*100));
 		SetINIValueInt(PREFS_PATH, "Options/Brightness",   globals.brightness);
 		SetINIValueInt(PREFS_PATH, "Options/TargetFPS",    globals.targetFPS);
-		SetINIValueInt(PREFS_PATH, "Options/MouseSpeed",   globals.mouseSpeed);
 		SetINIValueInt(PREFS_PATH, "Options/UsePreview",   globals.showPreview);
 
 		SetINIValueInt(PREFS_PATH, "Options/AutoEdit",     mcedit.autoEdit);
@@ -349,6 +353,8 @@ static int worldSelectSave(SIT_Widget w, APTR cd, APTR save)
 		SetINIValueInt(PREFS_PATH, "Options/LockMouse",    mcedit.lockMouse);
 	}
 	optionsExit(NULL, NULL, save);
+	if (oldScale != worldSelect.guiScale)
+		SIT_SetValues(globals.app, SIT_FontScale, worldSelect.guiScale, NULL);
 
 	return 1;
 }
@@ -630,7 +636,7 @@ void mceditWorldSelect(void)
 		"<canvas name=header left=FORM right=FORM>"
 		"  <button name=opt title='Options...'>"
 		"  <button name=open title='Open...' left=WIDGET,opt,1em>"
-		"  <label name=appname title='MCEdit "PROG_VERSION"' right=FORM>"
+		"  <label name=appname title='MCEdit "MCEDIT_VERSION"' right=FORM>"
 		"  <button name=about title='About...' right=WIDGET,appname,1em>"
 		"  <label name=select title='Select world below to edit:' left=WIDGET,open,1em right=WIDGET,about,1em"
 		"   style='text-align: center; text-decoration: underline'>"

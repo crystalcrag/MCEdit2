@@ -604,6 +604,17 @@ Bool renderInitStatic(void)
 	/* load main texture file (note: will require some tables from earlier static init functions) */
 	render.texBlock = textureLoad(RESDIR, "terrain.png", 1, blockPostProcessTexture);
 
+	/* offscreen buffer for sky texture as it will rendered on screen */
+	glGenTextures(1, &render.texSky);
+	glBindTexture(GL_TEXTURE_2D, render.texSky);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, globals.width, globals.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+
+	glBindImageTexture(0 /* image unit */, render.texSky, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA8);
+
 	memcpy(render.lightPos, lightPos, sizeof lightPos);
 
 	/* inventory item: will use same shaders as block models, therefore same VAO (but different VBO) */
@@ -1448,6 +1459,8 @@ void renderWorld(void)
 	setShaderValue(render.shaderBlocks, "biomeColor", 3, biomeColor);
 
 	renderPrepVisibleChunks(globals.level);
+	glActiveTexture(GL_TEXTURE6);
+	glBindTexture(GL_TEXTURE_2D, render.texSky);
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, render.texBlock);
 	/* 20 times per second max */

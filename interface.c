@@ -2008,12 +2008,19 @@ static int mcuiInfoSetIcon(SIT_Widget w, APTR cd, APTR ud)
 		nvgluDeleteFramebuffer(fbo);
 
 		AddPart(path, "../icon.png", 1e6);
+		#if 0
+		FILE * out = fopen("dump.ppm", "wb");
+		fprintf(out, "P6\n%d %d 255\n", PACKPNG_SIZE, PACKPNG_SIZE);
+		fwrite(data, PACKPNG_SIZE * PACKPNG_SIZE, 3, out);
+		fclose(out);
+		#endif
+
 		/* save some space by converting image to colormap */
-		width = textureConvertToCMap(path, PACKPNG_SIZE, PACKPNG_SIZE);
+		width = textureConvertToCMap(data, PACKPNG_SIZE, PACKPNG_SIZE);
 		if (width > 0)
-			textureSavePNG(path, data, PACKPNG_SIZE*3, PACKPNG_SIZE, PACKPNG_SIZE, - width);
+			textureSavePNG(path, data, 0, PACKPNG_SIZE, PACKPNG_SIZE, - width);
 		else
-			textureSavePNG(path, data, PACKPNG_SIZE*3, PACKPNG_SIZE, PACKPNG_SIZE, 3);
+			textureSavePNG(path, data, 0, PACKPNG_SIZE, PACKPNG_SIZE, 3);
 		free(data);
 
 		/* update interface too (note: it is set twice to reset cache from SITGL) */

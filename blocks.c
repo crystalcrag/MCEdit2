@@ -1,5 +1,5 @@
 /*
- * blocks.c : generic definition for blocks; specilized behavior is done in respective file.
+ * blocks.c : generic definition for blocks; specialized behavior is done in respective file.
  *
  * Written by T.Pierron, apr 2020
  */

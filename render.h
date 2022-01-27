@@ -159,6 +159,7 @@ struct RenderWorld_t
 	GLuint     vboBBoxIdx;
 	GLuint     uboShader;
 	GLuint     texBlock;           /* main texture */
+	GLuint     texSky;             /* current texture for sky */
 	GLuint     vboInventoryMDAI;   /* same for inventory rendering */
 	GLuint     vboInventoryLoc;
 	GLuint     vboPreview;
