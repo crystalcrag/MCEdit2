@@ -55,10 +55,11 @@ void main(void)
 		pt3 = rotate * pt3;
 		pt4 = rotate * pt4;
 	}
-	pt1.y *= ASPECT_RATIO;
-	pt2.y *= ASPECT_RATIO;
-	pt3.y *= ASPECT_RATIO;
-	pt4.y *= ASPECT_RATIO;
+	float aspect = SCR_WIDTH / SCR_HEIGHT;
+	pt1.y *= aspect;
+	pt2.y *= aspect;
+	pt3.y *= aspect;
+	pt4.y *= aspect;
 
 	/* that way we will get a billboard effect at the same time */
 	ptype = type[0];

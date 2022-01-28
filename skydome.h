@@ -11,7 +11,7 @@
 #include "utils.h"
 
 Bool skydomeInit(void);
-void skydomeRender(void);
+void skydomeRender(int fboSky);
 void skydomeMoveSun(int sunMove);
 void skydomeGetSunPos(vec4 pos);
 
@@ -29,6 +29,7 @@ struct SkyDome_t
 	int   texTint, texTint2;
 	int   texClouds, texClouds2;
 	int   texMoon, texSun;
+	int   uniformTime, uniformTexOnly;
 };
 
 #endif

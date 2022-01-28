@@ -18,8 +18,8 @@ flat in int  normal;
 
 layout (binding=0) uniform sampler2D blockTex; // Main texture for blocks
 
-// current sky texture as rendered y skydone.fsh (need opengl 4.2+ for that though :-/)
-layout (binding=0, rgba8) uniform image2D skyTex;
+// current sky texture as rendered by skydone.fsh
+layout (binding=6) uniform sampler2D skyTex;
 
 uniform vec3 biomeColor;
 
@@ -109,7 +109,7 @@ void main(void)
 	// compute fog contribution -- need to redo what's done in skydome.fsh :-/
 	if (fogFactor < 1)
 	{
-		vec4 skyColor = imageLoad(skyTex, ivec2(int(gl_FragCoord.x), int(gl_FragCoord.y)));
+		vec4 skyColor = texture(skyTex, vec2(gl_FragCoord.x / SCR_WIDTH, gl_FragCoord.y / SCR_HEIGHT));
 		color = mix(skyColor, color, fogFactor);
 	}
 }

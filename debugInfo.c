@@ -22,120 +22,118 @@ extern struct RenderWorld_t render;
 #define FRUSTUM_DEBUG
 
 /* get info on block being pointed at (dumped on stderr though) */
-void debugBlockVertex(SelBlock_t * select)
+void debugBlockVertex(vec4 pos, int side)
 {
 	#ifdef DEBUG
-	if (select->selFlags & 1)
+	struct BlockIter_t iter;
+
+	mapInitIter(globals.level, &iter, pos, False);
+	if (iter.blockIds == NULL) return;
+
+	BlockState block = blockGetById(getBlockId(&iter));
+	int        xyz[3], i;
+
+	xyz[0] = iter.offset & 15;
+	xyz[2] = (iter.offset >> 4) & 15;
+	xyz[1] = iter.offset >> 8;
+
+	fprintf(stderr, "*** debug block info ***\n");
+	fprintf(stderr, "found block %d:%d (%s) from %c\n", block->id >> 4, block->id & 15, block->name, "SENWTB"[side]);
+	fprintf(stderr, "located at %d,%d,%d, offset = %d, sub-chunk: %d,%d,%d, chunk: %d,%d,%d\n",
+		(int) pos[VX], (int) pos[VY], (int) pos[VZ],
+		iter.offset, xyz[0], xyz[1], xyz[2], iter.ref->X, iter.cd->Y, iter.ref->Z
+	);
+	fprintf(stderr, "intersection at %g,%g,%g, mouse at %d,%d\n", (double) render.selection.extra.inter[0],
+		(double) render.selection.extra.inter[1], (double) render.selection.extra.inter[2], render.mouseX, render.mouseY);
+	i = redstoneIsPowered(iter, RSSAMEBLOCK, POW_NONE);
+	if (i)
 	{
-		struct BlockIter_t iter;
-
-		mapInitIter(globals.level, &iter, select->current, False);
-		if (iter.blockIds == NULL) return;
-
-		BlockState block = blockGetById(getBlockId(&iter));
-		int        xyz[3], i;
-
-		xyz[0] = iter.offset & 15;
-		xyz[2] = (iter.offset >> 4) & 15;
-		xyz[1] = iter.offset >> 8;
-
-		fprintf(stderr, "*** debug block info ***\n");
-		fprintf(stderr, "found block %d:%d (%s) from %c\n", block->id >> 4, block->id & 15, block->name, "SENWTB"[select->extra.side]);
-		fprintf(stderr, "located at %d,%d,%d, offset = %d, sub-chunk: %d,%d,%d, chunk: %d,%d,%d\n",
-			(int) select->current[0], (int) select->current[1], (int) select->current[2],
-			iter.offset, xyz[0], xyz[1], xyz[2], iter.ref->X, iter.cd->Y, iter.ref->Z
-		);
-		fprintf(stderr, "intersection at %g,%g,%g, mouse at %d,%d\n", (double) render.selection.extra.inter[0],
-			(double) render.selection.extra.inter[1], (double) render.selection.extra.inter[2], render.mouseX, render.mouseY);
-		i = redstoneIsPowered(iter, RSSAMEBLOCK, POW_NONE);
-		if (i)
-		{
-			static STRPTR strength[] = {"WEAK", "NORMAL", "STRONG"};
-			fprintf(stderr, "powered by signal: %s\n", strength[(i&15)-1]);
-		}
-
-		xyz[1] += iter.cd->Y;
-		DATA8 tile = chunkGetTileEntity(iter.ref, xyz);
-		if (tile)
-		{
-			fprintf(stderr, "TileEntity associated with block (%d bytes):\n", NBT_Size(tile));
-			struct NBTFile_t nbt = {.mem = tile};
-			while ((i = NBT_Dump(&nbt, nbt.alloc, 3, stderr)) >= 0)
-				nbt.alloc += i;
-		}
-		xyz[1] -= iter.cd->Y;
-
-		/* get the sub buffer where the vertex data is located */
-		DATA32  buffer, p;
-		GPUBank bank = iter.cd->glBank;
-		GPUMem  mem  = bank->usedList + iter.cd->glSlot;
-
-		for (i = -1; bank; PREV(bank), i ++);
-		fprintf(stderr, "bank: %d, offset: %d, size: %d (alpha: %d)\n", i, mem->offset, iter.cd->glSize, iter.cd->glAlpha);
-
-		if (block->type != QUAD)
-		{
-			buffer = malloc(iter.cd->glSize);
-			bank = iter.cd->glBank;
-			glBindBuffer(GL_ARRAY_BUFFER, bank->vboTerrain);
-			glGetBufferSubData(GL_ARRAY_BUFFER, mem->offset, iter.cd->glSize, buffer);
-			glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-			for (i = iter.cd->glSize, p = buffer; i > 0; i -= VERTEX_DATA_SIZE, p += VERTEX_INT_SIZE)
-			{
-				#define INTVERTEX(x)       (((x) - ORIGINVTX) >> 10)
-				/* need to decode vertex buffer */
-				uint16_t V1[] = {p[0], p[0] >> 16, p[1]};
-				uint16_t V2[] = {
-					INTVERTEX(V1[0] + bitfieldExtract(p[1], 16, 14) - MIDVTX),
-					INTVERTEX(V1[1] + bitfieldExtract(p[2],  0, 14) - MIDVTX),
-					INTVERTEX(V1[2] + bitfieldExtract(p[2], 14, 14) - MIDVTX)
-				};
-				uint16_t V3[] = {
-					INTVERTEX(V1[0] + bitfieldExtract(p[3],  0, 14) - MIDVTX),
-					INTVERTEX(V1[1] + bitfieldExtract(p[3], 14, 14) - MIDVTX),
-					INTVERTEX(V1[2] + bitfieldExtract(p[4],  0, 14) - MIDVTX)
-				};
-				uint8_t side = bitfieldExtract(p[5], 9, 3);
-
-				/* only the side being pointed at */
-				if (side != select->extra.side) continue; /* too verbose otherwise */
-				if (V2[0] > V3[0]) swap(V2[0], V3[0]);
-				if (V2[1] > V3[1]) swap(V2[1], V3[1]);
-				if (V2[2] > V3[2]) swap(V2[2], V3[2]);
-
-				if (xyz[0]*2 <= V2[0] && V3[0] <= xyz[0]*2+2 &&
-				    xyz[1]*2 <= V2[1] && V3[1] <= xyz[1]*2+2 &&
-				    xyz[2]*2 <= V2[2] && V3[2] <= xyz[2]*2+2)
-				{
-					uint16_t U = bitfieldExtract(p[4], 14, 9);
-					uint16_t V = bitfieldExtract(p[4], 23, 9) | (bitfieldExtract(p[1], 30, 1) << 9);
-					uint16_t Usz = U + bitfieldExtract(p[5], 16, 8) - 128;
-					uint16_t Vsz = V + bitfieldExtract(p[5], 24, 8) - 128;
-					uint32_t ocsmap = bitfieldExtract(p[5], 0, 9) | (bitfieldExtract(p[3], 28, 4) << 9) | (bitfieldExtract(p[2], 28, 4) << 13);
-					fprintf(stderr, "VERTEX2: %g %g %g - NORM: %d (%c) - uv: %d,%d / %d,%d%s - OCS: %d/%d/%d/%d\n",
-						V2[0]*0.5, V2[1]*0.5, V2[2]*0.5, side, "SENWTB"[side], U, V, Usz, Vsz, p[5] & FLAG_TEX_KEEPX ? "X": "", p[5]&3, (p[5]>>2)&3, (p[5]>>4)&3, (p[5]>>6)&3
-					);
-					fprintf(stderr, "VERTEX3: %g %g %g - LIGHT: %d/%d/%d/%d, SKY: %d/%d/%d/%d",
-						V3[0]*0.5, V3[1]*0.5, V3[2]*0.5,
-						bitfieldExtract(p[6], 0, 4), bitfieldExtract(p[6],  8, 4), bitfieldExtract(p[6], 16, 4), bitfieldExtract(p[6], 24, 4),
-						bitfieldExtract(p[6], 4, 4), bitfieldExtract(p[6], 12, 4), bitfieldExtract(p[6], 20, 4), bitfieldExtract(p[6], 28, 4)
-					);
-					if (p[5] & 256)
-					{
-						uint8_t ocsext = ocsmap >> 9;
-						uint8_t j;
-						fprintf(stderr, ", EXT: ");
-						for (j = 0; j < 8; j ++, ocsext <<= 1)
-							fputc(ocsext & 128 ? '1' : '0', stderr);
-					}
-					fputc('\n', stderr);
-				}
-			}
-			free(buffer);
-		}
+		static STRPTR strength[] = {"WEAK", "NORMAL", "STRONG"};
+		fprintf(stderr, "powered by signal: %s\n", strength[(i&15)-1]);
 	}
-	else fprintf(stderr, "no block selected");
+
+	xyz[1] += iter.cd->Y;
+	DATA8 tile = chunkGetTileEntity(iter.ref, xyz);
+	if (tile)
+	{
+		fprintf(stderr, "TileEntity associated with block (%d bytes):\n", NBT_Size(tile));
+		struct NBTFile_t nbt = {.mem = tile};
+		while ((i = NBT_Dump(&nbt, nbt.alloc, 3, stderr)) >= 0)
+			nbt.alloc += i;
+	}
+	xyz[1] -= iter.cd->Y;
+
+	/* get the sub buffer where the vertex data is located */
+	if (iter.cd->glBank == NULL) return;
+	DATA32  buffer, p;
+	GPUBank bank = iter.cd->glBank;
+	GPUMem  mem  = bank->usedList + iter.cd->glSlot;
+
+	for (i = -1; bank; PREV(bank), i ++);
+	fprintf(stderr, "bank: %d, offset: %d, size: %d (alpha: %d)\n", i, mem->offset, iter.cd->glSize, iter.cd->glAlpha);
+
+	if (block->type != QUAD)
+	{
+		buffer = malloc(iter.cd->glSize);
+		bank = iter.cd->glBank;
+		glBindBuffer(GL_ARRAY_BUFFER, bank->vboTerrain);
+		glGetBufferSubData(GL_ARRAY_BUFFER, mem->offset, iter.cd->glSize, buffer);
+		glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+		for (i = iter.cd->glSize, p = buffer; i > 0; i -= VERTEX_DATA_SIZE, p += VERTEX_INT_SIZE)
+		{
+			#define INTVERTEX(x)       (((x) - ORIGINVTX) >> 10)
+			/* need to decode vertex buffer */
+			uint16_t V1[] = {p[0], p[0] >> 16, p[1]};
+			uint16_t V2[] = {
+				INTVERTEX(V1[0] + bitfieldExtract(p[1], 16, 14) - MIDVTX),
+				INTVERTEX(V1[1] + bitfieldExtract(p[2],  0, 14) - MIDVTX),
+				INTVERTEX(V1[2] + bitfieldExtract(p[2], 14, 14) - MIDVTX)
+			};
+			uint16_t V3[] = {
+				INTVERTEX(V1[0] + bitfieldExtract(p[3],  0, 14) - MIDVTX),
+				INTVERTEX(V1[1] + bitfieldExtract(p[3], 14, 14) - MIDVTX),
+				INTVERTEX(V1[2] + bitfieldExtract(p[4],  0, 14) - MIDVTX)
+			};
+			uint8_t normal = bitfieldExtract(p[5], 9, 3);
+
+			/* only the side being pointed at */
+			if (normal != side) continue; /* too verbose otherwise */
+			if (V2[0] > V3[0]) swap(V2[0], V3[0]);
+			if (V2[1] > V3[1]) swap(V2[1], V3[1]);
+			if (V2[2] > V3[2]) swap(V2[2], V3[2]);
+
+			if (xyz[0]*2 <= V2[0] && V3[0] <= xyz[0]*2+2 &&
+				xyz[1]*2 <= V2[1] && V3[1] <= xyz[1]*2+2 &&
+				xyz[2]*2 <= V2[2] && V3[2] <= xyz[2]*2+2)
+			{
+				uint16_t U = bitfieldExtract(p[4], 14, 9);
+				uint16_t V = bitfieldExtract(p[4], 23, 9) | (bitfieldExtract(p[1], 30, 1) << 9);
+				uint16_t Usz = U + bitfieldExtract(p[5], 16, 8) - 128;
+				uint16_t Vsz = V + bitfieldExtract(p[5], 24, 8) - 128;
+				uint32_t ocsmap = bitfieldExtract(p[5], 0, 9) | (bitfieldExtract(p[3], 28, 4) << 9) | (bitfieldExtract(p[2], 28, 4) << 13);
+				fprintf(stderr, "VERTEX2: %g %g %g - NORM: %d (%c) - uv: %d,%d / %d,%d%s - OCS: %d/%d/%d/%d\n",
+					V2[0]*0.5, V2[1]*0.5, V2[2]*0.5, normal, "SENWTB"[normal], U, V, Usz, Vsz, p[5] & FLAG_TEX_KEEPX ? "X": "",
+					p[5]&3, (p[5]>>2)&3, (p[5]>>4)&3, (p[5]>>6)&3
+				);
+				fprintf(stderr, "VERTEX3: %g %g %g - LIGHT: %d/%d/%d/%d, SKY: %d/%d/%d/%d",
+					V3[0]*0.5, V3[1]*0.5, V3[2]*0.5,
+					bitfieldExtract(p[6], 0, 4), bitfieldExtract(p[6],  8, 4), bitfieldExtract(p[6], 16, 4), bitfieldExtract(p[6], 24, 4),
+					bitfieldExtract(p[6], 4, 4), bitfieldExtract(p[6], 12, 4), bitfieldExtract(p[6], 20, 4), bitfieldExtract(p[6], 28, 4)
+				);
+				if (p[5] & 256)
+				{
+					uint8_t ocsext = ocsmap >> 9;
+					uint8_t j;
+					fprintf(stderr, ", EXT: ");
+					for (j = 0; j < 8; j ++, ocsext <<= 1)
+						fputc(ocsext & 128 ? '1' : '0', stderr);
+				}
+				fputc('\n', stderr);
+			}
+		}
+		free(buffer);
+	}
 	#endif
 }
 
@@ -398,6 +396,7 @@ static struct
 	int        showLightValue;
 	int        showHeightMap;
 	int        showChunks;
+	int        showGraph;
 	int        zoom;
 	int        cellH, cellV;
 	int        xoff,  yoff;
@@ -451,9 +450,9 @@ void debugSetPos(int * exitCode)
 		" <button name=skylight.left title=SkyLight buttonType=", SITV_ToggleButton, ">"
 		" <button name=blocklight.center title=BlockLight buttonType=", SITV_ToggleButton, "left=WIDGET,skylight,2>"
 		" <button name=none.right title=None buttonType=", SITV_ToggleButton, "left=WIDGET,blocklight,2>"
-		" <button name=chunk title='Show chunk boundaries' buttonType=", SITV_CheckBox, "checkState=", debug.showChunks,
+		" <button name=chunk title='Show chunk boundaries' buttonType=", SITV_CheckBox,
 		"  curValue=", &debug.showChunks, "left=WIDGET,none,1em top=MIDDLE,skylight>"
-		" <button name=heightmap title='Show heightmap' buttonType=", SITV_CheckBox, "checkState=", debug.showHeightMap,
+		" <button name=heightmap title='Show heightmap' buttonType=", SITV_CheckBox,
 		"  curValue=", &debug.showHeightMap, "left=WIDGET,chunk,1em top=MIDDLE,skylight>"
 		" <button name=back title='3D view' right=FORM>"
 		" <label name=slice right=WIDGET,back,1em top=MIDDLE,back>"
@@ -722,6 +721,8 @@ void debugWorld(void)
 						else sprintf(message, "%02x", iter.ref->outflags[iter.yabs>>4]);
 					}
 					else strcpy(message, "NOTINFRUSTUM");
+					if (iter.cd->cnxGraph > 0)
+						sprintf(strchr(message, 0), " - %04x", iter.cd->cnxGraph);
 					if (message[0])
 					{
 						nvgFillColorRGBA8(vg, "\0\0\0\xff");
@@ -805,7 +806,7 @@ void debugScrollView(int dx, int dy)
 	debugClampXZView();
 }
 
-void debugBlock(int x, int y)
+void debugBlock(int x, int y, int dump)
 {
 	void renderBlockInfo(SelBlock_t * sel);
 
@@ -816,10 +817,15 @@ void debugBlock(int x, int y)
 
 	debug.sel.current[1] -= (int) ((y - debug.yoff) / debug.sliceSz);
 	debug.sel.current[debug.sliceAxis] += debug.vector[debug.sliceAxis] * (int) ((x - debug.xoff) / debug.sliceSz);
+	debug.sel.extra.side = globals.direction;
 
 	debug.sel.blockId = 0;
 	mapGetBlockId(globals.level, debug.sel.current, &debug.sel.extra);
-	renderBlockInfo(&debug.sel);
+
+	if (dump)
+		debugBlockVertex(debug.sel.current, globals.direction);
+	else
+		renderBlockInfo(&debug.sel);
 }
 
 void debugToggleInfo(int what)

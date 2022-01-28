@@ -19,7 +19,7 @@ void main(void)
 {
 	/* fill a circle at the base */
 	vec4 diff = vtx_coord - vtx_center;
-	diff.x *= ASPECT_RATIO;
+	diff.x *= SCR_WIDTH / SCR_HEIGHT;
 
 	if (diff.x*diff.x + diff.y*diff.y > CIRCLE_RADIUS*CIRCLE_RADIUS)
 	{

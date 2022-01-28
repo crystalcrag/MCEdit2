@@ -675,6 +675,10 @@ void mapGenerateMesh(Map map)
 					load->cflags |= CFLAG_GOTDATA;
 			}
 		}
+		if ((list->cflags & CFLAG_GOTDATA) == 0)
+			/* no chunk at this location */
+			continue;
+
 		//if (list == map->center)
 		//	NBT_Dump(&list->nbt, 0, 0, 0);
 
@@ -833,10 +837,7 @@ Bool mapSetRenderDist(Map map, int maxDist)
 
 				Chunk source = map->chunks + XC + ZC * oldArea;
 				Chunk dest   = chunks + (XZmid+i) + (XZmid+j) * area;
-				int   nbor   = dest->neighbor;
 				memcpy(dest, source, sizeof *dest);
-				/* <neighbor> is dependent on new map size */
-				dest->neighbor = nbor;
 				source->cflags = 0;
 
 				/* ChunkData ref needs to be readjusted */
@@ -1315,6 +1316,7 @@ static ChunkData mapAllocFakeChunk(Map map)
 	cd->slot   = slot+1;
 	cf->usage |= 1<<slot;
 	cd->cnxGraph = 0xffff;
+	map->fakeMax ++;
 
 	mapPrintUsage(cf, 1);
 
@@ -1366,6 +1368,7 @@ static int mapGetOutFlags(Map map, ChunkData cur, DATA8 outflags)
 		}
 		else sector &= 63;
 		if (sector == 0)
+			/* point of the chunk is entirely included in frustum: add all connected chunks to the list */
 			neighbors |= frustum.neighbors[i];
 		else
 			out ++;
@@ -1579,25 +1582,23 @@ void mapViewFrustum(Map map, vec4 camera)
 	}
 	else if (center[1] >= chunk->maxy)
 	{
-		if (center[1] >= CHUNK_LIMIT)
+		/* higher than build limit: we need to get below build limit using geometry */
+		vec4 dir = {0, -1, 0, 1};
+
+		center[1] = CHUNK_LIMIT-1;
+
+		matMultByVec(dir, globals.matInvMVP, dir);
+
+		/* dir is now the vector coplanar with bottom plane (anglev - FOV/2 doesn't seem to work: slightly off :-/) */
+		if (dir[VY] >= 0)
 		{
-			/* higher than build limit: we need to get below build limit using geometry */
-			vec4 dir = {0, -1, 0, 1};
+			/* camera is pointing up above build limit: no chunks can be visible in this configuration */
+			return;
+		}
 
-			center[1] = CHUNK_LIMIT-1;
-
-			matMultByVec(dir, globals.matInvMVP, dir);
-
-			/* dir is now the vector coplanar with bottom plane (anglev - FOV/2 doesn't seem to work: slightly off :-/) */
-			if (dir[1] >= 0)
-			{
-				/* camera is pointing up above build limit: no chunks can be visible in this configuration */
-				return;
-			}
-
-			float DYSlope = (CHUNK_LIMIT*16 - camera[1]) / dir[1];
-			int   chunkX  = CPOS(camera[0] + dir[0] * DYSlope) - (chunk->X>>4);
-			int   chunkZ  = CPOS(camera[2] + dir[2] * DYSlope) - (chunk->Z>>4);
+			float DYSlope = (CHUNK_LIMIT*16 - camera[VY]) / dir[VY];
+			int   chunkX  = CPOS(camera[VX] + dir[VZ] * DYSlope) - (chunk->X>>4);
+			int   chunkZ  = CPOS(camera[VZ] + dir[VZ] * DYSlope) - (chunk->Z>>4);
 			int   area    = map->mapArea;
 			int   half    = map->maxDist >> 1;
 
@@ -1631,6 +1632,8 @@ void mapViewFrustum(Map map, vec4 camera)
 	if (! cur) return;
 	found_start:
 	map->firstVisible = cur;
+	map->chunkCulled = 0;
+	map->fakeMax = 0;
 	prev = &map->firstVisible;
 	frame = ++ map->frame;
 	cur->visible = NULL;
@@ -1649,6 +1652,9 @@ void mapViewFrustum(Map map, vec4 camera)
 		chunk     = cur->chunk;
 		center[1] = cur->Y >> 4;
 		neighbors = mapGetOutFlags(map, cur, outflags);
+
+//		if (chunk->X == -368 && cur->Y == 16 && chunk->Z == 64)
+//			puts("here");
 
 		#ifdef FRUSTUM_DEBUG
 		fprintf(stderr, "chunk %d, %d, %d: outflags = %d,%d,%d,%d,%d,%d,%d,%d\n", cur->chunk->X, cur->chunk->Z, cur->Y,
@@ -1716,25 +1722,20 @@ void mapViewFrustum(Map map, vec4 camera)
 			/* fake or empty chunk: remove from list */
 			if (cur->slot > 0)
 				mapFreeFakeChunk(cur);
+			else /* still need to mark from direction we went */
+				mapCullCave(cur, camera);
 			*prev = cur->visible;
 		}
-		else prev = &cur->visible;
+		else
+		{
+			mapCullCave(cur, camera);
+			if (cur->comingFrom == 0)
+				/* ignore this chunk */
+				*prev = cur->visible, map->chunkCulled ++;
+			else
+				renderAddToBank(cur), prev = &cur->visible;
+		}
 	}
 
-	/* last step: cave culling: see doc/internals.html for details on how this works */
-	map->chunkCulled = 0;
-	for (prev = &map->firstVisible, cur = *prev; cur; cur = cur->visible)
-	{
-		mapCullCave(cur, camera);
-		#if 1
-		if (cur->comingFrom == 0)
-			/* ignore this chunk */
-			*prev = cur->visible, map->chunkCulled ++;
-		else
-			renderAddToBank(cur), prev = &cur->visible;
-		#else
-		renderAddToBank(cur);
-		#endif
-	}
 	renderAllocCmdBuffer(map);
 }

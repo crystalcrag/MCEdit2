@@ -1,5 +1,10 @@
 =========== Week 4 ===========
-Tue Jan 26:
+Thu Jan 27:
+	* tried to debug frusutm culling lag spike: no idea still.
+	* cave culling was culling too much around empty mesh.
+	* used an FBO instead of an image2d for fog texture: imageStore() doesn't seem to work on nvidia :-/
+
+Wed Jan 26:
 	* using an image store as secondary color attachment, works but requires opengl 4.2: sigh.
 	* added small corona around and tweaks to skydome.
 

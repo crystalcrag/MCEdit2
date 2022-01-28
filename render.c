@@ -506,8 +506,9 @@ static int renderGetSize(SIT_Widget w, APTR cd, APTR ud)
 	render.inventory->update ++;
 
 	/* aspect ratio (needed by particle.gsh and waypoints) */
-	shading[SHADING_ASPECT] = globals.width / (float) globals.height;
-	matPerspective(render.matPerspective, globals.fieldOfVision, shading[SHADING_ASPECT], NEAR_PLANE, 1000);
+	shading[SHADING_VPWIDTH]  = globals.width;
+	shading[SHADING_VPHEIGHT] = globals.height;
+	matPerspective(render.matPerspective, globals.fieldOfVision, globals.width / (float) globals.height, NEAR_PLANE, 1000);
 	glViewport(0, 0, globals.width, globals.height);
 
 	glBindBuffer(GL_UNIFORM_BUFFER, globals.uboShader);
@@ -555,8 +556,6 @@ int renderInitUBO(void)
 /* init static tables and objects */
 Bool renderInitStatic(void)
 {
-	vec4 lightPos = {0, 1, 1, 1};
-
 	#ifdef DEBUG
 	glEnable(GL_DEBUG_OUTPUT);
 	glDebugMessageCallback(debugGLError, NULL);
@@ -604,18 +603,20 @@ Bool renderInitStatic(void)
 	/* load main texture file (note: will require some tables from earlier static init functions) */
 	render.texBlock = textureLoad(RESDIR, "terrain.png", 1, blockPostProcessTexture);
 
-	/* offscreen buffer for sky texture as it will rendered on screen */
+	/* texture used by fog */
 	glGenTextures(1, &render.texSky);
 	glBindTexture(GL_TEXTURE_2D, render.texSky);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, globals.width, globals.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 128, 128, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 
-	glBindImageTexture(0 /* image unit */, render.texSky, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA8);
-
-	memcpy(render.lightPos, lightPos, sizeof lightPos);
+	/* will be render in a off-screen FBO */
+	glGenFramebuffers(1, &render.fboSky);
+	glBindFramebuffer(GL_FRAMEBUFFER, render.fboSky);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, render.texSky, 0);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 	/* inventory item: will use same shaders as block models, therefore same VAO (but different VBO) */
 	glBindVertexArray(render.vaoInventory);
@@ -684,8 +685,9 @@ Bool renderInitStatic(void)
 	}
 
 	/* pre-conpute perspective projection matrix */
-	shading[SHADING_ASPECT] = globals.width / (float) globals.height;
-	matPerspective(render.matPerspective, globals.fieldOfVision, shading[SHADING_ASPECT], NEAR_PLANE, 1000);
+	shading[SHADING_VPWIDTH]  = globals.width;
+	shading[SHADING_VPHEIGHT] = globals.height;
+	matPerspective(render.matPerspective, globals.fieldOfVision, globals.width / (float) globals.height, NEAR_PLANE, 1000);
 
 	globals.uboShader = renderInitUBO();
 	glBindBufferBase(GL_UNIFORM_BUFFER, UBO_BUFFER_INDEX, globals.uboShader);
@@ -756,8 +758,8 @@ void renderDebugBlock(void)
 	#ifdef DEBUG
 	if (render.selection.extra.entity > 0)
 		entityDebug(render.selection.extra.entity);
-	else
-		debugBlockVertex(&render.selection);
+	else if (render.selection.selFlags & SEL_POINTTO)
+		debugBlockVertex(render.selection.current, render.selection.extra.side);
 	#endif
 }
 
@@ -1423,22 +1425,27 @@ void renderWorld(void)
 	if (render.setFrustum)
 	{
 		/* do it as late as possible */
+		double curTime = FrameGetTime();
 		mapViewFrustum(globals.level, render.camera);
 		render.setFrustum = 0;
+		int diff = round(FrameGetTime() - curTime);
+		if (diff >= 10)
+			fprintf(stderr, "frustum culling took %d ms, fake alloc: %d\n", diff, globals.level->fakeMax);
 	}
 
 
 	/* must be done before glViewport */
 	signPrepare(render.camera);
 
-	glViewport(0, 0, globals.width, globals.height);
 	glClearColor(0.5, 0.5, 0.8, 1);
 	glClear(GL_DEPTH_BUFFER_BIT);
 
 	/* sky dome */
 	glBindBuffer(GL_UNIFORM_BUFFER, globals.uboShader);
 	glBufferSubData(GL_UNIFORM_BUFFER, UBO_MVMATRIX_OFFSET, sizeof (mat4), render.matModel);
-	skydomeRender();
+	skydomeRender(render.fboSky);
+
+	glViewport(0, 0, globals.width, globals.height);
 
 //	glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
@@ -1775,7 +1782,7 @@ void renderSaveRestoreState(Bool save)
 
 void renderSetFOV(int fov)
 {
-	matPerspective(render.matPerspective, globals.fieldOfVision, shading[SHADING_ASPECT], NEAR_PLANE, 1000);
+	matPerspective(render.matPerspective, globals.fieldOfVision, globals.width / (float) globals.height, NEAR_PLANE, 1000);
 	/* must be same as the one used in the vertex shader */
 	matMult(globals.matMVP, render.matPerspective, render.matModel);
 	/* we will need that matrix sooner or later */

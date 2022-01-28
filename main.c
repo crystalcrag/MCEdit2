@@ -382,8 +382,8 @@ int main(int nb, char * argv[])
 	if (nb > 1)
 		globals.level = renderInitWorld(argv[1], globals.renderDist);
 	else
-//	globals.level = renderInitWorld("TestMesh", globals.renderDist);
-	globals.level = renderInitWorld("World1_12", globals.renderDist);
+	globals.level = renderInitWorld("TestMesh", globals.renderDist);
+//	globals.level = renderInitWorld("World1_12", globals.renderDist);
 
 	globals.yawPitch = &mcedit.player.angleh;
 	wayPointsRead();
@@ -734,6 +734,11 @@ void mceditWorld(void)
 		updateTick();
 		SIT_RenderNodes(globals.curTime);
 		SDL_GL_SwapBuffers();
+		{
+			int diff = FrameGetTime() - globals.curTime;
+			if (diff > 25)
+				fprintf(stderr, "frame took %d ms (%d fake alloc)\n", diff, globals.level->fakeMax);
+		}
 		FrameWaitNext();
 	}
 }
@@ -1205,10 +1210,11 @@ void mceditSideView(void)
 			case SDL_KEYDOWN:
 				switch (event.key.keysym.sym) {
 				case SDLK_LALT:
-					debugBlock(mcedit.mouseX, mcedit.mouseY);
+					debugBlock(mcedit.mouseX, mcedit.mouseY, 0);
 					renderShowBlockInfo(True, DEBUG_BLOCK);
 					info = 1;
 					break;
+				case SDLK_F1:    debugBlock(mcedit.mouseX, mcedit.mouseY, 1); break;
 				case SDLK_F3:    debugToggleInfo(DEBUG_CHUNK); break;
 				case SDLK_F7:    globals.breakPoint = ! globals.breakPoint; break;
 				case SDLK_TAB:   mcedit.exit = 2; break;
@@ -1253,7 +1259,7 @@ void mceditSideView(void)
 				}
 				else if (info)
 				{
-					debugBlock(event.motion.x, event.motion.y);
+					debugBlock(event.motion.x, event.motion.y, 0);
 					refresh = 1;
 				}
 				break;

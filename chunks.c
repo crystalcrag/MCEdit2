@@ -268,7 +268,7 @@ void chunkExpandEntities(Chunk c)
 {
 	int off = c->entOffset;
 	c->cflags |= CFLAG_HASENTITY;
-	if (off >= 0)
+	if (off > 0)
 	{
 		NBTHdr hdr = (NBTHdr) (c->nbt.mem + off);
 		if (hdr->count == 0) return; /* empty list */

@@ -40,9 +40,12 @@ Bool skydomeInit(void)
 	glGenVertexArrays(1, &skydome.vao);
 	glGenBuffers(1, &skydome.vbo);
 	glBindVertexArray(skydome.vao);
-	skydome.vertex  = model->vertex;
-	skydome.indices = model->index;
+	skydome.vertex   = model->vertex;
+	skydome.indices  = model->index;
 	skydome.sunAngle = M_PI_2;
+
+	skydome.uniformTime    = glGetUniformLocation(skydome.shader, "time");
+	skydome.uniformTexOnly = glGetUniformLocation(skydome.shader, "skyTexOnly");
 
 	/* vertex data */
 	glBindBuffer(GL_ARRAY_BUFFER, skydome.vbo);
@@ -86,7 +89,7 @@ void skydomeMoveSun(int sunMove)
 	glBufferSubData(GL_UNIFORM_BUFFER, UBO_SUNDIR_OFFSET, sizeof (vec4), sunPos);
 }
 
-void skydomeRender(void)
+void skydomeRender(int fboSky)
 {
 	glDisable(GL_DEPTH_TEST);
 	glDepthMask(GL_FALSE);
@@ -97,8 +100,18 @@ void skydomeRender(void)
 	glUseProgram(skydome.shader);
 
 	float time = globals.curTime * 0.000005;
-	setShaderValue(skydome.shader, "time", 1, &time);
+	glProgramUniform1fv(skydome.shader, skydome.uniformTime,    1, &time); time = 1;
+	glProgramUniform1fv(skydome.shader, skydome.uniformTexOnly, 1, &time); time = 0;
 
+	/* first, only render the sky in a small texture */
+	glViewport(0, 0, 128, 128);
+	glBindFramebuffer(GL_FRAMEBUFFER, fboSky);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, skydome.vboIndices);
+	glDrawElements(GL_TRIANGLES, skydome.indices, GL_UNSIGNED_SHORT, 0);
+
+	/* then the full sky */
+	glViewport(0, 0, globals.width, globals.height);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glProgramUniform1fv(skydome.shader, skydome.uniformTexOnly, 1, &time);
 	glDrawElements(GL_TRIANGLES, skydome.indices, GL_UNSIGNED_SHORT, 0);
 }

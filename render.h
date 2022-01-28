@@ -67,7 +67,7 @@ void debugScrollView(int dx, int dy);
 void debugMoveSlice(int dz);
 void debugRotateView(int dir);
 void debugZoomView(int x, int y, int dir);
-void debugBlock(int x, int y);
+void debugBlock(int x, int y, int dump);
 void debugToggleInfo(int what);
 void debugLoadSaveState(STRPTR path, Bool load);
 
@@ -145,11 +145,8 @@ struct RenderWorld_t
 	mat4       matModel;           /* MVP mat */
 	mat4       matPerspective;
 	mat4       matInventoryItem;   /* ortho matrix for rendering blocks in inventory */
-	vec4       lightPos;
-	vec4       curLightPos;
 	vec4       camera;             /* player pos */
 	GLuint     shaderBlocks;       /* compiled shaders */
-	GLuint     shaderParticles;
 	GLuint     shaderItems;
 	GLuint     vaoInventory;       /* vao to draw inventory object */
 	GLuint     vaoBBox;
@@ -159,13 +156,14 @@ struct RenderWorld_t
 	GLuint     vboBBoxIdx;
 	GLuint     uboShader;
 	GLuint     texBlock;           /* main texture */
-	GLuint     texSky;             /* current texture for sky */
+	GLuint     texSky;
 	GLuint     vboInventoryMDAI;   /* same for inventory rendering */
 	GLuint     vboInventoryLoc;
 	GLuint     vboPreview;
 	GLuint     vboPreviewLoc;
 	GLuint     vboInventory;       /* block model for rendering inventory */
 	GLuint     vboParticles;
+	GLuint     fboSky;
 	int        compass;            /* image id from nanovg */
 	float      compassOffset;      /* pixel offset from right border to start drawing compass */
 	float      yaw, pitch;
@@ -209,14 +207,15 @@ enum                               /* possible values for render.previewItem */
 
 enum                               /* special index value for shading[] array (must match what's declared in uniformBlock.glsl) */
 {
-	SHADING_ASPECT     = 1,        /* aspect ratio (adjustment for billboard) */
-	SHADING_FULLBRIGHT = 2,        /* DEUBG: turn skylight/blocklight to full no matter what */
+	SHADING_VPWIDTH    = 1,        /* width of window in px */
+	SHADING_VPHEIGHT   = 2,        /* height */
 	SHADING_ISINVITEM  = 3,        /* only used by items.vsh */
 	SHADING_FOGDIST    = 5,        /* distance in blocks the fog will extend (0 = disabled) */
+	SHADING_FULLBRIGHT = 6,        /* DEUBG: turn skylight/blocklight to full no matter what */
 };
 
 /* debug info */
-void debugBlockVertex(SelBlock_t *);
+void debugBlockVertex(vec4 pos, int side);
 void debugInit(void);
 void debugShowChunkBoundary(Chunk cur, int Y);
 void debugCoord(APTR vg, vec4 camera, int total);
