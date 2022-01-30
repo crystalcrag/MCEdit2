@@ -369,7 +369,8 @@ void debugCoord(APTR vg, vec4 camera, int total)
 		cd ? cd->cnxGraph : 0);
 	len += sprintf(message + len, "Triangles: %d\n", total);
 	for (bank = HEAD(globals.level->gpuBanks), vis = 0; bank; vis += bank->vtxSize, NEXT(bank));
-	len += sprintf(message + len, "Chunks: %d/%d (culled: %d)\n", vis, globals.level->GPUchunk, globals.level->chunkCulled);
+	len += sprintf(message + len, "Chunks: %d/%d (culled: %d, fakeAlloc: %d)\n", vis, globals.level->GPUchunk, globals.level->chunkCulled,
+		globals.level->fakeMax);
 	len += sprintf(message + len, "FPS: %.1f", FrameGetFPS());
 
 	nvgFontSize(vg, FONTSIZE);

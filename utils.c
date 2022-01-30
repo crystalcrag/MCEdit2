@@ -1215,7 +1215,6 @@ PFNGLPROGRAMUNIFORM1FVPROC glad_glProgramUniform1fv;
 PFNGLPROGRAMUNIFORM1UIPROC glad_glProgramUniform1ui;
 PFNGLDRAWELEMENTSPROC glad_glDrawElements;
 PFNGLPOLYGONMODEPROC glad_glPolygonMode;
-PFNGLPOINTSIZEPROC glad_glPointSize;
 PFNGLBLENDFUNCPROC glad_glBlendFunc;
 PFNGLDEPTHFUNCPROC glad_glDepthFunc;
 PFNGLMULTIDRAWARRAYSINDIRECTPROC glad_glMultiDrawArraysIndirect;
@@ -1302,7 +1301,6 @@ int gladLoadGL(void)
 		 && (glad_glBufferSubData      = load(name = "glBufferSubData"))
 		 && (glad_glDrawElements       = load(name = "glDrawElements"))
 		 && (glad_glPolygonMode        = load(name = "glPolygonMode"))
-		 && (glad_glPointSize          = load(name = "glPointSize"))
 		 && (glad_glBlendFunc          = load(name = "glBlendFunc"))
 		 && (glad_glDepthFunc          = load(name = "glDepthFunc"))
 		 && (glad_glReadPixels         = load(name = "glReadPixels"))

@@ -26,8 +26,6 @@ int optionsExit(SIT_Widget w, APTR cd, APTR save)
 {
 	if (save)
 	{
-		if (globals.compassSize < 50)
-			globals.compassSize = 0;
 		SetINIValueInt(PREFS_PATH, "Options/CompassSize",   lroundf(globals.compassSize * 100));
 		SetINIValueInt(PREFS_PATH, "Options/GUIScale",      globals.guiScale);
 		SetINIValueInt(PREFS_PATH, "Options/FieldOfVision", globals.fieldOfVision);
@@ -52,7 +50,7 @@ static int optionsSetValue(SIT_Widget w, APTR cd, APTR ud)
 	case 0:
 		if (worldSelect.compassSize < 50)
 		{
-			SIT_SetValues(worldSelect.enterKey, SIT_Title, "N/A", SIT_Enabled, False, NULL);
+			SIT_SetValues(worldSelect.enterKey, SIT_Title, "N/A", NULL);
 			globals.compassSize = 0;
 		}
 		else globals.compassSize = worldSelect.compassSize * 0.01f;
@@ -352,6 +350,7 @@ static int worldSelectSave(SIT_Widget w, APTR cd, APTR save)
 		SetINIValueInt(PREFS_PATH, "Options/FullScreen",   mcedit.fullScreen);
 		SetINIValueInt(PREFS_PATH, "Options/LockMouse",    mcedit.lockMouse);
 	}
+	/* will save the rest of config */
 	optionsExit(NULL, NULL, save);
 	if (oldScale != worldSelect.guiScale)
 		SIT_SetValues(globals.app, SIT_FontScale, worldSelect.guiScale, NULL);

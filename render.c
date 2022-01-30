@@ -612,7 +612,7 @@ Bool renderInitStatic(void)
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 128, 128, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 
-	/* will be render in a off-screen FBO */
+	/* will be rendered in a off-screen FBO */
 	glGenFramebuffers(1, &render.fboSky);
 	glBindFramebuffer(GL_FRAMEBUFFER, render.fboSky);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, render.texSky, 0);
@@ -1226,11 +1226,15 @@ static void renderPrepVisibleChunks(Map map)
 					alphaIndex --;
 
 					/* check if we need to sort vertex: this is costly but should not be done very often */
-					if ((fabsf(render.yaw - cd->yaw) > M_PI_4f && fabsf(render.yaw - cd->yaw - 2*M_PIf) > M_PI_4f) ||
-					     fabsf(render.pitch - cd->pitch) > M_PI_4f ||
-					     (player == cd && renderHasPlayerMoved(map, cd)))
+					if ((cd->cdFlags & CDFLAG_NOALPHASORT) == 0)
 					{
-						renderSortVertex(bank, cd);
+						if ((fabsf(render.yaw - cd->yaw) > M_PI_4f && fabsf(render.yaw - cd->yaw - 2*M_PIf) > M_PI_4f) ||
+							 fabsf(render.pitch - cd->pitch) > M_PI_4f ||
+							 (player == cd && renderHasPlayerMoved(map, cd)))
+						{
+							//fprintf(stderr, "sorting chunk %d, %d, %d: %d quads\n", cd->chunk->X, cd->Y, cd->chunk->Z, cd->glAlpha / 28);
+							renderSortVertex(bank, cd);
+						}
 					}
 				}
 			}
@@ -1823,6 +1827,25 @@ static void renderFlush(WriteBuffer buffer)
 
 	list->usage = (DATA8) buffer->cur - (DATA8) buffer->start;
 
+	if (buffer->alpha && buffer->isCOP)
+	{
+		/* check if all quads are coplanar */
+		DATA32 vertex, end;
+		for (vertex = buffer->start, end = buffer->end; vertex < end; vertex += VERTEX_INT_SIZE)
+		{
+			/* get normal */
+			uint16_t coord, norm = (vertex[5] >> 9) & 7;
+			DATA16   cop = buffer->coplanar + norm;
+			switch (norm) {
+			case 0: case 2: coord = vertex[1]; break;
+			case 1: case 3: coord = vertex[0]; break;
+			default:        coord = vertex[0] >> 16;
+			}
+			if (cop[0] == 0)     { cop[0] = coord; } else
+			if (cop[0] != coord) { buffer->isCOP = 0; break; }
+		}
+	}
+
 	if (list->node.ln_Next)
 	{
 		NEXT(list);
@@ -1858,6 +1881,7 @@ void renderInitBuffer(ChunkData cd, WriteBuffer opaque, WriteBuffer alpha)
 	opaque->start = opaque->cur = mesh->buffer;
 	opaque->end   = mesh->buffer + (MAX_MESH_CHUNK / 4);
 	opaque->alpha = 0;
+	opaque->isCOP = 1;
 	opaque->mesh  = mesh;
 	opaque->flush = renderFlush;
 
@@ -1868,6 +1892,8 @@ void renderInitBuffer(ChunkData cd, WriteBuffer opaque, WriteBuffer alpha)
 	alpha->alpha = 1;
 	alpha->mesh  = mesh;
 	alpha->flush = renderFlush;
+	alpha->isCOP = 1;
+	memset(alpha->coplanar, 0, sizeof alpha->coplanar);
 }
 
 /*

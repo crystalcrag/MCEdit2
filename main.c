@@ -382,8 +382,8 @@ int main(int nb, char * argv[])
 	if (nb > 1)
 		globals.level = renderInitWorld(argv[1], globals.renderDist);
 	else
-	globals.level = renderInitWorld("TestMesh", globals.renderDist);
-//	globals.level = renderInitWorld("World1_12", globals.renderDist);
+//	globals.level = renderInitWorld("TestMesh", globals.renderDist);
+	globals.level = renderInitWorld("World5", globals.renderDist);
 
 	globals.yawPitch = &mcedit.player.angleh;
 	wayPointsRead();
@@ -478,7 +478,6 @@ void mceditWorld(void)
 					break;
 				case SDLK_F7:
 					globals.breakPoint = ! globals.breakPoint;
-					undoDebug();
 					//FramePauseUnpause(globals.breakPoint);
 					break;
 				case SDLK_UP:
@@ -734,11 +733,13 @@ void mceditWorld(void)
 		updateTick();
 		SIT_RenderNodes(globals.curTime);
 		SDL_GL_SwapBuffers();
+		#if 0
 		{
 			int diff = FrameGetTime() - globals.curTime;
 			if (diff > 25)
 				fprintf(stderr, "frame took %d ms (%d fake alloc)\n", diff, globals.level->fakeMax);
 		}
+		#endif
 		FrameWaitNext();
 	}
 }

@@ -1892,6 +1892,7 @@ void entityCopyToMap(APTR duplicated, Map map)
 	DATA16 entityIds;
 	int i;
 
+	if (duplicated == NULL) return;
 	/* worldItemDup() will rebind GL_ARRAY_BUFFER, so use a different binding point :-/ */
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, bank->vboLoc);
 	vec loc = glMapBuffer(GL_ELEMENT_ARRAY_BUFFER, GL_READ_WRITE);

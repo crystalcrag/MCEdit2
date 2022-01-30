@@ -1,12 +1,18 @@
 =========== Week 4 ===========
+Sat Jan 29:
+	* fake chunk alloc seems better now.
+	* avoid sorting alpha quads if they only are composed of a flat plane.
+
+Fri Jan 28:
+	* tried to limit fake chunk allocation: too many glitches still.
+
 Thu Jan 27:
-	* tried to debug frusutm culling lag spike: no idea still.
 	* cave culling was culling too much around empty mesh.
-	* used an FBO instead of an image2d for fog texture: imageStore() doesn't seem to work on nvidia :-/
+	* use an FBO, instead of an image2d for fog texture: imageStore() doesn't seem to work on nvidia :-/
 
 Wed Jan 26:
 	* using an image store as secondary color attachment, works but requires opengl 4.2: sigh.
-	* added small corona around and tweaks to skydome.
+	* added small corona around sun and tweaks to skydome.
 
 Tue Jan 25:
 	* tried using multi-render target: complete failure, can't assign another color buffer to default

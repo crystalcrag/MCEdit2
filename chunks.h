@@ -108,6 +108,13 @@ enum /* flags for Chunk.cflags */
 	CFLAG_REBUILDTE  = 0x10,           /* mark TileEntity list as needing to be rebuilt (the NBT part) */
 	CFLAG_ETTLIGHT   = 0x20,           /* update entity light for this chunk */
 	CFLAG_REBUILDETT = 0x40,           /* mark Entity list for rebuilt when saved */
+	CFLAG_PRIORITIZE = 0x80,           /* already move in front of map->genList */
+};
+
+enum /* extra flags for Chunk.noChunks */
+{
+	NOCHUNK_FRUSTUMCHECK = 0x40,       /* reduce the number of FakeChunk alloc */
+	NOCHUNK_ISINTRUSTUM  = 0xc0,
 };
 
 enum /* flags for ChunkData.cdFlags */
@@ -117,6 +124,7 @@ enum /* flags for ChunkData.cdFlags */
 	CDFLAG_UPDATENEARBY = 0x04,        /* chunk changed: update nearby chunks if necessary */
 	CDFLAG_NOLIGHT      = 0x08,        /* cd->blockIds only contains block and data table (brush) */
 	CDFLAG_PENDINGMESH  = 0x10,        /* chunk will be processed by chunkUpdate() at some point */
+	CDFLAG_NOALPHASORT  = 0x20,        /* sorting of alpha quads not necessary */
 };
 
 enum /* NBT update tag */

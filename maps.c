@@ -28,8 +28,8 @@ static struct Frustum_t frustum = {
 	.neighbors    = {0x0000161b, 0x00004c36, 0x000190d8, 0x000341b0, 0x006c1600, 0x00d84c00, 0x03619000, 0x06c34000},
 	.chunkOffsets = {44,36,38,40,32,34,41,33,35,12,4,6,8,0,2,9,1,3,28,20,22,24,16,18,25,17,19}
 	#else
-	.neighbors    = {0x04054058, 0x0101284c, 0x00440552, 0x001024c6, 0x0202c038, 0x0080982c, 0x00220332, 0x000812a6},
-	.chunkOffsets = {0,1,2,4,8,16,32,3,9,17,33,6,18,34,12,20,36,24,40,19,35,25,41,22,38,28,44}
+	.neighbors    = {0x00410632, 0x0020431a, 0x001014a6, 0x0008098e, 0x04070070, 0x0202c058, 0x01043064, 0x0080a84c},
+	.chunkOffsets = {0,32,1,2,4,8,16,33,34,36,40,3,9,17,6,18,12,20,24,35,41,38,44,19,25,22,28}
 	#endif
 };
 
@@ -242,7 +242,7 @@ VTXBBox mapGetBBox(BlockIter iterator, int * count, int * cnxFlags)
 		return NULL;
 
 	*cnxFlags = 0xffff;
-	switch (block->special) {
+	switch (block->special & 31) {
 	case BLOCK_DOOR:
 		{
 			struct BlockIter_t iter = *iterator;
@@ -647,9 +647,6 @@ void mapGenerateMesh(Map map)
 	}
 	#endif
 
-	if (map->genList.lh_Head == NULL)
-		return;
-
 	while (map->genList.lh_Head)
 	{
 		static uint8_t directions[] = {12, 4, 6, 8, 0, 2, 9, 1, 3};
@@ -702,11 +699,12 @@ void mapGenerateMesh(Map map)
 				else if (cd->glBank)
 				{
 					map->GPUchunk ++;
-					list->cflags |= CFLAG_HASMESH;
 				}
 			}
 		}
-
+		if (map->genLast == list)
+			map->genLast = NULL;
+		list->cflags = (list->cflags | CFLAG_HASMESH) & ~CFLAG_PRIORITIZE;
 		if ((list->cflags & CFLAG_HASENTITY) == 0)
 			chunkExpandEntities(list);
 
@@ -1349,6 +1347,7 @@ static int mapGetOutFlags(Map map, ChunkData cur, DATA8 outflags)
 			memset(neighbor->outflags, UNVISITED, sizeof neighbor->outflags);
 			neighbor->cdIndex = 255;
 			neighbor->chunkFrame = map->frame;
+			neighbor->noChunks &= ~ NOCHUNK_ISINTRUSTUM;
 		}
 		int Y = layer + (dir[i]>>4);
 		if ((sector = neighbor->outflags[Y]) & UNVISITED)
@@ -1378,17 +1377,31 @@ static int mapGetOutFlags(Map map, ChunkData cur, DATA8 outflags)
 	return neighbors;
 }
 
+static Bool chunkAtBottomIsVisible(Chunk chunk)
+{
+	/* check the center top of the bottomest chunk */
+	float B[] = {chunk->X + 8, chunk->maxy << 4, chunk->Z + 8};
+	/* only need to check if VY is within the frustum */
+	vec A = globals.matMVP;
+	/* the test is not perfect, but the worst case scenario is to alloc more fake chunk than necessary */
+	float clipY = A[A10]*B[VX] + A[A11]*B[VY] + A[A12]*B[VZ] + A[A13];
+	float clipW = A[A30]*B[VX] + A[A31]*B[VY] + A[A32]*B[VZ] + A[A33];
+
+	chunk->noChunks |= NOCHUNK_FRUSTUMCHECK;
+	return -clipW <= clipY && clipY <= clipW;
+}
+
 static ChunkData mapAddToVisibleList(Map map, Chunk from, int direction, int layer, int frame)
 {
 	static int8_t dir[] = {0, 1, -1};
-	uint8_t offset = frustum.chunkOffsets[direction];
-	Chunk c = from + chunkNeighbor[from->neighbor + (offset & 15)];
+	uint8_t dirFlags = frustum.chunkOffsets[direction];
+	Chunk c = from + chunkNeighbor[from->neighbor + (dirFlags & 15)];
 	Chunk center = map->center;
 	ChunkData cd;
 
 	int X = c->X - center->X;
 	int Z = c->Z - center->Z;
-	int Y = layer + dir[offset >> 4];
+	int Y = layer + dir[dirFlags >> 4];
 	int half = (map->maxDist >> 1) << 4;
 
 	/* outside of render distance */
@@ -1400,6 +1413,19 @@ static ChunkData mapAddToVisibleList(Map map, Chunk from, int direction, int lay
 		memset(c->outflags, UNVISITED, sizeof c->outflags);
 		c->cdIndex = 255;
 		c->chunkFrame = frame;
+		c->noChunks &= ~ NOCHUNK_ISINTRUSTUM;
+	}
+	if ((c->cflags & CFLAG_HASMESH) == 0)
+	{
+		/* move to front of list of chunks needed to be generated */
+		if (c->next.ln_Prev && (c->cflags & CFLAG_PRIORITIZE) == 0)
+		{
+			c->cflags |= CFLAG_PRIORITIZE;
+			ListRemove(&map->genList, &c->next);
+			ListInsert(&map->genList, &c->next, &map->genLast->next);
+			map->genLast = c;
+		}
+		return NULL;
 	}
 
 	/*
@@ -1419,37 +1445,46 @@ static ChunkData mapAddToVisibleList(Map map, Chunk from, int direction, int lay
 		/* note: at this point, we know that the chunk is intersecting with the frustum */
 		mapGetOutFlags(map, &dummy, out);
 
+		switch (c->noChunks & NOCHUNK_ISINTRUSTUM) {
+		case NOCHUNK_ISINTRUSTUM:
+			/* a lower ChunkData is in frustum, no need to add a fake chunk */
+			if (c->cdIndex == 255)
+				return NULL;
+			break;
+		/* if only has NOCHUNK_FRUSTUMCHECK, it means that this test has been done, but bottomest chunk is not visible: need a fake chunk */
+		case 0:
+			/* test not done yet */
+			if (c->cdIndex == 255 && chunkAtBottomIsVisible(c))
+			{
+				/* check if there is a path to this chunk though */
+				if ((from->noChunks & NOCHUNK_ISINTRUSTUM) == NOCHUNK_ISINTRUSTUM)
+				{
+					/* yes, there will be a chunk that will be in the frustum */
+					c->noChunks |= NOCHUNK_ISINTRUSTUM;
+					return NULL;
+				}
+			}
+		}
+
 		/* but, we only want chunks that are intersecting the bottom plane of the frustum */
 		if (Y < c->cdIndex && c->outflags[Y] < VISIBLE)
 		{
-			/* fake chunks are alloced above ground, make sure we going downward if we alloc some */
+			/* fake chunks are alloced above ground, make sure we are going downward if we alloc some */
 			c->cdIndex = Y;
 			cd = mapAllocFakeChunk(map);
-			cd->Y = Y * 16;
+			cd->Y = Y << 4;
 			cd->chunk = c;
 			c->layer[Y] = cd;
 			#ifdef FRUSTUM_DEBUG
-			fprintf(stderr, "alloc fake chunk at %d, %d: %d [from %d, %d, %d: %x,%x,%x,%x]\n", c->X, c->Z, Y, from->X, from->Z, layer, out[0], out[1], out[2], out[3]);
+			fprintf(stderr, "alloc fake chunk at %d, %d: %d [from %d, %d, %d: %x,%x,%x,%x]\n", c->X, c->Z, Y<<4,
+				from->X, from->Z, layer<<4, out[0], out[1], out[2], out[3]);
 			#endif
 		}
 		else return NULL;
 	}
 	else
 	{
-		if ((c->cflags & CFLAG_HASMESH) == 0)
-		{
-			/* move to front of list of chunks needed to be generated */
-			if (c->chunkFrame != frame)
-			{
-				ListRemove(&map->genList, &c->next);
-				ListInsert(&map->genList, &c->next, (ListNode *) map->genLast);
-				map->genLast = c;
-				c->chunkFrame = frame;
-			}
-			return NULL;
-		}
-//		if (c->cdIndex > Y)
-//			c->cdIndex = Y;
+		c->noChunks |= NOCHUNK_ISINTRUSTUM;
 		cd = c->layer[Y];
 	}
 	if (cd && c->outflags[Y] < VISIBLE)
@@ -1540,12 +1575,12 @@ void mapViewFrustum(Map map, vec4 camera)
 
 	chunk = map->center;
 
-	center[1] = CPOS(camera[1]);
-	center[0] = chunk->X;
-	center[2] = chunk->Z;
+	center[VY] = CPOS(camera[1]);
+	center[VX] = chunk->X;
+	center[VZ] = chunk->Z;
 
 	map->firstVisible = NULL;
-	map->genLast = NULL;
+	map->fakeMax = 0;
 	renderClearBank(map);
 
 	#if 0
@@ -1569,12 +1604,13 @@ void mapViewFrustum(Map map, vec4 camera)
 		}
 	}
 	*prev = NULL;
-	renderAllocCmdBuffer();
+	renderAllocCmdBuffer(map);
 	return;
 	#endif
 
-//	fprintf(stderr, "\nframe = %d\n", map->frame+1);
+	// fprintf(stderr, "frame = %d, start = %d, %d, %d\n", map->frame+1, chunk->X, center[1]<<4, chunk->Z);
 
+	frame = 255;
 	if (center[1] < 0)
 	{
 		/* don't care: you are not supposed to be here anyway */
@@ -1582,22 +1618,28 @@ void mapViewFrustum(Map map, vec4 camera)
 	}
 	else if (center[1] >= chunk->maxy)
 	{
-		/* higher than build limit: we need to get below build limit using geometry */
-		vec4 dir = {0, -1, 0, 1};
-
-		center[1] = CHUNK_LIMIT-1;
-
-		matMultByVec(dir, globals.matInvMVP, dir);
-
-		/* dir is now the vector coplanar with bottom plane (anglev - FOV/2 doesn't seem to work: slightly off :-/) */
-		if (dir[VY] >= 0)
+		if (center[1] >= CHUNK_LIMIT)
 		{
-			/* camera is pointing up above build limit: no chunks can be visible in this configuration */
-			return;
-		}
+			/* higher than build limit: we need to get below build limit using geometry */
+			vec4 dir = {0, -1, 0, 1};
+
+			center[1] = CHUNK_LIMIT-1;
+
+			matMultByVec(dir, globals.matInvMVP, dir);
+
+			dir[VX] = dir[VX] / dir[VT] - camera[VX];
+			dir[VY] = dir[VY] / dir[VT] - camera[VY];
+			dir[VZ] = dir[VZ] / dir[VT] - camera[VZ];
+
+			/* dir is now the vector coplanar with bottom plane (anglev - FOV/2 doesn't seem to work: slightly off :-/) */
+			if (dir[1] >= 0)
+			{
+				/* camera is pointing up above build limit: no chunks can be visible in this configuration */
+				return;
+			}
 
 			float DYSlope = (CHUNK_LIMIT*16 - camera[VY]) / dir[VY];
-			int   chunkX  = CPOS(camera[VX] + dir[VZ] * DYSlope) - (chunk->X>>4);
+			int   chunkX  = CPOS(camera[VX] + dir[VX] * DYSlope) - (chunk->X>>4);
 			int   chunkZ  = CPOS(camera[VZ] + dir[VZ] * DYSlope) - (chunk->Z>>4);
 			int   area    = map->mapArea;
 			int   half    = map->maxDist >> 1;
@@ -1625,7 +1667,8 @@ void mapViewFrustum(Map map, vec4 camera)
 		cur->Y = center[1] * 16;
 		cur->chunk = chunk;
 		chunk->layer[center[1]] = cur;
-//		fprintf(stderr, "init fake chunk at %d, %d: %d\n", chunk->X, chunk->Z, center[1]);
+		frame = center[1];
+		// fprintf(stderr, "init fake chunk at %d, %d: %d\n", chunk->X, chunk->Z, center[1] << 4);
 	}
 	else cur = chunk->layer[center[1]];
 
@@ -1633,15 +1676,18 @@ void mapViewFrustum(Map map, vec4 camera)
 	found_start:
 	map->firstVisible = cur;
 	map->chunkCulled = 0;
-	map->fakeMax = 0;
 	prev = &map->firstVisible;
-	frame = ++ map->frame;
 	cur->visible = NULL;
 	cur->comingFrom = 255;
-	chunk->chunkFrame = frame;
 	memset(chunk->outflags, UNVISITED, sizeof chunk->outflags);
-	chunk->cdIndex = 255;
+	chunk->cdIndex = frame;
 	chunk->outflags[cur->Y>>4] |= VISIBLE;
+	frame = ++ map->frame;
+	chunk->chunkFrame = frame;
+	if (chunkAtBottomIsVisible(chunk))
+		chunk->noChunks |= NOCHUNK_ISINTRUSTUM;
+	else
+		chunk->noChunks = (chunk->noChunks & ~NOCHUNK_ISINTRUSTUM) | NOCHUNK_FRUSTUMCHECK;
 
 	for (last = cur; cur; cur = cur->visible)
 	{
@@ -1652,9 +1698,6 @@ void mapViewFrustum(Map map, vec4 camera)
 		chunk     = cur->chunk;
 		center[1] = cur->Y >> 4;
 		neighbors = mapGetOutFlags(map, cur, outflags);
-
-//		if (chunk->X == -368 && cur->Y == 16 && chunk->Z == 64)
-//			puts("here");
 
 		#ifdef FRUSTUM_DEBUG
 		fprintf(stderr, "chunk %d, %d, %d: outflags = %d,%d,%d,%d,%d,%d,%d,%d\n", cur->chunk->X, cur->chunk->Z, cur->Y,
@@ -1677,13 +1720,13 @@ void mapViewFrustum(Map map, vec4 camera)
 		if (outflags[8] >= 2)
 		{
 			static uint8_t faces[] = {
-				/* numbers reference boxPts, order is S, E, N, W, T, B */
+				/* numbers reference boxPts, order is B, S, E, N, W, T */
+				0, 1, 2, 3,
 				3, 2, 7, 6,
 				1, 3, 5, 7,
 				0, 1, 4, 5,
 				2, 0, 6, 4,
 				4, 5, 6, 7,
-				0, 1, 2, 3
 			};
 			DATA8 p;
 			for (i = 0, p = faces; i < sizeof faces/4; i ++, p += 4)
@@ -1702,8 +1745,6 @@ void mapViewFrustum(Map map, vec4 camera)
 				     popcount(sector1 ^ sector3) >= 2))
 				{
 					/* face crosses a plane: add chunk connected to it to the visible list */
-					//static uint8_t faceDir[] = {10, 14, 16, 12, 22, 4};
-					//static uint8_t faceDir[] = {3, 2, 1, 4, 5, 6};
 					ChunkData cd = mapAddToVisibleList(map, chunk, i+1, center[1], frame);
 					if (cd)
 					{

@@ -475,6 +475,7 @@ Bool chunkLoad(Chunk chunk, const char * path, int x, int z)
 		if (NBT_ParseIO(&nbt, in, 4096 * ((((offset[0] << 8) | offset[1]) << 8) | offset[2])))
 		{
 			fclose(in);
+			/* this field will be repurposed for frustum culling, need to be set to 0 */
 			nbt.alloc = 0;
 			chunk->signList       = -1;
 			chunk->nbt            = nbt;
@@ -1226,7 +1227,7 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 	/* default sorting for alpha quads */
 	cur->yaw = M_PIf * 1.5f;
 	cur->pitch = 0;
-	cur->cdFlags &= ~(CDFLAG_CHUNKAIR | CDFLAG_PENDINGMESH);
+	cur->cdFlags &= ~(CDFLAG_CHUNKAIR | CDFLAG_PENDINGMESH | CDFLAG_NOALPHASORT);
 
 	memset(visited, 0, sizeof visited);
 	hasLights = (cur->cdFlags & CDFLAG_NOLIGHT) == 0;
@@ -1260,6 +1261,7 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 
 			if (hasLights)
 			{
+				/* build list of particles emitters */
 				uint8_t particle = blockIds[block].particle;
 				if (particle > 0 && particleCanSpawn(cur, pos, data, particle))
 					chunkAddEmitters(cur, blockIds[block].emitInterval, pos, particle - 1, emitters);
@@ -1268,6 +1270,7 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 					chunkMakeObservable(cur, pos, blockSides.piston[data&7]);
 			}
 
+			/* voxel meshing starts here */
 			switch (state->type) {
 			case QUAD:
 				chunkGenQuad(neighbors, &opaque, state, pos);
@@ -1327,6 +1330,7 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 
 	if (opaque.cur > opaque.start) opaque.flush(&opaque);
 	if (alpha.cur  > alpha.start)  alpha.flush(&alpha);
+	if (alpha.isCOP) cur->cdFlags |= CDFLAG_NOALPHASORT;
 }
 
 #define BUF_LESS_THAN(buffer,min)   (((DATA8)buffer->end - (DATA8)buffer->cur) < min)

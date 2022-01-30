@@ -103,6 +103,10 @@ void skydomeRender(int fboSky)
 	glProgramUniform1fv(skydome.shader, skydome.uniformTime,    1, &time); time = 1;
 	glProgramUniform1fv(skydome.shader, skydome.uniformTexOnly, 1, &time); time = 0;
 
+	/* some functions will replace the default FBO with an offscreen one, we'll have to restore it */
+	GLint defFBO;
+	glGetIntegerv(GL_FRAMEBUFFER_BINDING, &defFBO);
+
 	/* first, only render the sky in a small texture */
 	glViewport(0, 0, 128, 128);
 	glBindFramebuffer(GL_FRAMEBUFFER, fboSky);
@@ -111,7 +115,7 @@ void skydomeRender(int fboSky)
 
 	/* then the full sky */
 	glViewport(0, 0, globals.width, globals.height);
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glBindFramebuffer(GL_FRAMEBUFFER, defFBO);
 	glProgramUniform1fv(skydome.shader, skydome.uniformTexOnly, 1, &time);
 	glDrawElements(GL_TRIANGLES, skydome.indices, GL_UNSIGNED_SHORT, 0);
 }

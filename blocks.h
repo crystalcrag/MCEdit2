@@ -147,10 +147,12 @@ struct VTXBBox_t                 /* used to store custom bounding box */
 
 struct WriteBuffer_t
 {
-	DATA32 start, end;
-	DATA32 cur;
-	APTR   mesh;
-	int    alpha;
+	DATA32   start, end;
+	DATA32   cur;                /* running pointer */
+	APTR     mesh;               /* private datatype used by render.c */
+	uint16_t coplanar[6];        /* check if quads are all coplanar for a given axis (S, E, N, W, T, B: used by alpha) */
+	uint8_t  isCOP;              /* 1 if coplanar, 0 if no */
+	uint8_t  alpha;              /* 1 if buffer is for alpha quads */
 	void (*flush)(WriteBuffer);
 };
 
@@ -443,6 +445,7 @@ struct BlockVertex_t       /* store custom block model vertex data (needed by ch
 #define SAME_AS                  -100
 #define COPY_MODEL               1e6f
 
+/* these are for the 10 bytes per vertex model, NOT the 28 bytes per quad */
 #define GET_UCOORD(vertex)       ((vertex)[3] & 511)
 #define GET_VCOORD(vertex)       ((((vertex)[3] & (127<<9)) >> 6) | ((vertex)[4] & 7))
 #define GET_NORMAL(vertex)       (((vertex)[4] >> 3) & 7)

@@ -56,7 +56,7 @@ typedef struct MCGlobals_t
 	/* nanovg context */
 	struct NVGcontext * nvgCtx;
 
-	/* quick options */
+	/* config options */
 	float   compassSize;      /* % over base value */
 	float   mouseSpeed;       /* % over base value */
 	int     redstoneTick;     /* in millisec */

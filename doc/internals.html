@@ -147,21 +147,25 @@ because the type itself is used quite extensively. For example:
 <p>But, the type will keep the <tt>_t</tt> suffix to indicate it is a value type, not a pointer.
 
 
-<h2>Frustum culling</h2>
+<h2 id="culling">Frustum culling</h2>
 
 <p>Frustum culling refer to the algorithm that can enumerate all the objects that are visible within
 the model-view-projection matrix. It is usually a compromise between precision of object's bounding
 box and computational power required to test those bounding boxes: we cannot spent too much time on
 the CPU checking for object's visibility (because in the meantime the graphics card could have probably
-already drawn this object) and on the other hand, including out-of-view objects, will requires useless
+already rendered this object) and on the other hand, including out-of-view objects, will requires useless
 work for both the CPU and the GPU.
 
-<p>The techniques used in this engine are not particularly revolutionary, but it uses <b>a lot of</b>
-little tricks that makes the source code particularly cryptic.
+<p>The techniques used in this engine are not particularly revolutionary, but there are a lot of edge
+cases to take care, that makes the overall algorithm not so trivial and quite extensive.
 
 <p>A <prod>Minecraft</prod> terrain is composed of a grid of chunks: axis-aligned boxes of 16x16x16 voxels.
-A grid means they share a lot of vertices: if we know that one corner of a chunk fits within the frustum,
-we can automatically add the 7 others chunks that share this vertex.
+A typical terrain with a render distance of 16 chunks, contains about 4,000 of these sub-chunks. A frustum
+with a field of view of 80&deg; will cross about 1,000 of them: that's a decent amount of information
+culled and therefore worth doing.
+
+<p>Since chunks are aligned in a grid, it means they share a lot of vertices: if we know that one corner
+of a chunk fits within the frustum, we can automatically add the 7 others chunks that share this vertex.
 
 <p>In other words by testing only one vertex, we can potentially add up to 8 chunks to the list of visible
 objects. Which means  on average, we will have to <b>test one point per chunk</b>. <em>That is reasonably 
@@ -249,27 +253,29 @@ between 0 and 26, and therefore can be encoded as a bitfield in a 32bit integer.
 (axis is the same as the figure on the right):
 
 <table class="skewed" id="cube3x3">
-<tr><td>25<td>15<td>23
-<tr><td>17<td>5<td>12
-<tr><td>21<td>9<td>19
+<tr><td>26<td>17<td>25
+<tr><td>18<td>6<td>15
+<tr><td>24<td>13<td>23
 </table>
 
 <table class="skewed">
-<tr><td>14<td>3<td>11
-<tr><td>4<td><span class="o">0</span><td>2
-<tr><td>8<td>1<td>7
+<tr><td>16<td>4<td>14
+<tr><td>5<td><span class="o">0</span><td>3
+<tr><td>12<td>2<td>11
 </table>
 
 <table class="skewed">
-<tr><td>26<td>16<td>24
-<tr><td>18<td>6<td>13
-<tr><td>22<td>10<td>20
+<tr><td>22<td>9<td>21
+<tr><td>10<td>1<td>8
+<tr><td>20<td>7<td>19
 </table>
 
 <p><tt>0</tt> is the chunk we are currently in. The numbers are ordered by scanning each number (starting
-from 0 in the center) and looking in the <tt>S, E, N, W, T, B</tt> directions if the chunk has been
+from 0 in the center) and looking in the <tt>B, S, E, N, W, T</tt> directions if the chunk has been
 assgined to something. If not, it is assigned to the next free number. The process continues until
-all 27 slots have been assigned to a number.
+all 27 slots have been assigned to a number. <span class="n">Note</span>: the order has been slightly
+changed, this is to minimize the amount of fake chunks to alloc (it will be explained more in detail
+below).
 
 <p>The purpose of this order is to be able to scan surrounding chunks by their distance from the center
 chunk: number 0 is the center, 1 to 6 are chunks one step away from center, 7 to 18 are two steps away
@@ -277,11 +283,11 @@ and 19 to 26 are 3 steps away (the steps being a <tt>S, E, N, W, T, B</tt> step)
 be required by the cave culling algorithm.
 
 <p>For example, if we checked that vertex <tt>0</tt> of a chunk is within the frustum, we know we can
-also add chunks <tt>3</tt>, <tt>4</tt>, <tt>6</tt>, <tt>14</tt>, <tt>16</tt>, <tt>18</tt> and <tt>26</tt>.
+also add chunks <tt>1</tt>, <tt>4</tt>, <tt>5</tt>, <tt>9</tt>, <tt>10</tt>, <tt>16</tt> and <tt>22</tt>.
 Chunk 0 is not included, because at this point we already know that the center chunk is part of the frustum.
 Encoded as bitfield, with the n<sup>th</sup> bit set if chunk number <tt>n</tt> is in the frustum, the
-7 chunks to add for vertex 0 can be encoded as <tt>2<sup>3</sup> + 2<sup>4</sup> + 2<sup>6</sup> +
-2<sup>14</sup> + 2<sup>16</sup> + 2<sup>18</sup> + 2<sup>26</sup> = 0x04054058</tt>, and so on for the
+7 chunks to add for vertex 0 can be encoded as <tt>2<sup>1</sup> + 2<sup>4</sup> + 2<sup>5</sup> +
+2<sup>9</sup> + 2<sup>10</sup> + 2<sup>16</sup> + 2<sup>22</sup> = 0x00410632</tt>, and so on for the
 other 7 corners: that's what is stored in the <tt>neighbors</tt> table.
 
 
@@ -528,12 +534,6 @@ face is blocking the visibility of a chunk.
 
 <p>This is the part that differs significantly from the blog post: it uses a more conservative approach,
 which results in more chunks being drawn, but should not leave any unfilled hole in the world.
-
-<p>This is <b>done after the chunks have been culled from the frustum</b>. In MCPE, it was done before.
-In this engine, it is not feasible because a given chunk can add up to 26 others. Graph traversal only
-works with connected chunks (<tt>S, E, N, W, T, B</tt>). While technically, it is possible to make it
-work, and have indeed been tried, in practice it adds way too much complexity compared to current
-implementation (another advice to not waste any time with this idea).
 
 <p>The way it is done, is actually pretty simple: since frustum culling orders chunks from near to far,
 we then scan the chunks from beginning to the end of that list. From a given chunk, we check if there
@@ -1146,6 +1146,21 @@ the camera <b>to the center of the whole quad</b>, that distance being converted
   move in the direction pointed by the arrow, at some point, the yellow block will become farther than
   the purple, therefore the draw order needs to be changed. That's why the current chunk is reordered
   whenever the player position changes.
+
+  <li>Last, but not least, there are use cases where <b>sorting is completely unnecessary</b>. If you
+  can somewhat prove that the alpha triangles <b>cannot overlap each other</b>, then you can draw them
+  in any order you want. This is particularly the case for ocean surface: a simple flat plane of alpha
+  triangles. Sorting them is a total waste of CPU time, and indeed if you were to sort them anyway,
+  you'd get some noticeable lag spike once the angle threashold is reached. In the middle of an ocean,
+  with a 16 chunk render distance, there can be more than a hundred of these to sort, and it is completely
+  unnecessary.
+
+  <p>The <b>heuristic</b> that has been implemented in this engine, is to check if the entirety of the alpha
+  triangles in a sub-chunk lies in a particular axis-aligned plane. If so, the chunk is marked as not
+  requiring any sorting to be made (but it still has to be rendered at the same time as other translucent
+  chunks).
+
+  <p>Again, when you are surrounded by large bodies of water, <b>this trick helps a lot</b>.
 </ul>
 
 <h3 id="gpubanks"><span>Managing chunks on the GPU</span></h3>
@@ -1171,8 +1186,8 @@ difference is that the actual memory is owned by the GPU.
   to create more of these segments. OpenGL draw commands can only deal with one primary segment (or
   VBO) at a time (VAO can deal with multiple VBO source, but they are processed in parallel, here
   we would need a serial access). Therefore to draw the geometry of a scene, we'll need at least as
-  many draw commands as there are <tt>GPUBank</tt> involved in that scene (in practice, it will be
-  a lot more of course).
+  many draw commands as there are <tt>GPUBank</tt> involved in that scene (in practice, there will a
+  lot more draw calls than just the terrain data).
 
   <li><tt>GPUMem</tt>: this datatype will track one allocation in a bank: the entire mesh of chunk
   will be stored here. That includes opaque and translucent triangles. The memory segment will be
@@ -1201,6 +1216,16 @@ filled from end to start in this buffer (because frustum culling sort them from 
 <tt>vtxSize</tt> is incorrect, <tt>baseInstance</tt> will be off, and translucent fragment will not
 appear where they should.
 
+<p>The geometry shader has a few more tricks:
+<ul>
+  <li>Terrain is obviously rendered with back face culling activated. Except that some quads need to be
+  always rendered as front face, no matter what the vertex orientation tells. A first version of this
+  engine generated 2 quads for these: one for the back face and one for the front face. But the geometry
+  shader can trivially reorder the vertex to be always front facing.
+
+  <li>The geometry shader also allows finer control over how ambient occlusion is applied (compared to
+  just doing a per vertex shading).
+</ul>
 
 <h4 id="vtxdata">Vertex data</h4>
 
