@@ -211,7 +211,7 @@ enum                               /* special index value for shading[] array (m
 	SHADING_VPHEIGHT   = 2,        /* height */
 	SHADING_ISINVITEM  = 3,        /* only used by items.vsh */
 	SHADING_FOGDIST    = 5,        /* distance in blocks the fog will extend (0 = disabled) */
-	SHADING_FULLBRIGHT = 6,        /* DEUBG: turn skylight/blocklight to full no matter what */
+	SHADING_BRIGHTNESS = 6,        /* increase brightness of dark area */
 };
 
 /* debug info */

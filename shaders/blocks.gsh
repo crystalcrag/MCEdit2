@@ -88,7 +88,10 @@ void main(void)
 		if (sky < 0) sky = 0; /* night time */
 		sky = sqrt(sky);
 	}
-	shadeSky *= sky / 15;
+	// brightness setting (moody == 0, bright = 0.7, full bright = 1
+	if (sky < MIN_BRIGHTNESS)
+		sky = MIN_BRIGHTNESS;
+	shadeSky *= sky * clamp(1 + MIN_BRIGHTNESS * 0.1, 1, 1.07) / 15;
 
 	// fogStrength == how much fragment will blend with sky, 0 = normal fragment color, 1 = fragment will use sky color
 	if (FOG_DISTANCE > 0)

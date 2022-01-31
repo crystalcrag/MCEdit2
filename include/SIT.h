@@ -692,7 +692,8 @@ enum /* values for SIT_OnKey_t.flags */
 	SITK_FlagAlt     = 0x0400,
 	SITK_FlagCmd     = 0x0800,
 	SITK_FlagUp      = 0x2000,   /* key is released */
-	SITK_FlagCapture = 0x4000
+	SITK_FlagCapture = 0x4000,
+	SITK_Flags       = 0xff00
 };
 
 #define RAWKEY(x)      ((x) << 21)

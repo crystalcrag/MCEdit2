@@ -63,7 +63,7 @@ typedef struct MCGlobals_t
 	int     targetFPS;        /* < 0 == uncapped */
 	uint8_t fieldOfVision;    /* in degrees */
 	uint8_t guiScale;         /* [50-200] % */
-	uint8_t brightness;       /* [0-100] => map to ambient values [0.2 - 0.4] */
+	uint8_t brightness;       /* [0-101] => map [0-100] to ambient values [0.2 - 0.4], 101 means full brightness */
 	uint8_t renderDist;       /* in chunks */
 	uint8_t distanceFOG;      /* 1 = use fog, 0 = don't */
 	uint8_t showPreview;      /* 1 = show preview block, 0 = outline only */

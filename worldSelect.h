@@ -15,7 +15,7 @@ int optionsExit(SIT_Widget, APTR cd, APTR ud);
 #ifdef WORLDSELECT_IMPL
 struct WorldSelect_t
 {
-	SIT_Widget options;
+	SIT_Widget options, brightval;
 	SIT_Widget enterKey, worlds;
 	SIT_Widget curKey, capture;
 	int        sensitivity;
@@ -25,6 +25,7 @@ struct WorldSelect_t
 	int        fov, fps, fog;
 	int        brightness, fullScreen;
 	int        compassSize, showPreview;
+	int        curTab;
 };
 #endif
 #endif

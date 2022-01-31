@@ -22,7 +22,7 @@ layout (std140, binding = 2) uniform param
 #define SCR_HEIGHT     shading[0].z     // height
 #define INVENTORY_ITEM shading[0].w > 0 // see invShading[] in render.c
 #define FOG_DISTANCE   shading[1].y     // max distance in blocks
-#define FULL_BRIGHT    shading[1].z > 0 // debug
+#define MIN_BRIGHTNESS shading[1].z
 #define TEX_COORD_X    (1/512.)
 #define TEX_COORD_Y    (1/1024.)
 #define M_PI           3.14159265       // seriously, not defined?

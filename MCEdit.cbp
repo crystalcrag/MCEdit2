@@ -82,6 +82,7 @@
 		<Unit filename="items.c">
 			<Option compilerVar="CC" />
 		</Unit>
+		<Unit filename="keybindings.h" />
 		<Unit filename="library.c">
 			<Option compilerVar="CC" />
 		</Unit>

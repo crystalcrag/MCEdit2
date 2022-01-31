@@ -109,7 +109,6 @@ static void renderSelection(void)
 				goto highlight_bbox;
 			id <<= 4;
 		}
-		//fprintf(stderr, "id = %d\n", id);
 
 		struct BlockOrient_t info = {
 			.pointToId = render.selection.extra.blockId,
@@ -685,8 +684,9 @@ Bool renderInitStatic(void)
 	}
 
 	/* pre-conpute perspective projection matrix */
-	shading[SHADING_VPWIDTH]  = globals.width;
-	shading[SHADING_VPHEIGHT] = globals.height;
+	shading[SHADING_VPWIDTH]    = globals.width;
+	shading[SHADING_VPHEIGHT]   = globals.height;
+	shading[SHADING_BRIGHTNESS] = globals.brightness == 101 ? 1 : globals.brightness * 0.007f;
 	matPerspective(render.matPerspective, globals.fieldOfVision, globals.width / (float) globals.height, NEAR_PLANE, 1000);
 
 	globals.uboShader = renderInitUBO();
@@ -746,8 +746,8 @@ void renderToggleDebug(int what)
 
 	if (what == RENDER_DEBUG_BRIGHT)
 	{
-		shading[SHADING_FULLBRIGHT] = render.debug & RENDER_DEBUG_BRIGHT ? 1 : 0;
-		glBufferSubData(GL_UNIFORM_BUFFER, UBO_SHADING_OFFSET, 16, shading);
+		shading[SHADING_BRIGHTNESS] = globals.brightness == 101 ? 1 : globals.brightness * 0.007f;
+		glBufferSubData(GL_UNIFORM_BUFFER, UBO_SHADING_OFFSET+16, 16, shading+4);
 	}
 }
 

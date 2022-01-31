@@ -27,10 +27,95 @@
 #include "waypoints.h"
 #include "worldSelect.h"
 #include "undoredo.h"
+#include "keybindings.h"
 #include "SIT.h"
 
 GameState_t mcedit;
 MCGlobals_t globals;
+
+KeyBindings_t keyBindings = {
+	/* keybindings page */
+	{"Forward",              "KeyForward",       'W'},
+	{"Backward",             "KeyBackward",      'S'},
+	{"Strafe left",          "KeyStrafeLeft",    'A'},
+	{"Strafe right",         "KeyStrafeRight",   'D'},
+	{"Switch to off-hand",   "KeyOffHand",       'G'},
+	{"Open inventories",     "KeyOpenInventory", 'I'},
+	{"Trow item",            "KeyTrowItem",      'T'},
+	{"Jump",                 "KeyJump",          SITK_Space},
+	{"Fly down",             "KeyFlyDown",       SITK_LShift},
+	{"2D slice view",        "KeySliceView",     SITK_Tab},
+	{"Place block",          "KeyPlaceBlock",    SITK_LMB},
+	{"Move view",            "KeyMoveView",      SITK_RMB},
+	{"Activate device",      "KeyActivateBlock", SITK_RMB},
+	{"Pick block",           "KeyPickBlock",     SITK_MMB},
+
+	/* menu commands page */
+	{"Hide HUD",             "CmdHideHud",       SITK_F1},
+	{"Show debug info",      "CmdDebugInfo",     SITK_F3},
+	{"Advance time",         "CmdAdvanceTime",   SITK_F5},
+	{"Save location",        "CmdSaveLocation",  SITK_F10},
+	{"Waypoint editor",      "CmdWaypoints",     SITK_FlagCtrl + 'G'},
+	{"Library schematics",   "CmdSchemaLibrary", SITK_FlagCtrl + 'L'},
+	{"Undo change",          "CmdUndoChange",    SITK_FlagCtrl + 'Z'},
+	{"Redo change",          "CmdRedoChange",    SITK_FlagCtrl + 'Y'},
+	{"Close world",          "CmdCloseWorld",    SITK_FlagCtrl + 'W'},
+	{"Take screenshot",      "CmdTakeCapture",   SITK_F2},
+	{"Back in time",         "CmdBackInTime",    SITK_F6},
+	{"Switch player mode",   "CmdSwitchMode",    SITK_F8},
+	{"Toggle fullscreen",    "CmdFullscren",     SITK_F11},
+	{"Clear selection",      "CmdClearSel",      SITK_FlagCtrl + 'D'},
+	{"Copy selection",       "CmdCopySel",       SITK_FlagCtrl + 'C'},
+	{"Paste from clipboard", "CmdPasteClip",     SITK_FlagCtrl + 'V'},
+	{"World info editor",    "CmdWorldInfo",     SITK_FlagCtrl + 'I'},
+	{"Save changes",         "CmdSaveChanges",   SITK_FlagCtrl + 'S'},
+};
+
+static int mSDLKtoSIT[] = {
+	SDLK_HOME,      SITK_Home,
+	SDLK_END,       SITK_End,
+	SDLK_PAGEUP,    SITK_PrevPage,
+	SDLK_PAGEDOWN,  SITK_NextPage,
+	SDLK_UP,        SITK_Up,
+	SDLK_DOWN,      SITK_Down,
+	SDLK_LEFT,      SITK_Left,
+	SDLK_RIGHT,     SITK_Right,
+	SDLK_LSHIFT,    SITK_LShift,
+	SDLK_RSHIFT,    SITK_RShift,
+	SDLK_LAST,      SITK_LAlt,
+	SDLK_RALT,      SITK_RAlt,
+	SDLK_LSUPER,    SITK_LCommand,
+	SDLK_RSUPER,    SITK_RCommand,
+	SDLK_MENU,      SITK_AppCommand,
+	SDLK_RETURN,    SITK_Return,
+	SDLK_INSERT,    SITK_Insert,
+	SDLK_DELETE,    SITK_Delete,
+	SDLK_PRINT,     SITK_Impr,
+	SDLK_SPACE,     SITK_Space,
+	SDLK_TAB,       SITK_Tab,
+	SDLK_LCTRL,     SITK_LCtrl,
+	SDLK_RCTRL,     SITK_RCtrl,
+	SDLK_CAPSLOCK,  SITK_Caps,
+	SDLK_NUMLOCK,   SITK_NumLock,
+	SDLK_HELP,      SITK_Help,
+	SDLK_F1,        SITK_F1,
+	SDLK_F2,        SITK_F2,
+	SDLK_F3,        SITK_F3,
+	SDLK_F4,        SITK_F4,
+	SDLK_F5,        SITK_F5,
+	SDLK_F6,        SITK_F6,
+	SDLK_F7,        SITK_F7,
+	SDLK_F8,        SITK_F8,
+	SDLK_F9,        SITK_F9,
+	SDLK_F10,       SITK_F10,
+	SDLK_F11,       SITK_F11,
+	SDLK_F12,       SITK_F12,
+	SDLK_F13,       SITK_F13,
+	SDLK_F14,       SITK_F14,
+	SDLK_F15,       SITK_F15,
+	SDLK_BACKSPACE, SITK_BackSpace,
+	SDLK_ESCAPE,    SITK_Escape,
+};
 
 int takeScreenshot(SIT_Widget w, APTR cd, APTR ud)
 {
@@ -58,6 +143,55 @@ int takeScreenshot(SIT_Widget w, APTR cd, APTR ud)
 	fprintf(stderr, "screenshot saved in %s\n", path);
 	free(buffer);
 	return 1;
+}
+
+static int SITK_FromText(STRPTR keyName)
+{
+	STRPTR sep;
+	int    key = 0;
+	/* parse qualifier first */
+	while ((sep = strchr(keyName, '+')))
+	{
+		*sep = 0;
+		switch (FindInList("Ctrl,Shift,Alt,Cmd", keyName, 0)) {
+		case 0: key |= SITK_FlagCtrl;  break;
+		case 1: key |= SITK_FlagShift; break;
+		case 2: key |= SITK_FlagAlt;   break;
+		case 3: key |= SITK_FlagCmd;   break;
+		}
+		keyName = sep + 1;
+	}
+	if (keyName[1] == 0 && 'A' <= keyName[0] && keyName[0] <= 'Z')
+	{
+		key |= keyName[0];
+	}
+	else
+	{
+		int num;
+		if (sscanf(keyName, "F%d", &num) == 1)
+		{
+			key |= SITK_F1 + ((num - 1) << 21);
+		}
+		else if (sscanf(keyName, "MB%d", &num) == 1)
+		{
+			key |= SITK_NTH + num;
+		}
+		else switch (FindInList("LMB,MMB,RMB,MWU,MWD", keyName, 0)) {
+		case 0: key |= SITK_LMB; break;
+		case 1: key |= SITK_MMB; break;
+		case 2: key |= SITK_RMB; break;
+		case 3: key |= SITK_MWU; break;
+		case 4: key |= SITK_MWD; break;
+		default:
+			num = FindInList(
+				"Home,End,Page up,Page down,Up,Down,Left,Right,Left shift,Right shift,Left alt,"
+				"Right alt,Left super,Right sper,Menu,Return,Insert,Delete,Print,Space,Tab",
+				keyName, 0
+			);
+			if (num > 0) key |= mSDLKtoSIT[num*2+1];
+		}
+	}
+	return key;
 }
 
 /* read config MCEdit.ini, default values are also set here */
@@ -91,6 +225,13 @@ static void prefsInit(void)
 	if (mcedit.worldsDir[0] == 0)
 		ExpandEnvVarBuf("%appdata%\\,minecraft\\saves", mcedit.worldsDir, sizeof mcedit.worldsDir);
 
+	int i;
+	for (i = 0; i < KBD_MAX; i ++)
+	{
+		STRPTR shortcut = GetINIValue(ini, keyBindings[i].config);
+		if (shortcut)
+			keyBindings[i].key = SITK_FromText(shortcut);
+	}
 	DOS2Unix(mcedit.capture);
 	DOS2Unix(mcedit.worldsDir);
 
@@ -108,54 +249,8 @@ static void prefsSave(void)
 }
 #endif
 
-
 int SDLKtoSIT(int key)
 {
-	static int mSDLKtoSIT[] = {
-		SDLK_HOME,      SITK_Home,
-		SDLK_END,       SITK_End,
-		SDLK_PAGEUP,    SITK_PrevPage,
-		SDLK_PAGEDOWN,  SITK_NextPage,
-		SDLK_UP,        SITK_Up,
-		SDLK_DOWN,      SITK_Down,
-		SDLK_LEFT,      SITK_Left,
-		SDLK_RIGHT,     SITK_Right,
-		SDLK_LSHIFT,    SITK_LShift,
-		SDLK_RSHIFT,    SITK_RShift,
-		SDLK_LAST,      SITK_LAlt,
-		SDLK_RALT,      SITK_RAlt,
-		SDLK_LCTRL,     SITK_LCtrl,
-		SDLK_RCTRL,     SITK_RCtrl,
-		SDLK_LSUPER,    SITK_LCommand,
-		SDLK_RSUPER,    SITK_RCommand,
-		SDLK_MENU,      SITK_AppCommand,
-		SDLK_RETURN,    SITK_Return,
-		SDLK_CAPSLOCK,  SITK_Caps,
-		SDLK_INSERT,    SITK_Insert,
-		SDLK_DELETE,    SITK_Delete,
-		SDLK_NUMLOCK,   SITK_NumLock,
-		SDLK_PRINT,     SITK_Impr,
-		SDLK_F1,        SITK_F1,
-		SDLK_F2,        SITK_F2,
-		SDLK_F3,        SITK_F3,
-		SDLK_F4,        SITK_F4,
-		SDLK_F5,        SITK_F5,
-		SDLK_F6,        SITK_F6,
-		SDLK_F7,        SITK_F7,
-		SDLK_F8,        SITK_F8,
-		SDLK_F9,        SITK_F9,
-		SDLK_F10,       SITK_F10,
-		SDLK_F11,       SITK_F11,
-		SDLK_F12,       SITK_F12,
-		SDLK_F13,       SITK_F13,
-		SDLK_F14,       SITK_F14,
-		SDLK_F15,       SITK_F15,
-		SDLK_TAB,       SITK_Tab,
-		SDLK_BACKSPACE, SITK_BackSpace,
-		SDLK_ESCAPE,    SITK_Escape,
-		SDLK_SPACE,     SITK_Space,
-		SDLK_HELP,      SITK_Help,
-	};
 	int * sdlk;
 	if (32 < key && key < 123)
 		return key;
@@ -163,6 +258,19 @@ int SDLKtoSIT(int key)
 	{
 		if (sdlk[0] == key)
 			return sdlk[1];
+	}
+	return 0;
+}
+
+int SITKtoSDLK(int key)
+{
+	if (32 < key && key < 123)
+		return key;
+	int * sdlk;
+	for (sdlk = mSDLKtoSIT; sdlk < EOT(mSDLKtoSIT); sdlk += 2)
+	{
+		if (sdlk[1] == key)
+			return sdlk[0];
 	}
 	return 0;
 }
@@ -372,7 +480,7 @@ int main(int nb, char * argv[])
 	SIT_AddCallback(globals.app, SITE_OnFocus, mceditTrackFocus, NULL);
 	SIT_AddCallback(globals.app, SITE_OnBlur,  mceditTrackFocus, NULL);
 
-#if 1
+#if 0
 	if (! renderInitStatic())
 	{
 		/* shaders compilation failed usually */
@@ -383,7 +491,7 @@ int main(int nb, char * argv[])
 		globals.level = renderInitWorld(argv[1], globals.renderDist);
 	else
 //	globals.level = renderInitWorld("TestMesh", globals.renderDist);
-	globals.level = renderInitWorld("World5", globals.renderDist);
+	globals.level = renderInitWorld("World1_12", globals.renderDist);
 
 	globals.yawPitch = &mcedit.player.angleh;
 	wayPointsRead();
@@ -500,11 +608,7 @@ void mceditWorld(void)
 					break;
 				case SDLK_F3:
 					if (event.key.keysym.mod & KMOD_CTRL)
-					{
 						renderFrustum(True);
-						renderToggleDebug(RENDER_DEBUG_FRUSTUM);
-					}
-					else renderToggleDebug(RENDER_DEBUG_CURCHUNK);
 					break;
 				case SDLK_F5: sunMove |= 1; break;
 				case SDLK_F6: sunMove |= 2; break;

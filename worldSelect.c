@@ -15,10 +15,12 @@
 #include "render.h"
 #include "globals.h"
 #include "worldSelect.h"
-#include "mcEdit.h"
+#include "mcedit.h"
+#include "keybindings.h"
 
 
 static struct WorldSelect_t worldSelect;
+static struct KeyBinding_t  editBindings[KBD_MAX];
 extern struct GameState_t   mcedit;
 
 
@@ -47,7 +49,7 @@ int optionsExit(SIT_Widget w, APTR cd, APTR save)
 static int optionsSetValue(SIT_Widget w, APTR cd, APTR ud)
 {
 	switch ((int) ud) {
-	case 0:
+	case 0: /* compass size */
 		if (worldSelect.compassSize < 50)
 		{
 			SIT_SetValues(worldSelect.enterKey, SIT_Title, "N/A", NULL);
@@ -55,20 +57,29 @@ static int optionsSetValue(SIT_Widget w, APTR cd, APTR ud)
 		}
 		else globals.compassSize = worldSelect.compassSize * 0.01f;
 		break;
-	case 1:
+	case 1: /* field of view */
 		globals.fieldOfVision = worldSelect.fov;
 		renderSetFOV(worldSelect.fov);
 		break;
-	case 2:
+	case 2: /* interface scale */
 		globals.guiScale = worldSelect.guiScale;
 		SIT_SetValues(globals.app, SIT_FontScale, worldSelect.guiScale, NULL);
 		break;
-	case 3:
+	case 3: /* render distance */
 		globals.renderDist = worldSelect.renderDist;
 		mapSetRenderDist(globals.level, worldSelect.renderDist);
 		renderResetFrustum();
 		break;
-	case 4:
+	case 4: /* brightness */
+		{
+			TEXT num[16];
+			sprintf(num, "+%d%%", worldSelect.brightness);
+			SIT_SetValues(worldSelect.brightval, SIT_Title, worldSelect.brightness == 101 ? "Full" : num, NULL);
+			globals.brightness = worldSelect.brightness;
+			renderToggleDebug(RENDER_DEBUG_BRIGHT);
+		}
+		break;
+	case 5: /* fog enabled */
 		globals.distanceFOG = worldSelect.fog;
 		renderSetFOG(worldSelect.fog);
 	}
@@ -81,10 +92,16 @@ static int optionsSetDefault(SIT_Widget w, APTR cd, APTR ud)
 	globals.guiScale = 100;
 	globals.redstoneTick = 100;
 	globals.fieldOfVision = 80;
+	globals.brightness = 0;
+	globals.distanceFOG = 1;
 	SIT_SetValues(SIT_GetById(ud, "compass"),  SIT_SliderPos, 100, NULL);
 	SIT_SetValues(SIT_GetById(ud, "guiscale"), SIT_SliderPos, globals.guiScale, NULL);
 	SIT_SetValues(SIT_GetById(ud, "fovval"),   SIT_SliderPos, globals.fieldOfVision, NULL);
+	SIT_SetValues(SIT_GetById(ud, "bright"),   SIT_SliderPos, 0, NULL);
 	SIT_SetValues(SIT_GetById(ud, "tick"), SIT_Title, NULL, NULL);
+	renderSetFOG(globals.distanceFOG);
+	renderToggleDebug(RENDER_DEBUG_BRIGHT);
+	renderSetFOV(globals.fieldOfVision);
 	return 1;
 }
 
@@ -108,6 +125,7 @@ int optionsQuickAccess(SIT_Widget unused1, APTR unused2, APTR unused3)
 	worldSelect.compassSize = lroundf(globals.compassSize * 100);
 	worldSelect.guiScale    = globals.guiScale;
 	worldSelect.fog         = globals.distanceFOG;
+	worldSelect.brightness  = globals.brightness;
 
 	SIT_Widget max = NULL;
 	SIT_CreateWidgets(diag,
@@ -124,8 +142,12 @@ int optionsQuickAccess(SIT_Widget unused1, APTR unused2, APTR unused3)
 		"<editbox name=gui width=5em editType=", SITV_Integer, "right=FORM top=WIDGET,fov,0.5em>"
 		"<slider name=guiscale minValue=50 curValue=", &worldSelect.guiScale, "maxValue=200 pageSize=1 top=MIDDLE,gui"
 		" right=WIDGET,gui,0.5em buddyEdit=gui buddyLabel=", "GUI scale:", &max, ">"
+		/* brightness */
+		"<label name=brightval right=FORM left=OPPOSITE,gui>"
+		"<slider name=bright curValue=", &worldSelect.brightness, "maxValue=101 pageSize=1 top=WIDGET,guiscale,0.5em"
+		" right=WIDGET,brightval,0.5em buddyLabel=", "Brightness:", &max, ">"
 		/* render distance */
-		"<editbox name=dist width=6em editType=", SITV_Integer, "top=WIDGET,gui,0.5em minValue=1 maxValue=16 curValue=", &worldSelect.renderDist,
+		"<editbox name=dist width=6em editType=", SITV_Integer, "top=WIDGET,bright,0.5em minValue=1 maxValue=16 curValue=", &worldSelect.renderDist,
 		" buddyLabel=", "Render dist:", &max, ">"
 		"<label name=msg title=chunks left=WIDGET,dist,0.5em top=MIDDLE,dist>"
 		/* redstone tick */
@@ -140,12 +162,15 @@ int optionsQuickAccess(SIT_Widget unused1, APTR unused2, APTR unused3)
 		"<button name=ok.act title=Save top=OPPOSITE,ko right=WIDGET,ko,0.5em nextCtrl=ko buttonType=", SITV_DefaultButton, ">"
 		"<button name=def.act title=Default top=OPPOSITE,ko right=WIDGET,ok,0.5em nextCtrl=ok>"
 	);
-	worldSelect.enterKey = SIT_GetById(diag, "compSize");
+	SIT_SetAttributes(diag, "<brightval top=MIDDLE,bright>");
+	worldSelect.enterKey  = SIT_GetById(diag, "compSize");
+	worldSelect.brightval = SIT_GetById(diag, "brightval");
 	SIT_AddCallback(SIT_GetById(diag, "compass"),  SITE_OnChange, optionsSetValue, NULL);
 	SIT_AddCallback(SIT_GetById(diag, "fovval"),   SITE_OnChange, optionsSetValue, (APTR) 1);
 	SIT_AddCallback(SIT_GetById(diag, "guiscale"), SITE_OnChange, optionsSetValue, (APTR) 2);
 	SIT_AddCallback(SIT_GetById(diag, "dist"),     SITE_OnChange, optionsSetValue, (APTR) 3);
-	SIT_AddCallback(SIT_GetById(diag, "fog"),      SITE_OnActivate, optionsSetValue, (APTR) 4);
+	SIT_AddCallback(SIT_GetById(diag, "bright"),   SITE_OnChange, optionsSetValue, (APTR) 4);
+	SIT_AddCallback(SIT_GetById(diag, "fog"),      SITE_OnActivate, optionsSetValue, (APTR) 5);
 	SIT_AddCallback(SIT_GetById(diag, "ok"),  SITE_OnActivate, optionsExit, (APTR) 1);
 	SIT_AddCallback(SIT_GetById(diag, "ko"),  SITE_OnActivate, optionsExit, NULL);
 	SIT_AddCallback(SIT_GetById(diag, "def"), SITE_OnActivate, optionsSetDefault, diag);
@@ -153,6 +178,7 @@ int optionsQuickAccess(SIT_Widget unused1, APTR unused2, APTR unused3)
 
 	if (worldSelect.compassSize < 50)
 		optionsSetValue(NULL, NULL, NULL);
+	optionsSetValue(NULL, NULL, (APTR) 4);
 
 	SIT_ManageWidget(diag);
 	return 1;
@@ -163,6 +189,7 @@ int optionsQuickAccess(SIT_Widget unused1, APTR unused2, APTR unused3)
  */
 int SDLMtoSIT(int mod);
 int SDLKtoSIT(int key);
+int SITKtoSDLK(int key);
 int takeScreenshot(SIT_Widget w, APTR cd, APTR ud);
 
 static int worldSelectEnableEdit(SIT_Widget w, APTR cd, APTR ud)
@@ -179,6 +206,7 @@ static int worldSelectExit(SIT_Widget w, APTR cd, APTR ud)
 
 static SIT_Accel dialogAccels[] = { /* override ESC shortcut from top-level interface */
 	{SITK_FlagCapture + SITK_Escape, SITE_OnClose},
+	{SITK_FlagCapture + SITK_F2,     SITE_OnActivate, NULL, takeScreenshot},
 	{0}
 };
 
@@ -207,6 +235,10 @@ static int worldSelectAbout(SIT_Widget w, APTR cd, APTR ud)
 		"- <a href='https://www.libsdl.org/'>SDL</a> by Sam Lantinga<br>"
 		"- <a href='https://www.zlib.net/'>zlib</a> by Jean-loup Gailly and Mark Adler";
 
+	static char license[] =
+		"Under terms of BSD 2-clause license.<br>"
+		"No warranty, use at your own risk.";
+
 	TEXT vendor[128];
 
 	snprintf(vendor, sizeof vendor, "%s<br>Open GL v%s", (STRPTR) glGetString(GL_RENDERER), (STRPTR) glGetString(GL_VERSION));
@@ -214,7 +246,9 @@ static int worldSelectAbout(SIT_Widget w, APTR cd, APTR ud)
 	SIT_CreateWidgets(about,
 		"<label name=what.big style='text-align: center' title=", header, ">"
 		"<label name=thanks title=", thanks, "top=WIDGET,what,1em>"
-		"<label name=gpu.big title='Graphics card in use:' top=WIDGET,thanks,1em left=", SITV_AttachCenter, ">"
+		"<label name=legal.big title=License top=WIDGET,thanks,1em left=", SITV_AttachCenter, ">"
+		"<label name=license title=", license, "top=WIDGET,legal,0.5em>"
+		"<label name=gpu.big title='Graphics card in use:' top=WIDGET,license,1em left=", SITV_AttachCenter, ">"
 		"<label name=version title=", vendor, "top=WIDGET,gpu,0.5em>"
 
 		"<button name=close.act title=Ok top=WIDGET,version,1em buttonType=", SITV_CancelButton, "left=", SITV_AttachCenter, ">"
@@ -260,7 +294,7 @@ static int worldSelectSyncValue(SIT_Widget w, APTR cd, APTR ud)
 	case 0: format = num > 1 ? "%d chunks" : "%d chunk"; break;
 	case 1: format = "%d&#xb0;"; break; /* FOV */
 	case 2: format = num == 150 ? "Uncapped FPS" : "%d FPS"; break;
-	case 3: format = "+%d%%"; break;
+	case 3: format = num == 101 ? "Full brightness" : "+%d%%"; break;
 	case 4:
 	case 5: format = "%d%%"; break;
 	case 6: format = num == 49 ? "Disabled" : "%d%%"; break;
@@ -308,9 +342,78 @@ static int worldSelectSelectFolder(SIT_Widget w, APTR cd, APTR ud)
 	return 1;
 }
 
+/* current tab of config editor has changed */
+static int worldSelectTabChanged(SIT_Widget w, APTR cd, APTR ud)
+{
+	if (worldSelect.curKey)
+		worldSelectCancelKbd(NULL, NULL, NULL);
+	worldSelect.curTab = (int) cd;
+	return 1;
+}
+
 /*
  * save/use callback for config file
  */
+void SITK_ToText(STRPTR keyName, int max, int key)
+{
+	static struct KeyBinding_t mods[] = {
+		{"Ctrl+",  NULL, SITK_FlagCtrl},
+		{"Shift+", NULL, SITK_FlagShift},
+		{"Alt+",   NULL, SITK_FlagAlt},
+		{"Cmd+",   NULL, SITK_FlagCmd},
+	};
+
+	int len, i;
+
+	/* qualifier first */
+	for (keyName[0] = 0, len = i = 0; i < DIM(mods); i ++)
+	{
+		KeyBinding kbd = mods + i;
+		if (kbd->key & key)
+			len = StrCat(keyName, max, len, kbd->name);
+	}
+	/* key name */
+	key &= ~SITK_Flags;
+	if (key == 0)
+	{
+		/* unassigned */
+		strcpy(keyName, "---");
+	}
+	else if (32 < key && key < 123)
+	{
+		if ('a' <= key && key <= 'z')
+			key += 'A' - 'a';
+
+		keyName[len] = key;
+		keyName[len+1] = 0;
+	}
+	else
+	{
+		if (key >= SITK_NTH)
+		{
+			/* nth mouse button */
+			sprintf(keyName + len, "MB%d", key - SITK_NTH);
+		}
+		else
+		{
+			STRPTR keyFmt;
+			/* special key */
+			switch (key) {
+			case SITK_LMB: keyFmt = "LMB"; break;
+			case SITK_MMB: keyFmt = "MMB"; break;
+			case SITK_RMB: keyFmt = "RMB"; break;
+			case SITK_MWD: keyFmt = "MWD"; break;
+			case SITK_MWU: keyFmt = "MWU"; break;
+			default:       keyFmt = (key = SITKtoSDLK(key)) > 0 ? SDL_GetKeyName(key) : "???";
+			}
+			StrCat(keyName, max, len, keyFmt);
+			uint8_t chr = keyName[len];
+			if ('a' <= chr && chr <= 'z')
+				keyName[len] = chr - 'a' + 'A';
+		}
+	}
+}
+
 static int worldSelectSave(SIT_Widget w, APTR cd, APTR save)
 {
 	/*
@@ -332,6 +435,8 @@ static int worldSelectSave(SIT_Widget w, APTR cd, APTR save)
 	mcedit.fullScreen     = worldSelect.fullScreen;
 	mcedit.lockMouse      = worldSelect.lockMouse;
 
+	memcpy(keyBindings, editBindings, sizeof editBindings);
+
 	STRPTR folder;
 	SIT_GetValues(worldSelect.capture, SIT_Title, &folder, NULL);
 	CopyString(mcedit.capture, folder, sizeof mcedit.capture);
@@ -349,8 +454,20 @@ static int worldSelectSave(SIT_Widget w, APTR cd, APTR save)
 		SetINIValueInt(PREFS_PATH, "Options/AutoEdit",     mcedit.autoEdit);
 		SetINIValueInt(PREFS_PATH, "Options/FullScreen",   mcedit.fullScreen);
 		SetINIValueInt(PREFS_PATH, "Options/LockMouse",    mcedit.lockMouse);
+
+		int i;
+		for (i = KBD_MAX-1; i >= 0; i --)
+		{
+			KeyBinding kbd = keyBindings + i;
+			TEXT keyName[32];
+			TEXT config[32];
+
+			SITK_ToText(keyName, sizeof keyName, kbd->key);
+			sprintf(config, "%s/%s", kbd->config[0] == 'C' ? "MenuCommands" : "KeyBindings", kbd->config);
+			SetINIValue(PREFS_PATH, config, keyName);
+		}
 	}
-	/* will save the rest of config */
+	/* will save the rest of the config */
 	optionsExit(NULL, NULL, save);
 	if (oldScale != worldSelect.guiScale)
 		SIT_SetValues(globals.app, SIT_FontScale, worldSelect.guiScale, NULL);
@@ -358,64 +475,28 @@ static int worldSelectSave(SIT_Widget w, APTR cd, APTR save)
 	return 1;
 }
 
-static STRPTR bindings1[] = {
-	"Forward",              "E",
-	"Backward",             "D",
-	"Strafe left",          "S",
-	"Strafe right",         "F",
-	"Switch to off-hand",   "G",
-	"Open inventories",     "I",
-	"Trow item",            "T",
-	"Jump",                 "Space",
-	"Fly down",             "Shift",
-	"2D slice view",        "Tab",
-
-	"Place block",          "LMB",
-	"Move view",            "RMB",
-	"Activate device",      "RMB",
-	"Pick block",           "MMB",
-};
-
-static STRPTR bindings2[] = {
-	"Hide HUD",             "F1",
-	"Show debug info",      "F3",
-	"Advance time",         "F6",
-	"Save location",        "F10",
-	"Waypoint editor",      "Ctrl+G",
-	"Library schematics",   "Ctrl+L",
-	"Undo change",          "Ctrl+Z",
-	"Redo change",          "Ctrl+Y",
-	"Take screenshot",      "F2",
-	"Back in time",         "F5",
-	"Switch player mode",   "F8",
-	"Toggle fullscreen",    "F11",
-	"Clear selection",      "Ctrl+D",
-	"Copy selection",       "Ctrl+C",
-	"Paste from clipboard", "Ctrl+V",
-	"World info editor",    "Ctrl+I",
-};
-
-
-static void worldSelectBindings(SIT_Widget parent, STRPTR * bindings, int count, int tab)
+static void worldSelectBindings(SIT_Widget parent, KeyBinding bindings, int count, int tab)
 {
 	SIT_Widget prev1 = NULL;
 	SIT_Widget prev2 = NULL;
 	int i;
 
-	for (i = 0, count >>= 1; i < count; i += 2)
+	for (i = 0, count >>= 1; i < count; i ++, bindings ++)
 	{
 		TEXT msg[80];
 		/* left column */
+		SITK_ToText(msg, sizeof msg, bindings->key);
 		SIT_Widget button = SIT_CreateWidget("kbd.key", SIT_BUTTON, parent,
 			SIT_Top,      prev1 ? SITV_AttachWidget : SITV_AttachForm, prev1, SITV_Em(0.5),
-			SIT_Title,    bindings[i+1],
+			SIT_Title,    msg,
 			SIT_Right,    SITV_AttachPosition, SITV_AttachPos(45), SITV_Em(-0.5),
 			SIT_MaxWidth, prev1,
 			SIT_TabNum,   tab,
+			SIT_UserData, bindings,
 			NULL
 		);
 		SIT_AddCallback(button, SITE_OnActivate, worldSelectEnterKey, NULL);
-		sprintf(msg, "%s:", bindings[i]);
+		snprintf(msg, sizeof msg, "%s:", bindings->name);
 
 		SIT_CreateWidget("label", SIT_LABEL, parent,
 			SIT_Title,          msg,
@@ -428,16 +509,18 @@ static void worldSelectBindings(SIT_Widget parent, STRPTR * bindings, int count,
 		prev1 = button;
 
 		/* right column */
+		SITK_ToText(msg, sizeof msg, bindings[count].key);
 		button = SIT_CreateWidget("kbd.key", SIT_BUTTON, parent,
 			SIT_Top,             prev2 ? SITV_AttachWidget : SITV_AttachForm, prev2, SITV_Em(0.5),
-			SIT_Title,           bindings[i+count+1],
+			SIT_Title,           msg,
 			SIT_RightAttachment, SITV_AttachForm,
 			SIT_TabNum,          tab,
 			SIT_MaxWidth,        prev2,
+			SIT_UserData,        bindings + count,
 			NULL
 		);
 		SIT_AddCallback(button, SITE_OnActivate, worldSelectEnterKey, NULL);
-		sprintf(msg, "%s:", bindings[i+count]);
+		snprintf(msg, sizeof msg, "%s:", bindings[count].name);
 
 		SIT_CreateWidget("label", SIT_LABEL, parent,
 			SIT_Title,  msg,
@@ -459,7 +542,6 @@ static void worldSelectBindings(SIT_Widget parent, STRPTR * bindings, int count,
 			"&#x25cf; To disable a command, click on a button and push 'Esc' key.";
 
 		static TEXT note2[] =
-			"Note:<br>"
 			"&#x25cf; Player mode will toggle between survival, creative and spectator.";
 
 		SIT_CreateWidgets(parent,
@@ -468,12 +550,22 @@ static void worldSelectBindings(SIT_Widget parent, STRPTR * bindings, int count,
 	}
 }
 
+static void worldSelectAssignBinding(SIT_Widget button, int key)
+{
+	KeyBinding kbd;
+	TEXT keyName[80];
+	SITK_ToText(keyName, sizeof keyName, key);
+	SIT_SetValues(button, SIT_Title, keyName, NULL);
+	SIT_GetValues(button, SIT_UserData, &kbd, NULL);
+	kbd->key = key;
+}
+
 /* config options dialog */
 static int worldSelectConfig(SIT_Widget w, APTR cd, APTR ud)
 {
 	SIT_Widget dialog = SIT_CreateWidget("about.mc dark", SIT_DIALOG, ud,
 		SIT_AccelTable,   dialogAccels,
-		SIT_DialogStyles, SITV_Movable | SITV_Plain,
+		SIT_DialogStyles, SITV_Movable | SITV_Plain | SITV_Modal,
 		NULL
 	);
 
@@ -491,11 +583,13 @@ static int worldSelectConfig(SIT_Widget w, APTR cd, APTR ud)
 	worldSelect.autoEdit    = mcedit.autoEdit;
 	worldSelect.lockMouse   = mcedit.lockMouse;
 
+	memcpy(editBindings, keyBindings, sizeof editBindings);
+
 	SIT_Widget max = NULL;
 	SIT_Widget max2 = NULL;
 	SIT_CreateWidgets(dialog,
-		"<tab name=tabs left=FORM right=FORM tabStr='Configuration\tKey bindings\tMenu commands\tGraphics' tabSpace=", SITV_Em(1),
-		"tabStyle=", SITV_AlignHCenter, ">"
+		"<tab name=tabs left=FORM tabActive=", worldSelect.curTab, "right=FORM tabStr='Configuration\tKey bindings\tMenu commands\tGraphics'"
+		" tabSpace=", SITV_Em(1), "tabStyle=", SITV_AlignHCenter, ">"
 			/*
 			 * general configuration tab
 			 */
@@ -551,7 +645,7 @@ static int worldSelectConfig(SIT_Widget w, APTR cd, APTR ud)
 			"<label tabNum=4 name=fpsval left=WIDGET,fps,0.5em top=MIDDLE,fps>"
 
 			/* brightness */
-			"<slider tabNum=4 userdata=3 name=bright width=15em curValue=", &worldSelect.brightness, "buddyLabel=",
+			"<slider tabNum=4 userdata=3 name=bright width=15em maxValue=101 pageSize=1 curValue=", &worldSelect.brightness, "buddyLabel=",
 			"Dark area brightness:", &max2, "top=WIDGET,fps,0.5em>"
 			"<label tabNum=4 name=brightval left=WIDGET,bright,0.5em top=MIDDLE,bright>"
 
@@ -595,8 +689,10 @@ static int worldSelectConfig(SIT_Widget w, APTR cd, APTR ud)
 
 	SIT_Widget parent = SIT_GetById(dialog, "tabs");
 
-	worldSelectBindings(parent, bindings1, DIM(bindings1), 2);
-	worldSelectBindings(parent, bindings2, DIM(bindings2), 3);
+	worldSelectBindings(parent, editBindings,      14, 2);
+	worldSelectBindings(parent, editBindings + 14, 18, 3);
+
+	SIT_AddCallback(parent, SITE_OnChange, worldSelectTabChanged, NULL);
 
 	SIT_ManageWidget(dialog);
 
@@ -607,17 +703,17 @@ void mceditWorldSelect(void)
 {
 	static char nothingFound[] =
 		"No worlds found in \"<a href=\"#\">%s</a>\".<br><br>"
-		"Click on \"OPTIONS\" to select a different folder.<br><br>"
+		"Click on \"SETTINGS\" to select a different folder.<br><br>"
 		"Or drag'n drop a world save onto this window.";
 
 	static SIT_Accel accels[] = {
 		{SITK_FlagCapture + SITK_FlagAlt + SITK_F4, SITE_OnActivate, NULL, worldSelectExit},
-		{SITK_FlagCapture + SITK_F2,                SITE_OnActivate, NULL, takeScreenshot},
 		{SITK_FlagCapture + SITK_Escape,            SITE_OnActivate, NULL, worldSelectExit},
+		{SITK_FlagCapture + SITK_F2,                SITE_OnActivate, NULL, takeScreenshot},
 
 		{SITK_FlagCtrl + 'A', SITE_OnActivate, "about"},
 		{SITK_FlagCtrl + 'O', SITE_OnActivate, "open"},
-		{SITK_FlagCtrl + 'C', SITE_OnActivate, "opt"},
+		{SITK_FlagCtrl + 'S', SITE_OnActivate, "opt"},
 		{0}
 	};
 	SIT_Accel * oldAccels = NULL;
@@ -633,7 +729,7 @@ void mceditWorldSelect(void)
 
 	SIT_CreateWidgets(app,
 		"<canvas name=header left=FORM right=FORM>"
-		"  <button name=opt title='Options...'>"
+		"  <button name=opt title='Settings...'>"
 		"  <button name=open title='Open...' left=WIDGET,opt,1em>"
 		"  <label name=appname title='MCEdit "MCEDIT_VERSION"' right=FORM>"
 		"  <button name=about title='About...' right=WIDGET,appname,1em>"
@@ -664,7 +760,23 @@ void mceditWorldSelect(void)
 			int key;
 			switch (event.type) {
 			case SDL_KEYDOWN:
+				if (worldSelect.curKey)
+				{
+					worldSelect.curKeySym = SDLKtoSIT(event.key.keysym.sym);
+					worldSelect.curKeyMod = SDLMtoSIT(event.key.keysym.mod);
+					break;
+				}
 			case SDL_KEYUP:
+				if (worldSelect.curKey)
+				{
+					if (event.key.keysym.sym == SDLK_ESCAPE)
+					{
+						worldSelect.curKeySym = 0;
+						worldSelect.curKeyMod = 0;
+					}
+					worldSelectAssignBinding(worldSelect.curKey, worldSelect.curKeySym | worldSelect.curKeyMod);
+					worldSelectCancelKbd(NULL, NULL, NULL);
+				}
 				key = SDLKtoSIT(event.key.keysym.sym);
 				if (key > 0 && SIT_ProcessKey(key, SDLMtoSIT(event.key.keysym.mod), event.type == SDL_KEYDOWN))
 					break;
@@ -673,7 +785,21 @@ void mceditWorldSelect(void)
 					SIT_ProcessChar(event.key.keysym.unicode, SDLMtoSIT(event.key.keysym.mod));
 				break;
 			case SDL_MOUSEBUTTONDOWN:
-				SIT_ProcessClick(event.button.x, event.button.y, event.button.button-1, 1);
+				if (! SIT_ProcessClick(event.button.x, event.button.y, event.button.button-1, 1) && worldSelect.curKey)
+				{
+					TEXT keyName[80];
+					switch (event.button.button) {
+					case SDL_BUTTON_LEFT:      key = SITK_LMB; break;
+					case SDL_BUTTON_MIDDLE:    key = SITK_MMB; break;
+					case SDL_BUTTON_RIGHT:     key = SITK_RMB; break;
+					case SDL_BUTTON_WHEELDOWN: key = SITK_MWD; break;
+					case SDL_BUTTON_WHEELUP:   key = SITK_MWU; break;
+					default:                   key = SITK_NTH + event.button.button;
+					}
+					SITK_ToText(keyName, sizeof keyName, key);
+					SIT_SetValues(worldSelect.curKey, SIT_Title, keyName, NULL);
+					worldSelectCancelKbd(NULL, NULL, NULL);
+				}
 				break;
 			case SDL_MOUSEBUTTONUP:
 				SIT_ProcessClick(event.button.x, event.button.y, event.button.button-1, 0);
