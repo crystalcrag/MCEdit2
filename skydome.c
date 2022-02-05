@@ -4,16 +4,17 @@
  * Written by T.Pierron, feb 2021
  */
 
+#define SKYDOME_IMPL
 #include <glad.h>
 #include <malloc.h>
 #include <string.h>
 #include <stdlib.h>
 #include <math.h>
 #include <stdio.h>
-#include "skydome.h"
 #include "models.h"
 #include "maps.h"
 #include "render.h"
+#include "skydome.h"
 #include "globals.h"
 
 static struct SkyDome_t skydome;

@@ -425,7 +425,7 @@ static void mapUpdateSkyLightBlock(BlockIter iterator)
 			mapIter(&neighbor, xoff[i], yoff[i], zoff[i]);
 
 			level = mapGetSky(&neighbor);
-			if (level >= sky && max < level - (i >= 4))
+			if (level - (i >= 4) >= sky && max < level)
 			{
 				max = level;
 				if (max == MAXSKY) break;

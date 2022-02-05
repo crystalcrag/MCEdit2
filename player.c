@@ -14,6 +14,7 @@
 #include "entities.h"
 #include "SIT.h"
 #include "mapUpdate.h"
+#include "keybindings.h"
 #include "globals.h"
 
 #define JUMP_STRENGTH          0.29f
@@ -131,28 +132,27 @@ static void playerSetDir(Player p)
 }
 
 /* set keyvec state according to key press/released */
-int playerProcessKey(Player p, int key, int mod)
+int playerProcessKey(Player p, int command, int keyUp)
 {
 	/* do not hi-jack keypress that involve Ctrl or Alt qualifier */
-	if (mod & (SITK_FlagCtrl | SITK_FlagAlt))
-		return 0;
 	uint8_t keyvec = p->keyvec & 15;
-	if ((mod & SITK_FlagUp) == 0)
+	if (keyUp == 0)
 	{
 		static int lastTick;
 		//p->slower = (mod & SITK_FlagShift) > 0;
-		switch (key) {
-		case FORWARD:  p->keyvec &= ~(PLAYER_STOPPING|PLAYER_MOVE_BACK);    p->keyvec |= PLAYER_MOVE_FORWARD; break;
-		case BACKWARD: p->keyvec &= ~(PLAYER_STOPPING|PLAYER_MOVE_FORWARD); p->keyvec |= PLAYER_MOVE_BACK; break;
-		case LEFT:     p->keyvec &= ~(PLAYER_STOPPING|PLAYER_STRAFE_RIGHT); p->keyvec |= PLAYER_STRAFE_LEFT; break;
-		case RIGHT:    p->keyvec &= ~(PLAYER_STOPPING|PLAYER_STRAFE_LEFT);  p->keyvec |= PLAYER_STRAFE_RIGHT; break;
-		case OFFHAND:  p->inventory.offhand ^= 1; break;
-		case '0':      p->inventory.offhand ^= 2; break;
-		case '1': case '2': case '3': case '4': case '5':
-		case '6': case '7': case '8': case '9':
-			playerScrollInventory(p, (key - '1') - p->inventory.selected);
+		switch (command) {
+		case KBD_MOVE_FORWARD:   p->keyvec &= ~(PLAYER_STOPPING|PLAYER_MOVE_BACK);    p->keyvec |= PLAYER_MOVE_FORWARD; break;
+		case KBD_MOVE_BACKWARD:  p->keyvec &= ~(PLAYER_STOPPING|PLAYER_MOVE_FORWARD); p->keyvec |= PLAYER_MOVE_BACK; break;
+		case KBD_STRAFE_LEFT:    p->keyvec &= ~(PLAYER_STOPPING|PLAYER_STRAFE_RIGHT); p->keyvec |= PLAYER_STRAFE_LEFT; break;
+		case KBD_STRAFE_RIGHT:   p->keyvec &= ~(PLAYER_STOPPING|PLAYER_STRAFE_LEFT);  p->keyvec |= PLAYER_STRAFE_RIGHT; break;
+		case KBD_SWITCH_OFFHAND: p->inventory.offhand ^= 1; break;
+		case KBD_SLOT_0: p->inventory.offhand ^= 2; break;
+		case KBD_SLOT_1: case KBD_SLOT_2: case KBD_SLOT_3:
+		case KBD_SLOT_4: case KBD_SLOT_5: case KBD_SLOT_6:
+		case KBD_SLOT_7: case KBD_SLOT_8: case KBD_SLOT_9:
+			playerScrollInventory(p, (command - KBD_SLOT_1) - p->inventory.selected);
 			return 2;
-		case JUMP:
+		case KBD_JUMP:
 			p->keyvec |= PLAYER_JUMPKEY;
 			if ((int) globals.curTime - lastTick < 250 && p->pmode <= MODE_CREATIVE)
 			{
@@ -180,7 +180,7 @@ int playerProcessKey(Player p, int key, int mod)
 				p->onground = 0;
 			}
 			break;
-		case FLYDOWN:
+		case KBD_FLYDOWN:
 			p->dir[VY] = -1;
 			p->keyvec &= ~PLAYER_UP;
 			p->keyvec |= PLAYER_DOWN;
@@ -190,12 +190,12 @@ int playerProcessKey(Player p, int key, int mod)
 	}
 	else /* released */
 	{
-		switch (key) {
-		case FORWARD:  p->keyvec &= ~PLAYER_MOVE_FORWARD; break;
-		case BACKWARD: p->keyvec &= ~PLAYER_MOVE_BACK; break;
-		case LEFT:     p->keyvec &= ~PLAYER_STRAFE_LEFT; break;
-		case RIGHT:    p->keyvec &= ~PLAYER_STRAFE_RIGHT; break;
-		case JUMP:
+		switch (command) {
+		case KBD_MOVE_FORWARD:  p->keyvec &= ~PLAYER_MOVE_FORWARD; break;
+		case KBD_MOVE_BACKWARD: p->keyvec &= ~PLAYER_MOVE_BACK; break;
+		case KBD_STRAFE_LEFT:   p->keyvec &= ~PLAYER_STRAFE_LEFT; break;
+		case KBD_STRAFE_RIGHT:  p->keyvec &= ~PLAYER_STRAFE_RIGHT; break;
+		case KBD_JUMP:
 			p->keyvec &= ~PLAYER_JUMPKEY;
 			if (p->keyvec & (PLAYER_UP | PLAYER_DOWN))
 			{
@@ -205,7 +205,7 @@ int playerProcessKey(Player p, int key, int mod)
 			}
 			p->keyvec &= ~(PLAYER_UP | PLAYER_JUMP);
 			break;
-		case FLYDOWN:
+		case KBD_FLYDOWN:
 			if (p->keyvec & (PLAYER_UP | PLAYER_DOWN))
 				p->velocity[VY] = p->dir[VY] = 0;
 			p->keyvec &= ~PLAYER_DOWN;
@@ -217,7 +217,7 @@ int playerProcessKey(Player p, int key, int mod)
 		p->tick = globals.curTime;
 	if (keyvec != (p->keyvec & 15))
 		playerSetDir(p);
-	/* return whether or not the key was processed or not */
+	/* return whether or not the key was processed */
 	return 1;
 }
 

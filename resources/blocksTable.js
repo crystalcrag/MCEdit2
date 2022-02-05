@@ -3325,9 +3325,8 @@
 		{state:15, name: "+black",      tex: [ 0,22, 0,22, 0,22, 0,22, 0,22, 0,22]},
 
 
-
 	/* hack for extended inventory bar (init will create those custom blocks) */
-	{id: 255, type: INVIS, name: "Door top", bbox: NONE, special: DOOR_TOP},
+	{id: 255, type: INVIS, name: "Inventory bar", bbox: NONE},
 		/* another hack: items for inventory with extended selection */
 		{state: 0, name: "Fill/replace",       tex: [2,31], inv: ITEM2D},
 		{state: 1, name: "Fill with brush",    inv: MODEL, model: [

@@ -116,6 +116,7 @@ DLLIMP void       SIT_ListDeleteRow(SIT_Widget, int row);
 DLLIMP SIT_Widget SIT_ListInsertControlIntoCell(SIT_Widget, int row, int cell);
 DLLIMP void       SIT_ListFinishInsertControl(SIT_Widget);
 DLLIMP STRPTR     SIT_ListGetCellText(SIT_Widget, int col, int row);
+DLLIMP int        SIT_ListFindByTag(SIT_Widget w, APTR tag);
 DLLIMP int        SIT_ListGetItemOver(SIT_Widget, float rect[4], float mouseX, float mouseY, SIT_Widget mouseIsRelTo);
 DLLIMP void       SIT_ListReorgColumns(SIT_Widget, STRPTR);
 DLLIMP int        SIT_TextGetWithSoftline(SIT_Widget, STRPTR buffer, int max);
@@ -696,7 +697,7 @@ enum /* values for SIT_OnKey_t.flags */
 	SITK_Flags       = 0xff00
 };
 
-#define RAWKEY(x)      ((x) << 21)
+#define RAWKEY(x)      ((x) << 16)
 
 enum /* special values for SIT_OnKey_t.keycode field */
 {

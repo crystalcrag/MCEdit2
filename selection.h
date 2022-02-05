@@ -23,7 +23,7 @@ void selectionCancelOperation(void);
 vec  selectionGetPoints(void);
 int  selectionHasPoints(void);
 Map  selectionAllocBrush(uint16_t sizes[3]);
-Bool selectionProcessKey(int key, int mod);
+Bool selectionProcessKey(int command, int key, int mod);
 void selectionAutoSelect(vec4 pos, float scale);
 void selectionSelect(vec4 pos, float scale);
 int  selectionFill(DATA32 progress, int blockId, int side, int direction);

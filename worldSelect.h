@@ -8,7 +8,7 @@
 #define MC_WORLDSELECT
 
 
-int optionsQuickAccess(SIT_Widget, APTR cd, APTR ud);
+int optionsQuickAccess(void);
 int optionsExit(SIT_Widget, APTR cd, APTR ud);
 
 

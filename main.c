@@ -33,17 +33,18 @@
 GameState_t mcedit;
 MCGlobals_t globals;
 
+/* list all the configurable shortcuts */
 KeyBindings_t keyBindings = {
 	/* keybindings page */
-	{"Forward",              "KeyForward",       'W'},
-	{"Backward",             "KeyBackward",      'S'},
-	{"Strafe left",          "KeyStrafeLeft",    'A'},
-	{"Strafe right",         "KeyStrafeRight",   'D'},
+	{"Forward",              "KeyForward",       SITK_FlagUp + 'W'},
+	{"Backward",             "KeyBackward",      SITK_FlagUp + 'S'},
+	{"Strafe left",          "KeyStrafeLeft",    SITK_FlagUp + 'A'},
+	{"Strafe right",         "KeyStrafeRight",   SITK_FlagUp + 'D'},
 	{"Switch to off-hand",   "KeyOffHand",       'G'},
 	{"Open inventories",     "KeyOpenInventory", 'I'},
 	{"Trow item",            "KeyTrowItem",      'T'},
-	{"Jump",                 "KeyJump",          SITK_Space},
-	{"Fly down",             "KeyFlyDown",       SITK_LShift},
+	{"Jump",                 "KeyJump",          SITK_FlagUp + SITK_Space},
+	{"Fly down",             "KeyFlyDown",       SITK_FlagUp + SITK_LShift},
 	{"2D slice view",        "KeySliceView",     SITK_Tab},
 	{"Place block",          "KeyPlaceBlock",    SITK_LMB},
 	{"Move view",            "KeyMoveView",      SITK_RMB},
@@ -53,7 +54,7 @@ KeyBindings_t keyBindings = {
 	/* menu commands page */
 	{"Hide HUD",             "CmdHideHud",       SITK_F1},
 	{"Show debug info",      "CmdDebugInfo",     SITK_F3},
-	{"Advance time",         "CmdAdvanceTime",   SITK_F5},
+	{"Advance time",         "CmdAdvanceTime",   SITK_FlagUp + SITK_F5},
 	{"Save location",        "CmdSaveLocation",  SITK_F10},
 	{"Waypoint editor",      "CmdWaypoints",     SITK_FlagCtrl + 'G'},
 	{"Library schematics",   "CmdSchemaLibrary", SITK_FlagCtrl + 'L'},
@@ -61,7 +62,7 @@ KeyBindings_t keyBindings = {
 	{"Redo change",          "CmdRedoChange",    SITK_FlagCtrl + 'Y'},
 	{"Close world",          "CmdCloseWorld",    SITK_FlagCtrl + 'W'},
 	{"Take screenshot",      "CmdTakeCapture",   SITK_F2},
-	{"Back in time",         "CmdBackInTime",    SITK_F6},
+	{"Back in time",         "CmdBackInTime",    SITK_FlagUp + SITK_F6},
 	{"Switch player mode",   "CmdSwitchMode",    SITK_F8},
 	{"Toggle fullscreen",    "CmdFullscren",     SITK_F11},
 	{"Clear selection",      "CmdClearSel",      SITK_FlagCtrl + 'D'},
@@ -69,6 +70,19 @@ KeyBindings_t keyBindings = {
 	{"Paste from clipboard", "CmdPasteClip",     SITK_FlagCtrl + 'V'},
 	{"World info editor",    "CmdWorldInfo",     SITK_FlagCtrl + 'I'},
 	{"Save changes",         "CmdSaveChanges",   SITK_FlagCtrl + 'S'},
+
+	/* KBD_SLOT_[0~9]: not configurable (yet?) */
+	{NULL, NULL, '0'},
+	{NULL, NULL, '1'},
+	{NULL, NULL, '2'},
+	{NULL, NULL, '3'},
+	{NULL, NULL, '4'},
+	{NULL, NULL, '5'},
+	{NULL, NULL, '6'},
+	{NULL, NULL, '7'},
+	{NULL, NULL, '8'},
+	{NULL, NULL, '9'},
+	{NULL, NULL, SITK_FlagCtrl + 'O'},
 };
 
 static int mSDLKtoSIT[] = {
@@ -117,7 +131,7 @@ static int mSDLKtoSIT[] = {
 	SDLK_ESCAPE,    SITK_Escape,
 };
 
-int takeScreenshot(SIT_Widget w, APTR cd, APTR ud)
+int takeScreenshot(void)
 {
 	time_t      now = time(NULL);
 	struct tm * local = localtime(&now);
@@ -170,11 +184,11 @@ static int SITK_FromText(STRPTR keyName)
 		int num;
 		if (sscanf(keyName, "F%d", &num) == 1)
 		{
-			key |= SITK_F1 + ((num - 1) << 21);
+			key |= SITK_F1 + RAWKEY(num - 1);
 		}
 		else if (sscanf(keyName, "MB%d", &num) == 1)
 		{
-			key |= SITK_NTH + num;
+			key |= RAWKEY(SITK_NTH + num);
 		}
 		else switch (FindInList("LMB,MMB,RMB,MWU,MWD", keyName, 0)) {
 		case 0: key |= SITK_LMB; break;
@@ -223,14 +237,14 @@ static void prefsInit(void)
 	if (mcedit.capture[0] == 0)
 		strcpy(mcedit.capture, "screenshots");
 	if (mcedit.worldsDir[0] == 0)
-		ExpandEnvVarBuf("%appdata%\\,minecraft\\saves", mcedit.worldsDir, sizeof mcedit.worldsDir);
+		ExpandEnvVarBuf("%appdata%\\.minecraft\\saves", mcedit.worldsDir, sizeof mcedit.worldsDir);
 
 	int i;
-	for (i = 0; i < KBD_MAX; i ++)
+	for (i = 0; i < KBD_MAX_CONFIG; i ++)
 	{
 		STRPTR shortcut = GetINIValue(ini, keyBindings[i].config);
 		if (shortcut)
-			keyBindings[i].key = SITK_FromText(shortcut);
+			keyBindings[i].key = SITK_FromText(shortcut) | (keyBindings[i].key & SITK_FlagUp);
 	}
 	DOS2Unix(mcedit.capture);
 	DOS2Unix(mcedit.worldsDir);
@@ -284,17 +298,16 @@ int SDLMtoSIT(int mod)
 	return ret;
 }
 
-static int mceditSaveChanges(SIT_Widget w, APTR cd, APTR ud)
+int SDLButtontoSIT(int button)
 {
-	if (! mapSaveAll(globals.level))
-		SIT_Log(SIT_ERROR, "Fail to save changes: %s\n", GetError());
-	if (mcedit.player.pmode >= MODE_CREATIVE)
-		playerSaveLocation(&mcedit.player),
-		NBT_MarkForUpdate(&globals.level->levelDat, 0, 1);
-	if (NBT_IsModified(&globals.level->levelDat))
-		mapSaveLevelDat(globals.level);
-	renderAllSaved();
-	return 1;
+	switch (button) {
+	case SDL_BUTTON_LEFT:      return SITK_LMB;
+	case SDL_BUTTON_MIDDLE:    return SITK_MMB;
+	case SDL_BUTTON_RIGHT:     return SITK_RMB;
+	case SDL_BUTTON_WHEELDOWN: return SITK_MWD;
+	case SDL_BUTTON_WHEELUP:   return SITK_MWU;
+	default:                   return RAWKEY(SITK_NTH + button);
+	}
 }
 
 /* handle extended selection toolbar actions */
@@ -346,40 +359,6 @@ static int mceditTrackFocus(SIT_Widget w, APTR cd, APTR ud)
 		globals.inEditBox = 0;
 	}
 	return 0;
-}
-
-static int mceditMenuCommand(SIT_Widget w, APTR cd, APTR ud)
-{
-	/* cd == shortcut used to trigger this callback */
-	switch ((int) cd & 0xff) {
-	case 'z': undoOperation(0); break; /* undo */
-	case 'y': undoOperation(1); break; /* redo */
-	case 'v': libraryImport(globals.app, 0, 0); break;
-	case 'd': renderSetSelectionPoint(RENDER_SEL_CLEAR); break;
-	case 'i': /* world info */
-		FrameSaveRestoreTime(True);
-		mceditUIOverlay(MCUI_OVERLAY_WORLDINFO);
-		FrameSaveRestoreTime(False);
-		break;
-	case 'l': /* schematics library */
-		FrameSaveRestoreTime(True);
-		mceditUIOverlay(MCUI_OVERLAY_LIBRARY);
-		FrameSaveRestoreTime(False);
-		break;
-	case 'g': /* waypoint editor / goto */
-		FrameSaveRestoreTime(True);
-		mceditUIOverlay(MCUI_OVERLAY_GOTO);
-		FrameSaveRestoreTime(False);
-		break;
-	case 'c': /* copy selection to library */
-		if (globals.selPoints == 3)
-		{
-			Map brush = selectionCopy();
-			if (brush)
-				libraryCopySelection(brush);
-		}
-	}
-	return 1;
 }
 
 /* ESC key pressed: cancel stuff, if nothing to cancel, exit then */
@@ -449,18 +428,6 @@ int main(int nb, char * argv[])
 
 	static SIT_Accel accels[] = {
 		{SITK_FlagCapture + SITK_FlagAlt + SITK_F4, SITE_OnActivate, NULL, mceditExit},
-		{SITK_FlagCapture + SITK_FlagCtrl + 's',    SITE_OnActivate, NULL, mceditSaveChanges},
-		{SITK_FlagCapture + SITK_F2,                SITE_OnActivate, NULL, takeScreenshot},
-
-		{SITK_FlagCtrl + 'g', SITE_OnActivate, NULL, mceditMenuCommand},
-		{SITK_FlagCtrl + 'c', SITE_OnActivate, NULL, mceditMenuCommand},
-		{SITK_FlagCtrl + 'd', SITE_OnActivate, NULL, mceditMenuCommand},
-		{SITK_FlagCtrl + 'l', SITE_OnActivate, NULL, mceditMenuCommand},
-		{SITK_FlagCtrl + 'i', SITE_OnActivate, NULL, mceditMenuCommand},
-		{SITK_FlagCtrl + 'o', SITE_OnActivate, NULL, optionsQuickAccess},
-		{SITK_FlagCtrl + 'z', SITE_OnActivate, NULL, mceditMenuCommand},
-		{SITK_FlagCtrl + 'y', SITE_OnActivate, NULL, mceditMenuCommand},
-		{SITK_FlagCtrl + 'v', SITE_OnActivate, NULL, mceditMenuCommand},
 		{SITK_Escape,         SITE_OnActivate, NULL, mceditCancelStuff},
 		{0}
 	};
@@ -480,7 +447,7 @@ int main(int nb, char * argv[])
 	SIT_AddCallback(globals.app, SITE_OnFocus, mceditTrackFocus, NULL);
 	SIT_AddCallback(globals.app, SITE_OnBlur,  mceditTrackFocus, NULL);
 
-#if 0
+#if 1
 	if (! renderInitStatic())
 	{
 		/* shaders compilation failed usually */
@@ -509,7 +476,7 @@ int main(int nb, char * argv[])
 #else
 	mcedit.state = GAMELOOP_WORLDSELECT;
 #endif
-	FrameSetFPS(40);
+	FrameSetFPS(globals.targetFPS);
 
 	while (mcedit.exit != 1)
 	{
@@ -528,11 +495,7 @@ int main(int nb, char * argv[])
 	return 0;
 }
 
-static uint8_t toolbarCmds[] = {
-	MCUI_OVERLAY_REPLACE, MCUI_OVERLAY_FILL, MCUI_SEL_CLONE, MCUI_OVERLAY_LIBRARY, MCUI_OVERLAY_ANALYZE,
-	MCUI_OVERLAY_SAVESEL, MCUI_OVERLAY_FILTER, MCUI_OVERLAY_DELPARTIAL, MCUI_OVERLAY_PIXELART
-};
-
+#if 0
 void minecartPushManual(int entityId, int up);
 
 static void mceditPushManual(int up)
@@ -543,38 +506,255 @@ static void mceditPushManual(int up)
 	if (sel->entity > 0)
 		minecartPushManual(sel->entity, up);
 }
+#endif
 
+static uint8_t toolbarCmds[] = {
+	MCUI_OVERLAY_REPLACE, MCUI_OVERLAY_FILL, MCUI_SEL_CLONE, MCUI_OVERLAY_LIBRARY, MCUI_OVERLAY_ANALYZE,
+	MCUI_OVERLAY_SAVESEL, MCUI_OVERLAY_FILTER, MCUI_OVERLAY_DELPARTIAL, MCUI_OVERLAY_PIXELART
+};
+
+#define NO_EXTENDED_SEL_TOOLBAR \
+	((mcedit.player.inventory.offhand & 1) == 0 && globals.selPoints == 0)
+
+struct EventState_t
+{
+	uint8_t capture;
+	uint8_t ignore;
+	uint8_t sunMove;
+	int     command;
+};
+typedef struct EventState_t *    EventState;
+
+Bool mceditProcessCommand(EventState state, int keyUp)
+{
+	int cmd = state->command;
+	/* there can be multiple commands with the same shortcut */
+	do
+	{
+		switch ((KbdCmd_t) (cmd & 0xff)) {
+		case KBD_MOVE_FORWARD:
+		case KBD_MOVE_BACKWARD:
+		case KBD_STRAFE_LEFT:
+		case KBD_STRAFE_RIGHT:
+		case KBD_JUMP:
+		case KBD_FLYDOWN:
+		case KBD_SWITCH_OFFHAND:
+		case KBD_SLOT_0:
+		case KBD_SLOT_1: case KBD_SLOT_2: case KBD_SLOT_3:
+		case KBD_SLOT_4: case KBD_SLOT_5: case KBD_SLOT_6:
+		case KBD_SLOT_7: case KBD_SLOT_8: case KBD_SLOT_9:
+			switch (playerProcessKey(&mcedit.player, state->command, keyUp)) {
+			case 0: return False;
+			case 1:
+				/* just switched to offhand: force block highlight (avoid block preview) */
+				if (globals.selPoints < 3)
+					renderSetSelectionPoint(mcedit.player.inventory.offhand & 1 ? RENDER_SEL_INIT : RENDER_SEL_CLEAR);
+				break;
+			case 2:
+				/* partial extended selection, but switched to main toolbar: cancel selection */
+				if (globals.selPoints == 3)
+				{
+					SDL_WM_GrabInput(SDL_GRAB_OFF);
+					SDL_ShowCursor(SDL_ENABLE);
+					state->capture = state->ignore = 0;
+					mceditCommands(toolbarCmds[mcedit.player.inventory.selected]);
+					if (mcedit.exit) return 1;
+				}
+				else renderSetSelectionPoint(RENDER_SEL_CLEAR);
+			}
+			break;
+		case KBD_TROW_ITEM:
+			playerAddInventory(&mcedit.player, NULL);
+			playerUpdateNBT(&mcedit.player);
+			break;
+		case KBD_PLACE_BLOCK:
+			mceditPlaceBlock();
+			break;
+		case KBD_ACTIVATE_BLOCK:
+			mceditActivate();
+			break;
+
+		case KBD_HIDE_HUD:
+			renderToggleDebug(RENDER_DEBUG_NOHUD);
+			break;
+
+		case KBD_TAKE_SCREENSHOT:
+			takeScreenshot();
+			break;
+		case KBD_OPEN_INVENTORY:
+			FrameSaveRestoreTime(True);
+			SDL_WM_GrabInput(SDL_GRAB_OFF);
+			SDL_ShowCursor(SDL_ENABLE);
+			state->capture = state->ignore = 0;
+			mceditUIOverlay(MCUI_OVERLAY_BLOCK);
+			FrameSaveRestoreTime(False);
+			mcedit.player.inventory.update ++;
+			break;
+		case KBD_UNDO_CHANGE:
+			undoOperation(0);
+			break;
+		case KBD_REDO_CHANGE:
+			undoOperation(1);
+			break;
+		case KBD_PASTE_CLIPBOARD:
+			libraryImport(globals.app, 0, 0);
+			break;
+		case KBD_CLEAR_SELECTION:
+			renderSetSelectionPoint(RENDER_SEL_CLEAR);
+			break;
+		case KBD_WORLD_INFO:
+			FrameSaveRestoreTime(True);
+			mceditUIOverlay(MCUI_OVERLAY_WORLDINFO);
+			FrameSaveRestoreTime(False);
+			break;
+		case KBD_SCHEMA_LIBRARY:
+			FrameSaveRestoreTime(True);
+			mceditUIOverlay(MCUI_OVERLAY_LIBRARY);
+			FrameSaveRestoreTime(False);
+			break;
+		case KBD_WAYPOINT_EDITOR:
+			FrameSaveRestoreTime(True);
+			mceditUIOverlay(MCUI_OVERLAY_GOTO);
+			FrameSaveRestoreTime(False);
+			break;
+		case KBD_COPY_SELECTION:
+			if (globals.selPoints == 3)
+			{
+				Map brush = selectionCopy();
+				if (brush)
+					libraryCopySelection(brush);
+			}
+			break;
+		case KBD_DEBUG_INFO:
+			renderToggleDebug(RENDER_DEBUG_CURCHUNK);
+			break;
+		case KBD_ADVANCE_TIME:
+			if (keyUp) state->sunMove |=  1;
+			else       state->sunMove &= ~1;
+			break;
+		case KBD_BACK_IN_TIME:
+			if (keyUp) state->sunMove |=  2;
+			else       state->sunMove &= ~2;
+			break;
+		case KBD_SLICE_VIEW:
+			if (globals.selPoints & 8)
+				return 0;
+			mcedit.state = GAMELOOP_SIDEVIEW;
+			mcedit.exit = 2;
+			break;
+		case KBD_SWITCH_MODE:
+			playerSetMode(&mcedit.player, mcedit.player.pmode == MODE_CREATIVE ? MODE_SPECTATOR : MODE_CREATIVE);
+			break;
+		case KBD_SAVE_LOCATION:
+			playerSaveLocation(&mcedit.player);
+			mapSaveLevelDat(globals.level);
+			break;
+		case KBD_SAVE_CHANGES:
+			if (! mapSaveAll(globals.level))
+			{
+				SIT_Log(SIT_ERROR, "Fail to save changes: %s\n", GetError());
+				break;
+			}
+			if (mcedit.player.pmode >= MODE_CREATIVE)
+			{
+				playerSaveLocation(&mcedit.player);
+				NBT_MarkForUpdate(&globals.level->levelDat, 0, 1);
+			}
+			if (NBT_IsModified(&globals.level->levelDat))
+			{
+				mapSaveLevelDat(globals.level);
+			}
+			renderAllSaved();
+			break;
+		case KBD_PICK_BLOCK:
+			if (NO_EXTENDED_SEL_TOOLBAR)
+			{
+				/* add block selected to inventory bar */
+				vec4 pos;
+				MapExtraData sel = renderGetSelectedBlock(pos, NULL);
+				if (sel)
+				{
+					struct Item_t item = {0};
+					if (sel->entity == 0)
+					{
+						int XYZ[] = {pos[0] - sel->chunk->X, pos[1], pos[2] - sel->chunk->Z};
+						item.count = 1;
+						item.id = sel->blockId;
+						item.extra = chunkGetTileEntity(sel->chunk, XYZ);
+						playerAddInventory(&mcedit.player, &item);
+					}
+					else
+					{
+						entityGetItem(sel->entity, &item);
+						playerAddInventory(&mcedit.player, &item);
+					}
+					playerUpdateNBT(&mcedit.player);
+				}
+			}
+			else renderSetSelectionPoint(RENDER_SEL_AUTO);
+			break;
+		case KBD_QUICK_OPTIONS:
+			optionsQuickAccess();
+			break;
+
+		case KBD_MOVE_VIEW:
+			if (mcedit.forceSel)
+				renderShowBlockInfo(False, DEBUG_BLOCK|DEBUG_SELECTION), mcedit.forceSel = 0;
+			/* ignore any pending mouse move */
+			SDL_GetMouseState(&mcedit.mouseX, &mcedit.mouseY);
+			state->ignore = 2;
+			state->capture = 1;
+			break;
+
+		case KBD_CLOSE_WORLD:
+		case KBD_FULLSCREEN:
+			// TODO
+			break;
+		}
+		cmd >>= 8;
+	}
+	while (cmd > 0);
+	return 1;
+}
+
+static struct KeyHash_t keys;
 /*
  * Main loop for editing world
  */
 void mceditWorld(void)
 {
-	SDL_Event event;
-	uint8_t   ignore = 0;
-	uint8_t   capture = 0;
-	uint8_t   sunMove = 0;
+	struct EventState_t state = {0};
+
+	keys.count = roundToUpperPrime(KBD_MAX+1);
+	keys.hash  = alloca(keys.count * 5);
+	keys.next  = (DATA8) (keys.hash + keys.count);
+	keys.hasUp = 0;
+
+	keysHash(&keys, keyBindings);
 
 	renderSetInventory(&mcedit.player.inventory);
 	renderSetViewMat(mcedit.player.pos, mcedit.player.lookat, &mcedit.player.angleh);
 
 	while (! mcedit.exit)
 	{
-		#define NO_EXTENDED_SEL_TOOLBAR \
-			((mcedit.player.inventory.offhand & 1) == 0 && globals.selPoints == 0)
+		SDL_Event event;
 		while (SDL_PollEvent(&event))
 		{
-			int key;
+			int key, mod;
 			switch (event.type) {
+			case SDL_ACTIVEEVENT:
+				if (event.active.gain)
+					keys.hasUp = 0;
+				break;
 			case SDL_KEYDOWN:
+				key = SDLKtoSIT(event.key.keysym.sym);
+				mod = SDLMtoSIT(event.key.keysym.mod);
 				if (globals.inEditBox)
-				{
-					key = SDLKtoSIT(event.key.keysym.sym);
 					goto forwardKeyPress;
-				}
 
 				switch (event.key.keysym.sym) {
 				case SDLK_LALT:
-					if (capture) break;
+					if (state.capture) break;
 					mcedit.forceSel = 1;
 					renderShowBlockInfo(True, DEBUG_BLOCK|DEBUG_SELECTION);
 					break;
@@ -588,137 +768,83 @@ void mceditWorld(void)
 					globals.breakPoint = ! globals.breakPoint;
 					//FramePauseUnpause(globals.breakPoint);
 					break;
-				case SDLK_UP:
-				case SDLK_DOWN:
-					mceditPushManual(event.key.keysym.sym == SDLK_UP);
-					break;
 				#endif
-				case SDLK_TAB:
-					if (globals.selPoints & 8)
-					{
-						key = SITK_Tab;
-						goto forwardKeyPress;
-					}
-					mcedit.state = GAMELOOP_SIDEVIEW;
-					mcedit.exit = 2;
-					break;
 				case SDLK_DELETE:
 					if ((globals.selPoints & 8) == 0)
 						mceditCommands(MCUI_OVERLAY_DELALL);
 					break;
 				case SDLK_F3:
 					if (event.key.keysym.mod & KMOD_CTRL)
-						renderFrustum(True);
-					break;
-				case SDLK_F5: sunMove |= 1; break;
-				case SDLK_F6: sunMove |= 2; break;
-				case SDLK_F8: playerSetMode(&mcedit.player, mcedit.player.pmode == MODE_CREATIVE ? MODE_SPECTATOR : MODE_CREATIVE); break;
-				case SDLK_F10: // DEBUG
-					playerSaveLocation(&mcedit.player);
-					mapSaveLevelDat(globals.level);
-					break;
-				case SDLK_i:
-					if (SDLMtoSIT(event.key.keysym.mod) == 0)
 					{
-						FrameSaveRestoreTime(True);
-						SDL_WM_GrabInput(SDL_GRAB_OFF);
-						SDL_ShowCursor(SDL_ENABLE);
-						capture = ignore = 0;
-						mceditUIOverlay(MCUI_OVERLAY_BLOCK);
-						FrameSaveRestoreTime(False);
-						mcedit.player.inventory.update ++;
+						renderFrustum(True);
 						break;
 					}
-					else
-					{
-						key = SDLKtoSIT(event.key.keysym.sym);
-						goto forwardKeyPress;
-					}
+					goto case_SDLK;
 				case SDLK_RETURN:
 					if (globals.selPoints & 8)
+					{
 						selectionCopyBlocks(NULL, NULL, NULL);
-					break;
+						break;
+					}
+					goto case_SDLK;
 				case SDLK_LSHIFT:
-					if (! capture && NO_EXTENDED_SEL_TOOLBAR)
+					if (! state.capture && NO_EXTENDED_SEL_TOOLBAR)
 					{
 						renderShowBlockInfo(True, DEBUG_SHOWITEM);
 						mcedit.forceSel = 2;
 					}
 					// no break;
 				default:
-					key = SDLKtoSIT(event.key.keysym.sym);
-					if (selectionProcessKey(key, SDLMtoSIT(event.key.keysym.mod)))
+				case_SDLK:
+					state.command = keysFind(&keys, key | mod);
+					if (selectionProcessKey(state.command, key, mod))
 						break;
-					switch (playerProcessKey(&mcedit.player, key, SDLMtoSIT(event.key.keysym.mod))) {
-					case 0: goto forwardKeyPress;
-					case 1:
-						/* just switched to offhand: force block highlight (avoid block preview) */
-						if (globals.selPoints < 3)
-							renderSetSelectionPoint(mcedit.player.inventory.offhand & 1 ? RENDER_SEL_INIT : RENDER_SEL_CLEAR);
+					if (state.command >= 0 && mceditProcessCommand(&state, 0))
 						break;
-					case 2:
-						/* partial extended selection, but switched to main toolbar: cancel selection */
-						if (globals.selPoints == 3)
-						{
-							SDL_WM_GrabInput(SDL_GRAB_OFF);
-							SDL_ShowCursor(SDL_ENABLE);
-							capture = ignore = 0;
-							mceditCommands(toolbarCmds[mcedit.player.inventory.selected]);
-							if (mcedit.exit) return;
-						}
-						else renderSetSelectionPoint(RENDER_SEL_CLEAR);
-					}
+					goto forwardKeyPress;
 				}
 				break;
 			case SDL_KEYUP:
+				key = SDLKtoSIT(event.key.keysym.sym);
+				mod = SDLMtoSIT(event.key.keysym.mod);
 				if (globals.inEditBox)
-				{
-					key = SDLKtoSIT(event.key.keysym.sym);
 					goto forwardKeyPress;
-				}
+				state.command = keysFind(&keys, key | mod | SITK_FlagUp);
+				if (state.command >= 0 && mceditProcessCommand(&state, 1))
+					break;
+
 				switch (event.key.keysym.sym) {
 				case SDLK_LALT:
 					if (! mcedit.forceSel) break;
 					mcedit.forceSel = 0;
 					renderShowBlockInfo(False, DEBUG_BLOCK|DEBUG_SELECTION);
 					break;
-				case SDLK_F5: sunMove &= ~1; break;
-				case SDLK_F6: sunMove &= ~2; break;
-				case 't': /* throw item */
-					playerAddInventory(&mcedit.player, NULL);
-					playerUpdateNBT(&mcedit.player);
-					break;
 				case SDLK_LSHIFT:
 					mcedit.forceSel = 0;
 					renderShowBlockInfo(False, DEBUG_SHOWITEM);
 					// no break;
 				default:
-					key = SDLKtoSIT(event.key.keysym.sym);
-					if (! playerProcessKey(&mcedit.player, key, SITK_FlagUp))
+					forwardKeyPress:
+					if (key <= 0) break;
+					if (event.type == SDL_KEYDOWN)
 					{
-						forwardKeyPress:
-						if (key <= 0) break;
-						int mod = SDLMtoSIT(event.key.keysym.mod);
-						if (event.type == SDL_KEYDOWN)
-						{
-							if (SIT_ProcessKey(key, mod, True) == 0 && key < SITK_Home)
-								SIT_ProcessChar(key, mod);
-						}
-						else SIT_ProcessKey(key, mod, False);
+						if (SIT_ProcessKey(key, mod, True) == 0 && key < SITK_Home)
+							SIT_ProcessChar(key, mod);
 					}
+					else SIT_ProcessKey(key, mod, False);
 				}
 				break;
 			case SDL_MOUSEMOTION:
 				SIT_ProcessMouseMove(event.motion.x, event.motion.y);
-				switch (ignore) {
-				case 1: ignore = 0; // no break;
+				switch (state.ignore) {
+				case 1: state.ignore = 0; // no break;
 				case 2: break;
 				case 0:
-					if (capture)
+					if (state.capture)
 					{
 						playerLookAt(&mcedit.player, event.motion.xrel, event.motion.yrel);
 						renderSetViewMat(mcedit.player.pos, mcedit.player.lookat, &mcedit.player.angleh);
-						capture = 2;
+						state.capture = 2;
 					}
 					else
 					{
@@ -730,47 +856,10 @@ void mceditWorld(void)
 			case SDL_MOUSEBUTTONDOWN:
 				if (SIT_ProcessClick(event.button.x, event.button.y, event.button.button-1, 1))
 					break;
+				state.command = keysFind(&keys, SDLButtontoSIT(event.button.button));
+				if (state.command >= 0 && mceditProcessCommand(&state, 0))
+					break;
 				switch (event.button.button) {
-				case SDL_BUTTON_LEFT:
-					mceditPlaceBlock();
-					if (mcedit.exit) return;
-					break;
-				case SDL_BUTTON_RIGHT:
-					mceditActivate();
-					if (mcedit.forceSel)
-						renderShowBlockInfo(False, DEBUG_BLOCK|DEBUG_SELECTION), mcedit.forceSel = 0;
-					/* ignore any pending mouse move */
-					SDL_GetMouseState(&mcedit.mouseX, &mcedit.mouseY);
-					ignore = 2;
-					capture = 1;
-					break;
-				case SDL_BUTTON_MIDDLE:
-					if (NO_EXTENDED_SEL_TOOLBAR)
-					{
-						/* add block selected to inventory bar */
-						vec4 pos;
-						MapExtraData sel = renderGetSelectedBlock(pos, NULL);
-						if (sel)
-						{
-							struct Item_t item = {0};
-							if (sel->entity == 0)
-							{
-								int XYZ[] = {pos[0] - sel->chunk->X, pos[1], pos[2] - sel->chunk->Z};
-								item.count = 1;
-								item.id = sel->blockId;
-								item.extra = chunkGetTileEntity(sel->chunk, XYZ);
-								playerAddInventory(&mcedit.player, &item);
-							}
-							else
-							{
-								entityGetItem(sel->entity, &item);
-								playerAddInventory(&mcedit.player, &item);
-							}
-							playerUpdateNBT(&mcedit.player);
-						}
-					}
-					else renderSetSelectionPoint(RENDER_SEL_AUTO);
-					break;
 				case SDL_BUTTON_WHEELUP:
 					if (NO_EXTENDED_SEL_TOOLBAR)
 						playerScrollInventory(&mcedit.player, -1);
@@ -781,15 +870,18 @@ void mceditWorld(void)
 				}
 				break;
 			case SDL_MOUSEBUTTONUP:
-				if (event.button.button == SDL_BUTTON_RIGHT && capture)
+				state.command = keysFind(&keys, SDLButtontoSIT(event.button.button) | SITK_FlagUp);
+				if (state.command >= 0 && mceditProcessCommand(&state, 1))
+					break;
+				if (state.capture)
 				{
 					SDL_WM_GrabInput(SDL_GRAB_OFF);
 					SDL_ShowCursor(SDL_ENABLE);
-					if (capture == 2)
+					if (state.capture == 2)
 						SDL_WarpMouse(globals.width>>1, globals.height>>1);
 					else
 						SDL_WarpMouse(mcedit.mouseX, mcedit.mouseY);
-					capture = ignore = 0;
+					state.capture = state.ignore = 0;
 				}
 				if (SIT_ProcessClick(event.button.x, event.button.y, event.button.button-1, 0))
 					break;
@@ -801,18 +893,17 @@ void mceditWorld(void)
 				break;
 			case SDL_QUIT:
 				mcedit.exit = 1;
-				break;
 			default:
 				break;
 			}
 		}
 
-		if (ignore)
+		if (state.ignore)
 		{
 			SDL_WM_GrabInput(SDL_GRAB_ON);
 			SDL_ShowCursor(SDL_DISABLE);
 			/* ignore the next mouse move (from GRAB_ON) */
-			ignore = 1;
+			state.ignore = 1;
 		}
 		if (mcedit.player.keyvec)
 		{
@@ -822,15 +913,15 @@ void mceditWorld(void)
 			if (memcmp(oldpos, mcedit.player.pos, 12))
 			{
 				renderSetViewMat(mcedit.player.pos, mcedit.player.lookat, &mcedit.player.angleh);
-				if (! capture)
+				if (! state.capture)
 				{
 					SDL_GetMouseState(&mcedit.mouseX, &mcedit.mouseY);
 					renderPointToBlock(mcedit.mouseX, mcedit.mouseY);
 				}
 			}
 		}
-		if (sunMove)
-			skydomeMoveSun(sunMove);
+		if (state.sunMove)
+			skydomeMoveSun(state.sunMove);
 		globals.curTime = FrameGetTime();
 		renderWorld();
 		entityAnimate();

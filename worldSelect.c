@@ -10,6 +10,8 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <time.h>
+#include <malloc.h>
 #include <math.h>
 #include "SIT.h"
 #include "render.h"
@@ -20,7 +22,7 @@
 
 
 static struct WorldSelect_t worldSelect;
-static struct KeyBinding_t  editBindings[KBD_MAX];
+static struct KeyBinding_t  editBindings[KBD_MAX_CONFIG];
 extern struct GameState_t   mcedit;
 
 
@@ -112,7 +114,7 @@ static int optionsClearRef(SIT_Widget w, APTR cd, APTR ud)
 }
 
 /* interface for quick access to some common options (Ctrl+O by default) */
-int optionsQuickAccess(SIT_Widget unused1, APTR unused2, APTR unused3)
+int optionsQuickAccess(void)
 {
 	SIT_Widget diag = worldSelect.options = SIT_CreateWidget("quickopt.mc", SIT_DIALOG, globals.app,
 		SIT_DialogStyles, SITV_Plain,
@@ -389,10 +391,10 @@ void SITK_ToText(STRPTR keyName, int max, int key)
 	}
 	else
 	{
-		if (key >= SITK_NTH)
+		if (key >= RAWKEY(SITK_NTH))
 		{
 			/* nth mouse button */
-			sprintf(keyName + len, "MB%d", key - SITK_NTH);
+			sprintf(keyName + len, "MB%d", key >> 16);
 		}
 		else
 		{
@@ -456,7 +458,7 @@ static int worldSelectSave(SIT_Widget w, APTR cd, APTR save)
 		SetINIValueInt(PREFS_PATH, "Options/LockMouse",    mcedit.lockMouse);
 
 		int i;
-		for (i = KBD_MAX-1; i >= 0; i --)
+		for (i = KBD_MAX_CONFIG-1; i >= 0; i --)
 		{
 			KeyBinding kbd = keyBindings + i;
 			TEXT keyName[32];
@@ -554,9 +556,15 @@ static void worldSelectAssignBinding(SIT_Widget button, int key)
 {
 	KeyBinding kbd;
 	TEXT keyName[80];
+	SIT_GetValues(button, SIT_UserData, &kbd, NULL);
+	if (kbd->key & SITK_FlagUp)
+	{
+		/* since we'll need to track up and down event, can't have any qualifiers on these */
+		key &= ~SITK_Flags;
+		key |= SITK_FlagUp;
+	}
 	SITK_ToText(keyName, sizeof keyName, key);
 	SIT_SetValues(button, SIT_Title, keyName, NULL);
-	SIT_GetValues(button, SIT_UserData, &kbd, NULL);
 	kbd->key = key;
 }
 
@@ -699,6 +707,87 @@ static int worldSelectConfig(SIT_Widget w, APTR cd, APTR ud)
 	return 1;
 }
 
+static void EpochToISO8601(STRPTR dest, time_t timestamp)
+{
+	strftime(dest, 24, "%Y-%m-%d %H:%M:%S", localtime(&timestamp));
+}
+
+static void worldSelectAddWorld(SIT_Widget list, STRPTR levelDat)
+{
+	NBTFile_t nbt = {.page = 1023};
+
+	if (NBT_Parse(&nbt, levelDat))
+	{
+		SIT_Widget td, detail;
+		TEXT folder[48];
+		TEXT worldName[48];
+		TEXT version[16];
+		TEXT lastPlayed[24];
+		STRPTR mode;
+
+		EpochToISO8601(lastPlayed, TimeStamp(levelDat, 2));
+		ParentDir(levelDat);
+		CopyString(folder, BaseName(levelDat), sizeof folder);
+		strcpy(worldName, folder);
+		strcpy(version, "<unknown>");
+		NBT_GetString(&nbt, NBT_FindNode(&nbt, 0, "LevelName"), worldName, sizeof worldName);
+		NBT_GetString(&nbt, NBT_FindBranch(&nbt, 0, "Version.Name"), version, sizeof version);
+		switch (NBT_GetInt(&nbt, NBT_FindNode(&nbt, 0, "playerGameType"), 0)) {
+		case 0:  mode = "Survival"; break;
+		case 1:  mode = "Creative"; break;
+		case 2:  mode = "Spectator"; break;
+		default: mode = "<unknown>";
+		}
+
+		td = SIT_ListInsertControlIntoCell(list, SIT_ListInsertItem(list, -1, NULL, SITV_TDSubChild), 0);
+
+		AddPart(levelDat, "icon.png", 1e6);
+		SIT_CreateWidgets(td,
+			"<label name=icon imagePath=", FileExists(levelDat) ? levelDat : "resources/pack.png", ">"
+			"<label name=wname title=", worldName, "left=WIDGET,icon,0.5em>"
+			"<listbox name=list columnNames='Name\tValue' listBoxFlags=", SITV_NoHeaders, "left=WIDGET,icon,0.5em top=WIDGET,wname>"
+		);
+		SIT_SetAttributes(td, "<icon top=FORM bottom=OPPOSITE,list>");
+		detail = SIT_GetById(td, "list");
+		SIT_ListInsertItem(detail, -1, NULL, "Folder:", folder);
+		SIT_ListInsertItem(detail, -1, NULL, "Last played: ", lastPlayed);
+		SIT_ListInsertItem(detail, -1, NULL, "Mode:", mode);
+		SIT_ListInsertItem(detail, -1, NULL, "Version:", version);
+		SIT_ListFinishInsertControl(list);
+	}
+}
+
+/* scan all sub-folders for potential world saves */
+static void worldSelectList(SIT_Widget list, STRPTR dir, int max)
+{
+	ScanDirData args;
+	if (ScanDirInit(&args, dir))
+	{
+		int len = strlen(dir);
+		do
+		{
+			if (args.isDir)
+			{
+				AddPart(dir, args.name, max);
+				AddPart(dir, "level.dat", max);
+				if (FileExists(dir))
+					worldSelectAddWorld(list, dir);
+				dir[len] = 0;
+			}
+		}
+		while (ScanDirNext(&args));
+	}
+}
+
+static void AbsolutePath(STRPTR dest, int max)
+{
+	STRPTR cwd;
+	STRPTR rel = STRDUPA(dest);
+	SIT_GetValues(globals.app, SIT_CurrentDir, &cwd, NULL);
+	CopyString(dest, cwd, max);
+	AddPart(dest, rel, max);
+}
+
 void mceditWorldSelect(void)
 {
 	static char nothingFound[] =
@@ -717,6 +806,9 @@ void mceditWorldSelect(void)
 		{0}
 	};
 	SIT_Accel * oldAccels = NULL;
+
+	if (IsRelativePath(mcedit.worldsDir))
+		AbsolutePath(mcedit.worldsDir, sizeof mcedit.worldsDir);
 
 	SIT_Widget app = globals.app;
 
@@ -751,6 +843,8 @@ void mceditWorldSelect(void)
 	SIT_Widget list = SIT_GetById(app, "worlds");
 	SIT_SetValues(list, SIT_Title|XfMt, nothingFound, mcedit.worldsDir, NULL);
 	SIT_AddCallback(list, SITE_OnChange, worldSelectEnableEdit, SIT_GetById(app, "edit"));
+
+	worldSelectList(list, mcedit.worldsDir, sizeof mcedit.worldsDir);
 
 	while (! mcedit.exit)
 	{
@@ -794,7 +888,7 @@ void mceditWorldSelect(void)
 					case SDL_BUTTON_RIGHT:     key = SITK_RMB; break;
 					case SDL_BUTTON_WHEELDOWN: key = SITK_MWD; break;
 					case SDL_BUTTON_WHEELUP:   key = SITK_MWU; break;
-					default:                   key = SITK_NTH + event.button.button;
+					default:                   key = RAWKEY(SITK_NTH + event.button.button);
 					}
 					SITK_ToText(keyName, sizeof keyName, key);
 					SIT_SetValues(worldSelect.curKey, SIT_Title, keyName, NULL);
@@ -837,3 +931,71 @@ void mceditWorldSelect(void)
 	);
 }
 
+/*
+ * store most of engine kbd shortcut in a simple hash-table: not the best implementation out there,
+ * but still way better than linear scan.
+ */
+void keysHash(KeyHash hash, KeyBinding kbd)
+{
+	int i, slot, count = hash->count;
+	memset(hash->hash, 0x00, count * 4);
+	memset(hash->next, 0xff, count);
+	for (i = 0; i < KBD_MAX; i ++, kbd ++)
+	{
+		int key = kbd->key, flag;
+		if ('A' <= (key&0xff) && (key&0xff) <= 'Z')
+			key += 32;
+
+		flag = key & SITK_FlagUp ? 0x80 : 0;
+		add_accel:
+		slot = key % count;
+		if (hash->hash[slot])
+		{
+			int next = slot;
+			do {
+				next ++;
+				if (next == count) next = 0;
+			}
+			while (hash->hash[next]);
+			hash->next[next] = hash->next[slot];
+			hash->next[slot] = next;
+			slot = next;
+		}
+		/* <key> uses only 24bits */
+		hash->hash[slot] = key | ((i | flag) << 24);
+
+		/* if key has the FlagUp set, we will trigger callback for up and down event, otherwise only down */
+		if (key & SITK_FlagUp)
+		{
+			key &= ~SITK_FlagUp;
+			goto add_accel;
+		}
+	}
+}
+
+int keysFind(KeyHash hash, int key)
+{
+	int slot, count = hash->count;
+	int command = -1;
+	/* can't use qualifier while tracking up/down keys: there can be multiple keys pressed at any time */
+	if (hash->hasUp > 0)
+		key &= ~(SITK_Flags & ~SITK_FlagUp);
+	for (slot = key % count; slot < count && hash->hash[slot]; slot = hash->next[slot])
+	{
+		if ((hash->hash[slot] & 0xffffff) != key)
+			continue;
+
+		uint8_t cmd = hash->hash[slot] >> 24;
+		if (cmd & 0x80)
+		{
+			if (key & SITK_FlagUp) hash->hasUp --;
+			else hash->hasUp ++;
+		}
+		/* need to continue searching in case there are multiple commands for the same shortcut */
+		if (command < 0)
+			command = cmd & 0x7f;
+		else
+			command = (command << 8) | (cmd & 0x7f);
+	}
+	return command;
+}

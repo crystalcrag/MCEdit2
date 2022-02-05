@@ -7,7 +7,7 @@
 #ifndef MC_KEYBINDIGNS_H
 #define MC_KEYBINDIGNS_H
 
-enum  /* meaning of each index of keyBindings[] table */
+typedef enum  /* meaning of each index of keyBindings[] table */
 {
 	KBD_MOVE_FORWARD,
 	KBD_MOVE_BACKWARD,
@@ -45,8 +45,22 @@ enum  /* meaning of each index of keyBindings[] table */
 	KBD_WORLD_INFO,
 	KBD_SAVE_CHANGES,
 
-	KBD_MAX
-};
+	KBD_SLOT_0,
+	KBD_SLOT_1,
+	KBD_SLOT_2,
+	KBD_SLOT_3,
+	KBD_SLOT_4,
+	KBD_SLOT_5,
+	KBD_SLOT_6,
+	KBD_SLOT_7,
+	KBD_SLOT_8,
+	KBD_SLOT_9,
+	KBD_QUICK_OPTIONS
+
+}	KbdCmd_t;
+
+#define KBD_MAX               (KBD_QUICK_OPTIONS+1)
+#define KBD_MAX_CONFIG        KBD_SLOT_0
 
 enum /* not real keys, but will simplify stuff */
 {
@@ -55,7 +69,7 @@ enum /* not real keys, but will simplify stuff */
 	SITK_RMB = RAWKEY(102),
 	SITK_MWU = RAWKEY(103),
 	SITK_MWD = RAWKEY(104),
-	SITK_NTH = RAWKEY(105),
+	SITK_NTH = 105,
 };
 
 struct KeyBinding_t
@@ -65,9 +79,21 @@ struct KeyBinding_t
 	int    key;
 };
 
+struct KeyHash_t
+{
+	DATA32   hash;
+	DATA8    next;
+	uint16_t count;
+	uint16_t hasUp;
+};
+
 typedef struct KeyBinding_t     KeyBindings_t[KBD_MAX];
 typedef struct KeyBinding_t *   KeyBinding;
+typedef struct KeyHash_t *      KeyHash;
 
 extern KeyBindings_t keyBindings;
+
+void keysHash(KeyHash, KeyBinding);
+int  keysFind(KeyHash hash, int key);
 
 #endif

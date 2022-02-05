@@ -1,3 +1,14 @@
+=========== Week 5 ===========
+Thu Feb 3:
+	* main loop refactoring to use configurable key/mouse bindings.
+
+Wed Feb 2:
+	* attempted to implement configurable keybindings using SIT_Accel: total failure :-/
+
+Mon Jan 31:
+	* attempted to generate volumetric voxel clouds: too much code for not that much gain :-/
+	  (seriously will need: custom meshing, custom frustum culling, custom shaders: meh)
+
 =========== Week 4 ===========
 Sun Jan 30:
 	* key bindings editor.

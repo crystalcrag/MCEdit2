@@ -58,6 +58,7 @@ enum /* possible values for <what> of renderToggleDebug */
 	RENDER_DEBUG_CURCHUNK = 1,
 	RENDER_DEBUG_FRUSTUM  = 2,
 	RENDER_DEBUG_BRIGHT   = 4,
+	RENDER_DEBUG_NOHUD    = 8
 };
 
 /* side view */

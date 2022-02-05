@@ -18,7 +18,7 @@ void skydomeGetSunPos(vec4 pos);
 /*
  * private stuff below
  */
-
+#ifdef SKYDOME_IMPL
 struct SkyDome_t
 {
 	float sunAngle;
@@ -30,6 +30,7 @@ struct SkyDome_t
 	int   texClouds, texClouds2;
 	int   texMoon, texSun;
 	int   uniformTime, uniformTexOnly;
+	Map   clouds;
 };
-
+#endif
 #endif

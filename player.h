@@ -40,14 +40,6 @@ enum /* possible values for PickBuf.state */
 #define INFO_INV_FADEOUT      2
 #define PLAYER_HEIGHT         1.6f
 
-#define LEFT      's'
-#define RIGHT     'f'
-#define FORWARD   'e'
-#define BACKWARD  'd'
-#define OFFHAND   'g'
-#define JUMP      SITK_Space
-#define FLYDOWN   SITK_LShift
-
 struct Inventory_t
 {
 	int      selected;     /* current selected slot */

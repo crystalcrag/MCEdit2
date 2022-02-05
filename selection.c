@@ -19,6 +19,7 @@
 #include "player.h"
 #include "render.h"
 #include "entities.h"
+#include "keybindings.h"
 #include "globals.h"
 #include "SIT.h"
 
@@ -249,7 +250,7 @@ static int cancelActivation(SIT_Widget w, APTR cd, APTR ud)
 }
 
 /* nudge selection using directional keys normally used for player movement */
-Bool selectionProcessKey(int key, int mod)
+Bool selectionProcessKey(int command, int key, int mod)
 {
 	if (selection.nudgePoint > 0) /* one button must be held down */
 	{
@@ -263,14 +264,14 @@ Bool selectionProcessKey(int key, int mod)
 		if (selection.brush && selection.nudgePoint < 4)
 			return False;
 
-		switch (key) {
-		case FORWARD:  axis = axisSENW[dir];   dir =  axisMain[dir]; break;
-		case BACKWARD: axis = axisSENW[dir];   dir = -axisMain[dir]; break;
-		case LEFT:     axis = 2-axisSENW[dir]; dir =  axisRot[dir]; break;
-		case RIGHT:    axis = 2-axisSENW[dir]; dir = -axisRot[dir]; break;
-		case 'q':      axis = 1; dir =  1; break;
-		case 'z':      axis = 1; dir = -1; break;
-		default:       return False;
+		switch (command) {
+		case KBD_MOVE_FORWARD:  axis = axisSENW[dir];   dir =  axisMain[dir]; break;
+		case KBD_MOVE_BACKWARD: axis = axisSENW[dir];   dir = -axisMain[dir]; break;
+		case KBD_STRAFE_LEFT:   axis = 2-axisSENW[dir]; dir =  axisRot[dir]; break;
+		case KBD_STRAFE_RIGHT:  axis = 2-axisSENW[dir]; dir = -axisRot[dir]; break;
+		//case KBD_MOVE_SEL_UP:   axis = 1; dir =  1; break;
+		//case KBD_MOVE_SEL_DOWN: axis = 1; dir = -1; break;
+		default:                return False;
 		}
 		if (selection.nudgeStep == 16 && selection.nudgePoint == 3 /* entire selection */)
 		{
