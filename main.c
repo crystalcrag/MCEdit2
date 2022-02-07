@@ -131,6 +131,9 @@ static int mSDLKtoSIT[] = {
 	SDLK_ESCAPE,    SITK_Escape,
 };
 
+static void mceditSetWndCaption(Map map);
+static int  mceditAskSave(SIT_Widget, APTR cd, APTR ud);
+
 int takeScreenshot(void)
 {
 	time_t      now = time(NULL);
@@ -199,7 +202,7 @@ static int SITK_FromText(STRPTR keyName)
 		default:
 			num = FindInList(
 				"Home,End,Page up,Page down,Up,Down,Left,Right,Left shift,Right shift,Left alt,"
-				"Right alt,Left super,Right sper,Menu,Return,Insert,Delete,Print,Space,Tab",
+				"Right alt,Left super,Right sper,Menu,Return,Insert,Delete,Print screen,Space,Tab",
 				keyName, 0
 			);
 			if (num > 0) key |= mSDLKtoSIT[num*2+1];
@@ -213,9 +216,8 @@ static void prefsInit(void)
 {
 	INIFile ini = ParseINI(PREFS_PATH);
 
-	globals.width  = GetINIValueInt(ini, "WndWidth",   1600);
-	globals.height = GetINIValueInt(ini, "WndHeight",  1080);
-	/* they should be in section [Options], but global is fine too */
+	globals.width         = GetINIValueInt(ini, "WndWidth",      1600);
+	globals.height        = GetINIValueInt(ini, "WndHeight",     900);
 	globals.renderDist    = GetINIValueInt(ini, "RenderDist",    4);
 	globals.redstoneTick  = GetINIValueInt(ini, "RedstoneTick",  100);
 	globals.compassSize   = GetINIValueInt(ini, "CompassSize",   100) * 0.01f;
@@ -227,12 +229,13 @@ static void prefsInit(void)
 	globals.distanceFOG   = GetINIValueInt(ini, "UseFOG",        0);
 	globals.showPreview   = GetINIValueInt(ini, "UsePreview",    1);
 
-	mcedit.autoEdit       = GetINIValueInt(ini, "AutoEdit",   0);
-	mcedit.fullScreen     = GetINIValueInt(ini, "FullScreen", 0);
-	mcedit.lockMouse      = GetINIValueInt(ini, "LockMouse",  0);
+	mcedit.autoEdit       = GetINIValueInt(ini, "AutoEdit",      0);
+	mcedit.fullScreen     = GetINIValueInt(ini, "FullScreen",    0);
+	mcedit.lockMouse      = GetINIValueInt(ini, "LockMouse",     0);
 
 	CopyString(mcedit.capture,   GetINIValue(ini, "CaptureDir"), sizeof mcedit.capture);
-	CopyString(mcedit.worldsDir, GetINIValue(ini, "WorldsDir"), sizeof mcedit.capture);
+	CopyString(mcedit.worldsDir, GetINIValue(ini, "WorldsDir"),  sizeof mcedit.capture);
+	CopyString(mcedit.worldEdit, GetINIValue(ini, "WorldEdit"),  sizeof mcedit.worldEdit);
 
 	if (mcedit.capture[0] == 0)
 		strcpy(mcedit.capture, "screenshots");
@@ -255,14 +258,14 @@ static void prefsInit(void)
 	FreeINI(ini);
 }
 
-#if 0
 static void prefsSave(void)
 {
-	SetINIValueInt(PREFS_PATH, "WndWidth",  mcedit.width);
-	SetINIValueInt(PREFS_PATH, "WndHeight", mcedit.height);
+	//SetINIValueInt(PREFS_PATH, "WndWidth",  globals.width);
+	//SetINIValueInt(PREFS_PATH, "WndHeight", globals.height);
+	SetINIValue(PREFS_PATH, "WorldEdit", mcedit.worldEdit);
 }
-#endif
 
+/* convert keycodes from SDL to SITGL and vice versa */
 int SDLKtoSIT(int key)
 {
 	int * sdlk;
@@ -361,10 +364,36 @@ static int mceditTrackFocus(SIT_Widget w, APTR cd, APTR ud)
 	return 0;
 }
 
+static int mceditClearSave(SIT_Widget w, APTR cd, APTR ud)
+{
+	mcedit.askIfSave = 0;
+	return 1;
+}
+
+static int mceditExit(SIT_Widget w, APTR cd, APTR ud)
+{
+	if (mcedit.state == GAMELOOP_WORLDEDIT && globals.modifCount > 0)
+	{
+		if (! mcedit.askIfSave)
+		{
+			mcedit.askIfSave = 1;
+			mcuiAskSave(mceditAskSave, ud);
+			SIT_AddCallback(SIT_GetById(globals.app, "ask"), SITE_OnFinalize, mceditClearSave, NULL);
+		}
+	}
+	else SIT_Exit((int) ud);
+	return 1;
+}
+
 /* ESC key pressed: cancel stuff, if nothing to cancel, exit then */
 static int mceditCancelStuff(SIT_Widget w, APTR cd, APTR ud)
 {
-	if (optionsExit(NULL, NULL, NULL))
+	if (mcedit.askIfSave)
+	{
+		SIT_CloseDialog(SIT_GetById(globals.app, "ask"));
+		mcedit.askIfSave = 0;
+	}
+	else if (optionsExit(NULL, NULL, NULL))
 	{
 		;
 	}
@@ -374,17 +403,11 @@ static int mceditCancelStuff(SIT_Widget w, APTR cd, APTR ud)
 			renderSetSelectionPoint(RENDER_SEL_CLEAR);
 	}
 	else if (mcedit.state == GAMELOOP_OVERLAY)
-		SIT_Exit(1); /* exit from loop, not app */
+		SIT_Exit(EXIT_LOOP);
 	else if (globals.selPoints)
 		renderSetSelectionPoint(RENDER_SEL_CLEAR);
 	else
-		SIT_Exit(1);
-	return 1;
-}
-
-static int mceditExit(SIT_Widget w, APTR cd, APTR ud)
-{
-	SIT_Exit(1);
+		mceditExit(w, NULL, (APTR) EXIT_APP);
 	return 1;
 }
 
@@ -400,6 +423,12 @@ int main(int nb, char * argv[])
 	SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 1);
 
 	prefsInit();
+	if (nb > 1)
+	{
+		/* edit immediately if passed as command line arg */
+		CopyString(mcedit.worldEdit, argv[1], sizeof mcedit.worldEdit);
+		mcedit.autoEdit = True;
+	}
 
     SDL_Surface * screen = SDL_SetVideoMode(globals.width, globals.height, 32, SDL_HWSURFACE | SDL_GL_DOUBLEBUFFER | SDL_OPENGL | SDL_RESIZABLE);
     if (screen == NULL)
@@ -427,8 +456,8 @@ int main(int nb, char * argv[])
 	}
 
 	static SIT_Accel accels[] = {
-		{SITK_FlagCapture + SITK_FlagAlt + SITK_F4, SITE_OnActivate, NULL, mceditExit},
-		{SITK_Escape,         SITE_OnActivate, NULL, mceditCancelStuff},
+		{SITK_FlagCapture + SITK_FlagAlt + SITK_F4, SITE_OnActivate, EXIT_APP, NULL, mceditExit},
+		{SITK_Escape, SITE_OnActivate, 0, NULL, mceditCancelStuff},
 		{0}
 	};
 
@@ -447,38 +476,16 @@ int main(int nb, char * argv[])
 	SIT_AddCallback(globals.app, SITE_OnFocus, mceditTrackFocus, NULL);
 	SIT_AddCallback(globals.app, SITE_OnBlur,  mceditTrackFocus, NULL);
 
-#if 1
 	if (! renderInitStatic())
 	{
 		/* shaders compilation failed usually */
 		return 1;
 	}
 
-	if (nb > 1)
-		globals.level = renderInitWorld(argv[1], globals.renderDist);
-	else
-//	globals.level = renderInitWorld("TestMesh", globals.renderDist);
-	globals.level = renderInitWorld("World1_12", globals.renderDist);
-
-	globals.yawPitch = &mcedit.player.angleh;
-	wayPointsRead();
-	ListAddTail(&globals.level->players, &mcedit.player.node);
-
-	if (globals.level == NULL)
-	{
-		SIT_Log(SIT_ERROR, "Fail to load level.dat: aborting.");
-		return 1;
-	}
-
-	updateAlloc(32);
-	playerInit(&mcedit.player);
-	mcedit.state = GAMELOOP_WORLDEDIT;
-#else
-	mcedit.state = GAMELOOP_WORLDSELECT;
-#endif
+	mcedit.state = mcedit.autoEdit && mcedit.worldEdit[0] ? GAMELOOP_WORLDEDIT : GAMELOOP_WORLDSELECT;
 	FrameSetFPS(globals.targetFPS);
 
-	while (mcedit.exit != 1)
+	while (mcedit.exit != EXIT_APP)
 	{
 		mcedit.exit = 0;
 		switch (mcedit.state) {
@@ -491,7 +498,7 @@ int main(int nb, char * argv[])
 	SDL_FreeSurface(screen);
 	SDL_Quit();
 	selectionSaveState(PREFS_PATH);
-	//prefsSave();
+	prefsSave();
 	return 0;
 }
 
@@ -640,7 +647,7 @@ Bool mceditProcessCommand(EventState state, int keyUp)
 			if (globals.selPoints & 8)
 				return 0;
 			mcedit.state = GAMELOOP_SIDEVIEW;
-			mcedit.exit = 2;
+			mcedit.exit = EXIT_LOOP;
 			break;
 		case KBD_SWITCH_MODE:
 			playerSetMode(&mcedit.player, mcedit.player.pmode == MODE_CREATIVE ? MODE_SPECTATOR : MODE_CREATIVE);
@@ -707,6 +714,8 @@ Bool mceditProcessCommand(EventState state, int keyUp)
 			break;
 
 		case KBD_CLOSE_WORLD:
+			mceditExit(NULL, NULL, (APTR) EXIT_LOOP);
+			break;
 		case KBD_FULLSCREEN:
 			// TODO
 			break;
@@ -717,13 +726,45 @@ Bool mceditProcessCommand(EventState state, int keyUp)
 	return 1;
 }
 
-static struct KeyHash_t keys;
+static int mceditAskSave(SIT_Widget w, APTR cd, APTR ud)
+{
+	APTR saveBefore = NULL;
+	mcedit.askIfSave = 0;
+	SIT_GetValues(w, SIT_UserData, &saveBefore, NULL);
+	if (saveBefore)
+	{
+		struct EventState_t state = {.command = KBD_SAVE_CHANGES};
+		mceditProcessCommand(&state, 0);
+	}
+	/* can be EXIT_LOOP or EXIT_APP */
+	SIT_Exit((int) ud);
+	return 1;
+}
+
+
 /*
  * Main loop for editing world
  */
 void mceditWorld(void)
 {
 	struct EventState_t state = {0};
+	struct KeyHash_t    keys;
+
+	globals.level = renderInitWorld(mcedit.worldEdit, globals.renderDist);
+
+	if (globals.level == NULL)
+	{
+		SIT_Log(SIT_ERROR, "Fail to load level.dat: aborting.");
+		mcedit.state = GAMELOOP_WORLDSELECT;
+		return;
+	}
+
+	mceditSetWndCaption(globals.level);
+
+	globals.yawPitch = &mcedit.player.angleh;
+	wayPointsRead();
+	ListAddTail(&globals.level->players, &mcedit.player.node);
+	playerInit(&mcedit.player);
 
 	keys.count = roundToUpperPrime(KBD_MAX+1);
 	keys.hash  = alloca(keys.count * 5);
@@ -761,17 +802,11 @@ void mceditWorld(void)
 				#ifdef DEBUG
 				case SDLK_F1:
 					SDL_GetMouseState(&mcedit.mouseX, &mcedit.mouseY);
-					//fprintf(stderr, "mouse pos = %d, %d\n", mcedit.mouseX, mcedit.mouseY);
 					renderDebugBlock();
 					break;
 				case SDLK_F7:
 					globals.breakPoint = ! globals.breakPoint;
 					//FramePauseUnpause(globals.breakPoint);
-					break;
-				#endif
-				case SDLK_DELETE:
-					if ((globals.selPoints & 8) == 0)
-						mceditCommands(MCUI_OVERLAY_DELALL);
 					break;
 				case SDLK_F3:
 					if (event.key.keysym.mod & KMOD_CTRL)
@@ -780,6 +815,11 @@ void mceditWorld(void)
 						break;
 					}
 					goto case_SDLK;
+				#endif
+				case SDLK_DELETE:
+					if ((globals.selPoints & 8) == 0)
+						mceditCommands(MCUI_OVERLAY_DELALL);
+					break;
 				case SDLK_RETURN:
 					if (globals.selPoints & 8)
 					{
@@ -892,7 +932,7 @@ void mceditWorld(void)
 				SIT_ProcessResize(event.resize.w, event.resize.h);
 				break;
 			case SDL_QUIT:
-				mcedit.exit = 1;
+				mcedit.exit = EXIT_APP;
 			default:
 				break;
 			}
@@ -937,6 +977,14 @@ void mceditWorld(void)
 		#endif
 		FrameWaitNext();
 	}
+
+	/* if autoEdit is enabled, go back to world selection screen on next startup */
+	if (mcedit.exit == EXIT_LOOP)
+		mcedit.worldEdit[0] = 0;
+
+	mcedit.state = GAMELOOP_WORLDSELECT;
+	renderCloseWorld();
+	mceditSetWndCaption(NULL);
 }
 
 /* left click */
@@ -1081,13 +1129,31 @@ Bool mceditActivate(void)
 
 static NBTHdr mceditGetEnderItems(void)
 {
-	int enderItems = NBT_FindBranch(mcedit.player.levelDat, 0, "Player.EnderItems");
+	int enderItems = NBT_FindNode(mcedit.player.levelDat, 0, "Player.EnderItems");
 
 	if (enderItems > 0)
 		return NBT_Hdr(mcedit.player.levelDat, enderItems);
 	else
 		return NULL;
 }
+
+/* show level name in title bar */
+static void mceditSetWndCaption(Map map)
+{
+	TEXT appName[] = " - MCEdit";
+	TEXT levelName[64];
+
+	if (map)
+	{
+		if (! NBT_GetString(&map->levelDat, NBT_FindNode(&map->levelDat, 0, "LevelName"), levelName, sizeof levelName - sizeof appName))
+			CopyString(levelName, BaseName(map->path), sizeof levelName - sizeof appName);
+
+		strcat(levelName, appName);
+	}
+	else strcpy(levelName, appName + 3);
+	SDL_WM_SetCaption(levelName, levelName);
+}
+
 
 /*
  * display a modal user interface on top of editor
@@ -1261,7 +1327,7 @@ void mceditUIOverlay(int type)
 				SIT_ProcessResize(globals.width, globals.height);
 				break;
 			case SDL_QUIT:
-				mcedit.exit = 1;
+				mcedit.exit = EXIT_APP;
 				goto exit;
 			default:
 				continue;
@@ -1338,9 +1404,10 @@ void mceditUIOverlay(int type)
 			mapAddToSaveList(globals.level, sel->chunk);
 			renderAddModif();
 		}
-		if (mcedit.exit == 2)
+		if (mcedit.exit == 3)
 		{
 			/* sign changed */
+			mcedit.exit = EXIT_LOOP;
 			mapAddToSaveList(globals.level, sel->chunk);
 			renderAddModif();
 		}
@@ -1369,9 +1436,6 @@ void mceditUIOverlay(int type)
 		/* level.dat modified: reparse player inventory */
 		playerUpdateInventory(&mcedit.player);
 	}
-	if (mcedit.exit > 0)
-		/* exit is 1 if hit ESC (exit from interface) or 2 if alt+F4 (exit app) */
-		mcedit.exit --;
 
 	exit:
 	SIT_Nuke(SITV_NukeCtrl);
@@ -1379,6 +1443,9 @@ void mceditUIOverlay(int type)
 	SDL_EnableUNICODE(0);
 	renderSaveRestoreState(False);
 	mcedit.state = GAMELOOP_WORLDEDIT;
+	if (mcedit.exit == EXIT_LOOP)
+		/* otherwise we would immediately exit from GAMELOOP_WORLDEDIT */
+		mcedit.exit = 0;
 }
 
 /*
@@ -1413,7 +1480,7 @@ void mceditSideView(void)
 				case SDLK_F1:    debugBlock(mcedit.mouseX, mcedit.mouseY, 1); break;
 				case SDLK_F3:    debugToggleInfo(DEBUG_CHUNK); break;
 				case SDLK_F7:    globals.breakPoint = ! globals.breakPoint; break;
-				case SDLK_TAB:   mcedit.exit = 2; break;
+				case SDLK_TAB:   mcedit.exit = EXIT_LOOP; break;
 				case SDLK_e:
 				case SDLK_UP:    debugMoveSlice(1); break;
 				case SDLK_d:
@@ -1484,7 +1551,7 @@ void mceditSideView(void)
 					capture = 0;
 				break;
 			case SDL_QUIT:
-				mcedit.exit = 1;
+				mcedit.exit = EXIT_APP;
 				break;
 			case SDL_VIDEOEXPOSE:
 				SIT_ForceRefresh();
@@ -1522,21 +1589,25 @@ int WINAPI WinMain(
 {
 	/* CmdLine parameter is not unicode aware even with UNICODE macro set */
 	int      nb, i;
-	LPWSTR * argv = CommandLineToArgvW(GetCommandLineW(), &nb);
+	LPWSTR * argvUTF16 = CommandLineToArgvW(GetCommandLineW(), &nb);
+	STRPTR * argvUTF8  = (STRPTR *) argvUTF16;
 
 	/* convert strings to UTF8 */
 	for (i = 0; i < nb; )
 	{
-		int len = wcslen(argv[i]);
-		int sz  = UTF16ToUTF8(NULL, 0, (STRPTR) argv[i], len) + 1;
+		int len = wcslen(argvUTF16[i]);
+		int sz  = UTF16ToUTF8(NULL, 0, (STRPTR) argvUTF16[i], len) + 1;
 
 		CmdLine = alloca(sz);
 
-		sz = UTF16ToUTF8(CmdLine, sz, (STRPTR) argv[i], len);
+		sz = UTF16ToUTF8(CmdLine, sz, (STRPTR) argvUTF16[i], len);
 
-		argv[i++] = (LPWSTR) CmdLine;
+		argvUTF8[i++] = CmdLine;
 	}
 
-	return main(nb, (STRPTR *) argv);
+	i = main(nb, argvUTF8);
+	/* will make memory leak detection tool happy */
+	LocalFree(argvUTF16);
+	return i;
 }
 #endif

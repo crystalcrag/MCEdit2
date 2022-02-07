@@ -8,8 +8,9 @@
 #define MC_WORLDSELECT
 
 
-int optionsQuickAccess(void);
-int optionsExit(SIT_Widget, APTR cd, APTR ud);
+int  optionsQuickAccess(void);
+int  optionsExit(SIT_Widget, APTR cd, APTR ud);
+void mceditYesNo(SIT_Widget parent, STRPTR msg, SIT_CallProc cb, Bool yesNo);
 
 
 #ifdef WORLDSELECT_IMPL
@@ -27,5 +28,14 @@ struct WorldSelect_t
 	int        compassSize, showPreview;
 	int        curTab;
 };
+
+typedef struct WorldInfo_t * WorldInfo;
+
+struct WorldInfo_t
+{
+	int64_t timestamp;
+	uint8_t folder[1];
+};
+
 #endif
 #endif

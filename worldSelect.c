@@ -88,6 +88,7 @@ static int optionsSetValue(SIT_Widget w, APTR cd, APTR ud)
 	return 1;
 }
 
+/* "default" button activation callback */
 static int optionsSetDefault(SIT_Widget w, APTR cd, APTR ud)
 {
 	globals.compassSize = 1;
@@ -107,6 +108,7 @@ static int optionsSetDefault(SIT_Widget w, APTR cd, APTR ud)
 	return 1;
 }
 
+/* SITE_OnFinalize */
 static int optionsClearRef(SIT_Widget w, APTR cd, APTR ud)
 {
 	worldSelect.options = NULL;
@@ -200,21 +202,24 @@ static int worldSelectEnableEdit(SIT_Widget w, APTR cd, APTR ud)
 	return 1;
 }
 
+/* Esc or Alt+F4 */
 static int worldSelectExit(SIT_Widget w, APTR cd, APTR ud)
 {
-	SIT_Exit(1);
+	SIT_Exit(EXIT_APP);
 	return 1;
 }
 
 static SIT_Accel dialogAccels[] = { /* override ESC shortcut from top-level interface */
-	{SITK_FlagCapture + SITK_Escape, SITE_OnClose},
-	{SITK_FlagCapture + SITK_F2,     SITE_OnActivate, NULL, takeScreenshot},
+	{SITK_FlagCapture + SITK_Escape, SITE_OnClose, 0},
+	{SITK_FlagCapture + SITK_F2,     SITE_OnActivate, KBD_TAKE_SCREENSHOT, NULL, takeScreenshot},
 	{0}
 };
 
 /* display an about dialog */
 static int worldSelectAbout(SIT_Widget w, APTR cd, APTR ud)
 {
+	keysReassign(dialogAccels);
+
 	SIT_Widget about = SIT_CreateWidget("about.mc dark", SIT_DIALOG, ud,
 		SIT_AccelTable,   dialogAccels,
 		SIT_DialogStyles, SITV_Movable | SITV_Plain,
@@ -261,7 +266,7 @@ static int worldSelectAbout(SIT_Widget w, APTR cd, APTR ud)
 	return 1;
 }
 
-/* key button activation */
+/* key bindings button activation */
 static int worldSelectEnterKey(SIT_Widget w, APTR cd, APTR ud)
 {
 	if (worldSelect.curKey)
@@ -707,9 +712,16 @@ static int worldSelectConfig(SIT_Widget w, APTR cd, APTR ud)
 	return 1;
 }
 
-static void EpochToISO8601(STRPTR dest, time_t timestamp)
+/* sort world by decreasing last play time */
+static int worldSelectSort(SIT_Widget w, APTR cd, APTR ud)
 {
-	strftime(dest, 24, "%Y-%m-%d %H:%M:%S", localtime(&timestamp));
+	SIT_OnSort * sort = cd;
+	int64_t diff =
+		((WorldInfo)sort->item2)->timestamp -
+		((WorldInfo)sort->item1)->timestamp;
+
+	if (diff < 0) return -1; else
+	if (diff > 0) return  1; else return 0;
 }
 
 static void worldSelectAddWorld(SIT_Widget list, STRPTR levelDat)
@@ -719,33 +731,40 @@ static void worldSelectAddWorld(SIT_Widget list, STRPTR levelDat)
 	if (NBT_Parse(&nbt, levelDat))
 	{
 		SIT_Widget td, detail;
-		TEXT folder[48];
-		TEXT worldName[48];
-		TEXT version[16];
-		TEXT lastPlayed[24];
-		STRPTR mode;
+		WorldInfo  info;
+		TEXT       folder[48];
+		TEXT       worldName[48];
+		TEXT       version[16];
+		TEXT       lastPlayed[24];
+		STRPTR     mode;
+		time_t     timestamp = TimeStamp(levelDat, 2);
 
-		EpochToISO8601(lastPlayed, TimeStamp(levelDat, 2));
+		strftime(lastPlayed, sizeof lastPlayed, "%b %d, %Y %H:%M:%S", localtime(&timestamp));
 		ParentDir(levelDat);
 		CopyString(folder, BaseName(levelDat), sizeof folder);
 		strcpy(worldName, folder);
-		strcpy(version, "<unknown>");
 		NBT_GetString(&nbt, NBT_FindNode(&nbt, 0, "LevelName"), worldName, sizeof worldName);
-		NBT_GetString(&nbt, NBT_FindBranch(&nbt, 0, "Version.Name"), version, sizeof version);
+		NBT_GetString(&nbt, NBT_FindNode(&nbt, 0, "Version.Name"), version, sizeof version);
 		switch (NBT_GetInt(&nbt, NBT_FindNode(&nbt, 0, "playerGameType"), 0)) {
 		case 0:  mode = "Survival"; break;
 		case 1:  mode = "Creative"; break;
 		case 2:  mode = "Spectator"; break;
 		default: mode = "<unknown>";
 		}
+		NBT_Free(&nbt);
+		if (version[0] == 0)
+			strcpy(version, "< 1.8");
 
-		td = SIT_ListInsertControlIntoCell(list, SIT_ListInsertItem(list, -1, NULL, SITV_TDSubChild), 0);
+		int row = SIT_ListInsertItem(list, -1, NULL, SITV_TDSubChild);
+		td = SIT_ListInsertControlIntoCell(list, row, 0);
 
+		int len = strlen(levelDat);
 		AddPart(levelDat, "icon.png", 1e6);
 		SIT_CreateWidgets(td,
-			"<label name=icon imagePath=", FileExists(levelDat) ? levelDat : "resources/pack.png", ">"
+			"<label name=icon currentDir=1 imagePath=", FileExists(levelDat) ? levelDat : "resources/pack.png", ">"
 			"<label name=wname title=", worldName, "left=WIDGET,icon,0.5em>"
-			"<listbox name=list columnNames='Name\tValue' listBoxFlags=", SITV_NoHeaders, "left=WIDGET,icon,0.5em top=WIDGET,wname>"
+			"<listbox extra=", sizeof *info + len, "name=list columnNames='Name\tValue' listBoxFlags=", SITV_NoHeaders,
+			" left=WIDGET,icon,0.5em top=WIDGET,wname>"
 		);
 		SIT_SetAttributes(td, "<icon top=FORM bottom=OPPOSITE,list>");
 		detail = SIT_GetById(td, "list");
@@ -753,6 +772,10 @@ static void worldSelectAddWorld(SIT_Widget list, STRPTR levelDat)
 		SIT_ListInsertItem(detail, -1, NULL, "Last played: ", lastPlayed);
 		SIT_ListInsertItem(detail, -1, NULL, "Mode:", mode);
 		SIT_ListInsertItem(detail, -1, NULL, "Version:", version);
+		SIT_GetValues(detail, SIT_UserData, &info, NULL);
+		info->timestamp = timestamp;
+		CopyString(info->folder, levelDat, len+1);
+		SIT_SetValues(list, SIT_RowTag(row), info, NULL);
 		SIT_ListFinishInsertControl(list);
 	}
 }
@@ -779,6 +802,55 @@ static void worldSelectList(SIT_Widget list, STRPTR dir, int max)
 	}
 }
 
+/* SITE_OnActivate on world list item */
+static int worldSelectEdit(SIT_Widget w, APTR cd, APTR ud)
+{
+	WorldInfo info = cd;
+	CopyString(mcedit.worldEdit, info->folder, sizeof mcedit.worldEdit);
+	mcedit.state = GAMELOOP_WORLDEDIT;
+	SIT_Exit(EXIT_LOOP);
+	return 1;
+}
+
+/* "Edit selected" button */
+static int worldSelectEditSelected(SIT_Widget w, APTR cd, APTR ud)
+{
+	int index;
+	SIT_GetValues(ud, SIT_SelectedIndex, &index, NULL);
+	if (index >= 0)
+	{
+		WorldInfo info;
+		SIT_GetValues(ud, SIT_RowTag(index), &info, NULL);
+		worldSelectEdit(w, info, NULL);
+	}
+	return 1;
+}
+
+/* drag'n drop files onto the main window */
+static int worldSelectDropFiles(SIT_Widget w, APTR cd, APTR ud)
+{
+	STRPTR * files = cd;
+
+	if (files && files[0])
+	{
+		int    max  = strlen(files[0]) + 16;
+		STRPTR path = alloca(max);
+		strcpy(path, files[0]);
+		/* can drop a file or a directory */
+		AddPart(path, IsDir(path) ? "level.dat" : "../level.dat", max);
+		if (! FileExists(path))
+		{
+			SIT_Log(SIT_INFO, "The path %s does not appear to contain a valid world save.", files[0]);
+			return 1;
+		}
+		ParentDir(path);
+		CopyString(mcedit.worldEdit, path, sizeof mcedit.worldEdit);
+		mcedit.state = GAMELOOP_WORLDEDIT;
+		SIT_Exit(EXIT_LOOP);
+	}
+	return 1;
+}
+
 static void AbsolutePath(STRPTR dest, int max)
 {
 	STRPTR cwd;
@@ -788,6 +860,9 @@ static void AbsolutePath(STRPTR dest, int max)
 	AddPart(dest, rel, max);
 }
 
+/*
+ * entry point for GAMELOOP_WORLDSELECT
+ */
 void mceditWorldSelect(void)
 {
 	static char nothingFound[] =
@@ -796,17 +871,18 @@ void mceditWorldSelect(void)
 		"Or drag'n drop a world save onto this window.";
 
 	static SIT_Accel accels[] = {
-		{SITK_FlagCapture + SITK_FlagAlt + SITK_F4, SITE_OnActivate, NULL, worldSelectExit},
-		{SITK_FlagCapture + SITK_Escape,            SITE_OnActivate, NULL, worldSelectExit},
-		{SITK_FlagCapture + SITK_F2,                SITE_OnActivate, NULL, takeScreenshot},
+		{SITK_FlagCapture + SITK_FlagAlt + SITK_F4, SITE_OnActivate, 0, NULL, worldSelectExit},
+		{SITK_FlagCapture + SITK_Escape,            SITE_OnActivate, 0, NULL, worldSelectExit},
+		{SITK_FlagCapture + SITK_F2,                SITE_OnActivate, KBD_TAKE_SCREENSHOT, NULL, takeScreenshot},
 
-		{SITK_FlagCtrl + 'A', SITE_OnActivate, "about"},
-		{SITK_FlagCtrl + 'O', SITE_OnActivate, "open"},
-		{SITK_FlagCtrl + 'S', SITE_OnActivate, "opt"},
+		{SITK_FlagCtrl + 'A', SITE_OnActivate, 0, "about"},
+		{SITK_FlagCtrl + 'O', SITE_OnActivate, 0, "open"},
+		{SITK_FlagCtrl + 'S', SITE_OnActivate, 0, "opt"},
 		{0}
 	};
 	SIT_Accel * oldAccels = NULL;
 
+	keysReassign(accels);
 	if (IsRelativePath(mcedit.worldsDir))
 		AbsolutePath(mcedit.worldsDir, sizeof mcedit.worldsDir);
 
@@ -831,19 +907,25 @@ void mceditWorldSelect(void)
 		"<canvas name=footer left=FORM right=FORM bottom=FORM>"
 		"  <button name=edit enabled=0 title='Edit selected' left=", SITV_AttachCenter, ">"
 		"</canvas>"
-		"<listbox name=worlds viewMode=", SITV_ListViewIcon, "left=FORM right=FORM top=WIDGET,header"
+		"<listbox sortColumn=0 name=worlds viewMode=", SITV_ListViewIcon, "left=FORM right=FORM top=WIDGET,header"
 		" bottom=WIDGET,footer nextCtrl=footer>"
 	);
 	SIT_SetAttributes(app, "<appname top=MIDDLE,about><select top=MIDDLE,open>");
 
+	SIT_Widget list = SIT_GetById(app, "worlds");
 	SIT_AddCallback(SIT_GetById(app, "about"), SITE_OnActivate, worldSelectAbout, app);
 	SIT_AddCallback(SIT_GetById(app, "opt"),   SITE_OnActivate, worldSelectConfig, app);
+	SIT_AddCallback(SIT_GetById(app, "edit"),  SITE_OnActivate, worldSelectEditSelected, list);
 //	SIT_AddCallback(SIT_GetById(app, "open"),  SITE_OnActivate, worldSelectFile, NULL);
 
-	SIT_Widget list = SIT_GetById(app, "worlds");
 	SIT_SetValues(list, SIT_Title|XfMt, nothingFound, mcedit.worldsDir, NULL);
-	SIT_AddCallback(list, SITE_OnChange, worldSelectEnableEdit, SIT_GetById(app, "edit"));
+	SIT_AddCallback(list, SITE_OnChange,   worldSelectEnableEdit, SIT_GetById(app, "edit"));
+	SIT_AddCallback(list, SITE_OnSortItem, worldSelectSort, NULL);
+	SIT_AddCallback(list, SITE_OnActivate, worldSelectEdit, NULL);
 
+	SIT_AddCallback(app, SITE_OnDropFiles, worldSelectDropFiles, NULL);
+
+	/* scan folder for potential world saves */
 	worldSelectList(list, mcedit.worldsDir, sizeof mcedit.worldsDir);
 
 	while (! mcedit.exit)
@@ -910,7 +992,7 @@ void mceditWorldSelect(void)
 				SIT_ProcessResize(globals.width, globals.height);
 				break;
 			case SDL_QUIT:
-				mcedit.exit = 1;
+				mcedit.exit = EXIT_APP;
 			default:
 				continue;
 			}
@@ -924,11 +1006,13 @@ void mceditWorldSelect(void)
 	}
 
 	/* restore old values */
+	SIT_DelCallback(app, SITE_OnDropFiles, worldSelectDropFiles, NULL);
 	SIT_SetValues(app,
 		SIT_RefreshMode, SITV_RefreshAlways,
 		SIT_AccelTable,  oldAccels,
 		NULL
 	);
+	SIT_Nuke(SITV_NukeCtrl);
 }
 
 /*
@@ -998,4 +1082,51 @@ int keysFind(KeyHash hash, int key)
 			command = (command << 8) | (cmd & 0x7f);
 	}
 	return command;
+}
+
+void keysReassign(SIT_Accel * list)
+{
+	while (list->key)
+	{
+		if (list->tag > 0)
+			list->key = keyBindings[list->tag].key;
+		list ++;
+	}
+}
+
+/*
+ * simple yes/no dialog
+ */
+static int mceditCloseDialog(SIT_Widget w, APTR cd, APTR ud)
+{
+	SIT_CloseDialog(w);
+	return 1;
+}
+
+/* ask a question to the user with Yes/No as possible answer */
+void mceditYesNo(SIT_Widget parent, STRPTR msg, SIT_CallProc cb, Bool yesNo)
+{
+	SIT_Widget ask = SIT_CreateWidget("ask.mc", SIT_DIALOG, parent,
+		SIT_DialogStyles, SITV_Plain | SITV_Modal | SITV_Movable,
+		SIT_Style,        "padding: 1em",
+		NULL
+	);
+
+	SIT_CreateWidgets(ask, "<label name=label title=", msg, ">");
+
+	if (yesNo)
+	{
+		SIT_CreateWidgets(ask,
+			"<button name=ok.danger title=Yes top=WIDGET,label,0.8em buttonType=", SITV_DefaultButton, ">"
+			"<button name=ko title=No top=OPPOSITE,ok right=FORM buttonType=", SITV_CancelButton, ">"
+		);
+		SIT_SetAttributes(ask, "<ok right=WIDGET,ko,1em>");
+	}
+	else /* only a "no" button */
+	{
+		SIT_CreateWidgets(ask, "<button name=ok right=FORM title=Ok top=WIDGET,label,0.8em buttonType=", SITV_DefaultButton, ">");
+		cb = mceditCloseDialog;
+	}
+	SIT_AddCallback(SIT_GetById(ask, "ok"), SITE_OnActivate, cb, NULL);
+	SIT_ManageWidget(ask);
 }

@@ -75,7 +75,7 @@ void playerInit(Player p)
 void playerUpdateInventory(Player p)
 {
 	NBTFile levelDat = &globals.level->levelDat;
-	int offset = NBT_FindBranch(levelDat, 0, "Player.Inventory");
+	int offset = NBT_FindNode(levelDat, 0, "Player.Inventory");
 	if (offset > 0)
 		mapDecodeItems(p->inventory.items, MAXCOLINV * 4, (NBTHdr) (levelDat->mem + offset));
 }

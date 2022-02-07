@@ -981,7 +981,7 @@ static TileTick updateInsert(ChunkData cd, int offset, int tick);
 
 Bool updateAlloc(int max)
 {
-	max = roundToUpperPrime(max);
+	max = roundToUpperPrime(max < 32 ? 32 : max);
 
 	updates.list   = calloc(max, sizeof (struct TileTick_t) + sizeof *updates.sorted);
 	updates.max    = max;
@@ -989,6 +989,13 @@ Bool updateAlloc(int max)
 	updates.sorted = (DATA16) (updates.list + max);
 
 	return updates.list != NULL;
+}
+
+/* map will be closed shortly */
+void updateClearAll(void)
+{
+	free(updates.list);
+	memset(&updates, 0, sizeof updates);
 }
 
 static void updateExpand(void)
@@ -1071,6 +1078,7 @@ static TileTick updateInsert(ChunkData cd, int offset, int tick)
 
 void updateRemove(ChunkData cd, int offset, Bool clearSorted)
 {
+	if (! updates.list) return;
 	TileTick entry = updates.list + TOHASH(cd, offset) % updates.max;
 	TileTick last;
 

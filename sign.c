@@ -435,7 +435,7 @@ void signDel(DATA8 tile)
 	}
 }
 
-/* map closed */
+/* map being closed */
 void signDelAll(void)
 {
 	SignBank bank;
@@ -449,6 +449,7 @@ void signDelAll(void)
 			nvgluDeleteFramebuffer(bank->nvgFBO);
 	}
 
+	free(signs.banks);
 	free(signs.list);
 	memset(&signs, 0, offsetp(struct SignPrivate_t *, font));
 }

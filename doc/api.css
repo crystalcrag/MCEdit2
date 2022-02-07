@@ -1,21 +1,29 @@
-body         { background-color: white; font-family: sans-serif; margin: 0; padding: 0 }
-#toc         { position: fixed; top: 80px; bottom: 0; overflow: auto; left: 0; width: 18%; background-color: #444; color: white;
-               padding: 10px 0 10px 32px; box-sizing: border-box; margin: 0; box-shadow: 0 0 10px black inset }
-#toc a       { color: white!important }
+body         { background-color: white; font-family: sans-serif; margin: 0; padding: 0; background: url(images/stone.png); background-size: 64px 64px; }
+#toc         { position: fixed; z-index: 21; top: 85px; bottom: 0; overflow: auto; left: 0; width: 18%; border-right: 1px solid rgba(255,255,255,0.3);
+			   background: linear-gradient(to right, transparent, rgba(0,0,0,0.5)), url(images/dirt.png); color: #eee; font-size: 1.2em;
+               background-size: 100% 100%, 64px 64px; padding: 10px 0 10px 32px; box-sizing: border-box; margin: 0; }
+#toc a       { color: #ccc!important }
 #toc a:hover { color: #5f5!important }
 #toc p       { font-weight: bold; margin: 1em 0 }
 #toc li      { padding-top: 3px }
-#logo        { font-size: 200%; position: fixed; background: linear-gradient(to bottom, #0065ae, #002e6e); color: white;
+#toc > ul    { margin-left: 0; padding-left: 0 }
+#toc > ul > ul { list-style-type: square; padding-left: 20px; text-transform: capitalize }
+#logo        { font-size: 200%; position: fixed; background: linear-gradient(to bottom, #0065ae, #002e6e);
+               box-shadow: 0 0 5px black; border-bottom: rgba(255,255,255,0.1) 5px solid;
+			   color: #ccc; text-shadow: 2px 2px black;
                font-family: Georgia, serif; font-weight: bold; margin: 0; height: 80px; line-height: 80px; text-align: right;
                padding-right: 20px; z-index: 20; left: 0; right: 0 }
-pre          { margin: 15px; padding: 5px }
+pre          { margin: 15px 100px 15px 15px; padding: 1em; border: 1px solid #ccc; background: rgba(255,255,255,0.2); box-shadow: 5px 5px rgba(0,0,0,0.2) }
 pre.source   { background-color: #ffe; border: dashed #aa9 1px }
 p            { margin: 15px; margin-right: 40px }
 p.desc       { margin-left: 80px }
 p.item_name  { font-weight: bolder; margin: 5px; font-size: 120% }
-#content     { margin-left: 18%; box-sizing: border-box; color: black; background: white; padding: 80px 20px 1em 20px; text-align: justify }
-#content a   { color: #0065ae; text-decoration: none }
-h1, h2, h3   { background: #ddd; margin: 0 -20px 0 -30px; padding: 1em 1em; font-weight: normal }
+#content     { margin-left: 22%; margin-right: 4%; box-sizing: border-box; color: black; background: url(images/paper.png); background-size: 100%;
+               padding: 100px 20px 1em 20px; text-align: justify; box-shadow: 0 0 20px black }
+#content a   { color: #1c1; text-decoration: none }
+h1, h2, h3   { background: url(images/grass.png) repeat-x, url(images/dirt2.png); background-size: 64px 64px, 64px 64px;
+               margin: 0 -30px 0 -30px; padding: 1.2em 1em 1em; font-weight: bold; color: #dcc; text-shadow: 2px 2px black;
+			   box-shadow: 0 0 10px black }
 div.sep      { display: block; border: 0; padding-top: 80px }
 a:hover      { text-decoration: underline }
 span.keyword { color: #00F }
@@ -23,25 +31,25 @@ span.comment { color: #080 }
 span.quote   { color: #F00 }
 span.squote  { color: #F0F }
 span.sign    { color: #008B8B }
-.c           { color:#2222AA }
-.i           { color:#54AAAA }
-.d           { color:#A600F7 }
-v,.o         { color:#FF00FF }
-.s           { color:#7700FF }
-.t           { color:#14aa31; font-weight:bold }
+.c           { color: #00f }
+.i           { color: #54AAAA }
+.d           { color: #A600F7 }
+v,.o         { color: #f8f }
+.s           { color: #7700FF }
+t,.t         { color: #181; font-weight:bold }
 .k           { color:#A62828; font-weight:bold }
 .n           { color:black;   background-color:#FFFF00 }
 ul.space li  { margin-top: 0.5em }
 li p         { margin-top: 3px }
 li p.cont    { margin-top: 0.5em; margin-bottom: 3px }
 dim          { color: #aaa }
-table        { border-collapse: collapse; margin: 0.5em 100px 0.5em 30px }
+table        { border-collapse: collapse; margin: 0.5em 100px 1em 30px; box-shadow: 5px 5px rgba(0,0,0,0.2) }
 table thead td,
 table th     { background-color: black; color: white; text-align: center }
 table td,
-table th     { border: 1px solid black; padding: 3px; vertical-align: top }
+table th     { border: 1px solid #aaa; padding: 3px; vertical-align: top }
 table th     { border-bottom-color: white }
-tt           { font-weight: bold; color: blue }
+tt           { font-weight: bold; color: #1a1 }
 bits         { display: block; margin: 20px 0 40px 80px }
 brow         { display: block; margin-bottom: 1.5em }
 brow hdr     { font-weight: bold; width: 40px; display: inline-block }
@@ -54,5 +62,5 @@ bitpart.sz4  { width: 60px }
 bitpart.sz8  { width: 120px }
 bitpart.sz16 { width: 240px }
 bitpart.sz32 { width: 480px }
-.important   { display: block; border: 4px solid #ccc; margin: 1em 100px 1em 2em; padding: 1em; box-shadow: 0 0 10px #ccc; background: #ffa }
+.important   { display: block; border: 4px solid #ccc; margin: 1em 100px 1em 2em; padding: 1em; color: black; box-shadow: 0 0 10px #ccc; background: #ffa }
 .important::before { content: "\261B"; font-size: 3em; float: left; margin: -0.5em 5px 0 0 }

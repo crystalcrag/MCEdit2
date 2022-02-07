@@ -1,4 +1,14 @@
 =========== Week 5 ===========
+Sun Feb 6:
+	* world select integrated (finally!).
+
+Sat Feb 5:
+	* SITGL debug: tab padding, listbox header resize, listbox icon item activation, tilefinder infinite loop.
+	* world select integration continued.
+
+Fri Feb 4:
+	* refactoring of main loop mostly complete.
+
 Thu Feb 3:
 	* main loop refactoring to use configurable key/mouse bindings.
 

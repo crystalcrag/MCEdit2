@@ -18,6 +18,7 @@ void updateAddTickCallback(BlockIter iter, int nbTick, UpdateCb_t cb);
 void updateAddRSUpdate(struct BlockIter_t iter, int side, int nbTick);
 void updateRemove(ChunkData cd, int offset, Bool clearSorted);
 Bool updateAlloc(int max);
+void updateClearAll(void);
 
 int  blockRotateX90(BlockIter);
 int  blockRotateY90(int blockId);

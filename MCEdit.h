@@ -20,15 +20,17 @@ typedef struct GameState_t     GameState_t;
 struct GameState_t
 {
 	Player_t player;           /* current view */
-	int      state;            /* event loop we currently are */
+	int      state;            /* event loop we currently are (GAMELOOP_*) */
 	int      mouseX, mouseY;   /* current mouse pos */
 	int      exit;             /* managed by SITGL */
 	uint8_t  autoEdit;         /* edit last selected world on startup */
 	uint8_t  lockMouse;        /* SDL_WM_GrabInput() */
 	uint8_t  forceSel;         /* don't display preview item */
 	uint8_t  fullScreen;       /* go fullscreen on startup */
+	uint8_t  askIfSave;        /* 1 if ask for save is displayed */
 	TEXT     capture[128];     /* screenshot directory */
 	TEXT     worldsDir[256];   /* folder where saved worlds are */
+	TEXT     worldEdit[256];   /* world being edited (folder) */
 };
 
 enum /* possible values for state: which game loop are we running */
@@ -46,7 +48,7 @@ void mceditWorldSelect(void);  /* world selection */
 Bool mceditActivate(void);     /* toggle state of some blocks (door, button, lever, repeater, ...) */
 void mceditPlaceBlock(void);
 
-enum /* possible value for parameter mceditUIOverlay() */
+enum /* possible value for mceditUIOverlay() */
 {
 	MCUI_OVERLAY_BLOCK,
 	MCUI_OVERLAY_GOTO,
@@ -62,6 +64,12 @@ enum /* possible value for parameter mceditUIOverlay() */
 	MCUI_OVERLAY_WORLDINFO,
 	MCUI_OVERLAY_FILTER,
 	MCUI_SEL_CLONE
+};
+
+enum /* possible values for SIT_Exit() */
+{
+	EXIT_APP  = 1,
+	EXIT_LOOP = 2
 };
 
 /* ID string */

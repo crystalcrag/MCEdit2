@@ -1313,7 +1313,7 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 				for (i = c->maxy-1; i >= 0; i --)
 				{
 					cur = c->layer[i];
-					if ((cur->cdFlags & (CDFLAG_CHUNKAIR|CDFLAG_PENDINGMESH)) == CDFLAG_CHUNKAIR)
+					if (cur && (cur->cdFlags & (CDFLAG_CHUNKAIR|CDFLAG_PENDINGMESH)) == CDFLAG_CHUNKAIR)
 					{
 						/* empty chunk with no pending update: it can be deleted now */
 						c->layer[i] = NULL;

@@ -29,6 +29,66 @@ struct EntitiesPrivate_t entities;
 struct Paintings_t       paintings;
 
 static void hashAlloc(int);
+static void hashInsert(ItemID_t id, int VBObank);
+
+/* map is about to be closed */
+void entityNukeAll(void)
+{
+	/* first bank contains pre-defined entity models: no need to free it */
+	EntityBank bank = HEAD(entities.banks);
+	EntityBank list, next;
+	ListNode * node;
+	ItemID_t * models = alloca(sizeof *models * entities.initModelCount);
+
+	/* need to save primary list before clearing all :-/ */
+	int i;
+	memset(models, 0, sizeof *models * entities.initModelCount);
+	for (i = 0; i < entities.hash.max; i ++)
+	{
+		EntityEntry entry = entities.hash.list + i;
+		int vboBank = entry->VBObank;
+		if ((vboBank & 63) == 0)
+		{
+			vboBank >>= 6;
+			if (vboBank < entities.initModelCount)
+				models[vboBank] = entry->id;
+		}
+	}
+
+	quadTreeClear();
+	while ((node = ListRemHead(&entities.physBatch))) free(node);
+	while ((node = ListRemHead(&entities.list)))      free(node);
+	free(entities.animate);
+	free(entities.hash.list);
+	memset(&entities.hash, 0, sizeof entities.hash);
+	/* the following banks can be deleted entirely */
+	for (list = (EntityBank) bank->node.ln_Next, next = list; list; list = next)
+	{
+		NEXT(next);
+		glDeleteVertexArrays(1, &bank->vao);
+		glDeleteBuffers(3, &bank->vboModel);
+		free(list->models);
+		free(list);
+	}
+	ListNew(&entities.banks);
+	ListAddTail(&entities.banks, &bank->node);
+	bank->modelCount = entities.initModelCount;
+	bank->vtxCount = entities.initVtxCount;
+	free(bank->mdaiUsage);
+	bank->mdaiUsage = NULL;
+	bank->mdaiCount = bank->mdaiMax = 0;
+	bank->dirty = 1;
+
+	/* need to restore model hash, since everything was cleared */
+	hashAlloc(entities.initModelCount);
+	for (i = 0; i < entities.initModelCount; i ++)
+		hashInsert(models[i], i << 6);
+
+	entities.animate = NULL;
+	entities.animCount = entities.animMax = 0;
+	entities.selected = NULL;
+	entities.selectedId = 0;
+}
 
 /* pre-create some entities from entities.js */
 static Bool entityCreateModel(const char * file, STRPTR * keys, int lineNum)
@@ -109,6 +169,11 @@ Bool entityInitStatic(void)
 	entities.typeMax = 8;
 	entities.typeCount = 0;
 	entities.texEntity = textureLoad(RESDIR, "entities.png", 1, NULL);
+
+	EntityBank bank = HEAD(entities.banks);
+	entities.initModelCount = bank->modelCount;
+	entities.initVtxCount = bank->vtxCount;
+
 	worldItemInit();
 
 	entities.shader = createGLSLProgram("entities.vsh", "entities.fsh", NULL);
@@ -151,7 +216,7 @@ int entityGetModelBank(ItemID_t id)
 
 static void hashAlloc(int max)
 {
-	max = roundToUpperPrime(max);
+	max = roundToUpperPrime(max < 32 ? 32 : max);
 	entities.hash.list  = calloc(max, sizeof (struct EntityEntry_t));
 	entities.hash.max   = max;
 	entities.hash.count = 0;
@@ -362,13 +427,6 @@ static int entityGenModel(EntityBank bank, ItemID_t itemId, int cnx, CustModel c
 
 	/* VBObank: 6 first bits are for bank number, 10 next are for model number (index in bank->models) */
 	for (max <<= 6; bank->node.ln_Prev; max ++, PREV(bank));
-
-//	fprintf(stderr, "model %d, first: %d, count: %d, bbox: %g,%g,%g, ", max >> 6, models->first, count,
-//		sizes[0] * (1.0/BASEVTX), sizes[1] * (1.0/BASEVTX), sizes[2] * (1.0/BASEVTX));
-//	if (isBlockId(itemId))
-//		fprintf(stderr, "block: %d:%d\n", itemId >> 4, itemId & 15);
-//	else
-//		fprintf(stderr, "item: %d:%d\n", ITEMNUM(itemId), ITEMMETA(itemId));
 
 	hashInsert(itemId, max);
 

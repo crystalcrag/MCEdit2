@@ -15,6 +15,7 @@
 typedef struct Entity_t *   Entity;
 typedef struct QuadTree_t * QuadTree;
 
+void   entityNukeAll(void);
 Entity entityParse(Chunk, NBTFile nbt, int offset, Entity prev);
 Bool   entityInitStatic(void);
 void   entityUnload(Chunk);
@@ -267,20 +268,23 @@ struct EntityPhysBatch_t           /* provide buffers to process physics fo a mo
 
 struct EntitiesPrivate_t           /* static vars for entity.c */
 {
-	EntityHash_t hash;
+	EntityHash_t hash;             /* item id => vbobank */
 	ListHead     list;             /* EntityBuffer */
 	ListHead     banks;            /* EntityBank */
 	ListHead     physBatch;        /* EntityPhysBatch */
 	EntityAnim   animate;
-	int          animCount;
-	int          animMax;
 	EntityType   type;
 	int          typeCount;
 	int          typeMax;
 	int          shader;
+	int          texEntity;
+	/* clear fields below on map exit */
+	int          animCount;
+	int          animMax;
 	Entity       selected;
 	int          selectedId;       /* entity id */
-	int          texEntity;
+	int          initModelCount;   /* clear extra models on exit */
+	int          initVtxCount;
 };
 
 struct EntityAnim_t

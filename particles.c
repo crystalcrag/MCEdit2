@@ -63,6 +63,21 @@ Bool particlesInit(void)
 	return True;
 }
 
+/* map about to be closed */
+void particleDelAll(void)
+{
+	ParticleList list = (ParticleList) ListRemHead(&particles.buffers);
+	list->count = 0;
+	memset(list->usage, 0, sizeof list->usage);
+	particles.count = 0;
+
+	ListNode * node;
+	while ((node = ListRemHead(&particles.buffers)))
+		free(node);
+
+	ListAddTail(&particles.buffers, &list->node);
+}
+
 static Particle particlesAlloc(void)
 {
 	ParticleList list;

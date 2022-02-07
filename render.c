@@ -21,6 +21,7 @@
 #include "entities.h"
 #include "cartograph.h"
 #include "waypoints.h"
+#include "blockUpdate.h"
 #include "undoredo.h"
 #include "nanovg.h"
 #include "SIT.h"
@@ -501,6 +502,9 @@ MapExtraData renderGetSelectedBlock(vec4 pos, int * blockModel)
 /* SITE_OnResize on root widget */
 static int renderGetSize(SIT_Widget w, APTR cd, APTR ud)
 {
+	if (globals.level == NULL)
+		return 0;
+
 	render.scale = globals.width / (3 * 182.f) * ITEMSCALE;
 	render.inventory->update ++;
 
@@ -568,7 +572,7 @@ Bool renderInitStatic(void)
 	if (! compiled)
 		return False;
 
-	if (! wayPointsInit())
+	if (! wayPointsInitStatic())
 		return False;
 
 	/* init VBO for vboInventoryLoc, vboPreview, vboPreviewLoc, vboInventory */
@@ -708,6 +712,9 @@ Bool renderInitStatic(void)
 		NULL
 	);
 
+	/* don't need it yet */
+	SIT_ExtractDialog(render.blockInfo);
+
 	/* will need to measure some stuff before hand */
 	return signInitStatic(render.debugFont);
 }
@@ -734,10 +741,31 @@ Map renderInitWorld(STRPTR path, int renderDist)
 		render.camera[VX] = ret->cx;
 		render.camera[VY] = ret->cy + PLAYER_HEIGHT;
 		render.camera[VZ] = ret->cz;
+		SIT_InsertDialog(render.blockInfo);
 		return ret;
 	}
 	return NULL;
 }
+
+/* lots of stuff to free */
+void renderCloseWorld(void)
+{
+	/* this first 2 calls will free 90% of memory usage */
+	renderFreeMesh(globals.level, False);
+	mapFreeAll(globals.level);
+	globals.level = NULL;
+	particleDelAll();
+	entityNukeAll();
+	signDelAll();
+	cartoDelAll();
+	selectionCancel();
+	undoDelAll();
+	updateClearAll();
+	renderSaveRestoreState(False);
+	SIT_ExtractDialog(render.blockInfo); /* keep this one */
+	SIT_Nuke(SITV_NukeCtrl);
+}
+
 
 /* show limits of chunk player is currently in */
 void renderToggleDebug(int what)
@@ -1713,8 +1741,8 @@ void renderAddModif(void)
 	/* new chunks might have been created */
 	nvgFontFaceId(globals.nvgCtx, render.debugFont);
 	nvgFontSize(globals.nvgCtx, FONTSIZE_MSG);
-	render.modifCount ++;
-	render.message.chrLen = sprintf(render.message.text, LangStrPlural(NULL, render.modifCount, "%d unsaved edit", "%d unsaved edits"), render.modifCount);
+	globals.modifCount ++;
+	render.message.chrLen = sprintf(render.message.text, LangStrPlural(NULL, globals.modifCount, "%d unsaved edit", "%d unsaved edits"), globals.modifCount);
 	render.message.pxLen  = nvgTextBounds(globals.nvgCtx, 0, 0, render.message.text, render.message.text + render.message.chrLen, NULL);
 }
 
@@ -1722,12 +1750,12 @@ void renderAddModif(void)
 void renderCancelModif(void)
 {
 	/* hmm, should not happen */
-	if (render.modifCount == 0) return;
+	if (globals.modifCount == 0) return;
 
-	render.modifCount --;
-	if (render.modifCount > 0)
+	globals.modifCount --;
+	if (globals.modifCount > 0)
 	{
-		render.modifCount --;
+		globals.modifCount --;
 		renderAddModif();
 	}
 	else render.message.chrLen = 0;
@@ -1735,7 +1763,7 @@ void renderCancelModif(void)
 
 void renderAllSaved(void)
 {
-	render.modifCount = 0;
+	globals.modifCount = 0;
 	render.message.chrLen = 0;
 }
 
@@ -1762,24 +1790,23 @@ void renderResetFrustum(void)
 /* SIT_Nuke is about to be called */
 void renderSaveRestoreState(Bool save)
 {
-	static SIT_Widget selWnd, libWnd, editWnd;
 	if (save)
 	{
-		/* this will avoid recreaating everything and is a pretty cheap trick */
-		selWnd  = SIT_GetById(globals.app, "selection"); /* selection nudge */
-		libWnd  = SIT_GetById(globals.app, "selcopy");   /* copied selection window */
-		editWnd = SIT_GetById(globals.app, "editbrush");
-		if (selWnd)  SIT_ExtractDialog(selWnd);
-		if (libWnd)  SIT_ExtractDialog(libWnd);
-		if (editWnd) SIT_ExtractDialog(editWnd);
+		/* this will avoid recreating everything */
+		render.selWnd  = SIT_GetById(globals.app, "selection"); /* selection nudge */
+		render.libWnd  = SIT_GetById(globals.app, "selcopy");   /* copied selection window */
+		render.editWnd = SIT_GetById(globals.app, "editbrush");
+		if (render.selWnd)  SIT_ExtractDialog(render.selWnd);
+		if (render.libWnd)  SIT_ExtractDialog(render.libWnd);
+		if (render.editWnd) SIT_ExtractDialog(render.editWnd);
 		SIT_ExtractDialog(render.blockInfo);
 	}
 	else
 	{
 		memset(render.oldBlockPos, 0, sizeof render.oldBlockPos);
-		if (selWnd)  SIT_InsertDialog(selWnd);
-		if (libWnd)  SIT_InsertDialog(libWnd);
-		if (editWnd) SIT_InsertDialog(editWnd);
+		if (render.selWnd)  SIT_InsertDialog(render.selWnd),  render.selWnd = NULL;
+		if (render.libWnd)  SIT_InsertDialog(render.libWnd),  render.libWnd = NULL;
+		if (render.editWnd) SIT_InsertDialog(render.editWnd), render.editWnd = NULL;
 		SIT_InsertDialog(render.blockInfo);
 	}
 }

@@ -13,41 +13,22 @@
 
 <div id="toc">
 <p>TABLE OF CONTENTS</p>
+<ul>
 <li><a href="#NBTapi">NBT API</a></li>
 <li><a href="#NBTspec">NBT Structure</a></li>
 <li><a href="#NBTspecapi">NBT Structure in API</a></li>
 <li><a href="#NBTpost">NBT post processing</a></li>
-<li><a href="#NBTexample">NBT usage example</a></li>
-
-<li><a href="#NBT_Parse">NBT_Parse</a></li>
-<li><a href="#NBT_ParseIO">NBT_ParseIO</a></li>
-<li><a href="#NBT_ParseZlib">NBT_ParseZlib</a></li>
-<li><a href="#NBT_FindNode">NBT_FindNode</a></li>
-<li><a href="#NBT_FindNodeFromStream">NBT_FindNodeFromStream</a></li>
-<li><a href="#NBT_FindBranch">NBT_FindBranch</a></li>
-<li><a href="#NBT_Save">NBT_Save</a></li>
-<li><a href="#NBT_Iter">NBT_Iter</a></li>
-<li><a href="#NBT_SetHdrSize">NBT_SetHdrSize</a></li>
-<li><a href="#NBT_Insert">NBT_Insert</a></li>
-<li><a href="#NBT_AddOrUpdateKey">NBT_AddOrUpdateKey</a></li>
-<li><a href="#NBT_ToFloat">NBT_ToFloat</a></li>
-<li><a href="#NBT_ToString">NBT_ToString</a></li>
-<li><a href="#NBT_ToInt">NBT_ToInt</a></li>
-<li><a href="#NBT_Size">NBT_Size</a></li>
-<li><a href="#NBT_MarkForUpdate">NBT_MarkForUpdate</a></li>
-<li><a href="#NBT_InitIter">NBT_InitIter</a></li>
-<li><a href="#NBT_IterCompound">NBT_IterCompound</a></li>
-<li><a href="#NBT_Payload">NBT_Payload</a></li>
-<li><a href="#NBT_ArrayStart">NBT_ArrayStart</a></li>
-<li><a href="#NBT_PayloadFromStream">NBT_PayloadFromStream</a></li>
-<li><a href="#NBT_SetFloat">NBT_SetFloat</a></li>
-<li><a href="#NBT_SetInt">NBT_SetInt</a></li>
-<li><a href="#NBT_Add">NBT_Add</a></li>
-<li><a href="#NBT_Delete">NBT_Delete</a></li>
-<li><a href="#NBT_Copy">NBT_Copy</a></li>
-<li><a href="#NBT_Compress">NBT_Compress</a></li>
-<br>
-<br>
+<li><a href="#NBTfunc">NBT Function overview</a></li>
+<ul>
+	<li><a href="#NBTread">Reading files</a></li>
+	<li><a href="#NBTfind">Locate tags</a></li>
+	<li><a href="#NBTiter">Iterating properties</a></li>
+	<li><a href="#NBTreadtag">Reading tag value</a></li>
+	<li><a href="#NBTchgtag">Setting tag value</a></li>
+	<li><a href="#NBTcreate">Creating / modifying nbt</a></li>
+	<li><a href="#NBTother">Others</a></li>
+</ul>
+</ul>
 </div>
 
 
@@ -55,9 +36,9 @@
 
 <h2 id="NBTapi">NBT API [ Module ]</h2>
 
-<p class="item_name">INTRODUCTION</p>
-
 <p>[ <a href="#content">Top</a> ]
+
+<p class="item_name">INTRODUCTION</p>
 
 <p>This module is used to read, write and modify NBT (<tt>Named Binary Tag</tt>) file format from disk
 and/or memory. NBT is used to store arbitrary data types in a tree-like structure (ie: nested up to
@@ -213,7 +194,7 @@ have to build a NBT fragment, you'll have to match this structure.</div>
 <p class="item_name">EXAMPLE</p>
 
 <p>Let's look at a small example:
-<pre><span class="t">static uint8_t</span> nbt_stream[] = {
+<pre><t>static uint8_t</t> nbt_stream[] = {
 	<v>0x0A</v>, <v>0x00</v>, <v>0x00</v>, <v>0x02</v>, <v>0x00</v>, <v>0x03</v>, <v>0x6D</v>, <v>0x61</v>, <v>0x70</v>, <v>0x00</v>, <v>0x0C</v>, <v>0x00</v>
 };
 </pre>
@@ -248,10 +229,10 @@ a few caveats that you need to be aware before being able to understand this API
 
 <p>Like said in the previous sections, once read into memory, a NBT file is just <b>a contiguous memory
 buffer</b>. If you look at the main type definition for a NBT file, that's all you'll find:
-<pre><span class="t">struct</span> NBTFile_t
+<pre><t>struct</t> NBTFile_t
 {
-	<span class="t">int</span>   usage, max;
-	<span class="t">int</span>   alloc, page;
+	<t>int</t>   usage, max;
+	<t>int</t>   alloc, page;
 	DATA8 mem;
 };
 </pre>
@@ -300,19 +281,19 @@ it is still described. This part will described <b>how the NBT file is stored in
   <brow><hdr>0: </hdr><bitpart class="sz16" bit="32">16: <em>count</em></bitpart><bitpart class="sz8" bit="16">8: <em>minNameSz</em></bitpart><bitpart class="sz4" bit="8"><em>subtype</em></bitpart><bitpart class="sz4" bit="4"><em>type</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
   <brow><hdr>1: </hdr><bitpart class="sz32" bit="32">32: <em>size</em> (in bytes)</bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
   <brow><hdr>2: </hdr><bitpart class="sz32" bit="32">32: <em>name</em> (0-terminated)</bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
-  <brow><hdr>... </hdr><bitpart class="sz32" bit="32">optionnal: more 32bit words follow to store the name</bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
+  <brow><hdr>... </hdr><bitpart class="sz32" bit="32">optional: more 32bit words follow to store the name</bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
 </bits>
 
 <p>Or visualized as a C struct:
 
 <pre>
-<span class="t">struct</span> NBTHdr_t
+<t>struct</t> NBTHdr_t
 {
-	<span class="t">uint8_t</span>  type;             <span class="c">/* TAG_* */</span>
-	<span class="t">uint8_t</span>  minNameSz;        <span class="c">/* min name len: if 255 need to scan up to 0 byte */</span>
-	<span class="t">uint16_t</span> count;            <span class="c">/* number of entries after this node (TAG_List only) */</span>
-	<span class="t">uint32_t</span> size;             <span class="c">/* size of entire hierarchy under this node (including header + name) */</span>
-	<span class="t">uint8_t</span>  name[<v>4</v>];          <span class="c">/* name of node (4-byte alignment) */</span>
+	<t>uint8_t</t>  type;             <span class="c">/* TAG_* */</span>
+	<t>uint8_t</t>  minNameSz;        <span class="c">/* min name len: if 255 need to scan up to 0 byte */</span>
+	<t>uint16_t</t> count;            <span class="c">/* number of entries after this node (TAG_List only) */</span>
+	<t>uint32_t</t> size;             <span class="c">/* size of entire hierarchy under this node (including header + name) */</span>
+	<t>uint8_t</t>  name[<v>4</v>];          <span class="c">/* name of node (4-byte alignment) */</span>
 };
 </pre>
 
@@ -399,85 +380,127 @@ at the same time. When the callback is triggered, it needs to be informed about 
 tile ticks, you'll have to allocate some memory and store them in some kind of list. Therefore, you'll
 already have all items of a list somewhere, you just have to format them a bit to be saved on disk.
 
+<pre>
+void  NBT_MarkForUpdate(NBTFile, int offset, int tag);
+DATA8 NBT_Compress(NBTFile, int * size, int page, NBT_WriteCb_t cb, APTR cbparam);
+int   NBT_Save(NBTFile, STRPTR path, NBT_WriteCb_t cb, APTR cbparam);</pre>
 
-<div class="sep" id="NBTexample"></div>
 
-<h2>NBT usage example [ Module ]</h2>
+<div class="sep" id="NBTfunc"></div>
+
+<h2>NBT function overview [ Functions ]</h2>
 
 <p>[ <a href="#content">Top</a> ]
 
 <p class="item_name">INTRODUCTION</p>
 
-<p>This section will show a few common examples that can serve as quick refresher, or just in case you
-don't want to learn everything and just want to get some minor stuff done. If you want to modify these
-snippets of code, it is strongly encouraged to look at the definition of each function involved in the
-snippets.
+<p>This part will show a quick overview of what each function does.
 
-<p class="item_name">READING FILE</p>
+<p class="item_name" id="NBTread">READING FILES</p>
 
+<pre><t>int</t> <b>NBT_Parse</b>(NBTFile file, <t>STRPTR</t> path);
+<t>int</t> <b>NBT_ParseIO</b>(NBTFile file, <t>FILE</t> *, <t>int</t> offset);
+<t>int</t> <b>NBT_ParseZlib</b>(NBTFile file, DATA8 stream, <t>int</t> bytes);
+</pre>
 
+<p>These functions will read various type of files:
+<ul>
+  <li><tt>NBT_Parse</tt>: try to read a gzip-compressed or plain uncompressed file.
+  <li><tt>NBT_ParseIO</tt>: parse a portion of file at given offset: typically to uncompress chunk within region file.
+  <li><tt>NBT_ParseZlib</tt>: read a zlib-compressed file.
+</ul>
 
+<p>The return value for all these function will be <v>1</v> if the file was sucessfully read, <v>0</v>
+if something went wrong.
 
-<div class="sep" id="NBT_Parse"></div>
-
-<h2>NBT_Parse [ Function ]</h2>
-
-<p>[ <a href="#content">Top</a> ]
-
-<p class="item_name">NAME</p>
-
-<p class="desc"><tt>NBT_Parse</tt> - parse a gzip-compressed NBT file.
-
-<p class="item_name">SYNOPSIS</p>
-
-<p class="desc"><code><span class="t">int</span> <b>NBT_Parse</b>(NBTFile file, <span class="t">STRPTR</span> path);</code>
-
-<p class="item_name">FUNCTION</p>
-
-<p class="desc">Try to parse the given file name as a gzip-compressed NBT file. File opening is handled
-by zlib, which means on Windows it is not unicode aware.
-
-<p class="item_name">RETURN VALUES</p>
-
-<p class="desc"><v>1</v> if the file was sucessfully read, <v>0</v> if something went wrong.
-
-<p class="desc">The <tt>file</tt> parameter will also be ovewritten to contain the content of the
+<p>The <tt>file</tt> parameter will also be ovewritten to contain the content of the
 decoded NBT stream. the stream will be malloc()'ed and will have to be free()'ed by the caller at
 some point when not needed anymore.
 
 
-<p class="item_name">SEE ALSO</p>
 
-<p class="desc"><a href="#NBT_ParseIO">NBT_ParseIO</a>, <a href="#NBT_ParseMem">NBT_ParseZlib</a>.
+<p class="item_name" id="NBTfind">LOCATE TAGS</p>
+
+<p>One you have an NBT file decoded, you can start looking at what's inside using these functions:
+
+<pre><t>int</t> <b>NBT_FindNode</b>(NBTFile file, <t>int</t> offset, <t>STRPTR</t> name);
+<t>int</t> <b>NBT_FindNodeFromStream</b>(DATA8 nbt, <t>int</t> offset, <t>STRPTR</t> name);
+</pre>
+
+<p>Use these functions to find a particular tag within the file. The tag will be searced using a breadth-first
+search, scanning recursively the structure of the NBT file until something is found.
+
+<p><tt>offset</tt> is the byte offset where the search should start. <v>0</v> is the beginning of the
+file. If a negative number is given, the search will be aborted and <v>-1</v> returned.
+
+<p>The <tt>name</tt> parameter can actually be a bit more than just a tag name, it can be a path,
+where tags to search are separated by colon, for example:
+<pre><t>int</t> offset = NBT_FindNode(&amp;levelDat, <v>"Player.EnderItems"</v>);</pre>
+<p>will first search for a tag "Player", then if it has been found and is a <tt>TAG_Compound</tt> or
+<tt>TAG_List_Compound</tt>, will search for a tag "EnderItems" in this branch only.
+
+<p>The return value is the index where the tag was located. This index will be required by almost all
+NBT function. <v>-1</v> will be returned if nothing was found.
+
+
+<p class="item_name" id="NBTiter">ITERATING PROPERTIES</p>
+
+<p>When you know you have a <tt>TAG_Compound</tt>, you might want to iterate over all of its properties.
+There are the following functions for this:
+<pre><t>void</t>  NBT_InitIter(NBTFile, <t>int</t> offset, NBTIter);
+<t>void</t>  NBT_IterCompound(NBTIter, DATA8 mem);
+<t>int</t>   NBT_Iter(NBTIter iter);</pre>
+
+<p>To iterate over properties, you first need to initialize an iterator: <tt>NBTIter_t</tt>. There are
+2 ways to do so: either you have an NBTFile_t or simply a raw pointer.
+
+<p>Then, you need to repeatedly call <tt>NBT_Iter</tt> this way:
+<pre>
+NBTIter_t iter;
+<t>int</t> offset;
+
+NBT_InitIter(&amp;nbt, NBT_FindNode(&amp;nbt, <v>"..."</v>), &amp;iter);
+<span class="k">while</span> ((i = NBT_Iter(&amp;iter)) &gt;= <v>0</v>)
+{
+	<span class="c">/* iter.name will contain the name of the current tag, &lt;i&gt; is the offset of the tag */</span>
+	...
+}</pre>
+
+<p>If the tag was a <tt>TAG_Compound</tt>, the iterator will iterate over all of its immediate
+properties: if there is a nested compound, its content will be skipped. You'll have to initialize
+another iterator by yourself. If the tag was a <tt>TAG_List_Compound</tt>, the iterator will give the
+starting offset of each compound in the list. You'll have to initialize another iterator to scan the
+properties of each compound.
+
+<p class="item_name" id="NBTreadtag">READING TAG VALUE</p>
 
 <pre>
-int   NBT_ParseIO(NBTFile, FILE *, int offset);
-int   NBT_ParseZlib(NBTFile, DATA8 stream, int bytes);
-int   NBT_FindNode(NBTFile, int offset, STRPTR name);
-int   NBT_FindNodeFromStream(DATA8 nbt, int offset, STRPTR name);
-int   NBT_FindBranch(NBTFile, int offset, STRPTR branch);
-int   NBT_Save(NBTFile, STRPTR path, NBT_WriteCb_t cb, APTR cbparam);
-int   NBT_Iter(NBTIter iter);
-int   NBT_FormatSection(DATA8 mem, int y);
-int   NBT_SetHdrSize(NBTFile, int offset);
-int   NBT_Insert(NBTFile, STRPTR loc, int type, NBTFile fragment);
-int   NBT_AddOrUpdateKey(NBTFile, STRPTR key, int type, APTR value, int offsetTagList);
-Bool  NBT_ToFloat(NBTFile, int offset, float * array, int nb);
-Bool  NBT_ToString(NBTFile root, int offset, STRPTR buffer, int max);
-int   NBT_ToInt(NBTFile, int offset, int def);
+<t>Bool</t>  NBT_GetFloat(NBTFile, <t>int</t> offset, <t>float</t> * array, <t>int</t> nb);
+<t>Bool</t>  NBT_GetString(NBTFile root, <t>int</t> offset, <t>STRPTR</t> buffer, <t>int</t> max);
+<t>int</t>   NBT_GetInt(NBTFile, <t>int</t> offset, <t>int</t> def);</pre>
+
+<p class="item_name" id="NBTchgtag">SETTING TAG VALUE</p>
+
+<pre>
+<t>Bool</t>  NBT_SetFloat(NBTFile, <t>int</t> offset, <t>float</t> * array, <t>int</t> nb);
+<t>Bool</t>  NBT_SetInt(NBTFile, <t>int</t> offset, <t>int64_t</t> val);</pre>
+
+<p class="item_name" id="NBTcreate">CREATING / MODIFYING NBT</p>
+
+<pre>
+<t>Bool</t>  NBT_Add(NBTFile nbt, ...);
+<t>Bool</t>  NBT_Delete(NBTFile nbt, <t>int</t> offset, <t>int</t> nth);
+<t>int</t>   NBT_Insert(NBTFile, <t>STRPTR</t> loc, <t>int</t> type, NBTFile fragment);
+<t>int</t>   NBT_AddOrUpdateKey(NBTFile, <t>STRPTR</t> key, <t>int</t> type, <t>APTR</t> value, <t>int</t> offsetTagList);
+<t>DATA8</t> NBT_Copy(<t>DATA8</t> mem);</pre>
+
+<p class="item_name" id="NBTother">OTHERS</p>
+
+<pre>
 int   NBT_Size(DATA8 fragment);
-void  NBT_MarkForUpdate(NBTFile, int offset, int tag);
-void  NBT_InitIter(NBTFile, int offset, NBTIter);
-void  NBT_IterCompound(NBTIter, DATA8 mem);
 APTR  NBT_Payload(NBTFile, int offset);
 APTR  NBT_ArrayStart(NBTFile root, int offset, int * size);
 APTR  NBT_PayloadFromStream(DATA8 stream, int offset, STRPTR name);
-Bool  NBT_SetFloat(NBTFile, int offset, float * array, int nb);
-Bool  NBT_SetInt(NBTFile, int offset, int64_t val);
-Bool  NBT_Add(NBTFile nbt, ...);
-Bool  NBT_Delete(NBTFile nbt, int offset, int nth);
-DATA8 NBT_Copy(DATA8 mem);
-DATA8 NBT_Compress(NBTFile, int * size, int page, NBT_WriteCb_t cb, APTR cbparam);
 </pre>
 
 </div> <!-- content -->

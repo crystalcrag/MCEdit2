@@ -12,6 +12,7 @@
 #include "physics.h"
 
 Bool particlesInit(void);
+void particleDelAll(void);
 void particlesRender(void);
 void particlesExplode(Map map, int count, int blockId, vec4 pos);
 int  particlesAnimate(Map map);
@@ -69,7 +70,6 @@ struct ParticlePrivate_t
 {
 	ListHead buffers;             /* ParticleList */
 	int      count;
-	vec4     initpos;
 	double   lastTime;
 	int      shader;              /* OpenGL stuff */
 	int      vao, vbo;

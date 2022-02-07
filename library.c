@@ -721,7 +721,7 @@ static int librarySelectName(SIT_Widget w, APTR cd, APTR ud)
 			snprintf(error, sizeof error, "Failed to save '%s': %s\n", (STRPTR) ud, GetError());
 			FSYesNo(view->list, error, NULL, False, view);
 		}
-		else SIT_Exit(1);
+		else SIT_Exit(EXIT_LOOP);
 		/* no mesh allocated: only a temporary brush */
 		if (brush->GPUMaxChunk == 0)
 			selectionFreeBrush(brush);
@@ -739,7 +739,7 @@ static int librarySelectName(SIT_Widget w, APTR cd, APTR ud)
 				selectionUseBrush(lib->data, False);
 				renderSaveRestoreState(True);
 				lib->data = NULL;
-				SIT_Exit(1);
+				SIT_Exit(EXIT_LOOP);
 			}
 		}
 		/* else not yet generated */
@@ -750,7 +750,7 @@ static int librarySelectName(SIT_Widget w, APTR cd, APTR ud)
 static int libraryExitWnd(SIT_Widget w, APTR cd, APTR ud)
 {
 	SIT_CloseDialog(w);
-	SIT_Exit(1);
+	SIT_Exit(EXIT_LOOP);
 	return 1;
 }
 

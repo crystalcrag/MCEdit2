@@ -794,28 +794,6 @@ int NBT_FindNode(NBTFile root, int offset, STRPTR name)
 	return -1;
 }
 
-/* find a branch within NBT by following a path (e.g. Data.Player.Inventory) */
-int NBT_FindBranch(NBTFile root, int offset, STRPTR branch)
-{
-	STRPTR sep = strchr(branch, '.');
-
-	if (sep)
-	{
-		do
-		{
-			int    len = sep - branch + 1;
-			STRPTR key = alloca(len);
-			CopyString(key, branch, len);
-			offset = NBT_FindNode(root, offset, key);
-			if (offset < 0) return -1;
-			branch = sep + 1;
-			sep = strchr(branch, '.');
-		}
-		while (sep);
-	}
-	return NBT_FindNode(root, offset, branch);
-}
-
 int NBT_FindNodeFromStream(DATA8 nbt, int offset, STRPTR name)
 {
 	NBTFile_t file = {.mem = nbt};

@@ -18,6 +18,7 @@
 
 Bool renderInitStatic(void);
 Map  renderInitWorld(STRPTR path, int renderDist);
+void renderCloseWorld(void);
 void renderFreeMesh(Map map, Bool clear);
 void renderWorld();
 void renderSetViewMat(vec4 pos, vec4 lookat, float * yawPitch);
@@ -183,10 +184,11 @@ struct RenderWorld_t
 	int        invCount;
 	int        invExt;
 	Item       toolbarItem;        /* item being hovered by mouse */
-	int        modifCount;         /* displayed at bottom of screen */
 	Message_t  message;            /* message at bottom left of screen */
 	int        oldBlockPos[3];     /* check if we need to change tooltip message */
 	APTR       blockInfo;          /* SIT_TOOLTIP */
+	APTR       selWnd, libWnd;     /* SIT_DIALOG */
+	APTR       editWnd;            /* SIT_DIALOG */
 	ItemID_t   previewItemId;      /* id of preview item entity */
 	double     animUpdate;
 };

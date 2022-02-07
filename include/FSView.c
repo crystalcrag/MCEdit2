@@ -66,14 +66,14 @@ static int FSSaveAs(SIT_Widget w, APTR cd, APTR ud);
 
 static SIT_Accel accels[] = {
 	#ifdef FSVIEW_HASCOPY
-	{SITK_FlagCapture + SITK_FlagCtrl + 'C', SITE_OnActivate, NULL, FSProcessMenu},
-	{SITK_FlagCapture + SITK_FlagCtrl + 'X', SITE_OnActivate, NULL, FSProcessMenu},
-	{SITK_FlagCapture + SITK_FlagCtrl + 'V', SITE_OnActivate, NULL, FSProcessMenu},
+	{SITK_FlagCapture + SITK_FlagCtrl + 'C', SITE_OnActivate, 0, NULL, FSProcessMenu},
+	{SITK_FlagCapture + SITK_FlagCtrl + 'X', SITE_OnActivate, 0, NULL, FSProcessMenu},
+	{SITK_FlagCapture + SITK_FlagCtrl + 'V', SITE_OnActivate, 0, NULL, FSProcessMenu},
 	#endif
-	{SITK_FlagCapture + SITK_FlagCtrl + 'F', SITE_OnActivate, NULL, FSProcessMenu},
-	{SITK_FlagCapture + SITK_FlagCtrl + 'R', SITE_OnActivate, "rename"},
-	{SITK_BackSpace, SITE_OnActivate, "parent"},
-	{SITK_Delete,    SITE_OnActivate, "ko"},
+	{SITK_FlagCapture + SITK_FlagCtrl + 'F', SITE_OnActivate, 0, NULL, FSProcessMenu},
+	{SITK_FlagCapture + SITK_FlagCtrl + 'R', SITE_OnActivate, 0, "rename"},
+	{SITK_BackSpace, SITE_OnActivate, 0, "parent"},
+	{SITK_Delete,    SITE_OnActivate, 0, "ko"},
 	#ifdef FSVIEW_CAPTUREESC
 	{SITK_FlagCapture + SITK_Escape, SITE_OnClose},
 	#endif

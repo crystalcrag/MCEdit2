@@ -23,7 +23,6 @@ int   NBT_ParseIO(NBTFile, FILE *, int offset);
 int   NBT_ParseZlib(NBTFile, DATA8 stream, int bytes);
 int   NBT_FindNode(NBTFile, int offset, STRPTR name);
 int   NBT_FindNodeFromStream(DATA8 nbt, int offset, STRPTR name);
-int   NBT_FindBranch(NBTFile, int offset, STRPTR branch);
 int   NBT_Save(NBTFile, STRPTR path, NBT_WriteCb_t cb, APTR cbparam);
 int   NBT_Iter(NBTIter iter);
 int   NBT_FormatSection(DATA8 mem, int y);

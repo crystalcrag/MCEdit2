@@ -31,6 +31,7 @@
 #include "player.h"
 #include "sign.h"
 #include "undoredo.h"
+#include "mcedit.h"
 #include "globals.h"
 
 static struct MCInterface_t mcui;
@@ -116,6 +117,29 @@ void mcuiResize(void)
 Item mcuiAddItemToRender(void)
 {
 	return mcui.items + mcui.itemRender ++;
+}
+
+/*
+ * save before exit
+ */
+void mcuiAskSave(SIT_CallProc cb, APTR ud)
+{
+	SIT_Widget ask = SIT_CreateWidget("ask.mc", SIT_DIALOG, globals.app,
+		SIT_DialogStyles, SITV_Plain | SITV_Modal | SITV_Movable,
+		SIT_Style,        "padding: 1em",
+		NULL
+	);
+
+	SIT_CreateWidgets(ask,
+		"<label name=label title=", "Some changes have not been saved, what do you want to do ?", ">"
+		"<button name=cancel.act title=Cancel top=WIDGET,label,1em right=FORM buttonType=", SITV_CancelButton, ">"
+		"<button name=ok.act userData=1 title=Save top=OPPOSITE,cancel right=WIDGET,cancel,0.5em buttonType=", SITV_DefaultButton, ">"
+		"<button name=ko.act title=", "Don't save", "top=OPPOSITE,ok right=WIDGET,ok,0.5em>"
+	);
+
+	SIT_AddCallback(SIT_GetById(ask, "ok"), SITE_OnActivate, cb, ud);
+	SIT_AddCallback(SIT_GetById(ask, "ko"), SITE_OnActivate, cb, ud);
+	SIT_ManageWidget(ask);
 }
 
 /*
@@ -442,7 +466,7 @@ static int mcuiSaveSign(SIT_Widget w, APTR cd, APTR ud)
 	SIT_TextGetWithSoftline(ud, buffer, len);
 	signSetText(mcui.signChunk, mcui.signPos, buffer);
 	SIT_CloseDialog(w);
-	SIT_Exit(1);
+	SIT_Exit(3);
 	return 1;
 }
 
@@ -553,7 +577,7 @@ static int mcuiGrabItem(SIT_Widget w, APTR cd, APTR ud)
 
 int mcuiExitWnd(SIT_Widget w, APTR cd, APTR ud)
 {
-	SIT_Exit(1);
+	SIT_Exit(EXIT_LOOP);
 	return 1;
 }
 
@@ -1082,7 +1106,7 @@ static int mcuiFillCheckProgress(SIT_Widget w, APTR cd, APTR ud)
 		mapUpdateEnd(globals.level);
 		mcuiRepWnd.asyncCheck = NULL;
 		undoLog(LOG_REGION_END);
-		SIT_Exit(1);
+		SIT_Exit(EXIT_LOOP);
 		/* will cancel the timer */
 		return -1;
 	}
@@ -1204,7 +1228,7 @@ static int mcuiFillStop(SIT_Widget w, APTR cd, APTR ud)
 	SIT_GetValues(w, SIT_CtrlType, &type, NULL);
 	if (type == SIT_BUTTON)
 		/* this callback can also be used by SIT_OnFinalize: don't change exit code in that case */
-		SIT_Exit(1);
+		SIT_Exit(EXIT_LOOP);
 	if (mcuiRepWnd.asyncCheck)
 	{
 		selectionCancelOperation();
@@ -1420,7 +1444,7 @@ static int mcuiDeleteProgress(SIT_Widget w, APTR cd, APTR ud)
 		mapUpdateEnd(globals.level);
 		mcuiRepWnd.asyncCheck = NULL;
 		undoLog(LOG_REGION_END);
-		SIT_Exit(1);
+		SIT_Exit(EXIT_LOOP);
 		/* will cancel the timer */
 		return -1;
 	}
@@ -1520,7 +1544,7 @@ static int mcuiDoDelete(SIT_Widget w, APTR cd, APTR ud)
 			selectionIterEntities(mcuiDeleteEntities, &total);
 			if (total > 0) renderAddModif();
 		}
-		SIT_Exit(1);
+		SIT_Exit(EXIT_LOOP);
 	}
 	else if (! mcuiRepWnd.asyncCheck)
 	{
@@ -1751,7 +1775,7 @@ static int mcuiSelectPaintings(SIT_Widget w, APTR cd, APTR ud)
 				if (mcuiPaintingsFindLocation(pos) &&
 				    worldItemCreatePainting(globals.level, (mcuiPaintings.lastHover - paintings.location) >> 2, pos))
 				{
-					SIT_Exit(1);
+					SIT_Exit(EXIT_LOOP);
 				}
 				else SIT_SetValues(mcuiPaintings.error, SIT_Visible, True, NULL);
 			}
@@ -1971,7 +1995,7 @@ static int mcuiInfoSave(SIT_Widget w, APTR cd, APTR ud)
 	NBT_MarkForUpdate(nbt, 0, 1);
 
 	renderAddModif();
-	SIT_Exit(1);
+	SIT_Exit(EXIT_LOOP);
 	return 1;
 }
 

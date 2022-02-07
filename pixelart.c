@@ -19,6 +19,7 @@
 #include "selection.h"
 #include "cartograph.h"
 #include "mapUpdate.h"
+#include "mcedit.h"
 #include "globals.h"
 
 struct
@@ -678,7 +679,7 @@ static int pixArtGenerate(SIT_Widget w, APTR cd, APTR ud)
 		free(data);
 	}
 	if (done)
-		SIT_Exit(1);
+		SIT_Exit(EXIT_LOOP);
 	return 1;
 }
 

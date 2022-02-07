@@ -8,8 +8,9 @@
 #define WAY_POINTS_H
 
 void wayPointsRead(void);
+void wayPointsClose(void);
 void wayPointsEdit(vec4 pos, float rotation[2]);
-Bool wayPointsInit(void);
+Bool wayPointsInitStatic(void);
 void wayPointsRender(vec4 camera);
 int  wayPointRaypick(vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos);
 void wayPointInfo(int id, STRPTR msg, int max);

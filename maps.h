@@ -98,6 +98,7 @@ struct BlockIter_t                 /* iterate over nearby blocks */
 };
 
 Map     mapInitFromPath(STRPTR path, int renderDist);
+void    mapFreeAll(Map);
 void    mapGenerateMesh(Map);
 int     mapGetBlockId(Map, vec4 pos, MapExtraData canBeNULL);
 Bool    mapPointToObject(Map, vec4 camera, vec4 dir, vec4 ret, MapExtraData extra);
@@ -119,7 +120,6 @@ int     getBlockId(BlockIter iter);
 uint8_t mapGetSkyBlockLight(BlockIter iter);
 void    mapAddToSaveList(Map map, Chunk chunk);
 void    printCoord(STRPTR hdr, BlockIter);
-void    mapDeleteMesh(Map map);
 
 /*
  * block iterator over map

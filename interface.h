@@ -17,6 +17,7 @@ void mcuiCreateInventory(Inventory);
 void mcuiEditChestInventory(Inventory, Item items, int count, Block type);
 void mcuiCreateSignEdit(vec4 pos, int blockId);
 void mcuiGoto(vec4 pos);
+void mcuiAskSave(SIT_CallProc, APTR userData);
 void mcuiInitDrawItems(void);
 void mcuiDrawItems(void);
 void mcuiAnalyze(void);

@@ -95,5 +95,6 @@ extern KeyBindings_t keyBindings;
 
 void keysHash(KeyHash, KeyBinding);
 int  keysFind(KeyHash hash, int key);
+void keysReassign(SIT_Accel *);
 
 #endif

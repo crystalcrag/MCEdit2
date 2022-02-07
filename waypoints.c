@@ -28,6 +28,17 @@
 
 struct WayPointsPrivate_t waypoints;
 
+/* map is about to be closed */
+void wayPointsClose(void)
+{
+	vector_free(waypoints.all);
+	waypoints.all.buffer = NULL;
+	NBT_Free(&waypoints.nbt);
+	memset(&waypoints.nbt, 0, sizeof waypoints.nbt);
+	waypoints.nbtModified = waypoints.listDirty =
+	waypoints.glCount = waypoints.cancelEdit = 0;
+}
+
 /*
  * manage NBT file
  */
@@ -153,7 +164,7 @@ static int wayPointsAdd(SIT_Widget w, APTR cd, APTR ud)
 	else
 	{
 		SIT_CloseDialog(w);
-		SIT_Exit(1);
+		SIT_Exit(EXIT_LOOP);
 	}
 	return 1;
 }
@@ -219,7 +230,7 @@ static int wayPointsGoto(SIT_Widget w, APTR cd, APTR ud)
 	memcpy(waypoints.playerPos, waypoints.curPos, sizeof waypoints.curPos);
 	memcpy(waypoints.playerRotation, waypoints.rotation, sizeof waypoints.rotation);
 	SIT_CloseDialog(w);
-	SIT_Exit(1);
+	SIT_Exit(EXIT_LOOP);
 	return 1;
 }
 
@@ -429,6 +440,10 @@ extern int wayPointsExit(SIT_Widget w, APTR cd, APTR ud)
 		if (NBT_Save(&waypoints.nbt, path, NULL, NULL) > 0)
 			waypoints.nbtModified = False;
 	}
+	waypoints.delButton = NULL;
+	waypoints.list = NULL;
+	waypoints.playerPos = NULL;
+	waypoints.playerRotation = NULL;
 	return 1;
 }
 
@@ -644,7 +659,7 @@ int wayPointRaypick(vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos)
 	return wpId;
 }
 
-Bool wayPointsInit(void)
+Bool wayPointsInitStatic(void)
 {
 	waypoints.shader = createGLSLProgram("waypoints.vsh", "waypoints.fsh", "waypoints.gsh");
 	if (! waypoints.shader)

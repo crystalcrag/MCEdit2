@@ -68,6 +68,9 @@ typedef struct MCGlobals_t
 	uint8_t distanceFOG;      /* 1 = use fog, 0 = don't */
 	uint8_t showPreview;      /* 1 = show preview block, 0 = outline only */
 
+	/* if world is being edited */
+	int modifCount;
+
 	/* Uniform Buffer Object used by all shaders */
 	int uboShader;
 

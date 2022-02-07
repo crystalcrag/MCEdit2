@@ -21,6 +21,7 @@ enum
 void undoLog(int type, ...);
 void undoOperation(int redo);
 void undoDebug(void);
+void undoDelAll(void);
 
 #define UNDO_LINK                  0x80
 
@@ -72,7 +73,7 @@ struct UndoPrivate_t               /* global private */
 	int      regionSize[3];
 	int      regionBytes;          /* size in bytes of all the modifications done by region */
 	ListHead undoLog;              /* list of memory blocks to undo */
-	ListHead redoLog;
+	ListHead redoLog;              /* UndoLogBuf */
 };
 
 enum                               /* special blockId stored in undo buffer stream (instead of actual blockId) */

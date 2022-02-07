@@ -955,7 +955,9 @@ Map mapInitFromPath(STRPTR path, int renderDist)
 			ListAddTail(&map->genList, &c->next);
 		}
 
+		#ifdef DEBUG
 		fprintf(stderr, "center = %d, %d\n", map->center->X, map->center->Z);
+		#endif
 
 		quadTreeInit(xyz[VX] - 1, xyz[VZ] - 1, map->maxDist * 16);
 
@@ -963,6 +965,33 @@ Map mapInitFromPath(STRPTR path, int renderDist)
 	}
 	free(map);
 	return NULL;
+}
+
+/* destructor */
+void mapFreeAll(Map map)
+{
+	Chunk chunk;
+	int   nb, i;
+	for (nb = map->mapArea, chunk = map->chunks; nb > 0; nb --, chunk ++)
+	{
+		ChunkData * chunkData;
+		for (i = chunk->maxy, chunkData = chunk->layer; i > 0; i --, chunkData ++)
+		{
+			ChunkData cd = *chunkData;
+			if (cd == NULL) continue;
+			/* this is a simplified chunkFree() */
+			free(cd->emitters);
+			free(cd);
+		}
+	}
+	NBT_Free(&map->levelDat);
+	free(map->chunks);
+	free(map);
+	if (chunkAir)
+	{
+		free(chunkAir);
+		chunkAir = NULL;
+	}
 }
 
 /* save any changes made to levelDat */

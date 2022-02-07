@@ -102,6 +102,25 @@ void cartoInitStatic(int shader, int * mdaCount)
 	cartograph.lastIdCount = -1;
 }
 
+/* map being closed */
+void cartoDelAll(void)
+{
+	CartoBank bank;
+	int i;
+	for (i = cartograph.maxBank, bank = cartograph.banks; i > 0; bank ++, i --)
+	{
+		glDeleteBuffers(1, &bank->vbo);
+		glDeleteVertexArrays(1, &bank->vao);
+		glDeleteTextures(1, &bank->glTex);
+		free(bank->mdaFirst);
+	}
+
+	free(cartograph.banks);
+	free(cartograph.maps);
+	cartograph.lastIdCount = -1;
+	memset(&cartograph, 0, offsetp(struct CartoPrivate_t *, lastIdCount));
+}
+
 /* save a NBT chunk in the map folder of current level */
 int cartoSaveMap(DATA8 mem, int size)
 {

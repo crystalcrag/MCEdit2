@@ -20,6 +20,14 @@
 
 static struct UndoPrivate_t journal;
 
+/* map is being deleted */
+void undoDelAll(void)
+{
+	ListNode * node;
+	while ((node = ListRemHead(&journal.undoLog))) free(node);
+	while ((node = ListRemHead(&journal.redoLog))) free(node);
+}
+
 /* store a chunk of memory in the undo log */
 static void undoAddMem(ListHead * head, APTR buffer, int size)
 {

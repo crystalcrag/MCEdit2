@@ -652,7 +652,8 @@ struct SIT_OnVal_t
 struct SIT_Accel_t
 {
 	int          key;
-	int          event;
+	uint16_t     event;
+	uint16_t     tag;
 	STRPTR       target;
 	SIT_CallProc cb;
 };
@@ -674,7 +675,6 @@ enum /* possible return codes from SITE_OnSortItem callback */
 #define	SITV_Em(em)        (((int)(em*8192) & 0x7fffffff) | (1<<31))
 #define	SITV_Px(px)        (px & ~(1<<31)) /* needed for negative number */
 #define SITV_NoPad         262144
-#define SITV_BorderBox     262143
 
 typedef struct KeyVal_t /* SIT_TagList value */
 {
