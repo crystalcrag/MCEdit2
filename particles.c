@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <stddef.h>
 #include <string.h>
 #include <math.h>
 #include "blocks.h"
@@ -76,6 +77,12 @@ void particleDelAll(void)
 		free(node);
 
 	ListAddTail(&particles.buffers, &list->node);
+
+	free(emitters.active);
+	free(emitters.buffer);
+
+	memset(&emitters, 0, offsetof(struct EmitterPrivate_t, startIds));
+	memset(emitters.startIds, 0xff, sizeof emitters.startIds);
 }
 
 static Particle particlesAlloc(void)

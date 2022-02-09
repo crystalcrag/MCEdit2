@@ -122,7 +122,7 @@ Item mcuiAddItemToRender(void)
 /*
  * save before exit
  */
-void mcuiAskSave(SIT_CallProc cb, APTR ud)
+void mcuiAskSave(SIT_CallProc cb)
 {
 	SIT_Widget ask = SIT_CreateWidget("ask.mc", SIT_DIALOG, globals.app,
 		SIT_DialogStyles, SITV_Plain | SITV_Modal | SITV_Movable,
@@ -133,12 +133,13 @@ void mcuiAskSave(SIT_CallProc cb, APTR ud)
 	SIT_CreateWidgets(ask,
 		"<label name=label title=", "Some changes have not been saved, what do you want to do ?", ">"
 		"<button name=cancel.act title=Cancel top=WIDGET,label,1em right=FORM buttonType=", SITV_CancelButton, ">"
-		"<button name=ok.act userData=1 title=Save top=OPPOSITE,cancel right=WIDGET,cancel,0.5em buttonType=", SITV_DefaultButton, ">"
+		"<button name=ok.act title=Save top=OPPOSITE,cancel right=WIDGET,cancel,0.5em buttonType=", SITV_DefaultButton, ">"
 		"<button name=ko.act title=", "Don't save", "top=OPPOSITE,ok right=WIDGET,ok,0.5em>"
 	);
 
-	SIT_AddCallback(SIT_GetById(ask, "ok"), SITE_OnActivate, cb, ud);
-	SIT_AddCallback(SIT_GetById(ask, "ko"), SITE_OnActivate, cb, ud);
+	SIT_AddCallback(SIT_GetById(ask, "cancel"), SITE_OnActivate, cb, (APTR) 2);
+	SIT_AddCallback(SIT_GetById(ask, "ok"),     SITE_OnActivate, cb, (APTR) 1);
+	SIT_AddCallback(SIT_GetById(ask, "ko"),     SITE_OnActivate, cb, (APTR) 0);
 	SIT_ManageWidget(ask);
 }
 

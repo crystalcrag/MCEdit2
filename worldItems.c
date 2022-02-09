@@ -137,8 +137,6 @@ static int worldItemParseItem(NBTFile nbt, Entity entity)
 	if (blockId > 0)
 	{
 		entity->rotation[3] = 0.5; /* scale actually */
-		//if (isBlockId(blockId))
-		//	entity->pos[VY] += 0.25f;
 		entity->enflags |= ENFLAG_ITEM;
 		return entityAddModel(entity->blockId = blockId | data, 0, NULL, &entity->szx, MODEL_DONT_SWAP);
 	}

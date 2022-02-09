@@ -8,9 +8,9 @@
 #define MC_WORLDSELECT
 
 
-int  optionsQuickAccess(void);
-int  optionsExit(SIT_Widget, APTR cd, APTR ud);
-void mceditYesNo(SIT_Widget parent, STRPTR msg, SIT_CallProc cb, Bool yesNo);
+SIT_Widget optionsQuickAccess(void);
+int        optionsExit(SIT_Widget, APTR cd, APTR ud);
+void       mceditYesNo(SIT_Widget parent, STRPTR msg, SIT_CallProc cb, Bool yesNo);
 
 
 #ifdef WORLDSELECT_IMPL
@@ -19,6 +19,7 @@ struct WorldSelect_t
 	SIT_Widget options, brightval;
 	SIT_Widget enterKey, worlds;
 	SIT_Widget curKey, capture;
+	SIT_Widget fileSelect, dirSelect;
 	int        sensitivity;
 	int        guiScale, lockMouse;
 	int        curKeySym, curKeyMod;

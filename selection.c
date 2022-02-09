@@ -249,6 +249,9 @@ static int cancelActivation(SIT_Widget w, APTR cd, APTR ud)
 	return -1;
 }
 
+#define KBD_MOVE_SEL_UP    4
+#define KBD_MOVE_SEL_DOWN  5
+
 /* nudge selection using directional keys normally used for player movement */
 Bool selectionProcessKey(int command, int key, int mod)
 {
@@ -264,13 +267,18 @@ Bool selectionProcessKey(int command, int key, int mod)
 		if (selection.brush && selection.nudgePoint < 4)
 			return False;
 
+		if (mod == 0 && command == 0)
+		{
+			if (key == 'q') command = KBD_MOVE_SEL_UP; else
+			if (key == 'z') command = KBD_MOVE_SEL_DOWN;
+		}
 		switch (command) {
 		case KBD_MOVE_FORWARD:  axis = axisSENW[dir];   dir =  axisMain[dir]; break;
 		case KBD_MOVE_BACKWARD: axis = axisSENW[dir];   dir = -axisMain[dir]; break;
 		case KBD_STRAFE_LEFT:   axis = 2-axisSENW[dir]; dir =  axisRot[dir]; break;
 		case KBD_STRAFE_RIGHT:  axis = 2-axisSENW[dir]; dir = -axisRot[dir]; break;
-		//case KBD_MOVE_SEL_UP:   axis = 1; dir =  1; break;
-		//case KBD_MOVE_SEL_DOWN: axis = 1; dir = -1; break;
+		case KBD_MOVE_SEL_UP:   axis = 1; dir =  1; break;
+		case KBD_MOVE_SEL_DOWN: axis = 1; dir = -1; break;
 		default:                return False;
 		}
 		if (selection.nudgeStep == 16 && selection.nudgePoint == 3 /* entire selection */)
@@ -290,20 +298,71 @@ Bool selectionProcessKey(int command, int key, int mod)
 	}
 	else if (selection.brush)
 	{
-		static STRPTR ctrlName[] = {"rotate", "roll", "flip", "mirror"};
-		uint8_t ctrl;
-		switch (key) {
+		/* we need full keyboard support when mouse lock is enabled: can't reach the edit window :-/ */
+		static STRPTR buttonNames[] = {"copyair", "copywat", "copyent"};
+		static STRPTR ctrlNames[] = {"rotate", "roll", "flip", "mirror"};
+		SIT_Widget button;
+		uint8_t    ctrl;
+		if (mod & SITK_FlagCtrl)
+		{
+			switch (key) {
+			case SITK_Up:
+			case SITK_Down:
+				selection.cloneOff[VY] += (key == SITK_Down ? -1 : 1);
+				SIT_SetValues(SIT_GetById(selection.editBrush, "ycoord"), SIT_Title, NULL, NULL);
+				return True;
+			case SITK_Left:
+			case SITK_Right:
+				switch (globals.direction) {
+				case 0: selection.cloneOff[VX] += key == SITK_Left ?  1 : -1; break;
+				case 1: selection.cloneOff[VZ] += key == SITK_Left ? -1 :  1; break;
+				case 2: selection.cloneOff[VX] += key == SITK_Left ? -1 :  1; break;
+				case 3: selection.cloneOff[VZ] += key == SITK_Left ?  1 : -1; break;
+				}
+				SIT_SetValues(SIT_GetById(selection.editBrush, globals.direction & 1 ? "zcoord" : "xcoord"), SIT_Title, NULL, NULL);
+				return True;
+			case 'a': ctrl = 0; break;
+			case 'w': ctrl = 1; break;
+			case 'e': ctrl = 2; break;
+			default:  return False;
+			}
+			button = SIT_GetById(selection.editBrush, buttonNames[ctrl-1]);
+			if (button)
+			{
+				int checked = 0;
+				SIT_GetValues(button, SIT_CheckState, &checked, NULL);
+				SIT_SetValues(button, SIT_CheckState, !checked, NULL);
+				return 1;
+			}
+		}
+		else switch (key) {
 		case 'r': ctrl = 0; selectionBrushRotate(); break;
 		case 't': ctrl = 1; selectionBrushRoll(); break;
 		case 'l': ctrl = 2; selectionBrushFlip(); break;
 		case 'm': ctrl = 3; selectionBrushMirror(); break;
+		case SITK_PrevPage:
+		case SITK_NextPage:
+			button = SIT_GetById(selection.editBrush, "repeat");
+			if (button)
+			{
+				int repeat = selection.cloneRepeat + (key == SITK_PrevPage ? 1 : -1);
+				if (repeat < 1) repeat = 1;
+				if (repeat > 128) repeat = 128;
+				if (repeat != selection.cloneRepeat)
+				{
+					selection.cloneRepeat = repeat;
+					SIT_SetValues(button, SIT_Title, NULL, NULL);
+				}
+			}
+			return True;
 		default: return False;
 		}
 		/* highlight button used */
 		double timeMS = FrameGetTime();
-		SIT_Widget w = SIT_GetById(selection.editBrush, ctrlName[ctrl]);
-		SIT_SetValues(w, SIT_CheckState, True, NULL);
-		SIT_ActionAdd(w, timeMS + 100, timeMS + 100, cancelActivation, NULL);
+		button = SIT_GetById(selection.editBrush, ctrlNames[ctrl]);
+		SIT_SetValues(button, SIT_CheckState, True, NULL);
+		SIT_ActionAdd(button, timeMS + 100, timeMS + 100, cancelActivation, NULL);
+		return True;
 	}
 	else if (key == 'r' && renderRotatePreview(mod & SITK_FlagShift ? -1 : 1))
 	{
@@ -735,7 +794,7 @@ void selectionEditBrush(Bool simplified)
 			"<label name=tlab title=... maxWidth=zlab>"
 			"<editbox name=repeat curValue=", &selection.cloneRepeat, "editType=", SITV_Integer, "left=OPPOSITE,zcoord minValue=1 maxValue=128"
 			" right=OPPOSITE,zcoord top=WIDGET,zcoord,1em>"
-			"<label name=brep title=(Repeat) top=MIDDLE,repeat left=WIDGET,repeat,1em>"
+			"<label name=brep title='(Repeat)' top=MIDDLE,repeat left=WIDGET,repeat,1em>"
 		);
 		SIT_SetAttributes(diag,
 			"<xlab top=MIDDLE,xcoord><ylab top=MIDDLE,ycoord><zlab top=MIDDLE,zcoord>"
@@ -751,9 +810,9 @@ void selectionEditBrush(Bool simplified)
 	}
 
 	SIT_CreateWidgets(diag,
-		"<button name=copyair title='Copy air'    curValue=", &selection.copyAir,    "top=WIDGET,#LAST,1em    buttonType=", SITV_CheckBox, ">"
-		"<button name=copywat title='Copy water'  curValue=", &selection.copyWater,  "top=WIDGET,copyair,0.5em buttonType=", SITV_CheckBox, ">"
-		"<button name=copyent title='Copy entity' curValue=", &selection.copyEntity, "top=WIDGET,copywat,0.5em buttonType=", SITV_CheckBox, ">"
+		"<button name=copyair title='Copy <u>a</u>ir'    curValue=", &selection.copyAir,    "top=WIDGET,#LAST,1em    buttonType=", SITV_CheckBox, ">"
+		"<button name=copywat title='Copy <u>w</u>ater'  curValue=", &selection.copyWater,  "top=WIDGET,copyair,0.5em buttonType=", SITV_CheckBox, ">"
+		"<button name=copyent title='Copy <u>e</u>ntity' curValue=", &selection.copyEntity, "top=WIDGET,copywat,0.5em buttonType=", SITV_CheckBox, ">"
 
 		"<button name=ko.act title=Cancel right=FORM top=WIDGET,copyent,1em>"
 		"<button name=ok.act title=Clone  right=WIDGET,ko,0.5em top=OPPOSITE,ko buttonType=", SITV_DefaultButton, ">"

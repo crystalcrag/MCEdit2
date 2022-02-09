@@ -20,6 +20,7 @@
 #include "sign.h"
 #include "particles.h"
 
+
 /*
  * reading chunk from disk
  */
@@ -37,6 +38,7 @@ static void chunkFillData(Chunk chunk, int y, int offset)
 //	cd->blockIds[8+8*16+256*8] = 0;
 
 	#if 0
+	/* if vertex data generation is FUBAR, activate this block to limit amount of data to turn into a mesh */
 	memset(cd->blockIds, 0, 4096);
 	memset(cd->blockIds + DATA_OFFSET, 0, 2048);
 	memset(cd->blockIds + SKYLIGHT_OFFSET, 255, 2048);
@@ -98,9 +100,8 @@ static DATA8 chunkInsertTileEntity(TileEntityHash hash, TileEntityEntry ent)
 	TileEntityEntry old;
 	TileEntityEntry free;
 	TileEntityEntry dest = (TileEntityEntry) (hash + 1);
-	int             slot = ent->xzy % hash->max;
 
-	for (old = NULL, free = dest + slot; free->data && (free->xzy & TILE_COORD) != ent->xzy; )
+	for (old = NULL, free = dest + ent->xzy % hash->max; free->data && (free->xzy & TILE_COORD) != ent->xzy; )
 	{
 		old = free;
 		if (free->next == EOF_MARKER)
@@ -247,7 +248,7 @@ static void chunkExpandTileEntities(Chunk c)
 	{
 		NBTIter_t sub;
 		int       XYZ[3];
-		int       i;
+		int       i, flag = 0;;
 
 		NBT_IterCompound(&sub, nbt.mem+off);
 
@@ -255,12 +256,16 @@ static void chunkExpandTileEntities(Chunk c)
 		{
 			if (sub.name[1] == 0)
 			switch (sub.name[0]) {
-			case 'X': case 'x': XYZ[0] = NBT_GetInt(&nbt, off+i, 0) - c->X; break;
-			case 'Z': case 'z': XYZ[2] = NBT_GetInt(&nbt, off+i, 0) - c->Z; break;
-			case 'Y': case 'y': XYZ[1] = NBT_GetInt(&nbt, off+i, 0);
+			case 'X': case 'x': XYZ[0] = NBT_GetInt(&nbt, off+i, 0) - c->X; flag |= 1; break;
+			case 'Z': case 'z': XYZ[2] = NBT_GetInt(&nbt, off+i, 0) - c->Z; flag |= 2; break;
+			case 'Y': case 'y': XYZ[1] = NBT_GetInt(&nbt, off+i, 0); flag |= 4;
 			}
 		}
-		chunkAddTileEntity(c, XYZ, nbt.mem + off);
+		if (flag == 7)
+		{
+			/* earlier version of this engine often corrupted that Tag_List_Compound :-/ */
+			chunkAddTileEntity(c, XYZ, nbt.mem + off);
+		}
 	}
 }
 
@@ -1993,7 +1998,7 @@ void chunkFreeHash(TileEntityHash hash, DATA8 min, DATA8 max)
 		free(hash);
 }
 
-int chunkFree(Chunk c)
+int chunkFree(Chunk c, Bool clear)
 {
 	int i, max, ret;
 	for (i = ret = 0, max = c->maxy; max > 0; max --, i ++)
@@ -2001,7 +2006,7 @@ int chunkFree(Chunk c)
 		ChunkData cd = c->layer[i];
 		if (cd)
 		{
-			if (cd->glBank) renderFreeArray(cd), ret ++;
+			if (cd->glBank && clear) renderFreeArray(cd), ret ++;
 			if (cd->emitters) free(cd->emitters);
 			free(cd);
 		}
@@ -2011,12 +2016,15 @@ int chunkFree(Chunk c)
 		chunkFreeHash((TileEntityHash) c->tileEntities, c->nbt.mem, c->nbt.mem + c->nbt.max);
 		c->tileEntities = NULL;
 	}
-	if (c->cflags & CFLAG_HASENTITY)
-		entityUnload(c);
+	if (clear)
+	{
+		if (c->cflags & CFLAG_HASENTITY)
+			entityUnload(c);
+		memset(c->layer, 0, c->maxy * sizeof c->layer[0]);
+		memset(&c->nbt, 0, sizeof c->nbt);
+		c->cflags = 0;
+		c->maxy = 0;
+	}
 	NBT_Free(&c->nbt);
-	memset(c->layer, 0, c->maxy * sizeof c->layer[0]);
-	memset(&c->nbt, 0, sizeof c->nbt);
-	c->cflags = 0;
-	c->maxy = 0;
 	return ret;
 }

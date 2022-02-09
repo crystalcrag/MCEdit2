@@ -82,6 +82,7 @@ KeyBindings_t keyBindings = {
 	{NULL, NULL, '7'},
 	{NULL, NULL, '8'},
 	{NULL, NULL, '9'},
+	/* quick options: Ctrl + O */
 	{NULL, NULL, SITK_FlagCtrl + 'O'},
 };
 
@@ -132,7 +133,7 @@ static int mSDLKtoSIT[] = {
 };
 
 static void mceditSetWndCaption(Map map);
-static int  mceditAskSave(SIT_Widget, APTR cd, APTR ud);
+static int  mceditExit(SIT_Widget, APTR cd, APTR ud);
 
 int takeScreenshot(void)
 {
@@ -228,10 +229,10 @@ static void prefsInit(void)
 	globals.targetFPS     = GetINIValueInt(ini, "TargetFPS",     40);
 	globals.distanceFOG   = GetINIValueInt(ini, "UseFOG",        0);
 	globals.showPreview   = GetINIValueInt(ini, "UsePreview",    1);
+	globals.lockMouse     = GetINIValueInt(ini, "LockMouse",     0);
 
 	mcedit.autoEdit       = GetINIValueInt(ini, "AutoEdit",      0);
 	mcedit.fullScreen     = GetINIValueInt(ini, "FullScreen",    0);
-	mcedit.lockMouse      = GetINIValueInt(ini, "LockMouse",     0);
 
 	CopyString(mcedit.capture,   GetINIValue(ini, "CaptureDir"), sizeof mcedit.capture);
 	CopyString(mcedit.worldsDir, GetINIValue(ini, "WorldsDir"),  sizeof mcedit.capture);
@@ -364,36 +365,10 @@ static int mceditTrackFocus(SIT_Widget w, APTR cd, APTR ud)
 	return 0;
 }
 
-static int mceditClearSave(SIT_Widget w, APTR cd, APTR ud)
-{
-	mcedit.askIfSave = 0;
-	return 1;
-}
-
-static int mceditExit(SIT_Widget w, APTR cd, APTR ud)
-{
-	if (mcedit.state == GAMELOOP_WORLDEDIT && globals.modifCount > 0)
-	{
-		if (! mcedit.askIfSave)
-		{
-			mcedit.askIfSave = 1;
-			mcuiAskSave(mceditAskSave, ud);
-			SIT_AddCallback(SIT_GetById(globals.app, "ask"), SITE_OnFinalize, mceditClearSave, NULL);
-		}
-	}
-	else SIT_Exit((int) ud);
-	return 1;
-}
-
 /* ESC key pressed: cancel stuff, if nothing to cancel, exit then */
 static int mceditCancelStuff(SIT_Widget w, APTR cd, APTR ud)
 {
-	if (mcedit.askIfSave)
-	{
-		SIT_CloseDialog(SIT_GetById(globals.app, "ask"));
-		mcedit.askIfSave = 0;
-	}
-	else if (optionsExit(NULL, NULL, NULL))
+	if (optionsExit(NULL, NULL, NULL))
 	{
 		;
 	}
@@ -491,7 +466,6 @@ int main(int nb, char * argv[])
 		switch (mcedit.state) {
 		case GAMELOOP_WORLDSELECT: mceditWorldSelect(); break;
 		case GAMELOOP_WORLDEDIT:   mceditWorld();       break;
-		case GAMELOOP_SIDEVIEW:    mceditSideView();    break;
 		default: break;
 		}
 	}
@@ -532,6 +506,16 @@ struct EventState_t
 };
 typedef struct EventState_t *    EventState;
 
+static int mceditRestoreCapture(SIT_Widget w, APTR cd, APTR ud)
+{
+	EventState state = ud;
+	if (globals.lockMouse)
+		state->ignore = 2, state->capture = 1;
+	return 1;
+}
+
+
+/* handle shortcuts registered by keybindings[] table */
 Bool mceditProcessCommand(EventState state, int keyUp)
 {
 	int cmd = state->command;
@@ -563,7 +547,8 @@ Bool mceditProcessCommand(EventState state, int keyUp)
 				{
 					SDL_WM_GrabInput(SDL_GRAB_OFF);
 					SDL_ShowCursor(SDL_ENABLE);
-					state->capture = state->ignore = 0;
+					if (globals.lockMouse == 0)
+						state->capture = state->ignore = 0;
 					mceditCommands(toolbarCmds[mcedit.player.inventory.selected]);
 					if (mcedit.exit) return 1;
 				}
@@ -590,9 +575,6 @@ Bool mceditProcessCommand(EventState state, int keyUp)
 			break;
 		case KBD_OPEN_INVENTORY:
 			FrameSaveRestoreTime(True);
-			SDL_WM_GrabInput(SDL_GRAB_OFF);
-			SDL_ShowCursor(SDL_ENABLE);
-			state->capture = state->ignore = 0;
 			mceditUIOverlay(MCUI_OVERLAY_BLOCK);
 			FrameSaveRestoreTime(False);
 			mcedit.player.inventory.update ++;
@@ -636,18 +618,18 @@ Bool mceditProcessCommand(EventState state, int keyUp)
 			renderToggleDebug(RENDER_DEBUG_CURCHUNK);
 			break;
 		case KBD_ADVANCE_TIME:
-			if (keyUp) state->sunMove |=  1;
-			else       state->sunMove &= ~1;
+			if (keyUp) state->sunMove &= ~1;
+			else       state->sunMove |=  1;
 			break;
 		case KBD_BACK_IN_TIME:
-			if (keyUp) state->sunMove |=  2;
-			else       state->sunMove &= ~2;
+			if (keyUp) state->sunMove &= ~2;
+			else       state->sunMove |=  2;
 			break;
 		case KBD_SLICE_VIEW:
 			if (globals.selPoints & 8)
 				return 0;
-			mcedit.state = GAMELOOP_SIDEVIEW;
-			mcedit.exit = EXIT_LOOP;
+			mceditSideView();
+			mcedit.exit = 0;
 			break;
 		case KBD_SWITCH_MODE:
 			playerSetMode(&mcedit.player, mcedit.player.pmode == MODE_CREATIVE ? MODE_SPECTATOR : MODE_CREATIVE);
@@ -701,10 +683,15 @@ Bool mceditProcessCommand(EventState state, int keyUp)
 			else renderSetSelectionPoint(RENDER_SEL_AUTO);
 			break;
 		case KBD_QUICK_OPTIONS:
-			optionsQuickAccess();
-			break;
+			SDL_WM_GrabInput(SDL_GRAB_OFF);
+			SDL_ShowCursor(SDL_ENABLE);
+			SIT_AddCallback(optionsQuickAccess(), SITE_OnFinalize, mceditRestoreCapture, state);
+			state->capture = state->ignore = 0;
+			return 1;
 
 		case KBD_MOVE_VIEW:
+			if (globals.lockMouse)
+				break;
 			if (mcedit.forceSel)
 				renderShowBlockInfo(False, DEBUG_BLOCK|DEBUG_SELECTION), mcedit.forceSel = 0;
 			/* ignore any pending mouse move */
@@ -723,20 +710,34 @@ Bool mceditProcessCommand(EventState state, int keyUp)
 		cmd >>= 8;
 	}
 	while (cmd > 0);
+
+	if (globals.lockMouse && SDL_WM_GrabInput(SDL_GRAB_QUERY) == SDL_GRAB_OFF)
+	{
+		state->ignore = 2;
+		state->capture = 1;
+	}
+
 	return 1;
 }
 
-static int mceditAskSave(SIT_Widget w, APTR cd, APTR ud)
+static int mceditExit(SIT_Widget w, APTR cd, APTR ud)
 {
-	APTR saveBefore = NULL;
-	mcedit.askIfSave = 0;
-	SIT_GetValues(w, SIT_UserData, &saveBefore, NULL);
-	if (saveBefore)
+	if (mcedit.state == GAMELOOP_WORLDEDIT && globals.modifCount > 0)
 	{
-		struct EventState_t state = {.command = KBD_SAVE_CHANGES};
-		mceditProcessCommand(&state, 0);
+		static struct EventState_t state = {.command = KBD_SAVE_CHANGES};
+		FrameSaveRestoreTime(True);
+		mceditUIOverlay(MCUI_OVERLAY_ASKIFSAVE);
+		FrameSaveRestoreTime(False);
+		switch (mcedit.askIfSave) {
+		case 2: /* cancel */
+			if (globals.lockMouse)
+				/* will need to restore mouse grab on exit */
+				globals.lockMouse = 2;
+			return 1;
+		case 1: /* save, exit */
+			mceditProcessCommand(&state, 0);
+		}
 	}
-	/* can be EXIT_LOOP or EXIT_APP */
 	SIT_Exit((int) ud);
 	return 1;
 }
@@ -776,6 +777,12 @@ void mceditWorld(void)
 	renderSetInventory(&mcedit.player.inventory);
 	renderSetViewMat(mcedit.player.pos, mcedit.player.lookat, &mcedit.player.angleh);
 
+	if (globals.lockMouse)
+	{
+		state.ignore = 2;
+		state.capture = 1;
+	}
+
 	while (! mcedit.exit)
 	{
 		SDL_Event event;
@@ -795,7 +802,7 @@ void mceditWorld(void)
 
 				switch (event.key.keysym.sym) {
 				case SDLK_LALT:
-					if (state.capture) break;
+					if (state.capture && globals.lockMouse == 0) break;
 					mcedit.forceSel = 1;
 					renderShowBlockInfo(True, DEBUG_BLOCK|DEBUG_SELECTION);
 					break;
@@ -872,6 +879,12 @@ void mceditWorld(void)
 							SIT_ProcessChar(key, mod);
 					}
 					else SIT_ProcessKey(key, mod, False);
+					if (globals.lockMouse == 2)
+					{
+						globals.lockMouse = 1;
+						state.ignore = 2;
+						state.capture = 1;
+					}
 				}
 				break;
 			case SDL_MOUSEMOTION:
@@ -885,6 +898,9 @@ void mceditWorld(void)
 						playerLookAt(&mcedit.player, event.motion.xrel, event.motion.yrel);
 						renderSetViewMat(mcedit.player.pos, mcedit.player.lookat, &mcedit.player.angleh);
 						state.capture = 2;
+						if (globals.lockMouse)
+							/* always point to what is in the middle of screen */
+							renderPointToBlock(globals.width >> 1, globals.height >> 1);
 					}
 					else
 					{
@@ -913,7 +929,7 @@ void mceditWorld(void)
 				state.command = keysFind(&keys, SDLButtontoSIT(event.button.button) | SITK_FlagUp);
 				if (state.command >= 0 && mceditProcessCommand(&state, 1))
 					break;
-				if (state.capture)
+				if (state.capture && globals.lockMouse == 0)
 				{
 					SDL_WM_GrabInput(SDL_GRAB_OFF);
 					SDL_ShowCursor(SDL_ENABLE);
@@ -985,6 +1001,8 @@ void mceditWorld(void)
 	mcedit.state = GAMELOOP_WORLDSELECT;
 	renderCloseWorld();
 	mceditSetWndCaption(NULL);
+	SDL_WM_GrabInput(SDL_GRAB_OFF);
+	SDL_ShowCursor(SDL_ENABLE);
 }
 
 /* left click */
@@ -1154,6 +1172,14 @@ static void mceditSetWndCaption(Map map)
 	SDL_WM_SetCaption(levelName, levelName);
 }
 
+/* save/don't save callback from "ask if save" dialog */
+static int mceditChooseSave(SIT_Widget w, APTR cd, APTR ud)
+{
+	mcedit.askIfSave = (int) ud;
+	SIT_CloseDialog(w);
+	SIT_Exit(EXIT_LOOP);
+	return 1;
+}
 
 /*
  * display a modal user interface on top of editor
@@ -1170,6 +1196,9 @@ void mceditUIOverlay(int type)
 	uint8_t   enderItems;
 	float     rotation[2];
 	vec4      pos;
+
+	SDL_ShowCursor(SDL_ENABLE);
+	SDL_WM_GrabInput(SDL_GRAB_OFF);
 
 	SIT_SetValues(globals.app, SIT_RefreshMode, SITV_RefreshAsNeeded, NULL);
 	mcuiTakeSnapshot(globals.width, globals.height);
@@ -1289,6 +1318,7 @@ void mceditUIOverlay(int type)
 	case MCUI_OVERLAY_PIXELART:   mcuiShowPixelArt(mcedit.player.pos); break;
 	case MCUI_OVERLAY_WORLDINFO:  mcuiWorldInfo(); break;
 	case MCUI_OVERLAY_FILTER:     mcuiFilter(); break;
+	case MCUI_OVERLAY_ASKIFSAVE:  mcuiAskSave(mceditChooseSave); mcedit.askIfSave = 2; break;
 	}
 
 	SDL_EnableUNICODE(1);
@@ -1458,6 +1488,9 @@ void mceditSideView(void)
 	uint8_t   capture = 0;
 	uint8_t   info    = 0;
 	int       mx, my;
+
+	SDL_ShowCursor(SDL_ENABLE);
+	SDL_WM_GrabInput(SDL_GRAB_OFF);
 
 	FrameSaveRestoreTime(True);
 	renderSaveRestoreState(True);

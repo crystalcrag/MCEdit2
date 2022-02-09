@@ -27,7 +27,7 @@ void      chunkInitStatic(void);
 Bool      chunkLoad(Chunk, const char * path, int x, int z);
 Bool      chunkSave(Chunk, const char * path);
 void      chunkUpdate(Chunk update, ChunkData air, DATAS16 chunkOffsets, int layer);
-int       chunkFree(Chunk);
+int       chunkFree(Chunk, Bool clear);
 ChunkData chunkCreateEmpty(Chunk, int layer);
 DATA8     chunkGetTileEntity(Chunk, int XYZ[3]);
 DATA8     chunkGetTileEntityFromOffset(Chunk, int Y, int offset);

@@ -55,7 +55,7 @@ typedef enum  /* meaning of each index of keyBindings[] table */
 	KBD_SLOT_7,
 	KBD_SLOT_8,
 	KBD_SLOT_9,
-	KBD_QUICK_OPTIONS
+	KBD_QUICK_OPTIONS,
 
 }	KbdCmd_t;
 

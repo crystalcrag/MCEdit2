@@ -116,7 +116,7 @@ static int optionsClearRef(SIT_Widget w, APTR cd, APTR ud)
 }
 
 /* interface for quick access to some common options (Ctrl+O by default) */
-int optionsQuickAccess(void)
+SIT_Widget optionsQuickAccess(void)
 {
 	SIT_Widget diag = worldSelect.options = SIT_CreateWidget("quickopt.mc", SIT_DIALOG, globals.app,
 		SIT_DialogStyles, SITV_Plain,
@@ -185,7 +185,7 @@ int optionsQuickAccess(void)
 	optionsSetValue(NULL, NULL, (APTR) 4);
 
 	SIT_ManageWidget(diag);
-	return 1;
+	return diag;
 }
 
 /*
@@ -327,11 +327,11 @@ static void worldSelectSetCb(SIT_Widget parent, STRPTR name)
 
 static int worldSelectSelectFolder(SIT_Widget w, APTR cd, APTR ud)
 {
-	static SIT_Widget dir;
+	SIT_Widget dir = worldSelect.dirSelect;
 
 	if (dir == NULL)
 	{
-		dir = SIT_CreateWidget("dirsel", SIT_DIRSELECT, w,
+		dir = worldSelect.dirSelect = SIT_CreateWidget("dirsel", SIT_DIRSELECT, w,
 			SIT_Title, "Select your destination path",
 			NULL
 		);
@@ -437,10 +437,10 @@ static int worldSelectSave(SIT_Widget w, APTR cd, APTR save)
 	globals.renderDist    = worldSelect.renderDist;
 	globals.distanceFOG   = worldSelect.fog;
 	globals.showPreview   = worldSelect.showPreview;
+	globals.lockMouse     = worldSelect.lockMouse;
 
 	mcedit.autoEdit       = worldSelect.autoEdit;
 	mcedit.fullScreen     = worldSelect.fullScreen;
-	mcedit.lockMouse      = worldSelect.lockMouse;
 
 	memcpy(keyBindings, editBindings, sizeof editBindings);
 
@@ -457,10 +457,10 @@ static int worldSelectSave(SIT_Widget w, APTR cd, APTR save)
 		SetINIValueInt(PREFS_PATH, "Options/Brightness",   globals.brightness);
 		SetINIValueInt(PREFS_PATH, "Options/TargetFPS",    globals.targetFPS);
 		SetINIValueInt(PREFS_PATH, "Options/UsePreview",   globals.showPreview);
+		SetINIValueInt(PREFS_PATH, "Options/LockMouse",    globals.lockMouse);
 
 		SetINIValueInt(PREFS_PATH, "Options/AutoEdit",     mcedit.autoEdit);
 		SetINIValueInt(PREFS_PATH, "Options/FullScreen",   mcedit.fullScreen);
-		SetINIValueInt(PREFS_PATH, "Options/LockMouse",    mcedit.lockMouse);
 
 		int i;
 		for (i = KBD_MAX_CONFIG-1; i >= 0; i --)
@@ -592,9 +592,9 @@ static int worldSelectConfig(SIT_Widget w, APTR cd, APTR ud)
 	worldSelect.fog         = globals.distanceFOG;
 	worldSelect.brightness  = globals.brightness;
 	worldSelect.showPreview = globals.showPreview;
+	worldSelect.lockMouse   = globals.lockMouse;
 	worldSelect.fullScreen  = mcedit.fullScreen;
 	worldSelect.autoEdit    = mcedit.autoEdit;
-	worldSelect.lockMouse   = mcedit.lockMouse;
 
 	memcpy(editBindings, keyBindings, sizeof editBindings);
 
@@ -826,6 +826,40 @@ static int worldSelectEditSelected(SIT_Widget w, APTR cd, APTR ud)
 	return 1;
 }
 
+/* "Open..." callback */
+static int worldSelectFile(SIT_Widget w, APTR cd, APTR ud)
+{
+	SIT_Widget file = worldSelect.fileSelect;
+
+	if (file == NULL)
+	{
+		file = worldSelect.fileSelect = SIT_CreateWidget("fileselect", SIT_FILESELECT, globals.app,
+			SIT_Filters,   "Level.dat\t*.dat\n"
+			               "Any\t*",
+			SIT_SelFilter, 0,
+			SIT_DlgFlags,  SITV_FileMustExist,
+			NULL
+		);
+	}
+
+	if (SIT_ManageWidget(file))
+	{
+		STRPTR path;
+		int    nb;
+
+		SIT_GetValues(file, SIT_SelPath, &path, SIT_NbSelect, &nb, NULL);
+
+		if (nb > 0)
+		{
+			CopyString(mcedit.worldEdit, path, sizeof mcedit.worldEdit);
+			ParentDir(mcedit.worldEdit);
+			mcedit.state = GAMELOOP_WORLDEDIT;
+			SIT_Exit(EXIT_LOOP);
+		}
+	}
+	return 1;
+}
+
 /* drag'n drop files onto the main window */
 static int worldSelectDropFiles(SIT_Widget w, APTR cd, APTR ud)
 {
@@ -901,7 +935,8 @@ void mceditWorldSelect(void)
 		"  <button name=open title='Open...' left=WIDGET,opt,1em>"
 		"  <label name=appname title='MCEdit "MCEDIT_VERSION"' right=FORM>"
 		"  <button name=about title='About...' right=WIDGET,appname,1em>"
-		"  <label name=select title='Select world below to edit:' left=WIDGET,open,1em right=WIDGET,about,1em"
+		"  <button name=exit title='Exit' right=WIDGET,about,1em nextCtrl=about>"
+		"  <label name=select title='Select world below to edit:' left=WIDGET,open,1em right=WIDGET,exit,1em"
 		"   style='text-align: center; text-decoration: underline'>"
 		"</canvas>"
 		"<canvas name=footer left=FORM right=FORM bottom=FORM>"
@@ -916,7 +951,8 @@ void mceditWorldSelect(void)
 	SIT_AddCallback(SIT_GetById(app, "about"), SITE_OnActivate, worldSelectAbout, app);
 	SIT_AddCallback(SIT_GetById(app, "opt"),   SITE_OnActivate, worldSelectConfig, app);
 	SIT_AddCallback(SIT_GetById(app, "edit"),  SITE_OnActivate, worldSelectEditSelected, list);
-//	SIT_AddCallback(SIT_GetById(app, "open"),  SITE_OnActivate, worldSelectFile, NULL);
+	SIT_AddCallback(SIT_GetById(app, "open"),  SITE_OnActivate, worldSelectFile, NULL);
+	SIT_AddCallback(SIT_GetById(app, "exit"),  SITE_OnActivate, worldSelectExit, NULL);
 
 	SIT_SetValues(list, SIT_Title|XfMt, nothingFound, mcedit.worldsDir, NULL);
 	SIT_AddCallback(list, SITE_OnChange,   worldSelectEnableEdit, SIT_GetById(app, "edit"));
@@ -1013,6 +1049,8 @@ void mceditWorldSelect(void)
 		NULL
 	);
 	SIT_Nuke(SITV_NukeCtrl);
+	worldSelect.fileSelect = NULL;
+	worldSelect.dirSelect  = NULL;
 }
 
 /*

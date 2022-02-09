@@ -504,7 +504,8 @@ enum         /* SIT_ArrowType */
 enum         /* SIT_ToolTipAnchor */
 {
 	SITV_TooltipNearParent,      /* default style */
-	SITV_TooltipFollowMouse
+	SITV_TooltipFollowMouse,
+	SITV_TooltipFixed,           /* use SIT_X and SIT_Y */
 };
 
 /* special value for SIT_DisplayTime and SIT_DelayTime */

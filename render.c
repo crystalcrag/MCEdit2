@@ -742,6 +742,12 @@ Map renderInitWorld(STRPTR path, int renderDist)
 		render.camera[VY] = ret->cy + PLAYER_HEIGHT;
 		render.camera[VZ] = ret->cz;
 		SIT_InsertDialog(render.blockInfo);
+		SIT_SetValues(render.blockInfo,
+			SIT_ToolTipAnchor, globals.lockMouse ? SITV_TooltipFixed : SITV_TooltipFollowMouse,
+			SIT_LeftOffset,    globals.width  >> 1,
+			SIT_TopOffset,     globals.height >> 1,
+			NULL
+		);
 		return ret;
 	}
 	return NULL;
@@ -761,9 +767,18 @@ void renderCloseWorld(void)
 	selectionCancel();
 	undoDelAll();
 	updateClearAll();
+	wayPointsClose();
 	renderSaveRestoreState(False);
 	SIT_ExtractDialog(render.blockInfo); /* keep this one */
 	SIT_Nuke(SITV_NukeCtrl);
+
+	ListNode * node;
+	while ((node = ListRemHead(&meshBanks)))  free(node);
+	while ((node = ListRemHead(&alphaBanks))) free(node);
+	render.message.chrLen = 0;
+	globals.modifCount = 0;
+	globals.selPoints = 0;
+	globals.inEditBox = 0;
 }
 
 
@@ -831,6 +846,8 @@ void renderSetViewMat(vec4 pos, vec4 lookat, float * yawPitch)
 	if (M_PIf-M_PI_4f <= render.yaw && render.yaw <= M_PIf+M_PI_4f)   globals.direction = 3;      /* west:  135 ~ 225 */
 	if (oldDir != globals.direction)
 		selectionSetSize();
+	if (globals.lockMouse)
+		renderPointToBlock(globals.width >> 1, globals.height >> 1);
 }
 
 void renderShowBlockInfo(Bool show, int what)
@@ -1663,6 +1680,24 @@ void renderWorld(void)
 			render.message.text + render.message.chrLen);
 	}
 
+	if (globals.lockMouse)
+	{
+		/* mouse cursor is hidden, therefore draw a crosshair */
+		float x = globals.width  >> 1;
+		float y = globals.height >> 1;
+		nvgSave(vg);
+		nvgBeginPath(vg);
+		nvgGlobalCompositeBlendFuncSeparate(vg, NVG_ONE_MINUS_DST_COLOR, NVG_ZERO, NVG_ONE, NVG_ZERO);
+		nvgStrokeColor(vg, nvgRGB(255,255,255));
+		nvgStrokeWidth(vg, 7.5);
+		nvgMoveTo(vg, x, y - 30);
+		nvgLineTo(vg, x, y + 30);
+		nvgMoveTo(vg, x - 30, y);
+		nvgLineTo(vg, x + 30, y);
+		nvgStroke(vg);
+		nvgRestore(vg);
+	}
+
 	/* debug info */
 	if (render.debug & RENDER_DEBUG_CURCHUNK)
 	{
@@ -1858,7 +1893,7 @@ static void renderFlush(WriteBuffer buffer)
 	{
 		/* check if all quads are coplanar */
 		DATA32 vertex, end;
-		for (vertex = buffer->start, end = buffer->end; vertex < end; vertex += VERTEX_INT_SIZE)
+		for (vertex = buffer->start, end = buffer->cur; vertex < end; vertex += VERTEX_INT_SIZE)
 		{
 			/* get normal */
 			uint16_t coord, norm = (vertex[5] >> 9) & 7;
@@ -1879,6 +1914,7 @@ static void renderFlush(WriteBuffer buffer)
 	}
 	else if (list->usage < MAX_MESH_CHUNK - VERTEX_DATA_SIZE)
 	{
+		/* still some room left, don't alloc a new block just yet */
 		return;
 	}
 	else list = renderAllocMeshBuf(buffer->alpha ? &alphaBanks : &meshBanks);
@@ -1917,9 +1953,9 @@ void renderInitBuffer(ChunkData cd, WriteBuffer opaque, WriteBuffer alpha)
 	alpha->start = alpha->cur = mesh->buffer;
 	alpha->end   = mesh->buffer + (MAX_MESH_CHUNK / 4);
 	alpha->alpha = 1;
+	alpha->isCOP = 1;
 	alpha->mesh  = mesh;
 	alpha->flush = renderFlush;
-	alpha->isCOP = 1;
 	memset(alpha->coplanar, 0, sizeof alpha->coplanar);
 }
 

@@ -24,10 +24,9 @@ struct GameState_t
 	int      mouseX, mouseY;   /* current mouse pos */
 	int      exit;             /* managed by SITGL */
 	uint8_t  autoEdit;         /* edit last selected world on startup */
-	uint8_t  lockMouse;        /* SDL_WM_GrabInput() */
 	uint8_t  forceSel;         /* don't display preview item */
 	uint8_t  fullScreen;       /* go fullscreen on startup */
-	uint8_t  askIfSave;        /* 1 if ask for save is displayed */
+	uint8_t  askIfSave;        /* 0: don't save, exit, 1: save, exit, 2: cancel */
 	TEXT     capture[128];     /* screenshot directory */
 	TEXT     worldsDir[256];   /* folder where saved worlds are */
 	TEXT     worldEdit[256];   /* world being edited (folder) */
@@ -63,6 +62,7 @@ enum /* possible value for mceditUIOverlay() */
 	MCUI_OVERLAY_PIXELART,
 	MCUI_OVERLAY_WORLDINFO,
 	MCUI_OVERLAY_FILTER,
+	MCUI_OVERLAY_ASKIFSAVE,
 	MCUI_SEL_CLONE
 };
 

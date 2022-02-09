@@ -577,7 +577,7 @@ Bool mapMoveCenter(Map map, vec4 old, vec4 pos)
 			int   i;
 			for (chunk = map->chunks, i = MAP_SIZE; i > 0; chunk ++, i --)
 			{
-				map->GPUchunk -= chunkFree(chunk);
+				map->GPUchunk -= chunkFree(chunk, True);
 			}
 			/* reset map center */
 			map->mapX = map->mapZ = area / 2;
@@ -596,7 +596,7 @@ Bool mapMoveCenter(Map map, vec4 old, vec4 pos)
 					Chunk row = map->chunks + (x + area) % area;
 					for (i = 0; i < area; i ++, row += area)
 					{
-						map->GPUchunk -= chunkFree(row);
+						map->GPUchunk -= chunkFree(row, True);
 					}
 				}
 			}
@@ -609,7 +609,7 @@ Bool mapMoveCenter(Map map, vec4 old, vec4 pos)
 					Chunk row = map->chunks + ((z + area) % area) * area;
 					for (i = 0; i < area; i ++, row ++)
 					{
-						map->GPUchunk -= chunkFree(row);
+						map->GPUchunk -= chunkFree(row, True);
 					}
 				}
 			}
@@ -857,7 +857,7 @@ Bool mapSetRenderDist(Map map, int maxDist)
 			for (i = 0, j = oldArea * oldArea, old = map->chunks; i < j; old ++, i ++)
 			{
 				if (old->cflags & (CFLAG_HASMESH|CFLAG_GOTDATA))
-					chunkFree(old), freed ++;
+					chunkFree(old, True), freed ++;
 			}
 		}
 
@@ -971,39 +971,31 @@ Map mapInitFromPath(STRPTR path, int renderDist)
 void mapFreeAll(Map map)
 {
 	Chunk chunk;
-	int   nb, i;
-	for (nb = map->mapArea, chunk = map->chunks; nb > 0; nb --, chunk ++)
-	{
-		ChunkData * chunkData;
-		for (i = chunk->maxy, chunkData = chunk->layer; i > 0; i --, chunkData ++)
-		{
-			ChunkData cd = *chunkData;
-			if (cd == NULL) continue;
-			/* this is a simplified chunkFree() */
-			free(cd->emitters);
-			free(cd);
-		}
-	}
+	int   nb;
+	for (nb = map->mapArea * map->mapArea, chunk = map->chunks; nb > 0; nb --, chunk ++)
+		chunkFree(chunk, False);
+
+	ChunkFake fake, next;
+	for (fake = map->cdPool; fake; next = fake->next, free(fake), fake = next);
+
 	NBT_Free(&map->levelDat);
 	free(map->chunks);
 	free(map);
-	if (chunkAir)
-	{
-		free(chunkAir);
-		chunkAir = NULL;
-	}
+	chunkAir = NULL;
 }
 
 /* save any changes made to levelDat */
 Bool mapSaveLevelDat(Map map)
 {
-	TEXT path[128];
-	TEXT copy[128];
-	CopyString(path, map->path, sizeof path);
+	int    len  = strlen(map->path) + 16;
+	STRPTR path = alloca(len * 2);
+	STRPTR copy = path + len;
+	/* map->path point to region dir */
+	CopyString(path, map->path, len);
 	ParentDir(path);
 	strcpy(copy, path);
-	AddPart(path, "level.dat", sizeof path);
-	AddPart(copy, "level.dat_old", sizeof copy);
+	AddPart(path, "level.dat", len);
+	AddPart(copy, "level.dat_old", len);
 
 	/* make a copy of level.dat first */
 	if (FileCopy(path, copy, True) && NBT_Save(&map->levelDat, path, NULL, 0) > 0)
