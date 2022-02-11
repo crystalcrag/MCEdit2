@@ -30,7 +30,7 @@ struct MCInventory_t
 	uint8_t      invCol, invRow;
 	uint8_t      groupId, movable;
 	Item         items;
-	int          itemsNb, top;
+	int          itemsNb, top, width;
 };
 
 enum /* possible flags for <movable> */

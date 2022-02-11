@@ -326,7 +326,7 @@ Bool selectionProcessKey(int command, int key, int mod)
 			case 'e': ctrl = 2; break;
 			default:  return False;
 			}
-			button = SIT_GetById(selection.editBrush, buttonNames[ctrl-1]);
+			button = SIT_GetById(selection.editBrush, buttonNames[ctrl]);
 			if (button)
 			{
 				int checked = 0;

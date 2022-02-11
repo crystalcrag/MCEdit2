@@ -1,0 +1,618 @@
+#
+# Français.po: french translation file for MCEdit
+#
+msgid "Forward"
+msgstr "Avancer"
+
+msgid "Backward"
+msgstr "Reculer"
+
+msgid "Strafe left"
+msgstr "Mouvement latéral gauche"
+
+msgid "Strafe right"
+msgstr "Mouvement latéral droit"
+
+msgid "Switch to off-hand"
+msgstr "Seconde main"
+
+msgid "Open inventories"
+msgstr "Accèder aux inventaires"
+
+msgid "Trow item"
+msgstr "Jeter un objet"
+
+msgid "Jump"
+msgstr "Sauter"
+
+msgid "Fly down"
+msgstr "Descendre"
+
+msgid "2D slice view"
+msgstr "Vue en coupe 2D"
+
+msgid "Place block"
+msgstr "Placer un bloc"
+
+msgid "Move view"
+msgstr "Orienter la caméra"
+
+msgid "Activate device"
+msgstr "Activer un bloc"
+
+msgid "Pick block"
+msgstr "Ramasser un bloc"
+
+msgid "Hide HUD"
+msgstr "Cacher l'interface"
+
+msgid "Show debug info"
+msgstr "Info. de diagnostique"
+
+msgid "Advance time"
+msgstr "Avancer l'heure"
+
+msgid "Save location"
+msgstr "Sauver la position"
+
+msgid "Waypoint editor"
+msgstr "Marqueur de position"
+
+msgid "Library schematics"
+msgstr "Bibliothèque de modèle"
+
+msgid "Undo change"
+msgstr "Annuler un changement"
+
+msgid "Redo change"
+msgstr "Refaire un changement"
+
+msgid "Close world"
+msgstr "Fermer la carte"
+
+msgid "Take screenshot"
+msgstr "Capture d'écran"
+
+msgid "Back in time"
+msgstr "Reculer l'heure"
+
+msgid "Switch player mode"
+msgstr "Mode de jeu"
+
+msgid "Toggle fullscreen"
+msgstr "Mettre en plein écran"
+
+msgid "Clear selection"
+msgstr "Effacer la sélection"
+
+msgid "Copy selection"
+msgstr "Copier la sélection"
+
+msgid "Paste from clipboard"
+msgstr "Copier du presse-papier"
+
+msgid "World info editor"
+msgstr "Éditer les infos. de la carte"
+
+msgid "Save changes"
+msgstr "Sauver les changements"
+
+msgid "Fail to initialize OpenGL: minimum version required is 4.3\n\nVersion installed: %s"
+msgstr "Échec à l'initialisation d'OpenGL: la version minimale requise est 4.3\n\nLa version installée est: %s"
+
+msgid "failed to initialize SITGL:\n\n%s"
+msgstr "Échec à l'initialisation de SITGL:\n\n%s"
+
+msgid "Fail to save changes: %s"
+msgstr "Erreur en sauvant les changements: %s"
+
+msgid "Fail to load level.dat: aborting."
+msgstr "Impossible de changer le fichier level.dat: abandon de l'opération."
+
+msgid "N/A"
+msgstr "N/D"
+
+msgid "Quick options:"
+msgstr "Raccourci des préférences:"
+
+msgid "Compass (%):"
+msgstr "Boussole (%):"
+
+msgid "Field of vision:"
+msgstr "Champ de vision:"
+
+msgid "GUI scale:"
+msgstr "Interface:"
+
+msgid "Brightness:"
+msgstr "Luminosité:"
+
+msgid "chunks"
+msgstr "x 16 mètres"
+
+msgid "Redstone tick:"
+msgstr "Délai des événements:"
+
+msgid "Enable distance fog."
+msgstr "Activer le brouillard atmosphérique."
+
+msgid "Use"
+msgstr "Utiliser"
+
+msgid "Save"
+msgstr "Sauver"
+
+msgid "Default"
+msgstr "Valeur par défaut"
+
+# hack: if you have trouble translating "chunks", prefix the message by 'x':
+# the value in %d will use meters instead.
+msgid "%d chunks"
+msgstr "x%dm."
+
+msgid "%d chunk"
+msgstr "x%dm."
+
+msgid "Uncapped FPS"
+msgstr "Illimité"
+
+msgid "%d FPS"
+msgstr "%d image/sec."
+
+msgid "Full brightness"
+msgstr "Luminosité max."
+
+msgid "Disabled"
+msgstr "Désactivé"
+
+msgid "Select your destination path"
+msgstr "Sélectionner votre dossier"
+
+msgid "&#x25cf; Player mode will toggle between survival, creative and spectator."
+msgstr "&#x25cf; Le mode de jeu basculera entre survie, créatif ou spectateur."
+
+msgid "Configuration\tKey bindings\tMenu commands\tGraphics"
+msgstr "Configuration\tTouche clavier\tCommandes\tGraphisme"
+
+msgid "(need restart)"
+msgstr "(redémarrage requis)"
+
+msgid "Mouse sensitivity:"
+msgstr "Sensibilité de la souris:"
+
+msgid "Interface scale:"
+msgstr "Taille de l'interface:"
+
+msgid "Show a preview of the block that will be placed."
+msgstr "Afficher un aperçu des blocs qui seront placés."
+
+msgid "Set the window in full screen on startup."
+msgstr "Mettre la fenêtre en plein écran au démarrage."
+
+msgid "Automatically load last selected world on startup."
+msgstr "Charger la dernière carte éditée au démarrage."
+
+msgid "Lock mouse when the window has the focus."
+msgstr "Vérouiller la souris lorsque la fenêtre est active."
+
+msgid "Render distance:"
+msgstr "Distance de rendu:"
+
+msgid "Field of view:"
+msgstr "Champ de vision:"
+
+msgid "Frame per second:"
+msgstr "Image par seconde:"
+
+msgid "Dark area brightness:"
+msgstr "Luminosité des espaces sombres:"
+
+msgid "Compass size:"
+msgstr "Taille de la boussole:"
+
+msgid "Fog will blend terrain with the sky, but you will lose some viewing distance.<br>Disabling fog will make the terrain look out of place though."
+msgstr "Le brouillard va faire fondre le terrain avec le ciel, mais vous perdrez de la visibilité.<br>Cela dit, désactiver ce brouillard va rendre le terrain peu convainquant."
+
+msgid "Cancel"
+msgstr "Annuler"
+
+msgid "Enter your key combination or <a href=#>cancel</a>."
+msgstr "Entrez votre combinaison de touche ou <a href=#>annuler</a>."
+
+msgid "Folder:"
+msgstr "Dossier:"
+
+msgid "Last played:"
+msgstr "Utilisé le:"
+
+msgid "Mode:"
+msgstr ""
+
+msgid "Version:"
+msgstr ""
+
+msgid "The path %s does not appear to contain a valid world save."
+msgstr "Le dossier %s ne semble pas contenir une carte valide."
+
+msgid "Settings..."
+msgstr "Réglages..."
+
+msgid "Open..."
+msgstr "Ouvrir"
+
+msgid "About..."
+msgstr "À propos..."
+
+msgid "Exit"
+msgstr "Quitter"
+
+msgid "Select world below to edit:"
+msgstr "Sélectionner une carte à éditer:"
+
+msgid "Edit selected"
+msgstr "Éditer la carte"
+
+msgid "Yes"
+msgstr "Oui"
+
+msgid "No"
+msgstr "Non"
+
+msgid "Close"
+msgstr "Fermer"
+
+msgid "World folder:"
+msgstr "Dossier des cartes:"
+
+msgid "User data:"
+msgstr "Données personnelles:"
+
+msgid "Screenshot folder:"
+msgstr "Capture d'écran:"
+
+msgid "Language:"
+msgstr "Langue:"
+
+msgid "Note:<br>"
+      "&#x25cf; Fly mode is activated by pushing the jump button twice.<br>"
+      "&#x25cf; 'Move view' is only used if 'Mouse lock' option is disabled.<br>"
+      "&#x25cf; To disable a command, click on a button and push 'Esc' key."
+msgstr "Note:<br>"
+       "&#x25cf; Pour se déplacer dans l'air, appuyer sur le bouton saut 2 fois.<br>"
+       "&#x25cf; 'Orienter la caméra' n'est utile que si la souris n'est pas vérouillée.<br>"
+       "&#x25cf; Pour désactiver une commande, cliquez sur un bouton et appuyer sur 'Échap'."
+
+msgid "No worlds found in \"<a href=\"#\">%s</a>\".<br><br>"
+      "Click on \"SETTINGS\" to select a different folder.<br><br>"
+      "Or drag'n drop a world save onto this window."
+msgstr "Aucune carte n'a été trouvé dans \"<a href=\"#\">%s</a>\".<br><br>"
+      "Cliquez sur \"RÉGLAGLES\" pour sélectionner un dossier différent.<br><br>"
+      "Ou glissez et déposer un dossier contenant une carte dans cette fenêtre."
+
+msgid "%s for %s<br>"
+      "Written by %s.<br>"
+      "Compiled on %s with %s"
+msgstr "%s pour %s<br>"
+       "Écrit par %s.<br>"
+       "Compilé le %s avec %s"
+
+msgid "Under terms of BSD 2-clause license.<br>"
+      "No warranty, use at your own risk."
+msgstr "Régit par les termes de la license BSD à 2 clauses.<br>"
+       "Aucune garantie, utilisez à vos propres risques."
+
+msgid "- %s by %s<br>"
+msgstr "- %s par %s<br>"
+
+msgid "Make use of the following libraries:"
+msgstr "Utilise les bibliothèques suivantes:"
+
+msgid "License"
+msgstr ""
+
+msgid "Graphics card in use:"
+msgstr "Carte graphique utilisée:"
+
+msgid "Some changes have not been saved, what do you want to do ?"
+msgstr "Des changements n'ont pas été sauvés, que voulez-vous faire ?"
+
+msgid "Don't save"
+msgstr "Ne rien changer"
+
+msgid "Search:"
+msgstr "Chercher:"
+
+msgid "Player inventory:"
+msgstr "Inventaire personnel:"
+
+msgid "Clear inventory"
+msgstr "Effacer l'inventaire"
+
+msgid "Furnace"
+msgstr "Fourneau"
+
+msgid "Edit sign message:"
+msgstr "Éditer le message de la pancarte:"
+
+msgid "Done"
+msgstr "Fait"
+
+msgid "Items in containers: <b>%d</b><br>Stacks needed: <b>%d</b>"
+msgstr "Objets en inventaire: <b>%d</b><br>Emplacement d'inventaire nécessaire: <b>%d</b>"
+
+msgid "Non air block selected: <b>%d</b><br>Blocks in volume: <b>%d</b>"
+msgstr "Éléments dans la selection: <b>%d</b><br>Volume sélectionné: <b>%d</b>"
+
+msgid "Count"
+msgstr "Nombre"
+
+msgid "Name"
+msgstr "Nom"
+
+msgid "ID"
+msgstr ""
+
+msgid "Copy to clipboard"
+msgstr "Copier"
+
+msgid "Back"
+msgstr "Retour"
+
+msgid "Geometric brush fill"
+msgstr "Remplissage par forme géométrique"
+
+msgid "Fill or replace selection"
+msgstr "Remplir ou remplacer"
+
+msgid "Fill:"
+msgstr "Remplir:"
+
+msgid "Cylinder (%c)"
+msgstr "Cylindre (%c)"
+
+msgid "WLH"
+msgstr "LPH"
+
+msgid "Shape:"
+msgstr "Forme:"
+
+msgid "Round"
+msgstr "Sphere"
+
+msgid "Diamond"
+msgstr "Diamant"
+
+msgid "Fill outer area"
+msgstr "Remplir l'extérieur"
+
+msgid "Hollow"
+msgstr "Creux"
+
+msgid "Fill with air"
+msgstr "Remplir d'air"
+
+msgid "Only if hollow"
+msgstr "Seulement si creux"
+
+msgid "<b>Size:</b> (clipped by selection)"
+msgstr "<b>Taille:</b> (contenu dans la sélection)"
+
+msgid "W:"
+msgstr "L:"
+
+msgid "L:"
+msgstr "P:"
+
+msgid "H:"
+msgstr ""
+
+msgid "Fill"
+msgstr "Remplir"
+
+msgid "Replace by:"
+msgstr "Remplacer par:"
+
+msgid "Top"
+msgstr "Supérieur"
+
+msgid "Bottom"
+msgstr "Inférieur"
+
+msgid "Replace similar blocks (strairs, slabs)"
+msgstr "Remplacer les éléments similaires"
+
+msgid "Replace"
+msgstr "Remplacer"
+
+msgid "Volume: %d blocks"
+msgstr "Volume: %d m³"
+
+msgid "Delete in progress..."
+msgstr "Effacement en cours..."
+
+msgid "Partial delete"
+msgstr "Effacement partiel"
+
+msgid "Select the parts you want to delete:"
+msgstr "Sélectionnez les parties à effacer:"
+
+msgid "Terrain blocks"
+msgstr "Terrain"
+
+msgid "In selection: %d"
+msgstr "Sélectionné: %d"
+
+msgid "Entities (mobs, falling blocks, item frame, ...)"
+msgstr "Entités (PNJ, éléments en déplacement, ...)"
+
+msgid "Tile entities (chests inventories, ...)"
+msgstr "Entité de terrain (coffres, inventaires, ...)"
+
+msgid "Delete"
+msgstr "Effacer"
+
+msgid "Select painting"
+msgstr "Sélectionnez une peinture"
+
+msgid "Double-click on the painting you want to add:"
+msgstr "Double-cliquez sur la peinture à ajouter:"
+
+msgid "This painting does not fit here"
+msgstr "Il n'y a pas assez de place ici"
+
+msgid "World info:"
+msgstr "Information sur la carte:"
+
+msgid "Update icon"
+msgstr "M.à.j de l'icône"
+
+msgid "Will use current 3d view"
+msgstr "Utilisera la vue 3d actuelle"
+
+msgid "Name:"
+msgstr "Nom:"
+
+msgid "Seed:"
+msgstr "N° init.:"
+
+msgid "Days:"
+msgstr "Jours:"
+
+msgid "Time:"
+msgstr "Heure:"
+
+msgid "Game rules:"
+msgstr "Règles du jeu:"
+
+msgid "Survival"
+msgstr "Survie"
+
+msgid "Creative"
+msgstr "Créatif"
+
+msgid "Spectator"
+msgstr "Spectateur"
+
+msgid "Peaceful"
+msgstr "Pacifique"
+
+msgid "Difficulty:"
+msgstr "Difficulté:"
+
+msgid "Easy"
+msgstr "Facile"
+
+msgid "Normal"
+msgstr "Normale"
+
+msgid "Hard"
+msgstr "Difficile"
+
+msgid "Hardcore mode:"
+msgstr "Survie sans échec:"
+
+msgid "Allow commands:"
+msgstr "Commandes de console:"
+
+msgid "Day/night cycle:"
+msgstr "Cycle jour/nuit:"
+
+msgid "Keep inventory:"
+msgstr "Garder l'inventaire:"
+
+msgid "Mob griefing:"
+msgstr "PNJ affectent le terrain:"
+
+msgid "Fire spreading:"
+msgstr "Expansion des feux:"
+
+msgid "Size:"
+msgstr "Taille:"
+
+msgid "Game mode:"
+msgstr "Mode de jeu:"
+
+msgid "Full blocks"
+msgstr "Terrain opaque"
+
+msgid "Wool"
+msgstr "Laine"
+
+msgid "Terracotta"
+msgstr "Terre cuite"
+
+msgid "Concrete"
+msgstr "Ciment"
+
+msgid "Flowers"
+msgstr "Fleurs"
+
+msgid "Black&white"
+msgstr "Noir&blanc"
+
+msgid "east-west"
+msgstr "plan est-ouest"
+
+msgid "north-south"
+msgstr "plan nord-sud"
+
+msgid "floor"
+msgstr "niveau du sol"
+
+# %s can be: floor, east-west or north-south
+msgid "%d x %d blocks, %s plane"
+msgstr "%d x %d m., %s"
+
+msgid "south"
+msgstr "sud"
+
+msgid "east"
+msgstr "est"
+
+msgid "north"
+msgstr "nord"
+
+msgid "west"
+msgstr "ouest"
+
+msgid "%d x %dpx, %s face"
+msgstr "%d x %dpx, face %s"
+
+msgid "no colors"
+msgstr "aucune couleur"
+
+msgid "1 color"
+msgstr "1 couleur"
+
+msgid "%d colors"
+msgstr "%d couleurs"
+
+msgid "Failed to load image %s: unsupported format"
+msgstr "Échec au chargement de l'image %s: format non supporté"
+
+msgid "Not enough colors selected"
+msgstr "Pas assez de couleurs sélectionnées"
+
+msgid "Pixel art editor"
+msgstr "Intégrer une image en jeu"
+
+msgid "Rasterize with:"
+msgstr "Convertir l'image avec:"
+
+msgid "Maps"
+msgstr "Cartes"
+
+msgid "Blocks"
+msgstr "Éléments du terrain"
+
+msgid "Stretch"
+msgstr "Étirer"
+
+msgid "Palette:"
+msgstr ""
+
+msgid "Selection:"
+msgstr "Sélection:"
+
+msgid "Load image"
+msgstr "Choisir l'image"

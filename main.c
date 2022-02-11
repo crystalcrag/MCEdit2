@@ -36,40 +36,40 @@ MCGlobals_t globals;
 /* list all the configurable shortcuts */
 KeyBindings_t keyBindings = {
 	/* keybindings page */
-	{"Forward",              "KeyForward",       SITK_FlagUp + 'W'},
-	{"Backward",             "KeyBackward",      SITK_FlagUp + 'S'},
-	{"Strafe left",          "KeyStrafeLeft",    SITK_FlagUp + 'A'},
-	{"Strafe right",         "KeyStrafeRight",   SITK_FlagUp + 'D'},
-	{"Switch to off-hand",   "KeyOffHand",       'G'},
-	{"Open inventories",     "KeyOpenInventory", 'I'},
-	{"Trow item",            "KeyTrowItem",      'T'},
-	{"Jump",                 "KeyJump",          SITK_FlagUp + SITK_Space},
-	{"Fly down",             "KeyFlyDown",       SITK_FlagUp + SITK_LShift},
-	{"2D slice view",        "KeySliceView",     SITK_Tab},
-	{"Place block",          "KeyPlaceBlock",    SITK_LMB},
-	{"Move view",            "KeyMoveView",      SITK_RMB},
-	{"Activate device",      "KeyActivateBlock", SITK_RMB},
-	{"Pick block",           "KeyPickBlock",     SITK_MMB},
+	{DLANG("Forward"),              "KeyForward",       SITK_FlagUp + 'W'},
+	{DLANG("Backward"),             "KeyBackward",      SITK_FlagUp + 'S'},
+	{DLANG("Strafe left"),          "KeyStrafeLeft",    SITK_FlagUp + 'A'},
+	{DLANG("Strafe right"),         "KeyStrafeRight",   SITK_FlagUp + 'D'},
+	{DLANG("Switch to off-hand"),   "KeyOffHand",       'G'},
+	{DLANG("Open inventories"),     "KeyOpenInventory", 'I'},
+	{DLANG("Trow item"),            "KeyTrowItem",      'T'},
+	{DLANG("Jump"),                 "KeyJump",          SITK_FlagUp + SITK_Space},
+	{DLANG("Fly down"),             "KeyFlyDown",       SITK_FlagUp + SITK_LShift},
+	{DLANG("2D slice view"),        "KeySliceView",     SITK_Tab},
+	{DLANG("Place block"),          "KeyPlaceBlock",    SITK_LMB},
+	{DLANG("Move view"),            "KeyMoveView",      SITK_RMB},
+	{DLANG("Activate device"),      "KeyActivateBlock", SITK_RMB},
+	{DLANG("Pick block"),           "KeyPickBlock",     SITK_MMB},
 
 	/* menu commands page */
-	{"Hide HUD",             "CmdHideHud",       SITK_F1},
-	{"Show debug info",      "CmdDebugInfo",     SITK_F3},
-	{"Advance time",         "CmdAdvanceTime",   SITK_FlagUp + SITK_F5},
-	{"Save location",        "CmdSaveLocation",  SITK_F10},
-	{"Waypoint editor",      "CmdWaypoints",     SITK_FlagCtrl + 'G'},
-	{"Library schematics",   "CmdSchemaLibrary", SITK_FlagCtrl + 'L'},
-	{"Undo change",          "CmdUndoChange",    SITK_FlagCtrl + 'Z'},
-	{"Redo change",          "CmdRedoChange",    SITK_FlagCtrl + 'Y'},
-	{"Close world",          "CmdCloseWorld",    SITK_FlagCtrl + 'W'},
-	{"Take screenshot",      "CmdTakeCapture",   SITK_F2},
-	{"Back in time",         "CmdBackInTime",    SITK_FlagUp + SITK_F6},
-	{"Switch player mode",   "CmdSwitchMode",    SITK_F8},
-	{"Toggle fullscreen",    "CmdFullscren",     SITK_F11},
-	{"Clear selection",      "CmdClearSel",      SITK_FlagCtrl + 'D'},
-	{"Copy selection",       "CmdCopySel",       SITK_FlagCtrl + 'C'},
-	{"Paste from clipboard", "CmdPasteClip",     SITK_FlagCtrl + 'V'},
-	{"World info editor",    "CmdWorldInfo",     SITK_FlagCtrl + 'I'},
-	{"Save changes",         "CmdSaveChanges",   SITK_FlagCtrl + 'S'},
+	{DLANG("Hide HUD"),             "CmdHideHud",       SITK_F1},
+	{DLANG("Show debug info"),      "CmdDebugInfo",     SITK_F3},
+	{DLANG("Advance time"),         "CmdAdvanceTime",   SITK_FlagUp + SITK_F5},
+	{DLANG("Save location"),        "CmdSaveLocation",  SITK_F10},
+	{DLANG("Waypoint editor"),      "CmdWaypoints",     SITK_FlagCtrl + 'G'},
+	{DLANG("Library schematics"),   "CmdSchemaLibrary", SITK_FlagCtrl + 'L'},
+	{DLANG("Undo change"),          "CmdUndoChange",    SITK_FlagCtrl + 'Z'},
+	{DLANG("Redo change"),          "CmdRedoChange",    SITK_FlagCtrl + 'Y'},
+	{DLANG("Close world"),          "CmdCloseWorld",    SITK_FlagCtrl + 'W'},
+	{DLANG("Take screenshot"),      "CmdTakeCapture",   SITK_F2},
+	{DLANG("Back in time"),         "CmdBackInTime",    SITK_FlagUp + SITK_F6},
+	{DLANG("Switch player mode"),   "CmdSwitchMode",    SITK_F8},
+	{DLANG("Toggle fullscreen"),    "CmdFullscren",     SITK_F11},
+	{DLANG("Clear selection"),      "CmdClearSel",      SITK_FlagCtrl + 'D'},
+	{DLANG("Copy selection"),       "CmdCopySel",       SITK_FlagCtrl + 'C'},
+	{DLANG("Paste from clipboard"), "CmdPasteClip",     SITK_FlagCtrl + 'V'},
+	{DLANG("World info editor"),    "CmdWorldInfo",     SITK_FlagCtrl + 'I'},
+	{DLANG("Save changes"),         "CmdSaveChanges",   SITK_FlagCtrl + 'S'},
 
 	/* KBD_SLOT_[0~9]: not configurable (yet?) */
 	{NULL, NULL, '0'},
@@ -135,7 +135,7 @@ static int mSDLKtoSIT[] = {
 static void mceditSetWndCaption(Map map);
 static int  mceditExit(SIT_Widget, APTR cd, APTR ud);
 
-int takeScreenshot(void)
+int takeScreenshot(SIT_Widget w, APTR cd, APTR ud)
 {
 	time_t      now = time(NULL);
 	struct tm * local = localtime(&now);
@@ -235,13 +235,24 @@ static void prefsInit(void)
 	mcedit.fullScreen     = GetINIValueInt(ini, "FullScreen",    0);
 
 	CopyString(mcedit.capture,   GetINIValue(ini, "CaptureDir"), sizeof mcedit.capture);
-	CopyString(mcedit.worldsDir, GetINIValue(ini, "WorldsDir"),  sizeof mcedit.capture);
+	CopyString(mcedit.worldsDir, GetINIValue(ini, "WorldsDir"),  sizeof mcedit.worldsDir);
+	CopyString(mcedit.userDir,   GetINIValue(ini, "UserData"),   sizeof mcedit.userDir);
 	CopyString(mcedit.worldEdit, GetINIValue(ini, "WorldEdit"),  sizeof mcedit.worldEdit);
+	CopyString(mcedit.lang,      GetINIValue(ini, "Lang"),       sizeof mcedit.lang);
+
+	if (mcedit.userDir[0] == 0)
+	{
+		GetDefaultPath(FOLDER_MYDOCUMENTS, mcedit.userDir, MAX_PATHLEN);
+		AddPart(mcedit.userDir, "MCEdit/Schematics", MAX_PATHLEN);
+	}
 
 	if (mcedit.capture[0] == 0)
-		strcpy(mcedit.capture, "screenshots");
+	{
+		strcpy(mcedit.capture, mcedit.userDir);
+		AddPart(mcedit.capture, "../screenshots", MAX_PATHLEN);
+	}
 	if (mcedit.worldsDir[0] == 0)
-		ExpandEnvVarBuf("%appdata%\\.minecraft\\saves", mcedit.worldsDir, sizeof mcedit.worldsDir);
+		ExpandEnvVarBuf("%appdata%\\.minecraft\\saves", mcedit.worldsDir, MAX_PATHLEN);
 
 	int i;
 	for (i = 0; i < KBD_MAX_CONFIG; i ++)
@@ -257,6 +268,19 @@ static void prefsInit(void)
 	debugLoadSaveState((STRPTR) ini, True);
 
 	FreeINI(ini);
+}
+
+static void prefsReadLang(void)
+{
+	TEXT path[64];
+	sprintf(path, RESDIR "lang/%s.po", mcedit.lang);
+	if (LangParse(path))
+	{
+		int i;
+		for (i = 0; i < KBD_MAX_CONFIG; i ++)
+			keyBindings[i].name = _(keyBindings[i].name);
+	}
+	fprintf(stderr, "msg = %s\n", LANG("Jump"));
 }
 
 static void prefsSave(void)
@@ -416,8 +440,8 @@ int main(int nb, char * argv[])
 	if (gladLoadGL() == 0)
 	{
 		SIT_Log(SIT_ERROR,
-			"Fail to initialize OpenGL: minimum version required is 4.3\n\n"
-			"Version installed: %s", glGetString ? (STRPTR) glGetString(GL_VERSION) : "<unknown> (fail to load opengl32.dll :-/)"
+			LANG("Fail to initialize OpenGL: minimum version required is 4.3\n\nVersion installed: %s"),
+			glGetString ? (STRPTR) glGetString(GL_VERSION) : "<unknown> (fail to load opengl32.dll :-/)"
 		);
 		return 1;
 	}
@@ -426,7 +450,7 @@ int main(int nb, char * argv[])
 
 	if (! globals.app)
 	{
-		SIT_Log(SIT_ERROR, "failed to initialize SITGL:\n\n%s", SIT_GetError());
+		SIT_Log(SIT_ERROR, LANG("failed to initialize SITGL:\n\n%s"), SIT_GetError());
 		return 1;
 	}
 
@@ -450,6 +474,10 @@ int main(int nb, char * argv[])
 	SIT_GetValues(globals.app, SIT_NVGcontext, &globals.nvgCtx, NULL);
 	SIT_AddCallback(globals.app, SITE_OnFocus, mceditTrackFocus, NULL);
 	SIT_AddCallback(globals.app, SITE_OnBlur,  mceditTrackFocus, NULL);
+
+	/* need to be done after SITGL init */
+	if (mcedit.lang[0])
+		prefsReadLang();
 
 	if (! renderInitStatic())
 	{
@@ -571,7 +599,7 @@ Bool mceditProcessCommand(EventState state, int keyUp)
 			break;
 
 		case KBD_TAKE_SCREENSHOT:
-			takeScreenshot();
+			takeScreenshot(NULL, NULL, NULL);
 			break;
 		case KBD_OPEN_INVENTORY:
 			FrameSaveRestoreTime(True);
@@ -641,7 +669,7 @@ Bool mceditProcessCommand(EventState state, int keyUp)
 		case KBD_SAVE_CHANGES:
 			if (! mapSaveAll(globals.level))
 			{
-				SIT_Log(SIT_ERROR, "Fail to save changes: %s\n", GetError());
+				SIT_Log(SIT_ERROR, LANG("Fail to save changes: %s"), GetError());
 				break;
 			}
 			if (mcedit.player.pmode >= MODE_CREATIVE)
@@ -755,7 +783,7 @@ void mceditWorld(void)
 
 	if (globals.level == NULL)
 	{
-		SIT_Log(SIT_ERROR, "Fail to load level.dat: aborting.");
+		SIT_Log(SIT_ERROR, LANG("Fail to load level.dat: aborting."));
 		mcedit.state = GAMELOOP_WORLDSELECT;
 		return;
 	}
@@ -1327,16 +1355,23 @@ void mceditUIOverlay(int type)
 	{
 		while (SDL_PollEvent(&event))
 		{
-			int key;
+			int key, mod;
 			switch (event.type) {
 			case SDL_KEYDOWN:
 			case SDL_KEYUP:
 				key = SDLKtoSIT(event.key.keysym.sym);
-				if (key > 0 && SIT_ProcessKey(key, SDLMtoSIT(event.key.keysym.mod), event.type == SDL_KEYDOWN))
+				mod = SDLMtoSIT(event.key.keysym.mod);
+				/* only one command is interesting here, no need to check hash table for this */
+				if (keyBindings[KBD_TAKE_SCREENSHOT].key == (key|mod) && event.type == SDL_KEYDOWN)
+				{
+					takeScreenshot(NULL, NULL, NULL);
+					break;
+				}
+				if (key > 0 && SIT_ProcessKey(key, mod, event.type == SDL_KEYDOWN))
 					break;
 
 				if (event.key.keysym.unicode > 0)
-					SIT_ProcessChar(event.key.keysym.unicode, SDLMtoSIT(event.key.keysym.mod));
+					SIT_ProcessChar(event.key.keysym.unicode, mod);
 				break;
 			case SDL_MOUSEBUTTONDOWN:
 				SIT_ProcessClick(event.button.x, event.button.y, event.button.button-1, 1);

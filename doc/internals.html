@@ -22,6 +22,10 @@
   <a class="sub2" href="#crossplane"><span>Cross-plane faces</span></a>
   <a class="sub2" href="#caveats"><span>Caveats</span></a>
   <a class="sub2" href="#fakechunks"><span>Fake chunks</span></a>
+    <a class="sub3" href="#aboveground"><span>Above ground</span></a>
+    <a class="sub3" href="#columngap"><span>Gap between columns</span></a>
+    <a class="sub3" href="#straightcol"><span>Straight column</span></a>
+    <a class="sub3" href="#elevation"><span>Elevation changes</span></a>
   <a class="sub2" href="#outside"><span>Outside bounds</span></a>
   <a class="sub2" href="#cavecull"><span>Cave culling</span></a>
     <a class="sub3" href="#cavecullv1"><span>First attempt</span></h3>
@@ -438,9 +442,30 @@ about 20 bytes): those chunks are therefore allocated in batch of 32, with their
 overlapping the fields we don't need.
 
 <p>But to prevent allocating useless fake chunks, we only allocate one if it has a lower Y coordinate
-than the previously visited. Fake chunks only have to be alloced above ground, therefore if we want
-to find something to display, we need to go down (lower Y value). That's the purpose of <tt>cdIndex</tt>
-field in a <tt>struct Chunk_t</tt>.
+than the previously visited. Fake chunks only have to be allocated above ground, therefore if we want
+to find something to display, we need to go down (lower Y value).
+
+<p>Here's a few examples on how it works (here, reduced to XY plane):
+
+<div class="photo">
+  <img src="images/fake-chunks.png">
+</div>
+
+<p>Some legends:
+<ul>
+  <li>A <b>hatch pattern</b> indicates a real chunk (actually a <tt>ChunkData_t</tt>) that you can get
+  a reference on.
+  <li>A <b>dashed square</b> is where a chunk could have been allocated, but since there are no data in this
+  area, nothing is allocated (attempting to get a reference in this location will return <tt>NULL</tt>).
+  <li><b>1</b> is the chunk where the player is, <b>the lines</b> showing a rough estimate of the cone of vision.
+  <li>The <b>black dot</b> is a special point to checked whether we need to alloc a fake chunk or not
+  (more on this below).
+</ul>
+
+<h4 id="aboveground">Above ground</h4>
+<h4 id="columngap">Gap between columns</h4>
+<h4 id="straightcol">Straight column</h4>
+<h4 id="elevation">Elevation changes</h4>
 
 <h3 id="outside"><span>Outside bounds</span></h3>
 

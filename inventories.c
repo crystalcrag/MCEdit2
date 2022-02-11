@@ -55,26 +55,36 @@ Item inventoryDraggedItem(void)
 static int inventoryRender(SIT_Widget w, APTR cd, APTR ud)
 {
 	MCInventory inv = ud;
-	float       x, y, curX, curY;
+	float       x, y, curX, curY, width;
 	int         i, j, sz = inventories.cellSz;
 	uint8_t     select = inv->movable & INV_SELECT_ONLY;
 	Item        item = inv->items + inv->top;
 	int         max = inv->itemsNb - inv->top;
+	int *       cols = alloca(sizeof *cols * (inv->invCol+1));
 
-	SIT_GetValues(w, SIT_AbsX, &x, SIT_AbsY, &y, NULL);
+	SIT_GetValues(w, SIT_AbsX, &x, SIT_AbsY, &y, SIT_Width, &width, NULL);
 	curX = inv->curX;
 	curY = inv->curY;
+	inv->width = width;
+	/*
+	 * canvas can be a bit wider than what we asked, due to messages from translation widening the
+	 * interface by quite a bit: simply enlarge the cell and center the item in it
+	 */
+	for (i = 0; i <= inv->invCol; i ++)
+		cols[i] = i * width / inv->invCol;
+
 	for (j = 0; j < inv->invRow; j ++)
 	{
 		for (i = 0; i < inv->invCol; i ++)
 		{
-			int x2 = i * sz;
 			int y2 = j * sz;
+			int x2 = cols[i];
+			int szx = cols[i+1] - x2;
 			if (select && item->added)
 			{
 				/* selection underlay */
 				nvgBeginPath(globals.nvgCtx);
-				nvgRect(globals.nvgCtx, x+x2, y+y2, sz, sz);
+				nvgRect(globals.nvgCtx, x+x2, y+y2, szx, sz);
 				nvgFillColorRGBA8(globals.nvgCtx, "\x20\xff\x20\x7f");
 				nvgFill(globals.nvgCtx);
 			}
@@ -82,11 +92,11 @@ static int inventoryRender(SIT_Widget w, APTR cd, APTR ud)
 			{
 				/* cursor underlay */
 				nvgBeginPath(globals.nvgCtx);
-				nvgRect(globals.nvgCtx, x+x2, y+y2, sz, sz);
+				nvgRect(globals.nvgCtx, x+x2, y+y2, szx, sz);
 				nvgFillColorRGBA8(globals.nvgCtx, "\xff\xff\xff\x7f");
 				nvgFill(globals.nvgCtx);
 			}
-			SIT_SetValues(inv->cell, SIT_X, x2, SIT_Y, y2, SIT_Width, sz, SIT_Height, sz, NULL);
+			SIT_SetValues(inv->cell, SIT_X, x2, SIT_Y, y2, SIT_Width, szx, SIT_Height, sz, NULL);
 			SIT_RenderNode(inv->cell);
 			/* grab item to render */
 			if (max > 0)
@@ -94,14 +104,14 @@ static int inventoryRender(SIT_Widget w, APTR cd, APTR ud)
 				if (item->id == 0xffff)
 				{
 					/* custom item draw */
-					inv->customDraw(w, (int[3]){x+x2, y+y2, sz}, item);
+					inv->customDraw(w, (int[4]){x+x2, y+y2, szx, sz}, item);
 				}
 				else if (item->id > 0)
 				{
 					Item render = mcuiAddItemToRender();
 					render[0] = item[0];
-					render->x = x + x2 + inventories.padding[0]/2;
-					render->y = globals.height - (y + y2 + inventories.padding[1]/2) - inventories.itemSz;
+					render->x = x + x2 + ((inventories.padding[0] + szx - sz) >> 1);
+					render->y = globals.height - (y + y2 + (inventories.padding[1] >> 1)) - inventories.itemSz;
 				}
 				item ++;
 				max --;
@@ -329,7 +339,7 @@ static int inventoryMouse(SIT_Widget w, APTR cd, APTR ud)
 	MCInventory   inv = ud;
 	Item          old;
 
-	int cellx = msg->x / inventories.cellSz;
+	int cellx = msg->x * inv->invCol / inv->width;
 	int celly = msg->y / inventories.cellSz;
 	switch (msg->state) {
 	case SITOM_CaptureMove:

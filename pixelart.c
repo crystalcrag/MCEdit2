@@ -87,18 +87,18 @@ static uint16_t palettes[] = {
 };
 
 static STRPTR palNames[] = {
-	"Full blocks",
-	"Wool",
-	"Terracotta",
-	"Concrete",
-	"Flowers",
-	"Black&white"
+	DLANG("Full blocks"),
+	DLANG("Wool"),
+	DLANG("Terracotta"),
+	DLANG("Concrete"),
+	DLANG("Flowers"),
+	DLANG("Black&white")
 };
 
 static STRPTR palNamesMap[] = {
 	"1.12",
 	"1.13+",
-	"Black&white"
+	DLANG("Black&white")
 };
 
 static uint16_t palettesMap[] = {
@@ -119,16 +119,16 @@ static int pixArtSelInfo(SIT_Widget w, APTR cd, APTR ud)
 	{
 		/* blocks: visible from 2 sides */
 		switch (pixArt.axisMin) {
-		case VX: plane = "east-west"; break;
-		case VZ: plane = "north-south"; break;
-		default: plane = "floor";
+		case VX: plane = LANG("east-west"); break;
+		case VZ: plane = LANG("north-south"); break;
+		default: plane = LANG("floor");
 		}
-		sprintf(buffer, "%d x %d blocks, %s plane", pixArt.sizeX, pixArt.sizeY, plane);
+		sprintf(buffer, LANG("%d x %d blocks, %s plane"), pixArt.sizeX, pixArt.sizeY, plane);
 	}
 	else /* maps: will be visible from only one side */
 	{
-		static STRPTR sides[] = {"south", "east", "north", "west", "top", "bottom"};
-		sprintf(buffer, "%d x %dpx, %s face", pixArt.sizeX * MAP_SIZEPX, pixArt.sizeY * MAP_SIZEPX, sides[pixArt.side]);
+		static STRPTR sides[] = {DLANG("south"), DLANG("east"), DLANG("north"), DLANG("west"), DLANG("top"), DLANG("bottom")};
+		sprintf(buffer, LANG("%d x %dpx, %s face"), pixArt.sizeX * MAP_SIZEPX, pixArt.sizeY * MAP_SIZEPX, LANG(sides[pixArt.side]));
 	}
 	strcat(buffer, ", ");
 	SIT_SetValues(pixArt.selinfo, SIT_Title, buffer, NULL);
@@ -141,7 +141,7 @@ static int pixArtSelInfo(SIT_Widget w, APTR cd, APTR ud)
 	if (pixArt.rasterizeWith == PIXART_BLOCKS)
 	{
 		for (i = 0, palette = palettes; i < DIM(palNames); i ++, palette += palette[0] + 1)
-			SIT_ComboInsertItem(pixArt.palette, -1, palNames[i], palette + 1);
+			SIT_ComboInsertItem(pixArt.palette, -1, LANG(palNames[i]), palette + 1);
 		/* and items in inventory */
 		inv->items = pixArt.allItems;
 		inv->itemsNb = pixArt.itemsNb;
@@ -149,7 +149,7 @@ static int pixArtSelInfo(SIT_Widget w, APTR cd, APTR ud)
 	else /* use map art color entries */
 	{
 		for (i = 0, palette = palettesMap; i < DIM(palNamesMap); i ++, palette += palette[0] + 1)
-			SIT_ComboInsertItem(pixArt.palette, -1, palNamesMap[i], palette + 1);
+			SIT_ComboInsertItem(pixArt.palette, -1, LANG(palNamesMap[i]), palette + 1);
 		inv->items = pixArt.allItems + pixArt.itemsNb;
 		inv->itemsNb = 62;
 	}
@@ -207,9 +207,9 @@ static int pixArtGetColorCount(SIT_Widget w, APTR cd, APTR ud)
 	if (pixArt.itemSel != count)
 	{
 		switch (count) {
-		case 0:  strcpy(buffer, "no colors"); break;
-		case 1:  strcpy(buffer, "1 color"); break;
-		default: sprintf(buffer, "%d colors", count);
+		case 0:  CopyString(buffer, LANG("no colors"), sizeof buffer); break;
+		case 1:  CopyString(buffer, LANG("1 color"),   sizeof buffer); break;
+		default: snprintf(buffer, sizeof buffer, LANG("%d colors"), count);
 		}
 		if (pixArt.itemSel >= 0 && (pixArt.itemSel < 2) != (count < 2))
 			SIT_SetValues(pixArt.cmapSz, SIT_Style, count < 2 ? "color: red" : "", NULL);
@@ -260,14 +260,15 @@ static int pixArtDrawMapColor(SIT_Widget w, APTR cd, APTR ud)
 	Item   item = ud;
 
 	nvgBeginPath(vg);
-	int sz = rect[2] >> 1;
-	int off = (rect[2] - sz) >> 1;
+	int sz = rect[3] >> 1;
+	int offX = (rect[2] - sz) >> 1;
+	int offY = (rect[3] - sz) >> 1;
 	nvgStrokeWidth(vg, 2);
 	nvgFillColorRGBA8(vg, item->extra);
-	nvgRect(vg, rect[0]+off, rect[1]+off, sz, sz);
+	nvgRect(vg, rect[0]+offX, rect[1]+offY, sz, sz);
 	nvgFill(vg);
-	int x = rect[0]+off;
-	int y = rect[1]+off;
+	int x = rect[0]+offX;
+	int y = rect[1]+offY;
 	nvgBeginPath(vg);
 	nvgStrokeColorRGBA8(vg, "\xff\xff\xff\x7f");
 	nvgMoveTo(vg, x, y + sz);
@@ -307,7 +308,7 @@ static void pixArtSetIcon(STRPTR path)
 			SIT_SetValues(pixArt.fill, SIT_Enabled, True, NULL);
 			CopyString(pixArt.defImage, path, sizeof pixArt.defImage);
 		}
-		else SIT_Log(SIT_INFO, "Failed to load image %s: unsupported format", path);
+		else SIT_Log(SIT_INFO, LANG("Failed to load image %s: unsupported format"), path);
 	}
 }
 
@@ -397,7 +398,7 @@ static int pixArtToPalette(DATA8 pixels, int width, int height, DATA8 cmapRGB)
 		/* not enough colors selected (0 or 1): show a tooltip of the problem */
 		SIT_SetValues(pixArt.info,
 			SIT_Visible, True,
-			SIT_Title,   "Not enough colors selected",
+			SIT_Title,   LANG("Not enough colors selected"),
 			NULL
 		);
 		return 0;
@@ -708,28 +709,35 @@ void mcuiShowPixelArt(vec4 playerPos)
 
 	int sz = SIT_EmToReal(diag, SITV_Em(11));
 
+	TEXT saveMsg[64];
+	snprintf(saveMsg, sizeof saveMsg, "(<a href=#>%s</a>)", LANG("Save"));
+
 	SIT_CreateWidgets(diag,
-		"<label name=dlgtitle.big title=", "Pixel art editor", "left=", SITV_AttachCenter, ">"
+		"<label name=dlgtitle.big title=", LANG("Pixel art editor"), "left=", SITV_AttachCenter, ">"
 		"<label name=icon#table top=WIDGET,dlgtitle,0.5em labelSize=", SITV_LabelSize(sz,sz), ">"
-		"<label name=msg title='Rasterize with:' left=WIDGET,icon,1em top=WIDGET,dlgtitle,0.5em>"
-		"<button name=blocks curValue=", &pixArt.rasterizeWith, "title=Blocks buttonType=", SITV_RadioButton, "top=WIDGET,msg,0.5em left=WIDGET,icon,1em>"
-		"<button name=maps curValue=", &pixArt.rasterizeWith, "title=Maps buttonType=", SITV_RadioButton, "top=WIDGET,blocks,0.5em left=WIDGET,icon,1em>"
-		"<button name=fillair title='Fill with air' curValue=", &pixArt.fillAir, "buttonType=", SITV_CheckBox, "checkState=1 top=OPPOSITE,blocks left=WIDGET,blocks,2em>"
-		"<button name=stretch title=Stretch curValue=", &pixArt.stretch, "buttonType=", SITV_CheckBox, "top=WIDGET,fillair,0.5em left=WIDGET,blocks,2em>"
-		"<label name=msg2 title='Palette:' left=WIDGET,icon,1em top=WIDGET,maps,1em>"
+		"<label name=msg title=", LANG("Rasterize with:"), "left=WIDGET,icon,1em top=WIDGET,dlgtitle,0.5em>"
+		"<button name=blocks curValue=", &pixArt.rasterizeWith, "title=", LANG("Blocks"), "buttonType=", SITV_RadioButton,
+		" top=WIDGET,msg,0.5em left=WIDGET,icon,1em>"
+		"<button name=maps curValue=", &pixArt.rasterizeWith, "title=", LANG("Maps"), "buttonType=", SITV_RadioButton,
+		" top=WIDGET,blocks,0.5em left=WIDGET,icon,1em>"
+		"<button name=fillair title=", LANG("Fill with air"), "curValue=", &pixArt.fillAir, "buttonType=", SITV_CheckBox,
+		" checkState=1 top=OPPOSITE,blocks left=WIDGET,blocks,2em>"
+		"<button name=stretch title=", LANG("Stretch"), "curValue=", &pixArt.stretch, "buttonType=", SITV_CheckBox,
+		" top=WIDGET,fillair,0.5em left=WIDGET,blocks,2em>"
+		"<label name=msg2 title=", LANG("Palette:"), "left=WIDGET,icon,1em top=WIDGET,maps,1em>"
 		"<combobox name=palette top=WIDGET,msg2,0.5em left=OPPOSITE,msg2>"
-		"<label name=save.big title='(<a href=#>Save</a>)' bottom=OPPOSITE,msg2 right=OPPOSITE,palette>"
-		"<label name=msg3.big title=Selection: top=WIDGET,icon,0.5em>"
+		"<label name=save.big title=", saveMsg, "bottom=OPPOSITE,msg2 right=OPPOSITE,palette>"
+		"<label name=msg3.big title=", LANG("Selection:"), "top=WIDGET,icon,0.5em>"
 		"<label name=selinfo top=OPPOSITE,msg3 left=WIDGET,msg3,0.3em>"
 		"<label name=cmapsz top=OPPOSITE,msg3 left=WIDGET,selinfo>"
 		"<canvas composited=1 name=inv.inv top=WIDGET,msg3,0.5em nextCtrl=LAST/>"
-		"<button name=load title='Load image' top=WIDGET,inv,0.5em>"
-		"<button name=ko title=Cancel buttonType=", SITV_CancelButton, "top=OPPOSITE,load right=FORM>"
-		"<button name=ok title=Fill enabled=0 top=OPPOSITE,ko right=WIDGET,ko,0.5em buttonType=", SITV_DefaultButton, ">"
+		"<button name=load title=", LANG("Load image"), "top=WIDGET,inv,0.5em>"
+		"<button name=ko title=", LANG("Cancel"), "buttonType=", SITV_CancelButton, "top=OPPOSITE,load right=FORM>"
+		"<button name=ok title=", LANG("Fill"), "enabled=0 top=OPPOSITE,ko right=WIDGET,ko,0.5em buttonType=", SITV_DefaultButton, ">"
 		"<scrollbar width=1.2em name=scroll.inv wheelMult=1 top=OPPOSITE,inv,0 bottom=OPPOSITE,inv,0 right=FORM>"
 		"<tooltip name=info delayTime=", SITV_TooltipManualTrigger, "displayTime=10000 toolTipAnchor=", SITV_TooltipFollowMouse, ">"
 	);
-	SIT_SetAttributes(diag, "<inv right=WIDGET,scroll,0.2em>");
+	SIT_SetAttributes(diag, "<inv right=WIDGET,scroll,0.2em left=FORM>");
 
 	/* show selection info */
 	vec points = selectionGetPoints();

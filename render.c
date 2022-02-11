@@ -744,8 +744,8 @@ Map renderInitWorld(STRPTR path, int renderDist)
 		SIT_InsertDialog(render.blockInfo);
 		SIT_SetValues(render.blockInfo,
 			SIT_ToolTipAnchor, globals.lockMouse ? SITV_TooltipFixed : SITV_TooltipFollowMouse,
-			SIT_LeftOffset,    globals.width  >> 1,
-			SIT_TopOffset,     globals.height >> 1,
+			SIT_X, globals.width  >> 1,
+			SIT_Y, globals.height >> 1,
 			NULL
 		);
 		return ret;

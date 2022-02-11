@@ -28,8 +28,10 @@ struct GameState_t
 	uint8_t  fullScreen;       /* go fullscreen on startup */
 	uint8_t  askIfSave;        /* 0: don't save, exit, 1: save, exit, 2: cancel */
 	TEXT     capture[128];     /* screenshot directory */
+	TEXT     userDir[128];     /* schematics library */
 	TEXT     worldsDir[256];   /* folder where saved worlds are */
 	TEXT     worldEdit[256];   /* world being edited (folder) */
+	TEXT     lang[32];         /* name of language used for interface */
 };
 
 enum /* possible values for state: which game loop are we running */

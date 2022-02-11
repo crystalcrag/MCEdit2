@@ -54,7 +54,7 @@ static int optionsSetValue(SIT_Widget w, APTR cd, APTR ud)
 	case 0: /* compass size */
 		if (worldSelect.compassSize < 50)
 		{
-			SIT_SetValues(worldSelect.enterKey, SIT_Title, "N/A", NULL);
+			SIT_SetValues(worldSelect.enterKey, SIT_Title, LANG("N/A"), NULL);
 			globals.compassSize = 0;
 		}
 		else globals.compassSize = worldSelect.compassSize * 0.01f;
@@ -133,38 +133,38 @@ SIT_Widget optionsQuickAccess(void)
 
 	SIT_Widget max = NULL;
 	SIT_CreateWidgets(diag,
-		"<label name=dlgtitle#title title='Quick options:' left=FORM right=FORM>"
+		"<label name=dlgtitle#title title=", LANG("Quick options:"), "left=FORM right=FORM>"
 		/* compass size */
 		"<editbox name=compSize width=5em editType=", SITV_Integer, "right=FORM top=WIDGET,dlgtitle,0.5em>"
 		"<slider name=compass minValue=49 curValue=", &worldSelect.compassSize, "maxValue=150 pageSize=1 width=15em"
-		" top=MIDDLE,compSize left=FORM right=WIDGET,compSize,0.5em buddyEdit=compSize buddyLabel=", "Compass (%):", &max, ">"
+		" top=MIDDLE,compSize left=FORM right=WIDGET,compSize,0.5em buddyEdit=compSize buddyLabel=", LANG("Compass (%):"), &max, ">"
 		/* FOV */
 		"<editbox name=fov width=5em editType=", SITV_Integer, "right=FORM top=WIDGET,compSize,0.5em>"
 		"<slider name=fovval minValue=20 curValue=", &worldSelect.fov, "maxValue=140 pageSize=1 top=MIDDLE,fov right=WIDGET,fov,0.5em"
-		" buddyEdit=fov buddyLabel=", "Field of vision:", &max, ">"
+		" buddyEdit=fov buddyLabel=", LANG("Field of vision:"), &max, ">"
 		/* GUI scale */
 		"<editbox name=gui width=5em editType=", SITV_Integer, "right=FORM top=WIDGET,fov,0.5em>"
 		"<slider name=guiscale minValue=50 curValue=", &worldSelect.guiScale, "maxValue=200 pageSize=1 top=MIDDLE,gui"
-		" right=WIDGET,gui,0.5em buddyEdit=gui buddyLabel=", "GUI scale:", &max, ">"
+		" right=WIDGET,gui,0.5em buddyEdit=gui buddyLabel=", LANG("GUI scale:"), &max, ">"
 		/* brightness */
 		"<label name=brightval right=FORM left=OPPOSITE,gui>"
 		"<slider name=bright curValue=", &worldSelect.brightness, "maxValue=101 pageSize=1 top=WIDGET,guiscale,0.5em"
-		" right=WIDGET,brightval,0.5em buddyLabel=", "Brightness:", &max, ">"
+		" right=WIDGET,brightval,0.5em buddyLabel=", LANG("Brightness:"), &max, ">"
 		/* render distance */
 		"<editbox name=dist width=6em editType=", SITV_Integer, "top=WIDGET,bright,0.5em minValue=1 maxValue=16 curValue=", &worldSelect.renderDist,
-		" buddyLabel=", "Render dist:", &max, ">"
-		"<label name=msg title=chunks left=WIDGET,dist,0.5em top=MIDDLE,dist>"
+		" buddyLabel=", LANG("Render distance:"), &max, ">"
+		"<label name=msg title=", LANG("chunks"), "left=WIDGET,dist,0.5em top=MIDDLE,dist>"
 		/* redstone tick */
 		"<editbox name=tick width=6em minValue=1 stepValue=100 curValue=", &globals.redstoneTick, "top=WIDGET,dist,0.5em editType=", SITV_Integer,
-		" buddyLabel=", "Redstone tick:", &max, ">"
+		" buddyLabel=", LANG("Redstone tick:"), &max, ">"
 		"<label name=msg left=WIDGET,tick,0.5em top=MIDDLE,tick title='ms (def: 100)'>"
 		/* distance FOG */
-		"<button name=fog buttonType=", SITV_CheckBox, "curValue=", &worldSelect.fog, "title=", "Enable distance fog.",
+		"<button name=fog buttonType=", SITV_CheckBox, "curValue=", &worldSelect.fog, "title=", LANG("Enable distance fog."),
 		" top=WIDGET,tick,0.5em left=OPPOSITE,tick>"
 
-		"<button name=ko.act title=Use top=WIDGET,fog,0.5em right=FORM>"
-		"<button name=ok.act title=Save top=OPPOSITE,ko right=WIDGET,ko,0.5em nextCtrl=ko buttonType=", SITV_DefaultButton, ">"
-		"<button name=def.act title=Default top=OPPOSITE,ko right=WIDGET,ok,0.5em nextCtrl=ok>"
+		"<button name=ko.act title=", LANG("Use"), "top=WIDGET,fog,0.5em right=FORM>"
+		"<button name=ok.act title=", LANG("Save"), "top=OPPOSITE,ko right=WIDGET,ko,0.5em nextCtrl=ko buttonType=", SITV_DefaultButton, ">"
+		"<button name=def.act title=", LANG("Default"), "top=OPPOSITE,ko right=WIDGET,ok,0.5em nextCtrl=ok>"
 	);
 	SIT_SetAttributes(diag, "<brightval top=MIDDLE,bright>");
 	worldSelect.enterKey  = SIT_GetById(diag, "compSize");
@@ -175,9 +175,9 @@ SIT_Widget optionsQuickAccess(void)
 	SIT_AddCallback(SIT_GetById(diag, "dist"),     SITE_OnChange, optionsSetValue, (APTR) 3);
 	SIT_AddCallback(SIT_GetById(diag, "bright"),   SITE_OnChange, optionsSetValue, (APTR) 4);
 	SIT_AddCallback(SIT_GetById(diag, "fog"),      SITE_OnActivate, optionsSetValue, (APTR) 5);
-	SIT_AddCallback(SIT_GetById(diag, "ok"),  SITE_OnActivate, optionsExit, (APTR) 1);
-	SIT_AddCallback(SIT_GetById(diag, "ko"),  SITE_OnActivate, optionsExit, NULL);
-	SIT_AddCallback(SIT_GetById(diag, "def"), SITE_OnActivate, optionsSetDefault, diag);
+	SIT_AddCallback(SIT_GetById(diag, "ok"),       SITE_OnActivate, optionsExit, (APTR) 1);
+	SIT_AddCallback(SIT_GetById(diag, "ko"),       SITE_OnActivate, optionsExit, NULL);
+	SIT_AddCallback(SIT_GetById(diag, "def"),      SITE_OnActivate, optionsSetDefault, diag);
 	SIT_AddCallback(diag, SITE_OnFinalize, optionsClearRef, NULL);
 
 	if (worldSelect.compassSize < 50)
@@ -210,8 +210,9 @@ static int worldSelectExit(SIT_Widget w, APTR cd, APTR ud)
 }
 
 static SIT_Accel dialogAccels[] = { /* override ESC shortcut from top-level interface */
-	{SITK_FlagCapture + SITK_Escape, SITE_OnClose, 0},
-	{SITK_FlagCapture + SITK_F2,     SITE_OnActivate, KBD_TAKE_SCREENSHOT, NULL, takeScreenshot},
+	{SITK_FlagCapture + SITK_FlagAlt + SITK_F4, SITE_OnActivate, 0, NULL, worldSelectExit},
+	{SITK_FlagCapture + SITK_Escape,            SITE_OnClose},
+	{SITK_F2, SITE_OnActivate, KBD_TAKE_SCREENSHOT, NULL, takeScreenshot},
 	{0}
 };
 
@@ -227,38 +228,64 @@ static int worldSelectAbout(SIT_Widget w, APTR cd, APTR ud)
 		NULL
 	);
 
-	static char header[] =
-		"<a href='https://github.com/crystalcrag/MCEdit2'>MCEdit</a> "MCEDIT_VERSION" for MS-Win32-x86<br>"
-		"Written by T.Pierron.<br>"
-		"Compiled on " __DATE__ " with gcc " TOSTRING(__GNUC__) "." TOSTRING(__GNUC_MINOR__) "." TOSTRING(__GNUC_PATCHLEVEL__);
+	static char headerFmt[] =
+		DLANG("%s for %s<br>"
+		      "Written by %s.<br>"
+		      "Compiled on %s with %s");
 
-	static char thanks[] =
-		"Make use of the following libraries:<br>"
-		"- <a href='https://github.com/memononen/nanovg/'>nanovg</a> by Mikko Memononen<br>"
-		"- <a href='https://github.com/nothings/stb'>stb_truetype</a>,<br>"
-		"- <a href='https://github.com/nothings/stb'>stb_image</a>,<br>"
-		"- <a href='https://github.com/nothings/stb'>stb_include</a> by Sean Barret<br>"
-		"- <a href='https://github.com/nothings/SITGL'>SITGL</a> by T.Pierron<br>"
-		"- <a href='https://www.libsdl.org/'>SDL</a> by Sam Lantinga<br>"
-		"- <a href='https://www.zlib.net/'>zlib</a> by Jean-loup Gailly and Mark Adler";
+	static STRPTR libraries[] = {
+		"Mikko Memononen",  "<a href='https://github.com/memononen/nanovg/'>nanovg</a>",
+		NULL,               "<a href='https://github.com/nothings/stb'>stb_truetype</a>,",
+		NULL,               "<a href='https://github.com/nothings/stb'>stb_image</a>,",
+		"Sean Barret",      "<a href='https://github.com/nothings/stb'>stb_include</a>",
+		"T.Pierron",        "<a href='https://github.com/nothings/SITGL'>SITGL</a>",
+		"Sam Lantinga",     "<a href='https://www.libsdl.org/'>SDL</a>",
+		"Jean-loup Gailly, "
+		"Mark Adler",       "<a href='https://www.zlib.net/'>zlib</a>"
+	};
 
 	static char license[] =
-		"Under terms of BSD 2-clause license.<br>"
-		"No warranty, use at your own risk.";
+		DLANG("Under terms of BSD 2-clause license.<br>"
+		      "No warranty, use at your own risk.");
 
 	TEXT vendor[128];
+	TEXT header[256];
+	TEXT thanks[1024];
+	int  i, len;
+
+	STRPTR format = LANG("- %s by %s<br>");
+	STRPTR altFmt = STRDUPA(format);
+	STRPTR sep    = strstr(altFmt, "%s");
+	if (sep) strcpy(sep + 2, "<br>");
+
+	thanks[0] = 0;
+	len = sprintf(thanks, "%s<br>", LANG("Make use of the following libraries:"));
+
+	for (i = 0; i < DIM(libraries); i += 2)
+	{
+		STRPTR author = libraries[i];
+		STRPTR source = libraries[i+1];
+
+		if (author == NULL)
+			len += snprintf(thanks + len, sizeof thanks - len, altFmt, source);
+		else
+			len += snprintf(thanks + len, sizeof thanks - len, format, source, author);
+	}
+
+	snprintf(header, sizeof header, LANG(headerFmt), "<a href='https://github.com/crystalcrag/MCEdit2'>MCEdit</a> "MCEDIT_VERSION, PLATFORM,
+		"T.Pierron", __DATE__, "gcc " TOSTRING(__GNUC__) "." TOSTRING(__GNUC_MINOR__) "." TOSTRING(__GNUC_PATCHLEVEL__));
 
 	snprintf(vendor, sizeof vendor, "%s<br>Open GL v%s", (STRPTR) glGetString(GL_RENDERER), (STRPTR) glGetString(GL_VERSION));
 
 	SIT_CreateWidgets(about,
-		"<label name=what.big style='text-align: center' title=", header, ">"
+		"<label name=what.big style='text-align: center' title=", header, "left=FORM right=FORM>"
 		"<label name=thanks title=", thanks, "top=WIDGET,what,1em>"
-		"<label name=legal.big title=License top=WIDGET,thanks,1em left=", SITV_AttachCenter, ">"
-		"<label name=license title=", license, "top=WIDGET,legal,0.5em>"
-		"<label name=gpu.big title='Graphics card in use:' top=WIDGET,license,1em left=", SITV_AttachCenter, ">"
+		"<label name=legal.big title=", LANG("License"), "top=WIDGET,thanks,1em left=", SITV_AttachCenter, ">"
+		"<label name=license title=", LANG(license), "top=WIDGET,legal,0.5em>"
+		"<label name=gpu.big title=", LANG("Graphics card in use:"), "top=WIDGET,license,1em left=", SITV_AttachCenter, ">"
 		"<label name=version title=", vendor, "top=WIDGET,gpu,0.5em>"
 
-		"<button name=close.act title=Ok top=WIDGET,version,1em buttonType=", SITV_CancelButton, "left=", SITV_AttachCenter, ">"
+		"<button name=close.act title=", LANG("Close"), "top=WIDGET,version,1em buttonType=", SITV_CancelButton, "left=", SITV_AttachCenter, ">"
 	);
 
 	SIT_ManageWidget(about);
@@ -298,13 +325,18 @@ static int worldSelectSyncValue(SIT_Widget w, APTR cd, APTR ud)
 	SIT_GetValues(w, SIT_UserData, &userData, NULL);
 	/* buddyEdit is not enough: we need more control over how msg is formatted */
 	switch ((int) userData) {
-	case 0: format = num > 1 ? "%d chunks" : "%d chunk"; break;
+	case 0:
+		format = num > 1 ? LANG("%d chunks") : LANG("%d chunk");
+		/* hack: "chunks" is often hard to translate, use meters instead */
+		if (format[0] == 'x')
+			format ++, num *= 16;
+		break;
 	case 1: format = "%d&#xb0;"; break; /* FOV */
-	case 2: format = num == 150 ? "Uncapped FPS" : "%d FPS"; break;
-	case 3: format = num == 101 ? "Full brightness" : "+%d%%"; break;
+	case 2: format = num == 150 ? LANG("Uncapped FPS") : LANG("%d FPS"); break;
+	case 3: format = num == 101 ? LANG("Full brightness") : "+%d%%"; break;
 	case 4:
 	case 5: format = "%d%%"; break;
-	case 6: format = num == 49 ? "Disabled" : "%d%%"; break;
+	case 6: format = num == 49 ? LANG("Disabled") : "%d%%"; break;
 	default: return 0;
 	}
 	sprintf(buffer, format, num);
@@ -332,7 +364,7 @@ static int worldSelectSelectFolder(SIT_Widget w, APTR cd, APTR ud)
 	if (dir == NULL)
 	{
 		dir = worldSelect.dirSelect = SIT_CreateWidget("dirsel", SIT_DIRSELECT, w,
-			SIT_Title, "Select your destination path",
+			SIT_Title, LANG("Select your destination path"),
 			NULL
 		);
 	}
@@ -543,16 +575,16 @@ static void worldSelectBindings(SIT_Widget parent, KeyBinding bindings, int coun
 	if (tab == 2 || tab == 3)
 	{
 		static TEXT note[] =
-			"Note:<br>"
-			"&#x25cf; Fly mode is activated by pushing the jump button twice.<br>"
-			"&#x25cf; 'Move view' is only used if 'Mouse lock' option is disabled.<br>"
-			"&#x25cf; To disable a command, click on a button and push 'Esc' key.";
+			DLANG("Note:<br>"
+			      "&#x25cf; Fly mode is activated by pushing the jump button twice.<br>"
+			      "&#x25cf; 'Move view' is only used if 'Mouse lock' option is disabled.<br>"
+			      "&#x25cf; To disable a command, click on a button and push 'Esc' key.");
 
 		static TEXT note2[] =
-			"&#x25cf; Player mode will toggle between survival, creative and spectator.";
+			DLANG("&#x25cf; Player mode will toggle between survival, creative and spectator.");
 
 		SIT_CreateWidgets(parent,
-			"<label tabNum=", tab, "name=note title=", tab == 2 ? note : note2, "top=", SITV_AttachWidget, prev1, SITV_Em(0.5), ">"
+			"<label tabNum=", tab, "name=note title=", LANG(tab == 2 ? note : note2), "top=", SITV_AttachWidget, prev1, SITV_Em(0.5), ">"
 		);
 	}
 }
@@ -576,7 +608,9 @@ static void worldSelectAssignBinding(SIT_Widget button, int key)
 /* config options dialog */
 static int worldSelectConfig(SIT_Widget w, APTR cd, APTR ud)
 {
-	SIT_Widget dialog = SIT_CreateWidget("about.mc dark", SIT_DIALOG, ud,
+	keysReassign(dialogAccels);
+
+	SIT_Widget dialog = SIT_CreateWidget("config.mc dark", SIT_DIALOG, ud,
 		SIT_AccelTable,   dialogAccels,
 		SIT_DialogStyles, SITV_Movable | SITV_Plain | SITV_Modal,
 		NULL
@@ -601,43 +635,45 @@ static int worldSelectConfig(SIT_Widget w, APTR cd, APTR ud)
 	SIT_Widget max = NULL;
 	SIT_Widget max2 = NULL;
 	SIT_CreateWidgets(dialog,
-		"<tab name=tabs left=FORM tabActive=", worldSelect.curTab, "right=FORM tabStr='Configuration\tKey bindings\tMenu commands\tGraphics'"
+		"<tab name=tabs left=FORM tabActive=", worldSelect.curTab, "right=FORM tabStr=", LANG("Configuration\tKey bindings\tMenu commands\tGraphics"),
 		" tabSpace=", SITV_Em(1), "tabStyle=", SITV_AlignHCenter, ">"
 			/*
 			 * general configuration tab
 			 */
-			"<editbox tabNum=1 name=folder width=25em title=", mcedit.worldsDir, "buddyLabel=", "World folder:", &max, "top=FORM,,1em>"
+			"<editbox tabNum=1 name=folder width=25em title=", mcedit.worldsDir, "buddyLabel=", LANG("World folder:"), &max,
+			" editLength=", sizeof mcedit.worldsDir, "top=FORM,,1em>"
 			"<button tabNum=1 name=selfolder.act title='...' left=WIDGET,folder,0.5em top=OPPOSITE,folder bottom=OPPOSITE,folder>"
-			"<editbox tabNum=1 name=userdata width=25em title=", "C:\\Users\\tpierron\\Documents\\MCEdit",
-			" buddyLabel=", "User data:", &max, "top=WIDGET,folder,0.5em>"
+			"<editbox tabNum=1 name=userdata width=25em title=", mcedit.userDir, "editLength=", sizeof mcedit.userDir,
+			" buddyLabel=", LANG("User data:"), &max, "top=WIDGET,folder,0.5em>"
 			"<button tabNum=1 name=seluser.act title='...' left=WIDGET,userdata,0.5em top=OPPOSITE,userdata bottom=OPPOSITE,userdata>"
-			"<editbox tabNum=1 name=capture width=25em title=", mcedit.capture, "buddyLabel=", "Screenshot folder:", &max, "top=WIDGET,userdata,0.5em>"
+			"<editbox tabNum=1 name=capture width=25em title=", mcedit.capture, "buddyLabel=", LANG("Screenshot folder:"), &max,
+			" top=WIDGET,userdata,0.5em editLength=", sizeof mcedit.capture, ">"
 			"<button tabNum=1 name=capdir.act title='...' left=WIDGET,capture,0.5em top=OPPOSITE,capture bottom=OPPOSITE,capture>"
 			/* language */
 			"<combobox tabNum=1 name=lang width=15em initialValues='English (US)\tFran\xC3\xA7""ais (Canadian)'"
-			" top=WIDGET,capture,0.5em buddyLabel=", "Language:", &max, ">"
-			"<label tabNum=1 name=warn2#dim left=WIDGET,lang,0.5em top=MIDDLE,lang title=", "(need restart)", ">"
+			" top=WIDGET,capture,0.5em buddyLabel=", LANG("Language:"), &max, ">"
+			"<label tabNum=1 name=warn2#dim left=WIDGET,lang,0.5em top=MIDDLE,lang title=", LANG("(need restart)"), ">"
 
 			/* mouse sensitivity */
 			"<slider tabNum=1 userdata=4 name=speed width=15em minValue=50 maxValue=400 curValue=", &worldSelect.sensitivity, "buddyLabel=",
-			"Mouse sensitivity:", &max, "top=WIDGET,lang,0.5em>"
+				LANG("Mouse sensitivity:"), &max, "top=WIDGET,lang,0.5em>"
 			"<label tabNum=1 name=speedval left=WIDGET,speed,0.5em top=MIDDLE,speed>"
 			/* gui scale adjustment */
 			"<slider tabNum=1 userdata=5 name=scale pageSize=1 width=15em minValue=50 maxValue=200 curValue=", &worldSelect.guiScale, "buddyLabel=",
-				"Interface scale:", &max, "top=WIDGET,speed,0.5em>"
+				LANG("Interface scale:"), &max, "top=WIDGET,speed,0.5em>"
 			"<label tabNum=1 name=scaleval left=WIDGET,scale,0.5em top=MIDDLE,scale>"
 			/* preview block */
 			"<button tabNum=1 name=preview checkState=1 buttonType=", SITV_CheckBox, "curValue=", &worldSelect.showPreview,
-			" title='Show a preview of the block that will be placed' left=OPPOSITE,scale top=WIDGET,scale,0.5em>"
+			" title=", LANG("Show a preview of the block that will be placed."), "left=OPPOSITE,scale top=WIDGET,scale,0.5em>"
 			/* full screen */
-			"<button tabNum=1 name=full buttonType=", SITV_CheckBox, "title='Set the window in full screen on startup.'"
+			"<button tabNum=1 name=full buttonType=", SITV_CheckBox, "title=", LANG("Set the window in full screen on startup."),
 			" curValue=", &worldSelect.fullScreen, "left=OPPOSITE,scale top=WIDGET,preview,0.5em>"
 			/* auto-load */
-			"<button tabNum=1 name=autoload buttonType=", SITV_CheckBox, "title='Automatically load last selected world on startup.'"
+			"<button tabNum=1 name=autoload buttonType=", SITV_CheckBox, "title=", LANG("Automatically load last selected world on startup."),
 			" curValue=", &worldSelect.autoEdit, "left=OPPOSITE,scale top=WIDGET,full,0.5em>"
 			/* lock mouse */
 			"<button tabNum=1 name=lock buttonType=", SITV_CheckBox, "curValue=", &worldSelect.lockMouse,
-			" title='Lock mouse when the window has the focus' left=OPPOSITE,scale top=WIDGET,autoload,0.5em>"
+			" title=", LANG("Lock mouse when the window has the focus."), "left=OPPOSITE,scale top=WIDGET,autoload,0.5em>"
 
 			/*
 			 * graphics tab
@@ -645,41 +681,40 @@ static int worldSelectConfig(SIT_Widget w, APTR cd, APTR ud)
 
 			/* render distance */
 			"<slider tabNum=4 name=dist width=15em minValue=1 pageSize=1 maxValue=16 curValue=", &worldSelect.renderDist, "buddyLabel=",
-			"Render distance:", &max2, "top=FORM,,1em>"
+				LANG("Render distance:"), &max2, "top=FORM,,1em>"
 			"<label tabNum=4 name=distval left=WIDGET,dist,0.5em top=MIDDLE,dist>"
 			/* field of view */
 			"<slider tabNum=4 userdata=1 name=fov width=15em pageSize=1 minValue=40 maxValue=140 curValue=", &worldSelect.fov, "buddyLabel=",
-			"Field of view:", &max2, "top=WIDGET,dist,0.5em>"
+				LANG("Field of view:"), &max2, "top=WIDGET,dist,0.5em>"
 			"<label tabNum=4 name=fovval left=WIDGET,fov,0.5em top=MIDDLE,fov>"
 
 			/* frame per second */
 			"<slider tabNum=4 userdata=2 name=fps width=15em pageSize=1 minValue=20 maxValue=150 curValue=", &worldSelect.fps, "buddyLabel=",
-			"Frame per second:", &max2, "top=WIDGET,fov,0.5em>"
+				LANG("Frame per second:"), &max2, "top=WIDGET,fov,0.5em>"
 			"<label tabNum=4 name=fpsval left=WIDGET,fps,0.5em top=MIDDLE,fps>"
 
 			/* brightness */
 			"<slider tabNum=4 userdata=3 name=bright width=15em maxValue=101 pageSize=1 curValue=", &worldSelect.brightness, "buddyLabel=",
-			"Dark area brightness:", &max2, "top=WIDGET,fps,0.5em>"
+				LANG("Dark area brightness:"), &max2, "top=WIDGET,fps,0.5em>"
 			"<label tabNum=4 name=brightval left=WIDGET,bright,0.5em top=MIDDLE,bright>"
 
 			/* compass size */
 			"<slider tabNum=4 userdata=6 name=compass minValue=49 maxValue=150 pageSize=1 width=15em curValue=", &worldSelect.compassSize,
-			" buddyLabel=", "Compass size:", &max2, "top=WIDGET,bright,0.5em>"
+			" buddyLabel=", LANG("Compass size:"), &max2, "top=WIDGET,bright,0.5em>"
 			"<label tabNum=4 name=compassval left=WIDGET,compass,0.5em top=MIDDLE,compass>"
 
 			/* fog */
-			"<button tabNum=4 name=fog buttonType=", SITV_CheckBox, "top=WIDGET,compass,0.5em title=", "Enable distance fog.",
+			"<button tabNum=4 name=fog buttonType=", SITV_CheckBox, "top=WIDGET,compass,0.5em title=", LANG("Enable distance fog."),
 			" curValue=", &worldSelect.fog, ">"
 			"<label name=note#dim tabNum=4 left=FORM right=FORM title=",
-				"Fog will blend terrain with the sky, but you will lose some viewing distance.<br>"
-				"Disabling fog will make the terrain look out of place though.",
+				LANG("Fog will blend terrain with the sky, but you will lose some viewing distance.<br>Disabling fog will make the terrain look out of place though."),
 			"top=WIDGET,fog,0.2em left=FORM,,1.2em>"
 
 		"</tab>"
-		"<button name=ko.act title=Cancel right=FORM top=WIDGET,tabs,1em buttonType=", SITV_CancelButton, ">"
-		"<button name=use.act title=Use right=WIDGET,ko,0.5em top=OPPOSITE,ko>"
-		"<button name=ok.act title=Save right=WIDGET,use,0.5em top=OPPOSITE,ko buttonType=", SITV_DefaultButton, ">"
-		"<label name=msg.big title='Enter your key combination or <a href=#>cancel</a>.' visible=0 top=MIDDLE,ko>"
+		"<button name=ko.act title=", LANG("Cancel"), "right=FORM top=WIDGET,tabs,1em buttonType=", SITV_CancelButton, ">"
+		"<button name=use.act title=", LANG("Use"), "right=WIDGET,ko,0.5em top=OPPOSITE,ko>"
+		"<button name=ok.act title=", LANG("Save"), "right=WIDGET,use,0.5em top=OPPOSITE,ko buttonType=", SITV_DefaultButton, ">"
+		"<label name=msg.big title=", LANG("Enter your key combination or <a href=#>cancel</a>."), "visible=0 top=MIDDLE,ko>"
 	);
 
 	worldSelect.enterKey = SIT_GetById(dialog, "msg");
@@ -689,8 +724,11 @@ static int worldSelectConfig(SIT_Widget w, APTR cd, APTR ud)
 
 	SIT_AddCallback(worldSelect.enterKey, SITE_OnActivate, worldSelectCancelKbd, NULL);
 	SIT_AddCallback(SIT_GetById(dialog, "selfolder"), SITE_OnActivate, worldSelectSelectFolder, SIT_GetById(dialog, "folder"));
+	SIT_AddCallback(SIT_GetById(dialog, "seluser"),   SITE_OnActivate, worldSelectSelectFolder, SIT_GetById(dialog, "userdata"));
+	SIT_AddCallback(SIT_GetById(dialog, "capdir"),    SITE_OnActivate, worldSelectSelectFolder, SIT_GetById(dialog, "capture"));
 	SIT_AddCallback(SIT_GetById(dialog, "ok"),  SITE_OnActivate, worldSelectSave, (APTR) 1);
 	SIT_AddCallback(SIT_GetById(dialog, "use"), SITE_OnActivate, worldSelectSave, NULL);
+	SIT_AddCallback(dialog, SITE_OnFinalize, optionsClearRef, NULL);
 
 	worldSelectSetCb(dialog, "dist");
 	worldSelectSetCb(dialog, "fov");
@@ -724,6 +762,7 @@ static int worldSelectSort(SIT_Widget w, APTR cd, APTR ud)
 	if (diff > 0) return  1; else return 0;
 }
 
+/* create a icon for the main listview of world selection */
 static void worldSelectAddWorld(SIT_Widget list, STRPTR levelDat)
 {
 	NBTFile_t nbt = {.page = 1023};
@@ -768,10 +807,10 @@ static void worldSelectAddWorld(SIT_Widget list, STRPTR levelDat)
 		);
 		SIT_SetAttributes(td, "<icon top=FORM bottom=OPPOSITE,list>");
 		detail = SIT_GetById(td, "list");
-		SIT_ListInsertItem(detail, -1, NULL, "Folder:", folder);
-		SIT_ListInsertItem(detail, -1, NULL, "Last played: ", lastPlayed);
-		SIT_ListInsertItem(detail, -1, NULL, "Mode:", mode);
-		SIT_ListInsertItem(detail, -1, NULL, "Version:", version);
+		SIT_ListInsertItem(detail, -1, NULL, LANG("Folder:"), folder);
+		SIT_ListInsertItem(detail, -1, NULL, LANG("Last played:"), lastPlayed);
+		SIT_ListInsertItem(detail, -1, NULL, LANG("Mode:"), mode);
+		SIT_ListInsertItem(detail, -1, NULL, LANG("Version:"), version);
 		SIT_GetValues(detail, SIT_UserData, &info, NULL);
 		info->timestamp = timestamp;
 		CopyString(info->folder, levelDat, len+1);
@@ -874,7 +913,7 @@ static int worldSelectDropFiles(SIT_Widget w, APTR cd, APTR ud)
 		AddPart(path, IsDir(path) ? "level.dat" : "../level.dat", max);
 		if (! FileExists(path))
 		{
-			SIT_Log(SIT_INFO, "The path %s does not appear to contain a valid world save.", files[0]);
+			SIT_Log(SIT_INFO, LANG("The path %s does not appear to contain a valid world save."), files[0]);
 			return 1;
 		}
 		ParentDir(path);
@@ -900,9 +939,9 @@ static void AbsolutePath(STRPTR dest, int max)
 void mceditWorldSelect(void)
 {
 	static char nothingFound[] =
-		"No worlds found in \"<a href=\"#\">%s</a>\".<br><br>"
-		"Click on \"SETTINGS\" to select a different folder.<br><br>"
-		"Or drag'n drop a world save onto this window.";
+		DLANG("No worlds found in \"<a href=\"#\">%s</a>\".<br><br>"
+		      "Click on \"SETTINGS\" to select a different folder.<br><br>"
+		      "Or drag'n drop a world save onto this window.");
 
 	static SIT_Accel accels[] = {
 		{SITK_FlagCapture + SITK_FlagAlt + SITK_F4, SITE_OnActivate, 0, NULL, worldSelectExit},
@@ -931,16 +970,16 @@ void mceditWorldSelect(void)
 
 	SIT_CreateWidgets(app,
 		"<canvas name=header left=FORM right=FORM>"
-		"  <button name=opt title='Settings...'>"
-		"  <button name=open title='Open...' left=WIDGET,opt,1em>"
+		"  <button name=opt title=", LANG("Settings..."), ">"
+		"  <button name=open title=", LANG("Open..."), "left=WIDGET,opt,1em>"
 		"  <label name=appname title='MCEdit "MCEDIT_VERSION"' right=FORM>"
-		"  <button name=about title='About...' right=WIDGET,appname,1em>"
-		"  <button name=exit title='Exit' right=WIDGET,about,1em nextCtrl=about>"
-		"  <label name=select title='Select world below to edit:' left=WIDGET,open,1em right=WIDGET,exit,1em"
+		"  <button name=about title=", LANG("About..."), "right=WIDGET,appname,1em>"
+		"  <button name=exit title=", LANG("Exit"), "right=WIDGET,about,1em nextCtrl=about>"
+		"  <label name=select title=", LANG("Select world below to edit:"), "left=WIDGET,open,1em right=WIDGET,exit,1em"
 		"   style='text-align: center; text-decoration: underline'>"
 		"</canvas>"
 		"<canvas name=footer left=FORM right=FORM bottom=FORM>"
-		"  <button name=edit enabled=0 title='Edit selected' left=", SITV_AttachCenter, ">"
+		"  <button name=edit enabled=0 title=", LANG("Edit selected"), "left=", SITV_AttachCenter, ">"
 		"</canvas>"
 		"<listbox sortColumn=0 name=worlds viewMode=", SITV_ListViewIcon, "left=FORM right=FORM top=WIDGET,header"
 		" bottom=WIDGET,footer nextCtrl=footer>"
@@ -1155,14 +1194,14 @@ void mceditYesNo(SIT_Widget parent, STRPTR msg, SIT_CallProc cb, Bool yesNo)
 	if (yesNo)
 	{
 		SIT_CreateWidgets(ask,
-			"<button name=ok.danger title=Yes top=WIDGET,label,0.8em buttonType=", SITV_DefaultButton, ">"
-			"<button name=ko title=No top=OPPOSITE,ok right=FORM buttonType=", SITV_CancelButton, ">"
+			"<button name=ok.danger title=", LANG("Yes"), "top=WIDGET,label,0.8em buttonType=", SITV_DefaultButton, ">"
+			"<button name=ko title=", LANG("No"), "top=OPPOSITE,ok right=FORM buttonType=", SITV_CancelButton, ">"
 		);
 		SIT_SetAttributes(ask, "<ok right=WIDGET,ko,1em>");
 	}
 	else /* only a "no" button */
 	{
-		SIT_CreateWidgets(ask, "<button name=ok right=FORM title=Ok top=WIDGET,label,0.8em buttonType=", SITV_DefaultButton, ">");
+		SIT_CreateWidgets(ask, "<button name=ok right=FORM title=", LANG("Close"), "top=WIDGET,label,0.8em buttonType=", SITV_DefaultButton, ">");
 		cb = mceditCloseDialog;
 	}
 	SIT_AddCallback(SIT_GetById(ask, "ok"), SITE_OnActivate, cb, NULL);

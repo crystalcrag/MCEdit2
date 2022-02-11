@@ -1,10 +1,16 @@
 =========== Week 6 ===========
+Thu Feb 10:
+	* lots of minor changes to accomodate wider translation messages.
+
+Wed Feb 9:
+	* initial implementation of i18n.
+
 Tue Feb 8:
 	* extended selection and mouse lock works better (full keyboard support).
 
 Mon Feb 7:
 	* lock mouse mode mostly done.
-	* debug reports from Dr Memory.
+	* fixed buf reports from Dr Memory.
 
 =========== Week 5 ===========
 Sun Feb 6:

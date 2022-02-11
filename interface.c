@@ -131,10 +131,10 @@ void mcuiAskSave(SIT_CallProc cb)
 	);
 
 	SIT_CreateWidgets(ask,
-		"<label name=label title=", "Some changes have not been saved, what do you want to do ?", ">"
-		"<button name=cancel.act title=Cancel top=WIDGET,label,1em right=FORM buttonType=", SITV_CancelButton, ">"
-		"<button name=ok.act title=Save top=OPPOSITE,cancel right=WIDGET,cancel,0.5em buttonType=", SITV_DefaultButton, ">"
-		"<button name=ko.act title=", "Don't save", "top=OPPOSITE,ok right=WIDGET,ok,0.5em>"
+		"<label name=label title=", LANG("Some changes have not been saved, what do you want to do ?"), ">"
+		"<button name=cancel.act title=", LANG("Cancel"), "top=WIDGET,label,1em right=FORM buttonType=", SITV_CancelButton, ">"
+		"<button name=ok.act title=", LANG("Save"), "top=OPPOSITE,cancel right=WIDGET,cancel,0.5em buttonType=", SITV_DefaultButton, ">"
+		"<button name=ko.act title=", LANG("Don't save"), "top=OPPOSITE,ok right=WIDGET,ok,0.5em>"
 	);
 
 	SIT_AddCallback(SIT_GetById(ask, "cancel"), SITE_OnActivate, cb, (APTR) 2);
@@ -316,16 +316,16 @@ void mcuiCreateInventory(Inventory player)
 
 	SIT_CreateWidgets(diag,
 		"<tab name=items.bg left=FORM right=FORM top=FORM bottom=FORM tabSpace=4 tabActive=", mcui.curTab, "tabStr='\t\t\t\t\t'>"
-		" <editbox name=search right=FORM buddyLabel=", "Search:", NULL, ">"
+		" <editbox name=search right=FORM buddyLabel=", LANG("Search:"), NULL, ">"
 		" <canvas composited=1 name=inv.inv left=FORM top=WIDGET,search,0.5em nextCtrl=LAST/>"
 		" <scrollbar width=1.2em name=scroll.inv wheelMult=1 top=OPPOSITE,inv,0 bottom=OPPOSITE,inv,0 right=FORM>"
-		" <label name=msg title='Player inventory:' top=WIDGET,inv,0.3em>"
+		" <label name=msg title=", LANG("Player inventory:"), "top=WIDGET,inv,0.3em>"
 		" <canvas composited=1 name=player.inv top=WIDGET,msg,0.3em  nextCtrl=LAST/>"
 		" <canvas composited=1 name=tb.inv left=FORM top=WIDGET,player,0.5em  nextCtrl=LAST/>"
 		" <button name=exch1.exch nextCtrl=NONE top=OPPOSITE,player right=FORM tooltip=", tip, "maxWidth=scroll>"
 		" <button name=exch2.exch nextCtrl=NONE top=WIDGET,exch1 right=FORM tooltip=", tip, "maxWidth=exch1>"
 		" <button name=exch3.exch nextCtrl=NONE top=WIDGET,exch2 right=FORM tooltip=", tip, "maxWidth=exch2>"
-		" <button name=del.exch   nextCtrl=NONE top=OPPOSITE,tb title='X' right=FORM tooltip='Clear inventory' maxWidth=exch3>"
+		" <button name=del.exch   nextCtrl=NONE top=OPPOSITE,tb title='X' right=FORM tooltip=", LANG("Clear inventory"), "maxWidth=exch3>"
 		"</tab>"
 		"<tooltip name=info delayTime=", SITV_TooltipManualTrigger, " displayTime=10000 toolTipAnchor=", SITV_TooltipFollowMouse, ">"
 	);
@@ -422,9 +422,11 @@ void mcuiEditChestInventory(Inventory player, Item items, int count, Block type)
 	}
 	else /* furnace */
 	{
+		TEXT buffer[32];
+		snprintf(buffer, sizeof buffer, "%s:", LANG("Furnace"));
 		SIT_CreateWidgets(diag,
 			/* fire should be between slot0 and slot1, but who cares? */
-			"<label name=msg title=Furnace: left=", SITV_AttachCenter, ">"
+			"<label name=msg title=", buffer, "left=", SITV_AttachCenter, ">"
 			"<label name=furnace imagePath=furnace.png left=", SITV_AttachCenter, "top=WIDGET,msg,2em>"
 			"<canvas composited=1 name=slot0.inv right=WIDGET,furnace,1em bottom=WIDGET,furnace,-0.5em nextCtrl=LAST/>"
 			"<canvas composited=1 name=inv.inv right=WIDGET,furnace,1em top=WIDGET,furnace,-0.5em nextCtrl=LAST/>"
@@ -440,7 +442,7 @@ void mcuiEditChestInventory(Inventory player, Item items, int count, Block type)
 	}
 
 	SIT_CreateWidgets(diag,
-		"<label name=msg2 title='Player inventory:' top=WIDGET,inv,0.3em>"
+		"<label name=msg2 title=", LANG("Player inventory:"), "top=WIDGET,inv,0.3em>"
 		"<canvas composited=1 name=player.inv top=WIDGET,msg2,0.3em nextCtrl=LAST/>"
 		"<canvas composited=1 name=tb.inv left=FORM top=WIDGET,player,0.5em nextCtrl=LAST/>"
 		"<tooltip name=info delayTime=", SITV_TooltipManualTrigger, "displayTime=10000 toolTipAnchor=", SITV_TooltipFollowMouse, ">"
@@ -531,10 +533,10 @@ void mcuiCreateSignEdit(vec4 pos, int blockId)
 		image, - fullw * uv[0] / sz[0] - 1, - fullh * uv[1] / sz[1] - 1, fullw, fullh, fontsz);
 
 	SIT_CreateWidgets(diag,
-		"<label name=msg title='Edit sign message:' left=", SITV_AttachCenter, ">"
+		"<label name=msg title=", LANG("Edit sign message:"), "left=", SITV_AttachCenter, ">"
 		"<editbox name=signedit title=", signText, " wordWrap=", SITV_WWChar, "editType=", SITV_Multiline, "width=", width, "height=", height,
 		" maxLines=4 tabStyle=", SITV_TabEditForbid, "style=", styles, "top=WIDGET,msg,4em>"
-		"<button name=ok title=Done left=OPPOSITE,signedit top=WIDGET,signedit,4em left=", SITV_AttachCenter, ">"
+		"<button name=ok title=", LANG("Done"), "left=OPPOSITE,signedit top=WIDGET,signedit,4em left=", SITV_AttachCenter, ">"
 	);
 	SIT_Widget text = SIT_GetById(diag, "signedit");
 	SIT_AddCallback(SIT_GetById(diag, "ok"), SITE_OnActivate, mcuiSaveSign, text);
@@ -852,7 +854,7 @@ static int mcuiExpandAnalyze(SIT_Widget w, APTR cd, APTR ud)
 			SIT_ListReorgColumns(tiles->listSub, "**-*");
 			free(stats);
 			tiles->isSub = 1;
-			mcuiSetAnalyzeTitle(tiles->stat, "Items in containes: <b>%d</b><br>Stacks needed: <b>%d</b>", total, stacks);
+			mcuiSetAnalyzeTitle(tiles->stat, LANG("Items in containers: <b>%d</b><br>Stacks needed: <b>%d</b>"), total, stacks);
 		}
 	}
 	return 1;
@@ -866,7 +868,7 @@ static int mcuiAnalyzeBackToList(SIT_Widget w, APTR cd, APTR ud)
 	SIT_SetValues(tiles->ok, SIT_TopObject, tiles->list, NULL);
 	SIT_SetValues(tiles->listSub, SIT_Visible, False, NULL);
 	SIT_SetValues(tiles->back, SIT_Visible, False, NULL);
-	mcuiSetAnalyzeTitle(tiles->stat, "Non air block selected: <b>%d</b><br>Blocks in volume: <b>%d</b>", tiles->nonAir, tiles->volume);
+	mcuiSetAnalyzeTitle(tiles->stat, LANG("Non air block selected: <b>%d</b><br>Blocks in volume: <b>%d</b>"), tiles->nonAir, tiles->volume);
 	tiles->isSub = 0;
 	return 1;
 }
@@ -897,18 +899,20 @@ void mcuiAnalyze(void)
 		SIT_DialogStyles, SITV_Plain | SITV_Modal | SITV_Movable,
 		NULL
 	);
+	TEXT columns[64];
+	snprintf(columns, sizeof columns, "\xC2\xA0\xC2\xA0\xC2\xA0\xC2\xA0\t%s\t%s\t%s", LANG("Count"), LANG("Name"), LANG("ID"));
 
 	mcui.itemSize[0] = 0;
 	memset(&tiles, 0, sizeof tiles);
 	SIT_CreateWidgets(diag,
 		"<label name=total>"
-		"<listbox name=list columnNames='\xC2\xA0\xC2\xA0\xC2\xA0\xC2\xA0\tCount\tName\tID' width=25em height=15em top=WIDGET,total,0.5em"
+		"<listbox name=list columnNames=", columns, "width=25em height=15em top=WIDGET,total,0.5em"
 		" composited=1 cellPaint=", mcuiGrabItem, ">"
-		"<listbox name=chest columnNames='\xC2\xA0\xC2\xA0\xC2\xA0\xC2\xA0\tCount\tName\tID' width=25em height=15em top=WIDGET,total,0.5em"
+		"<listbox name=chest columnNames=", columns, "width=25em height=15em top=WIDGET,total,0.5em"
 		" composited=1 cellPaint=", mcuiGrabItem, "visible=0>"
-		"<button name=ok title=Ok top=WIDGET,list,1em right=FORM buttonType=", SITV_DefaultButton, ">"
-		"<button name=save title='Copy to clipboard' right=WIDGET,ok,0.5em top=OPPOSITE,ok>"
-		"<button name=back title='Back' right=WIDGET,save,0.5em top=OPPOSITE,ok visible=0>"
+		"<button name=ok title=", LANG("Close"), "top=WIDGET,list,1em right=FORM buttonType=", SITV_DefaultButton, ">"
+		"<button name=save title=", LANG("Copy to clipboard"), "right=WIDGET,ok,0.5em top=OPPOSITE,ok>"
+		"<button name=back title=", LANG("Back"), "right=WIDGET,save,0.5em top=OPPOSITE,ok visible=0>"
 	);
 	tiles.list = SIT_GetById(diag, "list");
 	tiles.stat = SIT_GetById(diag, "total");
@@ -1192,7 +1196,7 @@ static int mcuiFillShowAction(SIT_Widget w, APTR cd, APTR ud)
 	SIT_GetValues(w, SIT_CheckState, &checked, NULL);
 	SIT_SetValues(mcuiRepWnd.replace, SIT_Enabled, checked, NULL);
 	SIT_SetValues(mcuiRepWnd.similar, SIT_Enabled, checked, NULL);
-	SIT_SetValues(mcuiRepWnd.accept, SIT_Title, checked ? "Replace" : "Fill", NULL);
+	SIT_SetValues(mcuiRepWnd.accept, SIT_Title, LANG(checked ? "Replace" : "Fill"), NULL);
 	mcuiFillSyncRadioSide();
 	return 0;
 }
@@ -1286,12 +1290,12 @@ void mcuiFillOrReplace(Bool fillWithBrush)
 	mcuiRepWnd.asyncCheck = NULL;
 
 	SIT_CreateWidgets(diag,
-		"<label name=dlgtitle.big title=", fillWithBrush ? "Geometric brush fill" : "Fill or replace selection",
+		"<label name=dlgtitle.big title=", LANG(fillWithBrush ? DLANG("Geometric brush fill") : DLANG("Fill or replace selection")),
 		" left=", SITV_AttachCenter, ">"
-		"<editbox name=search right=FORM top=WIDGET,dlgtitle,0.3em buddyLabel=", "Search:", NULL, ">"
+		"<editbox name=search right=FORM top=WIDGET,dlgtitle,0.3em buddyLabel=", LANG("Search:"), NULL, ">"
 		"<canvas composited=1 name=inv.inv left=FORM top=WIDGET,search,0.5em nextCtrl=LAST/>"
 		"<scrollbar width=1.2em name=scroll.inv wheelMult=1 top=OPPOSITE,inv,0 bottom=OPPOSITE,inv,0 right=FORM>"
-		"<label name=msg title='Fill:'>"
+		"<label name=msg title=", LANG("Fill:"), ">"
 		"<canvas composited=1 name=fill.inv left=WIDGET,msg,0.5em top=WIDGET,inv,0.5em nextCtrl=LAST/>"
 	);
 
@@ -1312,37 +1316,37 @@ void mcuiFillOrReplace(Bool fillWithBrush)
 		/* interface to fill selection with a geometric brush */
 		TEXT cylinder[32];
 		mcuiRepWnd.axisCylinder = selectionCylinderAxis(size, globals.direction);
-		sprintf(cylinder, "Cylinder (%c)", "WLH"[mcuiRepWnd.axisCylinder]);
+		sprintf(cylinder, LANG("Cylinder (%c)"), LANG("WLH")[mcuiRepWnd.axisCylinder]);
 
 		SIT_CreateWidgets(diag,
-			"<label name=label1 title=Shape: left=WIDGET,fill,0.5em top=MIDDLE,fill>"
-			"<button name=shape1 title=Round checkState=1 curValue=", &mcuiRepWnd.shape, "buttonType=", SITV_RadioButton,
+			"<label name=label1 title=", LANG("Shape:"), "left=WIDGET,fill,0.5em top=MIDDLE,fill>"
+			"<button name=shape1 title=", LANG("Round"), "checkState=1 curValue=", &mcuiRepWnd.shape, "buttonType=", SITV_RadioButton,
 			" top=OPPOSITE,fill left=WIDGET,label1,0.5em>"
 			"<button name=shape2 title=", cylinder, "curValue=", &mcuiRepWnd.shape, "buttonType=", SITV_RadioButton,
 			" top=WIDGET,shape1,0.3em left=WIDGET,label1,0.5em maxWidth=shape1>"
-			"<button name=shape3 title=Diamond curValue=", &mcuiRepWnd.shape, "buttonType=", SITV_RadioButton,
+			"<button name=shape3 title=", LANG("Diamond"), "curValue=", &mcuiRepWnd.shape, "buttonType=", SITV_RadioButton,
 			" top=WIDGET,shape2,0.3em left=WIDGET,label1,0.5em maxWidth=shape2>"
 
-			"<button name=outside title='Fill outer area' curValue=", &mcuiRepWnd.outerArea, "buttonType=", SITV_CheckBox,
+			"<button name=outside title=", LANG("Fill outer area"), "curValue=", &mcuiRepWnd.outerArea, "buttonType=", SITV_CheckBox,
 			" left=WIDGET,shape1,1em top=OPPOSITE,fill>"
-			"<button name=hollow curValue=", &mcuiRepWnd.isHollow, "buttonType=", SITV_CheckBox, "title=Hollow"
+			"<button name=hollow curValue=", &mcuiRepWnd.isHollow, "buttonType=", SITV_CheckBox, "title=", LANG("Hollow"),
 			" left=WIDGET,shape1,1em top=WIDGET,outside,0.3em>"
-			"<button name=half title='Fill with air' tooltip='Only if hollow' curValue=", &mcuiRepWnd.fillAir, "buttonType=", SITV_CheckBox,
-			" left=WIDGET,shape1,1em top=WIDGET,hollow,0.3em>"
+			"<button name=half title=", LANG("Fill with air"), "tooltip=", LANG("Only if hollow"), "curValue=", &mcuiRepWnd.fillAir,
+			" buttonType=", SITV_CheckBox, "left=WIDGET,shape1,1em top=WIDGET,hollow,0.3em>"
 
-			"<frame name=title2 title='<b>Size:</b> (clipped by selection)' left=FORM right=FORM top=WIDGET,shape3,0.5em/>"
-			"<label name=label2.big title=W: right=WIDGET,fill,0.5em>"
+			"<frame name=title2 title=", LANG("<b>Size:</b> (clipped by selection)"), "left=FORM right=FORM top=WIDGET,shape3,0.5em/>"
+			"<label name=label2.big title=", LANG("W:"), ">"
 			"<editbox name=xcoord roundTo=2 curValue=", size, "editType=", SITV_Float, "minValue=1"
-			" right=", SITV_AttachPosition, SITV_AttachPos(32), 0, "left=OPPOSITE,fill top=WIDGET,title2,0.5em>"
-			"<label name=label3.big title=L: left=WIDGET,xcoord,0.5em>"
+			" right=", SITV_AttachPosition, SITV_AttachPos(32), 0, "left=WIDGET,label2,0.5em top=WIDGET,title2,0.5em>"
+			"<label name=label3.big title=", LANG("L:"), "left=WIDGET,xcoord,0.5em>"
 			"<editbox name=zcoord roundTo=2 curValue=", size+1, "editType=", SITV_Float, "minValue=1"
 			" right=", SITV_AttachPosition, SITV_AttachPos(64), 0, "left=WIDGET,label3,0.5em top=OPPOSITE,xcoord>"
-			"<label name=label4.big title=H: left=WIDGET,zcoord,0.5em>"
+			"<label name=label4.big title=", LANG("H:"), "left=WIDGET,zcoord,0.5em>"
 			"<editbox name=ycoord roundTo=2 curValue=", size+2, "editType=", SITV_Float, "minValue=1"
 			" right=FORM,,1em left=WIDGET,label4,0.5em top=OPPOSITE,zcoord>"
 
-			"<button name=ok title=Fill>"
-			"<button name=cancel title=Cancel buttonType=", SITV_CancelButton, "right=FORM top=WIDGET,xcoord,0.5em>"
+			"<button name=ok title=", LANG("Fill"), ">"
+			"<button name=cancel title=", LANG("Cancel"), "buttonType=", SITV_CancelButton, "right=FORM top=WIDGET,xcoord,0.5em>"
 			"<progress name=prog visible=0 title='%d%%' left=FORM right=WIDGET,ok,1em top=MIDDLE,ok>"
 			"<tooltip name=info delayTime=", SITV_TooltipManualTrigger, "displayTime=10000 toolTipAnchor=", SITV_TooltipFollowMouse, ">"
 		);
@@ -1359,24 +1363,25 @@ void mcuiFillOrReplace(Bool fillWithBrush)
 	{
 		uint32_t volume = size[0] * size[1] * size[2];
 		SIT_CreateWidgets(diag,
-			"<button name=doreplace title='Replace by:' curValue=", &mcuiRepWnd.doReplace, "buttonType=", SITV_CheckBox,
+			"<button name=doreplace title=", LANG("Replace by:"), "curValue=", &mcuiRepWnd.doReplace, "buttonType=", SITV_CheckBox,
 			" left=WIDGET,fill,0.5em top=MIDDLE,fill>"
 			"<canvas composited=1 enabled=", mcuiRepWnd.doReplace, "name=replace.inv left=WIDGET,doreplace,0.5em top=WIDGET,inv,0.5em/>"
-			"<button name=side1 radioID=1 enabled=0 title=Top curValue=", &mcuiRepWnd.side, "buttonType=", SITV_RadioButton,
-			" left=WIDGET,replace,0.5em top=MIDDLE,fill>"
-			"<button name=side0 radioID=0 enabled=0 title=Bottom curValue=", &mcuiRepWnd.side, "buttonType=", SITV_RadioButton,
-			" left=WIDGET,side1,0.5em top=MIDDLE,fill>"
-			"<button name=similar enabled=", mcuiRepWnd.doReplace, "curValue=", &mcuiRepWnd.doSimilar, "title='Replace similar blocks (strairs, slabs)'"
+			"<button name=side1 radioID=1 enabled=0 title=", LANG("Top"), "curValue=", &mcuiRepWnd.side, "buttonType=", SITV_RadioButton,
+			" left=WIDGET,replace,0.5em top=OPPOSITE,fill>"
+			"<button name=side0 radioID=0 enabled=0 title=", LANG("Bottom"), "curValue=", &mcuiRepWnd.side, "buttonType=", SITV_RadioButton,
+			" left=WIDGET,replace,0.5em bottom=OPPOSITE,fill>"
+			"<button name=similar enabled=", mcuiRepWnd.doReplace, "curValue=", &mcuiRepWnd.doSimilar, "title=", LANG("Replace similar blocks (strairs, slabs)"),
 			" buttonType=", SITV_CheckBox, "left=OPPOSITE,doreplace top=WIDGET,fill,0.5em>"
-			"<button name=cancel title=Cancel right=FORM top=WIDGET,similar,1em>"
-			"<button name=ok title=", mcuiRepWnd.doReplace ? "Replace" : "Fill", "top=OPPOSITE,cancel right=WIDGET,cancel,0.5em buttonType=", SITV_DefaultButton, ">"
+			"<button name=cancel title=", LANG("Cancel"), "right=FORM top=WIDGET,similar,1em>"
+			"<button name=ok title=", LANG(mcuiRepWnd.doReplace ? DLANG("Replace") : DLANG("Fill")), "top=OPPOSITE,cancel"
+			" right=WIDGET,cancel,0.5em buttonType=", SITV_DefaultButton, ">"
 			"<progress name=prog visible=0 title='%d%%' left=FORM right=WIDGET,ok,1em top=MIDDLE,ok>"
 			"<tooltip name=info delayTime=", SITV_TooltipManualTrigger, "displayTime=10000 toolTipAnchor=", SITV_TooltipFollowMouse, ">"
 		);
 		if (volume > 1)
 		{
 			TEXT msg[64];
-			FormatNumber(msg, sizeof msg, "Volume: %d blocks", volume);
+			FormatNumber(msg, sizeof msg, LANG("Volume: %d blocks"), volume);
 			SIT_CreateWidgets(diag,
 				"<label name=text title=", msg, "left=FORM right=WIDGET,ok,1em top=MIDDLE,ok>"
 			);
@@ -1459,9 +1464,9 @@ static int mcuiDeleteProgress(SIT_Widget w, APTR cd, APTR ud)
 				NULL
 			);
 			SIT_CreateWidgets(dialog,
-				"<label name=title.big title='Delete in progress...' left=", SITV_AttachCenter, ">"
+				"<label name=title.big title=", LANG("Delete in progress..."), "left=", SITV_AttachCenter, ">"
 				"<progress name=prog title=%d%% width=15em top=WIDGET,title,0.5em>"
-				"<button name=ko.act title=Cancel buttonType=", SITV_CancelButton, "left=WIDGET,prog,1em top=WIDGET,title,0.5em>"
+				"<button name=ko.act title=", LANG("Cancel"), "buttonType=", SITV_CancelButton, "left=WIDGET,prog,1em top=WIDGET,title,0.5em>"
 			);
 			mcuiRepWnd.replace = dialog;
 			mcuiRepWnd.prog = SIT_GetById(dialog, "prog");
@@ -1578,36 +1583,36 @@ void mcuiDeletePartial(void)
 	selectionIterEntities(mcuiCountObjects, &entities);
 
 	SIT_CreateWidgets(diag,
-		"<label name=dlgtitle.big title=", "Partial delete", "left=", SITV_AttachCenter, ">"
-		"<label name=title title='Select the parts you want to delete:' top=WIDGET,dlgtitle,0.5em>"
-		"<button name=blocks buttonType=", SITV_CheckBox, "curValue=", &mcuiDelWnd.blocks, "title=Blocks top=WIDGET,title,0.5em>"
+		"<label name=dlgtitle.big title=", LANG("Partial delete"), "left=", SITV_AttachCenter, ">"
+		"<label name=title title=", LANG("Select the parts you want to delete:"), "top=WIDGET,dlgtitle,0.5em>"
+		"<button name=blocks buttonType=", SITV_CheckBox, "curValue=", &mcuiDelWnd.blocks, "title=", LANG("Terrain blocks"), "top=WIDGET,title,0.5em>"
 	);
 	mcuiDelWnd.flags = 0;
 
 	/* show options depending on what was selected */
 	if (entities > 0)
 	{
-		sprintf(title, "In selection: %d", entities);
+		sprintf(title, LANG("In selection: %d"), entities);
 		SIT_CreateWidgets(diag,
-			"<button name=entity buttonType=", SITV_CheckBox, "curValue=", &mcuiDelWnd.entity, "title='Entities (mobs, falling blocks, item frame, ...)'"
-			" top=WIDGET,blocks,0.5em>"
+			"<button name=entity buttonType=", SITV_CheckBox, "curValue=", &mcuiDelWnd.entity, "title=",
+				LANG("Entities (mobs, falling blocks, item frame, ...)"), "top=WIDGET,blocks,0.5em>"
 			"<label name=entitynb.big title=", title, "left=FORM,,1.5em top=WIDGET,entity,0.3em>"
 		);
 		mcuiDelWnd.flags = 1;
 	}
 	if (tileEntities > 0)
 	{
-		sprintf(title, "In selection: %d", tileEntities);
+		sprintf(title, LANG("In selection: %d"), tileEntities);
 		SIT_CreateWidgets(diag,
 			"<button name=tile enabled=", ! mcuiDelWnd.blocks, "buttonType=", SITV_CheckBox, "curValue=", &mcuiDelWnd.tile,
-			" title='Tile entities (chests inventories, ...)' top=WIDGET,#LAST,0.5em>"
+			" title=", LANG("Tile entities (chests inventories, ...)"), "top=WIDGET,#LAST,0.5em>"
 			"<label name=tilenb.big title=", title, "left=FORM,,1.5em top=WIDGET,tile,0.3em>"
 		);
 		mcuiDelWnd.flags |= 2;
 	}
 	SIT_CreateWidgets(diag,
-		"<button name=cancel title=Cancel right=FORM top=WIDGET,#LAST,1em buttonType=", SITV_CancelButton, ">"
-		"<button name=ok title=Delete top=OPPOSITE,cancel right=WIDGET,cancel,0.5em buttonType=", SITV_DefaultButton, ">"
+		"<button name=cancel title=", LANG("Cancel"), "right=FORM top=WIDGET,#LAST,1em buttonType=", SITV_CancelButton, ">"
+		"<button name=ok title=", LANG("Delete"), "top=OPPOSITE,cancel right=WIDGET,cancel,0.5em buttonType=", SITV_DefaultButton, ">"
 		"<progress name=prog title=%d%% visible=0 left=FORM right=WIDGET,ok,1em top=MIDDLE,ok>"
 	);
 	SIT_AddCallback(SIT_GetById(diag, "blocks"), SITE_OnActivate, mcuiAutoCheck, SIT_GetById(diag, "tile"));
@@ -1850,12 +1855,12 @@ void mcuiShowPaintings(void)
 	int tiles = (globals.height >> 1) / PAINTINGS_TILE_H;
 
 	SIT_CreateWidgets(diag,
-		"<label name=dlgtitle.big title=", "Select painting", "left=", SITV_AttachCenter, ">"
-		"<label name=title title='Double-click on the painting you want to add:' top=WIDGET,dlgtitle,0.5em>"
+		"<label name=dlgtitle.big title=", LANG("Select painting"), "left=", SITV_AttachCenter, ">"
+		"<label name=title title=", LANG("Double-click on the painting you want to add:"), "top=WIDGET,dlgtitle,0.5em>"
 		"<label name=name left=WIDGET,title,0.5em right=FORM top=OPPOSITE,title>"
 		"<canvas name=view#table top=WIDGET,title,0.5em height=", tiles * PAINTINGS_TILE_H, "width=", tiles * PAINTINGS_TILE_W, "/>"
-		"<button name=ko title=Cancel top=WIDGET,view,0.5em right=FORM>"
-		"<label name=error title='This painting does not fit here' visible=0 top=MIDDLE,ko>"
+		"<button name=ko title=", LANG("Cancel"), "top=WIDGET,view,0.5em right=FORM>"
+		"<label name=error title=", LANG("This painting does not fit here"), "visible=0 top=MIDDLE,ko>"
 	);
 
 	mcui.resize = mcuiPaintingsResize;
@@ -2094,67 +2099,72 @@ void mcuiWorldInfo(void)
 	SIT_Widget max1 = NULL;
 	SIT_Widget max2 = NULL;
 	SIT_CreateWidgets(diag,
-		"<label name=dlgtitle#title title='World info:' left=FORM right=FORM>"
+		"<label name=dlgtitle#title title=", LANG("World info:"), "left=FORM right=FORM>"
 		"<label name=icon#table currentdir=1 imagePath=", iconPath, "right=FORM top=WIDGET,dlgtitle,0.8em>"
-		"<button name=set.act title='Update icon' top=WIDGET,icon,0.2em left=OPPOSITE,icon right=OPPOSITE,icon tooltip='Will use current 3d view'>"
+		"<button name=set.act title=", LANG("Update icon"), "top=WIDGET,icon,0.2em left=OPPOSITE,icon"
+		" right=OPPOSITE,icon tooltip=", LANG("Will use current 3d view"), ">"
 		"<editbox name=level editBuffer=", mcuiInfo.name, "editLength=", sizeof mcuiInfo.name, "width=15em"
-		" right=WIDGET,icon,0.5em top=WIDGET,dlgtitle,0.8em buddyLabel=", "Name:", &max1, ">"
+		" right=WIDGET,icon,0.5em top=WIDGET,dlgtitle,0.8em buddyLabel=", LANG("Name:"), &max1, ">"
 		"<editbox name=seed  editBuffer=", mcuiInfo.seed, "editLength=", sizeof mcuiInfo.seed,
-		" right=WIDGET,icon,0.5em top=WIDGET,level,0.5em buddyLabel=", "Seed:", &max1, ">"
-		"<editbox name=day width=5.75em top=WIDGET,seed,0.5em minValue=0 buddyLabel=", "Days:", &max1,
+		" right=WIDGET,icon,0.5em top=WIDGET,level,0.5em buddyLabel=", LANG("Seed:"), &max1, ">"
+		"<editbox name=day width=5.75em top=WIDGET,seed,0.5em minValue=0 buddyLabel=", LANG("Days:"), &max1,
 		" editType=", SITV_Integer, "curValue=", &mcuiInfo.days, ">"
-		"<editbox name=time width=5.75em top=WIDGET,seed,0.5em buddyLabel=", "Time:", NULL,
+		"<editbox name=time width=5.75em top=WIDGET,seed,0.5em buddyLabel=", LANG("Time:"), NULL,
 		" editBuffer=", mcuiInfo.time, "editLength=", sizeof mcuiInfo.time, "right=WIDGET,icon,0.5em>"
-		"<button name=open.act title=Folder:>"
-		"<editbox name=folder editBuffer=", mcuiInfo.folder, "editLength=", MAX_PATHLEN, "readOnly=1 top=WIDGET,time,0.5em left=OPPOSITE,level right=WIDGET,icon,0.5em>"
-		"<label name=size title=", size, "top=WIDGET,folder,0.5em buddyLabel=", "Size:", &max1, ">"
-		"<label name=rules#title title='Game rules:' left=FORM right=FORM top=WIDGET,size,0.5em/>"
+		"<button name=open.act title=", LANG("Folder:"), ">"
+		"<editbox name=folder editBuffer=", mcuiInfo.folder, "editLength=", MAX_PATHLEN, "readOnly=1"
+		" top=WIDGET,time,0.5em left=OPPOSITE,level right=WIDGET,icon,0.5em>"
+		"<label name=size title=", size, "top=WIDGET,folder,0.5em buddyLabel=", LANG("Size:"), &max1, ">"
+		"<label name=rules#title title=", LANG("Game rules:"), "left=FORM right=FORM top=WIDGET,size,0.5em/>"
 		/* game mode */
-		"<button name=type0 buttonType=", SITV_RadioButton, "curValue=", &mcuiInfo.mode, "title=Survival top=WIDGET,rules,1em buddyLabel=", "Game mode:", &max2, ">"
-		"<button name=type1 buttonType=", SITV_RadioButton, "curValue=", &mcuiInfo.mode, "title=Creative top=OPPOSITE,type0 left=WIDGET,type0,0.8em>"
-		"<button name=type2 buttonType=", SITV_RadioButton, "curValue=", &mcuiInfo.mode, "title=Spectator radioID=3 top=OPPOSITE,type0 left=WIDGET,type1,0.8em>"
+		"<button name=type0 buttonType=", SITV_RadioButton, "curValue=", &mcuiInfo.mode, "title=", LANG("Survival"),
+		" top=WIDGET,rules,1em buddyLabel=", LANG("Game mode:"), &max2, ">"
+		"<button name=type1 buttonType=", SITV_RadioButton, "curValue=", &mcuiInfo.mode, "title=", LANG("Creative"),
+		" top=OPPOSITE,type0 left=WIDGET,type0,0.8em>"
+		"<button name=type2 buttonType=", SITV_RadioButton, "curValue=", &mcuiInfo.mode, "title=", LANG("Spectator"),
+		" radioID=3 top=OPPOSITE,type0 left=WIDGET,type1,0.8em>"
 		/* difficulty */
 		"<button name=level0 buttonType=", SITV_RadioButton, "curValue=", &mcuiInfo.difficulty, "radioGroup=1"
-		" title=Peaceful top=WIDGET,type0,1em buddyLabel=", "Difficulty:", &max2, ">"
+		" title=", LANG("Peaceful"), "top=WIDGET,type0,1em buddyLabel=", LANG("Difficulty:"), &max2, ">"
 		"<button name=level1 buttonType=", SITV_RadioButton, "curValue=", &mcuiInfo.difficulty,
-		" radioGroup=1 title=Easy top=OPPOSITE,level0 left=WIDGET,level0,0.8em>"
+		" radioGroup=1 title=", LANG("Easy"), "top=OPPOSITE,level0 left=WIDGET,level0,0.8em>"
 		"<button name=level2 buttonType=", SITV_RadioButton, "curValue=", &mcuiInfo.difficulty,
-		" radioGroup=1 title=Normal top=OPPOSITE,level0 left=WIDGET,level1,0.8em>"
+		" radioGroup=1 title=", LANG("Normal"), "top=OPPOSITE,level0 left=WIDGET,level1,0.8em>"
 		"<button name=level3 buttonType=", SITV_RadioButton, "curValue=", &mcuiInfo.difficulty,
-		" radioGroup=1 title=Hard top=OPPOSITE,level0 left=WIDGET,level2,0.8em>"
+		" radioGroup=1 title=", LANG("Hard"), "top=OPPOSITE,level0 left=WIDGET,level2,0.8em>"
 		/* hardcore */
 		"<button name=hard0 buttonType=", SITV_RadioButton, "radioGroup=2 top=WIDGET,level0,1em"
-		" curValue=", &mcuiInfo.hardcore, "title=No buddyLabel=", "Hardcore more:", &max2, ">"
+		" curValue=", &mcuiInfo.hardcore, "title=", LANG("No"), "buddyLabel=", LANG("Hardcore mode:"), &max2, ">"
 		"<button name=hard1 buttonType=", SITV_RadioButton, "radioGroup=2 top=OPPOSITE,hard0"
-		" left=WIDGET,hard0,0.8em curValue=", &mcuiInfo.hardcore, "title=Yes>"
+		" left=WIDGET,hard0,0.8em curValue=", &mcuiInfo.hardcore, "title=", LANG("Yes"), ">"
 		/* allowCommands */
 		"<button name=cmd0 buttonType=", SITV_RadioButton, "radioGroup=3 top=WIDGET,hard0,1em"
-		" curValue=", &mcuiInfo.allowCmds, "title=No buddyLabel=", "Allow commands:", &max2, ">"
+		" curValue=", &mcuiInfo.allowCmds, "title=", LANG("No"), "buddyLabel=", LANG("Allow commands:"), &max2, ">"
 		"<button name=cmd1 buttonType=", SITV_RadioButton, "radioGroup=3 top=OPPOSITE,cmd0"
-		" left=WIDGET,cmd0,0.8em curValue=", &mcuiInfo.allowCmds, "title=Yes>"
+		" left=WIDGET,cmd0,0.8em curValue=", &mcuiInfo.allowCmds, "title=", LANG("Yes"), ">"
 		/* doDayNightCycle */
 		"<button name=day0 buttonType=", SITV_RadioButton, "radioGroup=4 top=WIDGET,cmd0,1em"
-		" curValue=", &mcuiInfo.dayCycle, "title=No buddyLabel=", "Day/night cycle:", &max2, ">"
+		" curValue=", &mcuiInfo.dayCycle, "title=", LANG("No"), "buddyLabel=", LANG("Day/night cycle:"), &max2, ">"
 		"<button name=day1 buttonType=", SITV_RadioButton, "radioGroup=4 top=OPPOSITE,day0"
-		" left=WIDGET,day0,0.8em curValue=", &mcuiInfo.dayCycle, "title=Yes>"
+		" left=WIDGET,day0,0.8em curValue=", &mcuiInfo.dayCycle, "title=", LANG("Yes"), ">"
 		/* keepInventory */
 		"<button name=inv0 buttonType=", SITV_RadioButton, "radioGroup=5 top=WIDGET,day0,1em"
-		" curValue=", &mcuiInfo.keepInv, "title=No buddyLabel=", "Keep inventory:", &max2, ">"
+		" curValue=", &mcuiInfo.keepInv, "title", LANG("No"), "buddyLabel=", LANG("Keep inventory:"), &max2, ">"
 		"<button name=inv1 buttonType=", SITV_RadioButton, "radioGroup=5 top=OPPOSITE,inv0"
-		" left=WIDGET,inv0,0.8em curValue=", &mcuiInfo.keepInv, "title=Yes>"
+		" left=WIDGET,inv0,0.8em curValue=", &mcuiInfo.keepInv, "title=", LANG("Yes"), ">"
 		/* mobGriefing */
 		"<button name=grief0 buttonType=", SITV_RadioButton, "radioGroup=6 top=WIDGET,inv0,1em"
-		" curValue=", &mcuiInfo.mobGrief, "title=No buddyLabel=", "Mob griefing:", &max2, ">"
+		" curValue=", &mcuiInfo.mobGrief, "title=", LANG("No"), "buddyLabel=", LANG("Mob griefing:"), &max2, ">"
 		"<button name=grief1 buttonType=", SITV_RadioButton, "radioGroup=6 top=OPPOSITE,grief0"
-		" left=WIDGET,grief0,0.8em curValue=", &mcuiInfo.mobGrief, "title=Yes>"
+		" left=WIDGET,grief0,0.8em curValue=", &mcuiInfo.mobGrief, "title=", LANG("Yes"), ">"
 		/* doFireTick */
 		"<button name=fire0 buttonType=", SITV_RadioButton, "radioGroup=7 top=WIDGET,grief0,1em"
-		" curValue=", &mcuiInfo.fireTick, "title=No buddyLabel=", "Fire spreading:", &max2, ">"
+		" curValue=", &mcuiInfo.fireTick, "title=", LANG("No"), "buddyLabel=", LANG("Fire spreading:"), &max2, ">"
 		"<button name=fire1 buttonType=", SITV_RadioButton, "radioGroup=7 top=OPPOSITE,fire0"
-		" left=WIDGET,fire0,0.8em curValue=", &mcuiInfo.fireTick, "title=Yes>"
+		" left=WIDGET,fire0,0.8em curValue=", &mcuiInfo.fireTick, "title=", LANG("Yes"), ">"
 
-		"<button name=ko.act title=Cancel top=WIDGET,fire0,0.8em right=FORM buttonType=", SITV_CancelButton, ">"
-		"<button name=ok.act title=Save   top=OPPOSITE,ko right=WIDGET,ko,1em buttonType=", SITV_DefaultButton, ">"
+		"<button name=ko.act title=", LANG("Cancel"), "top=WIDGET,fire0,0.8em right=FORM buttonType=", SITV_CancelButton, ">"
+		"<button name=ok.act title=", LANG("Save"),   "top=OPPOSITE,ko right=WIDGET,ko,1em buttonType=", SITV_DefaultButton, ">"
 	);
 
 	SIT_SetAttributes(diag, "<open top=MIDDLE,folder maxWidth=bsize><time left=NONE><btime right=WIDGET,time,0.5em><icon bottom=OPPOSITE,folder>");
