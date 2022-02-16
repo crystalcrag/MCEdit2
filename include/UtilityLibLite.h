@@ -233,14 +233,12 @@ DLLIMP void    FreeINI(INIFile);
 
 /* Lang.c */
 DLLIMP Lang   LangParse(STRPTR path);
-DLLIMP STRPTR LangStr(Lang lang, STRPTR msg, int max);
-DLLIMP STRPTR LangStrPlural(Lang lang, int nb, STRPTR sing, STRPTR plur);
+DLLIMP STRPTR LangStr(STRPTR msg);
+DLLIMP STRPTR LangStrPlural(int nb, STRPTR sing, STRPTR plur);
 DLLIMP void   LangFree(Lang lang);
-DLLIMP Lang   LangCheck(Lang);
 
-#define	_(str)              LangStr(NULL, str, 0)
-#define	_N(n, sing, plur)   LangStrPlural(NULL, n, sing, plur)
-#define	D_(str)             str
+#define	LANG(str)              LangStr(str)
+#define	DLANG(str)             str
 
 #ifdef __cplusplus
 }

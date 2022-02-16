@@ -246,8 +246,8 @@ SIT_Widget CCOpen(SIT_Widget app, DATA8 rgb, SIT_CallProc cb, APTR ud, int arrow
 		" <canvas name=Hindic width=7 height=11 top=POSITION style=", bgCursorHue, "/>"
 		"</canvas>"
 		"<editbox name=color width=5em bottom=FORM>"
-		"<button name=ok.act title=Select top=MIDDLE,color left=WIDGET,color,0.3em buttonType=", SITV_DefaultButton, ">"
-		"<button name=ko.act title=Cancel top=MIDDLE,color left=WIDGET,ok,0.3em buttonType=", SITV_CancelButton, ">"
+		"<button name=ok.act title=", LANG("Select"), "top=MIDDLE,color left=WIDGET,color,0.3em buttonType=", SITV_DefaultButton, ">"
+		"<button name=ko.act title=", LANG("Cancel"), "top=MIDDLE,color left=WIDGET,ok,0.3em buttonType=", SITV_CancelButton, ">"
 	);
 	SIT_SetAttributes(diag, "<SV left=FORM top=FORM right=WIDGET,hue,0.8em bottom=WIDGET,color,0.3em>");
 

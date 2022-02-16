@@ -115,7 +115,7 @@ void selectionSetSize(void)
 		};
 		if (globals.direction & 1)
 			swap(size[0], size[1]);
-		sprintf(buffer, "%dW x %dL x %dH", size[0], size[1], size[2]);
+		sprintf(buffer, LANG("%dW x %dL x %dH"), size[0], size[1], size[2]);
 		SIT_SetValues(w, SIT_Title, buffer, NULL);
 	}
 	if ((w = selection.brushSize))
@@ -126,7 +126,7 @@ void selectionSetSize(void)
 		int size[] = {brush->size[VX]-2, brush->size[VZ]-2, brush->size[VY]-2};
 		if (globals.direction & 1)
 			swap(size[0], size[1]);
-		sprintf(buffer, "%dW x %dL x %dH", size[0], size[1], size[2]);
+		sprintf(buffer, LANG("%dW x %dL x %dH"), size[0], size[1], size[2]);
 		SIT_SetValues(w, SIT_Title, buffer, NULL);
 	}
 	if (selection.editBrush)
@@ -134,7 +134,7 @@ void selectionSetSize(void)
 		/* show the orientattion of roll command (way too complicated to make it follow all orientations) */
 		w = SIT_GetById(selection.editBrush, "roll");
 		TEXT buffer[64];
-		sprintf(buffer, "<pchar src=roll%s.png> Roll", selection.ext[globals.direction]);
+		snprintf(buffer, sizeof buffer, "<pchar src=roll%s.png> %s", selection.ext[globals.direction], LANG("Roll"));
 		SIT_SetValues(w, SIT_Title, buffer, NULL);
 	}
 }
@@ -389,10 +389,10 @@ void selectionSetPoint(float scale, vec4 pos, int point)
 				NULL
 			);
 			SIT_CreateWidgets(diag,
-				"<button name=whole title=Nudge left=", SITV_AttachCenter, ">"
+				"<button name=whole title=", LANG("Nudge"), "left=", SITV_AttachCenter, ">"
 				"<label name=size top=WIDGET,whole,0.3em left=FORM right=FORM style='text-align: center; color: white'>"
-				"<button name=first title=Nudge top=WIDGET,size,0.3em>"
-				"<button name=second title=Nudge top=OPPOSITE,first left=WIDGET,first,0.5em>"
+				"<button name=first title=", LANG("Nudge"), "top=WIDGET,size,0.3em>"
+				"<button name=second title=", LANG("Nudge"), "top=OPPOSITE,first left=WIDGET,first,0.5em>"
 			);
 			selection.nudgeSize = SIT_GetById(diag, "size");
 			SIT_AddCallback(SIT_GetById(diag, "whole"),  SITE_OnClick, selectionNudge, (APTR) 3);
@@ -761,24 +761,30 @@ void selectionFreeBrush(Map brush)
 /* dialog to manipulate selection clone */
 void selectionEditBrush(Bool simplified)
 {
-	TEXT buffer[32];
+	TEXT rollMsg[64];
+	TEXT flipMsg[64];
+	TEXT mirrorMsg[64];
+	TEXT rotateMsg[64];
 	SIT_Widget diag = selection.editBrush = SIT_CreateWidget("editbrush.mc", SIT_DIALOG, globals.app,
 		SIT_DialogStyles,  SITV_Plain,
 		SIT_Left,          SITV_AttachForm, NULL, SITV_Em(0.5),
 		SIT_TopAttachment, SITV_AttachCenter,
 		NULL
 	);
-	sprintf(buffer, "<pchar src=roll%s.png> Roll", selection.ext[globals.direction]);
+	snprintf(rollMsg,   sizeof rollMsg, "<pchar src=roll%s.png> %s", selection.ext[globals.direction], LANG("Roll"));
+	snprintf(flipMsg,   sizeof flipMsg, "<pchar src=flip.png> %s", LANG("Flip"));
+	snprintf(rotateMsg, sizeof rollMsg, "<xchar src=rotate.png> %s", LANG("Rotate"));
+	snprintf(mirrorMsg, sizeof rollMsg, "<xchar src=mirror.png> %s", LANG("Mirror"));
 	SIT_CreateWidgets(diag,
 		"<label name=brotate title=R:>"
-		"<button name=rotate.act title='<xchar src=rotate.png> Rotate' left=WIDGET,brotate,0.3em>"
+		"<button name=rotate.act title=", rotateMsg, "left=WIDGET,brotate,0.3em>"
 		"<label name=broll title=T: left=WIDGET,rotate,1em>"
-		"<button maxWidth=rotate name=roll.act title=", buffer, "left=WIDGET,broll,0.3em>"
+		"<button maxWidth=rotate name=roll.act title=", rollMsg, "left=WIDGET,broll,0.3em>"
 		"<label name=bflip maxWidth=brotate title=L:>"
-		"<button name=flip.act title='<pchar src=flip.png> Flip' maxWidth=roll top=WIDGET,broll,0.5em left=WIDGET,bflip,0.3em>"
+		"<button name=flip.act title=", flipMsg, "maxWidth=roll top=WIDGET,broll,0.5em left=WIDGET,bflip,0.3em>"
 		"<label name=bmirror maxWidth=broll title=M: left=WIDGET,flip,1em>"
-		"<button name=mirror.act title='<xchar src=mirror.png> Mirror' maxWidth=flip top=WIDGET,broll,0.5em left=WIDGET,bmirror,0.3em>"
-		"<button name=nudge title=Nudge nextCtrl=NONE right=FORM maxWidth=mirror>"
+		"<button name=mirror.act title=", mirrorMsg, "maxWidth=flip top=WIDGET,broll,0.5em left=WIDGET,bmirror,0.3em>"
+		"<button name=nudge title=", LANG("Nudge"), "nextCtrl=NONE right=FORM maxWidth=mirror>"
 	);
 
 	if (! simplified)
@@ -794,7 +800,7 @@ void selectionEditBrush(Bool simplified)
 			"<label name=tlab title=... maxWidth=zlab>"
 			"<editbox name=repeat curValue=", &selection.cloneRepeat, "editType=", SITV_Integer, "left=OPPOSITE,zcoord minValue=1 maxValue=128"
 			" right=OPPOSITE,zcoord top=WIDGET,zcoord,1em>"
-			"<label name=brep title='(Repeat)' top=MIDDLE,repeat left=WIDGET,repeat,1em>"
+			"<label name=brep title=", LANG("(Repeat)"), "top=MIDDLE,repeat left=WIDGET,repeat,1em>"
 		);
 		SIT_SetAttributes(diag,
 			"<xlab top=MIDDLE,xcoord><ylab top=MIDDLE,ycoord><zlab top=MIDDLE,zcoord>"
@@ -810,12 +816,12 @@ void selectionEditBrush(Bool simplified)
 	}
 
 	SIT_CreateWidgets(diag,
-		"<button name=copyair title='Copy <u>a</u>ir'    curValue=", &selection.copyAir,    "top=WIDGET,#LAST,1em    buttonType=", SITV_CheckBox, ">"
-		"<button name=copywat title='Copy <u>w</u>ater'  curValue=", &selection.copyWater,  "top=WIDGET,copyair,0.5em buttonType=", SITV_CheckBox, ">"
-		"<button name=copyent title='Copy <u>e</u>ntity' curValue=", &selection.copyEntity, "top=WIDGET,copywat,0.5em buttonType=", SITV_CheckBox, ">"
+		"<button name=copyair title=", LANG("Copy <u>a</u>ir"),    "curValue=", &selection.copyAir,    "top=WIDGET,#LAST,1em     buttonType=", SITV_CheckBox, ">"
+		"<button name=copywat title=", LANG("Copy <u>w</u>ater"),  "curValue=", &selection.copyWater,  "top=WIDGET,copyair,0.5em buttonType=", SITV_CheckBox, ">"
+		"<button name=copyent title=", LANG("Copy <u>e</u>ntity"), "curValue=", &selection.copyEntity, "top=WIDGET,copywat,0.5em buttonType=", SITV_CheckBox, ">"
 
-		"<button name=ko.act title=Cancel right=FORM top=WIDGET,copyent,1em>"
-		"<button name=ok.act title=Clone  right=WIDGET,ko,0.5em top=OPPOSITE,ko buttonType=", SITV_DefaultButton, ">"
+		"<button name=ko.act title=", LANG("Cancel"), "right=FORM top=WIDGET,copyent,1em>"
+		"<button name=ok.act title=", LANG("Clone"),  "right=WIDGET,ko,0.5em top=OPPOSITE,ko buttonType=", SITV_DefaultButton, ">"
 	);
 	SIT_SetAttributes(diag,
 		"<brotate top=MIDDLE,rotate><broll top=MIDDLE,roll><bflip top=MIDDLE,flip><bmirror top=MIDDLE,mirror>"

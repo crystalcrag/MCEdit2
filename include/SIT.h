@@ -38,7 +38,6 @@ typedef struct KeyVal_t *        KeyVal;
 typedef struct SIT_Accel_t       SIT_Accel;
 
 /* datatypes passed as second argument for callback events */
-typedef struct LocaleInfo_t *    LocaleInfo;     /* value stored for SIT_LocaleInfo tag */
 typedef struct SIT_OnKey_t       SIT_OnKey;      /* OnVanillaKey, OnRawKey */
 typedef struct SIT_OnMouse_t     SIT_OnMouse;    /* OnClick, OnMouseMove */
 typedef struct SIT_OnSort_t      SIT_OnSort;     /* OnSortItem */
@@ -106,7 +105,7 @@ DLLIMP void       SIT_SetAttributes(SIT_Widget parent, STRPTR fmt, ...);
 DLLIMP void       SIT_SetFocus(SIT_Widget);
 DLLIMP void       SIT_CloseDialog(SIT_Widget);
 DLLIMP int        SIT_ManageWidget(SIT_Widget);
-DLLIMP int        SIT_ComboInsertItem(SIT_Widget, int index, STRPTR item, APTR rowTag);
+DLLIMP int        SIT_ComboInsertItem(SIT_Widget, int index, STRPTR item, int length, APTR rowTag);
 DLLIMP int        SIT_ComboDeleteItem(SIT_Widget, int index);
 DLLIMP APTR       SIT_ComboGetRowTag(SIT_Widget, int nth, STRPTR * label);
 DLLIMP SIT_Widget SIT_TabGetNth(SIT_Widget, int nth);
@@ -130,6 +129,7 @@ DLLIMP float      SIT_EmToReal(SIT_Widget, uint32_t val);
 DLLIMP void       SIT_ExtractDialog(SIT_Widget);
 DLLIMP void       SIT_InsertDialog(SIT_Widget);
 DLLIMP int        SIT_TextEditLineLength(SIT_Widget, int line);
+DLLIMP void       SIT_ToggleFullScreen(int width, int height);
 
 DLLIMP Bool       SIT_ListSetCell(SIT_Widget, int row, int col, APTR rowTag, int align, STRPTR text);
 DLLIMP Bool       SIT_ListSetColumn(SIT_Widget, int col, int width, int align, STRPTR label);
@@ -248,7 +248,7 @@ enum
 	SIT_DefSBArrows      = 56,   /* CSG: Enum, see SIT_ArrowType */
 	SIT_DefSBSize        = 57,   /* CSG: Int (unit) */
 	SIT_RefreshMode      = 58,   /* CSG: Enum */
-	SIT_LocaleInfo       = 59,   /* __G: LocaleInfo * */
+	SIT_MonitorResol     = 59,   /* __G: DATA16 */
 	SIT_CurrentDir       = 60,   /* CSG: String */
 	SIT_ScreenWidth      = 61,   /* __G: Int */
 	SIT_ScreenHeight     = 62,   /* __G: Int */
@@ -394,9 +394,6 @@ typedef enum /* SIT_Attachment */
 	SITV_AttachOpposite,
 	SITV_AttachMiddle,
 	SITV_AttachNoOverlap,
-#ifdef SIT_P_H
-	SITV_AttachFixed             /* Private geometry attachment */
-#endif
 }	SIT_AttachType;
 
 #define	SITV_AttachPos(percent)  ((ULONG)((percent) * 65536 / 100))
@@ -752,28 +749,6 @@ enum /* special values for SIT_OnKey_t.keycode field */
 	SITK_Space       = RAWKEY(48),
 	SITK_Help        = RAWKEY(49),
 	SITK_Shift       = RAWKEY(50)
-};
-
-struct LocaleInfo_t        // example:
-{
-	STRPTR nlsLang;        // Français
-	STRPTR nlsCountry;     // France
-	STRPTR engLang;        // French
-	STRPTR engCountry;     // France
-	STRPTR iso3166;        // FR_fr
-	STRPTR currency;       // €
-	STRPTR currencyName;   // Euro
-	STRPTR currencyCode;   // EUR
-	STRPTR shortDate;      // dd/MM/yyyy
-	STRPTR longDate;       // dddd d MMMM yyyy
-	STRPTR decimalSep;     // ,
-	STRPTR months[12];     // janvier, février, ...
-	STRPTR abbrMonths[12]; // janv., févr., ...
-	STRPTR weekDays[7];    // lundi, mardi, ...
-	STRPTR abbrWeek[7];    // lun., mar., mer., ...
-	STRPTR langCode;       // 040C
-	STRPTR intlPrefix;     // 33
-	STRPTR timeStr;        // HH:MM:SS
 };
 
 /* special tag modifier to enable printf-like parsing for string parameter */

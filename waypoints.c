@@ -215,12 +215,12 @@ static void wayPointsAddToList(WayPoint wp)
 	/* show distance from camera */
 	vecSub(dir, waypoints.curPos, wp->location);
 	dir[VT] = vecLength(dir);
-	if (dir[VT] < 10)       strcpy(dist, "Nearby");
+	if (dir[VT] < 10)       CopyString(dist, LANG("Nearby"), sizeof dist);
 	else if (dir[VT] < 500) sprintf(dist, "%dm", (int) dir[VT]);
 	else                    sprintf(dist, "%.1fkm", round((double) dir[VT] / 1000));
 
 	snprintf(coord, sizeof coord, "%d, %d, %d", (int) wp->location[VX], (int) wp->location[VY], (int) wp->location[VZ]);
-	SIT_ListInsertItem(waypoints.list, -1, NULL, "", wp->name[0] ? wp->name : "Unnamed", coord, dist);
+	SIT_ListInsertItem(waypoints.list, -1, NULL, "", wp->name[0] ? wp->name : LANG("Unnamed"), coord, dist);
 }
 
 /* teleport to selected location in <goto> popup */
@@ -414,7 +414,7 @@ static int wayPointsClick(SIT_Widget w, APTR cd, APTR ud)
 					NULL
 				);
 				if (click == 2)
-					SIT_SetValues(w, SIT_PlaceHolder, "Set to player pos if empty", NULL);
+					SIT_SetValues(w, SIT_PlaceHolder, LANG("Set to player pos if empty"), NULL);
 				SIT_SetFocus(w);
 				SIT_AddCallback(w, SITE_OnBlur,   wayPointsFinishEdit, wp);
 				SIT_AddCallback(w, SITE_OnRawKey, wayPointsAcceptEdit, wp);
@@ -490,7 +490,7 @@ void wayPointsEdit(vec4 pos, float rotation[2])
 	waypoints.playerRotation = rotation;
 
 	SIT_CreateWidgets(diag,
-		"<label name=title.big title='Enter the coordinates you want to jump to:' left=", SITV_AttachCenter, ">"
+		"<label name=title.big title=", LANG("Enter the coordinates you want to jump to:"), "left=", SITV_AttachCenter, ">"
 		"<editbox name=X roundTo=2 editType=", SITV_Float, "width=8em curValue=", waypoints.curPos, "top=WIDGET,title,1em buddyLabel=", "X:", NULL, ">"
 		"<editbox name=Y roundTo=2 editType=", SITV_Float, "width=8em curValue=", waypoints.curPos+1, "top=WIDGET,title,1em buddyLabel=", "Y:", NULL, ">"
 		"<editbox name=Z roundTo=2 editType=", SITV_Float, "width=8em curValue=", waypoints.curPos+2, "top=WIDGET,title,1em buddyLabel=", "Z:", NULL, ">"
@@ -502,10 +502,11 @@ void wayPointsEdit(vec4 pos, float rotation[2])
 	if (waypoints.all.count > 0)
 	{
 		SIT_CreateWidgets(diag,
-			"<button name=ok title=Goto top=MIDDLE,Z left=WIDGET,Z,0.5em>"
-			"<label name=msg title='<b>Available waypoints:</b> (right-click to edit)' left=",
+			"<button name=ok title=", LANG("Goto"), "top=MIDDLE,Z left=WIDGET,Z,0.5em>"
+			"<label name=msg title=", LANG("<b>Available waypoints:</b> (right-click to edit)"), "left=",
 				SITV_AttachPosition, SITV_AttachPos(50), SITV_OffsetCenter, "top=WIDGET,X,0.5em>"
-			"<listbox name=list columnNames='\tName\tLocation\tDist.' left=FORM top=WIDGET,msg,0.5em right=FORM height=10em cellPaint=", wayPointsPaintCell, ">"
+			"<listbox name=list columnNames=", LANG("\tName\tLocation\tDist."), "left=FORM top=WIDGET,msg,0.5em right=FORM height=10em"
+			" cellPaint=", wayPointsPaintCell, ">"
 		);
 		top = waypoints.list = SIT_GetById(diag, "list");
 		SIT_ListSetColumn(top, 0, SIT_EmToReal(diag, SITV_Em(1.5)), 'L', DontChangePtr);
@@ -526,8 +527,8 @@ void wayPointsEdit(vec4 pos, float rotation[2])
 	}
 
 	SIT_CreateWidgets(diag,
-		"<button name=add title='Add marker' top=", SITV_AttachWidget, top, SITV_Em(0.5), ">"
-		"<button name=del title='Delete' top=OPPOSITE,add left=WIDGET,add,0.8em enabled=0>"
+		"<button name=add title=", LANG("Add marker"), "top=", SITV_AttachWidget, top, SITV_Em(0.5), ">"
+		"<button name=del title=", LANG("Delete"), "top=OPPOSITE,add left=WIDGET,add,0.8em enabled=0>"
 	);
 	SIT_SetAttributes(diag,
 		"<bY left=WIDGET,X,1em><bZ left=WIDGET,Y,1em>"
@@ -540,8 +541,8 @@ void wayPointsEdit(vec4 pos, float rotation[2])
 	{
 		SIT_CreateWidgets(diag,
 			"<button name=render buttonType=", SITV_CheckBox, "curValue=", &waypoints.displayInWorld,
-			"title='Show in world' left=WIDGET,del,0.5em top=MIDDLE,add>"
-			"<button name=done title=Done top=OPPOSITE,add right=FORM buttonType=", SITV_DefaultButton, ">"
+			"title=", LANG("Show in world"), "left=WIDGET,del,0.5em top=MIDDLE,add>"
+			"<button name=done title=", LANG("Done"), "top=OPPOSITE,add right=FORM buttonType=", SITV_DefaultButton, ">"
 		);
 		SIT_AddCallback(SIT_GetById(diag, "render"), SITE_OnActivate, wayPointsDisplayed, NULL);
 		SIT_AddCallback(SIT_GetById(diag, "done"),   SITE_OnActivate, mcuiExitWnd, NULL);
@@ -555,8 +556,8 @@ void wayPointsEdit(vec4 pos, float rotation[2])
 	{
 		SIT_SetValues(waypoints.delButton, SIT_Visible, 0, NULL);
 		SIT_CreateWidgets(diag,
-			"<button name=ko title=Cancel top=OPPOSITE,add right=FORM buttonType=", SITV_CancelButton, ">"
-			"<button name=ok title=Goto right=WIDGET,ko,0.5em top=OPPOSITE,add buttonType=", SITV_DefaultButton, ">"
+			"<button name=ko title=", LANG("Cancel"), "top=OPPOSITE,add right=FORM buttonType=", SITV_CancelButton, ">"
+			"<button name=ok title=", LANG("Goto"), "right=WIDGET,ko,0.5em top=OPPOSITE,add buttonType=", SITV_DefaultButton, ">"
 		);
 	}
 

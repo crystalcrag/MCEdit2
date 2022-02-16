@@ -42,6 +42,7 @@
 			<Add library=".\SDL.dll" />
 			<Add library=".\zlib1.dll" />
 			<Add library=".\SITGL.dll" />
+			<Add library="user32" />
 		</Linker>
 		<Unit filename="MCEdit.h" />
 		<Unit filename="MCEdit.rc">

@@ -246,7 +246,7 @@ static int libraryExport(SIT_Widget w, APTR cd, APTR ud)
 	{
 		TEXT msg[128];
 		/* not recommended to store large amount of text into the clipboard */
-		FormatNumber(msg, sizeof msg, "Copying this schematics to memory will require about %d Kb.<br><br>Are you sure you want to continue?", page * 4);
+		FormatNumber(msg, sizeof msg, LANG("Copying this schematics to memory will require about %d Kb.<br><br>Are you sure you want to continue?"), page * 4);
 		FSYesNo(library.copyWnd, msg, libraryForceExport, True, NULL);
 		return 0;
 	}
@@ -313,9 +313,11 @@ int libraryImport(SIT_Widget w, APTR cd, APTR ud)
 		else
 		{
 			TEXT msg[256];
-			strcpy(msg, "<b>Clipboard does not appear to contain a schematics.</b> It starts with:<br><br>");
+			sprintf("<b>%s</b> %s<br><br>", LANG("Clipboard does not appear to contain a schematics."),
+				LANG("It starts with:"));
 			escapeHTML(msg, 128, text);
-			strcat(msg, "<br><br><note>Note</note>: should starts with \"# MCEdit Schematics\".");
+			sprintf(strchr(msg, 0), "<br><br><note>%s</note>: %s \"# MCEdit Schematics\".", LANG("Note"),
+				LANG("it should starts with"));
 			FSYesNo(w, msg, NULL, False, NULL);
 			free(text);
 		}
@@ -337,12 +339,12 @@ void libraryCopySelection(Map brush)
 			NULL
 		);
 		SIT_CreateWidgets(diag,
-			"<button name=save.act title=Save enabled=0>"
-			"<button name=use.act title=Use enabled=0 left=WIDGET,save,0.5em>"
-			"<button name=ko.act title=Delete enabled=0 left=WIDGET,use,0.5em>"
+			"<button name=save.act title=", LANG("Save"), "enabled=0>"
+			"<button name=use.act title=", LANG("Use"), "enabled=0 left=WIDGET,save,0.5em>"
+			"<button name=ko.act title=", LANG("Delete"), "enabled=0 left=WIDGET,use,0.5em>"
 			"<listbox columnNames=X name=list left=FORM right=FORM listBoxFlags=", SITV_NoHeaders, "top=WIDGET,save,0.5em rowMaxVisible=4>"
-			"<button name=clip.act title='To clipboard' top=WIDGET,list,0.5em>"
-			"<button name=paste.act title='Paste' top=OPPOSITE,clip left=WIDGET,clip,0.5em>"
+			"<button name=clip.act title=", LANG("To clipboard"), "top=WIDGET,list,0.5em>"
+			"<button name=paste.act title=", LANG("Paste"), "top=OPPOSITE,clip left=WIDGET,clip,0.5em>"
 		);
 		library.copyList = SIT_GetById(diag, "list");
 		library.save     = SIT_GetById(diag, "save");
@@ -660,7 +662,7 @@ static int libraryCreateItem(SIT_Widget td, APTR curDir, APTR ud)
 	if (item->type == 0)
 		FormatNumber(size, sizeof size, "%d Kb", (item->size + 1023) >> 10);
 	else
-		strcpy(size, "(Directory)");
+		snprintf(size, sizeof size, "(%s)", LANG("Folder"));
 
 	int len = strlen(item->name);
 	int max = len >= sizeof display-1 ? sizeof display-1 : len;
@@ -718,7 +720,7 @@ static int librarySelectName(SIT_Widget w, APTR cd, APTR ud)
 		if (brush && ! librarySaveSchematics(brush, ud))
 		{
 			TEXT error[256];
-			snprintf(error, sizeof error, "Failed to save '%s': %s\n", (STRPTR) ud, GetError());
+			snprintf(error, sizeof error, LANG("Failed to save '%s': %s"), (STRPTR) ud, GetError());
 			FSYesNo(view->list, error, NULL, False, view);
 		}
 		else SIT_Exit(EXIT_LOOP);

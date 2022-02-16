@@ -31,7 +31,8 @@ struct GameState_t
 	TEXT     userDir[128];     /* schematics library */
 	TEXT     worldsDir[256];   /* folder where saved worlds are */
 	TEXT     worldEdit[256];   /* world being edited (folder) */
-	TEXT     lang[32];         /* name of language used for interface */
+	TEXT     lang[8];          /* name of language used for interface */
+	APTR     screen;           /* main window pointer and/or screen */
 };
 
 enum /* possible values for state: which game loop are we running */
@@ -48,6 +49,7 @@ void mceditSideView(void);     /* gameloop for SIDEVIEW */
 void mceditWorldSelect(void);  /* world selection */
 Bool mceditActivate(void);     /* toggle state of some blocks (door, button, lever, repeater, ...) */
 void mceditPlaceBlock(void);
+void toggleFullScreen(int width, int height);
 
 enum /* possible value for mceditUIOverlay() */
 {

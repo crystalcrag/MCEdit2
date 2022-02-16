@@ -240,6 +240,10 @@ static void prefsInit(void)
 	CopyString(mcedit.worldEdit, GetINIValue(ini, "WorldEdit"),  sizeof mcedit.worldEdit);
 	CopyString(mcedit.lang,      GetINIValue(ini, "Lang"),       sizeof mcedit.lang);
 
+	STRPTR resol = GetINIValue(ini, "FullScrResol");
+	if (resol && sscanf(resol, "%dx%d", &globals.fullScrWidth, &globals.fullScrHeight) != 2)
+		globals.fullScrWidth = 0;
+
 	if (mcedit.userDir[0] == 0)
 	{
 		GetDefaultPath(FOLDER_MYDOCUMENTS, mcedit.userDir, MAX_PATHLEN);
@@ -278,9 +282,8 @@ static void prefsReadLang(void)
 	{
 		int i;
 		for (i = 0; i < KBD_MAX_CONFIG; i ++)
-			keyBindings[i].name = _(keyBindings[i].name);
+			keyBindings[i].name = LANG(keyBindings[i].name);
 	}
-	fprintf(stderr, "msg = %s\n", LANG("Jump"));
 }
 
 static void prefsSave(void)
@@ -429,9 +432,9 @@ int main(int nb, char * argv[])
 		mcedit.autoEdit = True;
 	}
 
-    SDL_Surface * screen = SDL_SetVideoMode(globals.width, globals.height, 32, SDL_HWSURFACE | SDL_GL_DOUBLEBUFFER | SDL_OPENGL | SDL_RESIZABLE);
-    if (screen == NULL)
-    {
+	SDL_Surface * screen = SDL_SetVideoMode(globals.width, globals.height, 32, SDL_HWSURFACE | SDL_GL_DOUBLEBUFFER | SDL_OPENGL | SDL_RESIZABLE);
+	if (screen == NULL)
+	{
 		SIT_Log(SIT_ERROR, "failed to set video mode, aborting.");
 		return 1;
 	}
@@ -478,6 +481,8 @@ int main(int nb, char * argv[])
 	/* need to be done after SITGL init */
 	if (mcedit.lang[0])
 		prefsReadLang();
+	if (globals.fullScrWidth == 0 || globals.fullScrHeight == 0)
+		SIT_GetValues(globals.app, SIT_ScreenWidth, &globals.fullScrWidth, SIT_ScreenHeight, &globals.fullScrHeight, NULL);
 
 	if (! renderInitStatic())
 	{
@@ -732,7 +737,7 @@ Bool mceditProcessCommand(EventState state, int keyUp)
 			mceditExit(NULL, NULL, (APTR) EXIT_LOOP);
 			break;
 		case KBD_FULLSCREEN:
-			// TODO
+			SIT_ToggleFullScreen(globals.fullScrWidth, globals.fullScrHeight);
 			break;
 		}
 		cmd >>= 8;
@@ -1649,6 +1654,7 @@ void mceditSideView(void)
 
 #ifdef	WIN32
 #include <windows.h>
+
 int WINAPI WinMain(
     HINSTANCE hInstance,
     HINSTANCE hPrevInstance,
@@ -1659,6 +1665,13 @@ int WINAPI WinMain(
 	int      nb, i;
 	LPWSTR * argvUTF16 = CommandLineToArgvW(GetCommandLineW(), &nb);
 	STRPTR * argvUTF8  = (STRPTR *) argvUTF16;
+
+	HANDLE user32 = LoadLibraryA("user32.dll");
+	if (user32)
+	{
+		WINAPI BOOL (*proc)() = GetProcAddress(user32, "SetProcessDPIAware");
+		fprintf(stderr, "result = %d\n", proc());
+	}
 
 	/* convert strings to UTF8 */
 	for (i = 0; i < nb; )

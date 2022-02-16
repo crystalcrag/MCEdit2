@@ -1777,7 +1777,7 @@ void renderAddModif(void)
 	nvgFontFaceId(globals.nvgCtx, render.debugFont);
 	nvgFontSize(globals.nvgCtx, FONTSIZE_MSG);
 	globals.modifCount ++;
-	render.message.chrLen = sprintf(render.message.text, LangStrPlural(NULL, globals.modifCount, "%d unsaved edit", "%d unsaved edits"), globals.modifCount);
+	render.message.chrLen = sprintf(render.message.text, LangStrPlural(globals.modifCount, DLANG("%d unsaved edit"), DLANG("%d unsaved edits")), globals.modifCount);
 	render.message.pxLen  = nvgTextBounds(globals.nvgCtx, 0, 0, render.message.text, render.message.text + render.message.chrLen, NULL);
 }
 

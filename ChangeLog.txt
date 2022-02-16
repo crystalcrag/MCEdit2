@@ -1,4 +1,21 @@
+=========== Week 76 ===========
+Tue Feb 15:
+	* SITGL reactoring done.
+
+Mon Feb 14:
+	* SITGL geometry refactoring continued.
+
 =========== Week 6 ===========
+Sun Feb 13:
+	* SITGL geometry refactoring: -400 LOC.
+
+Sat Feb 12:
+	* full screen and dpiAware: completely FUBAR, how is it possible to screw something like that ?
+	  has to be manually disabled for now, yikes!
+
+Fri Feb 11:
+	* translation logic mostly complete (still need blockTable.js and itemTable.js though).
+
 Thu Feb 10:
 	* lots of minor changes to accomodate wider translation messages.
 
@@ -10,7 +27,7 @@ Tue Feb 8:
 
 Mon Feb 7:
 	* lock mouse mode mostly done.
-	* fixed buf reports from Dr Memory.
+	* fixed bug reports from Dr Memory.
 
 =========== Week 5 ===========
 Sun Feb 6:

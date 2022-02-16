@@ -141,7 +141,7 @@ static int pixArtSelInfo(SIT_Widget w, APTR cd, APTR ud)
 	if (pixArt.rasterizeWith == PIXART_BLOCKS)
 	{
 		for (i = 0, palette = palettes; i < DIM(palNames); i ++, palette += palette[0] + 1)
-			SIT_ComboInsertItem(pixArt.palette, -1, LANG(palNames[i]), palette + 1);
+			SIT_ComboInsertItem(pixArt.palette, -1, LANG(palNames[i]), -1, palette + 1);
 		/* and items in inventory */
 		inv->items = pixArt.allItems;
 		inv->itemsNb = pixArt.itemsNb;
@@ -149,7 +149,7 @@ static int pixArtSelInfo(SIT_Widget w, APTR cd, APTR ud)
 	else /* use map art color entries */
 	{
 		for (i = 0, palette = palettesMap; i < DIM(palNamesMap); i ++, palette += palette[0] + 1)
-			SIT_ComboInsertItem(pixArt.palette, -1, LANG(palNamesMap[i]), palette + 1);
+			SIT_ComboInsertItem(pixArt.palette, -1, LANG(palNamesMap[i]), -1, palette + 1);
 		inv->items = pixArt.allItems + pixArt.itemsNb;
 		inv->itemsNb = 62;
 	}
@@ -718,12 +718,12 @@ void mcuiShowPixelArt(vec4 playerPos)
 		"<label name=msg title=", LANG("Rasterize with:"), "left=WIDGET,icon,1em top=WIDGET,dlgtitle,0.5em>"
 		"<button name=blocks curValue=", &pixArt.rasterizeWith, "title=", LANG("Blocks"), "buttonType=", SITV_RadioButton,
 		" top=WIDGET,msg,0.5em left=WIDGET,icon,1em>"
-		"<button name=maps curValue=", &pixArt.rasterizeWith, "title=", LANG("Maps"), "buttonType=", SITV_RadioButton,
-		" top=WIDGET,blocks,0.5em left=WIDGET,icon,1em>"
+		"<button name=maps curValue=", &pixArt.rasterizeWith, "title=", LANG("Maps tiles"), "buttonType=", SITV_RadioButton,
+		" top=WIDGET,blocks,0.5em left=WIDGET,icon,1em maxWidth=blocks>"
 		"<button name=fillair title=", LANG("Fill with air"), "curValue=", &pixArt.fillAir, "buttonType=", SITV_CheckBox,
-		" checkState=1 top=OPPOSITE,blocks left=WIDGET,blocks,2em>"
+		" checkState=1 top=OPPOSITE,blocks left=WIDGET,blocks,1.5em>"
 		"<button name=stretch title=", LANG("Stretch"), "curValue=", &pixArt.stretch, "buttonType=", SITV_CheckBox,
-		" top=WIDGET,fillair,0.5em left=WIDGET,blocks,2em>"
+		" top=WIDGET,fillair,0.5em left=OPPOSITE,fillair>"
 		"<label name=msg2 title=", LANG("Palette:"), "left=WIDGET,icon,1em top=WIDGET,maps,1em>"
 		"<combobox name=palette top=WIDGET,msg2,0.5em left=OPPOSITE,msg2>"
 		"<label name=save.big title=", saveMsg, "bottom=OPPOSITE,msg2 right=OPPOSITE,palette>"

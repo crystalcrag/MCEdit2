@@ -178,7 +178,4 @@ void DOS2Unix(STRPTR path);
 #define vectorLast(v)        vector_nth(&(v), (v).count - 1)
 #define vectorReset          vector_reset
 
-#define LANG(x)              LangStr(NULL, x, 0)
-#define DLANG(x)             x
-
 #endif

@@ -27,7 +27,9 @@ struct WorldSelect_t
 	int        fov, fps, fog;
 	int        brightness, fullScreen;
 	int        compassSize, showPreview;
+	int        fullScrW, fullScrH;
 	int        curTab;
+	TEXT       lang[8];
 };
 
 typedef struct WorldInfo_t * WorldInfo;
@@ -37,6 +39,8 @@ struct WorldInfo_t
 	int64_t timestamp;
 	uint8_t folder[1];
 };
+
+#define SITK_FlagModified      0x8000000
 
 #endif
 #endif

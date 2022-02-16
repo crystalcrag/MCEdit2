@@ -223,7 +223,7 @@ static int worldSelectAbout(SIT_Widget w, APTR cd, APTR ud)
 
 	SIT_Widget about = SIT_CreateWidget("about.mc dark", SIT_DIALOG, ud,
 		SIT_AccelTable,   dialogAccels,
-		SIT_DialogStyles, SITV_Movable | SITV_Plain,
+		SIT_DialogStyles, SITV_Movable | SITV_Plain | SITV_Transcient,
 		SIT_Style,        "font-size: 1.1em",
 		NULL
 	);
@@ -412,7 +412,7 @@ void SITK_ToText(STRPTR keyName, int max, int key)
 			len = StrCat(keyName, max, len, kbd->name);
 	}
 	/* key name */
-	key &= ~SITK_Flags;
+	key &= ~(SITK_Flags | SITK_FlagModified);
 	if (key == 0)
 	{
 		/* unassigned */
@@ -470,6 +470,8 @@ static int worldSelectSave(SIT_Widget w, APTR cd, APTR save)
 	globals.distanceFOG   = worldSelect.fog;
 	globals.showPreview   = worldSelect.showPreview;
 	globals.lockMouse     = worldSelect.lockMouse;
+	globals.fullScrWidth  = worldSelect.fullScrW;
+	globals.fullScrHeight = worldSelect.fullScrH;
 
 	mcedit.autoEdit       = worldSelect.autoEdit;
 	mcedit.fullScreen     = worldSelect.fullScreen;
@@ -485,25 +487,34 @@ static int worldSelectSave(SIT_Widget w, APTR cd, APTR save)
 
 	if (save)
 	{
-		SetINIValueInt(PREFS_PATH, "Options/MouseSpeed",   lroundf(globals.mouseSpeed*100));
-		SetINIValueInt(PREFS_PATH, "Options/Brightness",   globals.brightness);
-		SetINIValueInt(PREFS_PATH, "Options/TargetFPS",    globals.targetFPS);
-		SetINIValueInt(PREFS_PATH, "Options/UsePreview",   globals.showPreview);
-		SetINIValueInt(PREFS_PATH, "Options/LockMouse",    globals.lockMouse);
+		TEXT resol[32];
+		sprintf(resol, "%dx%d", globals.fullScrWidth, globals.fullScrHeight);
+		SetINIValue(PREFS_PATH, "Options/FullScrResol", resol);
 
-		SetINIValueInt(PREFS_PATH, "Options/AutoEdit",     mcedit.autoEdit);
-		SetINIValueInt(PREFS_PATH, "Options/FullScreen",   mcedit.fullScreen);
+		SetINIValueInt(PREFS_PATH, "Options/MouseSpeed", lroundf(globals.mouseSpeed*100));
+		SetINIValueInt(PREFS_PATH, "Options/Brightness", globals.brightness);
+		SetINIValueInt(PREFS_PATH, "Options/TargetFPS",  globals.targetFPS);
+		SetINIValueInt(PREFS_PATH, "Options/UsePreview", globals.showPreview);
+		SetINIValueInt(PREFS_PATH, "Options/LockMouse",  globals.lockMouse);
+
+		SetINIValueInt(PREFS_PATH, "Options/AutoEdit",   mcedit.autoEdit);
+		SetINIValueInt(PREFS_PATH, "Options/FullScreen", mcedit.fullScreen);
 
 		int i;
 		for (i = KBD_MAX_CONFIG-1; i >= 0; i --)
 		{
 			KeyBinding kbd = keyBindings + i;
-			TEXT keyName[32];
-			TEXT config[32];
+			if (kbd->key & SITK_FlagModified)
+			{
+				TEXT keyName[32];
+				TEXT config[32];
 
-			SITK_ToText(keyName, sizeof keyName, kbd->key);
-			sprintf(config, "%s/%s", kbd->config[0] == 'C' ? "MenuCommands" : "KeyBindings", kbd->config);
-			SetINIValue(PREFS_PATH, config, keyName);
+				/* will prevent useless updates */
+				kbd->key &= ~SITK_FlagModified;
+				SITK_ToText(keyName, sizeof keyName, kbd->key);
+				sprintf(config, "%s/%s", kbd->config[0] == 'C' ? "MenuCommands" : "KeyBindings", kbd->config);
+				SetINIValue(PREFS_PATH, config, keyName);
+			}
 		}
 	}
 	/* will save the rest of the config */
@@ -589,6 +600,7 @@ static void worldSelectBindings(SIT_Widget parent, KeyBinding bindings, int coun
 	}
 }
 
+/* key combination set by user: add it to the interface */
 static void worldSelectAssignBinding(SIT_Widget button, int key)
 {
 	KeyBinding kbd;
@@ -602,7 +614,102 @@ static void worldSelectAssignBinding(SIT_Widget button, int key)
 	}
 	SITK_ToText(keyName, sizeof keyName, key);
 	SIT_SetValues(button, SIT_Title, keyName, NULL);
-	kbd->key = key;
+	kbd->key = key | SITK_FlagModified;
+}
+
+/* selection changed on lang popup */
+static int worldSelectLang(SIT_Widget w, APTR cd, APTR ud)
+{
+	if (cd)
+	{
+		STRPTR label;
+		SIT_ComboGetRowTag(w, (int) cd, &label);
+		CopyString(worldSelect.lang, strchr(label, 0) + 1, sizeof worldSelect.lang);
+	}
+	else worldSelect.lang[0] = 0;
+
+	fprintf(stderr, "cur lang = %s\n", worldSelect.lang);
+	return 1;
+}
+
+/* list all language files found in resources/lang */
+static void worldSelectFillLang(SIT_Widget combo)
+{
+	ScanDirData scan;
+	if (! ScanDirInit(&scan, RESDIR "lang"))
+		return;
+
+	do
+	{
+		if (scan.isDir == 0)
+		{
+			TEXT buffer[128];
+			snprintf(buffer, sizeof buffer, RESDIR "lang/%s", scan.name);
+			FILE * in = fopen_enc(buffer, "rb");
+			if (in)
+			{
+				int line = 0;
+				STRPTR sep = strrchr(scan.name, '.');
+				if (sep) *sep = 0;
+				/* check for #name: directive */
+				while (fgets(buffer, sizeof buffer, in) && line < 10)
+				{
+					if (strncmp(buffer, "#name: ", 7) == 0)
+					{
+						StripCRLF(buffer);
+						/* add file name at end */
+						sep = strchr(buffer, 0) + 1;
+						CopyString(sep, scan.name, sizeof buffer - (sep - buffer));
+						sep = strchr(sep, 0);
+
+						line = SIT_ComboInsertItem(combo, -1, buffer + 6, sep - (buffer+6), NULL);
+						if (strcasecmp(mcedit.lang, scan.name) == 0)
+							SIT_SetValues(combo, SIT_SelectedIndex, line, NULL);
+						break;
+					}
+					line --;
+				}
+				fclose(in);
+			}
+		}
+	}
+	while (ScanDirNext(&scan));
+
+	SIT_AddCallback(combo, SITE_OnChange, worldSelectLang, NULL);
+}
+
+static int worldSelectChooseResol(SIT_Widget w, APTR cd, APTR ud)
+{
+	APTR resol = SIT_ComboGetRowTag(w, (int) cd, NULL);
+
+	worldSelect.fullScrW = (int) resol & 0xffff;
+	worldSelect.fullScrH = (int) resol >> 16;
+
+	return 1;
+}
+
+/* fill all supported resolutions from current monitor */
+static void worldSelectFillResol(SIT_Widget resol)
+{
+	DATA16 list;
+	int    selIndex = 0;
+	SIT_GetValues(globals.app, SIT_MonitorResol, &list, NULL);
+	if (list[0] > 0)
+	{
+		int i;
+		for (i = list[0], list ++; i > 0; i --, list += 2)
+		{
+			TEXT label[32];
+			sprintf(label, "%d x %d", list[0], list[1]);
+			if (list[0] == globals.fullScrWidth &&
+			    list[1] == globals.fullScrHeight)
+				SIT_GetValues(resol, SIT_ItemCount, &selIndex, NULL);
+			SIT_ComboInsertItem(resol, -1, label, -1, (APTR) (list[0] | (list[1] << 16)));
+		}
+	}
+	else SIT_ComboInsertItem(resol, -1, "No resolution found?", -1, NULL);
+	SIT_SetValues(resol, SIT_SelectedIndex, selIndex, NULL);
+	SIT_AddCallback(resol, SITE_OnChange, worldSelectChooseResol, NULL);
 }
 
 /* config options dialog */
@@ -628,6 +735,8 @@ static int worldSelectConfig(SIT_Widget w, APTR cd, APTR ud)
 	worldSelect.showPreview = globals.showPreview;
 	worldSelect.lockMouse   = globals.lockMouse;
 	worldSelect.fullScreen  = mcedit.fullScreen;
+	worldSelect.fullScrW    = globals.fullScrWidth;
+	worldSelect.fullScrH    = globals.fullScrHeight;
 	worldSelect.autoEdit    = mcedit.autoEdit;
 
 	memcpy(editBindings, keyBindings, sizeof editBindings);
@@ -650,13 +759,15 @@ static int worldSelectConfig(SIT_Widget w, APTR cd, APTR ud)
 			" top=WIDGET,userdata,0.5em editLength=", sizeof mcedit.capture, ">"
 			"<button tabNum=1 name=capdir.act title='...' left=WIDGET,capture,0.5em top=OPPOSITE,capture bottom=OPPOSITE,capture>"
 			/* language */
-			"<combobox tabNum=1 name=lang width=15em initialValues='English (US)\tFran\xC3\xA7""ais (Canadian)'"
+			"<combobox tabNum=1 name=lang width=15em initialValues='English (US)'"
 			" top=WIDGET,capture,0.5em buddyLabel=", LANG("Language:"), &max, ">"
 			"<label tabNum=1 name=warn2#dim left=WIDGET,lang,0.5em top=MIDDLE,lang title=", LANG("(need restart)"), ">"
+			/* fullscreen resolution */
+			"<combobox tabNum=1 name=resol width=15em top=WIDGET,lang,0.5em buddyLabel=", LANG("Fullscreen resolution"), &max, ">"
 
 			/* mouse sensitivity */
 			"<slider tabNum=1 userdata=4 name=speed width=15em minValue=50 maxValue=400 curValue=", &worldSelect.sensitivity, "buddyLabel=",
-				LANG("Mouse sensitivity:"), &max, "top=WIDGET,lang,0.5em>"
+				LANG("Mouse sensitivity:"), &max, "top=WIDGET,resol,0.5em>"
 			"<label tabNum=1 name=speedval left=WIDGET,speed,0.5em top=MIDDLE,speed>"
 			/* gui scale adjustment */
 			"<slider tabNum=1 userdata=5 name=scale pageSize=1 width=15em minValue=50 maxValue=200 curValue=", &worldSelect.guiScale, "buddyLabel=",
@@ -730,6 +841,8 @@ static int worldSelectConfig(SIT_Widget w, APTR cd, APTR ud)
 	SIT_AddCallback(SIT_GetById(dialog, "use"), SITE_OnActivate, worldSelectSave, NULL);
 	SIT_AddCallback(dialog, SITE_OnFinalize, optionsClearRef, NULL);
 
+	worldSelectFillResol(SIT_GetById(dialog, "resol"));
+	worldSelectFillLang(SIT_GetById(dialog, "lang"));
 	worldSelectSetCb(dialog, "dist");
 	worldSelectSetCb(dialog, "fov");
 	worldSelectSetCb(dialog, "fps");
@@ -933,6 +1046,12 @@ static void AbsolutePath(STRPTR dest, int max)
 	AddPart(dest, rel, max);
 }
 
+static int worldSelectFS(SIT_Widget w, APTR cd, APTR ud)
+{
+	SIT_ToggleFullScreen(globals.fullScrWidth, globals.fullScrHeight);
+	return 1;
+}
+
 /*
  * entry point for GAMELOOP_WORLDSELECT
  */
@@ -946,6 +1065,7 @@ void mceditWorldSelect(void)
 	static SIT_Accel accels[] = {
 		{SITK_FlagCapture + SITK_FlagAlt + SITK_F4, SITE_OnActivate, 0, NULL, worldSelectExit},
 		{SITK_FlagCapture + SITK_Escape,            SITE_OnActivate, 0, NULL, worldSelectExit},
+		{SITK_FlagCapture + SITK_F11,               SITE_OnActivate, KBD_FULLSCREEN, NULL, worldSelectFS},
 		{SITK_FlagCapture + SITK_F2,                SITE_OnActivate, KBD_TAKE_SCREENSHOT, NULL, takeScreenshot},
 
 		{SITK_FlagCtrl + 'A', SITE_OnActivate, 0, "about"},
@@ -998,7 +1118,7 @@ void mceditWorldSelect(void)
 	SIT_AddCallback(list, SITE_OnSortItem, worldSelectSort, NULL);
 	SIT_AddCallback(list, SITE_OnActivate, worldSelectEdit, NULL);
 
-	SIT_AddCallback(app, SITE_OnDropFiles, worldSelectDropFiles, NULL);
+	//SIT_AddCallback(app, SITE_OnDropFiles, worldSelectDropFiles, NULL);
 
 	/* scan folder for potential world saves */
 	worldSelectList(list, mcedit.worldsDir, sizeof mcedit.worldsDir);

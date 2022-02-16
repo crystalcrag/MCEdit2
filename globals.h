@@ -68,6 +68,9 @@ typedef struct MCGlobals_t
 	uint8_t distanceFOG;      /* 1 = use fog, 0 = don't */
 	uint8_t showPreview;      /* 1 = show preview block, 0 = outline only */
 	uint8_t lockMouse;        /* 1 = mouse lock within window, 0 = free mouse */
+	uint8_t fullScreen;       /* 0 = window, 1 = full screen, 2 = auto full-screen */
+	int     fullScrWidth;     /* full screen resolution */
+	int     fullScrHeight;
 
 	/* if world is being edited */
 	int modifCount;

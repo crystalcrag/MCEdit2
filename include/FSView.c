@@ -265,14 +265,14 @@ static void FSYesNo(SIT_Widget parent, STRPTR msg, SIT_CallProc cb, Bool yesNo, 
 	if (yesNo)
 	{
 		SIT_CreateWidgets(ask,
-			"<button name=ok title=Yes top=WIDGET,label,0.8em buttonType=", SITV_DefaultButton, ">"
-			"<button name=ko title=No top=OPPOSITE,ok right=FORM buttonType=", SITV_CancelButton, ">"
+			"<button name=ok title=", LANG("Yes"), "top=WIDGET,label,0.8em buttonType=", SITV_DefaultButton, ">"
+			"<button name=ko title=", LANG("No"), "top=OPPOSITE,ok right=FORM buttonType=", SITV_CancelButton, ">"
 		);
 		SIT_SetAttributes(ask, "<ok right=WIDGET,ko,1em>");
 	}
 	else /* only a "no" button */
 	{
-		SIT_CreateWidgets(ask, "<button name=ok right=FORM title=Ok top=WIDGET,label,0.8em buttonType=", SITV_CancelButton, ">");
+		SIT_CreateWidgets(ask, "<button name=ok right=FORM title=", LANG("Close"), "top=WIDGET,label,0.8em buttonType=", SITV_CancelButton, ">");
 		cb = FSCloseDialog;
 	}
 	SIT_AddCallback(SIT_GetById(ask, "ok"), SITE_OnActivate, cb, userData);
@@ -864,11 +864,11 @@ static int FSRenameItem(SIT_Widget w, APTR cd, APTR ud)
 	}
 
 	SIT_CreateWidgets(ask,
-		"<label name=label title=", item->type == 0 ? "Enter a new name for this file:" :
-			"Enter a new name for this directory:", ">"
+		"<label name=label title=", item->type == 0 ? LANG("Enter a new name for this file:") :
+			LANG("Enter a new name for this directory:"), ">"
 		"<editbox name=fname top=WIDGET,label,0.5em width=20em editLength=128 title=", item->name, "userData=", item, ">"
-		"<button name=ok title=Rename top=WIDGET,fname,0.5em buttonType=", SITV_DefaultButton, "userData=", view, ">"
-		"<button name=ko title=Cancel top=OPPOSITE,ok right=FORM buttonType=", SITV_CancelButton, ">"
+		"<button name=ok title=", LANG("Rename"), "top=WIDGET,fname,0.5em buttonType=", SITV_DefaultButton, "userData=", view, ">"
+		"<button name=ko title=", LANG("Cancel"), "top=OPPOSITE,ok right=FORM buttonType=", SITV_CancelButton, ">"
 	);
 	SIT_SetAttributes(ask, "<ok right=WIDGET,ko,0.5em>");
 	SIT_Widget edit = SIT_GetById(ask, "fname");
@@ -977,7 +977,7 @@ static int FSDeleteItem(SIT_Widget w, APTR cd, APTR ud)
 
 		if (nbFiles + nbDir > 1)
 		{
-			row = snprintf(warn, sizeof warn, "Are you sure you want to <u>permanently</u> delete ");
+			row = snprintf(warn, sizeof warn, LANG("Are you sure you want to <u>permanently</u> delete "));
 			goto list_objects;
 		}
 		/* else single item selected */
@@ -1010,29 +1010,28 @@ static int FSDeleteItem(SIT_Widget w, APTR cd, APTR ud)
 			FSDoDeleteItems(w, NULL, view);
 			return 1;
 		}
-		row = snprintf(warn, sizeof warn,
-			"<b>Are you sure you want to <u>permanently</u> delete the directory '%s' ?</b><br><br>"
-			"It contains ", item->name
+		row = snprintf(warn, sizeof warn, "<b>%s '%s' ?</b><br><br>%s ",
+			LANG("Are you sure you want to <u>permanently</u> delete the directory"), item->name,
+			LANG("It contains")
 		);
 		list_objects:
 		if (nbDir > 0)
 		{
 			TEXT msg[16];
-			if (nbDir > 1) sprintf(msg, "%d directories", nbDir);
-			else strcpy(msg, "1 directory");
+			if (nbDir > 1) sprintf(msg, LANG("%d directories"), nbDir);
+			else strcpy(msg, LANG("1 directory"));
 			row = StrCat(warn, sizeof warn, row, msg);
 		}
 		if (nbFiles > 0)
 		{
-			if (nbDir > 0) row = StrCat(warn, sizeof warn, row, " and ");
-			TEXT msg[32];
-			TEXT sizebuf[10];
-			FormatNumber(sizebuf, sizeof sizebuf, "%d", (size + 1023) >> 10);
-			sprintf(msg, "%d %s (%s Kb)", nbFiles, nbFiles > 1 ? "files" : "file", sizebuf);
+			if (nbDir > 0) row = StrCat(warn, sizeof warn, row, LANG(" and "));
+			TEXT msg[64];
+			int  len = snprintf(msg, sizeof msg, nbFiles > 1 ? LANG("%d files") : LANG("1 file"), nbFiles);
+			FormatNumber(msg + len, sizeof msg - len, " (%d Kb)", (size + 1023) >> 10);
 			row = StrCat(warn, sizeof warn, row, msg);
 		}
 	}
-	else snprintf(warn, sizeof warn, "<b>Are you sure you want to <u>permanently</u> delete the file '%s' ?</b>", item->name);
+	else snprintf(warn, sizeof warn, LANG("<b>Are you sure you want to <u>permanently</u> delete the file '%s' ?</b>"), item->name);
 
 	FSYesNo(view->list, warn, FSDoDeleteItems, True, view);
 	return 1;
@@ -1077,12 +1076,11 @@ static int FSSaveAs(SIT_Widget w, APTR cd, APTR ud)
 
 	if (IsDir(full))
 	{
-		FSYesNo(view->list, "A directory with the same name already exists: use a different name.", NULL, False, view);
+		FSYesNo(view->list, LANG("A directory with the same name already exists: use a different name."), NULL, False, view);
 	}
 	else if (w && FileExists(full)) /* w == NULL means user confirmed overwrite */
 	{
-		static TEXT format[] = "Are you sure you want to overwrite the file '%s' ?";
-
+		STRPTR format = LANG("Are you sure you want to overwrite the file '%s' ?");
 		max = strlen(format) + strlen(name);
 		sprintf(full = alloca(max), format, name);
 
@@ -1139,9 +1137,9 @@ SIT_Widget FSInit(SIT_Widget app, STRPTR path, int options, SIT_CallProc create,
 	if (options & FSVIEW_SAVE)
 	{
 		SIT_CreateWidgets(diag,
-			"<button name=label.save title='Save as:' buttonType=", SITV_DefaultButton, ">"
+			"<button name=label.save title=", LANG("Save as:"), "buttonType=", SITV_DefaultButton, ">"
 			"<editbox name=filter.save editLength=128 maxUndo=256 width=16em left=WIDGET,label,0.5em>"
-			"<label name=in title=in: style='font-weight: bold' left=WIDGET,filter,0.5em top=MIDDLE,filter>"
+			"<label name=in title=", LANG("in:"), "style='font-weight: bold' left=WIDGET,filter,0.5em top=MIDDLE,filter>"
 		);
 		options &= ~(FSVIEW_HASRENAME | FSVIEW_HASDELETE | FSVIEW_MULTISEL);
 		view->save = SIT_GetById(diag, "filter");
@@ -1150,14 +1148,14 @@ SIT_Widget FSInit(SIT_Widget app, STRPTR path, int options, SIT_CallProc create,
 	else
 	{
 		w = SIT_CreateWidget("select", SIT_BUTTON, diag,
-			SIT_Title,   "Use",
+			SIT_Title,   LANG("Use"),
 			SIT_Enabled, False,
 			NULL
 		);
 		if (options & FSVIEW_HASRENAME)
 		{
 			w = SIT_CreateWidget("rename", SIT_BUTTON, diag,
-				SIT_Title,   "Rename",
+				SIT_Title,   LANG("Rename"),
 				SIT_Enabled, False,
 				SIT_Left,    SITV_AttachWidget, w, SITV_Em(0.5),
 				NULL
@@ -1166,7 +1164,7 @@ SIT_Widget FSInit(SIT_Widget app, STRPTR path, int options, SIT_CallProc create,
 		if (options & FSVIEW_HASDELETE)
 		{
 			w = SIT_CreateWidget("ko", SIT_BUTTON, diag,
-				SIT_Title,   "Delete",
+				SIT_Title,   LANG("Delete"),
 				SIT_Left,    SITV_AttachWidget, w, SITV_Em(0.5),
 				SIT_Enabled, False,
 				NULL
@@ -1174,7 +1172,7 @@ SIT_Widget FSInit(SIT_Widget app, STRPTR path, int options, SIT_CallProc create,
 		}
 
 		SIT_CreateWidgets(diag,
-			"<label name=label title=Find: left=", SITV_AttachWidget, w, SITV_Em(1.5), ">"
+			"<label name=label title=", LANG("Search:"), "left=", SITV_AttachWidget, w, SITV_Em(1.5), ">"
 			"<editbox name=filter editLength=32 maxUndo=128 width=8em left=WIDGET,label,0.3em>"
 		);
 	}
