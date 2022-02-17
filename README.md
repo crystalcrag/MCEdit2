@@ -27,3 +27,50 @@ As of now, only Windows is supported, even though there are no major road blocks
 * **Blocks not implemented**: banner.
 * **Blocks with poor support**: chorus plant, trip wire, noteblock, command blocks: they are rendered but have no mechanic.
 * **Terrain generation**: mimicking exactly what Minecraft does is way too much work, even though the engine easily supports custom terrain generators (check doc/internals.html).
+
+# Comparison with Minecraft 1.12
+
+Here are some screenshots of the engine in action. They were taken around feb 2022, the engine might have improved since.
+
+First screenshot is from Minecraft, screenshot below is from this engine.
+
+## Exterior
+
+Block light (torches, redstone lanps, jack-o-lantern, ...) has a **much more pronounced yellow-ish tint**. For those who have the Minecraft lighting burnt on their retina, it might seems weird at first, but I once accidentally over-saturated the block light values in the fragment shader and really like the result ever since.
+
+![Exterior, day, minecraft render](https://raw.githubusercontent.com/crystalcrag/WikiResources/main/World1-Day-Ext-MC.jpg)
+
+Same camera position, but using a FOV of 80 instead of 70 for the screenshot above. Block face shading is also **dependant on sun direction** (unlike Minecraft which uses fixed shading per face).
+
+![Exterior, day, MCEditv2 render](https://raw.githubusercontent.com/crystalcrag/WikiResources/main/World1-Day-Ext-MCEdit.jpg)
+
+## Interior
+
+That lighting change is particularly dramatic on interior scene. The interior looks a bit too dull in the Minecraft: over-saturating block light gives a much cozier look and feel, while not sacrificing visibility by making things too dark:
+
+![Interior, night, minecraft render](https://raw.githubusercontent.com/crystalcrag/WikiResources/main/World1-Night-Int-MC.jpg)
+
+MCEditv2 rendering:
+
+![Interior, night, MCEditv2 render](https://raw.githubusercontent.com/crystalcrag/WikiResources/main/World1-Night-Int-MCEdit.jpg)
+
+## Interior / exterior mixed
+
+Another interior screenshot from the room above the previous screenshot. This one has a mix of Skylight/blocklight values all around. The screenshot was taken at sunset.
+
+![Interior, night, minecraft render](https://raw.githubusercontent.com/crystalcrag/WikiResources/main/World-Night-Int2-MC.jpg)
+
+MCEditv2 rendering:
+
+![Interior, night, MCEditv2 render](https://raw.githubusercontent.com/crystalcrag/WikiResources/main/World-Night-Int2-MCEdit.jpg)
+
+## Exterior sunset
+
+This engine implements a not-too-bad looking skydome. The clouds need improvements though: they are simply a low-res texture mapped onto the skydome. Future version will at least use some kind of fractal brownian motion (FBM) cloud system. If I have enough motivation, I might look at volumetric clouds:
+
+![Exterior, sunset, minecraft render](https://raw.githubusercontent.com/crystalcrag/WikiResources/main/World1-Sunset-Ext-MC.jpg)
+
+MCEditv2 rendering (render distance here is 16 chunks):
+
+![Exterior, sunset, MCEditv2 render](https://raw.githubusercontent.com/crystalcrag/WikiResources/main/World1-Sunset-Ext-MCEdit.jpg)
+
