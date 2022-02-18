@@ -451,7 +451,7 @@ void signDelAll(void)
 
 	free(signs.banks);
 	free(signs.list);
-	memset(&signs, 0, offsetp(struct SignPrivate_t *, font));
+	memset(&signs, 0, offsetp(struct SignPrivate_t *, mdaCount));
 }
 
 /* render the sign into off-screen texture using nanovg */

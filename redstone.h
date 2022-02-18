@@ -16,7 +16,7 @@ int  redstoneSignalStrength(BlockIter iter, Bool dirty);
 Bool redstonePropagate(int blockId);
 int  redstoneIsPowered(struct BlockIter_t iter, int side, int minPower);
 void redstonePowerChange(struct BlockIter_t iter, RSWire connectTo, int count);
-int  redstonePushedByPiston(struct BlockIter_t iter, RSWire list);
+int  redstonePushedByPiston(struct BlockIter_t iter, int blockId, RSWire list);
 
 
 #define redstoneRepeaterDelay(blockId)       (((blockId&15) >> 2)+1)

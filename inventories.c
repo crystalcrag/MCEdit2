@@ -339,6 +339,7 @@ static int inventoryMouse(SIT_Widget w, APTR cd, APTR ud)
 	MCInventory   inv = ud;
 	Item          old;
 
+	if (inv->width == 0) return 0; /* OnPaint not received yet... */
 	int cellx = msg->x * inv->invCol / inv->width;
 	int celly = msg->y / inventories.cellSz;
 	switch (msg->state) {

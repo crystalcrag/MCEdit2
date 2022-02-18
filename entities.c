@@ -62,11 +62,11 @@ void entityNukeAll(void)
 	free(entities.hash.list);
 	memset(&entities.hash, 0, sizeof entities.hash);
 	/* the following banks can be deleted entirely */
-	for (list = (EntityBank) bank->node.ln_Next, next = list; list; list = next)
+	for (list = next = (EntityBank) bank->node.ln_Next; list; list = next)
 	{
 		NEXT(next);
-		glDeleteVertexArrays(1, &bank->vao);
-		glDeleteBuffers(3, &bank->vboModel);
+		glDeleteVertexArrays(1, &list->vao);
+		glDeleteBuffers(3, &list->vboModel);
 		free(list->models);
 		free(list);
 	}
@@ -78,6 +78,10 @@ void entityNukeAll(void)
 	bank->mdaiUsage = NULL;
 	bank->mdaiCount = bank->mdaiMax = 0;
 	bank->dirty = 1;
+
+	/* XXX I might have buggy drivers: intel card does not like when calling glBufferData() twice on an GL_DRAW_INDIRECT_BUFFER :-/ */
+	glDeleteBuffers(1, &bank->vboMDAI);
+	glGenBuffers(1, &bank->vboMDAI);
 
 	/* need to restore model hash, since everything was cleared */
 	hashAlloc(entities.initModelCount);
@@ -326,7 +330,7 @@ static int entityGenModel(EntityBank bank, ItemID_t itemId, int cnx, CustModel c
 	glBindBuffer(GL_ARRAY_BUFFER, bank->vboModel);
 	DATA16   buffer = glMapBuffer(GL_ARRAY_BUFFER, GL_READ_WRITE);
 	int      count  = 0;
-	int      item   = 0;
+	int      center = 1;
 	uint16_t U, V;
 	uint16_t sizes[3];
 	uint16_t atlas;
@@ -339,6 +343,7 @@ static int entityGenModel(EntityBank bank, ItemID_t itemId, int cnx, CustModel c
 		itemId &= 0xffff;
 		BlockState b = blockGetById(itemId);
 		Block desc = &blockIds[itemId>>4];
+		center = 2;
 		if (itemId == 0)
 		{
 			/* used by unknown entity */
@@ -350,6 +355,7 @@ static int entityGenModel(EntityBank bank, ItemID_t itemId, int cnx, CustModel c
 		else if ((b->inventory & MODELFLAGS) == ITEM2D)
 		{
 			count = itemGenMesh(itemId, buffer);
+			center = 0;
 		}
 		else switch (b->type) {
 		case SOLID:
@@ -398,10 +404,10 @@ static int entityGenModel(EntityBank bank, ItemID_t itemId, int cnx, CustModel c
 		V = cust->V;
 		atlas = cust->texId;
 	}
-	else count = itemGenMesh(itemId, buffer), item = 1;
+	else count = itemGenMesh(itemId, buffer), center = 0;
 
 	/* entities have their position centered in the middle of their bbox */
-	blockCenterModel(buffer, count, U, V, ! item, sizes);
+	blockCenterModel(buffer, count, U, V, center, sizes);
 	glUnmapBuffer(GL_ARRAY_BUFFER);
 	bank->vtxCount += count;
 
@@ -1521,9 +1527,9 @@ void entityUpdateOrCreate(Chunk chunk, vec4 pos, ItemID_t blockId, vec4 dest, in
 	entity->tile = tile;
 	entity->chunkRef = chunk;
 	entity->rotation[3] = item ? 0.5 : 1;
+	entity->VBObank = entityGetModelId(entity);
 	vecAddNum(entity->pos,    0.5f);
 	vecAddNum(entity->motion, 0.5f);
-	entity->VBObank = entityGetModelId(entity);
 	entity->enflags |= ENFLAG_INANIM;
 	if (item)
 		entity->enflags |= ENFLAG_ITEM;
@@ -1751,30 +1757,29 @@ void entityUpdateNearby(BlockIter iterator, int blockId)
 }
 
 #ifdef DEBUG
-void entityDebugCmd(Chunk c)
+void entityDebugCmd(void)
 {
-	Entity entity;
-	int id;
-	fprintf(stderr, "========================================\n");
-	for (id = c->entityList; id != ENTITY_END; id = entity->next)
+	EntityBank bank;
+	int i;
+	for (bank = HEAD(entities.banks), i = 0; bank; NEXT(bank), i ++)
 	{
-		entity = entityGetById(id);
-
-		fprintf(stderr, "entity %d at %g, %g, %g: ", id, (double) entity->pos[0], (double) entity->pos[1], (double) entity->pos[2]);
-
-		if (entity->ref)
+		EntityBuffer buffer;
+		fprintf(stderr, "================== bank %d =================\n", i);
+		glBindBuffer(GL_DRAW_INDIRECT_BUFFER, bank->vboMDAI);
+		MDAICmd cmd = glMapBuffer(GL_DRAW_INDIRECT_BUFFER, GL_WRITE_ONLY);
+		for (buffer = HEAD(entities.list); buffer; NEXT(buffer))
 		{
-			TEXT name[64];
-			itemGetTechName(entity->blockId & 0xffff, name, sizeof name, True);
-			fprintf(stderr, "item in frame: %s\n", name);
+			Entity cur;
+			int    j;
+			for (cur = buffer->entities, j = buffer->count; j > 0; j --, cur ++)
+			{
+				if (BANK_NUM(cur->VBObank) != i) continue;
+				MDAICmd mdai = cmd + cur->mdaiSlot;
+				fprintf(stderr, "entity %s at %g, %g, %g: ", cur->name, (double) cur->pos[0], (double) cur->pos[1], (double) cur->pos[2]);
+				fprintf(stderr, "model: %d, index: %d, count: %d, inst: %d\n", cur->VBObank, mdai->first, mdai->count, mdai->baseInstance);
+			}
 		}
-		else
-		{
-			fprintf(stderr, "%s", entity->name);
-			if (entity->entype == ENTYPE_FILLEDMAP)
-				fprintf(stderr, " (map)");
-			fputc('\n', stderr);
-		}
+		glUnmapBuffer(GL_DRAW_INDIRECT_BUFFER);
 	}
 }
 #endif
@@ -1842,6 +1847,11 @@ void entityRender(void)
 		glBindBuffer(GL_DRAW_INDIRECT_BUFFER, bank->vboMDAI);
 		glMultiDrawArraysIndirect(GL_TRIANGLES, 0, bank->mdaiCount, 0);
 		// glDisable(GL_POLYGON_OFFSET_FILL);
+	}
+	if (globals.breakPoint)
+	{
+		entityDebugCmd();
+		globals.breakPoint = 0;
 	}
 }
 

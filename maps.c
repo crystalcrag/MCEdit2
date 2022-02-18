@@ -1505,7 +1505,8 @@ static ChunkData mapAddToVisibleList(Map map, Chunk from, int direction, int lay
 	}
 	else
 	{
-		c->noChunks |= NOCHUNK_ISINTRUSTUM;
+		if ((c->noChunks & NOCHUNK_FRUSTUMCHECK) == 0)
+			c->noChunks |= NOCHUNK_ISINTRUSTUM;
 		cd = c->layer[Y];
 	}
 	if (cd && c->outflags[Y] < VISIBLE)

@@ -272,9 +272,8 @@ int redstoneConnectTo(struct BlockIter_t iter, RSWire connectTo)
 }
 
 /* list blocks pushed/retracted by piston (<iter> must point to piston block or piston head if extended) */
-int redstonePushedByPiston(struct BlockIter_t iter, RSWire list)
+int redstonePushedByPiston(struct BlockIter_t iter, int blockId, RSWire list)
 {
-	int blockId = getBlockId(&iter);
 	int retract = blockId & 8;
 	int count   = 0;
 	if ((blockId >> 4) == RSPISTON && retract)

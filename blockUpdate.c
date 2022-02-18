@@ -725,7 +725,7 @@ int mapUpdatePiston(Map map, BlockIter iterator, int blockId, Bool init, DATA8 *
 	if (blockId & 8)
 	{
 		/* piston extended, but no power source */
-		count = redstonePushedByPiston(*iterator, connect);
+		count = redstonePushedByPiston(*iterator, blockId, connect);
 		/* there is at least one block blocking the piston movement */
 		if (count < 0) return blockId;
 
@@ -742,7 +742,7 @@ int mapUpdatePiston(Map map, BlockIter iterator, int blockId, Bool init, DATA8 *
 	else if (i < 6)
 	{
 		/* not extended, but has a power source nearby */
-		count = redstonePushedByPiston(*iterator, connect);
+		count = redstonePushedByPiston(*iterator, blockId, connect);
 		if (count < 0) return blockId;
 
 		/* convert all blocks pushed to block 36 (in reverse order) */

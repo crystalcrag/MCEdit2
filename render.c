@@ -1817,7 +1817,7 @@ void renderResetFrustum(void)
 	{
 		shading[SHADING_FOGDIST] = dist;
 		glBindBuffer(GL_UNIFORM_BUFFER, globals.uboShader);
-		glBufferSubData(GL_UNIFORM_BUFFER, UBO_SHADING_OFFSET+16, sizeof shading[1], shading + 1);
+		glBufferSubData(GL_UNIFORM_BUFFER, UBO_SHADING_OFFSET+SHADING_FOGDIST*4, sizeof (float), shading + SHADING_FOGDIST);
 	}
 	render.setFrustum = 1;
 }
@@ -1864,7 +1864,7 @@ void renderSetFOG(int fogEnabled)
 {
 	shading[SHADING_FOGDIST] = fogEnabled ? globals.renderDist * 16 + 8 : 0;
 	glBindBuffer(GL_UNIFORM_BUFFER, globals.uboShader);
-	glBufferSubData(GL_UNIFORM_BUFFER, UBO_SHADING_OFFSET+16, sizeof shading[1], shading + 1);
+	glBufferSubData(GL_UNIFORM_BUFFER, UBO_SHADING_OFFSET+SHADING_FOGDIST*4, sizeof (float), shading + SHADING_FOGDIST);
 }
 
 /*

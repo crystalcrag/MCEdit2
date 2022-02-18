@@ -890,8 +890,8 @@ void mceditWorld(void)
 				if (globals.inEditBox)
 					goto forwardKeyPress;
 				state.command = keysFind(&keys, key | mod | SITK_FlagUp);
-				if (state.command >= 0 && mceditProcessCommand(&state, 1))
-					break;
+				if (state.command >= 0)
+					mceditProcessCommand(&state, 1);
 
 				switch (event.key.keysym.sym) {
 				case SDLK_LALT:

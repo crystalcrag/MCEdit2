@@ -321,7 +321,7 @@ static void blockSetUVAndNormals(DATA16 vert, int inv, int setUV, float * vertex
 }
 
 /* needed by entity models */
-void blockCenterModel(DATA16 vertex, int count, int dU, int dV, Bool shiftY, DATA16 sizes)
+void blockCenterModel(DATA16 vertex, int count, int dU, int dV, Bool center, DATA16 sizes)
 {
 	uint16_t buffer[6];
 	DATA16   start = vertex;
@@ -344,12 +344,17 @@ void blockCenterModel(DATA16 vertex, int count, int dU, int dV, Bool shiftY, DAT
 
 		CHG_UVCOORD(vertex, U, V);
 	}
-	uint16_t shift[] = {
-		((max[0] - min[0]) >> 1) + (min[0] - ORIGINVTX),
-		((max[1] - min[1]) >> 1) + (min[1] - ORIGINVTX),
-		((max[2] - min[2]) >> 1) + (min[2] - ORIGINVTX)
-	};
-	if (! shiftY) shift[VY] = 0;
+	uint16_t shift[3];
+
+	if (center < 2)
+	{
+		shift[0] = ((max[0] - min[0]) >> 1) + (min[0] - ORIGINVTX);
+		shift[1] = ((max[1] - min[1]) >> 1) + (min[1] - ORIGINVTX);
+		shift[2] = ((max[2] - min[2]) >> 1) + (min[2] - ORIGINVTX);
+		if (center == 0) shift[VY] = 0;
+	}
+	else /* full block: always center in unit voxel, no matter what original block dimension is */
+		shift[0] = shift[1] = shift[2] = BASEVTX/2;
 
 	/* center vertex around 0, 0 */
 	for (i = 0, vertex = start; i < count; i ++, vertex += INT_PER_VERTEX)

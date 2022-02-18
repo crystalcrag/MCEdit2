@@ -91,12 +91,12 @@ void main(void)
 	// brightness setting (moody == 0, bright = 0.7, full bright = 1
 	if (sky < MIN_BRIGHTNESS)
 		sky = MIN_BRIGHTNESS;
-	shadeSky *= sky * clamp(1 + MIN_BRIGHTNESS * 0.1, 1, 1.07) / 15;
+	shadeSky *= sky * clamp(1 + MIN_BRIGHTNESS * 0.1, 1.0, 1.07) / 15;
 
 	// fogStrength == how much fragment will blend with sky, 0 = normal fragment color, 1 = fragment will use sky color
 	if (FOG_DISTANCE > 0)
 	{
-		float fogStrength = clamp(distance(camera.xz, (V1.xz+V4.xz) * 0.5) / FOG_DISTANCE, 0, 1);
+		float fogStrength = clamp(distance(camera.xz, (V1.xz+V4.xz) * 0.5) / FOG_DISTANCE, 0.0, 1.0);
 		fogFactor = 1 - fogStrength * fogStrength;
 	}
 	else fogFactor = 1; // disabled

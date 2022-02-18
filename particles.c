@@ -457,7 +457,7 @@ static void particleMakeActive(Map map)
 
 		ChunkData cd = c->layer[y];
 		int16_t * cur = emitters.startIds + i;
-		if (cd->emitters)
+		if (cd && cd->emitters)
 		for (emit = cd->emitters + 2, j = emit[-2]; j > 0; j --, emit += CHUNK_EMIT_SIZE)
 		{
 			Emitter e = particlesAddEmitter(cd, emit, &cur);

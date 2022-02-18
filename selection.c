@@ -267,7 +267,7 @@ Bool selectionProcessKey(int command, int key, int mod)
 		if (selection.brush && selection.nudgePoint < 4)
 			return False;
 
-		if (mod == 0 && command == 0)
+		if (mod == 0 && command < 0)
 		{
 			if (key == 'q') command = KBD_MOVE_SEL_UP; else
 			if (key == 'z') command = KBD_MOVE_SEL_DOWN;
@@ -286,6 +286,7 @@ Bool selectionProcessKey(int command, int key, int mod)
 			/* move by integral amount of selection size */
 			dir *= fabsf(selection.firstPt[axis] - selection.secondPt[axis]) + 1;
 		}
+		else dir *= selection.nudgeStep;
 		if (selection.nudgePoint & 1)
 			selection.firstPt[axis] += dir;
 		if (selection.nudgePoint & 2)

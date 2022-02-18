@@ -14,8 +14,8 @@ dt			{ margin-left: 40px; page-break-after: avoid }
 h1			{ background: black; color: white; padding: 9px 0 9px 40px; margin: 0 60px; text-align: center; box-shadow: #888 5px 5px 5px }
 h1 span		{ font-variant: small-caps }
 h2			{ counter-reset: h3; border-bottom: 3px solid; page-break-before: always; margin-top: 80px; margin-left: 40px }
-h3			{ counter-reset: h4; page-break-after: avoid; margin-left: 40px }
-h4			{ page-break-after: avoid; margin-left: 40px }
+h3			{ counter-reset: h4; page-break-after: avoid; margin-left: 40px; margin-top: 60px }
+h4			{ page-break-after: avoid; margin-left: 40px; text-decoration: underline }
 h5			{ margin-left: 40px; text-align: center }
 h5::after	{ content: ""; width: 50%; display: block; border-bottom: 2px solid black; margin: 2px auto }
 h2::before	{ counter-increment: h2; content: counter(h2) ". "; font-size: 2em }
@@ -104,7 +104,7 @@ bitpart.sz10	{ width: 150px }
 bitpart.sz12	{ width: 180px }
 bitpart.sz14	{ width: 210px }
 bitpart.sz16	{ width: 240px }
-
+bitpart.sz32    { width: 480px }
 table.skewed	{ transform: skewx(-35deg); transform-origin: 0 100%; margin-bottom: 5px; box-shadow: 18px 15px rgba(0,0,0,0.1) }
 table.skewed td	{ border-width: 2px; padding: 5px; width: 30px; text-align: center; font-family: monospace }
 table			{ border-collapse: collapse }
@@ -120,7 +120,7 @@ table.hspace td	{ min-width: 1.5em; text-align: center }
 .d   { color:#A600F7 }
 v,.o { color:#FF00FF }
 .s   { color:#7700FF }
-.t   { color:#146A31; font-weight:bold }
+t,.t { color:#146A31; font-weight:bold }
 .k   { color:#A62828; font-weight:bold }
 .e   { color:#FFFFFF; background-color:#FF3333 }
 .n   { color:black;   background-color:#FFFF00 }

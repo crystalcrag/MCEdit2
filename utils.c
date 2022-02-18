@@ -490,7 +490,7 @@ int jsonParseString(DATA8 dst, DATA8 src, int max)
 					if ('A' <= chr && chr <= 'Z') chr = 10 + (chr - 'A'); else
 					if ('a' <= chr && chr <= 'z') chr = 10 + (chr - 'a'); else
 					if ('0' <= chr && chr <= '9') chr -= '0'; else break;
-					cp = (cp << 8) | chr;
+					cp = (cp << 4) | chr;
 				}
 				d += CP2UTF8(d, cp) - 1;
 				s --;

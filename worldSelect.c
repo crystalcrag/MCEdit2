@@ -119,7 +119,7 @@ static int optionsClearRef(SIT_Widget w, APTR cd, APTR ud)
 SIT_Widget optionsQuickAccess(void)
 {
 	SIT_Widget diag = worldSelect.options = SIT_CreateWidget("quickopt.mc", SIT_DIALOG, globals.app,
-		SIT_DialogStyles, SITV_Plain,
+		SIT_DialogStyles, SITV_Plain | SITV_Movable,
 		NULL
 	);
 
@@ -627,8 +627,6 @@ static int worldSelectLang(SIT_Widget w, APTR cd, APTR ud)
 		CopyString(worldSelect.lang, strchr(label, 0) + 1, sizeof worldSelect.lang);
 	}
 	else worldSelect.lang[0] = 0;
-
-	fprintf(stderr, "cur lang = %s\n", worldSelect.lang);
 	return 1;
 }
 
@@ -654,15 +652,17 @@ static void worldSelectFillLang(SIT_Widget combo)
 				/* check for #name: directive */
 				while (fgets(buffer, sizeof buffer, in) && line < 10)
 				{
-					if (strncmp(buffer, "#name: ", 7) == 0)
+					if (strncmp(buffer, "#name:", 6) == 0)
 					{
+						STRPTR name = buffer + 6;
+						while (isspace(*name)) name ++;
 						StripCRLF(buffer);
 						/* add file name at end */
 						sep = strchr(buffer, 0) + 1;
 						CopyString(sep, scan.name, sizeof buffer - (sep - buffer));
 						sep = strchr(sep, 0);
 
-						line = SIT_ComboInsertItem(combo, -1, buffer + 6, sep - (buffer+6), NULL);
+						line = SIT_ComboInsertItem(combo, -1, name, sep - (name), NULL);
 						if (strcasecmp(mcedit.lang, scan.name) == 0)
 							SIT_SetValues(combo, SIT_SelectedIndex, line, NULL);
 						break;

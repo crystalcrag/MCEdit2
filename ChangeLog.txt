@@ -1,6 +1,12 @@
 =========== Week 76 ===========
+Wed Feb 17:
+	* moar bug fixes: blocks pushed by piston were incorrectly centered in unit voxel, fail to extend
+	  piston if placed against a powered block.
+
 Tue Feb 15:
-	* SITGL reactoring done.
+	* SITGL geometry refactoring done.
+	* bug fixed: render dist/fog caused white flash (writing to wrong UBO location), frustum culling,
+	             entities fail to load after exiting a world once, bad text sign parsing.
 
 Mon Feb 14:
 	* SITGL geometry refactoring continued.
