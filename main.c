@@ -662,7 +662,8 @@ Bool mceditProcessCommand(EventState state, int keyUp)
 			if (globals.selPoints & 8)
 				return 0;
 			mceditSideView();
-			mcedit.exit = 0;
+			if (mcedit.exit == EXIT_LOOP)
+				mcedit.exit = 0;
 			break;
 		case KBD_SWITCH_MODE:
 			playerSetMode(&mcedit.player, mcedit.player.pmode == MODE_CREATIVE ? MODE_SPECTATOR : MODE_CREATIVE);

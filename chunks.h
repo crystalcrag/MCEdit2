@@ -50,13 +50,11 @@ struct ChunkData_t                     /* one sub-chunk of 16x16x16 blocks */
 	uint16_t  Y;                       /* vertical pos in blocks */
 	uint16_t  cnxGraph;                /* face graph connection (cave culling) */
 
-	uint8_t   cdFlags;                 /* 0 or 1 if need to be deleted */
+	uint32_t  cdFlags;                 /* CDFLAG_* */
 	uint8_t   slot;                    /* used by ChunkFake (0 ~ 31) */
 	uint8_t   comingFrom;              /* cave culling (face id 0 ~ 5) */
-	uint8_t   unused;
 
 	DATA8     blockIds;                /* 16*16*16 = XZY ordered, note: point directly to NBT struct (4096 bytes) */
-//	DATA8     addId;                   /* 4bits (2048 bytes) */
 	DATA16    emitters;                /* pos (12bits) + type (4bits) for particles emitters */
 
 	/* VERTEX_ARRAY_BUFFER location */
@@ -121,11 +119,14 @@ enum /* flags for ChunkData.cdFlags */
 {
 	CDFLAG_CHUNKAIR     = 0x01,        /* chunk is a full of air (sky = 15, light = 0, data = 0) */
 	CDFLAG_PENDINGDEL   = 0x02,        /* chunk is empty: can be deleted */
-	CDFLAG_UPDATENEARBY = 0x04,        /* chunk changed: update nearby chunks if necessary */
-	CDFLAG_NOLIGHT      = 0x08,        /* cd->blockIds only contains block and data table (brush) */
-	CDFLAG_PENDINGMESH  = 0x10,        /* chunk will be processed by chunkUpdate() at some point */
-	CDFLAG_NOALPHASORT  = 0x20,        /* sorting of alpha quads not necessary */
+	CDFLAG_PENDINGMESH  = 0x04,        /* chunk will be processed by chunkUpdate() at some point */
+	CDFLAG_NOALPHASORT  = 0x08,        /* sorting of alpha quads not necessary */
+	CDFLAG_NOLIGHT      = 0x10,        /* cd->blockIds only contains block and data table (brush) */
 };
+
+/* alias */
+#define CDFLAG_ISINUPDATE    0x10
+#define CDFLAG_UPDATENEARBY  0xffffffe0
 
 enum /* NBT update tag */
 {

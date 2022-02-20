@@ -629,8 +629,6 @@ static void particleSortEmitters(void)
 	//debugEmitters();
 }
 
-extern uint8_t multiplyDeBruijnBitPosition[]; /* from maps.c */
-
 /* emitters cover an area: narrow that area for particle constructors */
 static void emitterSpawnParticles(Map map, Emitter emit)
 {

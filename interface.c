@@ -133,8 +133,8 @@ void mcuiAskSave(SIT_CallProc cb)
 	SIT_CreateWidgets(ask,
 		"<label name=label title=", LANG("Some changes have not been saved, what do you want to do ?"), ">"
 		"<button name=cancel.act title=", LANG("Cancel"), "top=WIDGET,label,1em right=FORM buttonType=", SITV_CancelButton, ">"
-		"<button name=ok.act title=", LANG("Save"), "top=OPPOSITE,cancel right=WIDGET,cancel,0.5em buttonType=", SITV_DefaultButton, ">"
-		"<button name=ko.act title=", LANG("Don't save"), "top=OPPOSITE,ok right=WIDGET,ok,0.5em>"
+		"<button name=ok.act title=", LANG("Save"), "top=OPPOSITE,cancel nextCtrl=LAST right=WIDGET,cancel,0.5em buttonType=", SITV_DefaultButton, ">"
+		"<button name=ko.act title=", LANG("Don't save"), "top=OPPOSITE,ok nextCtrl=LAST right=WIDGET,ok,0.5em>"
 	);
 
 	SIT_AddCallback(SIT_GetById(ask, "cancel"), SITE_OnActivate, cb, (APTR) 2);

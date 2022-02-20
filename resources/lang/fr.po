@@ -131,6 +131,15 @@ msgstr "Luminosité"
 msgid "chunks"
 msgstr "x 16 mètres"
 
+# hack: if you have trouble translating "chunks", prefix the message by 'x':
+# the value in %d will use meters instead. If 2 %d is included, the second one
+# will get the total distance in meters.
+msgid "%d chunks"
+msgstr "%d x 16m. (%dm.)"
+
+msgid "%d chunk"
+msgstr "%d x 16m. (%dm.)"
+
 msgid "Redstone tick"
 msgstr "Délai des événements"
 
@@ -146,13 +155,6 @@ msgstr "Sauver"
 msgid "Default"
 msgstr "Valeur par défaut"
 
-# hack: if you have trouble translating "chunks", prefix the message by 'x':
-# the value in %d will use meters instead.
-msgid "%d chunks"
-msgstr "x%dm."
-
-msgid "%d chunk"
-msgstr "x%dm."
 
 msgid "Uncapped FPS"
 msgstr "Illimité"

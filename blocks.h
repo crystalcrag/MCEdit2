@@ -108,7 +108,7 @@ struct BlockState_t              /* information per block state (32bytes) */
 
 	uint16_t rotate;             /* rotation to apply to tex coord */
 	uint8_t  special;            /* BLOCK_* */
-	uint8_t  inventory;          /* (Block_t.category << 4) | Block_t.inventory (0 if NONE) */
+	uint8_t  inventory;          /* (Block_t.inventory << 4) | Block_t.category (0 if NONE) */
 
 	DATA16   custModel;
 	uint16_t invId;              /* vbo slot for inventory */

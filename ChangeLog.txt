@@ -1,4 +1,10 @@
-=========== Week 76 ===========
+=========== Week 7 ===========
+Sat Feb 20:
+	* 37th rewrite of nearby chunk update.
+
+Sat Feb 19:
+	* piston refactoring: able to push quads, dstroy/convert to item, tile entity management changed.
+
 Wed Feb 17:
 	* moar bug fixes: blocks pushed by piston were incorrectly centered in unit voxel, fail to extend
 	  piston if placed against a powered block.

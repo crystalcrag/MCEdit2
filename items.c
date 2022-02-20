@@ -516,6 +516,10 @@ int itemGenMesh(ItemID_t blockId, DATA16 out)
 	DATA8   bitmap = alloca(blockTexResol * blockTexResol);
 	int     count  = 6;
 
+	/* used by entities: a block that normally render as normal, we want it in item form */
+	if ((blockId & ITEMID_FLAG) && ITEMNUM(blockId) < 256)
+		blockId &= 0xffff;
+
 	if (isBlockId(blockId))
 	{
 		BlockState state = blockGetById(blockId);

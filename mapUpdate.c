@@ -34,10 +34,7 @@ int8_t opp[]  = {2,  3,  0,  1, 5,  4, 0};
 
 extern uint8_t  slotsXZ[]; /* from chunks.c */
 extern uint8_t  slotsY[];
-extern uint8_t  updateChunk[];
-extern uint8_t  updateLength[];
-extern uint16_t updateMore[];
-extern uint8_t  updateChunks[];
+extern uint32_t chunkNearby[];
 
 /* track iteratively blocks that needs change for blocklight/skylight */
 static struct MapUpdate_t track;
@@ -219,24 +216,22 @@ void mapUpdateTable(BlockIter iter, int val, int table)
 
 	/* track chunk that have been modified */
 	ChunkData cd = iter->cd;
-	if (! cd->slot)
+	if ((cd->cdFlags & CDFLAG_ISINUPDATE) == 0)
 	{
-		cd->slot = 1;
 		*track.list = cd;
 		track.list = &cd->update;
 	}
 	if (table == SKYLIGHT_OFFSET || table == BLOCKLIGHT_OFFSET)
 	{
 		/* entity light in this chunk needs to be updated */
-		//iter->cd->cdFlags |= CDFLAG_UPDATENEARBY; // dec 26, 2021: why need to set this flag?
 		iter->ref->cflags |= CFLAG_ETTLIGHT;
 	}
 
 //	if (table == DATA_OFFSET)
 //		fprintf(stderr, "setting data %d, %d, %d to %d\n", iter->ref->X + iter->x, iter->yabs, iter->ref->Z + iter->z, val);
 
-	/* track which side it is near to (we might have to update nearby chunk too) */
-	cd->slot |= (slotsXZ[(iter->z<<4) | iter->x] | slotsY[iter->y]) << 1;
+	/* track which side it is near to (we will have to update nearby chunk too) */
+	cd->cdFlags |= chunkNearby[slotsXZ[(iter->z<<4) | iter->x] | slotsY[iter->y]];
 }
 
 static uint8_t mapGetSky(BlockIter iter)
@@ -832,15 +827,19 @@ static void mapUpdateBlockLight(Map map, BlockIter iter, int oldId, int newId)
 	{
 		uint8_t opac = blockIds[newId>>4].opacLight;
 		uint8_t light = mapGetLight(iter);
-		if (opac == blockIds[oldId>>4].opacLight)
-		{
-			/* block replace with same light emittance and same opacity: nothing is changed */
-			return;
-		}
-		else if (light == MAXLIGHT || (light > 0 && mapUpdateIsLocalMax(*iter, light)))
+		/*
+		 * note: light pushed by piston is not deleted immediately to prevent flashing effect.
+		 * once block is placed, old light will be updated but blockId will be 0.
+		 */
+		if (light == MAXLIGHT || (light > 0 && mapUpdateIsLocalMax(*iter, light)))
 		{
 			/* a light has been removed */
 			mapUpdateRemLight(iter);
+		}
+		else if (opac == blockIds[oldId>>4].opacLight)
+		{
+			/* block replace with same light emittance and same opacity: nothing is changed */
+			return;
 		}
 		else if (light > 0)
 		{
@@ -998,9 +997,6 @@ void mapUpdateDeleteSignal(BlockIter iterator, int blockId)
 
 			signal = cnx->signal;
 
-			if (cnx->blockId == RSCOMPARATOR)
-				puts("here");
-
 			if (signal == RSUPDATE || cnx->blockId != RSWIRE)
 			{
 				mapUpdateAddRSUpdate(neighbor, cnx);
@@ -1106,7 +1102,7 @@ void mapUpdateChangeRedstone(Map map, BlockIter iterator, int side, RSWire dir)
 			if (newId != blockId)
 			{
 				vec4 pos = {iter.ref->X + iter.x, iter.yabs, iter.ref->Z + iter.z};
-				mapUpdate(map, pos, newId, NULL, UPDATE_DONTLOG);
+				mapUpdate(map, pos, newId, NULL, UPDATE_DONTLOG | UPDATE_SILENT);
 			}
 		}
 	}
@@ -1349,66 +1345,64 @@ static void mapUpdateListChunk(Map map)
 
 	*track.list = NULL;
 
+	/* add at end of list (previous mapUpdate() not commited yet) */
 	for (cd = *first; cd; first = &cd->update, cd = *first);
 	for (list = *save; list; save = &list->save, list = *save);
 
 	for (cd = track.modif; cd; cd = next)
 	{
-		Chunk c = cd->chunk;
+		Chunk chunk = cd->chunk;
 		cd->cdFlags |= CDFLAG_PENDINGMESH;
 		//fprintf(stderr, "pending mesh for chunk %d, %d, layer %d\n", c->X, c->Z, cd->Y);
 		*first = cd;
 		first = &cd->update;
 		next = *first;
-		if ((c->cflags & CFLAG_NEEDSAVE) == 0)
+		if ((chunk->cflags & CFLAG_NEEDSAVE) == 0)
 		{
-			*save = c;
-			save = &c->save;
-			c->cflags |= CFLAG_NEEDSAVE;
+			*save = chunk;
+			save = &chunk->save;
+			chunk->cflags |= CFLAG_NEEDSAVE;
 		}
-		if (c->cflags & CFLAG_ETTLIGHT)
+		if (chunk->cflags & CFLAG_ETTLIGHT)
 		{
-			if (c->entityList != ENTITY_END)
-				entityUpdateLight(c);
-			c->cflags &= ~CFLAG_ETTLIGHT;
+			if (chunk->entityList != ENTITY_END)
+				entityUpdateLight(chunk);
+			chunk->cflags &= ~CFLAG_ETTLIGHT;
 		}
 
 		if (cd->cdFlags & CDFLAG_UPDATENEARBY)
 		{
 			ChunkData nbor;
-			int       slots = cd->slot >> 1;
-			uint8_t   pos   = updateChunk[slots];
-			uint8_t   len   = updateLength[slots];
-			uint16_t  more  = 0;
-			int       layer = cd->Y >> 4;
+			uint32_t  nearby = cd->cdFlags >> 5;
+			int       layer  = cd->Y >> 4;
+			int       j;
 
-			cd->cdFlags &= ~CDFLAG_UPDATENEARBY;
-			if (len > 31)
-				more = updateMore[len >> 5], len &= 31;
-
-			while (len > 0)
+			/* first position can have lots of leading 0 */
+			for (j = multiplyDeBruijnBitPosition[((uint32_t)((nearby & -(signed)nearby) * 0x077CB531U)) >> 27], nearby >>= j; nearby; nearby >>= 1, j ++)
 			{
-				int   sides = updateChunks[pos];
-				Chunk chunk = c + chunkNeighbor[c->neighbor + (sides & 15)];
+				/* from maps.c: index 13 removed, bitfield S, E, N, W, T, B */
+				static uint8_t chunkOffsets[] = {44,36,38,40,32,34,41,33,35,12,4,6,8,2,9,1,3,28,20,22,24,16,18,25,17,19};
+
+				if ((nearby & 1) == 0) continue;
+				uint8_t sides = chunkOffsets[j];
+				Chunk neighbor = chunk + chunkNeighbor[chunk->neighbor + (sides & 15)];
+
 				if (sides & 16) /* top */
 				{
-					nbor = layer + 1 < chunk->maxy ? chunk->layer[layer+1] : NULL;
+					nbor = layer + 1 < neighbor->maxy ? neighbor->layer[layer+1] : NULL;
 				}
 				else if (sides & 32) /* bottom */
 				{
-					nbor = layer > 0 ? chunk->layer[layer-1] : NULL;
+					nbor = layer > 0 ? neighbor->layer[layer-1] : NULL;
 				}
-				else nbor = chunk->layer[layer];
-				if (nbor && nbor->slot == 0)
+				else nbor = neighbor->layer[layer];
+				if (nbor && (nbor->cdFlags & CDFLAG_ISINUPDATE) == 0)
 				{
 					*first = nbor;
 					first = &nbor->update;
-					nbor->slot = 1;
+					nbor->cdFlags |= CDFLAG_ISINUPDATE;
+					//fprintf(stderr, "adding neighbor chunk %x to list from %d, %d, %d\n", sides, chunk->X, cd->Y, chunk->Z);
 				}
-				len --; pos ++;
-				if (len == 0)
-					/* sequence was broken in 2 */
-					len = more >> 8, pos += more & 255, more = 0;
 			}
 		}
 	}
@@ -1543,7 +1537,7 @@ void mapUpdateMesh(Map map)
 
 	for (cd = map->dirty; cd; cd = next)
 	{
-		cd->slot = 0;
+		cd->cdFlags &= ~(CDFLAG_ISINUPDATE | CDFLAG_UPDATENEARBY);
 		next = cd->update;
 		//fprintf(stderr, "updating chunk %d, %d, %d%s\n", cd->chunk->X, cd->Y, cd->chunk->Z, cd->cdFlags & CDFLAG_UPDATENEARBY ? " [NEARBY]" : "");
 		chunkUpdate(cd->chunk, chunkAir, map->chunkOffsets, cd->Y >> 4);
@@ -1593,7 +1587,7 @@ void mapUpdateFlush(Map map)
 					mapUpdate(map, pos, newId, NULL, UPDATE_DONTLOG);
 				}
 			}
-			else mapUpdate(map, pos, update->blockId, update->tile, UPDATE_GRAVITY | UPDATE_SILENT | UPDATE_DONTLOG);
+			else mapUpdate(map, pos, update->blockId, update->tile, UPDATE_GRAVITY | UPDATE_SILENT | UPDATE_DONTLOG | UPDATE_FORCE);
 			i --;
 		}
 	}
@@ -1626,7 +1620,6 @@ void mapUpdatePush(Map map, vec4 pos, int blockId, DATA8 tile)
 				update->blockId = blockId;
 				update->tile = tile;
 			}
-			//fprintf(stderr, "reusing block update %p:%d\n", iter.cd, iter.offset);
 			return;
 		}
 		i --;
@@ -1715,13 +1708,10 @@ Bool mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 	if (b->gravity && (blockUpdate & UPDATE_GRAVITY))
 		mapUpdateCheckGravity(iter);
 
-	if (b->updateNearby || (oldId > 0 && blockIds[oldId >> 4].updateNearby))
-		iter.cd->cdFlags |= CDFLAG_UPDATENEARBY;
-
 	if (iter.offset & 1) oldId |= *data >> 4;
 	else                 oldId |= *data & 15;
 
-	if (oldId == blockId && tile == NULL)
+	if ((blockUpdate & UPDATE_FORCE) == 0 && oldId == blockId && tile == chunkGetTileEntity(iter.ref, XYZ))
 		return False;
 
 	/* this needs to be done before tables are updated */
@@ -1769,12 +1759,13 @@ Bool mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 		mapUpdateRestoreLight(iter);
 	}
 
-	if (iter.cd->slot == 0 && blockId != oldId)
+	if ((iter.cd->cdFlags & CDFLAG_ISINUPDATE) == 0 && blockId != oldId)
 	{
 		/* not in update list: add it now */
-		iter.cd->slot = 1;
-		if (blockIds[(blockId == 0 ? oldId : blockId) >> 4].type != QUAD)
-			iter.cd->slot |= (slotsXZ[(iter.z<<4)|iter.x] | slotsY[iter.y]) << 1;
+		if (b->updateNearby || (oldId > 0 && blockIds[oldId >> 4].updateNearby))
+			iter.cd->cdFlags |= chunkNearby[slotsXZ[(iter.z<<4) | iter.x] | slotsY[iter.y]];
+		else
+			iter.cd->cdFlags |= CDFLAG_ISINUPDATE;
 		*track.list = iter.cd;
 		track.list = &iter.cd->update;
 	}
@@ -1884,6 +1875,11 @@ Bool mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 		updateRemove(iter.cd, iter.offset, True);
 		if ((blockUpdate & UPDATE_SILENT) == 0)
 			particlesExplode(map, 4, oldId, pos);
+	}
+	/* block being replaced: add particles for old block */
+	else if ((blockUpdate & UPDATE_SILENT) == 0 && oldId > 0 && (oldId >> 4) != (blockId >> 4))
+	{
+		particlesExplode(map, 4, oldId, pos);
 	}
 	return True;
 }

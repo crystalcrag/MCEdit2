@@ -330,7 +330,10 @@ static int worldSelectSyncValue(SIT_Widget w, APTR cd, APTR ud)
 		/* hack: "chunks" is often hard to translate, use meters instead */
 		if (format[0] == 'x')
 			format ++, num *= 16;
-		break;
+		/* english has only 1 %d, but other languages can have up to 2 */
+		snprintf(buffer, sizeof buffer, format, num, num * 16);
+		SIT_SetValues(ud, SIT_Title, buffer, NULL);
+		return 1;
 	case 1: format = "%d&#xb0;"; break; /* FOV */
 	case 2: format = num == 150 ? LANG("Uncapped FPS") : LANG("%d FPS"); break;
 	case 3: format = num == 101 ? LANG("Full brightness") : "+%d%%"; break;
@@ -339,7 +342,7 @@ static int worldSelectSyncValue(SIT_Widget w, APTR cd, APTR ud)
 	case 6: format = num == 49 ? LANG("Disabled") : "%d%%"; break;
 	default: return 0;
 	}
-	sprintf(buffer, format, num);
+	snprintf(buffer, sizeof buffer, format, num);
 	SIT_SetValues(ud, SIT_Title, buffer, NULL);
 	return 1;
 }

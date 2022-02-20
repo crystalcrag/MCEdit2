@@ -574,75 +574,73 @@ int mapUpdateDoor(BlockIter iterator, int blockId, Bool init)
 	else return blockId | (powered << 2);
 }
 
+/* cannot update a piston while its head is moving */
+static Bool mapUpdateIsPistonActivated(struct BlockIter_t iter, int blockId)
+{
+	/* <iter> points to piston body */
+	if (blockId & 8) /* extended */
+	{
+		/* tile entity could be one block ahead of facing direction */
+		uint8_t ext = blockSides.piston[blockId & 7];
+		mapIter(&iter, relx[ext], rely[ext], relz[ext]);
+	}
+	return chunkGetTileEntity(iter.ref, (int[3]) {iter.x, iter.yabs, iter.z}) == NULL;
+}
+
 /* add tile entity for piston extension: <iter> points at piston block */
-static Bool mapUpdateAddPistonExt(Map map, struct BlockIter_t iter, int blockId, Bool extend, DATA8 * tile_ret)
+static void mapUpdateAddPistonExt(Map map, struct BlockIter_t iter, int blockId, Bool extend, DATA8 * tile_ret)
 {
 	uint8_t ext = blockSides.piston[blockId & 7];
 	vec4    src = {iter.x + iter.ref->X, iter.yabs, iter.z + iter.ref->Z};
-	Chunk   ref = iter.ref;
 
-	/* XXX not sure where this tile entity for moving head is stored: use position it is now (instead of its final position) */
+	/* place tile entity into final position (that way it will mark the block as occupied) */
 	mapIter(&iter, relx[ext], rely[ext], relz[ext]);
-	vec4 dest = {iter.x + iter.ref->X, iter.yabs, iter.z + iter.ref->Z};
 
-	float * pos = src;
-	if (blockId & 8) pos = dest, ref = iter.ref;
-	int XYZ[] = {(int) pos[0] & 15, pos[1], (int) pos[2] & 15};
+	vec4  dest  = {iter.x + iter.ref->X, iter.yabs, iter.z + iter.ref->Z};
+	Chunk ref   = iter.ref;
 
-	DATA8 tile = chunkGetTileEntity(ref, XYZ);
+	NBTFile_t ret = {.page = 127};
+	TEXT itemId[128];
+	int  id = ID(RSPISTONHEAD, blockId & 7);
 
-	if (! tile)
-	{
-		ext = opp[ext];
-		mapIter(&iter, relx[ext], rely[ext], relz[ext]);
-		int XYZ2[] = {iter.x, iter.yabs, iter.z};
-		tile = chunkGetTileEntity(ref, XYZ2);
-	}
+	if ((blockId >> 4) == RSSTICKYPISTON)
+		/* bit 4 is sticky flag for piston head */
+		id |= 8;
 
-	if (! tile)
-	{
-		NBTFile_t ret = {.page = 127};
-		TEXT itemId[128];
-		int  id = ID(RSPISTONHEAD, blockId & 7);
+	NBT_Add(&ret,
+		TAG_String, "id",        itemGetTechName(id, itemId, sizeof itemId, True),
+		TAG_Int,    "x",         (int) dest[VX],
+		TAG_Int,    "y",         (int) dest[VY],
+		TAG_Int,    "z",         (int) dest[VZ],
+		TAG_Int,    "extending", extend,
+		TAG_Int,    "facing",    blockId & 7,
+		TAG_Double, "progress",  0.0,
+		TAG_Int,    "source",    1,
+		TAG_Compound_End
+	);
 
-		if ((blockId >> 4) == RSSTICKYPISTON)
-			id |= 8;
-
-		NBT_Add(&ret,
-			TAG_String, "id",        itemGetTechName(id, itemId, sizeof itemId, True),
-			TAG_Int,    "x",         (int) pos[VX],
-			TAG_Int,    "y",         (int) pos[VY],
-			TAG_Int,    "z",         (int) pos[VZ],
-			TAG_Int,    "extending", extend,
-			TAG_Int,    "facing",    blockId & 7,
-			TAG_Double, "progress",  0.0,
-			TAG_Int,    "source",    1,
-			TAG_Compound_End
-		);
-		if (tile_ret)
-			*tile_ret = ret.mem;
-		else
-			chunkAddTileEntity(ref, XYZ, ret.mem);
-		tile = ret.mem;
-	}
-	else return False;
-
+	/* already add/remove head */
 	if (! extend)
 	{
-		vec4 tmp;
-		memcpy(tmp, src, 12);
-		memcpy(src, dest, 12);
-		memcpy(dest, tmp, 12);
+		/* if retracting, <dest> points to piston, but head is extended right now */
+		float tmp[3];
+		memcpy(tmp,  src,  12);
+		memcpy(src,  dest, 12);
+		memcpy(dest, tmp,  12);
+		/* already delete piston head */
+		mapUpdate(map, src, 0, NULL, UPDATE_KEEPLIGHT | UPDATE_DONTLOG | UPDATE_SILENT);
+		chunkAddTileEntity(ref, (int[3]) {(int) dest[VX] & 15, dest[VY], (int) dest[VZ] & 15}, ret.mem);
 	}
-	else mapUpdate(map, dest, ID(RSPISTONEXT, 0), NULL, UPDATE_KEEPLIGHT | UPDATE_DONTLOG);
+	else mapUpdate(map, dest, ID(RSPISTONEXT, 0), ret.mem, UPDATE_KEEPLIGHT | UPDATE_DONTLOG);
 
-	blockId = itemGetByName(NBT_PayloadFromStream(tile, 0, "id"), False);
-	/* create or update the moving block */
+	if (tile_ret)
+		*tile_ret = ret.mem;
+
+	blockId = itemGetByName(NBT_PayloadFromStream(ret.mem, 0, "id"), False);
+	/* create or update the moving piston head */
 	if (blockId > 0)
 		/* XXX need progress */
-		entityUpdateOrCreate(ref, src, blockId, dest, 1, tile);
-
-	return True;
+		entityUpdateOrCreate(ref, src, blockId, dest, 1, ret.mem);
 }
 
 /* convert blocks push/rectracted by a piston into block 36 */
@@ -652,10 +650,6 @@ void mapUpdateToBlock36(Map map, RSWire list, int count, int dir, BlockIter iter
 	vec4 off = {relx[dir], rely[dir], relz[dir]};
 	int  i;
 
-	if (count > 0 && list->signal > 0)
-		/* retracting blocks instead */
-		off[0] = -off[0], off[1] = -off[1], off[2] = -off[2];
-
 	for (i = 0; i < count; i ++, list ++)
 	{
 		vec4 src = {pos[0] + list->dx, pos[1] + list->dy, pos[2] + list->dz};
@@ -664,7 +658,7 @@ void mapUpdateToBlock36(Map map, RSWire list, int count, int dir, BlockIter iter
 		struct BlockIter_t iter = *iterator;
 		mapIter(&iter, list->dx, list->dy, list->dz);
 
-		/* place tile entity of block 36 into source block (like piston head) XXX should be in dest block */
+		/* place tile entity of block 36 into destination block (like piston head) */
 		NBTFile_t tile = {.page = 127};
 		int       cnx  = 0;
 		TEXT      itemId[128];
@@ -693,29 +687,29 @@ void mapUpdateToBlock36(Map map, RSWire list, int count, int dir, BlockIter iter
 			TAG_String,  "blockId",   blockName,
 			TAG_Int,     "blockData", list->data,
 			TAG_Int,     "blockCnx",  cnx,
-			TAG_Int,     "x",         (int) src[VX],
-			TAG_Int,     "y",         (int) src[VY],
-			TAG_Int,     "z",         (int) src[VZ],
+			TAG_Int,     "x",         (int) dst[VX],
+			TAG_Int,     "y",         (int) dst[VY],
+			TAG_Int,     "z",         (int) dst[VZ],
 			TAG_Raw_Ptr, "blockTE",   compound,
+			TAG_Int,     "facing",    opp[dir], /* where the block was originating from */
 			TAG_Compound_End
 		);
-		mapUpdate(map, src, ID(RSPISTONEXT, 0), tile.mem, UPDATE_KEEPLIGHT | UPDATE_DONTLOG);
+
+
+		/* delete source block (updates are ordered so that they don't overwrite each other) */
+		mapUpdate(map, src, 0, NULL, UPDATE_KEEPLIGHT | UPDATE_DONTLOG | UPDATE_SILENT);
+
+		mapUpdate(map, dst, ID(RSPISTONEXT, 0), tile.mem, UPDATE_KEEPLIGHT | UPDATE_DONTLOG);
 		//fprintf(stderr, "adding block 36 (from %s) at %g,%g,%g\n", blockName, src[0], src[1], src[2]);
 
 		entityUpdateOrCreate(iter.ref, src, (list->blockId << 4) | list->data, dst, 1, tile.mem);
-
-		/* also replace destination block to prevent other pistons to place block here */
-		mapIter(&iter, off[0], off[1], off[2]);
-		uint8_t block = iter.blockIds[iter.offset];
-		if (block != RSPISTONEXT && block != RSPISTONHEAD)
-//			fprintf(stderr, "adding extra block 36 (from %s) at %g,%g,%g\n", blockName, dst[0], dst[1], dst[2]),
-			mapUpdate(map, dst, ID(RSPISTONEXT, 0), NULL, UPDATE_KEEPLIGHT | UPDATE_DONTLOG);
 	}
 }
 
 /* power level near piston has changed */
 int mapUpdatePiston(Map map, BlockIter iterator, int blockId, Bool init, DATA8 * tile)
 {
+	/* it is MAXPUSH * 2, because some items can be destroyed in the process (and do not count toward MAXPUSH limit) */
 	struct RSWire_t connect[MAXPUSH];
 
 	int avoid = blockSides.piston[blockId & 7];
@@ -724,16 +718,18 @@ int mapUpdatePiston(Map map, BlockIter iterator, int blockId, Bool init, DATA8 *
 
 	if (blockId & 8)
 	{
-		/* piston extended, but no power source */
-		count = redstonePushedByPiston(*iterator, blockId, connect);
-		/* there is at least one block blocking the piston movement */
-		if (count < 0) return blockId;
-
-		if (i < 6 || ! mapUpdateAddPistonExt(map, *iterator, blockId, False, NULL))
-			/* already moving: wait until piston has finished */
+		/* check if piston is already moving */
+		if (! mapUpdateIsPistonActivated(*iterator, blockId) || i < 6)
+			/* need to wait for movement to be finished */
 			return blockId;
 
-		mapUpdateToBlock36(map, connect, count, avoid, iterator);
+		/* piston extended, but no power source */
+		count = redstonePushedByPiston(*iterator, blockId, connect);
+		/* <0 == movement is blocked */
+		if (count < 0) return blockId;
+
+		mapUpdateAddPistonExt(map, *iterator, blockId, False, NULL);
+		mapUpdateToBlock36(map, connect, count, opp[avoid], iterator);
 
 		if (init)
 			blockId &= ~8;
@@ -741,15 +737,16 @@ int mapUpdatePiston(Map map, BlockIter iterator, int blockId, Bool init, DATA8 *
 	}
 	else if (i < 6)
 	{
+		if (! mapUpdateIsPistonActivated(*iterator, blockId))
+			return blockId;
+
 		/* not extended, but has a power source nearby */
 		count = redstonePushedByPiston(*iterator, blockId, connect);
 		if (count < 0) return blockId;
 
 		/* convert all blocks pushed to block 36 (in reverse order) */
 		mapUpdateToBlock36(map, EOT(connect) - count, count, avoid, iterator);
-
-		if (! mapUpdateAddPistonExt(map, *iterator, blockId, True, init ? tile : NULL))
-			return blockId;
+		mapUpdateAddPistonExt(map, *iterator, blockId, True, init ? tile : NULL);
 
 		if (init)
 			blockId |= 8;
@@ -1204,7 +1201,7 @@ void updateTick(void)
 			mapInitIterOffset(&iter, cd, off);
 			mapUpdateChangeRedstone(globals.level, &iter, RSSAMEBLOCK, NULL);
 		}
-		else mapUpdate(globals.level, pos, id, NULL, UPDATE_DONTLOG);
+		else mapUpdate(globals.level, pos, id, NULL, UPDATE_DONTLOG | UPDATE_SILENT);
 	}
 	if (i > 0)
 	{
@@ -1219,9 +1216,7 @@ void updateFinished(DATA8 tile, vec4 dest)
 	NBTFile_t nbt = {.mem = tile};
 	NBTIter_t iter;
 	Map       map = globals.level;
-	float     src[3];
-	int       blockId, i;
-	uint8_t   flags = 0;
+	int       blockId, facing, i;
 
 	if (tile == NULL)
 	{
@@ -1232,37 +1227,26 @@ void updateFinished(DATA8 tile, vec4 dest)
 
 	NBT_IterCompound(&iter, tile);
 	blockId = 0;
-	while ((i = NBT_Iter(&iter)) >= 0 && flags != 15)
+	facing = 0;
+	while ((i = NBT_Iter(&iter)) >= 0)
 	{
-		switch (FindInList("X,Y,Z,id", iter.name, 0)) {
-		case 0: src[0] = NBT_GetInt(&nbt, i, 0); flags |= 1; break;
-		case 1: src[1] = NBT_GetInt(&nbt, i, 0); flags |= 2; break;
-		case 2: src[2] = NBT_GetInt(&nbt, i, 0); flags |= 4; break;
-		case 3: blockId = itemGetByName(NBT_Payload(&nbt, i), False); flags |= 8;
+		switch (FindInList("facing,id", iter.name, 0)) {
+		case 0: facing = NBT_GetInt(&nbt, i, 0); break;
+		case 1: blockId = itemGetByName(NBT_Payload(&nbt, i), False);
 		}
 	}
-	if (flags != 15) return;
 
 	switch (blockId >> 4) {
 	case RSPISTONHEAD:
 		if (NBT_GetInt(&nbt, NBT_FindNode(&nbt, 0, "extending"), 0) == 0)
 		{
-			/* piston retracted: delete head */
-			mapUpdatePush(map, src, 0, NULL);
 			/* remove extended state on piston */
 			if (blockId & 8)
 				blockId = ID(RSSTICKYPISTON, blockId & 7);
 			else
 				blockId = ID(RSPISTON, blockId & 7);
 		}
-		else /* delete tile entity on piston body */
-		{
-			/* no need to trigger a mesh update: the block is already in the correct state */
-			Chunk c = mapGetChunk(map, src);
-			int   XYZ[] = {(int) src[0] - c->X, src[1], (int) src[2] - c->Z};
-			chunkDeleteTileEntity(c, XYZ, False);
-		}
-		/* else piston extended: add real piston head (instead of entity) */
+		/* else piston extended: add real piston head (instead of entity and delete tile) */
 		mapUpdatePush(map, dest, blockId, NULL);
 		break;
 	case RSPISTONEXT:
@@ -1275,7 +1259,7 @@ void updateFinished(DATA8 tile, vec4 dest)
 		          NBT_GetInt(&nbt, NBT_FindNode(&nbt, 0, "blockData"), 0);
 		if (blockId > 0)
 		{
-			/* delete block 36 */
+			vec4 src = {dest[VX] + relx[facing], dest[VY] + rely[facing], dest[VZ] + relz[facing]};
 			mapUpdatePush(map, src, 0, NULL);
 			/* add block pushed in its final position */
 			mapUpdatePush(map, dest, blockId, tile);

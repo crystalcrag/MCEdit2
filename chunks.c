@@ -1030,38 +1030,16 @@ static uint8_t xsides[] = { 2, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 1
 static uint8_t zsides[] = { 1,  5,  5,  5,  5,  5,  5,  5,  5,  5,  5,  5,  5,  5,  5,  4};
 static uint8_t ysides[] = {16, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 32};
 
-/* these tables are used to list neighbor chunks, if a block is updated at a boundary (383 bytes) */
-uint8_t updateChunk[] = {
-	0, 43, 1, 71, 3, 43, 26, 112, 5, 96, 88, 71, 60, 43, 26, 0, 8, 169, 164, 153,
-	148, 140, 129, 0, 107, 96, 88, 71, 60, 43, 26, 226, 17, 223, 220, 213, 210,
-	205, 198, 0, 195, 188, 183, 71, 176, 43, 26, 0, 174, 169, 164, 153, 148, 140,
-	129, 112, 107, 96, 88, 71, 60, 43, 26, 0,
-};
-
-uint8_t updateLength[] = {
-	0, 1, 1, 3, 1, 2, 3, 5, 1, 3, 2, 5, 3, 5, 5, 8, 1, 3, 3, 7, 3, 5, 7, 165, 3, 7,
-	5, 11, 7, 11, 11, 17, 1, 3, 3, 7, 3, 5, 7, 133, 3, 7, 5, 101, 7, 69, 37, 8, 2,
-	5, 5, 11, 5, 8, 11, 17, 5, 11, 8, 17, 11, 17, 17, 26,
-};
-
-uint16_t updateMore[] = {
-	2313, 1542, 1542, 1542, 1548, 1539
-};
-
-uint8_t updateChunks[243] = { /* bitfield S, E, N, W, T, B */
-	 1,  2,  3,  4,  6,  8,  9, 12, 16, 17, 18, 19, 20, 22, 24, 25, 28, 32, 33, 34,
-	35, 36, 38, 40, 41, 44,  2,  4,  6,  8, 12, 16, 18, 20, 22, 24, 28, 32, 34, 36,
-	38, 40, 44,  1,  4,  8,  9, 12, 16, 17, 20, 24, 25, 28, 32, 33, 36, 40, 41, 44,
-	 4,  8, 12, 16, 20, 24, 28, 32, 36, 40, 44,  1,  2,  3,  8,  9, 16, 17, 18, 19,
-	24, 25, 32, 33, 34, 35, 40, 41,  2,  8, 16, 18, 24, 32, 34, 40,  1,  8,  9, 16,
-	17, 24, 25, 32, 33, 40, 41,  8, 16, 24, 32, 40,  1,  2,  3,  4,  6, 16, 17, 18,
-	19, 20, 22, 32, 33, 34, 35, 36, 38,  2,  4,  6, 16, 18, 20, 22, 32, 34, 36, 38,
-	 1,  4, 16, 17, 20, 32, 33, 36,  4, 16, 20, 32, 36,  1,  2,  3, 16, 17, 18, 19,
-	32, 33, 34, 35,  2, 16, 18, 32, 34,  1, 16, 17, 32, 33, 16, 32,  4,  8, 12, 32,
-	36, 40, 44,  2,  8, 32, 34, 40,  1,  8,  9, 32, 33, 40, 41,  8, 32, 40,  2,  4,
-	 6, 32, 34, 36, 38,  1,  4, 32, 33, 36,  4, 32, 36,  1,  2,  3, 32, 33, 34, 35,
-	 2, 32, 34,  1, 32, 33,  1,  2,  3,  4,  6,  8,  9, 12, 16, 17, 18, 19, 20, 22,
-	24, 25, 28,
+/* this table is used to list neighbor chunks, if a block is updated at a boundary (180 bytes) */
+uint32_t chunkNearby[] = {
+	0x00000010, 0x00100010, 0x00040010, 0x00340010, 0x00008010, 0x00000000,
+	0x00058010, 0x00000000, 0x00020010, 0x001a0010, 0x00000000, 0x00000000,
+	0x0002c010, 0x00000000, 0x00000000, 0x00000000, 0x04000010, 0x24100010,
+	0x0c040010, 0x6c340010, 0x04808010, 0x00000000, 0x0d858010, 0x00000000,
+	0x06020010, 0x361a0010, 0x00000000, 0x00000000, 0x06c2c010, 0x00000000,
+	0x00000000, 0x00000000, 0x00000210, 0x00101210, 0x00040610, 0x00343610,
+	0x00008250, 0x00000000, 0x000586d0, 0x00000000, 0x00020310, 0x001a1b10,
+	0x00000000, 0x00000000, 0x0002c370
 };
 
 /*
@@ -1240,7 +1218,7 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 //	if (c->X == -208 && cur->Y == 48 && c->Z == -48)
 //		globals.breakPoint = 1;
 
-	for (Y = 0, pos = air = 0; Y <16; Y ++)
+	for (Y = 0, pos = air = 0; Y < 16; Y ++)
 	{
 		int XZ;
 		if ((Y & 1) == 0)
@@ -1981,6 +1959,70 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 		}
 		buffer->cur = out + VERTEX_INT_SIZE;
 	}
+}
+
+/*
+ * This function is similar to chunkGenQuad, but vertex data will use model format instead of terrain.
+ * Needed for entities, but all the LUT are here.
+ */
+extern uint8_t texCoordRevU[];
+int chunkGenQuadModel(BlockState b, DATA16 out)
+{
+	DATA16  p     = out;
+	DATA8   tex   = &b->nzU;
+	DATA8   sides = &b->pxU;
+	int     vtx   = b->special == BLOCK_NOSIDE || b->pxU == QUAD_CROSS ? BYTES_PER_VERTEX*12 : BYTES_PER_VERTEX*6;
+	int     side, i, j, texOrient;
+
+	if (out == NULL)
+	{
+		/* get amount of bytes needed to store model */
+		for (vtx /= BYTES_PER_VERTEX, i = vtx, sides ++; *sides; sides ++, i += vtx);
+		return i;
+	}
+
+	do {
+		side = quadSides[*sides];
+		for (i = 0, j = *sides * 4, texOrient = (b->rotate&3) * 8; i < 4; i ++, j ++, p += INT_PER_VERTEX, texOrient += 2)
+		{
+			DATA8 coord = cubeVertex + quadIndices[j];
+			int V = tex[1];
+			/* biome dependant color: entities can't handle this */
+			if (V == 62) V = 63;
+			V = (texCoordRevU[texOrient+1] + V) << 4;
+			if (V == 1024) V = 1023;
+
+			p[0] = VERTEX(coord[0]);
+			p[1] = VERTEX(coord[1]);
+			p[2] = VERTEX(coord[2]);
+			p[3] = ((texCoordRevU[texOrient] + tex[0]) << 4) | ((V & ~7) << 6);
+			p[4] = (side << 3) | (V & 7);
+
+			if (side < 6)
+			{
+				/* offset 1/16 of a block in the direction of their normal */
+				int8_t * normal = cubeNormals + side * 4;
+				p[0] += normal[0] * (BASEVTX/16);
+				p[1] += normal[1] * (BASEVTX/16);
+				p[2] += normal[2] * (BASEVTX/16);
+			}
+		}
+		/* convert quad to triangles */
+		memcpy(p,   p-4*INT_PER_VERTEX, BYTES_PER_VERTEX);
+		memcpy(p+5, p-2*INT_PER_VERTEX, BYTES_PER_VERTEX);
+		p += 2*INT_PER_VERTEX;
+
+		if (vtx == 12*BYTES_PER_VERTEX)
+		{
+			/* need to add other side to prevent quad from being culled by glEnable(GL_CULLFACE) */
+			memcpy(p, p-2*INT_PER_VERTEX, 2*BYTES_PER_VERTEX); p += 2*INT_PER_VERTEX;
+			memcpy(p, p-7*INT_PER_VERTEX,   BYTES_PER_VERTEX); p += INT_PER_VERTEX;
+			memcpy(p, p-6*INT_PER_VERTEX,   BYTES_PER_VERTEX); p += INT_PER_VERTEX;
+			memcpy(p, p-5*INT_PER_VERTEX, 2*BYTES_PER_VERTEX); p += 2*INT_PER_VERTEX;
+		}
+		sides ++;
+	} while (*sides);
+	return (p - out) / INT_PER_VERTEX;
 }
 
 void chunkFreeHash(TileEntityHash hash, DATA8 min, DATA8 max)

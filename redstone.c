@@ -323,6 +323,7 @@ int redstonePushedByPiston(struct BlockIter_t iter, int blockId, RSWire list)
 				if (count == MAXPUSH) return -1;
 				break;
 			case PUSH_DESTROY:
+				goto break_all;
 			case PUSH_DROPITEM:
 				if (retract || count == MAXPUSH) goto break_all;
 			}

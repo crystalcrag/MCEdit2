@@ -193,6 +193,24 @@ void entityRegisterType(STRPTR id, EntityParseCb_t cb)
 }
 
 /*
+ * some blocks (typically QUAD) need to be rendered as normal (when pushed by piston), but when
+ * dropped as item world item, they need to rendered using itemGenMesh().
+ */
+int entityWantItem(ItemID_t itemId)
+{
+	if (isBlockId(itemId))
+	{
+		BlockState b = blockGetById(itemId);
+
+		if (b->type == QUAD)
+			return itemId | ITEMID_FLAG;
+		if ((b->inventory & MODELFLAGS) == ITEM2D)
+			return (itemId & ~15) | ITEMID_FLAG;
+	}
+	return itemId;
+}
+
+/*
  * quick and dirty hash table to associate entity id with bank+vbo
  */
 #define EOL     0xffff
@@ -279,6 +297,7 @@ static void hashInsert(ItemID_t id, int VBObank)
  * entities bank for models
  */
 extern int blockInvModelCube(DATA16 ret, BlockState b, DATA8 texCoord);
+extern int chunkGenQuadModel(BlockState b, DATA16 out);
 
 /* get vertex count for entity id */
 static int entityModelCount(ItemID_t id, int cnx)
@@ -301,7 +320,7 @@ static int entityModelCount(ItemID_t id, int cnx)
 			// else no break;
 		case TRANS: return 36;
 		case QUAD:
-			return itemGenMesh(id, NULL);
+			return chunkGenQuadModel(blockGetById(id), NULL);
 		case CUST:
 			if (desc->model) /* custom inventory model */
 				return desc->model[-1];
@@ -354,8 +373,7 @@ static int entityGenModel(EntityBank bank, ItemID_t itemId, int cnx, CustModel c
 		}
 		else if ((b->inventory & MODELFLAGS) == ITEM2D)
 		{
-			count = itemGenMesh(itemId, buffer);
-			center = 0;
+			count = chunkGenQuadModel(blockGetById(itemId), buffer);
 		}
 		else switch (b->type) {
 		case SOLID:
@@ -1527,12 +1545,12 @@ void entityUpdateOrCreate(Chunk chunk, vec4 pos, ItemID_t blockId, vec4 dest, in
 	entity->tile = tile;
 	entity->chunkRef = chunk;
 	entity->rotation[3] = item ? 0.5 : 1;
-	entity->VBObank = entityGetModelId(entity);
-	vecAddNum(entity->pos,    0.5f);
-	vecAddNum(entity->motion, 0.5f);
 	entity->enflags |= ENFLAG_INANIM;
 	if (item)
 		entity->enflags |= ENFLAG_ITEM;
+	entity->VBObank = entityGetModelId(entity);
+	vecAddNum(entity->pos,    0.5f);
+	vecAddNum(entity->motion, 0.5f);
 
 	if (b->type != CUST || b->special == BLOCK_SOLIDOUTER)
 		entity->enflags |= ENFLAG_FULLLIGHT;

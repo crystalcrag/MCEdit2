@@ -36,6 +36,7 @@ void   entityRenderBBox(void);
 int    entityCreatePlayer(void);
 int    entityGetId(Entity);
 void   entityUpdateNearby(BlockIter, int blockId);
+int    entityWantItem(ItemID_t);
 
 /* clone entities with selection */
 APTR entityCopy(int vtxCount, vec4 origin, DATA16 entityIds, int maxEntities, DATA32 models, int maxModels);

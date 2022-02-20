@@ -14,9 +14,9 @@
  * item ids uses 16bits for state and up to 13bis for id: filled_maps requires a lot of states, as well
  * as potions. 16 states like blocks is not enough. For more extended information use Item_t struct.
  */
-#define ITEMID(id, data)       (((id-256) << 17) | ITEMID_FLAG | (data))
+#define ITEMID(id, data)       ((((id)-255) << 17) | ITEMID_FLAG | (data))
 #define ITEMMETA(id)           (id & (ITEMID_FLAG-1))
-#define ITEMNUM(id)            (((id) >> 17) + 256)
+#define ITEMNUM(id)            (((id) >> 17) + 255)
 #define ITEM_ADDTEXU           16
 #define ITEM_ADDTEXV           32
 

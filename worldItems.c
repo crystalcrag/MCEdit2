@@ -126,9 +126,9 @@ static int worldItemParseItemFrame(NBTFile nbt, Entity entity)
 	return entityAddModel(ITEMID(ENTITY_ITEMFRAME, 0), 0, NULL, &entity->szx, worldItemSwapAxis(entity));
 }
 
+/* item laying in the world */
 static int worldItemParseItem(NBTFile nbt, Entity entity)
 {
-	/* item laying in the world */
 	int desc = NBT_FindNode(nbt, 0, "Item");
 //	int count = NBT_GetInt(nbt, NBT_FindNode(nbt, desc, "Count"), 1);
 	int data = NBT_GetInt(nbt, NBT_FindNode(nbt, desc, "Damage"), 0);
@@ -675,6 +675,10 @@ void worldItemPreview(vec4 camera, vec4 pos, ItemID_t itemId)
 			angle += M_PI_2f;
 		else
 			angle += M_PIf;
+		if (isBlockId(itemId))
+			/* we want an item, not a block */
+			itemId = entityWantItem(itemId);
+
 		/* shader wants a positive angle */
 		preview->rotation[0] = normAngle(angle);
 		preview->enflags = ENFLAG_ITEM;

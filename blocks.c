@@ -52,7 +52,7 @@ uint8_t bboxIndices[] = {
 	0, 3,   1, 2,   5, 6,   4, 7, /* sides */
 };
 
-static uint8_t texCoordRevU[] = {
+uint8_t texCoordRevU[] = {
 	1,0,    1,1,    0,1,    0,0,
 	1,1,    0,1,    0,0,    1,0,
 	0,1,    0,0,    1,0,    1,1,
