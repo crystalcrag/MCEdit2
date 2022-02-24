@@ -273,7 +273,7 @@ static int worldSelectAbout(SIT_Widget w, APTR cd, APTR ud)
 	}
 
 	snprintf(header, sizeof header, LANG(headerFmt), "<a href='https://github.com/crystalcrag/MCEdit2'>MCEdit</a> "MCEDIT_VERSION, PLATFORM,
-		"T.Pierron", __DATE__, "gcc " TOSTRING(__GNUC__) "." TOSTRING(__GNUC_MINOR__) "." TOSTRING(__GNUC_PATCHLEVEL__));
+		"T.Pierron", __DATE__, COMPILER);
 
 	snprintf(vendor, sizeof vendor, "%s<br>Open GL v%s", (STRPTR) glGetString(GL_RENDERER), (STRPTR) glGetString(GL_VERSION));
 
@@ -456,6 +456,8 @@ void SITK_ToText(STRPTR keyName, int max, int key)
 	}
 }
 
+static void worldSelectList(SIT_Widget list, STRPTR dir, int max);
+
 static int worldSelectSave(SIT_Widget w, APTR cd, APTR save)
 {
 	/*
@@ -486,7 +488,12 @@ static int worldSelectSave(SIT_Widget w, APTR cd, APTR save)
 	CopyString(mcedit.capture, folder, sizeof mcedit.capture);
 
 	SIT_GetValues(worldSelect.worlds, SIT_Title, &folder, NULL);
-	CopyString(mcedit.worldsDir, folder, sizeof mcedit.worldsDir);
+	if (strcasecmp(mcedit.worldsDir, folder))
+	{
+		CopyString(mcedit.worldsDir, folder, sizeof mcedit.worldsDir);
+		/* rescan the new directory for potential world save */
+		worldSelectList(worldSelect.worldList, mcedit.worldsDir, sizeof mcedit.worldsDir);
+	}
 
 	if (save)
 	{
@@ -901,10 +908,10 @@ static void worldSelectAddWorld(SIT_Widget list, STRPTR levelDat)
 		NBT_GetString(&nbt, NBT_FindNode(&nbt, 0, "LevelName"), worldName, sizeof worldName);
 		NBT_GetString(&nbt, NBT_FindNode(&nbt, 0, "Version.Name"), version, sizeof version);
 		switch (NBT_GetInt(&nbt, NBT_FindNode(&nbt, 0, "playerGameType"), 0)) {
-		case 0:  mode = "Survival"; break;
-		case 1:  mode = "Creative"; break;
-		case 2:  mode = "Spectator"; break;
-		default: mode = "<unknown>";
+		case MODE_SURVIVAL:  mode = LANG("Survival"); break;
+		case MODE_CREATIVE:  mode = LANG("Creative"); break;
+		case MODE_SPECTATOR: mode = LANG("Spectator"); break;
+		default:             mode = LANG("<unknown>");
 		}
 		NBT_Free(&nbt);
 		if (version[0] == 0)
@@ -939,6 +946,7 @@ static void worldSelectAddWorld(SIT_Widget list, STRPTR levelDat)
 static void worldSelectList(SIT_Widget list, STRPTR dir, int max)
 {
 	ScanDirData args;
+	SIT_ListDeleteRow(list, DeleteAllRows);
 	if (ScanDirInit(&args, dir))
 	{
 		int len = strlen(dir);
@@ -1109,7 +1117,7 @@ void mceditWorldSelect(void)
 	);
 	SIT_SetAttributes(app, "<appname top=MIDDLE,about><select top=MIDDLE,open>");
 
-	SIT_Widget list = SIT_GetById(app, "worlds");
+	SIT_Widget list = worldSelect.worldList = SIT_GetById(app, "worlds");
 	SIT_AddCallback(SIT_GetById(app, "about"), SITE_OnActivate, worldSelectAbout, app);
 	SIT_AddCallback(SIT_GetById(app, "opt"),   SITE_OnActivate, worldSelectConfig, app);
 	SIT_AddCallback(SIT_GetById(app, "edit"),  SITE_OnActivate, worldSelectEditSelected, list);
@@ -1125,6 +1133,8 @@ void mceditWorldSelect(void)
 
 	/* scan folder for potential world saves */
 	worldSelectList(list, mcedit.worldsDir, sizeof mcedit.worldsDir);
+
+	SDL_EnableUNICODE(1);
 
 	while (! mcedit.exit)
 	{

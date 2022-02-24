@@ -33,16 +33,16 @@ msgid "2D slice view"
 msgstr "Vue en coupe 2D"
 
 msgid "Place block"
-msgstr "Placer un bloc"
+msgstr "Placer un objet"
 
 msgid "Move view"
 msgstr "Orienter la caméra"
 
 msgid "Activate device"
-msgstr "Activer un bloc"
+msgstr "Activer un objet"
 
 msgid "Pick block"
-msgstr "Ramasser un bloc"
+msgstr "Ramasser un objet"
 
 msgid "Hide HUD"
 msgstr "Cacher l'interface"
@@ -187,7 +187,7 @@ msgid "Interface scale"
 msgstr "Taille de l'interface"
 
 msgid "Show a preview of the block that will be placed"
-msgstr "Afficher un aperçu des blocs qui seront placés"
+msgstr "Afficher un aperçu des objets qui seront placés"
 
 msgid "Set the window in full screen on startup"
 msgstr "Mettre la fenêtre en plein écran au démarrage"
@@ -484,15 +484,6 @@ msgstr "Heure"
 msgid "Game rules"
 msgstr "Règles du jeu"
 
-msgid "Survival"
-msgstr "Survie"
-
-msgid "Creative"
-msgstr "Créatif"
-
-msgid "Spectator"
-msgstr "Spectateur"
-
 msgid "Peaceful"
 msgstr "Pacifique"
 
@@ -630,7 +621,7 @@ msgid "Note"
 msgstr "Note"
 
 msgid "it should starts with"
-msgstr "il devra commencer par"
+msgstr "il devrait commencer par"
 
 msgid "To clipboard"
 msgstr "Copier"
@@ -756,10 +747,28 @@ msgid "<b>Available waypoints:</b> (right-click to edit)"
 msgstr "<b>Marqueurs disponibles:</b> (clic-droit pour éditer)"
 
 msgid "\tName\tLocation\tDist"
-msgstr "\tNom\tPosition\tDist"
+msgstr "\tNom\tPosition\tDist."
 
 msgid "Add marker"
 msgstr "Ajouter"
 
 msgid "Show in world"
 msgstr "Afficher dans la carte"
+
+msgid "Survival"
+msgstr "Survie"
+
+msgid "Creative"
+msgstr "créatif"
+
+msgid "Spectator"
+msgstr "Spectateur"
+
+msgid "Switched to %s mode"
+msgstr "Basculement en mode %s"
+
+msgid "Fullscreen resolution"
+msgstr "Résolution plein écran"
+
+msgid "<unknown>"
+msgstr "<inconnu>"

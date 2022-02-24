@@ -11,6 +11,7 @@
 #include <math.h>
 #include "maps.h"
 #include "blocks.h"
+#include "mapUpdate.h"
 #include "redstone.h"
 
 
@@ -272,7 +273,7 @@ int redstoneConnectTo(struct BlockIter_t iter, RSWire connectTo)
 }
 
 /* list blocks pushed/retracted by piston (<iter> must point to piston block or piston head if extended) */
-int redstonePushedByPiston(struct BlockIter_t iter, int blockId, RSWire list)
+int redstonePushedByPiston(struct BlockIter_t iter, int blockId, RSWire list, BlockUpdate blockedBy)
 {
 	int retract = blockId & 8;
 	int count   = 0;
@@ -316,6 +317,16 @@ int redstonePushedByPiston(struct BlockIter_t iter, int blockId, RSWire list)
 				break;
 			switch (b->pushable) {
 			case NOPUSH:
+				if (blockedBy && b->id == RSPISTONHEAD)
+				{
+					/* we want the piston body though */
+					x = iter.blockIds[DATA_OFFSET + (iter.offset >> 1)];
+					if (iter.offset & 1) x = (x >> 4) & 7; else x &= 7;
+					x = opp[blockSides.piston[x]];
+					mapIter(&iter, relx[x], rely[x], relz[x]);
+					blockedBy->tile = (DATA8) iter.cd;
+					blockedBy->blockId = iter.offset;
+				}
 				if (retract && inCheck == 0) goto break_all;
 				else return -1;
 			case PUSH_ONLY:

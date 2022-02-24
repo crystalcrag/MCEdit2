@@ -492,7 +492,18 @@ void playerTeleport(Player p, vec4 pos, float rotation[2])
 
 void playerSetMode(Player p, int mode)
 {
-	p->pmode = mode;
+	if (p->pmode != mode)
+	{
+		static STRPTR modes[] = {
+			DLANG("Survival"),
+			DLANG("Creative"),
+			NULL, /* advantre mode, don't care */
+			DLANG("Spectator")
+		};
+		p->pmode = mode;
+		snprintf(p->inventory.infoTxt, sizeof p->inventory.infoTxt, LANG("Switched to %s mode"), LANG(modes[mode]));
+		p->inventory.infoState = INFO_INV_INIT;
+	}
 	switch (mode) {
 	case MODE_SURVIVAL:
 		p->onground = physicsCheckOnGround(globals.level, p->pos, &playerBBox, NULL);
@@ -595,8 +606,16 @@ Bool playerAddInventory(Player p, Item add)
 
 			if (slot < PLAYER_MAX_ITEMS)
 			{
-				if (slot < MAXCOLINV)
-					p->inventory.selected = slot;
+				if (slot >= MAXCOLINV)
+				{
+					/* in inventory, but not on inventory bar: exchange with current slot */
+					struct Item_t tmp = *item;
+					Item   invBar = &p->inventory.items[p->inventory.selected];
+					*item = *invBar;
+					*invBar = tmp;
+				}
+				else p->inventory.selected = slot;
+
 				if (p->pmode == MODE_SURVIVAL)
 					add->count = itemAddCount(item, add->count);
 				else

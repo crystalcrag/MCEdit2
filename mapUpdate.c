@@ -52,6 +52,15 @@ static inline int blockGetLightOpacity(int blockId, int min)
 	return opac <= min ? min : opac;
 }
 
+/* map closed: clear everything */
+void mapUpdateDelAll(void)
+{
+	ListNode * node;
+	while ((node = ListRemHead(&track.updates))) free(node);
+	free(track.coord);
+	memset(&track, 0, sizeof track);
+}
+
 /*
  * block iterator over multiple chunks/sub-chunk
  */
@@ -315,26 +324,27 @@ static void trackAdd(int x, int y, int z)
 /* will prevent use of recursion (mapUpdate) */
 static void trackAddUpdate(BlockIter iter, int blockId, DATA8 tile)
 {
-	int max = (track.updateCount+127) & ~127;
-	if (max == track.updateCount)
+	UpdateBuffer updates;
+
+	for (updates = HEAD(track.updates); updates && updates->count == 128; NEXT(updates));
+	if (updates == NULL)
 	{
-		max += 128;
-		BlockUpdate list = realloc(track.updates, sizeof *list * max + 4 * (max >> 5));
-		if (list == NULL) return;
-		/* move usage table */
-		memmove(track.updateUsage = (DATA32) (list + max), list + track.updateCount, (track.updateCount >> 5) * 4);
-		memset(track.updateUsage + (track.updateCount >> 5), 0, 16);
-		track.updates = list;
+		/* alloc them in chunk, block updates must not be relocated if there isn't enough space */
+		updates = malloc(sizeof *updates);
+		if (updates == NULL) return;
+		memset(updates, 0, offsetof(struct UpdateBuffer_t, buffer));
+		ListAddTail(&track.updates, &updates->node);
 	}
 
 	/* redstone needs a 2 pass system */
-	BlockUpdate update = track.updates + mapFirstFree(track.updateUsage, max);
+	BlockUpdate update = updates->buffer + updates->count;
 
-	track.updateCount ++;
+	updates->count ++;
 	update->cd = iter->cd;
 	update->offset = iter->offset;
 	update->blockId = blockId;
 	update->tile = tile;
+	track.updateCount ++;
 
 	//fprintf(stderr, "adding update at %d,%d,%d\n", iter->ref->X + iter->x, iter->yabs, iter->ref->Z + iter->z);
 }
@@ -1098,12 +1108,8 @@ void mapUpdateChangeRedstone(Map map, BlockIter iterator, int side, RSWire dir)
 		int blockId = getBlockId(&iter);
 		if (blockIds[blockId>>4].rsupdate)
 		{
-			int newId = mapUpdateIfPowered(map, &iter, blockId, blockId, False, NULL);
-			if (newId != blockId)
-			{
-				vec4 pos = {iter.ref->X + iter.x, iter.yabs, iter.ref->Z + iter.z};
-				mapUpdate(map, pos, newId, NULL, UPDATE_DONTLOG | UPDATE_SILENT);
-			}
+			/* we are in the middle of a mapUpdate() need to wait for all the tables to be up to date */
+			trackAddUpdate(&iter, 0xffff, NULL);
 		}
 	}
 }
@@ -1123,7 +1129,6 @@ static void mapUpdateDeleteRedstone(Map map, BlockIter iterator, int blockId)
 		break;
 	case RSREPEATER_ON:
 	case RSCOMPARATOR:
-		iterator->blockIds[iterator->offset] = 0;
 		mapUpdateChangeRedstone(map, iterator, blockSides.repeater[blockId & 3] ^ 2, NULL);
 		break;
 	case RSPOWERRAILS:
@@ -1185,7 +1190,7 @@ static int mapUpdateIfPowered(Map map, BlockIter iterator, int oldId, int blockI
 		break;
 	case RSSTICKYPISTON:
 	case RSPISTON:
-		return mapUpdatePiston(map, iterator, blockId, init, tile);
+		return mapUpdatePiston(map, iterator, blockId, init, tile, track.curUpdate);
 	case RSDISPENSER:
 	case RSDROPPER:
 		/* very similar to fence gate actually */
@@ -1198,7 +1203,7 @@ static int mapUpdateIfPowered(Map map, BlockIter iterator, int oldId, int blockI
 		if (redstoneIsPowered(*iterator, RSSAMEBLOCK, POW_NORMAL))
 			return ID(RSLAMP+1, 0);
 		break;
-	case  RSLAMP+1:
+	case RSLAMP+1:
 		if (! redstoneIsPowered(*iterator, RSSAMEBLOCK, POW_NORMAL))
 			return ID(RSLAMP, 0);
 		break;
@@ -1558,39 +1563,84 @@ void mapUpdateMesh(Map map)
 	#endif
 }
 
+/* retracting pistons should be updated first, then extending ones, but updates in the list are not sorted in any way */
+static void mapUpdateCheckPiston(BlockUpdate update)
+{
+	/* piston has retracted: check if it was blocking an earlier update */
+	UpdateBuffer updates;
+	BlockUpdate recheck;
+	int nb;
+	for (updates = HEAD(track.updates), nb = track.nbCheck; updates; NEXT(updates))
+	{
+		for (recheck = updates->buffer; nb > 0; nb --, recheck ++)
+		{
+			if (recheck->tile == (DATA8) update->cd && recheck->blockId == update->offset)
+			{
+				struct BlockIter_t iter;
+				mapInitIterOffset(&iter, recheck->cd, recheck->offset);
+				trackAddUpdate(&iter, 0xffff, NULL);
+			}
+		}
+	}
+}
+
+static void mapUpdateAddCheck(BlockUpdate update)
+{
+	UpdateBuffer updates;
+	int nb;
+	for (updates = HEAD(track.updates), nb = track.nbCheck; updates && nb > 128; NEXT(updates), nb -= 128);
+	updates->buffer[nb] = update[0];
+	track.nbCheck ++;
+}
+
 /* async update: NBT tables need to be up to date before we can apply these changes */
 void mapUpdateFlush(Map map)
 {
-	BlockUpdate update;
-	int         i, j;
-	for (i = track.updateCount, update = track.updates, j = 0; i > 0; j ++, update ++)
+	UpdateBuffer updates;
+	int i;
+	for (updates = HEAD(track.updates); updates; NEXT(updates))
 	{
-		if (track.updateUsage[j>>5] & (1 << (j & 31)))
+		BlockUpdate update;
+		for (update = updates->buffer, i = 0; i < updates->count; i ++, update ++)
 		{
 			int   offset = update->offset;
 			Chunk c = update->cd->chunk;
 			vec4  pos;
-			track.updateUsage[j>>5] ^= 1 << (j & 31);
-			track.updateCount --;
 			pos[0] = c->X + (offset & 15); offset >>= 4;
 			pos[2] = c->Z + (offset & 15);
 			pos[1] = update->cd->Y + (offset >> 4);
+			//fprintf(stderr, "update at %d, %d, %d\n", (int) pos[0], (int) pos[1], (int) pos[2]);
 			if (update->blockId == 0xffff)
 			{
 				struct BlockIter_t iter;
-				int newId;
+				int newId, oldId;
 				mapInitIterOffset(&iter, update->cd, update->offset);
-				offset = getBlockId(&iter);
-				newId  = mapUpdateIfPowered(map, &iter, offset, offset, False, NULL);
-				if (offset != newId)
+				oldId = getBlockId(&iter);
+				/* if a piston fails to extend, we might have to check later */
+				track.curUpdate = update;
+				newId = mapUpdateIfPowered(map, &iter, oldId, oldId, False, NULL);
+				if (oldId != newId)
 				{
 					mapUpdate(map, pos, newId, NULL, UPDATE_DONTLOG);
 				}
+				else if (update->tile == (APTR) 1)
+				{
+					/* piston being retracted: newId == oldId, because blockId will be changed only when anim is finished */
+					if (track.nbCheck > 0)
+						mapUpdateCheckPiston(update);
+				}
+				else if (update->tile)
+				{
+					/* piston blocked by another one */
+					mapUpdateAddCheck(update);
+				}
 			}
 			else mapUpdate(map, pos, update->blockId, update->tile, UPDATE_GRAVITY | UPDATE_SILENT | UPDATE_DONTLOG | UPDATE_FORCE);
-			i --;
 		}
+		updates->count = 0;
 	}
+	track.updateCount = track.nbCheck = 0;
+	track.curUpdate = NULL;
 }
 
 /* blocks moved by piston update can't be updated directly, they need to be done at once */
@@ -1607,22 +1657,24 @@ void mapUpdatePush(Map map, vec4 pos, int blockId, DATA8 tile)
 	}
 
 	/* update must not overwrite each other */
-	BlockUpdate update;
-	int         i, j;
-	for (i = track.updateCount, update = track.updates, j = 0; i > 0; j ++, update ++)
+	UpdateBuffer updates;
+	for (updates = HEAD(track.updates); updates; NEXT(updates))
 	{
-		if ((track.updateUsage[j>>5] & (1 << (j & 31))) == 0) continue;
-		if (update->offset == iter.offset && update->cd == iter.cd)
+		BlockUpdate update;
+		int i;
+		for (i = updates->count, update = updates->buffer; i > 0; i --, update ++)
 		{
-			/* air blocks have lower priority */
-			if (blockId > 0)
+			if (update->offset == iter.offset && update->cd == iter.cd)
 			{
-				update->blockId = blockId;
-				update->tile = tile;
+				/* air blocks have lower priority */
+				if (blockId > 0)
+				{
+					update->blockId = blockId;
+					update->tile = tile;
+				}
+				return;
 			}
-			return;
 		}
-		i --;
 	}
 	trackAddUpdate(&iter, blockId, tile);
 }
@@ -1905,7 +1957,7 @@ Bool mapActivate(Map map, vec4 pos)
 
 	if (block > 0)
 	{
-		mapUpdate(map, pos, block, NULL, UPDATE_NEARBY);
+		mapUpdate(map, pos, block, NULL, UPDATE_NEARBY | UPDATE_SILENT);
 		renderAddModif();
 		return True;
 	}

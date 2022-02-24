@@ -100,7 +100,7 @@ void mcuiDrawItems(void)
 
 	if (drag->id > 0)
 	{
-		ItemBuf item = *drag;
+		struct Item_t item = *drag;
 		item.x -= itemSz/2;
 		item.y += itemSz/2;
 		renderItems(&item, 1, itemSz);
@@ -133,8 +133,8 @@ void mcuiAskSave(SIT_CallProc cb)
 	SIT_CreateWidgets(ask,
 		"<label name=label title=", LANG("Some changes have not been saved, what do you want to do ?"), ">"
 		"<button name=cancel.act title=", LANG("Cancel"), "top=WIDGET,label,1em right=FORM buttonType=", SITV_CancelButton, ">"
-		"<button name=ok.act title=", LANG("Save"), "top=OPPOSITE,cancel nextCtrl=LAST right=WIDGET,cancel,0.5em buttonType=", SITV_DefaultButton, ">"
-		"<button name=ko.act title=", LANG("Don't save"), "top=OPPOSITE,ok nextCtrl=LAST right=WIDGET,ok,0.5em>"
+		"<button name=ok.act title=", LANG("Save"), "top=OPPOSITE,cancel nextCtrl=cancel right=WIDGET,cancel,0.5em buttonType=", SITV_DefaultButton, ">"
+		"<button name=ko.act title=", LANG("Don't save"), "top=OPPOSITE,ok nextCtrl=ok right=WIDGET,ok,0.5em>"
 	);
 
 	SIT_AddCallback(SIT_GetById(ask, "cancel"), SITE_OnActivate, cb, (APTR) 2);
@@ -152,7 +152,7 @@ void mcuiAskSave(SIT_CallProc cb)
 static int mcuiExchangeLine(SIT_Widget w, APTR cd, APTR ud)
 {
 	Inventory player = ud;
-	ItemBuf   items[MAXCOLINV];
+	Item_t    items[MAXCOLINV];
 	Item      line;
 	STRPTR    name;
 
@@ -309,7 +309,7 @@ void mcuiCreateInventory(Inventory player)
 {
 	static TEXT tip[] = "Exchange row with toolbar";
 
-	SIT_Widget diag = SIT_CreateWidget("inventory", SIT_DIALOG + SIT_EXTRA(itemGetInventoryByCat(NULL, 0) * sizeof (ItemBuf)), globals.app,
+	SIT_Widget diag = SIT_CreateWidget("inventory", SIT_DIALOG + SIT_EXTRA(itemGetInventoryByCat(NULL, 0) * sizeof (struct Item_t)), globals.app,
 		SIT_DialogStyles, SITV_Plain | SITV_Modal,
 		NULL
 	);
@@ -557,13 +557,10 @@ static int mcuiGrabItem(SIT_Widget w, APTR cd, APTR ud)
 
 	if ((ocp->rowColumn & 0xff) > 0) return 0;
 
-	if (mcui.itemSize[0] == 0)
-	{
-		mcui.itemSize[0] = ocp->LTWH[3] - 2;
-		mcui.clipItems = 1;
-		SIT_GetValues(w, SIT_ClientRect, mcui.clipRect, NULL);
-		mcui.clipRect[1] = globals.height - mcui.clipRect[1] - mcui.clipRect[3];
-	}
+	mcui.itemSize[0] = ocp->LTWH[3] - 2;
+	mcui.clipItems = 1;
+	SIT_GetValues(w, SIT_ClientRect, mcui.clipRect, NULL);
+	mcui.clipRect[1] = globals.height - mcui.clipRect[1] - mcui.clipRect[3];
 
 	/* note: itemRender is set to 0 before rendering loop starts */
 	Item item = mcui.items + mcui.itemRender ++;
@@ -599,6 +596,7 @@ struct TileList_t
 	SIT_Widget listSub;
 	SIT_Widget stat, ok, back;
 	DATA8 *    groups;
+	TEXT       filter[32];
 	int        max;
 	int        count[6];
 	int        volume, nonAir, isSub;
@@ -608,6 +606,7 @@ struct ItemStat_t
 {
 	ItemID_t itemId;
 	int      count;
+	int      tileId;
 };
 
 static int mcuiCopyAnalyze(SIT_Widget w, APTR cd, APTR ud)
@@ -664,7 +663,7 @@ static void storeTileEntity(TileList tiles, int type, DATA8 tile)
 
 STRPTR mapItemName(NBTFile nbt, int offset, TEXT itemId[16]);
 
-static int mergeItems(ItemStat * ret, int max, DATA8 tile)
+static int mergeItems(ItemStat * ret, int max, DATA8 tile, int tileId)
 {
 	ItemStat  stat  = *ret;
 	NBTFile_t nbt   = {.mem = tile};
@@ -723,6 +722,7 @@ static int mergeItems(ItemStat * ret, int max, DATA8 tile)
 		memmove(base + 1, base, (max - (base - stat)) * sizeof *base);
 		base->itemId = id;
 		base->count = count;
+		base->tileId = tileId;
 		max ++;
 	}
 	*ret = stat;
@@ -730,7 +730,7 @@ static int mergeItems(ItemStat * ret, int max, DATA8 tile)
 }
 
 
-static void mcuiAnalyzeAddItem(TileList tiles, ItemID_t itemId, int num, Bool expand)
+static void mcuiAnalyzeAddItem(TileList tiles, ItemID_t itemId, int num, int tileId)
 {
 	STRPTR desc;
 	STRPTR column0 = "";
@@ -764,7 +764,7 @@ static void mcuiAnalyzeAddItem(TileList tiles, ItemID_t itemId, int num, Bool ex
 		case ORIENT_STAIRS:
 		case ORIENT_DOOR:
 			/* metadata is useless for these types of blocks */
-			sprintf(id, "%d", itemId >> 4);
+			sprintf(id, "%d:0", itemId >> 4);
 			desc = block->name;
 			if (block->invState > 0)
 				itemId += block->invState;
@@ -772,12 +772,10 @@ static void mcuiAnalyzeAddItem(TileList tiles, ItemID_t itemId, int num, Bool ex
 		default:
 			if (! isBlockId(itemId))
 				id[0] = 0;
-			else if ((itemId & 15) > 0)
-				sprintf(id, "%d:%d", itemId >> 4, itemId & 15);
 			else
-				sprintf(id, "%d", itemId >> 4);
+				sprintf(id, "%d:%d", itemId >> 4, itemId & 15);
 		}
-		if (expand && block->invType > 0 && tiles->count[block->invType] > 0)
+		if (tileId < 0 && block->invType > 0 && tiles->count[block->invType] > 0)
 			column0 = "\xC2\xA0\xC2\xA0\xC2\xA0\xC2\xA0...";
 	}
 	else
@@ -790,7 +788,10 @@ static void mcuiAnalyzeAddItem(TileList tiles, ItemID_t itemId, int num, Bool ex
 		else
 			id[0] = 0;
 	}
-	SIT_ListInsertItem(expand ? tiles->list : tiles->listSub, -1, (APTR) itemId, column0, count, desc, id);
+	SIT_Widget list = tileId < 0 ? tiles->list : tiles->listSub;
+	int row = SIT_ListInsertItem(list, -1, (APTR) itemId, column0, count, desc, id);
+	if (tileId > 0)
+		SIT_SetValues(list, SIT_CellTag(row, 1), (APTR) tileId, NULL);
 }
 
 
@@ -832,8 +833,8 @@ static int mcuiExpandAnalyze(SIT_Widget w, APTR cd, APTR ud)
 			int      i, j, total, stacks;
 			/* gather all items from all containers of the group */
 			for (i = 1, j = 0; i < block->invType; j += tiles->count[i], i ++);
-			for (i = tiles->count[i], tile = tiles->groups + j; i > 0; i --, tile ++)
-				count = mergeItems(&stats, count, *tile);
+			for (i = tiles->count[i], tile = tiles->groups + j; i > 0; j ++, i --, tile ++)
+				count = mergeItems(&stats, count, *tile, j);
 
 			SIT_SetValues(tiles->list, SIT_Visible, False, NULL);
 			SIT_SetValues(tiles->ok, SIT_TopObject, tiles->listSub, NULL);
@@ -842,7 +843,7 @@ static int mcuiExpandAnalyze(SIT_Widget w, APTR cd, APTR ud)
 			ItemStat list;
 			for (i = total = stacks = 0, list = stats; i < count; i ++, list ++)
 			{
-				mcuiAnalyzeAddItem(tiles, list->itemId, list->count, False);
+				mcuiAnalyzeAddItem(tiles, list->itemId, list->count, list->tileId);
 				total += list->count;
 				if (! isBlockId(list->itemId))
 				{
@@ -860,6 +861,37 @@ static int mcuiExpandAnalyze(SIT_Widget w, APTR cd, APTR ud)
 	return 1;
 }
 
+/* double-click on an item in the detail list: select container it was first found */
+static int mcuiSelectContainer(SIT_Widget w, APTR cd, APTR ud)
+{
+	TileList  tiles = ud;
+	vec4      pos;
+	NBTIter_t iter;
+	int       i;
+	APTR      tileId;
+
+	SIT_GetValues(w, SIT_SelectedIndex, &i, NULL);
+	SIT_GetValues(w, SIT_CellTag(i, 1), &tileId, NULL);
+
+	NBTFile_t nbt = {.mem = tiles->groups[(int) tileId]};
+	NBT_IterCompound(&iter, nbt.mem);
+	while ((i = NBT_Iter(&iter)) >= 0)
+	{
+		switch (FindInList("x,y,z", iter.name, 0)) {
+		case 0: NBT_GetFloat(&nbt, i, pos + VX, 1); break;
+		case 1: NBT_GetFloat(&nbt, i, pos + VY, 1); break;
+		case 2: NBT_GetFloat(&nbt, i, pos + VZ, 1);
+		}
+	}
+
+	selectionSetPoint(1, pos, SEL_POINT_1);
+	selectionSetPoint(1, pos, SEL_POINT_2);
+
+	SIT_Exit(EXIT_LOOP);
+	return 1;
+}
+
+/* "Back" button */
 static int mcuiAnalyzeBackToList(SIT_Widget w, APTR cd, APTR ud)
 {
 	TileList tiles = ud;
@@ -870,6 +902,54 @@ static int mcuiAnalyzeBackToList(SIT_Widget w, APTR cd, APTR ud)
 	SIT_SetValues(tiles->back, SIT_Visible, False, NULL);
 	mcuiSetAnalyzeTitle(tiles->stat, LANG("Non air block selected: <b>%d</b><br>Blocks in volume: <b>%d</b>"), tiles->nonAir, tiles->volume);
 	tiles->isSub = 0;
+	return 1;
+}
+
+
+/* OnChange of text filter */
+static int mcuiFilterList(SIT_Widget w, APTR cd, APTR ud)
+{
+	TileList   tiles = ud;
+	TEXT       search[32];
+	int        row, rows;
+	SIT_Widget list = tiles->isSub ? tiles->listSub : tiles->list;
+
+	/* convert to lowercase */
+	CopyString(search, cd, sizeof search);
+	StrToLower(search, -1);
+	SIT_GetValues(list, SIT_ItemCount, &rows, NULL);
+
+	if (search[0] == 0)
+	{
+		/* show everything */
+		for (row = 0; row < rows; row ++)
+			SIT_ListSetRowVisibility(list, row, True);
+	}
+	else for (row = 0; row < rows; row ++)
+	{
+		STRPTR name = SIT_ListGetCellText(list, 2, row);
+
+		/* no need to bother with a more complicated sub-string search */
+		DATA8 p;
+		char  match = 0;
+		for (p = name; *p; p ++)
+		{
+			uint8_t chr = *p;
+			if ('A' <= chr && chr <= 'Z') chr += 32;
+			if (search[0] == chr)
+			{
+				DATA8 s, s2;
+				for (s = search + 1, s2 = p + 1; *s; s ++, s2 ++)
+				{
+					chr = *s2;
+					if ('A' <= chr && chr <= 'Z') chr += 32;
+					if (chr != *s) break;
+				}
+				if (*s == 0) { match = 1; break; }
+			}
+		}
+		SIT_ListSetRowVisibility(list, row, match);
+	}
 	return 1;
 }
 
@@ -910,7 +990,9 @@ void mcuiAnalyze(void)
 		" composited=1 cellPaint=", mcuiGrabItem, ">"
 		"<listbox name=chest columnNames=", columns, "width=25em height=15em top=WIDGET,total,0.5em"
 		" composited=1 cellPaint=", mcuiGrabItem, "visible=0>"
-		"<button name=ok title=", LANG("Close"), "top=WIDGET,list,1em right=FORM buttonType=", SITV_DefaultButton, ">"
+		"<editbox name=search editLength=", sizeof tiles.filter, "editBuffer=", tiles.filter, "buddyLabel=", LANG("Search:"), NULL,
+		" right=FORM top=WIDGET,list,0.2em>"
+		"<button name=ok title=", LANG("Close"), "top=WIDGET,search,1em right=FORM buttonType=", SITV_DefaultButton, ">"
 		"<button name=save title=", LANG("Copy to clipboard"), "right=WIDGET,ok,0.5em top=OPPOSITE,ok>"
 		"<button name=back title=", LANG("Back"), "right=WIDGET,save,0.5em top=OPPOSITE,ok visible=0>"
 	);
@@ -918,11 +1000,13 @@ void mcuiAnalyze(void)
 	tiles.stat = SIT_GetById(diag, "total");
 	tiles.back = SIT_GetById(diag, "back");
 	tiles.listSub = SIT_GetById(diag, "chest");
-	tiles.ok = SIT_GetById(diag, "ok");
+	tiles.ok = SIT_GetById(diag, "search");
 
-	SIT_AddCallback(tiles.ok, SITE_OnActivate, mcuiExitWnd, NULL);
+	SIT_AddCallback(tiles.ok, SITE_OnChange, mcuiFilterList, &tiles);
+	SIT_AddCallback(SIT_GetById(diag, "ok"), SITE_OnActivate, mcuiExitWnd, NULL);
 	SIT_AddCallback(tiles.list, SITE_OnActivate, mcuiExpandAnalyze, &tiles);
 	SIT_AddCallback(tiles.back, SITE_OnActivate, mcuiAnalyzeBackToList, &tiles);
+	SIT_AddCallback(tiles.listSub, SITE_OnActivate, mcuiSelectContainer, &tiles);
 	SIT_AddCallback(SIT_GetById(diag, "save"), SITE_OnActivate, mcuiCopyAnalyze, &tiles);
 	SIT_AddCallback(diag, SITE_OnFinalize, mcuiClearAnalyze, &tiles);
 
@@ -1017,7 +1101,7 @@ void mcuiAnalyze(void)
 	{
 		if (statistics[i] == 0) continue;
 		dx += statistics[i];
-		mcuiAnalyzeAddItem(&tiles, blockStates[i].id, statistics[i], True);
+		mcuiAnalyzeAddItem(&tiles, blockStates[i].id, statistics[i], -1);
 	}
 	free(statistics);
 	SIT_ListReorgColumns(tiles.list, "**-*");
@@ -1281,7 +1365,7 @@ void mcuiFillOrReplace(Bool fillWithBrush)
 	/* if the interface is stopped early, we need to be notified */
 	SIT_AddCallback(globals.app, SITE_OnFinalize, mcuiFillStop, NULL);
 
-	SIT_Widget diag = SIT_CreateWidget("fillblock.bg", SIT_DIALOG + SIT_EXTRA((blockLast - blockStates) * sizeof (ItemBuf)), globals.app,
+	SIT_Widget diag = SIT_CreateWidget("fillblock.bg", SIT_DIALOG + SIT_EXTRA((blockLast - blockStates) * sizeof (struct Item_t)), globals.app,
 		SIT_DialogStyles, SITV_Plain | SITV_Modal | SITV_Movable,
 		SIT_Style,        "padding-top: 0.2em",
 		NULL

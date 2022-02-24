@@ -701,7 +701,7 @@ void mcuiShowPixelArt(vec4 playerPos)
 {
 	static struct MCInventory_t mcinv = {.invRow = 6, .invCol = MAXCOLINV, .movable = INV_SELECT_ONLY, .customDraw = pixArtDrawMapColor};
 
-	SIT_Widget diag = SIT_CreateWidget("pixelart.bg", SIT_DIALOG + SIT_EXTRA((blockLast - blockStates + 64) * sizeof (ItemBuf)), globals.app,
+	SIT_Widget diag = SIT_CreateWidget("pixelart.bg", SIT_DIALOG + SIT_EXTRA((blockLast - blockStates + 64) * sizeof (struct Item_t)), globals.app,
 		SIT_DialogStyles, SITV_Plain | SITV_Modal,
 		SIT_Style,        "padding-top: 0.2em",
 		NULL

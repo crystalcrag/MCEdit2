@@ -9,6 +9,8 @@
 
 #include "maps.h"
 
+typedef struct BlockUpdate_t *     BlockUpdate;
+
 Bool mapUpdate(Map, vec4 pos, int blockId, DATA8 tile, int blockUpdate);
 void mapUpdateBlock(Map, vec4 pos, int blockId, int oldBlockId, DATA8 tile);
 void mapUpdateDeleteRails(Map, BlockIter, int blockId);
@@ -16,7 +18,7 @@ int  mapUpdateRails(Map, int blockId, BlockIter);
 int  mapUpdatePowerRails(Map, int id, BlockIter);
 int  mapUpdateGate(BlockIter, int id, Bool init);
 int  mapUpdateDoor(BlockIter, int blockId, Bool init);
-int  mapUpdatePiston(Map, BlockIter, int blockId, Bool init, DATA8 * tile);
+int  mapUpdatePiston(Map, BlockIter, int blockId, Bool init, DATA8 * tile, BlockUpdate blocked);
 int  mapUpdateComparator(Map, BlockIter, int blockId, Bool init, DATA8 * tile);
 void mapUpdatePressurePlate(BlockIter iter, float entityBBox[6]);
 void mapUpdateObserver(BlockIter iter, int from);
@@ -42,9 +44,6 @@ enum /* extra flags for blockUpdate param from mapUpdate() */
 	UPDATE_FORCE     = 256         /* don't check if block is same as currently stored */
 };
 
-/* private stuff below that point */
-typedef struct BlockUpdate_t *     BlockUpdate;
-
 struct BlockUpdate_t
 {
 	ChunkData cd;
@@ -53,18 +52,31 @@ struct BlockUpdate_t
 	uint16_t  blockId;
 };
 
+/* private stuff below that point */
+typedef struct BlockUpdate_t       BLOCKBUF;
+typedef struct UpdateBuffer_t *    UpdateBuffer;
+
+struct UpdateBuffer_t              /* group BlockUpdate_t in chunk of 128 */
+{
+	ListNode node;
+	int      count;
+	BLOCKBUF buffer[128];
+};
+
 struct MapUpdate_t
 {
-	ChunkData   modif;
-	ChunkData * list;
-	BlockUpdate updates;
-	BlockIter   iter;
-	DATA32      updateUsage;
-	int         updateCount;
-	int8_t *    coord;
-	int16_t     max;
-	int16_t     pos, last, usage, maxUsage;
-	uint8_t     unique;
+	ChunkData   modif;             /* chunk list being modified in the current chain */
+	ChunkData * list;              /* pointer to <next> linked list (UpdateBuffer) */
+	ListHead    updates;           /* async updates */
+	int         updateCount;       /* total updates waiting to be applied */
+	int         nbCheck;           /* re-check piston blocked */
+	BlockUpdate curUpdate;         /* used by piston update order */
+	BlockIter   iter;              /* mapUpdate() will use an external iterator (mostly used by selection) */
+	int8_t *    coord;             /* ring buffer */
+	int16_t     max;               /* params for ring buffer */
+	int16_t     pos, last, usage;
+	int16_t     maxUsage;          /* debug */
+	uint8_t     unique;            /* values with be unique in <coord> */
 };
 
 #endif

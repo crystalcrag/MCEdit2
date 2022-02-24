@@ -20,6 +20,7 @@ struct WorldSelect_t
 	SIT_Widget enterKey, worlds;
 	SIT_Widget curKey, capture;
 	SIT_Widget fileSelect, dirSelect;
+	SIT_Widget worldList;
 	int        sensitivity;
 	int        guiScale, lockMouse;
 	int        curKeySym, curKeyMod;

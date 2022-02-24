@@ -21,7 +21,7 @@
 #define ITEM_ADDTEXV           32
 
 typedef struct Item_t *        Item;
-typedef struct Item_t          ItemBuf;
+typedef struct Item_t          Item_t;
 typedef struct ItemDesc_t *    ItemDesc;
 
 typedef Bool (*UseItem_t)(ItemID_t id, vec4 pos, int pointToId);

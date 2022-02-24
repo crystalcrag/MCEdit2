@@ -577,14 +577,19 @@ int mapUpdateDoor(BlockIter iterator, int blockId, Bool init)
 /* cannot update a piston while its head is moving */
 static Bool mapUpdateIsPistonActivated(struct BlockIter_t iter, int blockId)
 {
+	if (chunkGetTileEntity(iter.ref, (int[3]) {iter.x, iter.yabs, iter.z}))
+		return False;
+
 	/* <iter> points to piston body */
 	if (blockId & 8) /* extended */
 	{
 		/* tile entity could be one block ahead of facing direction */
 		uint8_t ext = blockSides.piston[blockId & 7];
 		mapIter(&iter, relx[ext], rely[ext], relz[ext]);
+		if (chunkGetTileEntity(iter.ref, (int[3]) {iter.x, iter.yabs, iter.z}))
+			return False;
 	}
-	return chunkGetTileEntity(iter.ref, (int[3]) {iter.x, iter.yabs, iter.z}) == NULL;
+	return True;
 }
 
 /* add tile entity for piston extension: <iter> points at piston block */
@@ -618,6 +623,9 @@ static void mapUpdateAddPistonExt(Map map, struct BlockIter_t iter, int blockId,
 		TAG_Int,    "source",    1,
 		TAG_Compound_End
 	);
+
+	fprintf(stderr, "%s piston from %d, %d, %d\n", extend ? "extending" : "retracting",
+		(int) src[0], (int) src[1], (int) src[2]);
 
 	/* already add/remove head */
 	if (! extend)
@@ -707,7 +715,7 @@ void mapUpdateToBlock36(Map map, RSWire list, int count, int dir, BlockIter iter
 }
 
 /* power level near piston has changed */
-int mapUpdatePiston(Map map, BlockIter iterator, int blockId, Bool init, DATA8 * tile)
+int mapUpdatePiston(Map map, BlockIter iterator, int blockId, Bool init, DATA8 * tile, BlockUpdate blockedBy)
 {
 	/* it is MAXPUSH * 2, because some items can be destroyed in the process (and do not count toward MAXPUSH limit) */
 	struct RSWire_t connect[MAXPUSH];
@@ -724,13 +732,15 @@ int mapUpdatePiston(Map map, BlockIter iterator, int blockId, Bool init, DATA8 *
 			return blockId;
 
 		/* piston extended, but no power source */
-		count = redstonePushedByPiston(*iterator, blockId, connect);
+		count = redstonePushedByPiston(*iterator, blockId, connect, NULL);
 		/* <0 == movement is blocked */
 		if (count < 0) return blockId;
 
 		mapUpdateAddPistonExt(map, *iterator, blockId, False, NULL);
 		mapUpdateToBlock36(map, connect, count, opp[avoid], iterator);
 
+		if (blockedBy)
+			blockedBy->tile = (APTR) 1;
 		if (init)
 			blockId &= ~8;
 		/* else keep extended state until head has fully retracted */
@@ -741,7 +751,7 @@ int mapUpdatePiston(Map map, BlockIter iterator, int blockId, Bool init, DATA8 *
 			return blockId;
 
 		/* not extended, but has a power source nearby */
-		count = redstonePushedByPiston(*iterator, blockId, connect);
+		count = redstonePushedByPiston(*iterator, blockId, connect, blockedBy);
 		if (count < 0) return blockId;
 
 		/* convert all blocks pushed to block 36 (in reverse order) */

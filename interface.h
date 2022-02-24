@@ -44,7 +44,7 @@ struct MCInterface_t
 	int          itemRender;
 	int *        itemSize;
 	Item         allItems;
-	ItemBuf      items[128];
+	Item_t       items[128];
 	vec4         signPos;
 	Chunk        signChunk;
 };

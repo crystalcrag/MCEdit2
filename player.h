@@ -46,7 +46,7 @@ struct Inventory_t
 	uint16_t offhand;      /* current offhand action: &1: first sel pt, &2: second sel pt */
 	uint16_t hoverSlot;    /* slot hovered by mouse */
 	int      texture;
-	ItemBuf  items[MAXCOLINV * 4 + 5];
+	Item_t   items[MAXCOLINV * 4 + 5];
 	int      x, y, update;
 	int      infoState, infoX;
 	int      infoTime;

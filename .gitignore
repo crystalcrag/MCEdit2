@@ -10,8 +10,6 @@
 
 # Executables
 *.exe
-*.out
-*.app
 
 # C::B
 *.depend
@@ -26,4 +24,4 @@ dump.png
 /World*/
 /TestMesh*/
 /old/
-/TileFinder/
+/resources/lang/old/

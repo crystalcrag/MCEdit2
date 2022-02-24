@@ -288,8 +288,8 @@ static void prefsReadLang(void)
 
 static void prefsSave(void)
 {
-	//SetINIValueInt(PREFS_PATH, "WndWidth",  globals.width);
-	//SetINIValueInt(PREFS_PATH, "WndHeight", globals.height);
+	SetINIValueInt(PREFS_PATH, "WndWidth",  globals.width);
+	SetINIValueInt(PREFS_PATH, "WndHeight", globals.height);
 	SetINIValue(PREFS_PATH, "WorldEdit", mcedit.worldEdit);
 }
 
@@ -811,6 +811,8 @@ void mceditWorld(void)
 	renderSetInventory(&mcedit.player.inventory);
 	renderSetViewMat(mcedit.player.pos, mcedit.player.lookat, &mcedit.player.angleh);
 
+	SDL_EnableUNICODE(0);
+
 	if (globals.lockMouse)
 	{
 		state.ignore = 2;
@@ -842,8 +844,10 @@ void mceditWorld(void)
 					break;
 				#ifdef DEBUG
 				case SDLK_F1:
-					SDL_GetMouseState(&mcedit.mouseX, &mcedit.mouseY);
-					renderDebugBlock();
+					if (mod & SITK_FlagShift)
+						renderDebugBlock();
+					else
+						goto case_SDLK;
 					break;
 				case SDLK_F7:
 					globals.breakPoint = ! globals.breakPoint;
@@ -1220,7 +1224,7 @@ static int mceditChooseSave(SIT_Widget w, APTR cd, APTR ud)
  */
 void mceditUIOverlay(int type)
 {
-	static ItemBuf oldPlayerInv[MAXCOLINV * 4];
+	static struct Item_t oldPlayerInv[MAXCOLINV * 4];
 	struct MapExtraData_t link;
 
 	SDL_Event event;

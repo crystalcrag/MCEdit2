@@ -51,7 +51,7 @@ static float invShading[] = { /* inventory shading for 3d blocks */
 };
 
 /* hack: toolbar for extended selection is assigned to block 255 in blocksTable.js */
-static ItemBuf extendedSelItems[] = {
+static struct Item_t extendedSelItems[] = {
 	{ID(255,0)}, {ID(255,1)}, {ID(255,2)}, {ID(255,3)}, {ID(255,4)}, {ID(255,5)}, {ID(255,6)}, {ID(255,7)}, {ID(255,8)},
 	/* offhand slot */
 	{ID(4000,0)},
@@ -753,18 +753,23 @@ Map renderInitWorld(STRPTR path, int renderDist)
 	return NULL;
 }
 
+void mapUpdateDelAll(void);
+
 /* lots of stuff to free */
 void renderCloseWorld(void)
 {
-	/* this first 2 calls will free 90% of memory usage */
+	/* these first 2 calls will free 90% of memory usage */
 	renderFreeMesh(globals.level, False);
 	mapFreeAll(globals.level);
 	globals.level = NULL;
+
+	/* these are small bits and pieces */
 	particleDelAll();
 	entityNukeAll();
 	signDelAll();
 	cartoDelAll();
 	selectionCancel();
+	mapUpdateDelAll();
 	undoDelAll();
 	updateClearAll();
 	wayPointsClose();
@@ -1594,108 +1599,108 @@ void renderWorld(void)
 
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
-	/* draw the compass */
-	float scale;
 	NVGcontext * vg = globals.nvgCtx;
-
 	nvgBeginFrame(vg, globals.width, globals.height, 1);
 	nvgFontFaceId(vg, render.debugFont);
 	nvgFontSize(vg, FONTSIZE);
 	nvgTextAlign(vg, NVG_ALIGN_TOP);
 
-	if (globals.compassSize > 0)
+	if ((render.debug & RENDER_DEBUG_NOHUD) == 0)
 	{
-		scale = globals.height * globals.compassSize * (render.compassOffset > 0 ? 0.11f : 0.15f);
-		nvgSave(vg);
-		nvgTranslate(vg, globals.width - scale - render.compassOffset, scale); scale -= 20;
-		nvgRotate(vg, M_PIf - render.yaw);
-		nvgBeginPath(vg);
-		nvgRect(vg, -scale, -scale, scale*2, scale*2);
-		nvgFillPaint(vg, nvgImagePattern(vg, -scale, -scale, scale*2, scale*2, 0, render.compass, 1));
-		nvgFill(vg);
-		nvgRestore(vg);
-	}
+		/* draw the compass */
+		float scale;
 
-//	nvgEndFrame(vg);
-//	return;
-
-	/* draw inventory bar */
-	scale = render.scale;
-	render.inventory->x = (globals.width - scale * 182) * 0.5f + 3 * scale;
-	render.inventory->y = 3 * scale;
-	nvgSave(vg);
-	nvgScale(vg, scale, scale);
-	nvgTranslate(vg, globals.width / (2 * scale) - 182 / 2, globals.height / scale - 22);
-	nvgBeginPath(vg);
-	nvgRect(vg, 0, 0, 182, 22);
-	nvgFillPaint(vg, nvgImagePattern(vg, 0, 0, 253, 24, 0, render.inventory->texture, 1));
-	nvgFill(vg);
-
-	nvgBeginPath(vg);
-	nvgRect(vg, -26, 0, 22, 22);
-	nvgFillPaint(vg, nvgImagePattern(vg, render.inventory->offhand & 2 ? -208-26-23 : -208-26, 0, 253, 24, 0, render.inventory->texture, 1));
-	nvgFill(vg);
-
-	int pos = render.inventory->offhand & 1 ? -26 : render.inventory->selected * 20 - 1;
-
-	/* selected slot */
-	nvgBeginPath(vg);
-	nvgRect(vg, pos, -1, 24, 24);
-	nvgFillPaint(vg, nvgImagePattern(vg, pos - 183, -1, 253, 24, 0, render.inventory->texture, 1));
-	nvgFill(vg);
-	nvgRestore(vg);
-
-	/* message above inventory bar */
-	switch (render.inventory->infoState) {
-	case INFO_INV_INIT:
-		render.inventory->infoX = (globals.width - nvgTextBounds(vg, 0, 0, render.inventory->infoTxt, NULL, NULL)) / 2;
-		render.inventory->infoTime = globals.curTime + INFO_INV_DURATION * 1000;
-		render.inventory->infoState = INFO_INV_SHOW;
-		// no break;
-	case INFO_INV_SHOW:
-		renderText(vg, render.inventory->infoX, globals.height - 35 * scale, render.inventory->infoTxt, 1);
-		if (globals.curTime > render.inventory->infoTime)
+		if (globals.compassSize > 0)
 		{
-			render.inventory->infoState = INFO_INV_FADE;
-			render.inventory->infoTime += INFO_INV_FADEOUT * 1000;
+			scale = globals.height * globals.compassSize * (render.compassOffset > 0 ? 0.11f : 0.15f);
+			nvgSave(vg);
+			nvgTranslate(vg, globals.width - scale - render.compassOffset, scale); scale -= 20;
+			nvgRotate(vg, M_PIf - render.yaw);
+			nvgBeginPath(vg);
+			nvgRect(vg, -scale, -scale, scale*2, scale*2);
+			nvgFillPaint(vg, nvgImagePattern(vg, -scale, -scale, scale*2, scale*2, 0, render.compass, 1));
+			nvgFill(vg);
+			nvgRestore(vg);
 		}
-		break;
-	case INFO_INV_FADE:
-		renderText(vg, render.inventory->infoX, globals.height - 35 * scale, render.inventory->infoTxt,
-			(render.inventory->infoTime - globals.curTime) / (INFO_INV_FADEOUT * 1000.));
-		if (globals.curTime > render.inventory->infoTime)
-			render.inventory->infoState = INFO_INV_NONE;
-	}
 
-	/* unsaved edit message */
-	if (render.message.chrLen > 0)
-	{
-		nvgFontSize(vg, FONTSIZE_MSG);
-		nvgBeginPath(vg);
-		nvgRect(vg, FONTSIZE, globals.height - FONTSIZE * 2, render.message.pxLen + FONTSIZE_MSG, FONTSIZE);
-		nvgFillColorRGBAS8(vg, "\0\0\0\xaa");
-		nvgFill(vg);
-		nvgFillColorRGBAS8(vg, "\xff\xff\xff\xff");
-		nvgText(vg, FONTSIZE+FONTSIZE_MSG/2, globals.height - FONTSIZE*2+(FONTSIZE-FONTSIZE_MSG)/2, render.message.text,
-			render.message.text + render.message.chrLen);
-	}
-
-	if (globals.lockMouse)
-	{
-		/* mouse cursor is hidden, therefore draw a crosshair */
-		float x = globals.width  >> 1;
-		float y = globals.height >> 1;
+		/* draw inventory bar */
+		scale = render.scale;
+		render.inventory->x = (globals.width - scale * 182) * 0.5f + 3 * scale;
+		render.inventory->y = 3 * scale;
 		nvgSave(vg);
+		nvgScale(vg, scale, scale);
+		nvgTranslate(vg, globals.width / (2 * scale) - 182 / 2, globals.height / scale - 22);
 		nvgBeginPath(vg);
-		nvgGlobalCompositeBlendFuncSeparate(vg, NVG_ONE_MINUS_DST_COLOR, NVG_ZERO, NVG_ONE, NVG_ZERO);
-		nvgStrokeColor(vg, nvgRGB(255,255,255));
-		nvgStrokeWidth(vg, 7.5);
-		nvgMoveTo(vg, x, y - 30);
-		nvgLineTo(vg, x, y + 30);
-		nvgMoveTo(vg, x - 30, y);
-		nvgLineTo(vg, x + 30, y);
-		nvgStroke(vg);
+		nvgRect(vg, 0, 0, 182, 22);
+		nvgFillPaint(vg, nvgImagePattern(vg, 0, 0, 253, 24, 0, render.inventory->texture, 1));
+		nvgFill(vg);
+
+		nvgBeginPath(vg);
+		nvgRect(vg, -26, 0, 22, 22);
+		nvgFillPaint(vg, nvgImagePattern(vg, render.inventory->offhand & 2 ? -208-26-23 : -208-26, 0, 253, 24, 0, render.inventory->texture, 1));
+		nvgFill(vg);
+
+		int pos = render.inventory->offhand & 1 ? -26 : render.inventory->selected * 20 - 1;
+
+		/* selected slot */
+		nvgBeginPath(vg);
+		nvgRect(vg, pos, -1, 24, 24);
+		nvgFillPaint(vg, nvgImagePattern(vg, pos - 183, -1, 253, 24, 0, render.inventory->texture, 1));
+		nvgFill(vg);
 		nvgRestore(vg);
+
+		/* message above inventory bar */
+		switch (render.inventory->infoState) {
+		case INFO_INV_INIT:
+			render.inventory->infoX = (globals.width - nvgTextBounds(vg, 0, 0, render.inventory->infoTxt, NULL, NULL)) / 2;
+			render.inventory->infoTime = globals.curTime + INFO_INV_DURATION * 1000;
+			render.inventory->infoState = INFO_INV_SHOW;
+			// no break;
+		case INFO_INV_SHOW:
+			renderText(vg, render.inventory->infoX, globals.height - 35 * scale, render.inventory->infoTxt, 1);
+			if (globals.curTime > render.inventory->infoTime)
+			{
+				render.inventory->infoState = INFO_INV_FADE;
+				render.inventory->infoTime += INFO_INV_FADEOUT * 1000;
+			}
+			break;
+		case INFO_INV_FADE:
+			renderText(vg, render.inventory->infoX, globals.height - 35 * scale, render.inventory->infoTxt,
+				(render.inventory->infoTime - globals.curTime) / (INFO_INV_FADEOUT * 1000.));
+			if (globals.curTime > render.inventory->infoTime)
+				render.inventory->infoState = INFO_INV_NONE;
+		}
+
+		/* unsaved edit message */
+		if (render.message.chrLen > 0)
+		{
+			nvgFontSize(vg, FONTSIZE_MSG);
+			nvgBeginPath(vg);
+			nvgRect(vg, FONTSIZE, globals.height - FONTSIZE * 2, render.message.pxLen + FONTSIZE_MSG, FONTSIZE);
+			nvgFillColorRGBAS8(vg, "\0\0\0\xaa");
+			nvgFill(vg);
+			nvgFillColorRGBAS8(vg, "\xff\xff\xff\xff");
+			nvgText(vg, FONTSIZE+FONTSIZE_MSG/2, globals.height - FONTSIZE*2+(FONTSIZE-FONTSIZE_MSG)/2, render.message.text,
+				render.message.text + render.message.chrLen);
+		}
+
+		if (globals.lockMouse)
+		{
+			/* mouse cursor is hidden, therefore draw a crosshair */
+			float x = globals.width  >> 1;
+			float y = globals.height >> 1;
+			nvgSave(vg);
+			nvgBeginPath(vg);
+			nvgGlobalCompositeBlendFuncSeparate(vg, NVG_ONE_MINUS_DST_COLOR, NVG_ZERO, NVG_ONE, NVG_ZERO);
+			nvgStrokeColor(vg, nvgRGB(255,255,255));
+			nvgStrokeWidth(vg, 7.5);
+			nvgMoveTo(vg, x, y - 30);
+			nvgLineTo(vg, x, y + 30);
+			nvgMoveTo(vg, x - 30, y);
+			nvgLineTo(vg, x + 30, y);
+			nvgStroke(vg);
+			nvgRestore(vg);
+		}
 	}
 
 	/* debug info */
@@ -1708,7 +1713,8 @@ void renderWorld(void)
 	nvgEndFrame(vg);
 
 	/* inventory items needs to be rendered after nanovg commands */
-	renderInventoryItems(scale);
+	if ((render.debug & RENDER_DEBUG_NOHUD) == 0)
+		renderInventoryItems(render.scale);
 
 	if (render.debugInfo & DEBUG_BLOCK)
 	{

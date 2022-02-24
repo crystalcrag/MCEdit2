@@ -29,8 +29,8 @@ struct /* keep track of all inventories currently opened in a given interface */
 	uint8_t      maxItemSize;
 	int          padding[4];
 	int          itemSz, cellSz;
-	ItemBuf      dragSplit;
-	ItemBuf      drag;
+	Item_t       dragSplit;
+	Item_t       drag;
 
 }	inventories;
 
@@ -518,7 +518,7 @@ static int inventoryMouse(SIT_Widget w, APTR cd, APTR ud)
 					else if (old->id > 0)
 					{
 						/* click on a slot with different items in it: exchange with item being dragged */
-						ItemBuf buf = inventories.drag;
+						struct Item_t buf = inventories.drag;
 						inventories.drag.id = old->id;
 						inventories.drag.count = old->count;
 						inventories.drag.uses = old->uses;

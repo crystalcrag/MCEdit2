@@ -1093,7 +1093,7 @@ void mapDecodeItems(Item container, int count, NBTHdr hdrItems)
 		NBTIter_t properties;
 		NBTFile_t nbt = {.mem = mem};
 		TEXT      itemId[16];
-		ItemBuf   item;
+		Item_t    item;
 		int       off;
 		memset(&item, 0, sizeof item);
 		NBT_IterCompound(&properties, nbt.mem);

@@ -1,5 +1,13 @@
+=========== Week 8 ===========
+Tue Feb 22:
+	* SITGL listbox fixes.
+	* improved analyze command to filter items and locate items in group of containers.
+
+Mon Feb 21:
+	* redstone block update redone: piston can update even with their head facing each other.
+
 =========== Week 7 ===========
-Sat Feb 20:
+Sun Feb 20:
 	* 37th rewrite of nearby chunk update.
 
 Sat Feb 19:

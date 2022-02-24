@@ -363,6 +363,7 @@ enum
 #define	SIT_ProgressPos          SIT_ScrollPos
 
 #define	SIT_RowTag(row)          SIT_TargetRow, row, SIT_RowTagArg
+#define	SIT_CellTag(row, cell)   SIT_TargetRow, (row) | ((cell) << 24), SIT_RowTagArg
 #define	SIT_RowSel(row)          SIT_TargetRow, row, SIT_RowSelArg
 
 #define SITV_LabelSize(w,h)      (int) ((w) | ((h) << 16))

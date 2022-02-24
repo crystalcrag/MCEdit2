@@ -442,7 +442,7 @@
 		{state:10, name: "-north",          tex: [13, 6,31, 4,14, 6,31, 4,31, 4,31, 4,  588],  model: [SAME_AS, ID(29,10)]},
 		{state:11, name: "-south",          tex: [14, 6,31, 4,13, 6,31, 4,31, 4,31, 4,  2244], model: [SAME_AS, ID(29,11)]},
 		{state:12, name: "-west",           tex: [31, 4,13, 6,31, 4,14, 6,12, 6,12, 6,  1329], model: [SAME_AS, ID(29,12)]},
-		{state:13, name: "-east",           tex: [31, 4,14, 6,31, 4,13, 6,31, 4,31, 4,  3859], model: [SAME_AS, ID(29,12)]},
+		{state:13, name: "-east",           tex: [31, 4,14, 6,31, 4,13, 6,31, 4,31, 4,  3859], model: [SAME_AS, ID(29,13)]},
 
 	{id: 34, name: "Piston head", type: CUST, bbox: FULL, pushable: NO, orient: FULL},
 		{state: 0, name: "+down",  tex: [31, 5,31, 5,31, 5,31, 5], model: [
@@ -1383,8 +1383,9 @@
 	{id: 105, name: "Melon stem", type: QUAD, placement: "farmland", pushable: DROPITEM, density: PLANTS},
 		{state: 0, tex: [15, 6], quad: [CROSS]},
 
-	{id: 106, name: "Vines", type: QUAD, inv: ITEM2D, invState: 1, cat: DECO, orient: VINES, special: NOSIDE, tech: "vine",
+	{id: 106, name: "Vines", type: QUAD, inv: ITEM2D, invState: 0, cat: DECO, orient: VINES, special: NOSIDE, tech: "vine",
 		density: PLANTS, placement: "wall", pushable: DESTROY},
+		{state: 0, name: "-",     tex: [15, 8], quad: [SOUTH]},
 		{state: 1, name: "+S",    tex: [15, 8], quad: [SOUTH]},
 		{state: 2, name: "+W",    tex: [15, 8], quad: [WEST]},
 		{state: 3, name: "+SW",   tex: [15, 8], quad: [SOUTH, WEST]},
