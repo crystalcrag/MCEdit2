@@ -26,7 +26,7 @@ void   entityUpdateLight(Chunk);
 Bool   entityDeleteById(Map, int entityId);
 void   entityInfo(int id, STRPTR buffer, int max);
 int    entityRaypick(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos);
-void   entityUpdateOrCreate(Chunk, vec4 pos, ItemID_t blockId, vec4 dest, int ticks, DATA8 tile);
+Entity entityUpdateOrCreate(Chunk, vec4 pos, ItemID_t blockId, vec4 dest, int ticks, DATA8 tile);
 void   entityDebugCmd(void);
 int    entityCount(int start);
 int    entityGetModel(int entityId, int * vtxCount);
@@ -56,6 +56,7 @@ void worldItemUpdatePreviewPos(vec4 camera, vec4 pos);
 void worldItemDeletePreview(void);
 void worldItemAdd(Map);
 void worldItemDup(Map map, vec info, int entityId);
+void worldItemCreateFromBlock(BlockIter, int side);
 
 void quadTreeInit(int x, int z, int size);
 void quadTreeDebug(APTR vg);

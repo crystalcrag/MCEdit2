@@ -1515,7 +1515,7 @@ void entityAnimate(void)
 }
 
 /* block entity */
-void entityUpdateOrCreate(Chunk chunk, vec4 pos, ItemID_t blockId, vec4 dest, int ticks, DATA8 tile)
+Entity entityUpdateOrCreate(Chunk chunk, vec4 pos, ItemID_t blockId, vec4 dest, int ticks, DATA8 tile)
 {
 	EntityAnim anim;
 	Entity     entity;
@@ -1583,6 +1583,7 @@ void entityUpdateOrCreate(Chunk chunk, vec4 pos, ItemID_t blockId, vec4 dest, in
 	anim->entity = entity;
 
 //	fprintf(stderr, "adding entity %d at %p / %d\n", entities.animCount, tile, slot);
+	return entity;
 }
 
 /* sky/block light has changed in this chunk */

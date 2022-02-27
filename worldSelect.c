@@ -141,7 +141,7 @@ SIT_Widget optionsQuickAccess(void)
 		/* FOV */
 		"<editbox name=fov width=5em editType=", SITV_Integer, "right=FORM top=WIDGET,compSize,0.5em>"
 		"<slider name=fovval minValue=20 curValue=", &worldSelect.fov, "maxValue=140 pageSize=1 top=MIDDLE,fov right=WIDGET,fov,0.5em"
-		" buddyEdit=fov buddyLabel=", LANG("Field of vision:"), &max, ">"
+		" buddyEdit=fov buddyLabel=", LANG("Field of view:"), &max, ">"
 		/* GUI scale */
 		"<editbox name=gui width=5em editType=", SITV_Integer, "right=FORM top=WIDGET,fov,0.5em>"
 		"<slider name=guiscale minValue=50 curValue=", &worldSelect.guiScale, "maxValue=200 pageSize=1 top=MIDDLE,gui"
@@ -522,7 +522,11 @@ static int worldSelectSave(SIT_Widget w, APTR cd, APTR save)
 				/* will prevent useless updates */
 				kbd->key &= ~SITK_FlagModified;
 				SITK_ToText(keyName, sizeof keyName, kbd->key);
-				sprintf(config, "%s/%s", kbd->config[0] == 'C' ? "MenuCommands" : "KeyBindings", kbd->config);
+				switch (kbd->config[0]) {
+				case 'C': sprintf(config, "MenuCommands/%s", kbd->config); break;
+				case 'D': sprintf(config, "Extra/%s", kbd->config); break;
+				default:  sprintf(config, "KeyBindings/%s", kbd->config);
+				}
 				SetINIValue(PREFS_PATH, config, keyName);
 			}
 		}
@@ -593,7 +597,7 @@ static void worldSelectBindings(SIT_Widget parent, KeyBinding bindings, int coun
 		prev2 = button;
 	}
 
-	if (tab == 2 || tab == 3)
+	if (tab == 2 || tab == 3 || tab == 5)
 	{
 		static TEXT note[] =
 			DLANG("Note:<br>"
@@ -604,8 +608,11 @@ static void worldSelectBindings(SIT_Widget parent, KeyBinding bindings, int coun
 		static TEXT note2[] =
 			DLANG("&#x25cf; Player mode will toggle between survival, creative and spectator.");
 
+		static TEXT note3[] =
+			DLANG("This shortcuts are mostly useful for debugging.<br>You might want to disable them.");
+
 		SIT_CreateWidgets(parent,
-			"<label tabNum=", tab, "name=note title=", LANG(tab == 2 ? note : note2), "top=", SITV_AttachWidget, prev1, SITV_Em(0.5), ">"
+			"<label tabNum=", tab, "name=note title=", LANG(tab == 2 ? note : tab == 5 ? note3 : note2), "top=", SITV_AttachWidget, prev1, SITV_Em(0.5), ">"
 		);
 	}
 }
@@ -754,7 +761,7 @@ static int worldSelectConfig(SIT_Widget w, APTR cd, APTR ud)
 	SIT_Widget max = NULL;
 	SIT_Widget max2 = NULL;
 	SIT_CreateWidgets(dialog,
-		"<tab name=tabs left=FORM tabActive=", worldSelect.curTab, "right=FORM tabStr=", LANG("Configuration\tKey bindings\tMenu commands\tGraphics"),
+		"<tab name=tabs left=FORM tabActive=", worldSelect.curTab, "right=FORM tabStr=", LANG("Configuration\tKey bindings\tMenu commands\tGraphics\tExtra"),
 		" tabSpace=", SITV_Em(1), "tabStyle=", SITV_AlignHCenter, ">"
 			/*
 			 * general configuration tab
@@ -864,7 +871,8 @@ static int worldSelectConfig(SIT_Widget w, APTR cd, APTR ud)
 	SIT_Widget parent = SIT_GetById(dialog, "tabs");
 
 	worldSelectBindings(parent, editBindings,      14, 2);
-	worldSelectBindings(parent, editBindings + 14, 18, 3);
+	worldSelectBindings(parent, editBindings + 14, 14, 3);
+	worldSelectBindings(parent, editBindings + 28,  6, 5);
 
 	SIT_AddCallback(parent, SITE_OnChange, worldSelectTabChanged, NULL);
 

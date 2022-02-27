@@ -1,4 +1,17 @@
 =========== Week 8 ===========
+Sun Feb 27:
+	* started refactoring of CUST lighting/AO.
+
+Sat Feb 26:
+	* SITGL debug geometry from last refactoring.
+	* piston pushing dropped item mostly done.
+
+Fri Feb 25:
+	* SITGL debug radial-gradient (integer overflow).
+
+Wed Feb 23:
+	* piston DROPITEM started.
+
 Tue Feb 22:
 	* SITGL listbox fixes.
 	* improved analyze command to filter items and locate items in group of containers.
@@ -11,7 +24,7 @@ Sun Feb 20:
 	* 37th rewrite of nearby chunk update.
 
 Sat Feb 19:
-	* piston refactoring: able to push quads, dstroy/convert to item, tile entity management changed.
+	* piston refactoring: able to push quads, tile entity management changed.
 
 Wed Feb 17:
 	* moar bug fixes: blocks pushed by piston were incorrectly centered in unit voxel, fail to extend

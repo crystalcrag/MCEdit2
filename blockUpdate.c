@@ -666,6 +666,15 @@ void mapUpdateToBlock36(Map map, RSWire list, int count, int dir, BlockIter iter
 		struct BlockIter_t iter = *iterator;
 		mapIter(&iter, list->dx, list->dy, list->dz);
 
+		if (list->pow > 0)
+		{
+			/* block needs to be converted to world item */
+			worldItemCreateFromBlock(&iter, list->signal);
+			/* delete block */
+			mapUpdate(map, src, 0, NULL, UPDATE_KEEPLIGHT | UPDATE_DONTLOG | UPDATE_SILENT);
+			continue;
+		}
+
 		/* place tile entity of block 36 into destination block (like piston head) */
 		NBTFile_t tile = {.page = 127};
 		int       cnx  = 0;
@@ -718,7 +727,7 @@ void mapUpdateToBlock36(Map map, RSWire list, int count, int dir, BlockIter iter
 int mapUpdatePiston(Map map, BlockIter iterator, int blockId, Bool init, DATA8 * tile, BlockUpdate blockedBy)
 {
 	/* it is MAXPUSH * 2, because some items can be destroyed in the process (and do not count toward MAXPUSH limit) */
-	struct RSWire_t connect[MAXPUSH];
+	struct RSWire_t connect[MAXPUSH*2];
 
 	int avoid = blockSides.piston[blockId & 7];
 	int count, i;

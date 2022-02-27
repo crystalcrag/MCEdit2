@@ -26,24 +26,27 @@ typedef enum  /* meaning of each index of keyBindings[] table */
 	KBD_PICK_BLOCK,
 
 	KBD_HIDE_HUD,
-	KBD_DEBUG_INFO,
-	KBD_ADVANCE_TIME,
-	KBD_SAVE_LOCATION,
 	KBD_WAYPOINT_EDITOR,
 	KBD_SCHEMA_LIBRARY,
 	KBD_UNDO_CHANGE,
 	KBD_REDO_CHANGE,
 	KBD_CLOSE_WORLD,
+	KBD_QUICK_OPTIONS,
 
 	KBD_TAKE_SCREENSHOT,
-	KBD_BACK_IN_TIME,
-	KBD_SWITCH_MODE,
 	KBD_FULLSCREEN,
 	KBD_CLEAR_SELECTION,
 	KBD_COPY_SELECTION,
 	KBD_PASTE_CLIPBOARD,
 	KBD_WORLD_INFO,
 	KBD_SAVE_CHANGES,
+
+	KBD_DEBUG_INFO,
+	KBD_BACK_IN_TIME,
+	KBD_ADVANCE_TIME,
+	KBD_SWITCH_MODE,
+	KBD_SAVE_LOCATION,
+	KBD_FRAME_ADVANCE,
 
 	KBD_SLOT_0,
 	KBD_SLOT_1,
@@ -55,11 +58,10 @@ typedef enum  /* meaning of each index of keyBindings[] table */
 	KBD_SLOT_7,
 	KBD_SLOT_8,
 	KBD_SLOT_9,
-	KBD_QUICK_OPTIONS,
 
 }	KbdCmd_t;
 
-#define KBD_MAX               (KBD_QUICK_OPTIONS+1)
+#define KBD_MAX               (KBD_SLOT_9+1)
 #define KBD_MAX_CONFIG        KBD_SLOT_0
 
 enum /* not real keys, but will simplify stuff */

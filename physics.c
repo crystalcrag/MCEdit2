@@ -456,7 +456,7 @@ void physicsCheckPressurePlate(Map map, vec4 start, vec4 end, VTXBBox bbox)
 
 void physicsInitEntity(PhysicsEntity entity, int blockId)
 {
-	float density = blockIds[blockId>>4].density - blockIds[0].density;
+	float density = blockIds[isBlockId(blockId) ? (blockId>>4) : 1].density - blockIds[0].density;
 
 	entity->friction[VX] = 0.0001;
 	entity->friction[VZ] = 0.0001;
@@ -478,10 +478,27 @@ void physicsChangeEntityDir(PhysicsEntity entity, float friction)
 	entity->dir[VZ] = sinf(angle) * 0.01f;
 	entity->friction[VZ] = friction;
 	entity->friction[VX] = friction;
+	entity->negXZ = 0;
 	if (entity->dir[VX] < 0) entity->negXZ |= 1, entity->dir[VX] = - entity->dir[VX];
 	if (entity->dir[VZ] < 0) entity->negXZ |= 2, entity->dir[VZ] = - entity->dir[VZ];
 }
 
+void physicsShoveEntity(PhysicsEntity entity, float friction, int side)
+{
+	if (side <= SIDE_WEST)
+	{
+		static float offset[] = {M_PI_2f, 0, M_PIf+M_PI_2f, M_PIf};
+		float angle = RandRange(-M_PIf/8, M_PIf/8) + offset[side];
+		entity->dir[VX] = cosf(angle) * 0.1f;
+		entity->dir[VZ] = sinf(angle) * 0.1f;
+		entity->friction[VZ] = friction;
+		entity->friction[VX] = friction;
+		fprintf(stderr, "angle = %d\n", (int) (angle * 180 / M_PIf));
+		entity->negXZ = 0;
+		if (entity->dir[VX] < 0) entity->negXZ |= 1, entity->dir[VX] = - entity->dir[VX];
+		if (entity->dir[VZ] < 0) entity->negXZ |= 2, entity->dir[VZ] = - entity->dir[VZ];
+	}
+}
 
 /* move particles according to their parameters */
 Bool physicsMoveEntity(Map map, PhysicsEntity entity, float speed)
@@ -588,16 +605,41 @@ static Bool physicsPushEntity(float broad[6], vec4 pos, float size[3], char dir[
 	//fprintf(stderr, "pushing entity from %g to %g\n", (double) pos[VY], (double) endPos[VY]);
 
 	//physicsCheckCollision(map, pos, endPos, bbox, 0.5);
-	memcpy(pos, endPos, 12);
 
 	/* entity is already moving due to external forces: cancels its movement in the direction it is pushed */
 	if (phys)
 	{
+		float force;
 		memcpy(phys->loc, endPos, 12);
-		if (axis & 1) phys->dir[VX] = 0, phys->friction[VX] = 0;
-		if (axis & 2) phys->dir[VY] = 0, phys->friction[VY] = 0;
-		if (axis & 4) phys->dir[VZ] = 0, phys->friction[VZ] = 0;
+		if (axis & 1) /* X */
+		{
+			force = endPos[VX] - pos[VX];
+			if (fabsf(force) > phys->dir[VX])
+			{
+				if (force < 0) phys->negXZ |= 1, force = -force;
+				else phys->negXZ &= ~1;
+				phys->dir[VX] = force;
+				phys->friction[VX] = 0.01;
+			}
+		}
+		if (axis & 4) /* Z */
+		{
+			force = endPos[VZ] - pos[VZ];
+			if (fabsf(force) > phys->dir[VZ])
+			{
+				if (force < 0) phys->negXZ |= 2, force = -force;
+				else phys->negXZ &= ~2;
+				phys->dir[VZ] = force;
+				phys->friction[VZ] = 0.01;
+			}
+		}
+		if (axis & 2)
+		{
+			phys->dir[VY] = endPos[VZ] - pos[VZ];
+			phys->friction[VY] = 0.004;
+		}
 	}
+	memcpy(pos, endPos, 12);
 
 	return True;
 }
@@ -627,9 +669,9 @@ void physicsEntityMoved(Map map, APTR self, vec4 start, vec4 end)
 		dir[i] = diff < -EPSILON ? -1 : diff > EPSILON ? 1 : 0;
 	}
 
-	uint8_t side = dir[VX] < 0 ? SIDE_WEST   : dir[VX] > 0 ? SIDE_EAST  :
-	               dir[VZ] < 0 ? SIDE_NORTH  : dir[VZ] > 0 ? SIDE_SOUTH :
-	               dir[VY] < 0 ? SIDE_BOTTOM : SIDE_TOP;
+//	uint8_t side = dir[VX] < 0 ? SIDE_WEST   : dir[VX] > 0 ? SIDE_EAST  :
+//	               dir[VZ] < 0 ? SIDE_NORTH  : dir[VZ] > 0 ? SIDE_SOUTH :
+//	               dir[VY] < 0 ? SIDE_BOTTOM : SIDE_TOP;
 
 	Entity * list = quadTreeIntersect(broad, &count, ENFLAG_FIXED | ENFLAG_EQUALZERO);
 	if (count > 0)
@@ -652,11 +694,13 @@ void physicsEntityMoved(Map map, APTR self, vec4 start, vec4 end)
 			if (physicsPushEntity(broad, entity->pos, bbox, dir, entity->private))
 			{
 				entityUpdateInfo(entity, oldPos);
+				#if 0
 				if (! physicsCheckOnGround(map, entity->pos, NULL, bbox))
 				{
 					entityInitMove(entity, side, 4 /* a bit more force than if shoved by blocks */);
 					entityInitMove(entity, SIDE_BOTTOM, 1);
 				}
+				#endif
 			}
 		}
 	}

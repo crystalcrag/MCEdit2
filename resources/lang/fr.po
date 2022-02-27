@@ -119,9 +119,6 @@ msgstr "Raccourci des préférences"
 msgid "Compass (%)"
 msgstr "Boussole (%)"
 
-msgid "Field of vision"
-msgstr "Champ de vision"
-
 msgid "GUI scale"
 msgstr "Interface"
 
@@ -288,7 +285,7 @@ msgstr "Note:<br>"
 msgid "No worlds found in \"<a href=\"#\">%s</a>\".<br><br>"
       "Click on \"SETTINGS\" to select a different folder.<br><br>"
       "Or drag'n drop a world save onto this window"
-msgstr "Aucune carte n'a été trouvé dans \"<a href=\"#\">%s</a>\".<br><br>"
+msgstr "Aucune carte n'a été trouvée dans \"<a href=\"#\">%s</a>\".<br><br>"
       "Cliquez sur \"RÉGLAGLES\" pour sélectionner un dossier différent.<br><br>"
       "Ou glissez et déposer un dossier contenant une carte dans cette fenêtre"
 
@@ -380,7 +377,7 @@ msgid "Shape"
 msgstr "Forme"
 
 msgid "Round"
-msgstr "Sphere"
+msgstr "Sphère"
 
 msgid "Diamond"
 msgstr "Diamant"
@@ -759,7 +756,7 @@ msgid "Survival"
 msgstr "Survie"
 
 msgid "Creative"
-msgstr "créatif"
+msgstr "Créatif"
 
 msgid "Spectator"
 msgstr "Spectateur"

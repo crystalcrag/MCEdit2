@@ -53,23 +53,27 @@ KeyBindings_t keyBindings = {
 
 	/* menu commands page */
 	{DLANG("Hide HUD"),             "CmdHideHud",       SITK_F1},
-	{DLANG("Show debug info"),      "CmdDebugInfo",     SITK_F3},
-	{DLANG("Advance time"),         "CmdAdvanceTime",   SITK_FlagUp + SITK_F5},
-	{DLANG("Save location"),        "CmdSaveLocation",  SITK_F10},
 	{DLANG("Waypoint editor"),      "CmdWaypoints",     SITK_FlagCtrl + 'G'},
 	{DLANG("Library schematics"),   "CmdSchemaLibrary", SITK_FlagCtrl + 'L'},
 	{DLANG("Undo change"),          "CmdUndoChange",    SITK_FlagCtrl + 'Z'},
 	{DLANG("Redo change"),          "CmdRedoChange",    SITK_FlagCtrl + 'Y'},
 	{DLANG("Close world"),          "CmdCloseWorld",    SITK_FlagCtrl + 'W'},
+	{DLANG("Quick options"),        "CmdQuickOptions",  SITK_FlagCtrl + 'O'},
 	{DLANG("Take screenshot"),      "CmdTakeCapture",   SITK_F2},
-	{DLANG("Back in time"),         "CmdBackInTime",    SITK_FlagUp + SITK_F6},
-	{DLANG("Switch player mode"),   "CmdSwitchMode",    SITK_F8},
 	{DLANG("Toggle fullscreen"),    "CmdFullscren",     SITK_F11},
 	{DLANG("Clear selection"),      "CmdClearSel",      SITK_FlagCtrl + 'D'},
 	{DLANG("Copy selection"),       "CmdCopySel",       SITK_FlagCtrl + 'C'},
 	{DLANG("Paste from clipboard"), "CmdPasteClip",     SITK_FlagCtrl + 'V'},
 	{DLANG("World info editor"),    "CmdWorldInfo",     SITK_FlagCtrl + 'I'},
 	{DLANG("Save changes"),         "CmdSaveChanges",   SITK_FlagCtrl + 'S'},
+
+	/* debug */
+	{DLANG("Show debug info"),      "DebugInfo",        SITK_F3},
+	{DLANG("Back in time"),         "DebugAdvanceTime", SITK_FlagUp + SITK_F5},
+	{DLANG("Advance time"),         "DebugBackInTime",  SITK_FlagUp + SITK_F6},
+	{DLANG("Switch player mode"),   "DebugSwitchMode",  SITK_F8},
+	{DLANG("Save location"),        "DebugSaveLoc",     SITK_F10},
+	{DLANG("Frame advance"),        "DebugFrame",       SITK_BackSpace},
 
 	/* KBD_SLOT_[0~9]: not configurable (yet?) */
 	{NULL, NULL, '0'},
@@ -82,8 +86,6 @@ KeyBindings_t keyBindings = {
 	{NULL, NULL, '7'},
 	{NULL, NULL, '8'},
 	{NULL, NULL, '9'},
-	/* quick options: Ctrl + O */
-	{NULL, NULL, SITK_FlagCtrl + 'O'},
 };
 
 static int mSDLKtoSIT[] = {
@@ -108,6 +110,7 @@ static int mSDLKtoSIT[] = {
 	SDLK_PRINT,     SITK_Impr,
 	SDLK_SPACE,     SITK_Space,
 	SDLK_TAB,       SITK_Tab,
+	SDLK_BACKSPACE, SITK_BackSpace,
 	SDLK_LCTRL,     SITK_LCtrl,
 	SDLK_RCTRL,     SITK_RCtrl,
 	SDLK_CAPSLOCK,  SITK_Caps,
@@ -128,7 +131,6 @@ static int mSDLKtoSIT[] = {
 	SDLK_F13,       SITK_F13,
 	SDLK_F14,       SITK_F14,
 	SDLK_F15,       SITK_F15,
-	SDLK_BACKSPACE, SITK_BackSpace,
 	SDLK_ESCAPE,    SITK_Escape,
 };
 
@@ -202,8 +204,8 @@ static int SITK_FromText(STRPTR keyName)
 		case 4: key |= SITK_MWD; break;
 		default:
 			num = FindInList(
-				"Home,End,Page up,Page down,Up,Down,Left,Right,Left shift,Right shift,Left alt,"
-				"Right alt,Left super,Right sper,Menu,Return,Insert,Delete,Print screen,Space,Tab",
+				"Home,End,Page up,Page down,Up,Down,Left,Right,Left shift,Right shift,Left alt,Right alt,"
+				"Left super,Right sper,Menu,Return,Insert,Delete,Print screen,Space,Tab,Backspace",
 				keyName, 0
 			);
 			if (num > 0) key |= mSDLKtoSIT[num*2+1];
@@ -217,8 +219,6 @@ static void prefsInit(void)
 {
 	INIFile ini = ParseINI(PREFS_PATH);
 
-	globals.width         = GetINIValueInt(ini, "WndWidth",      1600);
-	globals.height        = GetINIValueInt(ini, "WndHeight",     900);
 	globals.renderDist    = GetINIValueInt(ini, "RenderDist",    4);
 	globals.redstoneTick  = GetINIValueInt(ini, "RedstoneTick",  100);
 	globals.compassSize   = GetINIValueInt(ini, "CompassSize",   100) * 0.01f;
@@ -243,6 +243,10 @@ static void prefsInit(void)
 	STRPTR resol = GetINIValue(ini, "FullScrResol");
 	if (resol && sscanf(resol, "%dx%d", &globals.fullScrWidth, &globals.fullScrHeight) != 2)
 		globals.fullScrWidth = 0;
+
+	resol = GetINIValue(ini, "WndSize");
+	if (resol == NULL || sscanf(resol, "%dx%d", &globals.width, &globals.height) != 2)
+		globals.width = 1600, globals.height = 900;
 
 	if (mcedit.userDir[0] == 0)
 	{
@@ -288,8 +292,9 @@ static void prefsReadLang(void)
 
 static void prefsSave(void)
 {
-	SetINIValueInt(PREFS_PATH, "WndWidth",  globals.width);
-	SetINIValueInt(PREFS_PATH, "WndHeight", globals.height);
+	TEXT resol[32];
+	sprintf(resol, "%dx%d", globals.width, globals.height);
+	SetINIValue(PREFS_PATH, "WndSize",   resol);
 	SetINIValue(PREFS_PATH, "WorldEdit", mcedit.worldEdit);
 }
 
@@ -395,7 +400,12 @@ static int mceditTrackFocus(SIT_Widget w, APTR cd, APTR ud)
 /* ESC key pressed: cancel stuff, if nothing to cancel, exit then */
 static int mceditCancelStuff(SIT_Widget w, APTR cd, APTR ud)
 {
-	if (optionsExit(NULL, NULL, NULL))
+	if (mcedit.frameAdvance)
+	{
+		FramePauseUnpause(False);
+		mcedit.frameAdvance = 0;
+	}
+	else if (optionsExit(NULL, NULL, NULL))
 	{
 		;
 	}
@@ -734,6 +744,15 @@ Bool mceditProcessCommand(EventState state, int keyUp)
 			state->capture = 1;
 			break;
 
+		case KBD_FRAME_ADVANCE:
+			if (mcedit.frameAdvance == 0)
+			{
+				FramePauseUnpause(True);
+				mcedit.frameAdvance = 1;
+			}
+			else FramePauseUnpause(False);
+			break;
+
 		case KBD_CLOSE_WORLD:
 			mceditExit(NULL, NULL, (APTR) EXIT_LOOP);
 			break;
@@ -1030,6 +1049,8 @@ void mceditWorld(void)
 		}
 		#endif
 		FrameWaitNext();
+		if (mcedit.frameAdvance)
+			FramePauseUnpause(True);
 	}
 
 	/* if autoEdit is enabled, go back to world selection screen on next startup */
@@ -1037,6 +1058,8 @@ void mceditWorld(void)
 		mcedit.worldEdit[0] = 0;
 
 	mcedit.state = GAMELOOP_WORLDSELECT;
+	mcedit.frameAdvance = 0;
+	FramePauseUnpause(False);
 	renderCloseWorld();
 	mceditSetWndCaption(NULL);
 	SDL_WM_GrabInput(SDL_GRAB_OFF);

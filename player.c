@@ -495,10 +495,10 @@ void playerSetMode(Player p, int mode)
 	if (p->pmode != mode)
 	{
 		static STRPTR modes[] = {
-			DLANG("Survival"),
-			DLANG("Creative"),
-			NULL, /* advantre mode, don't care */
-			DLANG("Spectator")
+			DLANG("survival"),
+			DLANG("creative"),
+			NULL, /* advanture mode: don't care */
+			DLANG("spectator")
 		};
 		p->pmode = mode;
 		snprintf(p->inventory.infoTxt, sizeof p->inventory.infoTxt, LANG("Switched to %s mode"), LANG(modes[mode]));

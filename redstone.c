@@ -276,7 +276,6 @@ int redstoneConnectTo(struct BlockIter_t iter, RSWire connectTo)
 int redstonePushedByPiston(struct BlockIter_t iter, int blockId, RSWire list, BlockUpdate blockedBy)
 {
 	int retract = blockId & 8;
-	int count   = 0;
 	if ((blockId >> 4) == RSPISTON && retract)
 		/* extended: non-sticky piston can't retract anything (including slime block) */
 		return 0;
@@ -289,8 +288,10 @@ int redstonePushedByPiston(struct BlockIter_t iter, int blockId, RSWire list, Bl
 	struct BlockIter_t orig = iter;
 	struct RSWire_t check[MAXPUSH];
 	uint8_t maxCheck = 0;
-	uint8_t flags = 0;
-	uint8_t inCheck = 0;
+	uint8_t flags    = 0;
+	uint8_t inCheck  = 0;
+	uint8_t count    = 0;
+	uint8_t maxPush  = 0;
 
 	/* only check blocks from these directions when checking for slime blocks */
 	switch (blockId & 7) {
@@ -303,13 +304,13 @@ int redstonePushedByPiston(struct BlockIter_t iter, int blockId, RSWire list, Bl
 		/* extended: skip piston head */
 		x += dx, y += dy, z += dz;
 	else /* piston is about to expand */
-		expand = -1, list += MAXPUSH-1;
+		expand = -1, list += MAXPUSH*2-1;
 
 	mapIter(&iter, x, y, z);
 
 	for (;;)
 	{
-		while (count <= MAXPUSH)
+		while (maxPush <= MAXPUSH)
 		{
 			Block b = blockIds + iter.blockIds[iter.offset];
 
@@ -331,12 +332,16 @@ int redstonePushedByPiston(struct BlockIter_t iter, int blockId, RSWire list, Bl
 				else return -1;
 			case PUSH_ONLY:
 				if (retract) goto break_all;
-				if (count == MAXPUSH) return -1;
+				// no break;
+			case PUSH_AND_RETRACT:
+				maxPush ++;
+				if (maxPush > MAXPUSH) return -1;
 				break;
 			case PUSH_DESTROY:
 				goto break_all;
 			case PUSH_DROPITEM:
-				if (retract || count == MAXPUSH) goto break_all;
+				/* drop item will be included in the list, but do not count toward push limit */
+				if (count == MAXPUSH*2) goto break_all;
 			}
 
 			list->dx = x;
@@ -344,8 +349,8 @@ int redstonePushedByPiston(struct BlockIter_t iter, int blockId, RSWire list, Bl
 			list->dz = z;
 			list->blockId = b->id;
 			list->data = iter.blockIds[DATA_OFFSET + (iter.offset >> 1)];
-			list->pow = 0;
-			list->signal = retract;
+			list->pow = b->pushable == PUSH_DROPITEM;
+			list->signal = dir;
 			if (iter.offset & 1) list->data >>= 4;
 			else list->data &= 15;
 			if (b->id == SLIMEBLOCK)
@@ -367,7 +372,7 @@ int redstonePushedByPiston(struct BlockIter_t iter, int blockId, RSWire list, Bl
 						cnx->dz = z + relz[i];
 						cnx->blockId = b->id;
 						cnx->pow = 0;
-						cnx->signal = retract;
+						cnx->signal = dir;
 						cnx->data = slime.blockIds[DATA_OFFSET + (slime.offset >> 1)];
 						if (slime.offset & 1) cnx->data >>= 4;
 						else cnx->data &= 15;

@@ -194,7 +194,7 @@ enum
 	SIT_Name             = 4,    /* __G_: String */
 	SIT_Classes          = 5,    /* CSGR: String */
 	SIT_UserData         = 6,    /* CSG_: Pointer */
-	SIT_ResizePolicy     = 7,    /* CSGR: Enum */
+	SIT_PtrEvents        = 7,    /* CSG_: Bool */
 	SIT_Enabled          = 8,    /* CSG_: Bool */
 	SIT_Visible          = 9,    /* CSGR: Bool */
 	SIT_NextCtrl         = 10,   /* CSG_: String */
@@ -564,8 +564,8 @@ struct SIT_OnChange_t
 
 struct SIT_OnKey_t
 {
-	int     keycode;  /* unicode code point [1 - 0x10FFFF] */
-	int     flags;    /* SITK_Flag* */
+	int     keycode;     /* unicode code point [1 - 0x10FFFF] */
+	int     flags;       /* SITK_Flag* */
 	uint8_t utf8[6];
 };
 
@@ -586,15 +586,15 @@ struct SIT_OnMouse_t     /* note: sizeof (struct SIT_OnMouse_t) must be 8 */
 		SITOM_Move,
 		SITOM_CaptureMove
 	}	state:8;
-	unsigned flags:16;  /* SITK_Flag* : qualifier keys held before mouse event */
-	int16_t  x, y;      /* relative to top left corner of control */
+	unsigned flags:16;   /* SITK_Flag* : qualifier keys held before mouse event */
+	int16_t  x, y;       /* relative to top left corner of control (padding box) */
 };
 
 struct SIT_OnSort_t
 {
-	APTR item1;    /* rowTag parameter of SIT_ListInsertItem() */
+	APTR item1;          /* rowTag parameter of SIT_ListInsertItem() */
 	APTR item2;
-	int  column;   /* 0 based */
+	int  column;         /* 0 based */
 };
 
 struct SIT_OnEditBox_t   /* custom lexer for SIT_EDITBOX */
@@ -618,11 +618,11 @@ typedef struct SIT_TextShadow_t *    SITTSH;
 
 struct SIT_OnPaint_t
 {
-	float  x, y;    /* recommended area to refresh */
+	float  x, y;         /* recommended area to refresh (padding box) */
 	float  w, h;
 	float  fontSize;
 	int    fontId;
-	APTR   nvg;     /* nanovg context */
+	APTR   nvg;          /* nanovg context */
 	int    shadowCount;
 	SITTSH shadow;
 };
@@ -631,7 +631,7 @@ struct SIT_OnCellPaint_t
 {
 	uint8_t fgColor[4];
 	uint8_t bgColor[4];
-	int     rowColumn; /* 0 based */
+	int     rowColumn;   /* 0 based */
 	float   LTWH[4];
 };
 
@@ -644,7 +644,7 @@ struct SIT_OnVal_t
 		SITV_PostProcess
 	}         stage;
 	int       tag;
-	APTR      ptr;    /* access those 2 fields using SIT_GET or SIT_SET */
+	APTR      ptr;       /* access those 2 fields using SIT_GET or SIT_SET */
 	va_list * vararg;
 };
 

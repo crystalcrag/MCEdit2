@@ -254,6 +254,7 @@ void worldItemCreateBlock(Entity entity, Bool fallingEntity)
 /* falling block reach some solid ground: check if we can turn it back to block or item */
 void worldItemPlaceOrCreate(Entity entity)
 {
+	/* note: <entity> is about to be deleted */
 	struct BlockIter_t iter;
 
 	/* entity->pos[VY] can be right in the middle of 2 voxel, grab bottom of entity then */
@@ -692,6 +693,20 @@ void worldItemPreview(vec4 camera, vec4 pos, ItemID_t itemId)
 		entityAddToCommandList(preview);
 		worldItem.preview = preview;
 	}
+}
+
+/* convert a block into an entity item */
+void worldItemCreateFromBlock(BlockIter pos, int side)
+{
+	/* we want an item, not a block */
+	Chunk chunk = pos->ref;
+	vec4 dest = {chunk->X + pos->x, pos->yabs, chunk->Z + pos->z};
+
+	ItemID_t itemId = entityWantItem(getBlockId(pos));
+
+	Entity entity = entityUpdateOrCreate(chunk, dest, itemId | ENTITY_ITEM, dest, UPDATE_BY_PHYSICS, NULL);
+
+	physicsShoveEntity(entity->private, 0.004, side);
 }
 
 void worldItemUpdatePreviewPos(vec4 camera, vec4 pos)
