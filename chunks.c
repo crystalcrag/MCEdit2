@@ -978,14 +978,6 @@ uint16_t axisAlign[] = {VTX_1, VTX_1, VTX_0, VTX_0, VTX_1, VTX_0};
 #undef VTX_0
 #undef VTX_1
 
-/*
- * 26 surrounding blocks that can impact shading around one block: all blocks except center one
- * offsets are ordered in increasing XZY (like chunks) into a 3x3x3 cube (middle one being empty).
- */
-static int16_t occlusionNeighbors[27];
-
-/* check if neighbor is in another chunk (bitfield from S,E,N,W,T,B) */
-static uint8_t occlusionSides[27];
 static int8_t  subChunkOff[64];
 static uint8_t oppositeMask[64];
 static int16_t blockOffset[64];
@@ -1064,10 +1056,22 @@ uint16_t hasCnx[] = {
 
 uint8_t mask8bit[] = {0x80, 0x40, 0x20, 0x10, 0x08, 0x04, 0x02, 0x01};
 
+/* used to compute light for CUST model */
+#define DXYZ(dx,dy,dz)       (dx+1) | ((dy+1)<<2) | ((dz+1)<<4)
+uint8_t sampleOffset[48] = { /* S, E, N, W, T, B */
+	DXYZ( 0,-1,-1), DXYZ(-1, 1, 1), DXYZ( 0, 0,-1), DXYZ(-1,-1, 1), DXYZ(-1, 0,-1), DXYZ( 1,-1, 1), DXYZ(-1,-1,-1), DXYZ( 1, 1, 1),
+	DXYZ(-1,-1,-1), DXYZ( 1, 1, 1), DXYZ(-1, 0,-1), DXYZ( 1,-1, 1), DXYZ(-1, 0, 0), DXYZ( 1,-1,-1), DXYZ(-1,-1, 0), DXYZ( 1, 1,-1),
+	DXYZ(-1,-1, 0), DXYZ( 1, 1,-1), DXYZ(-1, 0, 0), DXYZ( 1,-1,-1), DXYZ( 0, 0, 0), DXYZ(-1,-1,-1), DXYZ( 0,-1, 0), DXYZ(-1, 1,-1),
+	DXYZ( 0,-1, 0), DXYZ(-1, 1,-1), DXYZ( 0, 0, 0), DXYZ(-1,-1,-1), DXYZ( 0, 0,-1), DXYZ(-1,-1, 1), DXYZ( 0,-1,-1), DXYZ(-1, 1, 1),
+	DXYZ( 0,-1, 0), DXYZ(-1, 1,-1), DXYZ( 0,-1,-1), DXYZ(-1, 1, 1), DXYZ(-1,-1,-1), DXYZ( 1, 1, 1), DXYZ(-1,-1, 0), DXYZ( 1, 1,-1),
+	DXYZ( 0, 0,-1), DXYZ(-1,-1, 1), DXYZ( 0, 0, 0), DXYZ(-1,-1,-1), DXYZ(-1, 0, 0), DXYZ( 1,-1,-1), DXYZ(-1, 0,-1), DXYZ( 1,-1, 1),
+};
+#undef DXYZ
+
 /* yep, more look-up table init */
 void chunkInitStatic(void)
 {
-	int8_t i, x, y, z;
+	int8_t i, x, z;
 	int    pos;
 
 	for (i = 0; i < 64; i ++)
@@ -1103,18 +1107,6 @@ void chunkInitStatic(void)
 		if (i & 32) pos |= 16;
 		oppositeMask[i] = pos;
 	}
-	for (i = 0, x = -1, y = -1, z = -1; i < 27; i ++)
-	{
-		occlusionNeighbors[i] = x + y * 256 + z * 16;
-		occlusionSides[i] = (x < 0 ? 8 : x > 0 ? 2 : 0) | (z < 0 ? 4 : z > 0 ? 1 : 0) | (y < 0 ? 32 : y > 0 ? 16 : 0);
-		x ++;
-		if (x > 1)
-		{
-			x = -1; z ++;
-			if (z > 1) z = -1, y ++;
-		}
-	}
-	occlusionSides[13] = 0; /* center block */
 
 	for (pos = 0; pos < 256; pos ++)
 	{
@@ -1215,8 +1207,8 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 	memset(visited, 0, sizeof visited);
 	hasLights = (cur->cdFlags & CDFLAG_NOLIGHT) == 0;
 
-//	if (c->X == -208 && cur->Y == 48 && c->Z == -48)
-//		globals.breakPoint = 1;
+	if (c->X == -208 && cur->Y == 32 && c->Z == -48)
+		globals.breakPoint = 1;
 
 	for (Y = 0, pos = air = 0; Y < 16; Y ++)
 	{
@@ -1235,8 +1227,8 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 			block = cur->blockIds[pos];
 			state = blockGetById(ID(block, data));
 
-//			if (globals.breakPoint && pos == 120)
-//				globals.breakPoint = 2;
+			if (globals.breakPoint && pos == 3855)
+				globals.breakPoint = 2;
 
 			/* 3d flood fill for cave culling */
 			if ((slotsXZ[pos & 0xff] || slotsY[pos >> 8]) && ! blockIsFullySolid(state) && (visited[pos>>3] & mask8bit[pos&7]) == 0)
@@ -1506,6 +1498,73 @@ static int chunkGetLight(BlockIter iter, DATA16 blockIds3x3, DATA8 skyBlock, int
 	return occlusion;
 }
 
+/* get sky/light values for CUST face */
+static uint32_t chunkFillCustLight(DATA16 model, DATA8 skyBlock, DATA32 ocs, int occlusion)
+{
+	uint8_t norm = GET_NORMAL(model);
+	if (norm < 6)
+	{
+		static uint8_t norm2axis1[] = {2, 0, 2, 0, 0, 0};
+		static uint8_t norm2axis2[] = {1, 1, 1, 1, 2, 2};
+		uint32_t out = 0;
+		DATA8    offset;
+		uint8_t  i, axis1, axis2, hasOCS;
+		offset = sampleOffset + norm * 8;
+		axis1 = norm2axis1[norm];
+		axis2 = norm2axis2[norm];
+		hasOCS = norm == 4 && model[INT_PER_VERTEX*2+VX] - model[VX] == BASEVTX &&
+			                  model[INT_PER_VERTEX*2+VZ] - model[VZ] == BASEVTX;
+		norm = axisCheck[norm];
+
+		/* ocs: only on top (mostly for snow layer and carpet :-/) */
+		for (i = 0; i < 4; i ++, model += INT_PER_VERTEX, offset += 2)
+		{
+			uint8_t dxyz = offset[0], skyval, blockval, n;
+			int XYZ[] = {
+				model[0] - ORIGINVTX + BASEVTX + (dxyz & 3) - 1,
+				model[1] - ORIGINVTX + BASEVTX + ((dxyz & 12) >> 2) - 1,
+				model[2] - ORIGINVTX + BASEVTX + ((dxyz & 48) >> 2) - 1
+			};
+			dxyz = offset[1];
+			char DXYZ[] = {(dxyz & 3) - 1, ((dxyz & 12) >> 2) - 1, ((dxyz & 48) >> 4) - 1};
+			XYZ[norm] += DXYZ[norm];
+
+			if (hasOCS)
+			{
+				/* only on top (mostly needed by snow layer and carpet) */
+				switch (popcount(occlusion & occlusionIfNeighbor[i+16])) {
+				case 2:  ocs[0] |= 3 << i*2; break;
+				case 1:  ocs[0] |= 1 << i*2; break;
+				default: ocs[0] |= (occlusion & occlusionIfCorner[i+16] ? 1 : 0) << i*2;
+				}
+			}
+
+			for (skyval = skyBlock[13], blockval = skyval & 15, skyval &= 0xf0, n = 0; n < 4; n ++)
+			{
+				uint8_t skyvtx = skyBlock[TOVERTEXint(XYZ[0]) + TOVERTEXint(XYZ[2]) * 3 + TOVERTEXint(XYZ[1]) * 9];
+				uint8_t light  = skyvtx & 15;
+				skyvtx &= 0xf0;
+				/* max for block light */
+				if (blockval < light) blockval = light;
+				/* minimum if != 0 */
+				if (skyvtx > 0 && (skyval > skyvtx || skyval == 0)) skyval = skyvtx;
+				switch (n) {
+				case 0: XYZ[axis1] += DXYZ[axis1]; break;
+				case 1: XYZ[axis2] += DXYZ[axis2]; break;
+				case 2: XYZ[axis1] -= DXYZ[axis1];
+				}
+			}
+			out |= (skyval | blockval) << (i << 3);
+		}
+		return out;
+	}
+	else
+	{
+		uint8_t light = skyBlock[13];
+		return light | (light << 8) | (light << 16) | (light << 24);
+	}
+}
+
 /* custom model mesh: anything that doesn't fit quad or full/half block */
 static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b, DATAS16 chunkOffsets, int pos)
 {
@@ -1513,30 +1572,28 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 		/*B*/7, 5, 1, 3, 4,   /*M*/16, 14, 10, 12,   /*T*/25, 23, 19, 21, 22
 	};
 
-	Chunk   c = neighbors[6]->chunk;
-	DATA32  out;
-	DATA16  model;
-	DATA8   blocks = neighbors[6]->blockIds, p;
-	int     sides, side, count, connect;
-	int     x, y, z;
-	uint8_t Y, data, light, dualside;
+	Chunk    c = neighbors[6]->chunk;
+	DATA32   out;
+	DATA16   model;
+	DATA8    cnxBlock;
+	int      count, connect, x, y, z;
+	uint8_t  Y, dualside, hasLights;
+	uint16_t blockIds3x3[27];
+	uint8_t  skyBlock[27];
+	int      occlusion;
 
 	x = (pos & 15);
 	z = (pos >> 4) & 15;
 	y = (pos >> 8);
 	Y = neighbors[6]->Y >> 4;
+	hasLights = (neighbors[6]->cdFlags & CDFLAG_NOLIGHT) == 0;
 
-	if ((neighbors[6]->cdFlags & CDFLAG_NOLIGHT) == 0)
 	{
-		light = blocks[SKYLIGHT_OFFSET   + (pos >> 1)];
-		sides = blocks[BLOCKLIGHT_OFFSET + (pos >> 1)];
-		if (pos & 1) light = (light & 0xf0) | (sides >> 4);
-		else         light = ((light & 15) << 4) | (sides & 15);
+		struct BlockIter_t iter;
+		mapInitIterOffset(&iter, neighbors[6], pos);
+		iter.nbor = chunkOffsets;
+		occlusion = chunkGetLight(&iter, blockIds3x3, skyBlock, &occlusion, hasLights);
 	}
-	else light = 0xf0; /* brush */
-
-	sides = xsides[x] | ysides[y] | zsides[z];
-	data  = blocks[DATA_OFFSET + (pos >> 1)];
 	model = b->custModel;
 	count = connect = 0;
 
@@ -1554,69 +1611,61 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 		 * - bit2: unused
 		 * - bit3: 1 = top part
 		 */
-		side = 0;
-		if (pos & 1) data >>= 4;
-		else         data &= 15;
-		if (data & 8) /* top part: get bottom part */
 		{
-			count = 8;
-			side = data;
-			if (sides & 32)
-				data = blocks[(pos>>1) - 128 + DATA_OFFSET];
-			else if (neighbors[5])
-				data = neighbors[5]->blockIds[DATA_OFFSET + (pos>>1) + 15*128];
-			if (pos & 1) data >>= 4;
-			else         data &= 15;
+			uint8_t top = blockIds3x3[13] & 15;
+			uint8_t bottom;
+			if (top & 8) /* top part: get bottom part */
+			{
+				bottom = blockIds3x3[4] & 15;
+				count = 8;
+			}
+			else /* bottom part: get top part */
+			{
+				bottom = top;
+				top = blockIds3x3[22] & 15;
+			}
+
+			uint8_t side = (bottom & 3) | ((top&1) << 2);
+			b -= b->id & 15;
+			if (bottom & 4) side = openDoorDataToModel[side];
+			model = b[side+count].custModel;
 		}
-		else /* bottom part: get top part */
-		{
-			if (sides & 16)
-				side = blocks[(pos>>1) + 128 + DATA_OFFSET];
-			else if (neighbors[4])
-				side = neighbors[4]->blockIds[DATA_OFFSET + ((pos>>1) & 127)];
-			if (pos & 1) side >>= 4;
-			else         side &= 15;
-		}
-		side = (data & 3) | ((side&1) << 2);
-		b -= b->id & 15;
-		if (data & 4) side = openDoorDataToModel[side];
-		model = b[side+count].custModel;
 		count = 0;
 		break;
 	case BLOCK_CHEST:
 	case BLOCK_FENCE:
 	case BLOCK_FENCE2:
-		p = connect6blocks + 5;
+		cnxBlock = connect6blocks + 5;
 		count = 4;
 		break;
 	case BLOCK_RSWIRE:
 		/* redstone wire: only use base model */
-		light = b->id & 15;
-		b -= light;
+		skyBlock[13] = b->id & 15;
+		b -= skyBlock[13];
 		// no break;
 	case BLOCK_GLASS:
 		/* need: 14 surrounding blocks (S, E, N, W): 5 bottom, 4 middle, 5 top */
-		p = connect6blocks;
+		cnxBlock = connect6blocks;
 		count = 14;
 		break;
 	case BLOCK_WALL:
 		/* need: 4 surrounding blocks (S, E, W, N), 1 bottom (only for face culling), 1 top */
-		p = connect6blocks + 4;
+		cnxBlock = connect6blocks + 4;
 		count = 10;
 		break;
 	case BLOCK_BED:
-		p = chunkGetTileEntityFromOffset(c, neighbors[6]->Y, pos);
-		if (p)
+		cnxBlock = chunkGetTileEntityFromOffset(c, neighbors[6]->Y, pos);
+		if (cnxBlock)
 		{
-			struct NBTFile_t nbt = {.mem = p};
+			struct NBTFile_t nbt = {.mem = cnxBlock};
 			connect = 1 << NBT_GetInt(&nbt, NBT_FindNode(&nbt, 0, "color"), 14);
 		}
 		/* default color: red */
 		else connect = 1 << 14;
 		break;
 	case BLOCK_SIGN:
-		if ((neighbors[6]->cdFlags & CDFLAG_NOLIGHT) == 0) /* don't render sign text for brush */
-			c->signList = signAddToList(b->id, chunkGetTileEntityFromOffset(c, neighbors[6]->Y, pos), c->signList, light);
+		if (hasLights) /* don't render sign text for brush */
+			c->signList = signAddToList(b->id, chunkGetTileEntityFromOffset(c, neighbors[6]->Y, pos), c->signList, skyBlock[13]);
 		break;
 	default:
 		/* piston head with a tile entity: head will be rendered as an entity if it is moving */
@@ -1632,35 +1681,10 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 
 	if (count > 0)
 	{
-		/* retrieve blockIds for connected models (<p> is pointing to connect6blocks[]) */
+		/* retrieve blockIds for connected models (<cnxBlock> is pointing to connect6blocks[]) */
 		uint16_t blockIdAndData[14];
-		DATA16   ids;
-		for (ids = blockIdAndData; count > 0; p ++, ids ++, count --)
-		{
-			uint8_t ocs = occlusionSides[side = *p] & ~sides;
-			int     off = pos;
-			if (ocs > 0)
-			{
-				/* neighbor is in another chunk: bits of OCS will tell where: 1:S, 2:E, 4:N, 8:W, 16:T, 32:B */
-				Chunk sub = c + chunkOffsets[c->neighbor + (ocs&15)];
-				int   lay = Y + subChunkOff[ocs];
-				if (lay < 0 || lay >= CHUNK_LIMIT || (c->noChunks & ocs)) continue;
-				ChunkData cd = sub->layer[lay];
-				if (! cd) continue;
-				/* translate pos into new chunk */
-				off += blockOffset[ocs] + blockOffset2[occlusionSides[side] & sides];
-				/* block and metadata */
-				ids[0] = cd->blockIds[off] << 4;
-				data   = cd->blockIds[DATA_OFFSET + (off >> 1)];
-			}
-			else
-			{
-				off += occlusionNeighbors[side];
-				ids[0] = blocks[off] << 4;
-				data   = blocks[DATA_OFFSET + (off >> 1)];
-			}
-			ids[0] |= (off & 1 ? data >> 4 : data & 15);
-		}
+		uint8_t  i;
+		for (i = 0; i < count; blockIdAndData[i] = blockIds3x3[cnxBlock[i]], i ++);
 		connect = blockGetConnect(b, blockIdAndData);
 	}
 
@@ -1681,7 +1705,8 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 		}
 		/* check if we can eliminate even more faces */
 		uint8_t norm = GET_NORMAL(model);
-		if (model[axisCheck[norm]] == axisAlign[norm] && b->special != BLOCK_GLASS /*iron bars and glass pane already have their model culled*/)
+		/* iron bars and glass pane already have their model culled */
+		if (model[axisCheck[norm]] == axisAlign[norm] && b->special != BLOCK_GLASS)
 		{
 			extern int8_t opp[];
 			struct BlockIter_t iter;
@@ -1719,7 +1744,7 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 		out[4] = RELZ(coord[2]+z) | (U << 14) | (V << 23);
 		out[5] = ((GET_UCOORD(coord) + 128 - U) << 16) |
 		         ((GET_VCOORD(coord) + 128 - V) << 24) | (GET_NORMAL(model) << 9);
-		out[6] = light | (light << 8) | (light << 16) | (light << 24);
+		out[6] = chunkFillCustLight(model, skyBlock, out + 5, occlusion);
 		coord  = model + INT_PER_VERTEX * 3;
 		if (dualside) out[5] |= FLAG_DUAL_SIDE;
 
@@ -1929,7 +1954,7 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 				uint8_t skyval, blockval, off, ocs;
 
 				n = 4;
-				switch (popcount((occlusion & occlusionIfNeighbor[i+k]))) {
+				switch (popcount(occlusion & occlusionIfNeighbor[i+k])) {
 				case 2: ocs = 3; n = 3; break;
 				case 1: ocs = 1; break;
 				default: ocs = occlusion & occlusionIfCorner[i+k] ? 1 : 0;

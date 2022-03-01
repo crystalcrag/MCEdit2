@@ -376,6 +376,7 @@ enum                       /* special values for Block_t.rswire */
 #define BASEVTX            2048
 #define ORIGINVTX          15360
 #define MIDVTX             (1 << 13)
+#define TOVERTEXint(x)     ((x) >> 11)
 #define RELDX(x)           (VERTEX(x) + MIDVTX - X1)
 #define RELDY(x)           (VERTEX(x) + MIDVTX - Y1)
 #define RELDZ(x)           (VERTEX(x) + MIDVTX - Z1)

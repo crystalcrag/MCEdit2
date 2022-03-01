@@ -1811,7 +1811,7 @@ Bool mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 		mapUpdateRestoreLight(iter);
 	}
 
-	if ((iter.cd->cdFlags & CDFLAG_ISINUPDATE) == 0 && blockId != oldId)
+	if ((iter.cd->cdFlags & CDFLAG_ISINUPDATE) == 0 && (blockId != oldId || (blockUpdate & UPDATE_FORCE)))
 	{
 		/* not in update list: add it now */
 		if (b->updateNearby || (oldId > 0 && blockIds[oldId >> 4].updateNearby))
@@ -1947,17 +1947,21 @@ Bool mapActivate(Map map, vec4 pos)
 	mapInitIter(map, &iter, pos, False);
 	if (! iter.blockIds) return False;
 
-	int block = iter.blockIds[iter.offset] << 4;
-	int data  = iter.blockIds[DATA_OFFSET + (iter.offset >> 1)];
+	int blockId = mapActivateBlock(&iter, pos, getBlockId(&iter));
 
-	if (iter.offset & 1) block |= data >> 4;
-	else                 block |= data & 15;
-
-	block = mapActivateBlock(&iter, pos, block);
-
-	if (block > 0)
+	if (blockId > 0)
 	{
-		mapUpdate(map, pos, block, NULL, UPDATE_NEARBY | UPDATE_SILENT);
+		Block b = &blockIds[blockId >> 4];
+		mapUpdateInit(&iter);
+		if (b->special == BLOCK_DOOR)
+		{
+			/* need to force update top part too */
+			mapIter(&iter, 0, 1, 0);
+			mapUpdate(map, NULL, getBlockId(&iter), NULL, UPDATE_SILENT | UPDATE_UNDOLINK | UPDATE_FORCE);
+			mapIter(&iter, 0, -1, 0);
+		}
+		mapUpdate(map, NULL, blockId, NULL, UPDATE_SILENT);
+		mapUpdateEnd(map);
 		renderAddModif();
 		return True;
 	}

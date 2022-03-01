@@ -1,3 +1,7 @@
+=========== Week 9 ===========
+Mon Feb 28:
+	* CUST lighting vastly improved, AO slightly improved.
+
 =========== Week 8 ===========
 Sun Feb 27:
 	* started refactoring of CUST lighting/AO.

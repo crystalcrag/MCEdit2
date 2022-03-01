@@ -863,7 +863,7 @@ void mceditWorld(void)
 					break;
 				#ifdef DEBUG
 				case SDLK_F1:
-					if (mod & SITK_FlagShift)
+					if (mod & SITK_FlagCtrl)
 						renderDebugBlock();
 					else
 						goto case_SDLK;

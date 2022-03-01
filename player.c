@@ -100,6 +100,9 @@ void playerSaveLocation(Player p)
 	NBT_SetFloat(levelDat, NBT_FindNode(levelDat, player, "OnGround"), &select, 1); select = p->pmode;
 	NBT_SetFloat(levelDat, NBT_FindNode(levelDat, player, "playerGameType"), &select, 1);
 	NBT_MarkForUpdate(levelDat, 0, 1);
+
+	CopyString(p->inventory.infoTxt, LANG("Location saved"), sizeof p->inventory.infoTxt);
+	p->inventory.infoState = INFO_INV_INIT;
 }
 
 static void playerSetDir(Player p)

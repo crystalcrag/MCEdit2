@@ -2437,10 +2437,7 @@ int blockAdjustOrient(int blockId, BlockOrient info, vec4 inter)
 		if (side == 4) return blockId+5;
 		return blockId + orientTorch[side];
 	case ORIENT_DOOR:
-		side = (fabs(inter[VX] - (int) inter[VX]) < 0.5 ? 1 : 0) | (fabs(inter[VZ] - (int) inter[VZ]) < 0.5 ? 2 : 0);
-//		static int oldside = -1;
-//		if (side != oldside)
-//			fprintf(stderr, "side = %d - ", side), oldside = side;
+		side = (fabs(inter[VX] - (int) inter[VX]) >= 0.5 ? 1 : 0) | (fabs(inter[VZ] - (int) inter[VZ]) >= 0.5 ? 2 : 0);
 		return (blockId & ~15) | orientDoor[info->direction&1 ? side+4 : side];
 		break;
 	case ORIENT_LEVER:
@@ -2450,9 +2447,7 @@ int blockAdjustOrient(int blockId, BlockOrient info, vec4 inter)
 		else
 			side = orientLever[info->side];
 		if (strstr(b->tech, "button") && side >= 6)
-		{
 			side = side == 7 ? 0 : 5;
-		}
 		return (blockId & ~15) | side;
 		break;
 	case ORIENT_SNOW:
