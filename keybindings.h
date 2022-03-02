@@ -19,12 +19,12 @@ typedef enum  /* meaning of each index of keyBindings[] table */
 
 	KBD_JUMP,
 	KBD_FLYDOWN,
-	KBD_SLICE_VIEW,
 	KBD_PLACE_BLOCK,
 	KBD_MOVE_VIEW,
 	KBD_ACTIVATE_BLOCK,
 	KBD_PICK_BLOCK,
 
+	KBD_MOVE_SEL_UP,
 	KBD_HIDE_HUD,
 	KBD_WAYPOINT_EDITOR,
 	KBD_SCHEMA_LIBRARY,
@@ -33,6 +33,7 @@ typedef enum  /* meaning of each index of keyBindings[] table */
 	KBD_CLOSE_WORLD,
 	KBD_QUICK_OPTIONS,
 
+	KBD_MOVE_SEL_DOWN,
 	KBD_TAKE_SCREENSHOT,
 	KBD_FULLSCREEN,
 	KBD_CLEAR_SELECTION,
@@ -47,6 +48,7 @@ typedef enum  /* meaning of each index of keyBindings[] table */
 	KBD_SWITCH_MODE,
 	KBD_SAVE_LOCATION,
 	KBD_FRAME_ADVANCE,
+	KBD_SLICE_VIEW,
 
 	KBD_SLOT_0,
 	KBD_SLOT_1,

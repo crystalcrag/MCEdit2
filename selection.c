@@ -249,9 +249,6 @@ static int cancelActivation(SIT_Widget w, APTR cd, APTR ud)
 	return -1;
 }
 
-#define KBD_MOVE_SEL_UP    4
-#define KBD_MOVE_SEL_DOWN  5
-
 /* nudge selection using directional keys normally used for player movement */
 Bool selectionProcessKey(int command, int key, int mod)
 {
@@ -267,11 +264,6 @@ Bool selectionProcessKey(int command, int key, int mod)
 		if (selection.brush && selection.nudgePoint < 4)
 			return False;
 
-		if (mod == 0 && command < 0)
-		{
-			if (key == 'q') command = KBD_MOVE_SEL_UP; else
-			if (key == 'z') command = KBD_MOVE_SEL_DOWN;
-		}
 		switch (command) {
 		case KBD_MOVE_FORWARD:  axis = axisSENW[dir];   dir =  axisMain[dir]; break;
 		case KBD_MOVE_BACKWARD: axis = axisSENW[dir];   dir = -axisMain[dir]; break;

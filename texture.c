@@ -19,48 +19,66 @@
 static void textureGenMipmap(DATA8 data, int w, int h, int bpp)
 {
 	glGenerateMipmap(GL_TEXTURE_2D);
-	#if 0
 	if (bpp == 4)
 	{
-		char  trans[256];
+		/*
+		 * default filtering done by OpenGL is problematic: texture tile that does not contain any
+		 * translucent fragment (1 <= alpha <= 254) at level 0, might contain some at level 1 and above
+		 * due to linear filtering: that means any texture that isn't fully opaque should go to the alpha
+		 * rendering pass, with potential triangle sorting: YUCK!
+		 *
+		 * there are way too many triangles that are impacted by this, we need to disable alpha for
+		 * these textures, therefore applying selective filtering.
+		 */
 		DATA8 s1, s2, d;
-		int   i,  j, mipmap, step;
+		int   i,  j, mipmap;
 		int   stride = w * bpp;
 
-		glGenerateMipmap(GL_TEXTURE_2D);
-		memset(trans+1, 0, 254);
-		trans[0] = trans[255] = 1;
-		step = w / (32 * 4);
-
-		/* generate mipmap until texture is 4x4px */
-		for (mipmap = 1; (1<<mipmap) <= step; mipmap ++)
+		/*
+		 * the terrain texture is 32x64 tiles, therefore texture mapping MUST not use a mipmap level
+		 * below 32px x 64px, otherwise nearby tile texture will merge and produce complete garbage.
+		 */
+		for (mipmap = 1; w > 32; mipmap ++)
 		{
 			for (j = 0, d = data, s1 = data, s2 = data + stride; j < h; j += 2, s1 += stride, s2 += stride)
 			{
 				for (i = 0; i < w; i += 2, s2 += 8, s1 += 8, d += 4)
 				{
-					char isTrans = trans[s1[3]] && trans[s1[7]] && trans[s2[3]] && trans[s2[7]];
-					d[0] = (s1[0] + s1[4] + s2[0] + s2[4]) >> 2;
-					d[1] = (s1[1] + s1[5] + s2[1] + s2[5]) >> 2;
-					d[2] = (s1[2] + s1[6] + s2[2] + s2[6]) >> 2;
-					d[3] = (s1[3] + s1[7] + s2[3] + s2[7]) >> 2;
-					if (isTrans)
+					if (s1[3] == 0 || s1[7] == 0 || s2[3] == 0 || s2[7] == 0)
 					{
+						int nb = 0;
+						int amount[4] = {0};
+						if (s1[3]) amount[0] += s1[0], amount[1] += s1[1], amount[2] += s1[2], nb ++;
+						if (s1[7]) amount[0] += s1[4], amount[1] += s1[5], amount[2] += s1[6], nb ++;
+						if (s2[3]) amount[0] += s2[0], amount[1] += s2[1], amount[2] += s2[2], nb ++;
+						if (s2[7]) amount[0] += s2[4], amount[1] += s2[5], amount[2] += s2[6], nb ++;
 						/* no alpha in texture, also avoid alpha in mipmap */
-						if (d[3] >= 127)
+						if (nb > 1)
+						{
+							d[0] = amount[0] / nb;
+							d[1] = amount[1] / nb;
+							d[2] = amount[2] / nb;
 							d[3] = 255;
+						}
 						else
 							d[0] = d[1] = d[2] = d[3] = 0;
+					}
+					else
+					{
+						d[0] = (s1[0] + s1[4] + s2[0] + s2[4]) >> 2;
+						d[1] = (s1[1] + s1[5] + s2[1] + s2[5]) >> 2;
+						d[2] = (s1[2] + s1[6] + s2[2] + s2[6]) >> 2;
+						d[3] = (s1[3] + s1[7] + s2[3] + s2[7]) >> 2;
 					}
 				}
 			}
 			w /= 2;
 			h /= 2;
 			stride /= 2;
-			glTexImage2D(GL_TEXTURE_2D, mipmap, GL_RGBA8, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+			glTexSubImage2D(GL_TEXTURE_2D, mipmap, 0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, data);
 		}
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, mipmap-1);
 	}
-	#endif
 }
 
 void textureDump(int glTex, int w, int h)
@@ -113,11 +131,14 @@ int textureLoad(const char * dir, const char * name, int clamp, PostProcess_t pr
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, clamp ? GL_CLAMP : GL_REPEAT);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 		/* XXX looks way worse if mipmap is enabled and looking at a shallow angle :-/ */
-		// glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_NEAREST);
+		//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 		glTexImage2D(GL_TEXTURE_2D, 0, format, w, h, 0, cspace, GL_UNSIGNED_BYTE, data);
 		checkOpenGLError("glTexImage2D");
-		textureGenMipmap(data, w, h, bpp);
+		if (process)
+			textureGenMipmap(data, w, h, bpp);
+		else
+			glGenerateMipmap(GL_TEXTURE_2D);
 		free(data);
 		return texId;
 	}

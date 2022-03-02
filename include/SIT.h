@@ -323,7 +323,7 @@ enum
 	SIT_ThumbHeight      = 115,  /* CSG: Int */
 	SIT_GaugePadding     = 116,  /* CSG: Int */
 	SIT_BuddyEdit        = 117,  /* C__: SIT_Widget */
-	SIT_IsDragged        = 118,  /* __G: Bool */
+	SIT_DragNotify       = 118,  /* __G: Bool */
 	SIT_ArrowType        = 119,  /* C__: Enum */
 	SIT_WheelMult        = 120,  /* CSG: Int */
 	// SIT_CurValue      = 75,   /* _SG: Int * (slider only, already defined for SIT_BUTTON) */
@@ -354,8 +354,8 @@ enum
 	SIT_SelPath          = 137,  /* __G: String */
 	SIT_NbSelect         = 138,  /* __G: Int */
 
-	SIT_TagPrivate       = 0x10000,
-	SIT_TagUser          = 0x100000
+	SIT_TagPrivate       = 0x100,
+	SIT_TagUser          = 0x1000
 };
 
 /* aliases */
@@ -753,7 +753,7 @@ enum /* special values for SIT_OnKey_t.keycode field */
 };
 
 /* special tag modifier to enable printf-like parsing for string parameter */
-#define	XfMt            0x8000000
+#define	XfMt            0x10000
 
 /* default NVG flags for SIT_Init() (no need to include nanovg.h) */
 #define SIT_NVG_FLAGS   3

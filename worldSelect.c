@@ -543,9 +543,9 @@ static void worldSelectBindings(SIT_Widget parent, KeyBinding bindings, int coun
 {
 	SIT_Widget prev1 = NULL;
 	SIT_Widget prev2 = NULL;
-	int i;
+	int i, odd = count & 1;
 
-	for (i = 0, count >>= 1; i < count; i ++, bindings ++)
+	for (i = 0, count = (count+1) >> 1; i < count; i ++, bindings ++)
 	{
 		TEXT msg[80];
 		/* left column */
@@ -573,6 +573,8 @@ static void worldSelectBindings(SIT_Widget parent, KeyBinding bindings, int coun
 		prev1 = button;
 
 		/* right column */
+		if (odd && i + 1 == count) break;
+
 		SITK_ToText(msg, sizeof msg, bindings[count].key);
 		button = SIT_CreateWidget("kbd.key", SIT_BUTTON, parent,
 			SIT_Top,             prev2 ? SITV_AttachWidget : SITV_AttachForm, prev2, SITV_Em(0.5),
@@ -870,9 +872,9 @@ static int worldSelectConfig(SIT_Widget w, APTR cd, APTR ud)
 
 	SIT_Widget parent = SIT_GetById(dialog, "tabs");
 
-	worldSelectBindings(parent, editBindings,      14, 2);
-	worldSelectBindings(parent, editBindings + 14, 14, 3);
-	worldSelectBindings(parent, editBindings + 28,  6, 5);
+	worldSelectBindings(parent, editBindings,      13, 2);
+	worldSelectBindings(parent, editBindings + 13, 16, 3);
+	worldSelectBindings(parent, editBindings + 29,  7, 5);
 
 	SIT_AddCallback(parent, SITE_OnChange, worldSelectTabChanged, NULL);
 

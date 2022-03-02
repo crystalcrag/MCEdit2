@@ -1,6 +1,10 @@
 =========== Week 9 ===========
+Tue Mar 1:
+	* added support for mipmap on terrain.png (finally!).
+	* better struct padding on SITGL datatypes saved 4K on release binary size (-1.5%).
+
 Mon Feb 28:
-	* CUST lighting vastly improved, AO slightly improved.
+	* CUST lighting vastly improved (as good as SOLID), AO slightly improved.
 
 =========== Week 8 ===========
 Sun Feb 27:

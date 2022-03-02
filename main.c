@@ -45,13 +45,13 @@ KeyBindings_t keyBindings = {
 	{DLANG("Trow item"),            "KeyTrowItem",      'T'},
 	{DLANG("Jump"),                 "KeyJump",          SITK_FlagUp + SITK_Space},
 	{DLANG("Fly down"),             "KeyFlyDown",       SITK_FlagUp + SITK_LShift},
-	{DLANG("2D slice view"),        "KeySliceView",     SITK_Tab},
 	{DLANG("Place block"),          "KeyPlaceBlock",    SITK_LMB},
 	{DLANG("Move view"),            "KeyMoveView",      SITK_RMB},
 	{DLANG("Activate device"),      "KeyActivateBlock", SITK_RMB},
 	{DLANG("Pick block"),           "KeyPickBlock",     SITK_MMB},
 
 	/* menu commands page */
+	{DLANG("Selection up"),         "CmdSelUp",         'Q'},
 	{DLANG("Hide HUD"),             "CmdHideHud",       SITK_F1},
 	{DLANG("Waypoint editor"),      "CmdWaypoints",     SITK_FlagCtrl + 'G'},
 	{DLANG("Library schematics"),   "CmdSchemaLibrary", SITK_FlagCtrl + 'L'},
@@ -59,6 +59,7 @@ KeyBindings_t keyBindings = {
 	{DLANG("Redo change"),          "CmdRedoChange",    SITK_FlagCtrl + 'Y'},
 	{DLANG("Close world"),          "CmdCloseWorld",    SITK_FlagCtrl + 'W'},
 	{DLANG("Quick options"),        "CmdQuickOptions",  SITK_FlagCtrl + 'O'},
+	{DLANG("Selection down"),       "CmdSelDown",       'Z'},
 	{DLANG("Take screenshot"),      "CmdTakeCapture",   SITK_F2},
 	{DLANG("Toggle fullscreen"),    "CmdFullscren",     SITK_F11},
 	{DLANG("Clear selection"),      "CmdClearSel",      SITK_FlagCtrl + 'D'},
@@ -74,6 +75,7 @@ KeyBindings_t keyBindings = {
 	{DLANG("Switch player mode"),   "DebugSwitchMode",  SITK_F8},
 	{DLANG("Save location"),        "DebugSaveLoc",     SITK_F10},
 	{DLANG("Frame advance"),        "DebugFrame",       SITK_BackSpace},
+	{DLANG("2D slice view"),        "DebugSliceView",   SITK_Tab},
 
 	/* KBD_SLOT_[0~9]: not configurable (yet?) */
 	{NULL, NULL, '0'},
@@ -758,6 +760,10 @@ Bool mceditProcessCommand(EventState state, int keyUp)
 			break;
 		case KBD_FULLSCREEN:
 			SIT_ToggleFullScreen(globals.fullScrWidth, globals.fullScrHeight);
+			break;
+		case KBD_MOVE_SEL_DOWN:
+		case KBD_MOVE_SEL_UP:
+			/* these are not processed here */
 			break;
 		}
 		cmd >>= 8;
