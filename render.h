@@ -38,7 +38,7 @@ void renderSetCompassOffset(float offset);
 void renderSetSelectionPoint(int action);
 int  renderGetTerrain(int size[2], int * texId);
 int  renderInitUBO(void);
-void renderSetFOV(int fov);
+void renderSetFOV(float fov);
 void renderSetFOG(int fogEnabled);
 Bool renderRotatePreview(int dir);
 void renderSetSelection(DATA32 points);

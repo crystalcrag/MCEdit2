@@ -33,7 +33,7 @@
 GameState_t mcedit;
 MCGlobals_t globals;
 
-/* list all the configurable shortcuts */
+/* list all the configurable keys */
 KeyBindings_t keyBindings = {
 	/* keybindings page */
 	{DLANG("Forward"),              "KeyForward",       SITK_FlagUp + 'W'},
@@ -49,6 +49,7 @@ KeyBindings_t keyBindings = {
 	{DLANG("Move view"),            "KeyMoveView",      SITK_RMB},
 	{DLANG("Activate device"),      "KeyActivateBlock", SITK_RMB},
 	{DLANG("Pick block"),           "KeyPickBlock",     SITK_MMB},
+	{DLANG("Zoom"),                 "KeyZoom",          SITK_FlagUp + SITK_Tab},
 
 	/* menu commands page */
 	{DLANG("Selection up"),         "CmdSelUp",         'Q'},
@@ -75,7 +76,7 @@ KeyBindings_t keyBindings = {
 	{DLANG("Switch player mode"),   "DebugSwitchMode",  SITK_F8},
 	{DLANG("Save location"),        "DebugSaveLoc",     SITK_F10},
 	{DLANG("Frame advance"),        "DebugFrame",       SITK_BackSpace},
-	{DLANG("2D slice view"),        "DebugSliceView",   SITK_Tab},
+	{DLANG("2D slice view"),        "DebugSliceView",   SITK_FlagCtrl + SITK_Tab},
 
 	/* KBD_SLOT_[0~9]: not configurable (yet?) */
 	{NULL, NULL, '0'},
@@ -610,6 +611,12 @@ Bool mceditProcessCommand(EventState state, int keyUp)
 		case KBD_ACTIVATE_BLOCK:
 			mceditActivate();
 			break;
+		case KBD_ZOOM_VIEW:
+			if (! keyUp && mcedit.FOV.state == 0)
+				lerpTimeInit(&mcedit.FOV, globals.fieldOfVision, 20, ZOOM_DURATION);
+			else
+				lerpTimeInverse(&mcedit.FOV);
+			break;
 
 		case KBD_HIDE_HUD:
 			renderToggleDebug(RENDER_DEBUG_NOHUD);
@@ -958,9 +965,15 @@ void mceditWorld(void)
 				case 0:
 					if (state.capture)
 					{
+						state.capture = 2;
+						if (mcedit.FOV.change)
+						{
+							mcedit.mouse.dx = event.motion.xrel;
+							mcedit.mouse.dy = event.motion.yrel;
+							break;
+						}
 						playerLookAt(&mcedit.player, event.motion.xrel, event.motion.yrel);
 						renderSetViewMat(mcedit.player.pos, mcedit.player.lookat, &mcedit.player.angleh);
-						state.capture = 2;
 						if (globals.lockMouse)
 							/* always point to what is in the middle of screen */
 							renderPointToBlock(globals.width >> 1, globals.height >> 1);
@@ -1042,6 +1055,22 @@ void mceditWorld(void)
 		if (state.sunMove)
 			skydomeMoveSun(state.sunMove);
 		globals.curTime = FrameGetTime();
+		if (mcedit.FOV.state)
+			renderSetFOV(lerpTimeValue(&mcedit.FOV));
+		if (mcedit.FOV.change)
+		{
+			slideAverage(&mcedit.mouse, &mcedit.mouse.dx, &mcedit.mouse.dy);
+			if (mcedit.mouse.dy || mcedit.mouse.dx)
+			{
+				playerLookAt(&mcedit.player, mcedit.mouse.dx, mcedit.mouse.dy);
+				renderSetViewMat(mcedit.player.pos, mcedit.player.lookat, &mcedit.player.angleh);
+				if (globals.lockMouse)
+					/* always point to what is in the middle of screen */
+					renderPointToBlock(globals.width >> 1, globals.height >> 1);
+			}
+			mcedit.mouse.dx = 0;
+			mcedit.mouse.dy = 0;
+		}
 		renderWorld();
 		entityAnimate();
 		updateTick();

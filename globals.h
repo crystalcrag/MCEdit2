@@ -14,6 +14,7 @@
  * of useless, so keep them accessible in this struct, to avoid exposing too many internal details
  * from all the modules.
  */
+typedef struct Map_t *     Map;
 
 typedef struct MCGlobals_t
 {
@@ -61,7 +62,7 @@ typedef struct MCGlobals_t
 	float   mouseSpeed;       /* % over base value */
 	int     redstoneTick;     /* in millisec */
 	int     targetFPS;        /* < 0 == uncapped */
-	uint8_t fieldOfVision;    /* in degrees */
+	float   fieldOfVision;    /* in degrees */
 	uint8_t guiScale;         /* [50-200] % */
 	uint8_t brightness;       /* [0-101] => map [0-100] to ambient values [0.2 - 0.4], 101 means full brightness */
 	uint8_t renderDist;       /* in chunks */

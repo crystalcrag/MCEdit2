@@ -1207,8 +1207,8 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 	memset(visited, 0, sizeof visited);
 	hasLights = (cur->cdFlags & CDFLAG_NOLIGHT) == 0;
 
-	if (c->X == -208 && cur->Y == 32 && c->Z == -48)
-		globals.breakPoint = 1;
+//	if (c->X == -32 && cur->Y == 80 && c->Z == -560)
+//		globals.breakPoint = 1;
 
 	for (Y = 0, pos = air = 0; Y < 16; Y ++)
 	{
@@ -1227,8 +1227,8 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 			block = cur->blockIds[pos];
 			state = blockGetById(ID(block, data));
 
-			if (globals.breakPoint && pos == 3855)
-				globals.breakPoint = 2;
+//			if (globals.breakPoint && pos == 94)
+//				globals.breakPoint = 2;
 
 			/* 3d flood fill for cave culling */
 			if ((slotsXZ[pos & 0xff] || slotsY[pos >> 8]) && ! blockIsFullySolid(state) && (visited[pos>>3] & mask8bit[pos&7]) == 0)
@@ -1483,7 +1483,7 @@ static int chunkGetLight(BlockIter iter, DATA16 blockIds3x3, DATA8 skyBlock, int
 		{
 			if (nbor->special == BLOCK_HALF || nbor->special == BLOCK_STAIRS)
 			{
-				if (hasLights && i != 13)
+				if (hasLights)
 					skyBlock[i] = chunkPatchLight(*iter);
 				slab |= 1 << i;
 			}

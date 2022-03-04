@@ -1,4 +1,12 @@
 =========== Week 9 ===========
+Thu Mar 3:
+	* better handling of zoom.
+	* wrong tex rotation for SOLID near half block.
+
+Wed Mar 2:
+	* lighting glitches on top of (bottom) half-slab with solid block just above.
+	* early implemention of zoom.
+
 Tue Mar 1:
 	* added support for mipmap on terrain.png (finally!).
 	* better struct padding on SITGL datatypes saved 4K on release binary size (-1.5%).

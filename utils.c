@@ -1093,6 +1093,78 @@ float normAngle(float angle)
 	return angle;
 }
 
+
+/*
+ * interpolate a value over time, with possibility to reverse course in the middle
+ */
+#include "globals.h"
+
+void lerpTimeInit(LerpTime lerp, float from, float to, float duration)
+{
+	lerp->from   = from;
+	lerp->to     = to;
+	lerp->todo   = 0;
+	lerp->end    = globals.curTime + (double) duration;
+	lerp->dir    = 0;
+	lerp->time   = duration;
+	lerp->state  = 1;
+	lerp->change = 1;
+}
+
+void lerpTimeInverse(LerpTime lerp)
+{
+	if (lerp->dir == 0)
+	{
+		lerp->end = globals.curTime + (double) (lerp->time * lerp->todo);
+		lerp->dir = 1;
+		lerp->state = 2;
+	}
+	else
+	{
+		lerp->state = 1;
+		lerp->dir = 0;
+		lerp->end = globals.curTime + (double) (lerp->time * lerp->todo);
+	}
+	lerp->todo = 1 - lerp->todo;
+	float tmp = lerp->from;
+	lerp->from = lerp->to;
+	lerp->to = tmp;
+}
+
+float lerpTimeValue(LerpTime lerp)
+{
+	float left = lerp->end - globals.curTime;
+	if (left < 0)
+	{
+		lerp->todo = 1;
+		lerp->state = 0;
+		if (lerp->dir == 1) lerp->change = 0;
+		return lerp->to;
+	}
+	lerp->todo = 1 - left / lerp->time;
+	return (lerp->to - lerp->from) * lerp->todo + lerp->from;
+}
+
+
+void slideAverage(SlideAvg slide, DATAS16 dx, DATAS16 dy)
+{
+	DATAS16 cur = slide->values + slide->cur;
+	cur[0] = *dx;
+	cur[1] = *dy;
+	slide->cur += 2;
+	if (slide->cur == DIM(slide->values))
+		slide->cur = 0;
+
+	DATAS16 eof;
+	int sumX, sumY;
+	for (sumX = sumY = 0, eof = EOT(slide->values), cur = slide->values; cur < eof; cur += 2)
+		sumX += cur[0], sumY += cur[1];
+
+	*dx = sumX / (DIM(slide->values)/2);
+	*dy = sumY / (DIM(slide->values)/2);
+}
+
+
 /* compiler without builtin support for popcount */
 #ifndef popcount
 int popcount(uint32_t x)

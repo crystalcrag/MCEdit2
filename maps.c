@@ -283,7 +283,6 @@ VTXBBox mapGetBBox(BlockIter iterator, int * count, int * cnxFlags)
 			return bboxes;
 		}
 		break;
-	case BLOCK_CHEST:
 	case BLOCK_FENCE:
 	case BLOCK_FENCE2:
 	case BLOCK_GLASS:

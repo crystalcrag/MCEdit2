@@ -343,6 +343,7 @@ void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DAT
 
 	struct ModelCache_t models;
 
+	uint8_t skyBlockCenter[6];
 	uint8_t faces[8];
 	uint8_t pos[4];
 	DATA32  out;
@@ -354,6 +355,18 @@ void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DAT
 	models.set = 1<<13;
 	models.cache[13] = model[0];
 	for (i = 0, j = 1, k = model[0], face = faces; i < 8; i ++, *face++ = (k & j) ? genSides : 255, j <<= 1);
+
+	/* lighting of center block depend on face normal */
+	if (genSides == 0)
+	{
+		skyBlockCenter[0] = skyBlock[16];
+		skyBlockCenter[1] = skyBlock[14];
+		skyBlockCenter[2] = skyBlock[10];
+		skyBlockCenter[3] = skyBlock[12];
+		skyBlockCenter[4] = skyBlock[13];
+		skyBlockCenter[5] = skyBlock[13];
+	}
+	else memset(skyBlockCenter, 0, 6);
 
 	/* do the meshing */
 	#define x      pos[0]
@@ -539,7 +552,7 @@ void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DAT
 				base = vtx[8+coordV[j]] << texSz; Vsz = (UV[1] << 4) + (rev != 2 ? 16 - base : base);
 				switch (rotate & 3) {
 				case 1: swap(V, Vsz); break;
-				case 3: base = U; U = Vsz; Vsz = Usz; Usz = V; V = base; break;
+				case 3: swap(U, Usz); break;
 				case 2: swap(U, Usz); swap(V, Vsz); break;
 				}
 				out[1] = Z1 | (RELDX(vtx[4] + xyz[0]) << 16) | ((V & 512) << 21);
@@ -559,7 +572,7 @@ void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DAT
 				{
 					uint8_t max, l, skyval;
 					uint8_t adjust = (vtxAdjust[j] >> k*4) & 15;
-					for (l = skyval = skyBlock[13], max = skyval & 15, skyval &= 0xf0; l < 4; l ++, face2 ++)
+					for (l = 0, skyval = skyBlockCenter[j], max = skyval & 15, skyval &= 0xf0; l < 4; l ++, face2 ++)
 					{
 						//uint8_t  skyvtx = skyBlock[face2[0]];
 						uint8_t  skyvtx = skyBlock[halfBlockSkyOffset(vtx, j, k, blockIndexToXYZ[face2[0]], adjust)];

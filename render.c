@@ -1852,9 +1852,10 @@ void renderSaveRestoreState(Bool save)
 	}
 }
 
-void renderSetFOV(int fov)
+/* will use the value from globals :-/ */
+void renderSetFOV(float fov)
 {
-	matPerspective(render.matPerspective, globals.fieldOfVision, globals.width / (float) globals.height, NEAR_PLANE, 1000);
+	matPerspective(render.matPerspective, fov, globals.width / (float) globals.height, NEAR_PLANE, 1000);
 	/* must be same as the one used in the vertex shader */
 	matMult(globals.matMVP, render.matPerspective, render.matModel);
 	/* we will need that matrix sooner or later */

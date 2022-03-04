@@ -143,10 +143,39 @@ float normAngle(float angle);
 	(A)[VY] = ((A)[VY] * num) + (B)[VY], \
 	(A)[VZ] = ((A)[VZ] * num) + (B)[VZ]
 
+
+/* interpolate value over time */
+typedef struct LerpTime_t       LerpTime_t;
+typedef struct LerpTime_t *     LerpTime;
+
+struct LerpTime_t
+{
+	float   from, to;
+	float   todo, time;
+	double  end;
+	uint8_t dir;
+	uint8_t state;
+	uint8_t change;
+};
+
+void  lerpTimeInit(LerpTime lerp, float from, float to, float duration);
+void  lerpTimeInverse(LerpTime lerp);
+float lerpTimeValue(LerpTime lerp);
+
+/* smooth mouse move */
+typedef struct SlideAvg_t       SlideAvg_t;
+typedef struct SlideAvg_t *     SlideAvg;
+
+struct SlideAvg_t
+{
+	int16_t values[32*2];
+	int16_t cur, dx, dy;
+};
+
+void slideAverage(SlideAvg slide, DATAS16 dx, DATAS16 dy);
+
 /* dynamic array */
 #define vectorNth    vector_nth
-void * vectorPush(vector, void * item);
-void * vectorPushTop(vector);
 
 typedef void (*PostProcess_t)(DATA8 * data, int * w, int * h, int bpp);
 

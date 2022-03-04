@@ -60,8 +60,7 @@ static int optionsSetValue(SIT_Widget w, APTR cd, APTR ud)
 		else globals.compassSize = worldSelect.compassSize * 0.01f;
 		break;
 	case 1: /* field of view */
-		globals.fieldOfVision = worldSelect.fov;
-		renderSetFOV(worldSelect.fov);
+		renderSetFOV(globals.fieldOfVision = worldSelect.fov);
 		break;
 	case 2: /* interface scale */
 		globals.guiScale = worldSelect.guiScale;
@@ -99,12 +98,12 @@ static int optionsSetDefault(SIT_Widget w, APTR cd, APTR ud)
 	globals.distanceFOG = 1;
 	SIT_SetValues(SIT_GetById(ud, "compass"),  SIT_SliderPos, 100, NULL);
 	SIT_SetValues(SIT_GetById(ud, "guiscale"), SIT_SliderPos, globals.guiScale, NULL);
-	SIT_SetValues(SIT_GetById(ud, "fovval"),   SIT_SliderPos, globals.fieldOfVision, NULL);
+	SIT_SetValues(SIT_GetById(ud, "fovval"),   SIT_SliderPos, (int) globals.fieldOfVision, NULL);
 	SIT_SetValues(SIT_GetById(ud, "bright"),   SIT_SliderPos, 0, NULL);
 	SIT_SetValues(SIT_GetById(ud, "tick"), SIT_Title, NULL, NULL);
 	renderSetFOG(globals.distanceFOG);
 	renderToggleDebug(RENDER_DEBUG_BRIGHT);
-	renderSetFOV(globals.fieldOfVision);
+	renderSetFOV(80);
 	return 1;
 }
 
@@ -872,9 +871,9 @@ static int worldSelectConfig(SIT_Widget w, APTR cd, APTR ud)
 
 	SIT_Widget parent = SIT_GetById(dialog, "tabs");
 
-	worldSelectBindings(parent, editBindings,      13, 2);
-	worldSelectBindings(parent, editBindings + 13, 16, 3);
-	worldSelectBindings(parent, editBindings + 29,  7, 5);
+	worldSelectBindings(parent, editBindings,      14, 2);
+	worldSelectBindings(parent, editBindings + 14, 16, 3);
+	worldSelectBindings(parent, editBindings + 30,  7, 5);
 
 	SIT_AddCallback(parent, SITE_OnChange, worldSelectTabChanged, NULL);
 

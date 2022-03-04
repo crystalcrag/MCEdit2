@@ -1689,7 +1689,7 @@ the camera <b>to the center of the whole quad</b>, that distance being converted
 at the price of a bit more work on the CPU side in order for the GPU to do its work.
 
 <p>In a nutshell, chunks are stored in banks, which are pretty big memory segments (or vertex buffer
-objects) stored on the GPU (as of writing this, there are 20Mb in size). This segment are then managed
+objects) stored on the GPU (as of writing this, there are 20Mb in size). These segments are then managed
 using a custom allocator, where the meta-data used to track free/used memory is of course stored on
 the CPU.
 
@@ -1925,7 +1925,7 @@ to generate triangles at arbirary position, but the voxel manipulation functions
 it. To place a model at a truly arbitrary position, you need to use entities: this will be covered in the
 next section (and have their own pros and cons).
 
-<h3 id="meshsolid"><span><tt>SOLID</tt> voxel</span></h3>
+<h3 id="meshsolid"><span>SOLID voxel</span></h3>
 
 <p>These blocks requires quite a bit of work to be converted into meshes. First, keep
 <a href="#quadface">this picture</a> in mind, its information will be used <b>extensively</b>
@@ -2071,7 +2071,7 @@ the function <tt>halfBlockGenMesh()</tt> in <tt>halfBlocks.c</tt>.
 
 <p>/* ... */
 
-<h3 id="meshcust"><span><tt>CUST</tt> voxel</span></h3>
+<h3 id="meshcust"><span>CUST voxel</span></h3>
 
 <p>Custom voxels are blocks that cannot be represented as a <tt>SOLID</tt> voxel. They can have an
 arbitrary shape, but their lighting is quite simplified compared to <tt>SOLID</tt>. For example they

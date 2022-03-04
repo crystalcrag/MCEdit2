@@ -23,6 +23,7 @@ typedef enum  /* meaning of each index of keyBindings[] table */
 	KBD_MOVE_VIEW,
 	KBD_ACTIVATE_BLOCK,
 	KBD_PICK_BLOCK,
+	KBD_ZOOM_VIEW,
 
 	KBD_MOVE_SEL_UP,
 	KBD_HIDE_HUD,

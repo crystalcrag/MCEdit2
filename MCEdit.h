@@ -12,29 +12,33 @@
 #include "player.h"
 #include "globals.h"
 
-#define PREFS_PATH             "MCEdit.ini"
-#define MCEDIT_VERSION         "2.0b1"
+#define PREFS_PATH               "MCEdit.ini"
+#define MCEDIT_VERSION           "2.0b1"
 
-typedef struct GameState_t     GameState_t;
+typedef struct GameState_t       GameState_t;
 
 struct GameState_t
 {
-	Player_t player;           /* current view */
-	int      state;            /* event loop we currently are (GAMELOOP_*) */
-	int      mouseX, mouseY;   /* current mouse pos */
-	int      exit;             /* managed by SITGL */
-	uint8_t  autoEdit;         /* edit last selected world on startup */
-	uint8_t  forceSel;         /* don't display preview item */
-	uint8_t  fullScreen;       /* go fullscreen on startup */
-	uint8_t  askIfSave;        /* 0: don't save, exit, 1: save, exit, 2: cancel */
-	uint8_t  frameAdvance;     /* frame by frame (to debug anim mostly) */
-	TEXT     capture[128];     /* screenshot directory */
-	TEXT     userDir[128];     /* schematics library */
-	TEXT     worldsDir[256];   /* folder where saved worlds are */
-	TEXT     worldEdit[256];   /* world being edited (folder) */
-	TEXT     lang[8];          /* name of language used for interface */
-	APTR     screen;           /* main window pointer and/or screen */
+	Player_t   player;           /* current view */
+	int        state;            /* event loop we currently are (GAMELOOP_*) */
+	int        mouseX, mouseY;   /* current mouse pos */
+	int        exit;             /* managed by SITGL */
+	uint8_t    autoEdit;         /* edit last selected world on startup */
+	uint8_t    forceSel;         /* don't display preview item */
+	uint8_t    fullScreen;       /* go fullscreen on startup */
+	uint8_t    askIfSave;        /* 0: don't save, exit, 1: save, exit, 2: cancel */
+	uint8_t    frameAdvance;     /* frame by frame (to debug anim mostly) */
+	TEXT       capture[128];     /* screenshot directory */
+	TEXT       userDir[128];     /* schematics library */
+	TEXT       worldsDir[256];   /* folder where saved worlds are */
+	TEXT       worldEdit[256];   /* world being edited (folder) */
+	TEXT       lang[8];          /* name of language used for interface */
+	APTR       screen;           /* main window pointer and/or screen */
+	LerpTime_t FOV;              /* interpolate FOV changes */
+	SlideAvg_t mouse;
 };
+
+#define ZOOM_DURATION            200
 
 enum /* possible values for state: which game loop are we running */
 {
@@ -44,11 +48,11 @@ enum /* possible values for state: which game loop are we running */
 	GAMELOOP_SIDEVIEW
 };
 
-void mceditWorld(void);        /* gameloop for WORLD */
-void mceditUIOverlay(int);     /* display an interface on top of editor */
-void mceditSideView(void);     /* gameloop for SIDEVIEW */
-void mceditWorldSelect(void);  /* world selection */
-Bool mceditActivate(void);     /* toggle state of some blocks (door, button, lever, repeater, ...) */
+void mceditWorld(void);          /* gameloop for WORLD */
+void mceditUIOverlay(int);       /* display an interface on top of editor */
+void mceditSideView(void);       /* gameloop for SIDEVIEW */
+void mceditWorldSelect(void);    /* world selection */
+Bool mceditActivate(void);       /* toggle state of some blocks (door, button, lever, repeater, ...) */
 void mceditPlaceBlock(void);
 void toggleFullScreen(int width, int height);
 
