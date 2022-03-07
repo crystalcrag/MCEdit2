@@ -996,14 +996,14 @@ void matRotate(mat4 res, float theta, int axis_0X_1Y_2Z)
 	switch (axis_0X_1Y_2Z) {
 	case 0: /* along X axis */
 		res[A11] = fcos;
-		res[A21] = fsin;
-		res[A12] = -fsin;
+		res[A21] = -fsin;
+		res[A12] = fsin;
 		res[A22] = fcos;
 		break;
 	case 1: /* along Y axis */
 		res[A00] = fcos;
-		res[A20] = -fsin;
-		res[A02] = fsin;
+		res[A20] = fsin;
+		res[A02] = -fsin;
 		res[A22] = fcos;
 		break;
 	case 2: /* along Z axis */

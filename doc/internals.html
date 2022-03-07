@@ -10,9 +10,10 @@
 
 <div id="toc">
 <a class="sub1" href="#conventions"><span>Conventions</span></a>
-  <a class="sub2" href="#coord"><span>Coordinate system</span></h3>
-  <a class="sub2" href="#faceorder"><span>Face enumeration order</span></h3>
-  <a class="sub2" href="#datatypes"><span>Datatypes</span></h3>
+  <a class="sub2" href="#coord"><span>Coordinate system</span></a>
+  <a class="sub2" href="#rotation"><span>Angles</span></a>
+  <a class="sub2" href="#faceorder"><span>Face enumeration order</span></a>
+  <a class="sub2" href="#datatypes"><span>Datatypes</span></a>
 
 <a class="sub1" href="#culling"><span>Frustum culling</span></a>
   <a class="sub2" href="#firstvers"><span>First version</span></a>
@@ -28,8 +29,8 @@
     <a class="sub3" href="#elevation"><span>Elevation changes</span></a>
   <a class="sub2" href="#outside"><span>Outside bounds</span></a>
   <a class="sub2" href="#cavecull"><span>Cave culling</span></a>
-    <a class="sub3" href="#cavecullv1"><span>First attempt</span></h3>
-    <a class="sub3" href="#cavecullv2"><span>Second attempt</span></h3>
+    <a class="sub3" href="#cavecullv1"><span>First attempt</span></a>
+    <a class="sub3" href="#cavecullv2"><span>Second attempt</span></a>
 
 <a class="sub1" href="#blocks"><span>Block API</span></a>
   <a class="sub2" href="#blockdesc"><span>Block description</span></a>
@@ -117,6 +118,20 @@ north). Y is elevation.
 be close to player position, not 0,0,0). <span class="n">XXX</span> That's not good actually: coords
 are stored in floats, loss of precision will be problematic.
 
+<h3 id="rotation"><span>Angles</span></h3>
+
+<p>Angles in this engine are mapped to the trigonometric circle <b>no matter what</b>. That way, the
+output of cosine and sine functions can be used directly without unnecessary conversion. Angles from
+any external source will be converted to this convention. Here are how they are mapped to each axis,
+keep that in mind, it is <b>very easy to mix them up</b>:
+
+<div class="photo" style="display: inline-block">
+  <img src="images/rotateY.png" style="width: 75%">
+  <cap>Rotate on Y axis</cap>
+</div><div class="photo" style="display: inline-block">
+  <img src="images/rotateX.png" style="width: 75%">
+  <cap>Rotate on X axis</cap>
+</div>
 
 <h3 id="faceorder"><span>Face enumeration order</span></h3>
 

@@ -682,8 +682,8 @@ Bool renderInitStatic(void)
 	/* model matrix for inventory items */
 	{
 		mat4 temp;
-		matRotate(render.matInventoryItem, M_PI_2+M_PI_4, VY);
-		matRotate(temp, -M_PI_4/2, VX);
+		matRotate(render.matInventoryItem, M_PI_4+M_PI, VY);
+		matRotate(temp, M_PI_4/2, VX);
 		matMult(render.matInventoryItem, temp, render.matInventoryItem);
 	}
 
@@ -1313,7 +1313,7 @@ void renderBlockInfo(SelBlock_t * sel)
 {
 	int XYZ[3];
 	if (sel->extra.entity > 0)
-		XYZ[0] = sel->extra.entity, XYZ[1] = XYZ[2] = 0;
+		XYZ[0] = entityGetCRC(sel->extra.entity), XYZ[1] = XYZ[2] = 0;
 	else
 		XYZ[0] = sel->current[0], XYZ[1] = sel->current[1], XYZ[2] = sel->current[2];
 	if (memcmp(render.oldBlockPos, XYZ, sizeof XYZ))

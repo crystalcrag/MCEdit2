@@ -25,6 +25,7 @@ void   entityDebug(int id);
 void   entityUpdateLight(Chunk);
 Bool   entityDeleteById(Map, int entityId);
 void   entityInfo(int id, STRPTR buffer, int max);
+int    entityGetCRC(int entityId);
 int    entityRaypick(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos);
 Entity entityUpdateOrCreate(Chunk, vec4 pos, ItemID_t blockId, vec4 dest, int ticks, DATA8 tile);
 void   entityDebugCmd(void);

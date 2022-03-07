@@ -11,7 +11,7 @@ Bool minecartTryUsing(ItemID_t itemId, vec4 pos, int pointToBlock);
 int  minecartParse(NBTFile file, Entity entity);
 int  minecartPush(Entity entity, float broad[6]);
 
-#define RAILS_THICK     (1/16.f)
+#define RAILS_THICKNESS     (1/16.f)
 
 enum
 {

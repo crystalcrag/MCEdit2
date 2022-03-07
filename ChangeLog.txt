@@ -1,4 +1,13 @@
 =========== Week 9 ===========
+Sun Mar 6:
+	* X/Y rotation matrix changed again (use trigo orient). Sigh.
+
+Sat Mar 5:
+	* TileFinder mostly ported to SITGL (at last!).
+
+Fri Mar 4:
+	* restarting minecarts logic, yikes!
+
 Thu Mar 3:
 	* better handling of zoom.
 	* wrong tex rotation for SOLID near half block.

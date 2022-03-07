@@ -1824,8 +1824,8 @@ static Bool mcuiPaintingsFindLocation(vec4 ret)
 				int   count;
 				memcpy(bbox, ret, 12);
 				bbox[VX] += normal[VX];
-				bbox[VX] += normal[VY];
-				bbox[VX] += normal[VZ];
+				bbox[VY] += normal[VY];
+				bbox[VZ] += normal[VZ];
 				bbox[VX+3] = bbox[VX] + (normal[VX] == 0 ? tileW : normal[VX] / 16.f);
 				bbox[VZ+3] = bbox[VZ] + (normal[VZ] == 0 ? tileW : normal[VZ] / 16.f);
 				bbox[VY+3] = bbox[VY] + tileH;

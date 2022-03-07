@@ -75,7 +75,7 @@ KeyBindings_t keyBindings = {
 	{DLANG("Advance time"),         "DebugBackInTime",  SITK_FlagUp + SITK_F6},
 	{DLANG("Switch player mode"),   "DebugSwitchMode",  SITK_F8},
 	{DLANG("Save location"),        "DebugSaveLoc",     SITK_F10},
-	{DLANG("Frame advance"),        "DebugFrame",       SITK_BackSpace},
+	{DLANG("Frame advance"),        "DebugFrame",       0},
 	{DLANG("2D slice view"),        "DebugSliceView",   SITK_FlagCtrl + SITK_Tab},
 
 	/* KBD_SLOT_[0~9]: not configurable (yet?) */
@@ -522,19 +522,6 @@ int main(int nb, char * argv[])
 	return 0;
 }
 
-#if 0
-void minecartPushManual(int entityId, int up);
-
-static void mceditPushManual(int up)
-{
-	vec4 pos;
-	MapExtraData sel = renderGetSelectedBlock(pos, NULL);
-
-	if (sel->entity > 0)
-		minecartPushManual(sel->entity, up);
-}
-#endif
-
 static uint8_t toolbarCmds[] = {
 	MCUI_OVERLAY_REPLACE, MCUI_OVERLAY_FILL, MCUI_SEL_CLONE, MCUI_OVERLAY_LIBRARY, MCUI_OVERLAY_ANALYZE,
 	MCUI_OVERLAY_SAVESEL, MCUI_OVERLAY_FILTER, MCUI_OVERLAY_DELPARTIAL, MCUI_OVERLAY_PIXELART
@@ -690,6 +677,8 @@ Bool mceditProcessCommand(EventState state, int keyUp)
 		case KBD_SAVE_LOCATION:
 			playerSaveLocation(&mcedit.player);
 			mapSaveLevelDat(globals.level);
+			CopyString(mcedit.player.inventory.infoTxt, LANG("Location saved"), sizeof mcedit.player.inventory.infoTxt);
+			mcedit.player.inventory.infoState = INFO_INV_INIT;
 			break;
 		case KBD_SAVE_CHANGES:
 			if (! mapSaveAll(globals.level))
@@ -809,6 +798,23 @@ static int mceditExit(SIT_Widget w, APTR cd, APTR ud)
 }
 
 
+#if 1
+void minecartPushManual(int entityId, int up);
+void minecartChangeOrient(int entityId, int right);
+
+static void mceditPushManual(int up)
+{
+	vec4 pos;
+	MapExtraData sel = renderGetSelectedBlock(pos, NULL);
+
+	if (sel->entity > 0)
+	{
+		if (up <= 1) minecartPushManual(sel->entity, up);
+		else         minecartChangeOrient(sel->entity, up-2);
+	}
+}
+#endif
+
 /*
  * Main loop for editing world
  */
@@ -883,6 +889,7 @@ void mceditWorld(void)
 					break;
 				case SDLK_F7:
 					globals.breakPoint = ! globals.breakPoint;
+					renderPointToBlock(564, 434);
 					//FramePauseUnpause(globals.breakPoint);
 					break;
 				case SDLK_F3:
@@ -892,6 +899,10 @@ void mceditWorld(void)
 						break;
 					}
 					goto case_SDLK;
+				case SDLK_UP:   mceditPushManual(1); break;
+				case SDLK_DOWN: mceditPushManual(0); break;
+				case SDLK_RIGHT: mceditPushManual(3); break;
+				case SDLK_LEFT:  mceditPushManual(2); break;
 				#endif
 				case SDLK_DELETE:
 					if ((globals.selPoints & 8) == 0)

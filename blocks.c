@@ -478,9 +478,9 @@ DATA16 blockParseModel(float * values, int count, DATA16 buffer)
 		}
 
 		switch (rot90step) {
-		case 1: matRotate(rot90, M_PI+M_PI_2, VY); break;
+		case 1: matRotate(rot90, M_PI_2, VY); break;
 		case 2: matRotate(rot90, M_PI, VY); break;
-		case 3: matRotate(rot90, M_PI_2, VY);
+		case 3: matRotate(rot90, M_PI+M_PI_2, VY);
 		}
 
 		trans[0] = vert[3] / 16 - 0.5f;

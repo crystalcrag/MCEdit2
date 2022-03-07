@@ -1916,7 +1916,6 @@ Bool mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 		if (track.updateCount > 0)
 			mapUpdateFlush(map);
 
-		/* update mesh */
 		mapUpdateMesh(map);
 		renderPointToBlock(-1, -1);
 	}
@@ -1928,9 +1927,12 @@ Bool mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 		if ((blockUpdate & UPDATE_SILENT) == 0)
 			particlesExplode(map, 4, oldId, pos);
 	}
-	/* block being replaced: add particles for old block */
+	/* block being replaced: add particles for old block (like overwriting tall grass) */
 	else if ((blockUpdate & UPDATE_SILENT) == 0 && oldId > 0 && (oldId >> 4) != (blockId >> 4))
 	{
+		/* slab turned into double-slab */
+		if (blockIds[oldId >> 4].special == BLOCK_HALF && oldId == blockId + 16)
+			return True;
 		particlesExplode(map, 4, oldId, pos);
 	}
 	return True;

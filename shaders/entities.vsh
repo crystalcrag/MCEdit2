@@ -37,7 +37,7 @@ void main(void)
 		// yaw: rotate along Y axis actually :-/
 		float ca = cos(angle);
 		float sa = sin(angle);
-		rotate = mat3(ca, 0, -sa, 0, 1, 0, sa, 0, ca);
+		rotate = mat3(ca, 0, sa, 0, 1, 0, -sa, 0, ca);
 	}
 	else rotate = mat3(1, 0, 0, 0, 1, 0, 0, 0, 1);
 
@@ -47,7 +47,8 @@ void main(void)
 		// pitch: rotate along X axis actually :-/
 		float ca = cos(angle);
 		float sa = sin(angle);
-		rotate *= mat3(1, 0, 0, 0, ca, sa, 0, -sa, ca);
+		//rotate *= mat3(ca, sa, 0, -sa, ca, 0, 0, 0, 1);
+		rotate *= mat3(1, 0, 0, 0, ca, -sa, 0, sa, ca);
 	}
 
 	pos = rotate * pos;

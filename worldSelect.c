@@ -1246,6 +1246,8 @@ void keysHash(KeyHash hash, KeyBinding kbd)
 	for (i = 0; i < KBD_MAX; i ++, kbd ++)
 	{
 		int key = kbd->key, flag;
+		/* command explicitely disabled */
+		if (key == 0) continue;
 		if ('A' <= (key&0xff) && (key&0xff) <= 'Z')
 			key += 32;
 

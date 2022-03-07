@@ -467,6 +467,8 @@ ItemID_t itemHasModel(Item item)
 /*
  * generate a mesh from an item suitable for entity shader.
  * note: <vertex> can be NULL to first get number of vertices to alloc.
+ *
+ * model will be oriented in the XZ plane, facing top.
  */
 
 #define QUAD_VERTEX      (INT_PER_VERTEX * 6)

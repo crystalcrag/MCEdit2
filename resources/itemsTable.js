@@ -145,7 +145,7 @@
 	{id: 376, state: 0, name: "Fermented Spider Eye", stack:64, cat: ALLCAT,   tex: [11, 5]},
 	{id: 377, state: 0, name: "Blaze Powder",         stack:64, cat: ALLCAT,   tex: [ 8, 9]},
 	{id: 378, state: 0, name: "Magma Cream",          stack:64, cat: ALLCAT,   tex: [ 9, 7]},
-	{id: 379, state: 0, name: "Brewing Stand",        stack:64, cat: REDSTONE, tex: [11, 7]},
+	{id: 379, state: 0, name: "Brewing Stand",        stack:64, cat: REDSTONE, tex: [11, 7], createBlock: "brewing_stand"},
 	{id: 380, state: 0, name: "Cauldron",             stack:64, cat: REDSTONE, tex: [ 7, 7], createBlock: "cauldron"},
 	{id: 381, state: 0, name: "Eye of Ender",         stack:64, cat: ALLCAT,   tex: [ 9, 8], tech: "ender_eye"},
 	{id: 382, state: 0, name: "Glistering Melon",     stack:64, cat: ALLCAT,   tex: [13, 3], tech: "speckled_melon"},

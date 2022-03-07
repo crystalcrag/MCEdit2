@@ -38,7 +38,7 @@ struct
 /* item frame and paintings have a rectangular bbox: need to take rotation into account for collision check */
 static int worldItemSwapAxis(Entity entity)
 {
-	int angle = roundf(entity->rotation[1] * (180 / M_PIf)); /* X axis acutally */
+	int angle = roundf(entity->rotation[1] * DEG_TO_RAD); /* X axis acutally */
 	entity->enflags |= ENFLAG_BBOXROTATED;
 	if (angle == 90 || angle == 270 || angle == -90)
 		return MODEL_SWAP_ZY;
@@ -372,7 +372,7 @@ Entity worldItemAddItemInFrame(Chunk chunk, Entity frame, int entityId)
 		frame->next = next;
 		item->ref = frame;
 		item->next = ENTITY_END;
-		item->blockId = frame->blockId;
+		item->blockId = entityWantItem(frame->blockId);
 		item->tile = frame->tile;
 		item->chunkRef = chunk;
 		frame->blockId = 0;
@@ -380,8 +380,11 @@ Entity worldItemAddItemInFrame(Chunk chunk, Entity frame, int entityId)
 		item->pos[VT] = 0; /* selection */
 		item->rotation[3] = 0.4; /* scaling */
 		if (! isBlockId(item->blockId))
+		{
 			/* items are rendered in XZ plane, item frame are oriented in XY or ZY plane */
-			item->rotation[1] = M_PI_2f - frame->rotation[1];
+			item->rotation[1] = normAngle(M_PI_2f - frame->rotation[1]);
+			item->rotation[0] += M_PIf;
+		}
 		item->VBObank = entityGetModelId(item);
 		entityAddToCommandList(item);
 		return item;
@@ -406,7 +409,7 @@ Entity worldItemAddItemInFrame(Chunk chunk, Entity frame, int entityId)
 
 static void worldItemFillPos(vec4 dest, vec4 src, int side, int orientX, vec size)
 {
-	static float orientY[] = {0, 90 * DEG_TO_RAD, 180 * DEG_TO_RAD, 270 * DEG_TO_RAD};
+	static float orientY[] = {0, 270 * DEG_TO_RAD, 180 * DEG_TO_RAD, 90 * DEG_TO_RAD};
 	enum {
 		HALFVX,
 		HALFVY,
@@ -653,6 +656,7 @@ void worldItemDelete(Entity entity)
 			entity->entype  = 0;
 			entityResetModel(entity);
 		}
+		else entity->entype = ENTYPE_FRAME;
 	}
 }
 
@@ -669,7 +673,7 @@ void worldItemPreview(vec4 camera, vec4 pos, ItemID_t itemId)
 		preview->pos[3] = 1;
 
 		preview->next = ENTITY_END;
-		float angle = atan2f(pos[VX] - camera[VX], pos[VZ] - camera[VZ]);
+		float angle = 2*M_PIf - atan2f(pos[VX] - camera[VX], pos[VZ] - camera[VZ]);
 		preview->rotation[3] = 0.5; /* scale actually */
 		if (isBlockId(itemId) && blockIds[itemId>>4].special == BLOCK_STAIRS)
 			/* viewed from front instead of side */
@@ -719,7 +723,7 @@ void worldItemUpdatePreviewPos(vec4 camera, vec4 pos)
 		memcpy(oldPos, preview->pos, 12);
 		memcpy(preview->pos, pos, 12);
 		preview->pos[VY] += worldItem.previewOffVY;
-		float angle = atan2f(pos[VX] - camera[VX], pos[VZ] - camera[VZ]);
+		float angle = 2*M_PIf - atan2f(pos[VX] - camera[VX], pos[VZ] - camera[VZ]);
 		ItemID_t itemId = preview->blockId;
 		if (isBlockId(itemId) && blockIds[itemId>>4].special == BLOCK_STAIRS)
 			/* viewed from front instead of side */

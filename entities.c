@@ -22,6 +22,7 @@
 #include "render.h"
 #include "physics.h"
 #include "undoredo.h"
+#include "zlib.h" /* crc32 */
 #include "globals.h"
 #include "glad.h"
 
@@ -827,9 +828,9 @@ Entity entityParse(Chunk chunk, NBTFile nbt, int offset, Entity prev)
 		/* set entity->pos as well */
 		memcpy(entity->motion, pos, sizeof pos);
 
-		/* rotation also depends on how the initial model is oriented :-/ */
-		entity->rotation[0] = fmod((360 - pos[7]) * M_PIf / 180, 2*M_PIf);
-		entity->rotation[1] = normAngle(- pos[8] * (2*M_PIf / 360));
+		/* models are oriented in the XY plane, which map to entity angle directly */
+		entity->rotation[0] = normAngle(pos[7] * DEG_TO_RAD);
+		entity->rotation[1] = normAngle(- pos[8] * DEG_TO_RAD);
 
 		entity->tile = nbt->mem + offset;
 		entity->pos[VT] = 0;
@@ -847,7 +848,7 @@ Entity entityParse(Chunk chunk, NBTFile nbt, int offset, Entity prev)
 		quadTreeInsertItem(entity);
 
 		/* alloc an entity for the item in the frame */
-		if (entity->blockId > 0)
+		if (entity->blockId > 0 || entity->entype == ENTYPE_FILLEDMAP)
 			prev = worldItemAddItemInFrame(chunk, entity, next+1);
 	}
 	return prev;
@@ -935,6 +936,17 @@ void entityInfo(int id, STRPTR buffer, int max)
 
 	if (fabsf(entity->rotation[1]) > EPSILON)
 		sprintf(buffer + count, "\n<dim>Rotation X:</dim> %g\n", (double) (entity->rotation[1] * RAD_TO_DEG));
+}
+
+/* will prevent refreshing uselss stuff if nothing changed */
+int entityGetCRC(int entityId)
+{
+	Entity entity = entityGetById(entityId-1);
+
+	if (entity)
+		return crc32(crc32(0, (DATA8) &entityId, sizeof entityId), (DATA8) entity->motion, (3+4+4) * sizeof (float));
+	else
+		return 0;
 }
 
 
@@ -1081,7 +1093,7 @@ void entityGetBoundsForFace(Entity entity, int face, vec4 V0, vec4 V1)
 /* check if vector <dir> intersects an entity bounding box (from position <camera>) */
 int entityRaypick(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos)
 {
-	float maxDist = cur ? vecDistSquare(camera, cur) : 1e6f;
+	float maxDist = cur ? vecDistSquare(camera, cur)+1 : 1e6f;
 	int   flags = (dir[VX] < 0 ? 2 : 8) | (dir[VY] < 0 ? 16 : 32) | (dir[VZ] < 0 ? 1 : 4);
 	int   i, id, curId;
 	Chunk chunks[4];
@@ -1104,7 +1116,7 @@ int entityRaypick(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos)
 		for (;;)
 		{
 			/* just a quick heuristic to get rid of most entities */
-			if (vecDistSquare(camera, list->pos) < maxDist * 1.5f && entityInFrustum(list->pos))
+			if (vecDistSquare(camera, list->pos) < maxDist && entityInFrustum(list->pos))
 			{
 				float points[9];
 				mat4  rotation;
@@ -1115,7 +1127,6 @@ int entityRaypick(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos)
 				if ((list->enflags & ENFLAG_BBOXROTATED) == 0)
 				{
 					if (list->rotation[0] > 0)
-						/* rotation along VY is CW, we want trigo here, hence the +3 */
 						matRotate(rotation, list->rotation[0], VY);
 					else
 						matIdent(rotation);
@@ -1126,21 +1137,25 @@ int entityRaypick(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos)
 						matMult3(rotation, rotation, RX);
 					}
 				}
-				else matIdent(rotation);
+				else rotation[0] = 1e6;
 
 				/* assume rectangular bounding box (not necessarily axis aligned though) */
 				for (j = 0; j < 6; j ++)
 				{
 					fillNormal(norm, j);
-					matMultByVec3(norm, rotation, norm);
+					if (rotation[0] != 1e6f)
+						matMultByVec3(norm, rotation, norm);
 					/* back-face culling */
 					if (vecDotProduct(dir, norm) > 0) continue;
 
 					entityGetBoundsForFace(list, j, points, points+3);
 					AABBSplit(points, points + 3, points + 6, j);
-					matMultByVec3(points,   rotation, points);
-					matMultByVec3(points+3, rotation, points+3);
-					matMultByVec3(points+6, rotation, points+6);
+					if (rotation[0] != 1e6f)
+					{
+						matMultByVec3(points,   rotation, points);
+						matMultByVec3(points+3, rotation, points+3);
+						matMultByVec3(points+6, rotation, points+6);
+					}
 					vec3Add(points,   list->pos);
 					vec3Add(points+3, list->pos);
 					vec3Add(points+6, list->pos);
@@ -1150,9 +1165,10 @@ int entityRaypick(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos)
 					{
 						/* check if points are contained within the face */
 						float dist = vecDistSquare(camera, inter);
-						if (dist < maxDist)
+						/* list->ref is item in frame: they have the same center, therefore dist < maxDist will mostly be false */
+						if (dist < maxDist || list->ref == best)
 						{
-							maxDist = dist;
+							maxDist = dist+1;
 							memcpy(ret_pos, list->pos, 12);
 							best = list;
 							curId = id;
@@ -1323,10 +1339,10 @@ Bool entityDeleteById(Map map, int entityId)
 			{
 				prev = entityGetPrev(chunk, entity, entityId);
 				*prev = entity->next;
+				Entity ref = entity->ref;
+				undoLog(LOG_ENTITY_CHANGED, ref->pos, ref->tile, entityGetId(ref));
 			}
 			else delMap = True;
-			Entity ref = entity->ref;
-			undoLog(LOG_ENTITY_CHANGED, ref->pos, ref->tile, entityGetId(ref));
 			//XXX tile entity still needed
 			//chunkDeleteTile(chunk, entity->tile);
 			/* will only remove NBT record of item */
@@ -1392,9 +1408,12 @@ Bool entityGetNBT(NBTFile nbt, int * id)
 	nbt->mem = entity->tile;
 	nbt->usage = NBT_Size(entity->tile);
 
+	/* need to convert rotation into deg */
+	float rotation[] = {entity->rotation[0] * RAD_TO_DEG, - entity->rotation[1] * RAD_TO_DEG};
+
 	/* update position/rotation */
 	NBT_SetFloat(nbt, NBT_FindNode(nbt, 0, "Pos"), entity->enflags & ENFLAG_USEMOTION ? entity->motion : entity->pos, 3);
-	NBT_SetFloat(nbt, NBT_FindNode(nbt, 0, "Rotation"), entity->rotation, 2);
+	NBT_SetFloat(nbt, NBT_FindNode(nbt, 0, "Rotation"), rotation, 2);
 
 	return True;
 }
@@ -2074,6 +2093,7 @@ void entityRenderBBox(void)
 {
 	Entity sel = entities.selected;
 
+	redo:
 	if (sel)
 	{
 		extern uint8_t bboxIndices[];
@@ -2081,8 +2101,25 @@ void entityRenderBBox(void)
 		DATA8  index;
 		NVGCTX vg = globals.nvgCtx;
 		float  scale = ENTITY_SCALE(sel);
+		mat4   rotation;
 		int    i, j;
 		nvgStrokeColorRGBA8(vg, "\xff\xff\xff\xff");
+
+		if ((sel->enflags & ENFLAG_BBOXROTATED) == 0)
+		{
+			if (sel->rotation[0] > 0)
+				matRotate(rotation, sel->rotation[0], VY);
+			else
+				matIdent(rotation);
+			if (sel->rotation[1] > 0)
+			{
+				mat4 RX;
+				matRotate(RX, sel->rotation[1], VX);
+				matMult3(rotation, rotation, RX);
+			}
+		}
+		else rotation[0] = 1e6;
+
 		nvgBeginPath(vg);
 		for (i = 0; i < 3; i ++)
 		{
@@ -2099,6 +2136,15 @@ void entityRenderBBox(void)
 				pt1[j] = vertex[idx1[j]*3+j];
 				pt2[j] = vertex[idx2[j]*3+j];
 			}
+			if (rotation[0] != 1e6f)
+			{
+				vecSub(pt1, pt1, sel->pos);
+				vecSub(pt2, pt2, sel->pos);
+				matMultByVec3(pt1, rotation, pt1);
+				matMultByVec3(pt2, rotation, pt2);
+				vecAdd(pt1, pt1, sel->pos);
+				vecAdd(pt2, pt2, sel->pos);
+			}
 			/* less painful to do it via nanovg than opengl :-/ */
 			pt1[3] = pt2[3] = 1;
 			matMultByVec(pt1, globals.matMVP, pt1);
@@ -2109,5 +2155,14 @@ void entityRenderBBox(void)
 			nvgLineTo(vg, (pt2[0] + 1) * (globals.width>>1), (1 - pt2[1]) * (globals.height>>1));
 		}
 		nvgStroke(vg);
+		if (sel->next != ENTITY_END)
+		{
+			Entity next = entityGetById(sel->next);
+			if (next && next->ref == sel)
+			{
+				sel = next;
+				goto redo;
+			}
+		}
 	}
 }
