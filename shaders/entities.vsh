@@ -47,8 +47,16 @@ void main(void)
 		// pitch: rotate along X axis actually :-/
 		float ca = cos(angle);
 		float sa = sin(angle);
-		//rotate *= mat3(ca, sa, 0, -sa, ca, 0, 0, 0, 1);
 		rotate *= mat3(1, 0, 0, 0, ca, -sa, 0, sa, ca);
+	}
+
+	angle = rotation.z;
+	if (angle > 0.001)
+	{
+		// rotate along Z axis
+		float ca = cos(angle);
+		float sa = sin(angle);
+		rotate *= mat3(ca, sa, 0, -sa, ca, 0, 0, 0, 1);
 	}
 
 	pos = rotate * pos;

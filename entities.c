@@ -563,7 +563,7 @@ void entityAllocPhysics(Entity entity)
 {
 	EntityPhysBatch batch;
 	PhysicsBBox phys;
-	VTXBBox bbox;
+	ENTBBox bbox;
 
 	/* XXX will probbably need an ECS at some point :-/ */
 	if (entity->private) return;
@@ -589,26 +589,27 @@ void entityAllocPhysics(Entity entity)
 	phys->physics.bbox = bbox = &phys->bbox;
 	memcpy(phys->physics.loc, entity->pos, 12);
 	/* convert bbox of entity */
-	float scale = entity->rotation[3] * 0.5f;
-	uint16_t size[] = {
+	float scale = entity->rotation[3] * (0.5f / BASEVTX);
+	float size[] = {
 		entity->szx * scale,
 		entity->szy * scale,
 		entity->szz * scale
 	};
 
-	bbox->pt1[0] = ORIGINVTX - size[VX];
-	bbox->pt1[1] = ORIGINVTX - size[VY];
-	bbox->pt1[2] = ORIGINVTX - size[VZ];
+	bbox->pt1[VX] = - size[VX];
+	bbox->pt1[VY] = - size[VY];
+	bbox->pt1[VZ] = - size[VZ];
 
-	bbox->pt2[0] = ORIGINVTX + size[VX];
-	bbox->pt2[1] = ORIGINVTX + size[VY];
-	bbox->pt2[2] = ORIGINVTX + size[VZ];
+	bbox->pt2[VX] = size[VX];
+	bbox->pt2[VY] = size[VY];
+	bbox->pt2[VZ] = size[VZ];
 }
 
 void entityFreePhysics(Entity entity)
 {
 	EntityPhysBatch batch;
 	PhysicsBBox phys = entity->private;
+	entity->private = NULL;
 	for (batch = HEAD(entities.physBatch); batch; NEXT(batch))
 	{
 		if (batch->mem <= phys && phys < EOT(batch->mem))
@@ -1534,7 +1535,7 @@ void entityAnimate(void)
 }
 
 /* block entity */
-Entity entityUpdateOrCreate(Chunk chunk, vec4 pos, ItemID_t blockId, vec4 dest, int ticks, DATA8 tile)
+Entity entityCreateOrUpdate(Chunk chunk, vec4 pos, ItemID_t blockId, vec4 dest, int ticks, DATA8 tile)
 {
 	EntityAnim anim;
 	Entity     entity;
@@ -1728,6 +1729,10 @@ void entityUpdateNearby(BlockIter iterator, int blockId)
 	bbox[VX+3] = bbox[VX] + 1;
 	bbox[VZ+3] = bbox[VZ] + 1;
 	bbox[VY+3] = bbox[VY] + 1.125f; /* +0.125 == to check entity on top of block */
+
+	Player p;
+	for (p = HEAD(globals.level->players); p; NEXT(p))
+		playerCheckNearby(p, bbox);
 
 	Entity * list = quadTreeIntersect(bbox, &count, ENFLAG_FIXED | ENFLAG_EQUALZERO);
 

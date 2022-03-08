@@ -18,9 +18,9 @@
 
 struct ParticlePrivate_t particles;
 struct EmitterPrivate_t  emitters;
-static struct VTXBBox_t  particleBBox = {
-	.pt1 = {VERTEX(0), VERTEX(0), VERTEX(0)},
-	.pt2 = {VERTEX(0.05), VERTEX(0.05), VERTEX(0.05)}
+static struct ENTBBox_t  particleBBox = {
+	.pt1 = {0, 0, 0},
+	.pt2 = {0.05, 0.05, 0.05}
 };
 
 //#define NOEMITTERS

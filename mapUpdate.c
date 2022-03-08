@@ -1320,7 +1320,7 @@ static void mapUpdateToEntity(Map map, ChunkData cd, int offset)
 			mapUpdateInit(&iter);
 			mapUpdate(map, NULL, 0, NULL, UPDATE_SILENT | UPDATE_GRAVITY);
 			mapUpdateEnd(map);
-			entityUpdateOrCreate(chunk, pos, blockId, pos, UPDATE_BY_PHYSICS, NULL);
+			entityCreateOrUpdate(chunk, pos, blockId, pos, UPDATE_BY_PHYSICS, NULL);
 		}
 	}
 }
@@ -1563,7 +1563,7 @@ void mapUpdateMesh(Map map)
 	#endif
 }
 
-/* retracting pistons should be updated first, then extending ones, but updates in the list are not sorted in any way */
+/* retracting pistons should be updated first, then the one extending, but updates in the list are not sorted in any way */
 static void mapUpdateCheckPiston(BlockUpdate update)
 {
 	/* piston has retracted: check if it was blocking an earlier update */
@@ -1643,7 +1643,7 @@ void mapUpdateFlush(Map map)
 	track.curUpdate = NULL;
 }
 
-/* blocks moved by piston update can't be updated directly, they need to be done at once */
+/* blocks moved by piston can't be updated directly, they need to be done at once */
 void mapUpdatePush(Map map, vec4 pos, int blockId, DATA8 tile)
 {
 	/* otherwise update order will depend on piston push direction: way too annoying */

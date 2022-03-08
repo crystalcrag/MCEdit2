@@ -11,13 +11,13 @@
 
 typedef struct PhysicsEntity_t *         PhysicsEntity;
 
-int  physicsCheckCollision(Map, vec4 start, vec4 end, VTXBBox bbox, float autoClimb);
+int  physicsCheckCollision(Map, vec4 start, vec4 end, ENTBBox bbox, float autoClimb);
 void physicsEntityMoved(Map, APTR self, vec4 start, vec4 end);
-Bool physicsCheckOnGround(Map, vec4 start, VTXBBox bbox, vec sizes);
+Bool physicsCheckOnGround(Map, vec4 start, ENTBBox bbox);
 void physicsInitEntity(PhysicsEntity entity, int block);
 Bool physicsMoveEntity(Map, PhysicsEntity, float speed);
-int  physicsCheckIfCanClimb(Map, vec4 pos, VTXBBox bbox);
-void physicsCheckPressurePlate(Map, vec4 start, vec4 end, VTXBBox bbox);
+int  physicsCheckIfCanClimb(Map, vec4 pos, ENTBBox bbox);
+void physicsCheckPressurePlate(Map, vec4 start, vec4 end, ENTBBox bbox);
 void physicsChangeEntityDir(PhysicsEntity, float friction);
 void physicsShoveEntity(PhysicsEntity, float friction, int side);
 
@@ -31,7 +31,7 @@ struct PhysicsEntity_t
 	uint8_t light;             /* blocklight (bit0~3) skylight (bit4~7) */
 	uint8_t negXZ;             /* &1: dir[VX] is negative, &2: dir[Vz] is negative */
 	uint8_t rebound;           /* rebound when hitting the ground */
-	VTXBBox bbox;              /* bounding box of entity */
+	ENTBBox bbox;              /* bounding box of entity */
 };
 
 enum                           /* special bit field returned by physicsCheckCollision() */

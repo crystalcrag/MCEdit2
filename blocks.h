@@ -12,6 +12,7 @@
 typedef struct Block_t *       Block;
 typedef struct BlockState_t *  BlockState;
 typedef struct VTXBBox_t *     VTXBBox;
+typedef struct ENTBBox_t *     ENTBBox;
 typedef struct WriteBuffer_t * WriteBuffer;
 typedef struct BlockOrient_t * BlockOrient;
 typedef uint32_t               ItemID_t;
@@ -143,6 +144,12 @@ struct VTXBBox_t                 /* used to store custom bounding box */
 	uint8_t  cont;               /* 1 if more bbox for this model */
 	uint8_t  sides;              /* bitfield for faces that are defined: S, E, N, W, T, B */
 	uint8_t  aabox;              /* contain only axis-aligned box */
+};
+
+struct ENTBBox_t                 /* entity/player bbox: use float and are always axis aligned */
+{
+	float    pt1[3];
+	float    pt2[3];
 };
 
 struct WriteBuffer_t

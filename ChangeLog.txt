@@ -1,6 +1,11 @@
+=========== Week 10 ===========
+Mon Mar 7:
+	* entity bbox cleanup.
+
 =========== Week 9 ===========
 Sun Mar 6:
 	* X/Y rotation matrix changed again (use trigo orient). Sigh.
+	* minecart can follow track path (finally!).
 
 Sat Mar 5:
 	* TileFinder mostly ported to SITGL (at last!).

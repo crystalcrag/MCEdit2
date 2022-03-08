@@ -120,18 +120,21 @@ are stored in floats, loss of precision will be problematic.
 
 <h3 id="rotation"><span>Angles</span></h3>
 
-<p>Angles in this engine are mapped to the trigonometric circle <b>no matter what</b>. That way, the
-output of cosine and sine functions can be used directly without unnecessary conversion. Angles from
-any external source will be converted to this convention. Here are how they are mapped to each axis,
-keep that in mind, it is <b>very easy to mix them up</b>:
+<p>Angles in this engine tried to be mapped on the trigonometric circle (especially rotation on Y axis).
+That way, the output of cosine and sine functions can be used directly without unnecessary conversion.
+Here are how they are mapped to each axis, keep that in mind, it is <b>very easy to mix them up</b>:
 
-<div class="photo" style="display: inline-block">
-  <img src="images/rotateY.png" style="width: 75%">
-  <cap>Rotate on Y axis</cap>
-</div><div class="photo" style="display: inline-block">
-  <img src="images/rotateX.png" style="width: 75%">
-  <cap>Rotate on X axis</cap>
+<div class="photo" style="display: inline-block; margin-left: 40px">
+  <img src="images/rotateY.png">
+  <cap>Rotation on Y axis (left-hand axis)</cap>
+</div><div class="photo" style="display: inline-block; margin-left: 40px">
+  <img src="images/rotateX.png">
+  <cap>Rotation on X axis</cap>
 </div>
+
+<p>With entites, there are some exceptions though: orientation will depend on how the model is created.
+To avoid some headache, it is strongly advised to keep the orientation above: if the entity rotation is 0,
+it should be facing east.
 
 <h3 id="faceorder"><span>Face enumeration order</span></h3>
 

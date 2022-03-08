@@ -624,8 +624,8 @@ static void mapUpdateAddPistonExt(Map map, struct BlockIter_t iter, int blockId,
 		TAG_Compound_End
 	);
 
-	fprintf(stderr, "%s piston from %d, %d, %d\n", extend ? "extending" : "retracting",
-		(int) src[0], (int) src[1], (int) src[2]);
+	//fprintf(stderr, "%s piston from %d, %d, %d\n", extend ? "extending" : "retracting",
+	//	(int) src[0], (int) src[1], (int) src[2]);
 
 	/* already add/remove head */
 	if (! extend)
@@ -648,7 +648,7 @@ static void mapUpdateAddPistonExt(Map map, struct BlockIter_t iter, int blockId,
 	/* create or update the moving piston head */
 	if (blockId > 0)
 		/* XXX need progress */
-		entityUpdateOrCreate(ref, src, blockId, dest, 1, ret.mem);
+		entityCreateOrUpdate(ref, src, blockId, dest, 1, ret.mem);
 }
 
 /* convert blocks push/rectracted by a piston into block 36 */
@@ -719,7 +719,7 @@ void mapUpdateToBlock36(Map map, RSWire list, int count, int dir, BlockIter iter
 		mapUpdate(map, dst, ID(RSPISTONEXT, 0), tile.mem, UPDATE_KEEPLIGHT | UPDATE_DONTLOG);
 		//fprintf(stderr, "adding block 36 (from %s) at %g,%g,%g\n", blockName, src[0], src[1], src[2]);
 
-		entityUpdateOrCreate(iter.ref, src, (list->blockId << 4) | list->data, dst, 1, tile.mem);
+		entityCreateOrUpdate(iter.ref, src, (list->blockId << 4) | list->data, dst, 1, tile.mem);
 	}
 }
 

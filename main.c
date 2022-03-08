@@ -800,7 +800,6 @@ static int mceditExit(SIT_Widget w, APTR cd, APTR ud)
 
 #if 1
 void minecartPushManual(int entityId, int up);
-void minecartChangeOrient(int entityId, int right);
 
 static void mceditPushManual(int up)
 {
@@ -808,10 +807,7 @@ static void mceditPushManual(int up)
 	MapExtraData sel = renderGetSelectedBlock(pos, NULL);
 
 	if (sel->entity > 0)
-	{
-		if (up <= 1) minecartPushManual(sel->entity, up);
-		else         minecartChangeOrient(sel->entity, up-2);
-	}
+		minecartPushManual(sel->entity, up);
 }
 #endif
 
@@ -1740,12 +1736,14 @@ int WINAPI WinMain(
 	LPWSTR * argvUTF16 = CommandLineToArgvW(GetCommandLineW(), &nb);
 	STRPTR * argvUTF8  = (STRPTR *) argvUTF16;
 
+	#if 0
 	HANDLE user32 = LoadLibraryA("user32.dll");
 	if (user32)
 	{
 		WINAPI BOOL (*proc)() = GetProcAddress(user32, "SetProcessDPIAware");
-		fprintf(stderr, "result = %d\n", proc());
+		proc();
 	}
+	#endif
 
 	/* convert strings to UTF8 */
 	for (i = 0; i < nb; )

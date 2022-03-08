@@ -275,7 +275,7 @@ void worldItemPlaceOrCreate(Entity entity)
 
 	/* can't place entity as block, convert to item then */
 	vec4 pos = {(int) entity->pos[VX], (int) entity->pos[VY], (int) entity->pos[VZ]};
-	entityUpdateOrCreate(iter.ref, pos, entity->blockId | ENTITY_ITEM, pos, UPDATE_BY_PHYSICS, NULL);
+	entityCreateOrUpdate(iter.ref, pos, entity->blockId | ENTITY_ITEM, pos, UPDATE_BY_PHYSICS, NULL);
 }
 
 void worldItemDup(Map map, vec info, int entityId)
@@ -708,7 +708,7 @@ void worldItemCreateFromBlock(BlockIter pos, int side)
 
 	ItemID_t itemId = entityWantItem(getBlockId(pos));
 
-	Entity entity = entityUpdateOrCreate(chunk, dest, itemId | ENTITY_ITEM, dest, UPDATE_BY_PHYSICS, NULL);
+	Entity entity = entityCreateOrUpdate(chunk, dest, itemId | ENTITY_ITEM, dest, UPDATE_BY_PHYSICS, NULL);
 
 	physicsShoveEntity(entity->private, 0.004, side);
 }

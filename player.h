@@ -80,9 +80,10 @@ void playerScrollInventory(Player, int dir);
 void playerSetMode(Player, int mode);
 void playerTeleport(Player, vec4 pos, float rotation[2]);
 void playerMove(Player);
+void playerCheckNearby(Player, float areaChanged[6]);
 
 #ifdef BLOCKS_H
-extern struct VTXBBox_t playerBBox;
+extern struct ENTBBox_t playerBBox;
 #endif
 
 struct Player_t

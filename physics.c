@@ -74,7 +74,7 @@ float physicsSweptAABB(float bboxStart[6], vec4 dir, float block[6], DATA8 norma
  * try to move bounding box <bbox> from <start> to <end>, changing end if movement is blocked
  * returns a bitfield (1 << (VX|VY|VZ)) of sides blocking movement.
  */
-int physicsCheckCollision(Map map, vec4 start, vec4 end, VTXBBox bbox, float autoClimb)
+int physicsCheckCollision(Map map, vec4 start, vec4 end, ENTBBox bbox, float autoClimb)
 {
 	static uint8_t priority[] = {1, 0, 2};
 	struct BlockIter_t iter;
@@ -86,11 +86,8 @@ int physicsCheckCollision(Map map, vec4 start, vec4 end, VTXBBox bbox, float aut
 	int     ret;
 	int8_t  i, j, k;
 
-	for (i = 0; i < 3; i ++)
-	{
-		minMax[i]   = FROMVERTEX(bbox->pt1[i]);
-		minMax[3+i] = FROMVERTEX(bbox->pt2[i]);
-	}
+	memcpy(minMax,   bbox->pt1, 12);
+	memcpy(minMax+3, bbox->pt2, 12);
 
 	/* compute broad phase box */
 	float broad[6] = {
@@ -190,7 +187,7 @@ int physicsCheckCollision(Map map, vec4 start, vec4 end, VTXBBox bbox, float aut
 				{
 					if (entity->entype == ENTYPE_MINECART)
 						minecartPush(entity, broad);
-					fprintf(stderr, "entity %s being pushed\n", entity->name);
+					//fprintf(stderr, "entity %s being pushed\n", entity->name);
 					continue;
 				}
 				float dist = ENTITY_SCALE(entity);
@@ -276,24 +273,17 @@ static Bool intersectBBox(BlockIter iter, VTXBBox bbox, float minMax[6], float i
 	return inter[VX] < inter[VX+3] && inter[VY] < inter[VY+3] && inter[VZ] < inter[VZ+3];
 }
 
-Bool physicsCheckOnGround(Map map, vec4 start, VTXBBox bbox, vec sizes)
+/* check if there are any bounding boxes that prevent player from falling */
+Bool physicsCheckOnGround(Map map, vec4 start, ENTBBox bbox)
 {
 	struct BlockIter_t iter;
 	float  minMax[6];
 	int8_t i, j;
 
-	if (bbox)
+	for (i = 0; i < 3; i ++)
 	{
-		for (i = 0; i < 3; i ++)
-		{
-			minMax[i]   = FROMVERTEX(bbox->pt1[i]) + start[i] + EPSILON;
-			minMax[3+i] = FROMVERTEX(bbox->pt2[i]) + start[i] - EPSILON;
-		}
-	}
-	else for (i = 0; i < 3; i ++)
-	{
-		minMax[i]   = start[i] - sizes[i] + EPSILON;
-		minMax[3+i] = start[i] + sizes[i] - EPSILON;
+		minMax[i]   = bbox->pt1[i] + start[i] + EPSILON;
+		minMax[3+i] = bbox->pt2[i] + start[i] - EPSILON;
 	}
 
 	int8_t dx = (int) minMax[VX+3] - (int) minMax[VX];
@@ -329,14 +319,14 @@ Bool physicsCheckOnGround(Map map, vec4 start, VTXBBox bbox, vec sizes)
 }
 
 /* physicsCheckCollision detected we are near a ladder, check if we can climb it */
-int physicsCheckIfCanClimb(Map map, vec4 pos, VTXBBox bbox)
+int physicsCheckIfCanClimb(Map map, vec4 pos, ENTBBox bbox)
 {
 	int8_t i, j, k, ladder;
 	float  broad[6];
 	for (i = 0; i < 3; i ++)
 	{
-		broad[i]   = pos[i] + FROMVERTEX(bbox->pt1[i]);
-		broad[3+i] = pos[i] + FROMVERTEX(bbox->pt2[i]);
+		broad[i]   = pos[i] + bbox->pt1[i];
+		broad[3+i] = pos[i] + bbox->pt2[i];
 	}
 
 	int8_t dx = (int) broad[VX+3] - (int) broad[VX];
@@ -407,16 +397,17 @@ int physicsCheckIfCanClimb(Map map, vec4 pos, VTXBBox bbox)
 }
 
 /* player might have activated/exited a pressure plate */
-void physicsCheckPressurePlate(Map map, vec4 start, vec4 end, VTXBBox bbox)
+void physicsCheckPressurePlate(Map map, vec4 start, vec4 end, ENTBBox bbox)
 {
 	int8_t i, j, k;
 	float  entityBBox[6];
 	float  broad[6];
 
+	memcpy(entityBBox,   bbox->pt1, 12);
+	memcpy(entityBBox+3, bbox->pt2, 12);
+
 	for (i = 0; i < 3; i ++)
 	{
-		entityBBox[i]   = FROMVERTEX(bbox->pt1[i]);
-		entityBBox[3+i] = FROMVERTEX(bbox->pt2[i]);
 		broad[i]   = fminf(start[i], end[i]) + entityBBox[i];
 		broad[3+i] = fmaxf(start[i], end[i]) + entityBBox[i+3];
 	}
@@ -560,14 +551,10 @@ Bool physicsMoveEntity(Map map, PhysicsEntity entity, float speed)
 			}
 			else /* hit the ground */
 			{
-				#if 0
-				/* XXX what that's for ?? */
-				entity->dir[VY] = -0.1f * speed;
-				entity->friction[VY] = 0.02f * (1/5.f) * (entity->density - blockIds[0].density);
-				#else
 				entity->dir[VY] = 0;
 				entity->friction[VY] = 0;
-				#endif
+				entity->friction[VX] *= 2;
+				entity->friction[VZ] *= 2;
 			}
 		}
 	}
@@ -668,14 +655,13 @@ void physicsEntityMoved(Map map, APTR self, vec4 start, vec4 end)
 		float diff = end[i] - start[i];
 		dir[i] = diff < -EPSILON ? -1 : diff > EPSILON ? 1 : 0;
 	}
-
-//	uint8_t side = dir[VX] < 0 ? SIDE_WEST   : dir[VX] > 0 ? SIDE_EAST  :
-//	               dir[VZ] < 0 ? SIDE_NORTH  : dir[VZ] > 0 ? SIDE_SOUTH :
-//	               dir[VY] < 0 ? SIDE_BOTTOM : SIDE_TOP;
+	/* add a tiny amount on VY to check if there are entities that sit on top this one */
+	broad[VY+3] += 0.0625f;
 
 	Entity * list = quadTreeIntersect(broad, &count, ENFLAG_FIXED | ENFLAG_EQUALZERO);
 	if (count > 0)
 	{
+		/* make a copy of the list (return value is static) */
 		list = memcpy(alloca(count * sizeof *list), list, count * sizeof *list);
 		for (i = 0; i < count; i ++)
 		{
@@ -683,6 +669,18 @@ void physicsEntityMoved(Map map, APTR self, vec4 start, vec4 end)
 			if (entity == self || (entity->enflags & ENFLAG_FIXED)) continue;
 
 			float scale = ENTITY_SCALE(entity);
+
+			if (entity->pos[VY] > broad[VY+3] - 0.0625f)
+			{
+				/* entity is on top of broad[]: not going to be pushed, but check if it needs to be affected by gravity */
+				if (entity->private == NULL && entity->pos[VY] - (entity->szy >> 1) * scale > broad[VY+3] - 0.0625f)
+				{
+					entityInitMove(entity, SIDE_BOTTOM, 1);
+					//fprintf(stderr, "need physics update\n");
+				}
+				continue;
+			}
+
 			float bbox[] = {
 				entity->szx * scale,
 				entity->szy * scale,
@@ -694,13 +692,6 @@ void physicsEntityMoved(Map map, APTR self, vec4 start, vec4 end)
 			if (physicsPushEntity(broad, entity->pos, bbox, dir, entity->private))
 			{
 				entityUpdateInfo(entity, oldPos);
-				#if 0
-				if (! physicsCheckOnGround(map, entity->pos, NULL, bbox))
-				{
-					entityInitMove(entity, side, 4 /* a bit more force than if shoved by blocks */);
-					entityInitMove(entity, SIDE_BOTTOM, 1);
-				}
-				#endif
 			}
 		}
 	}
@@ -709,13 +700,13 @@ void physicsEntityMoved(Map map, APTR self, vec4 start, vec4 end)
 	for (p = HEAD(map->players); p; NEXT(p))
 	{
 		float bbox[] = {
-			(playerBBox.pt2[VX] - ORIGINVTX) * (1.0f/BASEVTX),
-			(playerBBox.pt2[VY] - ORIGINVTX) * (0.5f/BASEVTX),
-			(playerBBox.pt2[VZ] - ORIGINVTX) * (1.0f/BASEVTX)
+			playerBBox.pt2[VX],
+			playerBBox.pt2[VY] * 0.5f,
+			playerBBox.pt2[VZ]
 		};
-		/* player pos is at feet level, we need center */
 		float pos[3];
 		memcpy(pos, p->pos, sizeof pos);
+		/* player pos is at feet level, we need center */
 		pos[VY] += bbox[VY];
 		if (physicsPushEntity(broad, pos, bbox, dir, NULL))
 		{

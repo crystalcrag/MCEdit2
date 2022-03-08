@@ -24,14 +24,12 @@
 #define MAX_FALL              10.000f
 #define BASE_ACCEL            24.0f
 #define viscosity             pos[VT]
-#define BOXCY(szx,szy,szz)    \
-	{-szx/2 * BASEVTX + ORIGINVTX,                 ORIGINVTX, -szz/2 * BASEVTX + ORIGINVTX}, \
-	{ szx/2 * BASEVTX + ORIGINVTX, szy * BASEVTX + ORIGINVTX,  szz/2 * BASEVTX + ORIGINVTX}
 
 static float sensitivity = 1/1000.;
 
-struct VTXBBox_t playerBBox = {
-	BOXCY(0.6, 1.8, 0.6), .sides = 63, .aabox = 1
+struct ENTBBox_t playerBBox = {
+	.pt1 = {-0.3, 0,   -0.3},
+	.pt2 = { 0.3, 1.8,  0.3}
 };
 
 void playerInit(Player p)
@@ -415,7 +413,7 @@ void playerMove(Player p)
 		}
 		uint8_t ground = p->onground;
 		if ((keyvec & PLAYER_FALL) == 0 || p->velocity[VY] >= 0)
-			p->onground = physicsCheckOnGround(globals.level, p->pos, &playerBBox, NULL);
+			p->onground = physicsCheckOnGround(globals.level, p->pos, &playerBBox);
 
 		//fprintf(stderr, "pos = %g, %g, %g, ground: %d\n", p->pos[0], p->pos[1], p->pos[2], p->onground);
 		if (p->viscosity != oldVisco && ! p->fly)
@@ -469,6 +467,21 @@ void playerMove(Player p)
 		p->tick = globals.curTime;
 }
 
+void playerCheckNearby(Player p, float areaChanged[6])
+{
+	if (p->pos[VX] + playerBBox.pt1[VX] < areaChanged[VX+3] && p->pos[VX] + playerBBox.pt1[VX+3] > areaChanged[VX] &&
+		p->pos[VY] + playerBBox.pt1[VY] < areaChanged[VY+3] && p->pos[VY] + playerBBox.pt1[VY+3] > areaChanged[VY] &&
+		p->pos[VZ] + playerBBox.pt1[VZ] < areaChanged[VZ+3] && p->pos[VZ] + playerBBox.pt1[VZ+3] > areaChanged[VZ])
+	{
+		p->onground = physicsCheckOnGround(globals.level, p->pos, &playerBBox);
+		if (! p->onground)
+		{
+			p->keyvec &= ~ PLAYER_CLIMB;
+			p->keyvec |= PLAYER_FALL;
+		}
+	}
+}
+
 void playerTeleport(Player p, vec4 pos, float rotation[2])
 {
 	vec4 diff;
@@ -506,13 +519,13 @@ void playerSetMode(Player p, int mode)
 	}
 	switch (mode) {
 	case MODE_SURVIVAL:
-		p->onground = physicsCheckOnGround(globals.level, p->pos, &playerBBox, NULL);
+		p->onground = physicsCheckOnGround(globals.level, p->pos, &playerBBox);
 		p->fly = 0;
 		if (! p->onground)
 			p->keyvec |= PLAYER_FALL;
 		break;
 	case MODE_CREATIVE:
-		p->onground = physicsCheckOnGround(globals.level, p->pos, &playerBBox, NULL);
+		p->onground = physicsCheckOnGround(globals.level, p->pos, &playerBBox);
 		p->fly = !p->onground;
 		break;
 	case MODE_SPECTATOR:

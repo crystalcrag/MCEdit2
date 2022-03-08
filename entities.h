@@ -27,7 +27,7 @@ Bool   entityDeleteById(Map, int entityId);
 void   entityInfo(int id, STRPTR buffer, int max);
 int    entityGetCRC(int entityId);
 int    entityRaypick(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos);
-Entity entityUpdateOrCreate(Chunk, vec4 pos, ItemID_t blockId, vec4 dest, int ticks, DATA8 tile);
+Entity entityCreateOrUpdate(Chunk, vec4 pos, ItemID_t blockId, vec4 dest, int ticks, DATA8 tile);
 void   entityDebugCmd(void);
 int    entityCount(int start);
 int    entityGetModel(int entityId, int * vtxCount);
@@ -63,7 +63,8 @@ void quadTreeInit(int x, int z, int size);
 void quadTreeDebug(APTR vg);
 Entity * quadTreeIntersect(float bbox[6], int * count, int filter);
 
-#define UPDATE_BY_PHYSICS          -1 /* special param for <ticks> of entityUpdateOrCreate() */
+#define UPDATE_BY_PHYSICS          -1 /* special param for <ticks> of entityCreateOrUpdate() */
+#define UPDATE_BY_RAILS            -2
 #define ENTITY_END                 0xffff
 
 enum                               /* possible flags for Entity_t.enflags */
@@ -256,7 +257,7 @@ struct EntityType_t                /* callbacks to parse content of NBT records 
 struct PhysicsBBox_t               /* to alloc bbox at the same time */
 {
 	struct PhysicsEntity_t physics;
-	struct VTXBBox_t       bbox;
+	struct ENTBBox_t       bbox;
 };
 
 #define PHYSBOX    struct PhysicsBBox_t
@@ -317,10 +318,10 @@ void   entityMarkListAsModified(Map, Chunk);
 int    entityAddModel(ItemID_t, int cnx, CustModel cust, DATA16 sizes, int swapAxis);
 void   entityDeleteSlot(int slot);
 void   entityUpdateInfo(Entity, vec4 oldPos);
-void   entityGetBoundsForFace(Entity entity, int face, vec4 V0, vec4 V1);
+void   entityGetBoundsForFace(Entity, int face, vec4 V0, vec4 V1);
 void   entityFreePhysics(Entity);
 void   entityAllocPhysics(Entity);
-void   entityInitMove(Entity entity, int side, float factor);
+void   entityInitMove(Entity, int side, float factor);
 
 enum                  /* possible values for swapAxis of entityAddModel() */
 {

@@ -2080,7 +2080,7 @@ void blockParseBoundingBox(void)
 
 	bbox += DIM(bboxModels) / 7 + 1;
 
-//	fprintf(stderr, "bbox count = %d (%d bytes)\n", bbox, bbox * sizeof *blocks.bbox);
+//	fprintf(stderr, "bbox count = %d (%d bytes)\n", bbox, 2 * bbox * sizeof *blocks.bbox);
 
 	/*
 	 * first set is used to render bbox on screen with a slight offset (0.01 unit) to avoid
@@ -2437,7 +2437,7 @@ int blockAdjustOrient(int blockId, BlockOrient info, vec4 inter)
 		if (side == 4) return blockId+5;
 		return blockId + orientTorch[side];
 	case ORIENT_DOOR:
-		side = (fabs(inter[VX] - (int) inter[VX]) >= 0.5 ? 1 : 0) | (fabs(inter[VZ] - (int) inter[VZ]) >= 0.5 ? 2 : 0);
+		side = (fabs(inter[VX] - (int) inter[VX]) <= 0.5 ? 1 : 0) | (fabs(inter[VZ] - (int) inter[VZ]) <= 0.5 ? 2 : 0);
 		return (blockId & ~15) | orientDoor[info->direction&1 ? side+4 : side];
 		break;
 	case ORIENT_LEVER:
