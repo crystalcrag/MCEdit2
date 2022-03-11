@@ -9,7 +9,8 @@
 
 Bool minecartTryUsing(ItemID_t itemId, vec4 pos, int pointToBlock);
 int  minecartParse(NBTFile file, Entity entity);
-int  minecartPush(Entity entity, float broad[6]);
+int  minecartPush(Entity, float broad[6], vec dir);
+Bool minecartUpdate(Entity, float speed);
 
 #define RAILS_THICKNESS     (1/16.f)
 
@@ -23,8 +24,8 @@ enum
 	RAILS_ASCS,
 	RAILS_CURVED_SE,
 	RAILS_CURVED_SW,
-	RAILS_CURBED_NW,
-	RAILS_CURSET_NE,
+	RAILS_CURVED_NW,
+	RAILS_CURVED_NE,
 };
 
 #endif

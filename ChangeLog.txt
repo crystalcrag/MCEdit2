@@ -1,4 +1,10 @@
 =========== Week 10 ===========
+Wed Mar 9:
+	* minecart pushing logic continued.
+
+Tue Mar 8:
+	* minecart pushing logic.
+
 Mon Mar 7:
 	* entity bbox cleanup.
 

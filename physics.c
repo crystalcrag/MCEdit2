@@ -185,10 +185,11 @@ int physicsCheckCollision(Map map, vec4 start, vec4 end, ENTBBox bbox, float aut
 				Entity entity = list[i];
 				if ((entity->enflags & ENFLAG_FIXED) == 0)
 				{
-					if (entity->entype == ENTYPE_MINECART)
-						minecartPush(entity, broad);
-					//fprintf(stderr, "entity %s being pushed\n", entity->name);
-					continue;
+					if (entity->entype == ENTYPE_MINECART && minecartPush(entity, broad, dir))
+						/* minecart was pushed out of the way */
+						continue;
+					else
+						fprintf(stderr, "minecart can't move\n");
 				}
 				float dist = ENTITY_SCALE(entity);
 				float SZX = entity->szx * dist;
@@ -315,6 +316,10 @@ Bool physicsCheckOnGround(Map map, vec4 start, ENTBBox bbox)
 		if (i > dz) break;
 		mapIter(&iter, -dx, 0, 1);
 	}
+	int count;
+	minMax[VY+3] = minMax[VY] + 0.1f;
+	quadTreeIntersect(minMax, &count, ENFLAG_HASBBOX | ENFLAG_FIXED);
+	if (count > 0) return True;
 	return False;
 }
 

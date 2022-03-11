@@ -69,17 +69,17 @@ Entity * quadTreeIntersect(float bbox[6], int * count, int filter);
 
 enum                               /* possible flags for Entity_t.enflags */
 {
-	ENFLAG_POPIFPUSHED = 1,        /* if pushed by piston: convert to item */
-	ENFLAG_FIXED       = 2,        /* can't be pushed by piston */
-	ENFLAG_FULLLIGHT   = 4,        /* lighting similar to SOLID voxel */
-	ENFLAG_OVERLAP     = 8,        /* overlap partition of a quad tree (set by quad tree, do not set manually) */
-	ENFLAG_BBOXROTATED = 16,       /* don't apply rotation/scale on bbox */
-	ENFLAG_INQUADTREE  = 32,       /* entity is in quad tree (will need removal) */
-	ENFLAG_TEXENTITES  = 64,       /* use texture sampler for entities */
-	ENFLAG_HASBBOX     = 128,      /* other entities can collide with these */
-	ENFLAG_USEMOTION   = 256,      /* use entity->motion as position */
-	ENFLAG_INANIM      = 512,      /* used in a animated sequence (need to remove ref when deleted) */
-	ENFLAG_ITEM        = 1024,     /* differentiate world item from block entity (Entity_t.blockId) */
+	ENFLAG_POPIFPUSHED = 0x0001,   /* if pushed by piston: convert to item */
+	ENFLAG_FIXED       = 0x0002,   /* can't be pushed by piston */
+	ENFLAG_FULLLIGHT   = 0x0004,   /* lighting similar to SOLID voxel */
+	ENFLAG_OVERLAP     = 0x0008,   /* overlap partition of a quad tree (set by quad tree, do not set manually) */
+	ENFLAG_BBOXROTATED = 0x0010,   /* don't apply rotation/scale on bbox */
+	ENFLAG_INQUADTREE  = 0x0020,   /* entity is in quad tree (will need removal) */
+	ENFLAG_TEXENTITES  = 0x0040,   /* use texture sampler for entities */
+	ENFLAG_HASBBOX     = 0x0080,   /* other entities can collide with these */
+	ENFLAG_USEMOTION   = 0x0100,   /* use entity->motion as position */
+	ENFLAG_INANIM      = 0x0200,   /* used in a animated sequence (need to remove ref when deleted) */
+	ENFLAG_ITEM        = 0x0400,   /* differentiate world item from block entity (Entity_t.blockId) */
 
 	ENFLAG_EQUALZERO   = 2048      /* extra <filter> parameter for quadTreeIntersect() */
 };

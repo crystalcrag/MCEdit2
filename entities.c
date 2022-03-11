@@ -21,6 +21,7 @@
 #include "cartograph.h"
 #include "render.h"
 #include "physics.h"
+#include "minecarts.h"
 #include "undoredo.h"
 #include "zlib.h" /* crc32 */
 #include "globals.h"
@@ -1495,6 +1496,18 @@ void entityAnimate(void)
 			}
 			else anim ++;
 		}
+		else if (anim->stopTime == UPDATE_BY_RAILS)
+		{
+			if (! minecartUpdate(entity, (time - anim->prevTime) / 50.f))
+			{
+				/* minecart stopped remove from list */
+				entities.animCount --;
+				memmove(anim, anim + 1, ANIM_REMAIN(anim));
+				entity->enflags &= ~ENFLAG_INANIM;
+				entityFreePhysics(entity);
+			}
+			else anim->prevTime = time;
+		}
 		else if (remain > 0)
 		{
 			float oldPos[3];
@@ -1589,11 +1602,11 @@ Entity entityCreateOrUpdate(Chunk chunk, vec4 pos, ItemID_t blockId, vec4 dest, 
 	anim = entities.animate + entities.animCount;
 	entities.animCount ++;
 	anim->prevTime = (int) globals.curTime;
-	if (ticks == UPDATE_BY_PHYSICS)
+	if (ticks < 0)
 	{
 		/* XXX 2nd param should be a param of this function */
 		worldItemCreateBlock(entity, ! item);
-		anim->stopTime = UPDATE_BY_PHYSICS;
+		anim->stopTime = ticks;
 	}
 	else
 	{
@@ -1692,11 +1705,15 @@ void entityInitMove(Entity entity, int side, float factor)
 	physics = entity->private;
 
 //	fprintf(stderr, "init move for %s [*(Entity)0x%p] dir %c\n", entity->name, entity, "SENWTB"[side]);
-
-	uint8_t axis = axisDir[side];
-	physics->dir[axis] = sideDir[side] * factor;
-	physics->friction[axis] = sideFric[side] * factor;
-	physics->negXZ |= sideNeg[side];
+	int mode = UPDATE_BY_PHYSICS;
+	if (side >= 0)
+	{
+		uint8_t axis = axisDir[side];
+		physics->dir[axis] = sideDir[side] * factor;
+		physics->friction[axis] = sideFric[side] * factor;
+		physics->negXZ |= sideNeg[side];
+	}
+	else mode = side;
 
 	/* push it into the animate list */
 	if (entities.animCount == entities.animMax)
@@ -1711,7 +1728,7 @@ void entityInitMove(Entity entity, int side, float factor)
 		entities.animCount ++;
 		entity->enflags |= ENFLAG_INANIM;
 		anim->prevTime = (int) globals.curTime;
-		anim->stopTime = UPDATE_BY_PHYSICS;
+		anim->stopTime = mode;
 		anim->entity = entity;
 	}
 }
@@ -1734,6 +1751,7 @@ void entityUpdateNearby(BlockIter iterator, int blockId)
 	for (p = HEAD(globals.level->players); p; NEXT(p))
 		playerCheckNearby(p, bbox);
 
+	/* get entities that are not fixed */
 	Entity * list = quadTreeIntersect(bbox, &count, ENFLAG_FIXED | ENFLAG_EQUALZERO);
 
 	bbox[VY+3] -= 0.125f;
