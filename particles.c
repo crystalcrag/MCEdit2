@@ -20,7 +20,8 @@ struct ParticlePrivate_t particles;
 struct EmitterPrivate_t  emitters;
 static struct ENTBBox_t  particleBBox = {
 	.pt1 = {0, 0, 0},
-	.pt2 = {0.05, 0.05, 0.05}
+	.pt2 = {0.05, 0.05, 0.05},
+	.push = 0
 };
 
 //#define NOEMITTERS

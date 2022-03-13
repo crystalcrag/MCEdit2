@@ -462,8 +462,9 @@ int mapUpdatePowerRails(Map map, int blockId, BlockIter iterator)
 		/* rails powered with no power source nearby */
 		mapUpdateRailsChain(map, *iterator, id, 0, 0);
 		mapUpdateRailsChain(map, *iterator, id, 4, 0);
+		return blockId & ~8;
 	}
-	return blockId & ~8;
+	return blockId;
 }
 
 /* powered rail deleted: adjust nearby rails */

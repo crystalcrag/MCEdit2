@@ -1810,8 +1810,9 @@ void entityUpdateNearby(BlockIter iterator, int blockId)
 				entityInitMove(entity, SIDE_TOP, 1);
 			}
 		}
-		else /* outside bbox: probably has to be moved down */
+		else if (pos[VY] >= bbox[VY+3])
 		{
+			/* above bbox: move it down */
 			entityInitMove(entity, SIDE_BOTTOM, 1);
 		}
 	}
@@ -2128,7 +2129,7 @@ void entityRenderBBox(void)
 		int    i, j;
 		nvgStrokeColorRGBA8(vg, "\xff\xff\xff\xff");
 
-		if ((sel->enflags & ENFLAG_BBOXROTATED) == 0)
+		if ((sel->enflags & ENFLAG_BBOXROTATED) == 0 && (sel->enflags & ENFLAG_FIXED))
 		{
 			if (sel->rotation[0] > 0)
 				matRotate(rotation, sel->rotation[0], VY);

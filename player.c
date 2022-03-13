@@ -29,7 +29,8 @@ static float sensitivity = 1/1000.;
 
 struct ENTBBox_t playerBBox = {
 	.pt1 = {-0.3, 0,   -0.3},
-	.pt2 = { 0.3, 1.8,  0.3}
+	.pt2 = { 0.3, 1.8,  0.3},
+	.push = 1
 };
 
 void playerInit(Player p)
@@ -373,13 +374,12 @@ void playerMove(Player p)
 	{
 		/* bounding box of voxels will constraint movement in these modes */
 		float oldVisco = p->viscosity;
-		int collision = physicsCheckCollision(globals.level, orig_pos, p->pos, &playerBBox, (keyvec & PLAYER_FALL) ? 0 : 0.5);
+		int collision = physicsCheckCollision(globals.level, orig_pos, p->pos, &playerBBox, (keyvec & PLAYER_FALL) ? 0 : 0.5, NULL);
 		int climb = -1;
 
+//		fprintf(stderr, "moved to %.2f x %.2f\n", (double) p->pos[VX] - 0.3, (double) p->pos[VX] + 0.3);
 //		fprintf(stderr, "velocityY %.2f, pos = %.2f => %.2f [%g - %d], dirY: %g\n", p->velocity[VY], orig_pos[VY], p->pos[VY], p->targetY, collision,
 //			p->dir[VY]);
-//		fprintf(stderr, "Velocity = %.2f x %.2f, dir = %.2f x %.2f (%d)\n", (double) p->velocity[VX], (double) p->velocity[VZ],
-//			p->dir[VX], p->dir[VZ], collision);
 
 		if ((collision & INSIDE_PLATE) || p->plate)
 		{
@@ -401,8 +401,13 @@ void playerMove(Player p)
 			p->velocity[VY] = 0;
 		}
 
-		if (collision & 1) p->velocity[VX] = 0;
-		if (collision & 4) p->velocity[VZ] = 0;
+		if ((collision & SOFT_COLLISON) == 0)
+		{
+			if (collision & 1) p->velocity[VX] = 0;
+			if (collision & 4) p->velocity[VZ] = 0;
+		}
+		/* else target might get out of the way at some point */
+
 		if ((collision & 2) && orig_pos[VY] < p->pos[VY])
 		{
 			/* auto-climb */

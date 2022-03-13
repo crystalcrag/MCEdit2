@@ -797,20 +797,6 @@ static int mceditExit(SIT_Widget w, APTR cd, APTR ud)
 	return 1;
 }
 
-
-#if 1
-void minecartPushManual(int entityId, int up);
-
-static void mceditPushManual(int up)
-{
-	vec4 pos;
-	MapExtraData sel = renderGetSelectedBlock(pos, NULL);
-
-	if (sel->entity > 0)
-		minecartPushManual(sel->entity, up);
-}
-#endif
-
 /*
  * Main loop for editing world
  */
@@ -895,10 +881,6 @@ void mceditWorld(void)
 						break;
 					}
 					goto case_SDLK;
-				case SDLK_UP:   mceditPushManual(1); break;
-				case SDLK_DOWN: mceditPushManual(0); break;
-				case SDLK_RIGHT: mceditPushManual(3); break;
-				case SDLK_LEFT:  mceditPushManual(2); break;
 				#endif
 				case SDLK_DELETE:
 					if ((globals.selPoints & 8) == 0)

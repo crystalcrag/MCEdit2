@@ -150,6 +150,7 @@ struct ENTBBox_t                 /* entity/player bbox: use float and are always
 {
 	float    pt1[3];
 	float    pt2[3];
+	int      push;
 };
 
 struct WriteBuffer_t
@@ -301,6 +302,7 @@ enum                             /* common redstone devices */
 	RSDISPENSER    = 23,
 	RSNOTEBLOCK    = 25,   // TODO
 	RSPOWERRAILS   = 27,
+	RSDETECTORRAIL = 28,
 	RSSTICKYPISTON = 29,
 	RSPISTON       = 33,
 	RSPISTONHEAD   = 34,

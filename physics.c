@@ -35,7 +35,7 @@ float physicsSweptAABB(float bboxStart[6], vec4 dir, float block[6], DATA8 norma
 		{
 			if (bboxStart[i+3] <= block[i] || block[i+3] <= bboxStart[i])
 			    /* not in the way: can't collide */
-				return 2;
+				return 4;
 			else
 				continue;
 		}
@@ -53,7 +53,8 @@ float physicsSweptAABB(float bboxStart[6], vec4 dir, float block[6], DATA8 norma
 		entry = invEntry / dir[i];
 		exit  = invExit / dir[i];
 		if (entry < 0) continue;
-		if (entry > 1) return 2;
+		if (entry > 1)
+			return 3;
 
 		/* entryTime: max of entry[], exitTime: min of exit[] */
 		if (entryTime < entry) entryTime = entry, axis = i;
@@ -74,7 +75,7 @@ float physicsSweptAABB(float bboxStart[6], vec4 dir, float block[6], DATA8 norma
  * try to move bounding box <bbox> from <start> to <end>, changing end if movement is blocked
  * returns a bitfield (1 << (VX|VY|VZ)) of sides blocking movement.
  */
-int physicsCheckCollision(Map map, vec4 start, vec4 end, ENTBBox bbox, float autoClimb)
+int physicsCheckCollisionSub(Map map, vec4 start, vec4 end, ENTBBox bbox, float autoClimb, ValidBlockCb_t validateCb, int wtf)
 {
 	static uint8_t priority[] = {1, 0, 2};
 	struct BlockIter_t iter;
@@ -83,8 +84,11 @@ int physicsCheckCollision(Map map, vec4 start, vec4 end, ENTBBox bbox, float aut
 	float   dir[3];
 	float   shortestDist;
 	uint8_t curAxis;
-	int     ret;
+	int     ret, valid;
 	int8_t  i, j, k;
+
+	if (wtf >= 3)
+		puts("Here");
 
 	memcpy(minMax,   bbox->pt1, 12);
 	memcpy(minMax+3, bbox->pt2, 12);
@@ -107,6 +111,8 @@ int physicsCheckCollision(Map map, vec4 start, vec4 end, ENTBBox bbox, float aut
 
 	/* first: find the closest box intersected */
 	mapInitIter(map, &iter, broad, False);
+	valid = validateCb ? validateCb(iter, dx, dy, dz) : 0;
+
 	for (i = 0, shortestDist = 2, curAxis = 0; ; )
 	{
 		for (j = 0; ; )
@@ -115,6 +121,12 @@ int physicsCheckCollision(Map map, vec4 start, vec4 end, ENTBBox bbox, float aut
 			{
 				/* check if entity bbox (minMax) collides with any block in the voxel space */
 				int count, cnxFlags;
+				if (validateCb)
+				{
+					cnxFlags = valid & 1;
+					valid >>= 1;
+					if (cnxFlags == 0) goto skip_block;
+				}
 				VTXBBox blockBBox = mapGetBBox(&iter, &count, &cnxFlags);
 
 				if (blockBBox)
@@ -160,6 +172,7 @@ int physicsCheckCollision(Map map, vec4 start, vec4 end, ENTBBox bbox, float aut
 						ret |= INSIDE_PLATE;
 				}
 
+				skip_block:
 				k ++;
 				if (k > dx) break;
 				mapIter(&iter, 1, 0, 0);
@@ -183,13 +196,13 @@ int physicsCheckCollision(Map map, vec4 start, vec4 end, ENTBBox bbox, float aut
 			for (i = 0; i < count; i ++)
 			{
 				Entity entity = list[i];
-				if ((entity->enflags & ENFLAG_FIXED) == 0)
+				if ((entity->enflags & ENFLAG_FIXED) == 0 && bbox->push)
 				{
-					if (entity->entype == ENTYPE_MINECART && minecartPush(entity, broad, dir))
-						/* minecart was pushed out of the way */
-						continue;
-					else
-						fprintf(stderr, "minecart can't move\n");
+					if (entity->entype == ENTYPE_MINECART)
+					{
+						if (ret == 0) ret |= SOFT_COLLISON;
+						minecartPush(entity, broad, dir);
+					}
 				}
 				float dist = ENTITY_SCALE(entity);
 				float SZX = entity->szx * dist;
@@ -202,6 +215,17 @@ int physicsCheckCollision(Map map, vec4 start, vec4 end, ENTBBox bbox, float aut
 				};
 				uint8_t axis;
 				dist = physicsSweptAABB(minMax, dir, bboxFloat, &axis);
+				if (dist >= 2)
+				{
+					/* minecart orientation will make its pos wobble a bit and intersect player bbox if pushed manually */
+					float inter[] = {
+						fminf(minMax[VX+3], bboxFloat[VX+3]) - fmaxf(minMax[VX], bboxFloat[VX]),
+						fminf(minMax[VZ+3], bboxFloat[VZ+3]) - fmaxf(minMax[VZ], bboxFloat[VZ])
+					};
+					axis = inter[0] < inter[1] ? VX : VZ;
+					end[axis] = start[axis];
+					//dist = physicsSweptAABB(minMax, dir, bboxFloat, &axis);
+				}
 				if (dist < 1 && elevation < bboxFloat[VY+3])
 					elevation = bboxFloat[VY+3];
 				if (dist < shortestDist || (dist == 0 && priority[axis] > priority[curAxis]))
@@ -243,7 +267,7 @@ int physicsCheckCollision(Map map, vec4 start, vec4 end, ENTBBox bbox, float aut
 			/* <end> now becomes new start */
 			memcpy(minMax, end, 12);
 			vecAdd(end, minMax, dir);
-			ret |= physicsCheckCollision(map, minMax, end, bbox, autoClimb);
+			ret |= physicsCheckCollisionSub(map, minMax, end, bbox, autoClimb, validateCb, wtf+1);
 			if (check)
 			{
 				if (broad[VX+3] == end[curAxis])
@@ -256,6 +280,11 @@ int physicsCheckCollision(Map map, vec4 start, vec4 end, ENTBBox bbox, float aut
 		}
 	}
 	return ret;
+}
+
+int physicsCheckCollision(Map map, vec4 start, vec4 end, ENTBBox bbox, float autoClimb, ValidBlockCb_t validateCb)
+{
+	return physicsCheckCollisionSub(map, start, end, bbox, autoClimb, validateCb, 0);
 }
 
 static Bool intersectBBox(BlockIter iter, VTXBBox bbox, float minMax[6], float inter[6])
@@ -520,7 +549,7 @@ Bool physicsMoveEntity(Map map, PhysicsEntity entity, float speed)
 	else entity->friction[VY] += 0.003f * speed * entity->density;
 
 	/* check collision */
-	int axis = physicsCheckCollision(map, oldLoc, entity->loc, entity->bbox, 0);
+	int axis = physicsCheckCollision(map, oldLoc, entity->loc, entity->bbox, 0, NULL);
 
 	if (axis & 2)
 	{
@@ -596,7 +625,7 @@ static Bool physicsPushEntity(float broad[6], vec4 pos, float size[3], char dir[
 
 	//fprintf(stderr, "pushing entity from %g to %g\n", (double) pos[VY], (double) endPos[VY]);
 
-	//physicsCheckCollision(map, pos, endPos, bbox, 0.5);
+	//physicsCheckCollision(map, pos, endPos, bbox, 0.5, NULL);
 
 	/* entity is already moving due to external forces: cancels its movement in the direction it is pushed */
 	if (phys)

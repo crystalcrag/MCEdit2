@@ -1,4 +1,13 @@
 =========== Week 10 ===========
+Sat Mar 12:
+	* more minecart mechanic implemented (physics and push off rails).
+
+Fri Mar 11:
+	* minecart collision with terrain.
+
+Thu Mar 10:
+	* minecart follow up/down track.
+
 Wed Mar 9:
 	* minecart pushing logic continued.
 

@@ -11,7 +11,9 @@
 
 typedef struct PhysicsEntity_t *         PhysicsEntity;
 
-int  physicsCheckCollision(Map, vec4 start, vec4 end, ENTBBox bbox, float autoClimb);
+typedef int (ValidBlockCb_t)(struct BlockIter_t iter, int dx, int dy, int dz);
+
+int  physicsCheckCollision(Map, vec4 start, vec4 end, ENTBBox bbox, float autoClimb, ValidBlockCb_t);
 void physicsEntityMoved(Map, APTR self, vec4 start, vec4 end);
 Bool physicsCheckOnGround(Map, vec4 start, ENTBBox bbox);
 void physicsInitEntity(PhysicsEntity entity, int block);
@@ -38,6 +40,7 @@ enum                           /* special bit field returned by physicsCheckColl
 {
 	INSIDE_LADDER = 8,
 	INSIDE_PLATE  = 16,
+	SOFT_COLLISON = 32,        /* do not reset velocity, target might get out of the way */
 };
 
 #endif

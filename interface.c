@@ -1831,7 +1831,7 @@ static Bool mcuiPaintingsFindLocation(vec4 ret)
 				bbox[VY+3] = bbox[VY] + tileH;
 				if (bbox[VX] > bbox[VX+3]) swap_tmp(bbox[VX], bbox[VX+3], tmp);
 				if (bbox[VZ] > bbox[VZ+3]) swap_tmp(bbox[VZ], bbox[VZ+3], tmp);
-				quadTreeIntersect(bbox, &count, 0);
+				quadTreeIntersect(bbox, &count, ENFLAG_ANYENTITY);
 				if (count == 0)
 					return True;
 			}

@@ -538,7 +538,7 @@ static int worldItemCreateItemFrame(Map map, vec4 pos, int side)
 	posAndRot[VY] -= size[VY];   posAndRot[VY+3] += size[VY];
 	posAndRot[VZ] -= size[VZ];   posAndRot[VZ+3] += size[VZ];
 	int count = 0;
-	quadTreeIntersect(posAndRot, &count, 0);
+	quadTreeIntersect(posAndRot, &count, ENFLAG_ANYENTITY);
 	if (count > 0)
 	{
 		/* does not fit: cancel creation */

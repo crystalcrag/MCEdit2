@@ -894,7 +894,7 @@ void selectionIterEntities(SIT_CallProc cb, APTR data)
 
 	selectionGetRange(pos, False);
 	for (i = 0; i < 6; bbox[i] = pos[i], i ++);
-	Entity * list = quadTreeIntersect(bbox, pos, 0);
+	Entity * list = quadTreeIntersect(bbox, pos, ENFLAG_ANYENTITY);
 
 	for (i = 0; i < pos[0]; i ++)
 	{
