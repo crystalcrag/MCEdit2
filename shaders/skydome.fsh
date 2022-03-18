@@ -89,7 +89,7 @@ void main()
 		{
 			float time = clamp(sun_norm.y,0.1,0.99);
 			float normRadius = radius / SUNRADIUS;
-			if(normRadius < 1.0-0.001) // we need a small bias to avoid flickering on the border of the texture
+			if(normRadius < 1.0-0.01) // we need a small bias to avoid flickering on the border of the texture
 			{
 				// we read the alpha value from a texture where x = radius and y=height in the sky (~time)
 				vec4 sun_color = texture(sun, vec2(normRadius, time));

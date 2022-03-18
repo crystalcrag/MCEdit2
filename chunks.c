@@ -1024,14 +1024,14 @@ static uint8_t ysides[] = {16, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 4
 
 /* this table is used to list neighbor chunks, if a block is updated at a boundary (180 bytes) */
 uint32_t chunkNearby[] = {
-	0x00000010, 0x00100010, 0x00040010, 0x00340010, 0x00008010, 0x00000000,
-	0x00058010, 0x00000000, 0x00020010, 0x001a0010, 0x00000000, 0x00000000,
-	0x0002c010, 0x00000000, 0x00000000, 0x00000000, 0x04000010, 0x24100010,
-	0x0c040010, 0x6c340010, 0x04808010, 0x00000000, 0x0d858010, 0x00000000,
-	0x06020010, 0x361a0010, 0x00000000, 0x00000000, 0x06c2c010, 0x00000000,
-	0x00000000, 0x00000000, 0x00000210, 0x00101210, 0x00040610, 0x00343610,
-	0x00008250, 0x00000000, 0x000586d0, 0x00000000, 0x00020310, 0x001a1b10,
-	0x00000000, 0x00000000, 0x0002c370
+0x00000000, 0x00100000, 0x00040000, 0x00340000, 0x00008000, 0x00000000,
+0x00058000, 0x00000000, 0x00020000, 0x001a0000, 0x00000000, 0x00000000,
+0x0002c000, 0x00000000, 0x00000000, 0x00000000, 0x04000000, 0x24100000,
+0x0c040000, 0x6c340000, 0x04808000, 0x00000000, 0x0d858000, 0x00000000,
+0x06020000, 0x361a0000, 0x00000000, 0x00000000, 0x06c2c000, 0x00000000,
+0x00000000, 0x00000000, 0x00000200, 0x00101200, 0x00040600, 0x00343600,
+0x00008240, 0x00000000, 0x000586c0, 0x00000000, 0x00020300, 0x001a1b00,
+0x00000000, 0x00000000, 0x0002c360
 };
 
 /*
@@ -1055,6 +1055,10 @@ uint16_t hasCnx[] = {
 };
 
 uint8_t mask8bit[] = {0x80, 0x40, 0x20, 0x10, 0x08, 0x04, 0x02, 0x01};
+static uint16_t mask16bit[] = {
+	0x0001, 0x0002, 0x0004, 0x0008, 0x0010, 0x0020, 0x0040, 0x0080,
+	0x0100, 0x0200, 0x0400, 0x0800, 0x1000, 0x2000, 0x4000, 0x8000,
+};
 
 /* used to compute light for CUST model */
 #define DXYZ(dx,dy,dz)       (dx+1) | ((dy+1)<<2) | ((dz+1)<<4)
@@ -1167,6 +1171,8 @@ static void chunkAddEmitters(ChunkData cd, int interval, int pos, int type, DATA
 static void chunkGenQuad(ChunkData neighbors[], WriteBuffer buffer, BlockState b, int pos);
 static void chunkGenCust(ChunkData neighbors[], WriteBuffer opaque, BlockState b, DATAS16 chunkOffsets, int pos);
 static void chunkGenCube(ChunkData neighbors[], WriteBuffer opaque, BlockState b, DATAS16 chunkOffsets, int pos);
+static void chunkGenFOG(ChunkData cur, WriteBuffer opaque, DATA16 holesSENW);
+static void chunkFillCaveHoles(ChunkData cur, int pos, DATA16 holes);
 int mapUpdateGetCnxGraph(ChunkData, int start, DATA8 visited);
 
 #include "globals.h" /* .breakPoint */
@@ -1177,7 +1183,7 @@ int mapUpdateGetCnxGraph(ChunkData, int start, DATA8 visited);
  */
 void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 {
-	static uint8_t visited[512];
+	static uint8_t visited[512 + 256];
 	struct WriteBuffer_t alpha, opaque;
 	ChunkData neighbors[7];    /* S, E, N, W, T, B, current */
 	ChunkData cur;
@@ -1207,7 +1213,7 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 	memset(visited, 0, sizeof visited);
 	hasLights = (cur->cdFlags & CDFLAG_NOLIGHT) == 0;
 
-//	if (c->X == -32 && cur->Y == 80 && c->Z == -560)
+//	if (c->X == -16 && cur->Y == 48 && c->Z == -528)
 //		globals.breakPoint = 1;
 
 	for (Y = 0, pos = air = 0; Y < 16; Y ++)
@@ -1227,12 +1233,18 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 			block = cur->blockIds[pos];
 			state = blockGetById(ID(block, data));
 
-//			if (globals.breakPoint && pos == 94)
+//			if (globals.breakPoint && pos == 496)
 //				globals.breakPoint = 2;
 
 			/* 3d flood fill for cave culling */
-			if ((slotsXZ[pos & 0xff] || slotsY[pos >> 8]) && ! blockIsFullySolid(state) && (visited[pos>>3] & mask8bit[pos&7]) == 0)
-				cur->cnxGraph |= mapUpdateGetCnxGraph(cur, pos, visited);
+			if ((slotsXZ[pos & 0xff] || slotsY[pos >> 8]) && ! blockIsFullySolid(state))
+			{
+				if ((visited[pos>>3] & mask8bit[pos&7]) == 0)
+					cur->cnxGraph |= mapUpdateGetCnxGraph(cur, pos, visited);
+				/* cave fog quad */
+				if (hasLights && slotsXZ[pos & 0xff])
+					chunkFillCaveHoles(cur, pos, (DATA16) (visited + 512));
+			}
 
 			if (hasLights)
 			{
@@ -1302,6 +1314,7 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 			else cur->cdFlags |= CDFLAG_CHUNKAIR;
 		}
 	}
+	chunkGenFOG(neighbors[6], &opaque, (DATA16) (visited + 512));
 
 	if (opaque.cur > opaque.start) opaque.flush(&opaque);
 	if (alpha.cur  > alpha.start)  alpha.flush(&alpha);
@@ -1824,15 +1837,15 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 			{
 				/* neighbor is not in the same chunk */
 				ChunkData cd = neighbors[i>>2];
-				if (cd == NULL)
-					continue; /* edge of map */
+				if (cd == NULL) continue;
 				n += blockOffset[side];
 				data = META(cd, n>>1);
 				nbor = blockGetByIdData(cd->blockIds[n], n & 1 ? data >> 4 : data & 0xf);
 			}
 			else
 			{
-				static int offsets[] = { /* neighbors: S, E, N, W, T, B */
+				static int offsets[] = {
+					/* neighbors: S, E, N, W, T, B */
 					16, 1, -16, -1, 256, -256
 				};
 				n += offsets[i>>2];
@@ -1947,6 +1960,7 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 
 			/* flip tex */
 			if (texCoord[j] == texCoord[j + 6]) out[5] |= FLAG_TEX_KEEPX;
+			if (b->special == BLOCK_LIQUID && i < SIDE_TOP * 4) out[5] |= FLAG_ANIMATE;
 
 			/* sky/block light values: 2*4bits per vertex = 4 bytes needed, ambient occlusion: 2bits per vertex = 1 byte needed */
 			for (k = 0; k < 4; k ++)
@@ -2000,6 +2014,163 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 		buffer->cur = out + VERTEX_INT_SIZE;
 	}
 }
+
+/*
+ * generate some dummy quads to cover holes in caves (only in the S, E, N, W planes). Minecraft doess
+ * fake this by changing the entire sky color if you get below a certain Y coord: meh.
+ */
+
+static void chunkFillCaveHoles(ChunkData cur, int pos, DATA16 holes)
+{
+	uint8_t sides = slotsXZ[pos & 0xff];
+	uint8_t y = pos >> 8;
+	uint8_t x = pos & 15;
+	uint8_t z = (pos >> 4) & 15;
+
+	/* sky value need to be 0 for the hole to be covered */
+	uint8_t sky = cur->blockIds[SKYLIGHT_OFFSET + (pos >> 1)];
+
+	if (pos & 1) sky >>= 4;
+	else         sky &= 15;
+
+	if (sky > 0) holes += 16;
+
+	/* S, E, N, W sides */
+	if (sides & 1) holes[   y] |= mask16bit[x];
+	if (sides & 2) holes[32+y] |= mask16bit[z];
+	if (sides & 4) holes[64+y] |= mask16bit[x];
+	if (sides & 8) holes[96+y] |= mask16bit[z];
+}
+
+#if 0
+static void printHoles(DATA16 holes, int side)
+{
+	TEXT buffer[20];
+	int  i, j;
+	printf(" 0123456789ABCDEF %c\n", "SENW"[side]);
+	for (i = 15, buffer[17] = '|', buffer[18] = 0, holes += 15; i >= 0; i --, holes --)
+	{
+		uint16_t hole  = holes[0];
+		uint16_t avoid = holes[16];
+		buffer[0] = i < 10 ? '0' + i : 'A' + i - 10;
+		for (j = 1; j <= 16; buffer[j] = avoid & 1 ? 'X' : hole & 1 ? 'O' : ' ', hole >>= 1, avoid >>= 1, j ++);
+		puts(buffer);
+	}
+}
+
+#define INTVERTEX(x)       (((x) - ORIGINVTX) >> 10)
+static void debugVertex(DATA32 p)
+{
+	double V1[] = {FROMVERTEX(p[0] & 0xffff), FROMVERTEX(p[0] >> 16), FROMVERTEX(p[1] & 0xffff)};
+	double V2[] = {
+		(double) bitfieldExtract(p[1], 16, 14) - 16 + V1[0],
+		(double) bitfieldExtract(p[2],  0, 14) - 16 + V1[1],
+		(double) bitfieldExtract(p[2], 14, 14) - 16 + V1[2]
+	};
+	double V3[] = {
+		(double) bitfieldExtract(p[3],  0, 14) - 16 + V1[0],
+		(double) bitfieldExtract(p[3], 14, 14) - 16 + V1[1],
+		(double) bitfieldExtract(p[4],  0, 14) - 16 + V1[2]
+	};
+
+	fprintf(stderr, "V1 = %g,%g,%g | V2 = %g,%g,%g | V3 = %g,%g,%g, Usz = %d\n",
+		V1[0], V1[1], V1[2], V2[0], V2[1], V2[2], V3[0], V3[1], V3[2], bitfieldExtract(p[5], 16, 9));
+}
+#else
+#define printHoles(x, y)
+#define debugVertex(x)
+#endif
+
+/* generate actual quads, but we need holes data first (result from previous function) */
+static void chunkGenFOG(ChunkData cur, WriteBuffer buffer, DATA16 holesSENW)
+{
+	uint8_t  side;
+	uint8_t  XYZ[4], w, h;
+
+	/* block type is air */
+	for (side = 0; side < 4; side ++, holesSENW += 32)
+	{
+		uint16_t holes, avoid;
+		DATA16   p;
+		uint8_t  i, axis;
+
+		axis = 2 - axisCheck[side];
+		XYZ[2 - axis] = side < 2 ? 16 : 0;
+
+		/* check first if we can get away with only one quad */
+		for (i = 0, p = holesSENW, holes = avoid = 0; i < 16 && (p[0] == 0 || p[16] == 0xffff); p ++, i ++);
+
+		/* surface chunks usually don't have any cave holes */
+		if (i == 16) continue;
+
+		int8_t * normal = cubeNormals + side * 4;
+
+		printHoles(holesSENW, side);
+		for (XYZ[VY] = i, h = i, p = holesSENW + i, holes = p[0], avoid = p[16], p ++, i ++; i < 16; i ++, p ++)
+		{
+			if ((holes | p[0]) & (avoid | p[16]))
+			{
+				/* can't expand further: flush current hole accumulation */
+				flush_holes:
+				for (XYZ[axis] = ZEROBITS(holes), holes >>= XYZ[axis], h ++; holes; )
+				{
+					if (holes & 1)
+					{
+						static uint8_t startV13[] = {3, 2, 0, 3};
+						static uint8_t startV2[]  = {0, 3, 3, 2};
+						for (w = 1, holes >>= 1; holes & 1; w ++, holes >>= 1);
+
+						if (BUF_LESS_THAN(buffer, VERTEX_DATA_SIZE))
+							buffer->flush(buffer);
+
+						XYZ[3] = XYZ[axis] + w;
+
+						DATA32 out = buffer->cur;
+						uint8_t XYZ2[8];
+						uint16_t mask;
+						memcpy(XYZ2,   XYZ, 4);
+						memcpy(XYZ2+4, XYZ, 4);
+						XYZ2[axis]   = XYZ[startV13[side]];
+						XYZ2[4+axis] = XYZ[startV2[side]];
+						for (XYZ2[VY+4] = h, mask = ((1 << w) - 1) << XYZ[axis]; (holesSENW[XYZ2[VY+4]-1] & mask) == 0; XYZ2[VY+4] --);
+						for (XYZ2[VY] = XYZ[VY]; (holesSENW[XYZ2[VY]] & mask) == 0; XYZ2[VY] ++);
+
+						out[0] = (VERTEX(XYZ2[VX]) + normal[VX]) | (VERTEX(XYZ2[VY+4]) << 16);
+						out[1] = (VERTEX(XYZ2[VZ]) + normal[VZ]) | (16 << 16);
+						out[2] = (16 << 14) | (XYZ2[VY] + 16 - XYZ2[VY+4]);
+						out[3] = (16 << 14) | (XYZ2[VX+4] + 16 - XYZ2[VX]);
+						out[4] = (XYZ2[VZ+4] + 16 - XYZ2[VZ]);
+						out[5] = side << 9;
+						out[6] = 0xf0 | (0xf0 << 8) | (0xf0 << 16) | (0xf0 << 24);
+						debugVertex(out);
+						buffer->cur = out + VERTEX_INT_SIZE;
+						XYZ[axis] += w;
+						globals.level->fogCount ++;
+					}
+					else
+					{
+						w = ZEROBITS(holes);
+						holes >>= w;
+						XYZ[axis] += w;
+					}
+				}
+				for (; i < 16 && p[0] == 0; i ++, p ++);
+				if (i >= 16) break;
+				holes = p[0];
+				avoid = p[16];
+			}
+			else
+			{
+				holes |= p[0];
+				avoid |= p[16];
+				if (p[0] > 0) h = i;
+			}
+		}
+		if (holes)
+			goto flush_holes;
+	}
+}
+
 
 /*
  * This function is similar to chunkGenQuad, but vertex data will use model format instead of terrain.

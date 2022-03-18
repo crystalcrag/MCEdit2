@@ -647,7 +647,7 @@ static void emitterSpawnParticles(Map map, Emitter emit)
 	while (area > 0 && count > 0)
 	{
 		/* find first bit set to 1, by counting leading zero */
-		int slotZ = multiplyDeBruijnBitPosition[((uint32_t)((area & -(signed)area) * 0x077CB531U)) >> 27];
+		int slotZ = ZEROBITS(area);
 		area  >>= slotZ;
 		area   ^= 1;
 		offset += slotZ << 4;

@@ -150,6 +150,7 @@ struct RenderWorld_t
 	vec4       camera;             /* player pos */
 	GLuint     shaderBlocks;       /* compiled shaders */
 	GLuint     shaderItems;
+	GLuint     uniformTime;
 	GLuint     vaoInventory;       /* vao to draw inventory object */
 	GLuint     vaoBBox;
 	GLuint     vaoPreview;

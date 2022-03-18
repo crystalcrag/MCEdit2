@@ -371,7 +371,7 @@ void debugCoord(APTR vg, vec4 camera, int total)
 	for (bank = HEAD(globals.level->gpuBanks), vis = 0; bank; vis += bank->vtxSize, NEXT(bank));
 	len += sprintf(message + len, "Chunks: %d/%d (culled: %d, fakeAlloc: %d)\n", vis, globals.level->GPUchunk, globals.level->chunkCulled,
 		globals.level->fakeMax);
-	len += sprintf(message + len, "FPS: %.1f", FrameGetFPS());
+	len += sprintf(message + len, "FPS: %.1f\nFOG: %d", FrameGetFPS(), globals.level->fogCount);
 
 	nvgFontSize(vg, FONTSIZE);
 	nvgTextAlign(vg, NVG_ALIGN_TOP);

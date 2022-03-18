@@ -1910,11 +1910,11 @@ void entityRender(void)
 		glMultiDrawArraysIndirect(GL_TRIANGLES, 0, bank->mdaiCount, 0);
 		// glDisable(GL_POLYGON_OFFSET_FILL);
 	}
-	if (globals.breakPoint)
-	{
-		entityDebugCmd();
-		globals.breakPoint = 0;
-	}
+//	if (globals.breakPoint)
+//	{
+//		entityDebugCmd();
+//		globals.breakPoint = 0;
+//	}
 }
 
 /*

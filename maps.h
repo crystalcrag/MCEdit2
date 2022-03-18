@@ -38,7 +38,8 @@ struct Map_t
 	int       frame;               /* needed by frustum culling */
 	int       GPUchunk;            /* stat for debug: chunks with mesh on GPU */
 	int       GPUMaxChunk;         /* bytes to allocate for a single VBO */
-	int       fakeMax;
+	int       fakeMax;             // DEBUG
+	int       fogCount;            // DEBUG
 	uint16_t  chunkCulled;         /* stat for debug: chunk culled from cave culling (not from frustum) */
 	uint16_t  curOffset;           /* reduce sorting for alpha transparency of current chunk */
 	uint16_t  size[3];             /* brush only: size in blocks of brush (incl. 1 block margin around) */
@@ -49,7 +50,6 @@ struct Map_t
 	Chunk     genLast;
 	DATAS16   chunkOffsets;        /* array 16*9: similar to chunkNeighbor[] */
 	char      path[MAX_PATHLEN];   /* path to level.dat */
-	ChunkData dirty;               /* sub-chunks that needs mesh regeneration */
 	ChunkData firstVisible;        /* list of visible chunks according to the MVP matrix */
 	Chunk     needSave;            /* linked list of chunk that have been modified */
 	Chunk     chunks;              /* 2d array of chunk containing the entire area around player */
@@ -131,7 +131,6 @@ void mapIter(BlockIter iter, int dx, int dy, int dz);
 /* enumerate sequentially blocks S, E, N, W, T, B using mapIter() */
 extern int8_t relx[], rely[], relz[];
 extern int8_t xoff[], yoff[], zoff[], opp[];
-extern uint8_t multiplyDeBruijnBitPosition[];
 
 /* private stuff below that point */
 struct ChunkFake_t

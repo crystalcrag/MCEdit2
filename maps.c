@@ -37,11 +37,6 @@ static struct Frustum_t frustum = {
 int16_t   chunkNeighbor[16*9];
 ChunkData chunkAir;
 
-uint8_t multiplyDeBruijnBitPosition[] = {
-	0, 1, 28, 2, 29, 14, 24, 3, 30, 22, 20, 15, 25, 17, 4, 8,
-	31, 27, 13, 23, 21, 19, 16, 7, 26, 12, 18, 6, 11, 5, 10, 9
-};
-
 extern uint8_t openDoorDataToModel[];
 
 int mapFirstFree(DATA32 usage, int count)
@@ -49,11 +44,10 @@ int mapFirstFree(DATA32 usage, int count)
 	int base, i;
 	for (i = count, base = 0; i > 0; i --, usage ++, base += 32)
 	{
-		/* from https://graphics.stanford.edu/~seander/bithacks.html#ZerosOnRightMultLookup */
 		uint32_t bits = *usage ^ 0xffffffff;
 		if (bits == 0) continue;
 		/* count leading 0 */
-		bits = multiplyDeBruijnBitPosition[((uint32_t)((bits & -(signed)bits) * 0x077CB531U)) >> 27];
+		bits = ZEROBITS(bits);
 		*usage |= 1 << bits;
 		return base + bits;
 	}
@@ -1512,6 +1506,7 @@ static ChunkData mapAddToVisibleList(Map map, Chunk from, int direction, int lay
 	{
 		/* not visited yet */
 		c->outflags[Y] |= VISIBLE;
+		cd->comingFrom = 0;
 		cd->visible = NULL;
 		return cd;
 	}
@@ -1591,6 +1586,7 @@ void mapViewFrustum(Map map, vec4 camera)
 	ChunkData * prev;
 	ChunkData   cur, last;
 	Chunk       chunk;
+	float       renderDist;
 	int         frame;
 	int         center[3];
 
@@ -1705,6 +1701,7 @@ void mapViewFrustum(Map map, vec4 camera)
 	chunk->outflags[cur->Y>>4] |= VISIBLE;
 	frame = ++ map->frame;
 	chunk->chunkFrame = frame;
+	renderDist = (map->maxDist >> 1) * (map->maxDist >> 1) * 256;
 	if (chunkAtBottomIsVisible(chunk))
 		chunk->noChunks |= NOCHUNK_ISINTRUSTUM;
 	else
@@ -1721,7 +1718,7 @@ void mapViewFrustum(Map map, vec4 camera)
 		neighbors = mapGetOutFlags(map, cur, outflags);
 
 		#ifdef FRUSTUM_DEBUG
-		fprintf(stderr, "chunk %d, %d, %d: outflags = %d,%d,%d,%d,%d,%d,%d,%d\n", cur->chunk->X, cur->chunk->Z, cur->Y,
+		fprintf(stderr, "chunk %d, %d, %d: outflags = %d,%d,%d,%d,%d,%d,%d,%d\n", chunk->X, chunk->Z, cur->Y,
 			outflags[0], outflags[1], outflags[2], outflags[3], outflags[4], outflags[5], outflags[6], outflags[7]);
 		#endif
 
@@ -1770,7 +1767,7 @@ void mapViewFrustum(Map map, vec4 camera)
 					if (cd)
 					{
 						#ifdef FRUSTUM_DEBUG
-						fprintf(stderr, "extra chunk added: %d, %d [%d]\n", cd->chunk->X, cd->chunk->Z, cd->Y);
+						fprintf(stderr, "extra chunk added: %d, %d [%d]\n", chunk->X, chunk->Z, cd->Y);
 						#endif
 						last->visible = cd;
 						last = cd;
@@ -1784,20 +1781,49 @@ void mapViewFrustum(Map map, vec4 camera)
 			/* fake or empty chunk: remove from list */
 			if (cur->slot > 0)
 				mapFreeFakeChunk(cur);
-			else /* still need to mark from direction we went */
+			else /* still need to mark from which direction we went */
 				mapCullCave(cur, camera);
 			*prev = cur->visible;
 		}
 		else
 		{
 			mapCullCave(cur, camera);
-			if (cur->comingFrom == 0)
-				/* ignore this chunk */
+			if (cur->comingFrom > 0)
+			{
+				renderAddToBank(cur);
+				prev = &cur->visible;
+				cur->frame = frame;
+				cur->cdFlags &= ~ CDFLAG_EDGESENW;
+			}
+			else /* ignore this chunk */
 				*prev = cur->visible, map->chunkCulled ++;
-			else
-				renderAddToBank(cur), prev = &cur->visible;
 		}
 	}
 
+#if 1
+	for (cur = map->firstVisible; cur; cur = cur->visible)
+	{
+		/* setup cave fog flags */
+		/*float dx = camera[VX] - chunk->X;
+		float dz = camera[VZ] - chunk->Z;
+		if (dx * dx + dz * dz >= renderDist)*/
+		{
+			int i;
+			chunk = cur->chunk;
+			/* 90% of chunks don't need this information */
+			for (i = 0; i < 4; i ++)
+			{
+				Chunk neighbor = chunk + map->chunkOffsets[chunk->neighbor + (1 << i)];
+				ChunkData cd = neighbor->layer[cur->Y >> 4];
+				if (cd && cd->frame == frame)
+				{
+					/* chunk data is in frustum */
+					//cur->cdFlags &= ~(CDFLAG_EDGESOUTH << i);
+				}
+				else cur->cdFlags |= CDFLAG_EDGESOUTH << i;
+			}
+		}
+	}
+#endif
 	renderAllocCmdBuffer(map);
 }

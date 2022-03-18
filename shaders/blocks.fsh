@@ -12,9 +12,11 @@ in  vec2  ocspos;
 in  float skyLight;
 in  float blockLight;
 in  float fogFactor;
+flat in vec2 baseTex;
 flat in uint rswire;
 flat in uint ocsmap;
-flat in int  normal;
+flat in uint normal;
+flat in uint animate;
 
 layout (binding=0) uniform sampler2D blockTex; // Main texture for blocks
 
@@ -22,10 +24,15 @@ layout (binding=0) uniform sampler2D blockTex; // Main texture for blocks
 layout (binding=6) uniform sampler2D skyTex;
 
 uniform vec3 biomeColor;
+uniform uint timeMS;      // time in millisec
 
 void main(void)
 {
-	color = texture(blockTex, tc);
+	if (animate > 0)
+	{
+		color = texture(blockTex, vec2(tc.x, baseTex.y + mod(float(tc.y - double(timeMS) * 0.000001), 16*TEX_COORD_Y)));
+	}
+	else color = texture(blockTex, tc);
 	// prevent writing to the depth buffer: easy way to handle opacity for transparent block
 	if (color.a < 0.004)
 		discard;
@@ -106,10 +113,11 @@ void main(void)
 	float block = (blockLight * blockLight - shadeLight) * (1 - sky);  if (block < 0) block = 0;
 	color *= vec4(sky, sky, sky, 1) + vec4(1.5 * block, 1.2 * block, 1 * block, 0);
 
-	// compute fog contribution -- need to redo what's done in skydome.fsh :-/
+	// compute fog contribution
 	if (fogFactor < 1)
 	{
-		vec4 skyColor = texture(skyTex, vec2(gl_FragCoord.x / SCR_WIDTH, gl_FragCoord.y / SCR_HEIGHT));
+		vec4 skyColor = texture(skyTex, vec2(gl_FragCoord.x / SCR_WIDTH, gl_FragCoord.y / SCR_HEIGHT)) * skyLight + vec4(1.5, 1.2, 1, 0) * block;
+		skyColor.w = 1;
 		color = mix(skyColor, color, fogFactor);
 	}
 }

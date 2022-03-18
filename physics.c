@@ -75,7 +75,7 @@ float physicsSweptAABB(float bboxStart[6], vec4 dir, float block[6], DATA8 norma
  * try to move bounding box <bbox> from <start> to <end>, changing end if movement is blocked
  * returns a bitfield (1 << (VX|VY|VZ)) of sides blocking movement.
  */
-int physicsCheckCollisionSub(Map map, vec4 start, vec4 end, ENTBBox bbox, float autoClimb, ValidBlockCb_t validateCb, int wtf)
+int physicsCheckCollision(Map map, vec4 start, vec4 end, ENTBBox bbox, float autoClimb, ValidBlockCb_t validateCb)
 {
 	static uint8_t priority[] = {1, 0, 2};
 	struct BlockIter_t iter;
@@ -86,9 +86,6 @@ int physicsCheckCollisionSub(Map map, vec4 start, vec4 end, ENTBBox bbox, float 
 	uint8_t curAxis;
 	int     ret, valid;
 	int8_t  i, j, k;
-
-	if (wtf >= 3)
-		puts("Here");
 
 	memcpy(minMax,   bbox->pt1, 12);
 	memcpy(minMax+3, bbox->pt2, 12);
@@ -267,7 +264,7 @@ int physicsCheckCollisionSub(Map map, vec4 start, vec4 end, ENTBBox bbox, float 
 			/* <end> now becomes new start */
 			memcpy(minMax, end, 12);
 			vecAdd(end, minMax, dir);
-			ret |= physicsCheckCollisionSub(map, minMax, end, bbox, autoClimb, validateCb, wtf+1);
+			ret |= physicsCheckCollision(map, minMax, end, bbox, autoClimb, validateCb);
 			if (check)
 			{
 				if (broad[VX+3] == end[curAxis])
@@ -280,11 +277,6 @@ int physicsCheckCollisionSub(Map map, vec4 start, vec4 end, ENTBBox bbox, float 
 		}
 	}
 	return ret;
-}
-
-int physicsCheckCollision(Map map, vec4 start, vec4 end, ENTBBox bbox, float autoClimb, ValidBlockCb_t validateCb)
-{
-	return physicsCheckCollisionSub(map, start, end, bbox, autoClimb, validateCb, 0);
 }
 
 static Bool intersectBBox(BlockIter iter, VTXBBox bbox, float minMax[6], float inter[6])

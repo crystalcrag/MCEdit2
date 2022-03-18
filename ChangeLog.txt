@@ -1,4 +1,22 @@
+=========== Week 11 ===========
+Thu Mar 17:
+	* 38th rewrite of nearby chunk update. Sigh.
+	* cave fog almost done.
+
+Wed Mar 16:
+	* cave fog continued.
+
+Tue Mar 15:
+	* cave fog continued: laborious debug of vertex shader :-/
+
+Mon Mar 14:
+	* cave fog continued.
+
 =========== Week 10 ===========
+Sat Mar 13:
+	* animated texture for water/lava (still has a few pixels bleeding at tex boundary).
+	* started better cave fog (special quads to cover "holes" in terrain).
+
 Sat Mar 12:
 	* more minecart mechanic implemented (physics and push off rails).
 

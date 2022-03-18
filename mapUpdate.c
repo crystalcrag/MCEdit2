@@ -202,6 +202,34 @@ void mapIter(BlockIter iter, int dx, int dy, int dz)
 	iter->blockIds = cd->blockIds;
 }
 
+static void mapUpdateChunkData(ChunkData cd, int nearby)
+{
+	if ((cd->cdFlags & CDFLAG_ISINUPDATE) == 0)
+	{
+		int slot;
+		if (track.modifFirst == 0)
+		{
+			if (track.modifMax == track.modifCount)
+			{
+				track.modifMax += 256;
+				track.modif = realloc(track.modif, track.modifMax * sizeof *track.modif);
+			}
+			slot = track.modifCount ++;
+		}
+		else slot = -- track.modifFirst;
+
+		ChunkUpdate chunkUpd = track.modif + slot;
+		/* slot and comingFrom are only needed for frustum culling (and they will be reset at the start) */
+		cd->slot = slot;
+		/* that will "limit" the maximum chunk being updated at once to 65536 */
+		cd->comingFrom = slot >> 8;
+		cd->cdFlags |= CDFLAG_ISINUPDATE;
+		chunkUpd->cd = cd;
+		chunkUpd->nearby = nearby;
+	}
+	else track.modif[cd->slot | (cd->comingFrom<<8)].nearby |= nearby;
+}
+
 /* note: val must be between 0 and 15 (included) */
 void mapUpdateTable(BlockIter iter, int val, int table)
 {
@@ -225,11 +253,6 @@ void mapUpdateTable(BlockIter iter, int val, int table)
 
 	/* track chunk that have been modified */
 	ChunkData cd = iter->cd;
-	if ((cd->cdFlags & CDFLAG_ISINUPDATE) == 0)
-	{
-		*track.list = cd;
-		track.list = &cd->update;
-	}
 	if (table == SKYLIGHT_OFFSET || table == BLOCKLIGHT_OFFSET)
 	{
 		/* entity light in this chunk needs to be updated */
@@ -240,7 +263,7 @@ void mapUpdateTable(BlockIter iter, int val, int table)
 //		fprintf(stderr, "setting data %d, %d, %d to %d\n", iter->ref->X + iter->x, iter->yabs, iter->ref->Z + iter->z, val);
 
 	/* track which side it is near to (we will have to update nearby chunk too) */
-	cd->cdFlags |= chunkNearby[slotsXZ[(iter->z<<4) | iter->x] | slotsY[iter->y]];
+	mapUpdateChunkData(cd, chunkNearby[slotsXZ[(iter->z<<4) | iter->x] | slotsY[iter->y]]);
 }
 
 static uint8_t mapGetSky(BlockIter iter)
@@ -1338,87 +1361,6 @@ static void mapUpdateCheckGravity(struct BlockIter_t iter)
 }
 
 /*
- * link chunks that have been modified in the update
- */
-
-static void mapUpdateListChunk(Map map)
-{
-	ChunkData * first = &map->dirty;
-	Chunk *     save  = &map->needSave;
-	ChunkData   cd, next;
-	Chunk       list;
-
-	*track.list = NULL;
-
-	/* add at end of list (previous mapUpdate() not commited yet) */
-	for (cd = *first; cd; first = &cd->update, cd = *first);
-	for (list = *save; list; save = &list->save, list = *save);
-
-	for (cd = track.modif; cd; cd = next)
-	{
-		Chunk chunk = cd->chunk;
-		cd->cdFlags |= CDFLAG_PENDINGMESH;
-		//fprintf(stderr, "pending mesh for chunk %d, %d, layer %d\n", c->X, c->Z, cd->Y);
-		*first = cd;
-		first = &cd->update;
-		next = *first;
-		if ((chunk->cflags & CFLAG_NEEDSAVE) == 0)
-		{
-			*save = chunk;
-			save = &chunk->save;
-			chunk->cflags |= CFLAG_NEEDSAVE;
-		}
-		if (chunk->cflags & CFLAG_ETTLIGHT)
-		{
-			if (chunk->entityList != ENTITY_END)
-				entityUpdateLight(chunk);
-			chunk->cflags &= ~CFLAG_ETTLIGHT;
-		}
-
-		if (cd->cdFlags & CDFLAG_UPDATENEARBY)
-		{
-			ChunkData nbor;
-			uint32_t  nearby = cd->cdFlags >> 5;
-			int       layer  = cd->Y >> 4;
-			int       j;
-
-			/* first position can have lots of leading 0 */
-			for (j = multiplyDeBruijnBitPosition[((uint32_t)((nearby & -(signed)nearby) * 0x077CB531U)) >> 27], nearby >>= j; nearby; nearby >>= 1, j ++)
-			{
-				/* from maps.c: index 13 removed, bitfield S, E, N, W, T, B */
-				static uint8_t chunkOffsets[] = {44,36,38,40,32,34,41,33,35,12,4,6,8,2,9,1,3,28,20,22,24,16,18,25,17,19};
-
-				if ((nearby & 1) == 0) continue;
-				uint8_t sides = chunkOffsets[j];
-				Chunk neighbor = chunk + chunkNeighbor[chunk->neighbor + (sides & 15)];
-
-				if (sides & 16) /* top */
-				{
-					nbor = layer + 1 < neighbor->maxy ? neighbor->layer[layer+1] : NULL;
-				}
-				else if (sides & 32) /* bottom */
-				{
-					nbor = layer > 0 ? neighbor->layer[layer-1] : NULL;
-				}
-				else nbor = neighbor->layer[layer];
-				if (nbor && (nbor->cdFlags & CDFLAG_ISINUPDATE) == 0)
-				{
-					*first = nbor;
-					first = &nbor->update;
-					nbor->cdFlags |= CDFLAG_ISINUPDATE;
-					//fprintf(stderr, "adding neighbor chunk %x to list from %d, %d, %d\n", sides, chunk->X, cd->Y, chunk->Z);
-				}
-			}
-		}
-	}
-
-	*first = NULL;
-	*save = NULL;
-	track.modif = NULL;
-	track.list  = &track.modif;
-}
-
-/*
  * flood-fill for getting face connection, used by cave culling.
  * should belongs to chunks.c, but we need the resizable ring-buffer for this.
  */
@@ -1527,37 +1469,96 @@ void mapUpdateFloodFill(Map map, vec4 pos, uint8_t visited[4096], int8_t minMax[
 }
 
 /*
- * generic block update function: dispatch to various other functions of this module.
+ * process ChunkData waiting for their mesh to be updated
  */
-
 void mapUpdateMesh(Map map)
 {
-	ChunkData cd, next;
-
-	/* list of sub-chunks that we need to update their mesh */
-	mapUpdateListChunk(map);
+	ChunkData cd;
+	Chunk *   save = &map->needSave;
+	Chunk     chunk, list;
+	int       nearby, i;
 	#ifdef DEBUG
-	int count = 0;
+	int       count = 0;
 	#endif
 
-	for (cd = map->dirty; cd; cd = next)
+	/* add at end of list (previous mapUpdate() not commited yet) */
+	for (list = *save; list; save = &list->save, list = *save);
+
+	for (i = track.modifFirst; i < track.modifCount; i ++)
 	{
+		cd     = track.modif[i].cd;
+		nearby = track.modif[i].nearby;
+		chunk  = cd->chunk;
+
+		cd->cdFlags |= CDFLAG_PENDINGMESH;
+		//fprintf(stderr, "pending mesh for chunk %d, %d, layer %d\n", c->X, c->Z, cd->Y);
+		track.modifFirst ++;
+
+		if ((chunk->cflags & CFLAG_NEEDSAVE) == 0)
+		{
+			*save = chunk;
+			save = &chunk->save;
+			chunk->cflags |= CFLAG_NEEDSAVE;
+		}
+		if (chunk->cflags & CFLAG_ETTLIGHT)
+		{
+			if (chunk->entityList != ENTITY_END)
+				entityUpdateLight(chunk);
+			chunk->cflags &= ~CFLAG_ETTLIGHT;
+		}
+
+		if (cd->cdFlags & CDFLAG_UPDATENEARBY)
+		{
+			ChunkData nbor;
+			int       layer = cd->Y >> 4, j;
+
+			/* first position can have lots of leading 0 */
+			for (j = ZEROBITS(nearby), nearby >>= j; nearby; nearby >>= 1, j ++)
+			{
+				/* from maps.c: index 13 removed, bitfield S, E, N, W, T, B */
+				static uint8_t chunkOffsets[] = {44,36,38,40,32,34,41,33,35,12,4,6,8,2,9,1,3,28,20,22,24,16,18,25,17,19};
+
+				if ((nearby & 1) == 0) continue;
+				uint8_t sides = chunkOffsets[j];
+				Chunk neighbor = chunk + chunkNeighbor[chunk->neighbor + (sides & 15)];
+
+				if (sides & 16) /* top */
+				{
+					nbor = layer + 1 < neighbor->maxy ? neighbor->layer[layer+1] : NULL;
+				}
+				else if (sides & 32) /* bottom */
+				{
+					nbor = layer > 0 ? neighbor->layer[layer-1] : NULL;
+				}
+				else nbor = neighbor->layer[layer];
+				if (nbor && (nbor->cdFlags & CDFLAG_ISINUPDATE) == 0)
+				{
+					if (track.modifFirst > 0) i --;
+					mapUpdateChunkData(nbor, 0);
+					//fprintf(stderr, "adding neighbor chunk %x to list from %d, %d, %d\n", sides, chunk->X, cd->Y, chunk->Z);
+				}
+			}
+		}
+
 		cd->cdFlags &= ~(CDFLAG_ISINUPDATE | CDFLAG_UPDATENEARBY);
-		next = cd->update;
-		//fprintf(stderr, "updating chunk %d, %d, %d%s\n", cd->chunk->X, cd->Y, cd->chunk->Z, cd->cdFlags & CDFLAG_UPDATENEARBY ? " [NEARBY]" : "");
+		cd->slot = 0;
+		cd->comingFrom = 0;
 		chunkUpdate(cd->chunk, chunkAir, map->chunkOffsets, cd->Y >> 4);
 		renderFinishMesh(map, True);
 		particlesChunkUpdate(map, cd);
 		if (cd->cdFlags == CDFLAG_PENDINGDEL)
 			/* link within chunk has already been removed in chunkUpdate() */
 			free(cd), renderResetFrustum();
-		else
-			cd->update = NULL;
+
 		#ifdef DEBUG
 		count ++;
 		#endif
 	}
-	map->dirty = NULL;
+
+	*save = NULL;
+	track.modifCount = 0;
+	track.modifFirst = 0;
+
 	#ifdef DEBUG
 	fprintf(stderr, "%d chunk updated, max: %d, usage: %d\n", count, track.max, track.maxUsage);
 	#endif
@@ -1710,9 +1711,7 @@ static Bool mapHasEnoughSpace(struct BlockIter_t iter, Block block, int blockId)
  */
 void mapUpdateInit(BlockIter iter)
 {
-	track.modif = NULL;
-	track.list  = &track.modif;
-	track.iter  = iter;
+	track.iter = iter;
 }
 
 void mapUpdateEnd(Map map)
@@ -1752,8 +1751,6 @@ Bool mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 
 	if (blockUpdate & 1)
 	{
-		track.modif = NULL;
-		track.list  = &track.modif;
 		if (b->tall && ! mapHasEnoughSpace(iter, b, blockId))
 			return False;
 	}
@@ -1814,12 +1811,9 @@ Bool mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 	if ((iter.cd->cdFlags & CDFLAG_ISINUPDATE) == 0 && (blockId != oldId || (blockUpdate & UPDATE_FORCE)))
 	{
 		/* not in update list: add it now */
-		if (b->updateNearby || (oldId > 0 && blockIds[oldId >> 4].updateNearby))
-			iter.cd->cdFlags |= chunkNearby[slotsXZ[(iter.z<<4) | iter.x] | slotsY[iter.y]];
-		else
-			iter.cd->cdFlags |= CDFLAG_ISINUPDATE;
-		*track.list = iter.cd;
-		track.list = &iter.cd->update;
+		mapUpdateChunkData(iter.cd,
+			b->updateNearby || (oldId > 0 && blockIds[oldId >> 4].updateNearby) ?
+				chunkNearby[slotsXZ[(iter.z<<4) | iter.x] | slotsY[iter.y]] : 0);
 	}
 
 	/* redstone signal if any */
@@ -1942,9 +1936,6 @@ Bool mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 Bool mapActivate(Map map, vec4 pos)
 {
 	struct BlockIter_t iter;
-
-	track.modif = NULL;
-	track.list  = &track.modif;
 
 	mapInitIter(map, &iter, pos, False);
 	if (! iter.blockIds) return False;

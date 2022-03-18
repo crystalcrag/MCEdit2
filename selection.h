@@ -74,8 +74,8 @@ enum /* selection pointId */
 
 /* repurpose some unused field for Map_t */
 #define sharedBanks            path[MAX_PATHLEN-1]
-#define BRUSH_ENTITIES(map)    ((APTR) (map)->dirty)
-#define BRUSH_SETENT(map,ent)  ((map)->dirty = (APTR) (ent))
+#define BRUSH_ENTITIES(map)    ((APTR) (map)->genLast)
+#define BRUSH_SETENT(map,ent)  ((map)->genLast = (APTR) (ent))
 
 #ifdef SELECTION_IMPL          /* private stuff below */
 struct Selection_t

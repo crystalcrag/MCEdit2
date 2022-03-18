@@ -143,6 +143,12 @@ float normAngle(float angle);
 	(A)[VY] = ((A)[VY] * num) + (B)[VY], \
 	(A)[VZ] = ((A)[VZ] * num) + (B)[VZ]
 
+/*
+ * find first 1 bit in a uint32_t using a single look-up table
+ * from https://graphics.stanford.edu/~seander/bithacks.html#ZerosOnRightMultLookup
+ */
+extern uint8_t multiplyDeBruijnBitPosition[];
+#define ZEROBITS(bits)        multiplyDeBruijnBitPosition[((uint32_t)((bits & -(signed)bits) * 0x077CB531U)) >> 27]
 
 /* interpolate value over time */
 typedef struct LerpTime_t       LerpTime_t;

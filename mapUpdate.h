@@ -52,8 +52,15 @@ struct BlockUpdate_t
 	uint16_t  blockId;
 };
 
+struct ChunkUpdate_t
+{
+	ChunkData cd;
+	uint32_t  nearby;
+};
+
 /* private stuff below that point */
 typedef struct BlockUpdate_t       BLOCKBUF;
+typedef struct ChunkUpdate_t *     ChunkUpdate;
 typedef struct UpdateBuffer_t *    UpdateBuffer;
 
 struct UpdateBuffer_t              /* group BlockUpdate_t in chunk of 128 */
@@ -65,18 +72,20 @@ struct UpdateBuffer_t              /* group BlockUpdate_t in chunk of 128 */
 
 struct MapUpdate_t
 {
-	ChunkData   modif;             /* chunk list being modified in the current chain */
-	ChunkData * list;              /* pointer to <next> linked list (UpdateBuffer) */
-	ListHead    updates;           /* async updates */
+	ChunkUpdate modif;             /* chunk list being modified in the current chain */
+	ListHead    updates;           /* async updates (UpdateBuffer) */
 	int         updateCount;       /* total updates waiting to be applied */
 	int         nbCheck;           /* re-check piston blocked */
+	int         modifCount;        /* chunks waiting for mesh update in modif[] */
+	int         modifFirst;
+	int         modifMax;          /* max capacity of arrray modif[] */
 	BlockUpdate curUpdate;         /* used by piston update order */
 	BlockIter   iter;              /* mapUpdate() will use an external iterator (mostly used by selection) */
 	int8_t *    coord;             /* ring buffer */
 	int16_t     max;               /* params for ring buffer */
 	int16_t     pos, last, usage;
 	int16_t     maxUsage;          /* debug */
-	uint8_t     unique;            /* values with be unique in <coord> */
+	uint8_t     unique;            /* values will be unique in <coord> */
 };
 
 #endif

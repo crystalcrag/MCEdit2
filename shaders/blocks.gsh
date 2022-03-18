@@ -17,6 +17,8 @@ in vec4 texCoord[];
 in uint skyBlockLight[];
 in uint ocsField[];
 in uint normFlags[];
+in uint chunkInfo[];
+in uint isCaveFog[];
 in vec3 offsets[];
 
 out vec2  tc;
@@ -24,24 +26,35 @@ out vec2  ocspos;
 out float skyLight;
 out float blockLight;
 out float fogFactor;
+flat out vec2  baseTex;
 flat out uint  rswire;
 flat out uint  ocsmap;
-flat out int   normal;
+flat out uint  normal;
+flat out uint  animate;
 
 void main(void)
 {
 	mat4 MVP   = projMatrix * mvMatrix;
 	bool keepX = (normFlags[0] & (1 << 3)) > 0;
 
-	normal = int(normFlags[0] & 7);
+	normal = normFlags[0] & 7;
 
 	// shading per face (OCS is done in fragment shader)
-	float Usz   = (texCoord[0].y - texCoord[0].x) * 32;
-	float Vsz   = (texCoord[0].w - texCoord[0].z) * 64;
+	float Usz = (texCoord[0].y - texCoord[0].x) * 32;
+	float Vsz = (texCoord[0].w - texCoord[0].z) * 64;
 	if (Usz < 0) Usz = -Usz;
 	if (Vsz < 0) Vsz = -Vsz;
+	if (isCaveFog[0] > 0)
+	{
+		/* cave fog quad: only generate them at map border */
+		if ((chunkInfo[0] & (1 << normal)) == 0)
+			// discard primitive
+			return;
+	}
+
 	rswire = normal == 7 ? (skyBlockLight[0] & 15) + 1 : 0;
 	ocsmap = ocsField[0];
+	animate = normFlags[0] & (1 << 6);
 
 	vec3 V1 = vertex1[0];
 	vec3 V2 = vertex2[0];
@@ -101,6 +114,9 @@ void main(void)
 	}
 	else fogFactor = 1; // disabled
 
+	// needed for animated tex
+	baseTex = vec2(texCoord[0].x, texCoord[0].z);
+
 	// first vertex
 	gl_Position = MVP * vec4(V1, 1);
 	skyLight    = float(bitfieldExtract(skyBlockLight[0], 28, 4)) * shadeSky;
@@ -115,7 +131,7 @@ void main(void)
 	skyLight    = float(bitfieldExtract(skyBlockLight[0], 4, 4)) * shadeSky;
 	blockLight  = float(bitfieldExtract(skyBlockLight[0], 0, 4)) * shadeBlock;
 	ocspos      = vec2(0, 0);
-	tc          = vec2(texCoord[0].x, texCoord[0].z);
+	tc          = baseTex;
 	EmitVertex();
 			
 	// third vertex

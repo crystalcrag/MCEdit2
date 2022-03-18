@@ -45,14 +45,14 @@ void      chunkDeleteTile(Chunk, DATA8 tile);
 struct ChunkData_t                     /* one sub-chunk of 16x16x16 blocks */
 {
 	ChunkData visible;                 /* frustum culling list */
-	ChunkData update;                  /* mesh needs to be updated */
 	Chunk     chunk;                   /* bidirectional link */
 	uint16_t  Y;                       /* vertical pos in blocks */
 	uint16_t  cnxGraph;                /* face graph connection (cave culling) */
 
-	uint32_t  cdFlags;                 /* CDFLAG_* */
+	uint16_t  cdFlags;                 /* CDFLAG_* */
 	uint8_t   slot;                    /* used by ChunkFake (0 ~ 31) */
 	uint8_t   comingFrom;              /* cave culling (face id 0 ~ 5) */
+	int       frame;                   /* is this ChunkData is the frustum (map->frame == cd->frame) */
 
 	DATA8     blockIds;                /* 16*16*16 = XZY ordered, note: point directly to NBT struct (4096 bytes) */
 	DATA16    emitters;                /* pos (12bits) + type (4bits) for particles emitters */
@@ -117,11 +117,17 @@ enum /* extra flags for Chunk.noChunks */
 
 enum /* flags for ChunkData.cdFlags */
 {
-	CDFLAG_CHUNKAIR     = 0x01,        /* chunk is a full of air (sky = 15, light = 0, data = 0) */
-	CDFLAG_PENDINGDEL   = 0x02,        /* chunk is empty: can be deleted */
-	CDFLAG_PENDINGMESH  = 0x04,        /* chunk will be processed by chunkUpdate() at some point */
-	CDFLAG_NOALPHASORT  = 0x08,        /* sorting of alpha quads not necessary */
-	CDFLAG_NOLIGHT      = 0x10,        /* cd->blockIds only contains block and data table (brush) */
+	CDFLAG_CHUNKAIR     = 0x0001,      /* chunk is a full of air (sky = 15, light = 0, data = 0) */
+	CDFLAG_PENDINGDEL   = 0x0002,      /* chunk is empty: can be deleted */
+	CDFLAG_PENDINGMESH  = 0x0004,      /* chunk will be processed by chunkUpdate() at some point */
+	CDFLAG_NOALPHASORT  = 0x0008,      /* sorting of alpha quads not necessary */
+	CDFLAG_NOLIGHT      = 0x0010,      /* cd->blockIds only contains block and data table (brush) */
+
+	CDFLAG_EDGESOUTH    = 0x0020,      /* south face of ChunkData is at edge of map => apply cave fog quad */
+	CDFLAG_EDGEEAST     = 0x0040,
+	CDFLAG_EDGENORTH    = 0x0080,
+	CDFLAG_EDGEWEST     = 0x0100,
+	CDFLAG_EDGESENW     = 0x01e0,
 };
 
 /* alias */
@@ -135,10 +141,11 @@ enum /* NBT update tag */
 	CHUNK_NBT_ENTITIES     = 0x04,
 };
 
-/* chunk vertex data */
+/* chunk vertex data (see doc/internals.html#vtxdata) */
 #define FLAG_TEX_KEEPX                 (1 << 12)
 #define FLAG_DUAL_SIDE                 (1 << 13)
 #define FLAG_TRIANGLE                  (1 << 14)
+#define FLAG_ANIMATE                   (1 << 15)
 
 #ifdef CHUNK_IMPL                      /* private stuff below */
 

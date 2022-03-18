@@ -603,6 +603,8 @@ Bool renderInitStatic(void)
 	if (! entityInitStatic())
 		return False;
 
+	render.uniformTime = glGetUniformLocation(render.shaderBlocks, "timeMS");
+
 	/* load main texture file (note: will require some tables from earlier static init functions) */
 	render.texBlock = textureLoad(RESDIR, "terrain.png", 1, blockPostProcessTexture);
 
@@ -1253,10 +1255,11 @@ static void renderPrepVisibleChunks(Map map)
 					render.debugTotalTri += cmd->count;
 					start += cmd->count;
 
-					loc = bank->locBuffer + bank->cmdTotal * 3;
+					loc = bank->locBuffer + bank->cmdTotal * (VERTEX_INSTANCE/4);
 					loc[0] = dx + chunk->X;
 					loc[1] = dy + cd->Y;
 					loc[2] = dz + chunk->Z;
+					loc[3] = cd->cdFlags >> 5;
 					bank->cmdTotal ++;
 				}
 				/* alpha chunks needs to be drawn from far to near */
@@ -1269,10 +1272,12 @@ static void renderPrepVisibleChunks(Map map)
 					cmd->first = start;
 					cmd->baseInstance = alphaIndex; /* needed by glVertexAttribDivisor() */
 
-					loc = bank->locBuffer + alphaIndex * 3;
+					loc = bank->locBuffer + alphaIndex * (VERTEX_INSTANCE/4);
 					loc[0] = dx + chunk->X;
 					loc[1] = dy + cd->Y;
 					loc[2] = dz + chunk->Z;
+					/* alpha don't have fog quads */
+					loc[3] = 0;
 					alphaIndex --;
 
 					/* check if we need to sort vertex: this is costly but should not be done very often */
@@ -1487,6 +1492,7 @@ void renderWorld(void)
 			fprintf(stderr, "frustum culling took %d ms, fake alloc: %d\n", diff, globals.level->fakeMax);
 	}
 
+	glProgramUniform1ui(render.shaderBlocks, render.uniformTime, globals.curTime);
 
 	/* must be done before glViewport */
 	signPrepare(render.camera);
@@ -2012,8 +2018,9 @@ static int renderStoreArrays(Map map, ChunkData cd, int size)
 		glEnableVertexAttribArray(0);
 		glVertexAttribIPointer(1, 3, GL_UNSIGNED_INT, VERTEX_DATA_SIZE, (void *) 16);
 		glEnableVertexAttribArray(1);
+		/* 16 bytes of per-instance data (3 float for loc and 1 uint for flags) */
 		glBindBuffer(GL_ARRAY_BUFFER, bank->vboLocation);
-		glVertexAttribPointer(2, 3, GL_FLOAT, 0, 0, 0);
+		glVertexAttribPointer(2, 4, GL_FLOAT, 0, 0, 0);
 		glEnableVertexAttribArray(2);
 		glVertexAttribDivisor(2, 1);
 
@@ -2196,9 +2203,9 @@ void renderAllocCmdBuffer(Map map)
 			/* be sure we have enough mem on GPU for command buffer */
 			bank->vboLocSize = count;
 			glBindBuffer(GL_ARRAY_BUFFER, bank->vboLocation);
-			glBufferData(GL_ARRAY_BUFFER, count * 12, NULL, GL_STATIC_DRAW);
+			glBufferData(GL_ARRAY_BUFFER, count * VERTEX_INSTANCE, NULL, GL_STATIC_DRAW);
 			glBindBuffer(GL_DRAW_INDIRECT_BUFFER, bank->vboMDAI);
-			glBufferData(GL_DRAW_INDIRECT_BUFFER, count * 16, NULL, GL_STATIC_DRAW);
+			glBufferData(GL_DRAW_INDIRECT_BUFFER, count * sizeof (MDAICmd_t), NULL, GL_STATIC_DRAW);
 		}
 	}
 }
