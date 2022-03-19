@@ -1,4 +1,8 @@
 =========== Week 11 ===========
+Fri Mar 18:
+	* frustum culling started at camera pos, which was incorrect: you need to start at near plane.
+	* cave fog done, adding block light to fog didn't work :-/
+
 Thu Mar 17:
 	* 38th rewrite of nearby chunk update. Sigh.
 	* cave fog almost done.

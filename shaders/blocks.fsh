@@ -116,8 +116,8 @@ void main(void)
 	// compute fog contribution
 	if (fogFactor < 1)
 	{
-		vec4 skyColor = texture(skyTex, vec2(gl_FragCoord.x / SCR_WIDTH, gl_FragCoord.y / SCR_HEIGHT)) * skyLight + vec4(1.5, 1.2, 1, 0) * block;
-		skyColor.w = 1;
+		vec4 skyColor = texture(skyTex, vec2(gl_FragCoord.x / SCR_WIDTH, gl_FragCoord.y / SCR_HEIGHT)) * skyLight; // + vec4(1.5, 1.2, 1, 0) * block;
+		skyColor.a = 1;
 		color = mix(skyColor, color, fogFactor);
 	}
 }

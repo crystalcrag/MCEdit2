@@ -116,7 +116,7 @@ void matIdent(mat4 res);
 /* perspective matrix */
 void matPerspective(mat4 res, float fov_deg, float aspect, float znear, float zfar);
 void matOrtho(mat4 res, float left, float right, float bottom, float top, float znear, float zfar);
-void matLookAt(mat4 res, vec4 eye, vec4 center, vec4 up);
+void matLookAt(mat4 res, vec4 eye, vec4 center, vec4 up, vec4 nearPlaneDir);
 
 void matPrint(mat4 A);
 

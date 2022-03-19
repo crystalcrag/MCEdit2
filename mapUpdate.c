@@ -1507,7 +1507,7 @@ void mapUpdateMesh(Map map)
 			chunk->cflags &= ~CFLAG_ETTLIGHT;
 		}
 
-		if (cd->cdFlags & CDFLAG_UPDATENEARBY)
+		if (nearby > 0)
 		{
 			ChunkData nbor;
 			int       layer = cd->Y >> 4, j;
@@ -1540,7 +1540,7 @@ void mapUpdateMesh(Map map)
 			}
 		}
 
-		cd->cdFlags &= ~(CDFLAG_ISINUPDATE | CDFLAG_UPDATENEARBY);
+		cd->cdFlags &= ~CDFLAG_ISINUPDATE;
 		cd->slot = 0;
 		cd->comingFrom = 0;
 		chunkUpdate(cd->chunk, chunkAir, map->chunkOffsets, cd->Y >> 4);
@@ -1812,7 +1812,7 @@ Bool mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 	{
 		/* not in update list: add it now */
 		mapUpdateChunkData(iter.cd,
-			b->updateNearby || (oldId > 0 && blockIds[oldId >> 4].updateNearby) ?
+			b->updateNearby || blockIds[oldId >> 4].updateNearby ?
 				chunkNearby[slotsXZ[(iter.z<<4) | iter.x] | slotsY[iter.y]] : 0);
 	}
 

@@ -944,7 +944,7 @@ void matOrtho(mat4 res, float left, float right, float bottom, float top, float 
 }
 
 /* similar to gluLookAt */
-void matLookAt(mat4 res, vec4 eye, vec4 center, vec4 up)
+void matLookAt(mat4 res, vec4 eye, vec4 center, vec4 up, vec4 nearPlaneDir)
 {
 	vec4 fwd = {center[VX] - eye[VX], center[VY] - eye[VY], center[VZ] - eye[VZ]};
 	vec4 side;
@@ -956,6 +956,11 @@ void matLookAt(mat4 res, vec4 eye, vec4 center, vec4 up)
 	vecNormalize(side, side);
 	vecCrossProduct(up, side, fwd);
 	vecNormalize(up, up);
+
+	/* while we are here, get vector to near plane */
+	nearPlaneDir[VX] = fwd[VX] * 0.1f;
+	nearPlaneDir[VY] = fwd[VY] * 0.1f;
+	nearPlaneDir[VZ] = fwd[VZ] * 0.1f;
 
 	/* from book */
 	res[A00] = side[VX];

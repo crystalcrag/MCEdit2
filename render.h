@@ -148,6 +148,7 @@ struct RenderWorld_t
 	mat4       matPerspective;
 	mat4       matInventoryItem;   /* ortho matrix for rendering blocks in inventory */
 	vec4       camera;             /* player pos */
+	vec4       nearPlane;          /* position of near plane (world space coord) */
 	GLuint     shaderBlocks;       /* compiled shaders */
 	GLuint     shaderItems;
 	GLuint     uniformTime;

@@ -132,7 +132,6 @@ enum /* flags for ChunkData.cdFlags */
 
 /* alias */
 #define CDFLAG_ISINUPDATE    0x10
-#define CDFLAG_UPDATENEARBY  0xffffffe0
 
 enum /* NBT update tag */
 {

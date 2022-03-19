@@ -586,7 +586,6 @@ Bool renderInitStatic(void)
 	/* init all the static tables */
 	chunkInitStatic();
 	halfBlockInit();
-	// playerInitPickup(&render.pickup);
 	if (! particlesInit())
 		return False;
 	if (! jsonParse(RESDIR "blocksTable.js", blockCreate))
@@ -829,7 +828,8 @@ void renderSetViewMat(vec4 pos, vec4 lookat, float * yawPitch)
 
 	mapMoveCenter(globals.level, old, render.camera);
 
-	matLookAt(render.matModel, render.camera, (float[3]) {lookat[VX], lookat[VY] + PLAYER_HEIGHT, lookat[VZ]}, (float[3]) {0, 1, 0});
+	matLookAt(render.matModel, render.camera, (float[3]) {lookat[VX], lookat[VY] + PLAYER_HEIGHT, lookat[VZ]}, (float[3]) {0, 1, 0}, render.nearPlane);
+	vecAdd(render.nearPlane, render.nearPlane, render.camera);
 	/* must be same as the one used in the vertex shader */
 	matMult(globals.matMVP, render.matPerspective, render.matModel);
 	/* we will need that matrix sooner or later */
@@ -1484,12 +1484,8 @@ void renderWorld(void)
 	if (render.setFrustum)
 	{
 		/* do it as late as possible */
-		double curTime = FrameGetTime();
-		mapViewFrustum(globals.level, render.camera);
+		mapViewFrustum(globals.level, render.nearPlane);
 		render.setFrustum = 0;
-		int diff = round(FrameGetTime() - curTime);
-		if (diff >= 10)
-			fprintf(stderr, "frustum culling took %d ms, fake alloc: %d\n", diff, globals.level->fakeMax);
 	}
 
 	glProgramUniform1ui(render.shaderBlocks, render.uniformTime, globals.curTime);

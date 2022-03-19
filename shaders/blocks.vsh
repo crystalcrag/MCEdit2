@@ -66,7 +66,7 @@ void main(void)
 	}
 	else // cave fog quad: V2 and V3 use slightly different vertex data
 	{
-		// we need values for [1, 16] in X, Y, Z, not just [-4, 4]
+		// we need range values in [1, 16] for X, Y, Z, not just [-4, 4]
 		isCaveFog = 1;
 		vertex2 = vec3(
 			float(bitfieldExtract(position.y, 16, 14)) - 16 + vertex1.x,
@@ -78,10 +78,10 @@ void main(void)
 			float(bitfieldExtract(position.w, 14, 14)) - 16 + vertex1.y,
 			float(bitfieldExtract(info.x,      0, 14)) - 16 + vertex1.z
 		);
-		// DEBUG - use barrier block texture
+		// texture does not really matter, 95% of the color will come from fog
 		texCoord = vec4(
-			(31*16) * TEX_COORD_X, (32*16) * TEX_COORD_X,
-			(13*16) * TEX_COORD_Y, (14*16) * TEX_COORD_Y
+			 (0+16) * TEX_COORD_X,  (1*16) * TEX_COORD_X,
+			(23*16) * TEX_COORD_Y, (24*16) * TEX_COORD_Y
 		);
 	}
 

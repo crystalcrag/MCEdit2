@@ -2042,50 +2042,11 @@ static void chunkFillCaveHoles(ChunkData cur, int pos, DATA16 holes)
 	if (sides & 8) holes[96+y] |= mask16bit[z];
 }
 
-#if 0
-static void printHoles(DATA16 holes, int side)
-{
-	TEXT buffer[20];
-	int  i, j;
-	printf(" 0123456789ABCDEF %c\n", "SENW"[side]);
-	for (i = 15, buffer[17] = '|', buffer[18] = 0, holes += 15; i >= 0; i --, holes --)
-	{
-		uint16_t hole  = holes[0];
-		uint16_t avoid = holes[16];
-		buffer[0] = i < 10 ? '0' + i : 'A' + i - 10;
-		for (j = 1; j <= 16; buffer[j] = avoid & 1 ? 'X' : hole & 1 ? 'O' : ' ', hole >>= 1, avoid >>= 1, j ++);
-		puts(buffer);
-	}
-}
-
-#define INTVERTEX(x)       (((x) - ORIGINVTX) >> 10)
-static void debugVertex(DATA32 p)
-{
-	double V1[] = {FROMVERTEX(p[0] & 0xffff), FROMVERTEX(p[0] >> 16), FROMVERTEX(p[1] & 0xffff)};
-	double V2[] = {
-		(double) bitfieldExtract(p[1], 16, 14) - 16 + V1[0],
-		(double) bitfieldExtract(p[2],  0, 14) - 16 + V1[1],
-		(double) bitfieldExtract(p[2], 14, 14) - 16 + V1[2]
-	};
-	double V3[] = {
-		(double) bitfieldExtract(p[3],  0, 14) - 16 + V1[0],
-		(double) bitfieldExtract(p[3], 14, 14) - 16 + V1[1],
-		(double) bitfieldExtract(p[4],  0, 14) - 16 + V1[2]
-	};
-
-	fprintf(stderr, "V1 = %g,%g,%g | V2 = %g,%g,%g | V3 = %g,%g,%g, Usz = %d\n",
-		V1[0], V1[1], V1[2], V2[0], V2[1], V2[2], V3[0], V3[1], V3[2], bitfieldExtract(p[5], 16, 9));
-}
-#else
-#define printHoles(x, y)
-#define debugVertex(x)
-#endif
-
 /* generate actual quads, but we need holes data first (result from previous function) */
 static void chunkGenFOG(ChunkData cur, WriteBuffer buffer, DATA16 holesSENW)
 {
-	uint8_t  side;
-	uint8_t  XYZ[4], w, h;
+	uint8_t side;
+	uint8_t XYZ[4], w, h;
 
 	/* block type is air */
 	for (side = 0; side < 4; side ++, holesSENW += 32)
@@ -2105,66 +2066,69 @@ static void chunkGenFOG(ChunkData cur, WriteBuffer buffer, DATA16 holesSENW)
 
 		int8_t * normal = cubeNormals + side * 4;
 
-		printHoles(holesSENW, side);
 		for (XYZ[VY] = i, h = i, p = holesSENW + i, holes = p[0], avoid = p[16], p ++, i ++; i < 16; i ++, p ++)
 		{
-			if ((holes | p[0]) & (avoid | p[16]))
-			{
-				/* can't expand further: flush current hole accumulation */
-				flush_holes:
-				for (XYZ[axis] = ZEROBITS(holes), holes >>= XYZ[axis], h ++; holes; )
-				{
-					if (holes & 1)
-					{
-						static uint8_t startV13[] = {3, 2, 0, 3};
-						static uint8_t startV2[]  = {0, 3, 3, 2};
-						for (w = 1, holes >>= 1; holes & 1; w ++, holes >>= 1);
-
-						if (BUF_LESS_THAN(buffer, VERTEX_DATA_SIZE))
-							buffer->flush(buffer);
-
-						XYZ[3] = XYZ[axis] + w;
-
-						DATA32 out = buffer->cur;
-						uint8_t XYZ2[8];
-						uint16_t mask;
-						memcpy(XYZ2,   XYZ, 4);
-						memcpy(XYZ2+4, XYZ, 4);
-						XYZ2[axis]   = XYZ[startV13[side]];
-						XYZ2[4+axis] = XYZ[startV2[side]];
-						for (XYZ2[VY+4] = h, mask = ((1 << w) - 1) << XYZ[axis]; (holesSENW[XYZ2[VY+4]-1] & mask) == 0; XYZ2[VY+4] --);
-						for (XYZ2[VY] = XYZ[VY]; (holesSENW[XYZ2[VY]] & mask) == 0; XYZ2[VY] ++);
-
-						out[0] = (VERTEX(XYZ2[VX]) + normal[VX]) | (VERTEX(XYZ2[VY+4]) << 16);
-						out[1] = (VERTEX(XYZ2[VZ]) + normal[VZ]) | (16 << 16);
-						out[2] = (16 << 14) | (XYZ2[VY] + 16 - XYZ2[VY+4]);
-						out[3] = (16 << 14) | (XYZ2[VX+4] + 16 - XYZ2[VX]);
-						out[4] = (XYZ2[VZ+4] + 16 - XYZ2[VZ]);
-						out[5] = side << 9;
-						out[6] = 0xf0 | (0xf0 << 8) | (0xf0 << 16) | (0xf0 << 24);
-						debugVertex(out);
-						buffer->cur = out + VERTEX_INT_SIZE;
-						XYZ[axis] += w;
-						globals.level->fogCount ++;
-					}
-					else
-					{
-						w = ZEROBITS(holes);
-						holes >>= w;
-						XYZ[axis] += w;
-					}
-				}
-				for (; i < 16 && p[0] == 0; i ++, p ++);
-				if (i >= 16) break;
-				holes = p[0];
-				avoid = p[16];
-			}
-			else
+			if (((holes | p[0]) & (avoid | p[16])) == 0)
 			{
 				holes |= p[0];
 				avoid |= p[16];
 				if (p[0] > 0) h = i;
+				continue;
 			}
+			/* can't expand further: flush current hole accumulation */
+			flush_holes:
+			for (XYZ[axis] = ZEROBITS(holes), holes >>= XYZ[axis], h ++; holes; )
+			{
+				if (holes & 1)
+				{
+					static uint8_t startV13[] = {3, 2, 0, 3};
+					static uint8_t startV2[]  = {0, 3, 3, 2};
+					for (w = 1, holes >>= 1; holes & 1; w ++, holes >>= 1);
+
+					if (BUF_LESS_THAN(buffer, VERTEX_DATA_SIZE))
+						buffer->flush(buffer);
+
+					XYZ[3] = XYZ[axis] + w;
+
+					DATA32 out = buffer->cur;
+					uint8_t XYZ2[8];
+					uint16_t mask;
+					memcpy(XYZ2,   XYZ, 4);
+					memcpy(XYZ2+4, XYZ, 4);
+					XYZ2[axis]   = XYZ[startV13[side]];
+					XYZ2[4+axis] = XYZ[startV2[side]];
+
+					/* reduce vertical span of quad if we can */
+					for (XYZ2[VY+4] = h, mask = ((1 << w) - 1) << XYZ[axis]; (holesSENW[XYZ2[VY+4]-1] & mask) == 0; XYZ2[VY+4] --);
+					for (XYZ2[VY] = XYZ[VY]; (holesSENW[XYZ2[VY]] & mask) == 0; XYZ2[VY] ++);
+
+					out[0] = (VERTEX(XYZ2[VX]) + normal[VX]) | (VERTEX(XYZ2[VY+4]) << 16);
+					out[1] = (VERTEX(XYZ2[VZ]) + normal[VZ]) | (16 << 16);
+					out[2] = (16 << 14) | (XYZ2[VY] + 16 - XYZ2[VY+4]);
+					out[3] = (16 << 14) | (XYZ2[VX+4] + 16 - XYZ2[VX]);
+					out[4] = (XYZ2[VZ+4] + 16 - XYZ2[VZ]);
+					out[5] = side << 9;
+
+					/*
+					 * cave fog does not really work with anything but block light == 0
+					 * need to investigate for a better method :-/
+					 */
+					out[6] = 0; //getFogLight(cur, XYZ2);
+					buffer->cur = out + VERTEX_INT_SIZE;
+					XYZ[axis] += w;
+					globals.level->fogCount ++;
+				}
+				else
+				{
+					w = ZEROBITS(holes);
+					holes >>= w;
+					XYZ[axis] += w;
+				}
+			}
+			for (; i < 16 && p[0] == 0; i ++, p ++);
+			if (i >= 16) break;
+			holes = p[0];
+			avoid = p[16];
 		}
 		if (holes)
 			goto flush_holes;

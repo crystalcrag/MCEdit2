@@ -74,7 +74,6 @@ void playerSaveLocation(Player);
 void playerUpdateNBT(Player);
 void playerLookAt(Player, int mx, int my);
 int  playerProcessKey(Player, int key, int pressed);
-void playerInitPickup(PickupBlock);
 Bool playerAddInventory(Player, Item add);
 void playerScrollInventory(Player, int dir);
 void playerSetMode(Player, int mode);

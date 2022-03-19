@@ -137,7 +137,7 @@ static void libraryGenThumb(LibBrush lib)
 		glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof (mat4), P);
 	}
 
-	matLookAt(view, camera, center, (float[3]){0, 1, 0});
+	matLookAt(view, camera, center, (float[3]){0, 1, 0}, NULL);
 	glBindBuffer(GL_UNIFORM_BUFFER, library.uboShader);
 	glBufferSubData(GL_UNIFORM_BUFFER, UBO_CAMERA_OFFSET, sizeof (vec4), camera);
 	glBufferSubData(GL_UNIFORM_BUFFER, UBO_MVMATRIX_OFFSET, sizeof (mat4), view);

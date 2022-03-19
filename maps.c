@@ -1584,13 +1584,13 @@ static void mapCullCave(ChunkData cur, vec4 camera)
 void mapViewFrustum(Map map, vec4 camera)
 {
 	ChunkData * prev;
-	ChunkData   cur, last;
+	ChunkData   cur, last, checkFog;
 	Chunk       chunk;
 	float       renderDist;
 	int         frame;
 	int         center[3];
 
-	chunk = map->center;
+	chunk = mapGetChunk(map, camera);
 
 	center[VY] = CPOS(camera[1]);
 	center[VX] = chunk->X;
@@ -1701,7 +1701,8 @@ void mapViewFrustum(Map map, vec4 camera)
 	chunk->outflags[cur->Y>>4] |= VISIBLE;
 	frame = ++ map->frame;
 	chunk->chunkFrame = frame;
-	renderDist = (map->maxDist >> 1) * (map->maxDist >> 1) * 256;
+	renderDist = ((map->maxDist >> 1) - 1) * ((map->maxDist >> 1) - 1) * 256;
+	checkFog = NULL;
 	if (chunkAtBottomIsVisible(chunk))
 		chunk->noChunks |= NOCHUNK_ISINTRUSTUM;
 	else
@@ -1794,36 +1795,32 @@ void mapViewFrustum(Map map, vec4 camera)
 				prev = &cur->visible;
 				cur->frame = frame;
 				cur->cdFlags &= ~ CDFLAG_EDGESENW;
+				/* setup cave fog flags */
+				if (! checkFog)
+				{
+					float dx = camera[VX] - chunk->X;
+					float dz = camera[VZ] - chunk->Z;
+					/* 90% of chunks don't need this information */
+					if (dx * dx + dz * dz >= renderDist)
+						checkFog = cur;
+				}
 			}
 			else /* ignore this chunk */
 				*prev = cur->visible, map->chunkCulled ++;
 		}
 	}
 
-#if 1
-	for (cur = map->firstVisible; cur; cur = cur->visible)
+	for (cur = checkFog; cur; cur = cur->visible)
 	{
-		/* setup cave fog flags */
-		/*float dx = camera[VX] - chunk->X;
-		float dz = camera[VZ] - chunk->Z;
-		if (dx * dx + dz * dz >= renderDist)*/
+		int i;
+		chunk = cur->chunk;
+		for (i = 0; i < 4; i ++)
 		{
-			int i;
-			chunk = cur->chunk;
-			/* 90% of chunks don't need this information */
-			for (i = 0; i < 4; i ++)
-			{
-				Chunk neighbor = chunk + map->chunkOffsets[chunk->neighbor + (1 << i)];
-				ChunkData cd = neighbor->layer[cur->Y >> 4];
-				if (cd && cd->frame == frame)
-				{
-					/* chunk data is in frustum */
-					//cur->cdFlags &= ~(CDFLAG_EDGESOUTH << i);
-				}
-				else cur->cdFlags |= CDFLAG_EDGESOUTH << i;
-			}
+			Chunk neighbor = chunk + map->chunkOffsets[chunk->neighbor + (1 << i)];
+			ChunkData cd = neighbor->layer[cur->Y >> 4];
+			if (cd == NULL || cd->frame != frame)
+				cur->cdFlags |= CDFLAG_EDGESOUTH << i;
 		}
 	}
-#endif
 	renderAllocCmdBuffer(map);
 }

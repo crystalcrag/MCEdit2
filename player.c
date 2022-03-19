@@ -59,9 +59,9 @@ void playerInit(Player p)
 	if (p->angleh < 0) p->angleh += 2*M_PIf;
 
 	float cv = cosf(p->anglev);
-	p->lookat[VX] = p->pos[VX] + 8 * cosf(p->angleh) * cv;
-	p->lookat[VZ] = p->pos[VZ] + 8 * sinf(p->angleh) * cv;
-	p->lookat[VY] = p->pos[VY] + 8 * sinf(p->anglev);
+	p->lookat[VX] = p->pos[VX] + cosf(p->angleh) * cv;
+	p->lookat[VZ] = p->pos[VZ] + sinf(p->angleh) * cv;
+	p->lookat[VY] = p->pos[VY] + sinf(p->anglev);
 	p->lookat[VT] = p->pos[VT] = 1;
 
 	/* get inventory content */
@@ -693,35 +693,4 @@ void playerScrollInventory(Player p, int dir)
 	p->inventory.selected = pos;
 	if (p->inventory.offhand != 3)
 		playerSetInfoTip(p);
-}
-
-/*
- * pick-up block
- */
-static void playerSetMVMat(PickupBlock pickup)
-{
-	mat4 tmp, view;
-	int  i;
-
-	matTranslate(pickup->model, pickup->location[0], pickup->location[1], pickup->location[2]);
-	for (i = 0; i < 3; i ++)
-	{
-		if (pickup->rotation[0] != 0)
-			matRotate(tmp, pickup->rotation[i], i), matMult(pickup->model, pickup->model, tmp);
-	}
-	matScale(tmp, 0.8, 0.8, 0.8);
-	matMult(pickup->model, pickup->model, tmp);
-//	matLookAt(view, 0, 0, 0, 0, 0, 1, 0, 1, 0);
-	matMult(pickup->model, view, pickup->model);
-}
-
-void playerInitPickup(PickupBlock pickup)
-{
-	static vec4 pickUpLoc = {-1.8, -1.55, 1.9,  1};
-	static vec4 pickUpRot = {-0.08,-0.9,-0.04, 1};
-
-	memcpy(pickup->location, pickUpLoc, sizeof pickUpLoc);
-	memcpy(pickup->rotation, pickUpRot, sizeof pickUpRot);
-
-	playerSetMVMat(pickup);
 }
