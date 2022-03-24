@@ -25,7 +25,7 @@ out vec2  tc;
 out vec2  ocspos;
 out float skyLight;
 out float blockLight;
-out float fogFactor;
+flat out float fogFactor;
 flat out vec2  baseTex;
 flat out uint  rswire;
 flat out uint  ocsmap;

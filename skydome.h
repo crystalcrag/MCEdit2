@@ -33,4 +33,7 @@ struct SkyDome_t
 	Map   clouds;
 };
 #endif
+
+#define SKYDOME_FBO_SIZE     256
+
 #endif

@@ -1,4 +1,21 @@
+=========== Week 12 ===========
+Wed Mar 23:
+	* weird banding in skydome fog using 128x128px texture, changed size to 256x256px.
+	* cave fog appeared above ground: not good.
+
+Tue Mar 22:
+	* TileFinder: animation support continued.
+
+Mon Mar 21:
+	* TileFinder: started block animation support.
+
 =========== Week 11 ===========
+Sun Mar 20:
+	* model refactoring mostly done for TileFinder.
+
+Sat Mar 19:
+	* started TileFinder model format refactoring.
+
 Fri Mar 18:
 	* frustum culling started at camera pos, which was incorrect: you need to start at near plane.
 	* cave fog done, adding block light to fog didn't work :-/

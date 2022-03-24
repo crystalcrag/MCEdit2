@@ -83,7 +83,6 @@ struct Chunk_t                         /* an entire column of 16x16 blocks */
 	int16_t   signList;                /* linked list of all the signs in this chunk */
 
 	int       X, Z;                    /* coord in blocks unit (not chunk, ie: map coord) */
-	DATA8     biomeMap;                /* XZ map of biome id */
 	DATA32    heightMap;               /* XZ map of lowest Y coordinate where skylight value == 15 */
 	APTR      tileEntities;            /* hashmap of tile entities (direct NBT records) *(TileEntityHash)c->tileEntities */
 	int       secOffset;               /* offset within <nbt> where "Sections" TAG_List_Compound starts */

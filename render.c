@@ -614,7 +614,7 @@ Bool renderInitStatic(void)
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 128, 128, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, SKYDOME_FBO_SIZE, SKYDOME_FBO_SIZE, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 
 	/* will be rendered in a off-screen FBO */
 	glGenFramebuffers(1, &render.fboSky);
@@ -781,10 +781,23 @@ void renderCloseWorld(void)
 	ListNode * node;
 	while ((node = ListRemHead(&meshBanks)))  free(node);
 	while ((node = ListRemHead(&alphaBanks))) free(node);
-	render.message.chrLen = 0;
 	globals.modifCount = 0;
 	globals.selPoints = 0;
 	globals.inEditBox = 0;
+
+	render.message.chrLen = 0;
+	render.invCache = 0;
+	render.invCount = 0;
+	render.invExt = 0;
+	render.toolbarItem = 0;
+	render.selWnd = NULL;
+	render.libWnd = NULL;
+	render.editWnd = NULL;
+	render.selection.selFlags = 0;
+
+	SIT_ExtractDialog(render.blockInfo);
+	SIT_Nuke(SITV_NukeCtrl);
+
 }
 
 

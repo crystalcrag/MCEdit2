@@ -11,12 +11,12 @@ in  vec2  tc;
 in  vec2  ocspos;
 in  float skyLight;
 in  float blockLight;
-in  float fogFactor;
-flat in vec2 baseTex;
-flat in uint rswire;
-flat in uint ocsmap;
-flat in uint normal;
-flat in uint animate;
+flat in float fogFactor;
+flat in vec2  baseTex;
+flat in uint  rswire;
+flat in uint  ocsmap;
+flat in uint  normal;
+flat in uint  animate;
 
 layout (binding=0) uniform sampler2D blockTex; // Main texture for blocks
 
@@ -36,11 +36,10 @@ void main(void)
 	// prevent writing to the depth buffer: easy way to handle opacity for transparent block
 	if (color.a < 0.004)
 		discard;
-	if (rswire >= 1)
+	if (rswire >= 1) /* rswire: [1-15] == signal strength */
 	{
 		// use color from terrain to shade wire: coord are located at tile 31x3.5 to 32x3.5
 		color *= texture(blockTex, vec2(0.96875 + float(rswire-1) * 0.001953125, 0.0556640625));
-		return;
 	}
 
 	// ambient occlusion
@@ -116,7 +115,7 @@ void main(void)
 	// compute fog contribution
 	if (fogFactor < 1)
 	{
-		vec4 skyColor = texture(skyTex, vec2(gl_FragCoord.x / SCR_WIDTH, gl_FragCoord.y / SCR_HEIGHT)) * skyLight; // + vec4(1.5, 1.2, 1, 0) * block;
+		vec4 skyColor = (skyLight > 0 ? texelFetch(skyTex, ivec2(int(gl_FragCoord.x / SCR_WIDTH*255), int(gl_FragCoord.y / SCR_HEIGHT*255)), 0) : vec4(0.1,0.1,0.1,1));
 		skyColor.a = 1;
 		color = mix(skyColor, color, fogFactor);
 	}

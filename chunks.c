@@ -487,7 +487,7 @@ Bool chunkLoad(Chunk chunk, const char * path, int x, int z)
 			//chunk->lightPopulated = NBT_GetInt(&nbt, NBT_FindNode(&nbt, 0, "LightPopulated"), 0);
 			//chunk->terrainDeco    = NBT_GetInt(&nbt, NBT_FindNode(&nbt, 0, "TerrainPopulated"), 0);
 			chunk->heightMap      = NBT_Payload(&nbt, NBT_FindNode(&nbt, 0, "HeightMap"));
-			chunk->biomeMap       = NBT_Payload(&nbt, NBT_FindNode(&nbt, 0, "Biomes"));
+			//chunk->biomeMap       = NBT_Payload(&nbt, NBT_FindNode(&nbt, 0, "Biomes"));
 			chunk->entOffset      = NBT_FindNode(&nbt, 0, "Entities");
 			chunk->entityList     = ENTITY_END;
 
@@ -1024,14 +1024,14 @@ static uint8_t ysides[] = {16, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 4
 
 /* this table is used to list neighbor chunks, if a block is updated at a boundary (180 bytes) */
 uint32_t chunkNearby[] = {
-0x00000000, 0x00100000, 0x00040000, 0x00340000, 0x00008000, 0x00000000,
-0x00058000, 0x00000000, 0x00020000, 0x001a0000, 0x00000000, 0x00000000,
-0x0002c000, 0x00000000, 0x00000000, 0x00000000, 0x04000000, 0x24100000,
-0x0c040000, 0x6c340000, 0x04808000, 0x00000000, 0x0d858000, 0x00000000,
-0x06020000, 0x361a0000, 0x00000000, 0x00000000, 0x06c2c000, 0x00000000,
-0x00000000, 0x00000000, 0x00000200, 0x00101200, 0x00040600, 0x00343600,
-0x00008240, 0x00000000, 0x000586c0, 0x00000000, 0x00020300, 0x001a1b00,
-0x00000000, 0x00000000, 0x0002c360
+0x00000000, 0x00008000, 0x00002000, 0x0001a000, 0x00000400, 0x00000000,
+0x00002c00, 0x00000000, 0x00001000, 0x0000d000, 0x00000000, 0x00000000,
+0x00001600, 0x00000000, 0x00000000, 0x00000000, 0x00200000, 0x01208000,
+0x00602000, 0x0361a000, 0x00240400, 0x00000000, 0x006c2c00, 0x00000000,
+0x00301000, 0x01b0d000, 0x00000000, 0x00000000, 0x00361600, 0x00000000,
+0x00000000, 0x00000000, 0x00000010, 0x00008090, 0x00002030, 0x0001a1b0,
+0x00000412, 0x00000000, 0x00002c36, 0x00000000, 0x00001018, 0x0000d0d8,
+0x00000000, 0x00000000, 0x0000161b
 };
 
 /*
@@ -1172,7 +1172,7 @@ static void chunkGenQuad(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 static void chunkGenCust(ChunkData neighbors[], WriteBuffer opaque, BlockState b, DATAS16 chunkOffsets, int pos);
 static void chunkGenCube(ChunkData neighbors[], WriteBuffer opaque, BlockState b, DATAS16 chunkOffsets, int pos);
 static void chunkGenFOG(ChunkData cur, WriteBuffer opaque, DATA16 holesSENW);
-static void chunkFillCaveHoles(ChunkData cur, int pos, DATA16 holes);
+static void chunkFillCaveHoles(ChunkData cur, BlockState, int pos, DATA16 holes);
 int mapUpdateGetCnxGraph(ChunkData, int start, DATA8 visited);
 
 #include "globals.h" /* .breakPoint */
@@ -1243,7 +1243,7 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 					cur->cnxGraph |= mapUpdateGetCnxGraph(cur, pos, visited);
 				/* cave fog quad */
 				if (hasLights && slotsXZ[pos & 0xff])
-					chunkFillCaveHoles(cur, pos, (DATA16) (visited + 512));
+					chunkFillCaveHoles(cur, state, pos, (DATA16) (visited + 512));
 			}
 
 			if (hasLights)
@@ -1573,6 +1573,7 @@ static uint32_t chunkFillCustLight(DATA16 model, DATA8 skyBlock, DATA32 ocs, int
 	}
 	else
 	{
+		/* rswire mostly */
 		uint8_t light = skyBlock[13];
 		return light | (light << 8) | (light << 16) | (light << 24);
 	}
@@ -1653,8 +1654,8 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 		break;
 	case BLOCK_RSWIRE:
 		/* redstone wire: only use base model */
-		skyBlock[13] = b->id & 15;
-		b -= skyBlock[13];
+		skyBlock[13] = (skyBlock[13] & 0xf0) | (b->id & 15);
+		b -= b->id & 15;
 		// no break;
 	case BLOCK_GLASS:
 		/* need: 14 surrounding blocks (S, E, N, W): 5 bottom, 4 middle, 5 top */
@@ -2020,18 +2021,29 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
  * fake this by changing the entire sky color if you get below a certain Y coord: meh.
  */
 
-static void chunkFillCaveHoles(ChunkData cur, int pos, DATA16 holes)
+static void chunkFillCaveHoles(ChunkData cur, BlockState state, int pos, DATA16 holes)
 {
 	uint8_t sides = slotsXZ[pos & 0xff];
 	uint8_t y = pos >> 8;
 	uint8_t x = pos & 15;
 	uint8_t z = (pos >> 4) & 15;
+	uint8_t sky;
 
 	/* sky value need to be 0 for the hole to be covered */
-	uint8_t sky = cur->blockIds[SKYLIGHT_OFFSET + (pos >> 1)];
+	if (state->special == BLOCK_STAIRS || state->special == BLOCK_HALF)
+	{
+		/* half-slab/stairs always have a skylight of 0, but will need patching if no sky light is around */
+		struct BlockIter_t iter;
+		mapInitIterOffset(&iter, cur, pos);
+		sky = chunkPatchLight(iter) >> 4;
+	}
+	else
+	{
+		sky = cur->blockIds[SKYLIGHT_OFFSET + (pos >> 1)];
 
-	if (pos & 1) sky >>= 4;
-	else         sky &= 15;
+		if (pos & 1) sky >>= 4;
+		else         sky &= 15;
+	}
 
 	if (sky > 0) holes += 16;
 

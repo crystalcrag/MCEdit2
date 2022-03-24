@@ -109,7 +109,7 @@ void skydomeRender(int fboSky)
 	glGetIntegerv(GL_FRAMEBUFFER_BINDING, &defFBO);
 
 	/* first, only render the sky in a small texture */
-	glViewport(0, 0, 128, 128);
+	glViewport(0, 0, SKYDOME_FBO_SIZE, SKYDOME_FBO_SIZE);
 	glBindFramebuffer(GL_FRAMEBUFFER, fboSky);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, skydome.vboIndices);
 	glDrawElements(GL_TRIANGLES, skydome.indices, GL_UNSIGNED_SHORT, 0);
