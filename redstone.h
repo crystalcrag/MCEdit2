@@ -16,6 +16,7 @@ int  redstoneSignalStrength(BlockIter iter, Bool dirty);
 Bool redstonePropagate(int blockId);
 int  redstoneIsPowered(struct BlockIter_t iter, int side, int minPower);
 void redstonePowerChange(struct BlockIter_t iter, RSWire connectTo, int count);
+Bool redstoneIsAttachedTo(int blockId, int side);
 #ifdef MCMAPUPDATE_H
 int  redstonePushedByPiston(struct BlockIter_t iter, int blockId, RSWire list, BlockUpdate blockedBy);
 #endif

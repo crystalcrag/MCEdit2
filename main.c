@@ -417,7 +417,7 @@ static int mceditCancelStuff(SIT_Widget w, APTR cd, APTR ud)
 		if (globals.selPoints == 0)
 			renderSetSelectionPoint(RENDER_SEL_CLEAR);
 	}
-	else if (mcedit.state == GAMELOOP_OVERLAY)
+	else if (mcedit.state == GAMELOOP_OVERLAY || mcedit.state == GAMELOOP_SIDEVIEW)
 		SIT_Exit(EXIT_LOOP);
 	else if (globals.selPoints)
 		renderSetSelectionPoint(RENDER_SEL_CLEAR);
@@ -1590,6 +1590,7 @@ void mceditSideView(void)
 	debugWorld();
 	mx = my = 0;
 	SDL_GL_SwapBuffers();
+	mcedit.state = GAMELOOP_SIDEVIEW;
 
 	while (! mcedit.exit && SDL_WaitEvent(&event))
 	{
@@ -1605,10 +1606,7 @@ void mceditSideView(void)
 				case SDLK_F1:    debugBlock(mcedit.mouseX, mcedit.mouseY, 1); break;
 				case SDLK_F3:    debugToggleInfo(DEBUG_CHUNK); break;
 				case SDLK_F7:    globals.breakPoint = ! globals.breakPoint; break;
-				case SDLK_TAB:   mcedit.exit = EXIT_LOOP; break;
-				case SDLK_e:
 				case SDLK_UP:    debugMoveSlice(1); break;
-				case SDLK_d:
 				case SDLK_DOWN:  debugMoveSlice(-1); break;
 				case SDLK_MINUS: debugRotateView(-1); break;
 				case SDLK_EQUALS:

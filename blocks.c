@@ -2494,7 +2494,7 @@ int blockAdjustInventory(int blockId)
 }
 
 /* check if block <blockId> is attached to given side (SIDE_*) */
-Bool blockIsAttached(int blockId, int side)
+Bool blockIsAttached(int blockId, int side, Bool def)
 {
 	/* note: side is relative to current block, not neighbor */
 	Block b = &blockIds[blockId >> 4];
@@ -2514,7 +2514,7 @@ Bool blockIsAttached(int blockId, int side)
 			return blockSides.sign[blockId&7] == side;
 		}
 	}
-	return False;
+	return def;
 }
 
 Bool blockIsSolidSide(int blockId, int side)

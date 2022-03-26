@@ -202,21 +202,18 @@ void mapIter(BlockIter iter, int dx, int dy, int dz)
 	iter->blockIds = cd->blockIds;
 }
 
+/* keep modified chunk in this update into a global array */
 static void mapUpdateChunkData(ChunkData cd, int nearby)
 {
 	if ((cd->cdFlags & CDFLAG_ISINUPDATE) == 0)
 	{
 		int slot;
-		if (track.modifFirst == 0)
+		if (track.modifMax == track.modifCount)
 		{
-			if (track.modifMax == track.modifCount)
-			{
-				track.modifMax += 256;
-				track.modif = realloc(track.modif, track.modifMax * sizeof *track.modif);
-			}
-			slot = track.modifCount ++;
+			track.modifMax += 256;
+			track.modif = realloc(track.modif, track.modifMax * sizeof *track.modif);
 		}
-		else slot = -- track.modifFirst;
+		slot = track.modifCount ++;
 
 		ChunkUpdate chunkUpd = track.modif + slot;
 		/* slot and comingFrom are only needed for frustum culling (and they will be reset at the start) */
@@ -361,6 +358,11 @@ static void trackAddUpdate(BlockIter iter, int blockId, DATA8 tile)
 
 	/* redstone needs a 2 pass system */
 	BlockUpdate update = updates->buffer + updates->count;
+	BlockUpdate dup;
+
+	/* avoid duplicates */
+	for (dup = updates->buffer; dup < update; dup ++)
+		if (dup->cd == iter->cd && dup->offset == iter->offset) return;
 
 	updates->count ++;
 	update->cd = iter->cd;
@@ -891,7 +893,6 @@ static void mapUpdateAddRSUpdate(struct BlockIter_t iter, RSWire cnx)
 {
 	int i;
 	mapIter(&iter, cnx->dx, cnx->dy, cnx->dz);
-//	printCoord("checking update at", &iter);
 	Block b = &blockIds[iter.blockIds[iter.offset]];
 	if (b->rsupdate & RSUPDATE_RECV)
 		trackAddUpdate(&iter, 0xffff, NULL);
@@ -1112,7 +1113,7 @@ void mapUpdateChangeRedstone(Map map, BlockIter iterator, int side, RSWire dir)
 	Block b = &blockIds[iter.blockIds[iter.offset]];
 	int   i, count, flags;
 
-	if (b->type == SOLID || b->id == 0)
+	if (b->type == SOLID || b->id == 0 || b->id == RSTORCH_ON)
 	{
 		flags = 127 ^ (side == RSSAMEBLOCK ? 1 : 1 << (opp[side]+1));
 		count = 6;
@@ -1128,11 +1129,13 @@ void mapUpdateChangeRedstone(Map map, BlockIter iterator, int side, RSWire dir)
 			mapIter(&iter, xoff[i], yoff[i], zoff[i]);
 		if ((flags & 1) == 0) continue;
 
+		//if (redstoneIsAttachedTo(getBlockId(&iter), i))
 		int blockId = getBlockId(&iter);
-		if (blockIds[blockId>>4].rsupdate)
+		if (blockIds[blockId>>4].rsupdate & RSUPDATE_RECV || (blockId>>4) == RSWIRE)
 		{
 			/* we are in the middle of a mapUpdate() need to wait for all the tables to be up to date */
 			trackAddUpdate(&iter, 0xffff, NULL);
+			/* note: will be done in mapUpdateFlush() */
 		}
 	}
 }
@@ -1162,7 +1165,7 @@ static void mapUpdateDeleteRedstone(Map map, BlockIter iterator, int blockId)
 		}
 		break;
 	default:
-		/* this code will be executed whenever a solid block is deleted :-/ */
+		/* this code will be executed whenever a solid block is deleted */
 		b = &blockIds[blockId >> 4];
 		if (b->type == SOLID)
 		{
@@ -1185,6 +1188,7 @@ static void mapUpdateDeleteRedstone(Map map, BlockIter iterator, int blockId)
 		}
 		else if (b->orientHint == ORIENT_LEVER && (blockId & 8))
 		{
+			/* button or lever still active */
 			iterator->blockIds[iterator->offset] = 0;
 			mapUpdateChangeRedstone(map, iterator, blockSides.lever[blockId&7], NULL);
 		}
@@ -1349,9 +1353,12 @@ static void mapUpdateToEntity(Map map, ChunkData cd, int offset)
 }
 
 /* gravity affected block: check if there is an air block below */
-static void mapUpdateCheckGravity(struct BlockIter_t iter)
+void mapUpdateCheckGravity(struct BlockIter_t iter, int side)
 {
-	mapIter(&iter, 0, -1, 0);
+	if (side == RSSAMEBLOCK)
+		mapIter(&iter, 0, -1, 0);
+	else
+		mapIter(&iter, relx[side], rely[side]-1, relz[side]);
 	if (iter.blockIds[iter.offset] == 0)
 	{
 		/* yes, will be converted to entity in 1 tick */
@@ -1476,7 +1483,7 @@ void mapUpdateMesh(Map map)
 	ChunkData cd;
 	Chunk *   save = &map->needSave;
 	Chunk     chunk, list;
-	int       nearby, i;
+	int       nearby, i, max;
 	#ifdef DEBUG
 	int       count = 0;
 	#endif
@@ -1484,15 +1491,14 @@ void mapUpdateMesh(Map map)
 	/* add at end of list (previous mapUpdate() not commited yet) */
 	for (list = *save; list; save = &list->save, list = *save);
 
-	for (i = track.modifFirst; i < track.modifCount; i ++)
+	for (i = 0, max = track.modifCount; i < max; i ++)
 	{
 		cd     = track.modif[i].cd;
 		nearby = track.modif[i].nearby;
 		chunk  = cd->chunk;
 
 		cd->cdFlags |= CDFLAG_PENDINGMESH;
-		//fprintf(stderr, "pending mesh for chunk %d, %d, layer %d\n", c->X, c->Z, cd->Y);
-		track.modifFirst ++;
+		//fprintf(stderr, "pending mesh for chunk %d, %d, layer %d\n", chunk->X, chunk->Z, cd->Y);
 
 		if ((chunk->cflags & CFLAG_NEEDSAVE) == 0)
 		{
@@ -1533,13 +1539,16 @@ void mapUpdateMesh(Map map)
 				else nbor = neighbor->layer[layer];
 				if (nbor && (nbor->cdFlags & CDFLAG_ISINUPDATE) == 0)
 				{
-					if (track.modifFirst > 0) i --;
 					mapUpdateChunkData(nbor, 0);
 					//fprintf(stderr, "adding neighbor chunk %x to list from %d, %d, %d\n", sides, chunk->X, cd->Y, chunk->Z);
 				}
 			}
 		}
+	}
 
+	for (i = 0, max = track.modifCount; i < max; i ++)
+	{
+		cd = track.modif[i].cd;
 		cd->cdFlags &= ~CDFLAG_ISINUPDATE;
 		cd->slot = 0;
 		cd->comingFrom = 0;
@@ -1557,7 +1566,6 @@ void mapUpdateMesh(Map map)
 
 	*save = NULL;
 	track.modifCount = 0;
-	track.modifFirst = 0;
 
 	#ifdef DEBUG
 	fprintf(stderr, "%d chunk updated, max: %d, usage: %d\n", count, track.max, track.maxUsage);
@@ -1620,6 +1628,8 @@ void mapUpdateFlush(Map map)
 				/* if a piston fails to extend, we might have to check later */
 				track.curUpdate = update;
 				newId = mapUpdateIfPowered(map, &iter, oldId, oldId, False, NULL);
+				fprintf(stderr, "update at %d, %d, %d from %s:%d to %s:%d\n", (int) pos[0], (int) pos[1], (int) pos[2], blockIds[oldId>>4].name,
+					oldId&15, blockIds[newId>>4].name, newId&15);
 				if (oldId != newId)
 				{
 					mapUpdate(map, pos, newId, NULL, UPDATE_DONTLOG);
@@ -1755,7 +1765,7 @@ Bool mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 			return False;
 	}
 	if (b->gravity && (blockUpdate & UPDATE_GRAVITY))
-		mapUpdateCheckGravity(iter);
+		mapUpdateCheckGravity(iter, RSSAMEBLOCK);
 
 	if (iter.offset & 1) oldId |= *data >> 4;
 	else                 oldId |= *data & 15;
@@ -1836,30 +1846,6 @@ Bool mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 				mapUpdateChangeRedstone(map, &iter, SIDE_BOTTOM, NULL);
 		}
 	}
-	else if (blockUpdate & UPDATE_NEARBY)
-	{
-		/* quickly check if it needs a redstone update */
-		uint8_t i;
-		struct BlockIter_t neighbor = iter;
-		for (i = 0; i < 6; i ++)
-		{
-			mapIter(&neighbor, xoff[i], yoff[i], zoff[i]);
-			b = &blockIds[neighbor.blockIds[neighbor.offset]];
-			/* extremely likely there are nothing around */
-			if (b->rsupdate & RSUPDATE_SEND)
-			{
-				/* maybe */
-				mapIter(&neighbor, -relx[i], -rely[i], -relz[i]);
-				mapUpdateChangeRedstone(map, &neighbor, RSSAMEBLOCK, NULL);
-				break;
-			}
-			/* trigger falling entity on nearby block, causing cascading avalanche of blocks */
-			if (b->gravity && (blockUpdate & UPDATE_GRAVITY))
-				mapUpdateCheckGravity(neighbor);
-		}
-		/* check for entities too */
-		entityUpdateNearby(&iter, blockId);
-	}
 
 	if ((blockUpdate & UPDATE_DONTLOG) == 0)
 	{
@@ -1904,7 +1890,8 @@ Bool mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 	if (blockUpdate & 1)
 	{
 		/* update nearby block if needed */
-		mapUpdateBlock(map, pos, blockId, oldId, tile);
+		mapUpdateBlock(map, iter, blockId, oldId, tile, blockUpdate & UPDATE_GRAVITY);
+		entityUpdateNearby(&iter, blockId);
 
 		/* updates triggered by previous block updates */
 		if (track.updateCount > 0)
@@ -1914,7 +1901,7 @@ Bool mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 		renderPointToBlock(-1, -1);
 	}
 
-	/* deleted block: remove everyhting there is in this location and add breaking particles if needed */
+	/* deleted block: remove everything there is in this location and add breaking particles if needed */
 	if (blockId == 0)
 	{
 		updateRemove(iter.cd, iter.offset, True);
@@ -1925,9 +1912,8 @@ Bool mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 	else if ((blockUpdate & UPDATE_SILENT) == 0 && oldId > 0 && (oldId >> 4) != (blockId >> 4))
 	{
 		/* slab turned into double-slab */
-		if (blockIds[oldId >> 4].special == BLOCK_HALF && oldId == blockId + 16)
-			return True;
-		particlesExplode(map, 4, oldId, pos);
+		if (blockIds[oldId >> 4].special != BLOCK_HALF || oldId != blockId + 16)
+			particlesExplode(map, 4, oldId, pos);
 	}
 	return True;
 }
@@ -1953,8 +1939,7 @@ Bool mapActivate(Map map, vec4 pos)
 			mapUpdate(map, NULL, getBlockId(&iter), NULL, UPDATE_SILENT | UPDATE_UNDOLINK | UPDATE_FORCE);
 			mapIter(&iter, 0, -1, 0);
 		}
-		mapUpdate(map, NULL, blockId, NULL, UPDATE_SILENT);
-		mapUpdateEnd(map);
+		mapUpdate(map, NULL, blockId, NULL, UPDATE_SILENT | UPDATE_NEARBY);
 		renderAddModif();
 		return True;
 	}

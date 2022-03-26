@@ -55,17 +55,9 @@ int mapFirstFree(DATA32 usage, int count)
 }
 
 #ifdef DEBUG
-void printCoord(STRPTR hdr, BlockIter iter)
+void printCoord(BlockIter iter)
 {
-	int y = iter->offset;
-	int x = y & 15; y >>= 4;
-	int z = y & 15;
-	if (hdr == NULL)
-		fprintf(stderr, "%d, %d, %d\n", iter->ref->X + x, iter->yabs, iter->ref->Z + z);
-	else if (iter->ref == NULL)
-		fprintf(stderr, "%s NO CHUNK: %d, %d, %d\n", hdr, x, y, z);
-	else
-		fprintf(stderr, "%s: %d, %d, %d\n", hdr, iter->ref->X + x, iter->yabs, iter->ref->Z + z);
+	fprintf(stderr, "%d, %d, %d\n", iter->ref->X + iter->x, iter->yabs, iter->ref->Z + iter->z);
 }
 #endif
 

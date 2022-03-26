@@ -1,4 +1,8 @@
 =========== Week 12 ===========
+Fri Mar 25:
+	* various redstone and block update bug fixes.
+	* particle emitters kept emitting particles way after they have been deleted due to delay.
+
 Wed Mar 23:
 	* weird banding in skydome fog using 128x128px texture, changed size to 256x256px.
 	* cave fog appeared above ground: not good.

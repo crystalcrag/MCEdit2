@@ -326,7 +326,6 @@ static Particle particlesDrip(Map map, int blockId, vec4 pos)
 	return p;
 }
 
-
 #ifndef NOEMITTERS
 static Emitter particlesAddEmitter(ChunkData cd, DATA16 data, int16_t ** next)
 {
@@ -348,7 +347,7 @@ static Emitter particlesAddEmitter(ChunkData cd, DATA16 data, int16_t ** next)
 		emit->area = data[2] | (data[3] << 16);
 		emit->count = data[0] >> 8;
 
-		// fprintf(stderr, "adding emitter at %g,%g,%g for %d:%d\n", pos[0], pos[1], pos[2], blockId>>4, blockId & 15);
+		// fprintf(stderr, "adding emitter: %d spots, %08x\n", emit->count, emit->area);
 	}
 	return emit;
 }
@@ -371,7 +370,9 @@ static void particlesDelChain(int16_t last)
 #if 0
 void emitterDebug(void)
 {
-	int z, y, i;
+	int i;
+	#if 0
+	int z, y;
 	fprintf(stderr, "emitter grid:\n");
 	for (y = -1, i = 0; y < 2; y ++)
 	{
@@ -386,6 +387,7 @@ void emitterDebug(void)
 		}
 		fprintf(stderr, "   ---+----+---\n");
 	}
+	#endif
 
 	int count[PARTICLE_MAX] = {0};
 	for (i = 0; i < emitters.count; i ++)
@@ -393,6 +395,8 @@ void emitterDebug(void)
 		uint16_t cur  = emitters.active[i];
 		Emitter  emit = emitters.buffer + cur;
 		count[emit->type] ++;
+		ChunkData cd = emit->cd;
+		fprintf(stderr, "- emitter at %d, %d, %d: %d spots, area: %08x\n", cd->chunk->X, cd->Y + emit->Y, cd->chunk->Z, emit->count, emit->area);
 	}
 
 	for (i = 1; i < PARTICLE_MAX; i ++)
@@ -466,7 +470,7 @@ static void particleMakeActive(Map map)
 			cur = &e->next;
 		}
 	}
-//	debugEmitters();
+//	emitterDebug();
 	emitters.dirtyList = 1;
 }
 
@@ -526,8 +530,7 @@ void particlesChunkUpdate(Map map, ChunkData cd)
 					}
 				}
 			}
-
-			if (newOffset < oldOffset)
+			else if (newOffset < oldOffset)
 			{
 				/* new emitter */
 				Emitter e = particlesAddEmitter(cd, newIds, &start);

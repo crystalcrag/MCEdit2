@@ -1121,9 +1121,10 @@ void chunkInitStatic(void)
 	}
 }
 
-/* check odc/internals.html to have an overview on how particle emitters are managed */
+/* check doc/internals.html to have an overview on how particle emitters are managed */
 static void chunkAddEmitters(ChunkData cd, int interval, int pos, int type, DATA16 emitters)
 {
+	/* list[0] == number of emitters, list[1] == capacity of list (CHUNK_EMIT_SIZE items) */
 	DATA16 list = cd->emitters;
 	if (emitters[type] > 0)
 	{

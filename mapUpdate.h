@@ -12,8 +12,9 @@
 typedef struct BlockUpdate_t *     BlockUpdate;
 
 Bool mapUpdate(Map, vec4 pos, int blockId, DATA8 tile, int blockUpdate);
-void mapUpdateBlock(Map, vec4 pos, int blockId, int oldBlockId, DATA8 tile);
+void mapUpdateBlock(Map, struct BlockIter_t, int blockId, int oldBlockId, DATA8 tile, Bool gravity);
 void mapUpdateDeleteRails(Map, BlockIter, int blockId);
+void mapUpdateCheckGravity(struct BlockIter_t iter, int side);
 int  mapUpdateRails(Map, int blockId, BlockIter);
 int  mapUpdatePowerRails(Map, int id, BlockIter);
 int  mapUpdateGate(BlockIter, int id, Bool init);
@@ -77,7 +78,6 @@ struct MapUpdate_t
 	int         updateCount;       /* total updates waiting to be applied */
 	int         nbCheck;           /* re-check piston blocked */
 	int         modifCount;        /* chunks waiting for mesh update in modif[] */
-	int         modifFirst;
 	int         modifMax;          /* max capacity of arrray modif[] */
 	BlockUpdate curUpdate;         /* used by piston update order */
 	BlockIter   iter;              /* mapUpdate() will use an external iterator (mostly used by selection) */

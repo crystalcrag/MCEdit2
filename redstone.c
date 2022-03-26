@@ -80,6 +80,39 @@ static Bool redstoneIsConnected(RSWire cnx, int fromId, int side)
 			cnx->signal = data > 0 ? MAXSIGNAL+1 : 0;
 			return True;
 		}
+		else if (b->rsupdate & RSUPDATE_RECV)
+		{
+			cnx->signal = RSUPDATE;
+			return True;
+		}
+	}
+	return False;
+}
+
+/* check if blockId is attached to (SOLID) block from side */
+Bool redstoneIsAttachedTo(int blockId, int side)
+{
+	Block b;
+	switch (blockId >> 4) {
+	case RSWIRE:
+	case RSCOMPARATOR: return True;
+	case RSTORCH_OFF:
+	case RSTORCH_ON:
+		if (side == SIDE_BOTTOM) return False;
+		return blockSides.torch[blockId&7] == side;
+	case RSREPEATER_ON:
+	case RSREPEATER_OFF:
+		return blockSides.repeater[blockId&7] == side;
+	case RSOBSERVER:
+		return blockSides.piston[blockId&7] == side;
+	default:
+		b = &blockIds[blockId >> 4];
+		if (b->orientHint == ORIENT_LEVER)
+			return blockSides.lever[blockId&8] == side;
+		else if (b->special == BLOCK_PLATE)
+			return side == SIDE_TOP;
+		else if (b->rsupdate & RSUPDATE_RECV)
+			return True;
 	}
 	return False;
 }
@@ -117,18 +150,21 @@ int redstoneConnectTo(struct BlockIter_t iter, RSWire connectTo)
 				*list ++ = cnx;
 			if (b->type == SOLID)
 			{
-				for (i = 0; i < 4; i ++)
+				/* check S, E, N, W, T (not B) */
+				for (i = 0; i < 5; i ++)
 				{
 					cnx.dx = relx[i];
+					cnx.dy = rely[i] + 1;
 					cnx.dz = relz[i];
-					mapIter(&iter, xoff[i], 0, zoff[i]);
+					mapIter(&iter, xoff[i], yoff[i], zoff[i]);
 					id = getBlockId(&iter);
 					cnx.blockId = id >> 4;
 					cnx.data = id & 15;
-					if (redstoneIsConnected(&cnx, RSTORCH_OFF, i))
+					if (redstoneIsConnected(&cnx, RSWIRE, i))
 						*list ++ = cnx;
 				}
-				mapIter(&iter, xoff[i], 0, zoff[i]); /* back to start */
+				/* back to start */
+				mapIter(&iter, 0, -1, 0);
 			}
 
 			cnx.dy = 2;
@@ -591,7 +627,7 @@ int redstoneIsPowered(struct BlockIter_t iter, int side, int minPower)
 			if ((data & 8) && blockSides.piston[data&7] == opp[i]) return POW_NORMAL;
 			break;
 		case RSTORCH_ON:
-			if (i == SIDE_TOP && pow == 0) pow = POW_WEAK;
+			if (i == SIDE_TOP && pow < POW_WEAK && minPower <= POW_WEAK) pow = POW_WEAK;
 			else if (i == SIDE_BOTTOM) return POW_STRONG + POW_MAXSIGNL;
 		}
 	}

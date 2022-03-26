@@ -36,6 +36,7 @@ int8_t railsNeigbors[] = { /* find the potential 2 neighbors of a rail based on 
 /* minecraft update order is S, E, W, N; default neighbor enumeration will be ordered S, E, N, W */
 static uint8_t mcNextOrder[] = {1, 3, 4, 2};
 
+void mapUpdateChangeRedstone(Map map, BlockIter iterator, int side, RSWire dir);
 
 /* update "Data" NBT array */
 static void mapSetData(Map map, vec4 pos, int data)
@@ -193,9 +194,18 @@ static int8_t bedOffsetX[] = {0, -1,  0, 1};
 static int8_t bedOffsetZ[] = {1,  0, -1, 0};
 
 /* a block has been placed/deleted, check if we need to update nearby blocks */
-void mapUpdateBlock(Map map, vec4 pos, int blockId, int oldBlockId, DATA8 tile)
+void mapUpdateBlock(Map map, struct BlockIter_t iter, int blockId, int oldBlockId, DATA8 tile, Bool gravity)
 {
 	uint16_t neighbors[6];
+	uint8_t  i;
+	vec4     pos = {iter.ref->X + iter.x, iter.yabs, iter.ref->Z + iter.z};
+
+	for (i = 0; i < 6; i ++)
+	{
+		mapIter(&iter, xoff[i], yoff[i], zoff[i]);
+		neighbors[i] = getBlockId(&iter);
+	}
+	mapIter(&iter, 0, 1, 0);
 
 	if (blockId > 0)
 	{
@@ -203,19 +213,18 @@ void mapUpdateBlock(Map map, vec4 pos, int blockId, int oldBlockId, DATA8 tile)
 		switch (blockIds[blockId >> 4].special) {
 		case BLOCK_TALLFLOWER:
 			/* weird state values from minecraft :-/ */
-			//if ((blockId & 15) == 10) return;
 			mapSetData(map, pos, (blockId & 15) - 10); pos[VY] ++;
-			mapUpdate(map, pos, (blockId & ~15) | 10, NULL, UPDATE_UNDOLINK); pos[VY] --;
+			mapUpdate(map, pos, (blockId & ~15) | 10, NULL, UPDATE_UNDOLINK);
 			break;
 		case BLOCK_DOOR:
 			if ((oldBlockId >> 4) != (blockId >> 4))
 			{
 				/* new door being placed */
-				neighbors[0] = (blockId & 8) >> 1;
+				uint8_t data = (blockId & 8) >> 1;
 				/* need to update bottom data part */
-				mapSetData(map, pos, (blockId & 3) | neighbors[0]); pos[VY] ++;
+				mapSetData(map, pos, (blockId & 3) | data); pos[VY] ++;
 				/* and create top part */
-				mapUpdate(map, pos, ((blockId & 15) < 4 ? 8 : 9) | (neighbors[0] >> 1) | (blockId & ~15), NULL, UPDATE_UNDOLINK);
+				mapUpdate(map, pos, ((blockId & 15) < 4 ? 8 : 9) | (data >> 1) | (blockId & ~15), NULL, UPDATE_UNDOLINK);
 				pos[VY] --;
 			}
 			else /* existing door: only update bottom part */
@@ -234,17 +243,28 @@ void mapUpdateBlock(Map map, vec4 pos, int blockId, int oldBlockId, DATA8 tile)
 			}
 			break;
 		case BLOCK_RAILS:
-			mapGetNeigbors(map, pos, neighbors, 4);
 			mapUpdateNearbyRails(map, pos, blockId, neighbors);
 			if ((blockId >> 4) == RSPOWERRAILS)
 			{
-				struct BlockIter_t iter;
-				mapInitIter(map, &iter, pos, False);
 				blockId = getBlockId(&iter);
 				mapUpdateRailsChain(map, iter, blockId, 0, blockId & 8);
 				mapUpdateRailsChain(map, iter, blockId, 4, blockId & 8);
 			}
 			break;
+		}
+		for (i = 0; i < 6; i ++)
+		{
+			Block b = &blockIds[neighbors[i] >> 4];
+			/* extremely likely there are nothing around */
+			if (b->rsupdate & RSUPDATE_SEND)
+			{
+				/* maybe */
+				mapUpdateChangeRedstone(map, &iter, RSSAMEBLOCK, NULL);
+				break;
+			}
+			/* trigger falling entity on nearby block, causing cascading avalanche of blocks */
+			if (b->gravity && gravity)
+				mapUpdateCheckGravity(iter, i);
 		}
 	}
 	else /* block deleted */
@@ -266,9 +286,8 @@ void mapUpdateBlock(Map map, vec4 pos, int blockId, int oldBlockId, DATA8 tile)
 			/* QUAD_ASCN */    SIDE_BOTTOM | (SIDE_SOUTH << 3),
 			/* QUAD_ASCS */    SIDE_BOTTOM | (SIDE_NORTH << 3)
 		};
-		int i = oldBlockId >> 4;
 
-		if ((i == RSPISTON || i == RSSTICKYPISTON) && (oldBlockId & 8))
+		if (((oldBlockId >> 4) == RSPISTON || (oldBlockId >> 4) == RSSTICKYPISTON) && (oldBlockId & 8))
 		{
 			/* extended piston: delete extension */
 			i = blockSides.piston[oldBlockId & 7];
@@ -277,11 +296,10 @@ void mapUpdateBlock(Map map, vec4 pos, int blockId, int oldBlockId, DATA8 tile)
 			return;
 		}
 
-		mapGetNeigbors(map, pos, neighbors, 6);
-
 		/* check around the 6 sides of the cube what was deleted */
 		for (i = 0; i < 6; i ++)
 		{
+			if (neighbors[i] == 0) continue;
 			BlockState state = blockGetById(neighbors[i]);
 			if (state->type == QUAD)
 			{
@@ -290,16 +308,8 @@ void mapUpdateBlock(Map map, vec4 pos, int blockId, int oldBlockId, DATA8 tile)
 				do {
 					uint8_t norm = check&7;
 					if (norm == i)
-					{
 						/* no solid block attached: delete current block */
-						int8_t * normal = cubeNormals + norm * 4;
-						vec4     loc;
-						loc[VX] = pos[VX] + normal[VX];
-						loc[VY] = pos[VY] + normal[VY];
-						loc[VZ] = pos[VZ] + normal[VZ];
-						mapUpdate(map, loc, 0, NULL, UPDATE_UNDOLINK);
-						break;
-					}
+						goto break_block;
 					check >>= 3;
 				} while(check);
 			}
@@ -308,32 +318,39 @@ void mapUpdateBlock(Map map, vec4 pos, int blockId, int oldBlockId, DATA8 tile)
 				Block b = &blockIds[neighbors[i] >> 4];
 				DATA8 p = b->name + b->placement;
 				int   j;
-				if (b->placement == 0) continue;
+				if (gravity && b->gravity)
+					mapUpdateCheckGravity(iter, i);
+				if (b->placement > 0)
 				/* check that placement constraints are still satisfied */
 				for (j = p[0], p ++; j > 0; j --, p += 2)
 				{
 					int id = (p[0] << 8) | p[1];
 					switch (id) {
 					case PLACEMENT_GROUND:
-						if (i != SIDE_TOP || ! blockIsAttached(neighbors[i], opp[i])) continue;
+						if (i != SIDE_TOP || ! blockIsAttached(neighbors[i], opp[i], True)) continue;
 						/* no ground below that block: remove it */
 						break;
 					case PLACEMENT_WALL:
-						if (i >= SIDE_TOP || ! blockIsAttached(neighbors[i], opp[i]))
+						if (i >= SIDE_TOP || ! blockIsAttached(neighbors[i], opp[i], False))
 							continue;
 						break;
 					default:
-						if (! blockIsAttached(neighbors[i], opp[i]))
+						if (! blockIsAttached(neighbors[i], opp[i], False))
 							continue;
-						break;
 					}
-					/* constraint not satisfied: delete neighbor block */
-					int8_t * normal = cubeNormals + i * 4;
-					vec4     loc;
-					loc[VX] = pos[VX] + normal[VX];
-					loc[VY] = pos[VY] + normal[VY];
-					loc[VZ] = pos[VZ] + normal[VZ];
-					mapUpdate(map, loc, 0, NULL, UPDATE_UNDOLINK);
+					break_block:
+					{
+						/* constraint not satisfied: delete neighbor block */
+						int8_t * normal = cubeNormals + i * 4;
+						vec4     loc;
+						loc[VX] = pos[VX] + normal[VX];
+						loc[VY] = pos[VY] + normal[VY];
+						loc[VZ] = pos[VZ] + normal[VZ];
+						mapUpdate(map, loc, 0, NULL, UPDATE_UNDOLINK);
+						mapIter(&iter, normal[VX], normal[VY], normal[VZ]);
+						mapUpdateBlock(map, iter, 0, neighbors[i], NULL, gravity);
+						mapIter(&iter, -normal[VX], -normal[VY], -normal[VZ]);
+					}
 					break;
 				}
 			}
@@ -375,7 +392,6 @@ void mapUpdateBlock(Map map, vec4 pos, int blockId, int oldBlockId, DATA8 tile)
 			}
 			if ((mapGetBlockId(map, pos, NULL) & ~15) == (blockId & ~15))
 				mapUpdate(map, pos, 0, NULL, UPDATE_UNDOLINK);
-			break;
 		}
 	}
 }
@@ -1179,9 +1195,6 @@ void updateAddRSUpdate(struct BlockIter_t iter, int side, int nbTick)
 	TileTick update = updateInsert(iter.cd, iter.offset, globals.curTime + nbTick * globals.redstoneTick);
 	update->blockId = BLOCK_UPDATE;
 }
-
-/* XXX move this somewhere else ... */
-void mapUpdateChangeRedstone(Map map, BlockIter iterator, int side, RSWire dir);
 
 /* usually redstone devices (repeater, torch) update surrounding blocks after a delay */
 void updateTick(void)
