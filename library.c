@@ -342,7 +342,7 @@ void libraryCopySelection(Map brush)
 			"<button name=save.act title=", LANG("Save"), "enabled=0>"
 			"<button name=use.act title=", LANG("Use"), "enabled=0 left=WIDGET,save,0.5em>"
 			"<button name=ko.act title=", LANG("Delete"), "enabled=0 left=WIDGET,use,0.5em>"
-			"<listbox columnNames=X name=list left=FORM right=FORM listBoxFlags=", SITV_NoHeaders, "top=WIDGET,save,0.5em rowMaxVisible=4>"
+			"<listbox name=list left=FORM right=FORM listBoxFlags=", SITV_NoHeaders, "top=WIDGET,save,0.5em rowMaxVisible=4>"
 			"<button name=clip.act title=", LANG("To clipboard"), "top=WIDGET,list,0.5em>"
 			"<button name=paste.act title=", LANG("Paste"), "top=OPPOSITE,clip left=WIDGET,clip,0.5em>"
 		);

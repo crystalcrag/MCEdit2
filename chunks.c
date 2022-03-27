@@ -1680,7 +1680,7 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 		break;
 	case BLOCK_SIGN:
 		if (hasLights) /* don't render sign text for brush */
-			c->signList = signAddToList(b->id, chunkGetTileEntityFromOffset(c, neighbors[6]->Y, pos), c->signList, skyBlock[13]);
+			c->signList = signAddToList(b->id, neighbors[6], pos, c->signList, skyBlock[13]);
 		break;
 	default:
 		/* piston head with a tile entity: head will be rendered as an entity if it is moving */

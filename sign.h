@@ -10,7 +10,7 @@
 #include "chunks.h"
 
 Bool signInitStatic(int font);
-int  signAddToList(int blockId, DATA8 tile, int prev, uint8_t light);
+int  signAddToList(int blockId, ChunkData cd, int offset, int prev, uint8_t light);
 void signFillVertex(int blockId, float pt[6], int uv[4]);
 void signPrepare(vec4 camera);
 void signDel(DATA8 tile);
@@ -39,8 +39,9 @@ typedef struct NVGLUframebuffer *  NVGFBO;
 
 struct SignText_t
 {
-	int      XYZ[3];               /* coord of tile entity */
+	int      XYZ[3];               /* coord of tile entity (world space) */
 	uint8_t  light;                /* unused since tex is black :-/ */
+	uint8_t  empty;                /* no text to render: don't render a texture quad */
 	DATA8    tile;                 /* raw ptr to tile entity */
 	int16_t  next;                 /* linked list for signs of a chunk */
 	int16_t  bank;                 /* first 8bits: index of bank in signs.banks, next: [0-127] slot in bank, or -1 */

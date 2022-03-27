@@ -661,11 +661,9 @@ void mapGenerateMesh(Map map)
 			/* no chunk at this location */
 			continue;
 
-		//if (list == map->center)
-		//	NBT_Dump(&list->nbt, 0, 0, 0);
+		if (list == map->center)
+			NBT_Dump(&list->nbt, 0, 0, 0);
 
-		//fprintf(stderr, "meshing chunk %d, %d\n", list->X, list->Z);
-		//dumpTileEntities(list);
 		/* second: push data to the GPU (only the first chunk) */
 		for (i = 0, j = list->maxy; j > 0; j --, i ++)
 		{
@@ -1284,20 +1282,6 @@ int mapConnectChest(Map map, MapExtraData sel, MapExtraData ret)
 #define VISIBLE             0x80
 //#define FRUSTUM_DEBUG
 
-#if 0
-static void mapPrintUsage(ChunkFake cf, int dir)
-{
-	uint32_t flags, i;
-	cf->total += dir;
-	fprintf(stderr, "%c%d: ", dir < 0 ? '-' : '+', cf->total);
-	for (flags = cf->usage, i = 0; i < 16; i ++, flags >>= 1)
-		fputc(flags & 1 ? '1' : '0', stderr);
-	fputc('\n', stderr);
-}
-#else
-#define mapPrintUsage(x, y)
-#endif
-
 static ChunkData mapAllocFakeChunk(Map map)
 {
 	ChunkFake * prev;
@@ -1322,8 +1306,6 @@ static ChunkData mapAllocFakeChunk(Map map)
 	cd->cnxGraph = 0xffff;
 	map->fakeMax ++;
 
-	mapPrintUsage(cf, 1);
-
 	return cd;
 }
 
@@ -1335,7 +1317,6 @@ static void mapFreeFakeChunk(ChunkData cd)
 	Chunk     c  = cd->chunk;
 	cf->usage &= ~(1 << slot);
 	c->layer[cd->Y>>4] = NULL;
-	mapPrintUsage(cf, -1);
 }
 
 static int mapGetOutFlags(Map map, ChunkData cur, DATA8 outflags)

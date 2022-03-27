@@ -1133,7 +1133,7 @@ void selectionUseBrush(Map lib, Bool dup)
 				{
 					DATA8 tile;
 					int   XYZ[3], offset;
-					for (offset = 0; (tile = chunkIterTileEntity(srcChunk, &offset, XYZ)); )
+					for (offset = 0; (tile = chunkIterTileEntity(srcChunk, XYZ, &offset)); )
 						chunkAddTileEntity(dstChunk, XYZ, NBT_Copy(tile));
 				}
 				chunkUpdate(dstChunk, chunkAir, brush->chunkOffsets, y);

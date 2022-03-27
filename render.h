@@ -57,9 +57,9 @@ enum /* possible values for <action> of renderSetSelectionPoint */
 enum /* possible values for <what> of renderToggleDebug */
 {
 	RENDER_DEBUG_CURCHUNK = 1,
-	RENDER_DEBUG_FRUSTUM  = 2,
-	RENDER_DEBUG_BRIGHT   = 4,
-	RENDER_DEBUG_NOHUD    = 8
+	RENDER_DEBUG_BRIGHT   = 2,
+	RENDER_DEBUG_NOHUD    = 4,
+	RENDER_FRAME_ADVANCE  = 8
 };
 
 /* side view */
@@ -193,6 +193,7 @@ struct RenderWorld_t
 	APTR       editWnd;            /* SIT_DIALOG */
 	ItemID_t   previewItemId;      /* id of preview item entity */
 	double     animUpdate;
+	Message_t  freeze;             /* warn that RENDER_FRAME_ADVANCE is active */
 };
 
 struct MeshBuffer_t                /* temporary buffer used to collect data from chunkUpdate() */

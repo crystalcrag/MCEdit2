@@ -958,9 +958,12 @@ void matLookAt(mat4 res, vec4 eye, vec4 center, vec4 up, vec4 nearPlaneDir)
 	vecNormalize(up, up);
 
 	/* while we are here, get vector to near plane */
-	nearPlaneDir[VX] = fwd[VX] * 0.1f;
-	nearPlaneDir[VY] = fwd[VY] * 0.1f;
-	nearPlaneDir[VZ] = fwd[VZ] * 0.1f;
+	if (nearPlaneDir)
+	{
+		nearPlaneDir[VX] = fwd[VX] * 0.1f;
+		nearPlaneDir[VY] = fwd[VY] * 0.1f;
+		nearPlaneDir[VZ] = fwd[VZ] * 0.1f;
+	}
 
 	/* from book */
 	res[A00] = side[VX];

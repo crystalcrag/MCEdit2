@@ -1628,8 +1628,8 @@ void mapUpdateFlush(Map map)
 				/* if a piston fails to extend, we might have to check later */
 				track.curUpdate = update;
 				newId = mapUpdateIfPowered(map, &iter, oldId, oldId, False, NULL);
-				fprintf(stderr, "update at %d, %d, %d from %s:%d to %s:%d\n", (int) pos[0], (int) pos[1], (int) pos[2], blockIds[oldId>>4].name,
-					oldId&15, blockIds[newId>>4].name, newId&15);
+				//fprintf(stderr, "update at %d, %d, %d from %s:%d to %s:%d\n", (int) pos[0], (int) pos[1], (int) pos[2], blockIds[oldId>>4].name,
+				//	oldId&15, blockIds[newId>>4].name, newId&15);
 				if (oldId != newId)
 				{
 					mapUpdate(map, pos, newId, NULL, UPDATE_DONTLOG);

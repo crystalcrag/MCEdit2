@@ -407,6 +407,7 @@ static int mceditCancelStuff(SIT_Widget w, APTR cd, APTR ud)
 	{
 		FramePauseUnpause(False);
 		mcedit.frameAdvance = 0;
+		renderToggleDebug(RENDER_FRAME_ADVANCE);
 	}
 	else if (optionsExit(NULL, NULL, NULL))
 	{
@@ -745,6 +746,7 @@ Bool mceditProcessCommand(EventState state, int keyUp)
 		case KBD_FRAME_ADVANCE:
 			if (mcedit.frameAdvance == 0)
 			{
+				renderToggleDebug(RENDER_FRAME_ADVANCE);
 				FramePauseUnpause(True);
 				mcedit.frameAdvance = 1;
 			}
@@ -874,13 +876,6 @@ void mceditWorld(void)
 					renderPointToBlock(564, 434);
 					//FramePauseUnpause(globals.breakPoint);
 					break;
-				case SDLK_F3:
-					if (event.key.keysym.mod & KMOD_CTRL)
-					{
-						renderFrustum(True);
-						break;
-					}
-					goto case_SDLK;
 				#endif
 				case SDLK_DELETE:
 					if ((globals.selPoints & 8) == 0)

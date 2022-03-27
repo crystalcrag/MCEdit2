@@ -1315,6 +1315,15 @@ void keysReassign(SIT_Accel * list)
 	}
 }
 
+STRPTR keyGetText(int cmd)
+{
+	static TEXT keyName[32];
+
+	SITK_ToText(keyName, sizeof keyName, keyBindings[cmd].key);
+
+	return keyName;
+}
+
 /*
  * simple yes/no dialog
  */

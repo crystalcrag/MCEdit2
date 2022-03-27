@@ -22,6 +22,7 @@
 #include "cartograph.h"
 #include "waypoints.h"
 #include "blockUpdate.h"
+#include "keybindings.h"
 #include "undoredo.h"
 #include "nanovg.h"
 #include "SIT.h"
@@ -743,6 +744,8 @@ Map renderInitWorld(STRPTR path, int renderDist)
 		render.camera[VY] = ret->cy + PLAYER_HEIGHT;
 		render.camera[VZ] = ret->cz;
 		SIT_InsertDialog(render.blockInfo);
+		if (render.libWnd)
+			SIT_InsertDialog(render.libWnd);
 		SIT_SetValues(render.blockInfo,
 			SIT_ToolTipAnchor, globals.lockMouse ? SITV_TooltipFixed : SITV_TooltipFollowMouse,
 			SIT_X, globals.width  >> 1,
@@ -774,8 +777,12 @@ void renderCloseWorld(void)
 	undoDelAll();
 	updateClearAll();
 	wayPointsClose();
-	renderSaveRestoreState(False);
-	SIT_ExtractDialog(render.blockInfo); /* keep this one */
+
+	/* keep some SITGL elements */
+	render.libWnd = SIT_GetById(globals.app, "selcopy");
+	/* copied selection: allow user to quickly copy/paste selection between worlds */
+	if (render.libWnd) SIT_ExtractDialog(render.libWnd);
+	SIT_ExtractDialog(render.blockInfo);
 	SIT_Nuke(SITV_NukeCtrl);
 
 	ListNode * node;
@@ -791,13 +798,11 @@ void renderCloseWorld(void)
 	render.invExt = 0;
 	render.toolbarItem = 0;
 	render.selWnd = NULL;
-	render.libWnd = NULL;
 	render.editWnd = NULL;
 	render.selection.selFlags = 0;
 
 	SIT_ExtractDialog(render.blockInfo);
 	SIT_Nuke(SITV_NukeCtrl);
-
 }
 
 
@@ -806,10 +811,22 @@ void renderToggleDebug(int what)
 {
 	render.debug ^= what;
 
-	if (what == RENDER_DEBUG_BRIGHT)
-	{
+	switch (what) {
+	case RENDER_DEBUG_BRIGHT:
 		shading[SHADING_BRIGHTNESS] = globals.brightness == 101 ? 1 : globals.brightness * 0.007f;
 		glBufferSubData(GL_UNIFORM_BUFFER, UBO_SHADING_OFFSET+16, 16, shading+4);
+		break;
+
+	case RENDER_FRAME_ADVANCE:
+		if (! render.freeze.text[0])
+		{
+			NVGcontext * vg = globals.nvgCtx;
+			nvgFontFaceId(vg, render.debugFont);
+			nvgFontSize(vg, FONTSIZE);
+			render.freeze.chrLen = snprintf(render.freeze.text, sizeof render.freeze.text,
+				LANG("Use '%s' to advance next frame, Esc to exit this mode"), keyGetText(KBD_FRAME_ADVANCE));
+			render.freeze.pxLen = nvgTextBounds(vg, 0, 0, render.freeze.text, render.freeze.text + render.freeze.chrLen, NULL);
+		}
 	}
 }
 
@@ -1367,122 +1384,6 @@ void renderBlockInfo(SelBlock_t * sel)
 }
 
 /*
- * Frustum debug
- */
-void renderFrustum(Bool snapshot)
-{
-	static int vaoFrustum;
-	static int vboFrustum;
-	static int vboFrustumLoc;
-	static int vboFrustumMDAI;
-	static int vboCount;
-
-	Map map = globals.level;
-
-	if (vaoFrustum == 0)
-	{
-		static uint8_t edges[] = {
-			0, 1,   1, 5,   5, 4,   4, 0,
-			3, 2,   2, 6,   6, 7,   7, 3,
-			0, 3,   1, 2,   5, 6,   4, 7,
-		};
-
-		glGenVertexArrays(1, &vaoFrustum);
-		glGenBuffers(1, &vboFrustum);
-		glGenBuffers(1, &vboFrustumLoc);
-		glGenBuffers(1, &vboFrustumMDAI);
-
-		glBindVertexArray(vaoFrustum);
-		glBindBuffer(GL_ARRAY_BUFFER, vboFrustum);
-		glBufferData(GL_ARRAY_BUFFER, 48 * BYTES_PER_VERTEX, NULL, GL_STATIC_DRAW);
-		glVertexAttribIPointer(0, 3, GL_UNSIGNED_SHORT, BYTES_PER_VERTEX, 0);
-		glEnableVertexAttribArray(0);
-		glVertexAttribIPointer(1, 2, GL_UNSIGNED_SHORT, BYTES_PER_VERTEX, (void *) 6);
-		glEnableVertexAttribArray(1);
-		glBindBuffer(GL_ARRAY_BUFFER, vboFrustumLoc);
-		glBufferData(GL_ARRAY_BUFFER, 500 * 12, NULL, GL_STATIC_DRAW);
-		glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, 0);
-		glEnableVertexAttribArray(2);
-		glVertexAttribDivisor(2, 1);
-		glBindVertexArray(0);
-
-		glBindBuffer(GL_ARRAY_BUFFER, vboFrustumMDAI);
-		glBufferData(GL_ARRAY_BUFFER, 500 * 16, NULL, GL_STATIC_DRAW);
-
-		glBindBuffer(GL_ARRAY_BUFFER, vboFrustum);
-		DATA16 vtx = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
-		int i;
-		for (i = 0; i < DIM(edges); i ++, vtx += INT_PER_VERTEX)
-		{
-			DATA8 p = &cubeVertex[edges[i] * 3];
-			vtx[0] = VERTEX(p[0]*16);
-			vtx[1] = VERTEX(p[1]*16);
-			vtx[2] = VERTEX(p[2]*16);
-			SET_UVCOORD(vtx, 31*16+8, 8);
-			vtx[4] |= 0xff << 8;
-		}
-
-		for (i = 0; i < DIM(edges); i ++, vtx += INT_PER_VERTEX)
-		{
-			#define GAP      (BASEVTX/32)
-			DATA8 p = &cubeVertex[edges[i] * 3];
-			vtx[0] = p[0] ? VERTEX(16) - GAP : VERTEX(0) + GAP;
-			vtx[1] = p[1] ? VERTEX(16) - GAP : VERTEX(0) + GAP;
-			vtx[2] = p[2] ? VERTEX(16) - GAP : VERTEX(0) + GAP;
-			SET_UVCOORD(vtx, 13*16+8, 7*16+8);
-			vtx[4] |= 0xff << 8;
-			#undef GAP
-		}
-
-		glUnmapBuffer(GL_ARRAY_BUFFER);
-	}
-	if (snapshot)
-	{
-		ChunkData cd;
-		int       nb;
-
-		for (cd = map->firstVisible, nb = 0; cd; nb ++, cd = cd->visible)
-			if (cd->comingFrom == 0) nb ++;
-
-		glBindBuffer(GL_ARRAY_BUFFER, vboFrustumLoc);
-		glBindBuffer(GL_DRAW_INDIRECT_BUFFER, vboFrustumMDAI);
-		float * loc = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
-		MDAICmd cmd = glMapBuffer(GL_DRAW_INDIRECT_BUFFER, GL_WRITE_ONLY);
-		for (cd = map->firstVisible, vboCount = 0; cd; cd = cd->visible, loc += 3, vboCount ++, cmd ++)
-		{
-			Chunk chunk = cd->chunk;
-			cmd->first = 0;
-			cmd->count = 24;
-			cmd->baseInstance = vboCount;
-			cmd->instanceCount = 1;
-			loc[0] = chunk->X;
-			loc[1] = cd->Y;
-			loc[2] = chunk->Z;
-			if (cd->comingFrom == 0 && cd != map->firstVisible)
-			{
-				/* chunk culled from cave visibility */
-				loc += 3, vboCount ++, cmd ++;
-				memcpy(cmd, cmd-1, 16);
-				memcpy(loc, loc-3, 12);
-				cmd->first = 24;
-				cmd->baseInstance = vboCount;
-			}
-		}
-		glUnmapBuffer(GL_ARRAY_BUFFER);
-		glUnmapBuffer(GL_DRAW_INDIRECT_BUFFER);
-		glBindBuffer(GL_ARRAY_BUFFER, 0);
-		glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
-	}
-	if (vboCount > 0)
-	{
-		glUseProgram(render.shaderItems);
-		glBindVertexArray(vaoFrustum);
-		glBindBuffer(GL_DRAW_INDIRECT_BUFFER, vboFrustumMDAI);
-		glMultiDrawArraysIndirect(GL_LINES, 0, vboCount, 0);
-	}
-}
-
-/*
  * world rendering: per-frame shader magic happens here.
  */
 void renderWorld(void)
@@ -1595,10 +1496,6 @@ void renderWorld(void)
 	if (render.debug & RENDER_DEBUG_CURCHUNK)
 	{
 		debugShowChunkBoundary(globals.level->center, CPOS(render.camera[VY]));
-	}
-	if (render.debug & RENDER_DEBUG_FRUSTUM)
-	{
-		renderFrustum(False);
 	}
 
 	/* selection overlay */
@@ -1725,6 +1622,19 @@ void renderWorld(void)
 		entityRenderBBox();
 		//quadTreeDebug(globals.nvgCtx);
 	}
+
+	if (render.debug & RENDER_FRAME_ADVANCE)
+	{
+		/* show a message of why time is frozen */
+		nvgBeginPath(vg);
+		nvgRect(vg, 0, 0, globals.width, FONTSIZE + 10);
+		nvgFillColorRGBA8(vg, "\0\0\0\x7f");
+		nvgFill(vg);
+		nvgFillColorRGBA8(vg, "\xff\xff\xff\xff");
+		nvgFontSize(vg, FONTSIZE);
+		nvgText(vg, (globals.width - render.freeze.pxLen) >> 1, 5, render.freeze.text, render.freeze.text + render.freeze.chrLen);
+	}
+
 	nvgEndFrame(vg);
 
 	/* inventory items needs to be rendered after nanovg commands */

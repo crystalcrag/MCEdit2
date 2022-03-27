@@ -204,6 +204,19 @@ static void signParseEntity(SignText sign)
 		case 'z': case 'Z': sign->XYZ[2] = NBT_GetInt(&nbt, i, 0); break;
 		}
 	}
+
+	/* check if sign is empty: avoid allocating off-screen slot if it is */
+	for (i = 0, sign->empty = False; i < 4; i ++)
+	{
+		/* would have been easier if that crap wasn't stored in JSON */
+		uint8_t text[128];
+		int len = sign->text[i];
+		if (len == 0) continue;
+		if (signParseText(text, sizeof text, sign->tile + len) > 0)
+			/* not empty */
+			return;
+	}
+	sign->empty = True;
 }
 
 /* update off-screen texture for a given sign */
@@ -339,6 +352,8 @@ void signSetText(Chunk chunk, vec4 pos, DATA8 msg)
 
 			if (sign->bank >= 0)
 				signUpdateBank(sign);
+			else if (! sign->empty)
+				signs.listDirty = 1;
 
 			break;
 		}
@@ -346,13 +361,25 @@ void signSetText(Chunk chunk, vec4 pos, DATA8 msg)
 }
 
 /* keep all signs in a list, but don't render anything yet */
-int signAddToList(int blockId, DATA8 tile, int prev, uint8_t light)
+int signAddToList(int blockId, ChunkData cd, int offset, int prev, uint8_t light)
 {
-	struct SignText_t sign = {.tile = tile, .bank = -1, .light = light};
+	struct SignText_t sign = {.bank = -1, .light = light};
 	int i;
 
-	/* extract all the information we will need to render the sign from NBT */
-	signParseEntity(&sign);
+	sign.tile = chunkGetTileEntityFromOffset(cd->chunk, cd->Y, offset);
+
+	if (sign.tile)
+	{
+		/* extract all the information we will need to render the sign from NBT */
+		signParseEntity(&sign);
+	}
+	else /* no tile entity at this location: not good, but allow editing anyway */
+	{
+		sign.XYZ[VX] = cd->chunk->X + (offset & 15);
+		sign.XYZ[VZ] = cd->chunk->Z + ((offset >> 4) & 15);
+		sign.XYZ[VY] = cd->Y + (offset >> 8);
+		sign.empty = True;
+	}
 
 	//fprintf(stderr, "%d/%d. adding sign at %d, %d, %d: %p\n", signs.count, signs.max, sign.XYZ[0], sign.XYZ[1], sign.XYZ[2], tile);
 
@@ -526,7 +553,7 @@ void signPrepare(vec4 camera)
 
 	for (sign = signs.list, count = signs.count; count > 0; count --, sign ++)
 	{
-		if (sign->tile == NULL) continue;
+		if (sign->tile == NULL || sign->empty) continue;
 		int dx = sign->XYZ[0] - pos[0];
 		int dy = sign->XYZ[1] - pos[1];
 		int dz = sign->XYZ[2] - pos[2];

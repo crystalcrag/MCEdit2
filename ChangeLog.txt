@@ -1,4 +1,11 @@
 =========== Week 12 ===========
+Sun Mar 27:
+	* started tile ticks (finally!).
+
+Sat Mar 26:
+	* more bug fixes: sign edit without tile entities, particle emitters fix was incorrect.
+	* frustum culling rewrite as separate entity for testing mostly done: quite a few bugs already found.
+
 Fri Mar 25:
 	* various redstone and block update bug fixes.
 	* particle emitters kept emitting particles way after they have been deleted due to delay.

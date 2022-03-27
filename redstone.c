@@ -24,7 +24,7 @@ Bool redstonePropagate(int blockId)
 /* check if <blockId> can block redstone wire */
 static int redstoneIsBlocking(int blockId)
 {
-	Block b = &blockIds[blockId];
+	Block b = &blockIds[blockId >> 4];
 
 	if (b->type == SOLID)
 	{

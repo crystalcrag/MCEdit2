@@ -98,8 +98,9 @@ typedef struct KeyHash_t *      KeyHash;
 
 extern KeyBindings_t keyBindings;
 
-void keysHash(KeyHash, KeyBinding);
-int  keysFind(KeyHash hash, int key);
-void keysReassign(SIT_Accel *);
+void   keysHash(KeyHash, KeyBinding);
+int    keysFind(KeyHash hash, int key);
+void   keysReassign(SIT_Accel *);
+STRPTR keyGetText(int cmd);
 
 #endif

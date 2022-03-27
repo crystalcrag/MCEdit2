@@ -10,10 +10,9 @@
 
 <div id="toc">
 <a class="sub1" href="#conventions"><span>Conventions</span></a>
-  <a class="sub2" href="#coord"><span>Coordinate system</span></a>
-  <a class="sub2" href="#rotation"><span>Angles</span></a>
-  <a class="sub2" href="#faceorder"><span>Face enumeration order</span></a>
-  <a class="sub2" href="#datatypes"><span>Datatypes</span></a>
+  <a class="sub2" href="#coord"><span>Coordinate system</span></h3>
+  <a class="sub2" href="#faceorder"><span>Face enumeration order</span></h3>
+  <a class="sub2" href="#datatypes"><span>Datatypes</span></h3>
 
 <a class="sub1" href="#culling"><span>Frustum culling</span></a>
   <a class="sub2" href="#firstvers"><span>First version</span></a>
@@ -23,29 +22,19 @@
   <a class="sub2" href="#crossplane"><span>Cross-plane faces</span></a>
   <a class="sub2" href="#caveats"><span>Caveats</span></a>
   <a class="sub2" href="#fakechunks"><span>Fake chunks</span></a>
+    <a class="sub3" href="#aboveground"><span>Above ground</span></a>
+    <a class="sub3" href="#columngap"><span>Gap between columns</span></a>
+    <a class="sub3" href="#straightcol"><span>Straight column</span></a>
+    <a class="sub3" href="#elevation"><span>Elevation changes</span></a>
   <a class="sub2" href="#outside"><span>Outside bounds</span></a>
   <a class="sub2" href="#cavecull"><span>Cave culling</span></a>
-    <a class="sub3" href="#cavecullv1"><span>First attempt</span></a>
-    <a class="sub3" href="#cavecullv2"><span>Second attempt</span></a>
-  <a class="sub2" href="#altimpl"><span>Alternate implementation<span></a>
+    <a class="sub3" href="#cavecullv1"><span>First attempt</span></h3>
+    <a class="sub3" href="#cavecullv2"><span>Second attempt</span></h3>
 
 <a class="sub1" href="#blocks"><span>Block API</span></a>
   <a class="sub2" href="#blockdesc"><span>Block description</span></a>
   <a class="sub2" href="#statedesc"><span>State description</span></a>
   <a class="sub2" href="#blockmodel"><span>Block models</span></a>
-
-<a class="sub1" href="#NBTapi"><span>NBT API</span></a>
-  <a class="sub2" href="#NBTspec"><span>NBT Structure</span></a>
-  <a class="sub2" href="#NBTspecapi"><span>NBT Structure in API</span></a>
-  <a class="sub2" href="#NBTpost"><span>NBT post processing</span></a>
-  <a class="sub2" href="#NBTfunc"><span>NBT Function overview</span></a>
-	<a class="sub3" href="#NBTread"><span>Reading files</span></a>
-	<a class="sub3" href="#NBTfind"><span>Locate tags</span></a>
-	<a class="sub3" href="#NBTiter"><span>Iterating properties</span></a>
-	<a class="sub3" href="#NBTreadtag"><span>Reading tag value</span></a>
-	<a class="sub3" href="#NBTchgtag"><span>Setting tag value</span></a>
-	<a class="sub3" href="#NBTcreate"><span>Creating / modifying nbt</span></a>
-	<a class="sub3" href="#NBTother"><span>Others</span></a>
 
 <a class="sub1" href="#opengl"><span>Advanced OpenGL</a>
   <a class="sub2" href="#translucency"><span>Alpha transparency</span></a>
@@ -69,7 +58,7 @@
 <a class="sub1" href="#entities"><span>Entities</span></a>
   <a class="sub2" href="#structure"><span>Data structure</span></a>
   <a class="sub2" href="#collision"><span>Collision detection</span></a>
-  <a class="sub2" href="#partitioning"><span>Space partioning</span></a>
+  <a class="sub2" href="#partitioning"><span>Space partionning</span></a>
 
 <a class="sub1" href="#emitters"><span>Particle emitters</span></a>
 
@@ -115,23 +104,6 @@ north). Y is elevation.
 be close to player position, not 0,0,0). <span class="n">XXX</span> That's not good actually: coords
 are stored in floats, loss of precision will be problematic.
 
-<h3 id="rotation"><span>Angles</span></h3>
-
-<p>Angles in this engine tried to be mapped on the trigonometric circle (especially rotation on Y axis).
-That way, the output of cosine and sine functions can be used directly without unnecessary conversion.
-Here are how they are mapped to each axis, keep that in mind, it is <b>very easy to mix them up</b>:
-
-<div class="photo" style="display: inline-block; margin-left: 40px">
-  <img src="images/rotateY.png">
-  <cap>Rotation on Y axis (left-hand axis)</cap>
-</div><div class="photo" style="display: inline-block; margin-left: 40px">
-  <img src="images/rotateX.png">
-  <cap>Rotation on X axis</cap>
-</div>
-
-<p>With entites, there are some exceptions though: orientation will depend on how the model is created.
-To avoid some headache, it is strongly advised to keep the orientation above: if the entity rotation is 0,
-it should be facing east.
 
 <h3 id="faceorder"><span>Face enumeration order</span></h3>
 
@@ -304,8 +276,8 @@ between 0 and 26, and therefore can be encoded as a bitfield in a 32bit integer.
 
 <p><tt>0</tt> is the chunk we are currently in. The numbers are ordered by scanning each number (starting
 from 0 in the center) and looking in the <tt>S, E, N, W, T, B</tt> directions if the chunk has been
-assigned to something. If not, it will be assigned to the next free number. The process continues until
-all 27 slots have been set.
+assgined to something. If not, it is assigned to the next free number. The process continues until
+all 27 slots have been assigned to a number.
 
 <p>The purpose of this order is to be able to scan surrounding chunks by their distance from the center
 chunk: number 0 is the center, 1 to 6 are chunks one step away from center, 7 to 18 are two steps away
@@ -313,12 +285,12 @@ and 19 to 26 are 3 steps away (the steps being a <tt>S, E, N, W, T, B</tt> step)
 be required by the cave culling algorithm.
 
 <p>For example, if we checked that vertex <tt>0</tt> of a chunk is within the frustum, we know we can
-also add chunks <tt>3</tt>, <tt>4</tt>, <tt>6</tt>, <tt>14</tt>, <tt>16</tt>, <tt>18</tt> and <tt>26</tt>.
+also add chunks <tt>1</tt>, <tt>4</tt>, <tt>5</tt>, <tt>9</tt>, <tt>10</tt>, <tt>16</tt> and <tt>22</tt>.
 Chunk 0 is not included, because at this point we already know that the center chunk is part of the frustum.
 Encoded as bitfield, with the n<sup>th</sup> bit set if chunk number <tt>n</tt> is in the frustum, the
-7 chunks to add for vertex 0 can be encoded as <tt>2<sup>3-1</sup> + 2<sup>4-1</sup> + 2<sup>6-1</sup> +
-2<sup>14-1</sup> + 2<sup>16-1</sup> + 2<sup>18-1</sup> + 2<sup>26-1</sup> = 0x0202a02c</tt>, and so on
-for the other 7 corners: that's what is stored in the <tt>neighbors</tt> table.
+7 chunks to add for vertex 0 can be encoded as <tt>2<sup>1</sup> + 2<sup>4</sup> + 2<sup>5</sup> +
+2<sup>9</sup> + 2<sup>10</sup> + 2<sup>16</sup> + 2<sup>22</sup> = 0x00410632</tt>, and so on for the
+other 7 corners: that's what is stored in the <tt>neighbors</tt> table.
 
 
 <h3 id="neighbors"><span>Enumerating neighbors</span></h3>
@@ -335,6 +307,9 @@ will have 27 elements. Each element is a bitfield with the following meaning:
   <li>bit 5 set: move to the <b>top</b> (+Y).
   <li>bit 6 set: move to the <b>bottom</b> (+Y).
 </ul>
+
+<p>That order (<tt>S, E, N, W, T, B</tt>) is used <b>extensively</b> throughout the engine (especially for generating
+the mesh of a chunk) and as such there are a lot of helper functions that can use this bitfield directly.
 
 <p>If the chunk is tagged by the bitfield, it is then added at the end of the visible list, to be
 scanned later to see if we can reach new chunks from here. We continue then until the entire list
@@ -439,7 +414,7 @@ result of those inequalities we stored in the <tt>outflags</tt> table supposed t
 infinity. Therefore point 0 will be considered <b>both</b> to be on left of the left plane <b>and</b> to the
 right of the right plane.
 
-<p>In practice, those false positives are quite rare, less than 1 in a thousand. It would be pointless to add extra
+<p>In practice, those false positives are quite rare, less than 1&permil;. It would be pointless to add extra
 code to eliminate those. All the vertices from these chunks will be eliminated in the vertex shader, without
 even reaching the fragment shader. As long as there aren't too many of these, performance loss will be negligible.
 
@@ -460,20 +435,57 @@ Not good.
 
 <p>If that's the case, a fake chunk will be created for the sole purpose of tracking where we are and
 to check where we can go next. Those sub-chunks are actually cheap to allocate because we only need
-a small subset of the fields contained in a <tt>ChunkData</tt> structure.
+a small subset of the fields contained in a <tt>ChunkData</tt> structure (we only need 2 actually,
+about 20 bytes): those chunks are therefore allocated in batch of 32, with their memory layout
+overlapping the fields we don't need.
 
-<p>But to prevent allocating useless fake chunks, we only consider them if <b>they cross the bottom
-plane of the frustum</b>. The reason for checking the bottom plane is because this is the only plane
-a column of <tt>ChunkData</tt> is guaranteed to cross. Column of chunks are always contiguous, if it
-wasn't the case, that heuristic (checking the bottom plane) wouldn't work at all.
+<p>But to prevent allocating useless fake chunks, we only allocate one if it has a lower Y coordinate
+than the previously visited. Fake chunks only have to be allocated above ground, therefore if we want
+to find something to display, we need to go down (lower Y value).
 
-<p>The way it is checked is very similar to cross-plane faces: by checking the <tt>outflags[]</tt>
-array, for a segment that has its 2 endpoints on the opposite side of the bottom plane. If that's not
-the case, a fake <tt>ChunkData</tt> won't be allocated. This is particularly useful when being above
-ground: a good portion of the frustum doesn't intersect any <tt>ChunkData</tt>. It would be a waste to
-allocate a fake chunk, just to be discarded at the end.
+<p>Here's a few examples on how it works (reduced to XY plane for simplicity). But first some legends:
+
+<ul>
+  <li>A <b>hatch pattern</b> indicates a real chunk (actually a <tt>ChunkData_t</tt>) that you can get
+  a reference on.
+  <li>A <b>dashed square</b> is where a chunk could have been allocated, but since there are no data in this
+  area, attempting to get a reference to this location will return <tt>NULL</tt>.
+  <li><b>1</b> is the chunk where the player is, <b>the lines</b> showing a rough estimate of the cone of vision.
+  <li>The <b>black dot</b> is a special point to check whether we need to alloc a fake chunk or not
+  (more on this below).
+</ul>
+
+<h4 id="aboveground">Above ground</h4>
+
+<div class="photo" style="float: left; margin-left: 40px">
+  <img src="images/fake_abovegnd.png">
+</div>
+<p>&nbsp;
+
+<p>Here, the player starts in an empty chunk: a fake chunk has to be allocated here. When checking which
+vertex corner of this starting chunk is within the frustum (or which face crosses more than 2 planes),
+we only get one result: right side.
+
+<p>The chunk on the right doesn't exist either. But before allocating a fake chunk, we do a simple test
+to see if it is necessary to do so: in the chunk we came from (here, it was 1), is top most valid
+<tt>ChunkData_t</tt> within the frustum?
+
+<p>To test if this is the case, we take the top center vertex of this chunk and check if it is above the
+bottom plane of the frustum. This test is not perfect by any means, but it doesn't have to: the worst
+case is allocating more fake chunks than what is necessary. In this case the chunk below 1 is not in
+the frustum, therefore we allocate a new fake chunk at location 2.
+
+<p>If the top most valid chunk was in the frustum, it means that we only need to find a path that goes
+down, there is no point in going sideways: doing so will allocate <b>LOTS</b> of useless fake chunks.
+On a 16 chunks render distance, being 2 or 3 chunks above ground, looking down, without that test, you
+can easily allocate several hundreds of these fake chunks for no good reason: remember that each of
+these fake chunks will require an MVP matrix multiplication. That's why in the <a href="#cube3x3">chunk
+ordering</a> we start by looking down: we want to get a valid chunk ASAP.
 
 
+<h4 id="columngap" style="clear: left">Gap between columns</h4>
+<h4 id="straightcol">Straight column</h4>
+<h4 id="elevation">Elevation changes</h4>
 
 <h3 id="outside"><span>Outside bounds</span></h3>
 
@@ -563,11 +575,6 @@ The connections are stored in <tt>ChunkData.cnxGraph</tt>: it is a bitfield (<tt
 that indicates which face has a visible path to another face. If there are no paths, that means the
 face is blocking the visibility of a chunk.
 
-<p>Knowing there is "hole" at the edge of a face (ie: the diagonal of the above matrix) is an information
-we don't need, <b>except for the first chunk</b>. If you start in such a chunk and looking through that
-hole, there won't be any connection and therefore the cave culling will stop right there, which is
-obviously not good. Those extra 6bits are actually stored in a separate field (<tt>cdFlags</tt>).
-
 <h5 id="cnxgraph"><span>Graph traversal</span></h3>
 
 <p>This is the part that differs significantly from the blog post: it uses a more conservative approach,
@@ -638,17 +645,6 @@ south face, that is either 1, 2, 3, 4 or 5. Since connection graph is encoded as
 <p>This method is not as aggressive as the current version of <prod>Minecraft</prod>: it is far from
 simulating a raycasting traversal, but can still easily cull 50% of chunks when above ground, and nearly
 90% when underground. Still, way better than the first version.
-
-
-<h3 id="altimpl"><span>Alternate implementation</span></h2>
-
-<p>Understanding what's going on in a 3d space is quite tedious, since it usually involves a lot of
-information. An alternate implementation exists that limits the problem in 2d space, which makes it
-<b>much easier</b> to debug and/or understand what's going on. Check out the repository
-<a href="https://github.com/crystalcrag/MCEdit-utils">MCEdit-utils</a>: the <tt>Frustum</tt> utility
-implement more or less everything that has been described in this chapter. The code in this utility
-is actually very close to what is used in this engine.
-
 
 
 <h2 id="blocks">Block API</h2>
@@ -1025,466 +1021,6 @@ faces is the number of bits activated in the first number (ie: <tt>popcount((int
 and <tt>V</tt> from 0 to 1024. <tt>U</tt> can therefore address 513 numbers, thus the formula for each
 number is <tt>U + V * 513</tt>.
 
-<h2 id="NBTapi">NBT API</h2>
-
-<p>This module is used to read, write and modify NBT (<tt>Named Binary Tag</tt>) file format from disk
-and/or memory. NBT is used to store arbitrary data types in a tree-like structure (ie: nested up to
-any depth). In some ways, it can be seen as a binary JSON. NBT file are often being compressed using
-either gzip or zlib compression, this module handle decompression by the use of the <tt>zlib</tt> library
-(this module does not roll its own decompression algorithm).
-
-<p>NBT API in this engine does not exactly follow a traditional API you might expect for manipulating
-a tree of arbitrary data types. The main problem that this API was trying to solve is to keep 
-everything related to an NBT tree as close as possible in memory, to benefit from cache locality.
-
-<p>This is actually the main focus of this API: it <b>strongly</b> favors read over write access. The
-rationale for this choice being that most chunks in a map will never be modified at all, and for those
-that will, most of the time it is simply a matter of overwriting some tables (<tt>BlockLight</tt>,
-<tt>Blocks</tt>, <tt>Data</tt>, ...).
-
-<p>There are a few lists (<tt>TileEntities</tt>, <tt>Entities</tt>, <tt>TileTicks</tt>, ...) where the
-content can change significantly, and this is where this API will be a bit more tedious to use than other
-APIs.
-
-<p>The gist of how this API works is to serialize the content of a NBT file into a <b>single memory
-block</b>. This block will be reallocated if the first allocation was not enough, but <b>everything</b>
-will be kept into a contiguous block of memory. Therefore the binary representation of the NBT structure
-in memory will actually be <b>very close</b> to how it is stored on disk (if it were uncompressed): save
-a few memory alignment constraints and byte ordering, and you could write the buffer almost directly
-to disk.
-
-<p>Sadly, that also means, in order to use this API, you'll need to have a pretty good understanding
-on how NBT is structured on disk, because that API is a very shallow abstraction over that. A refresher
-will be available in the next section.
-
-
-
-
-<h3 id="NBTspec"><span>NBT Structure</span></h2>
-
-<p>This section is a quick refresher on how NBT is structured (uncompressed). This format can store
-arbitrary data types, in a tree-like format with branch nested as deep as you want.
-
-<p>NBT supports <b>3 major families of types</b>:
-<ol>
-  <li><b>Scalar</b>: designate an immediate value, which can be an integer (1, 2, 4 or 8 bytes), a
-  floating point number (32 or 64bits) or a string.
-  <li><b>List</b>: contains a finite number of scalar and/or compound (all of the same type).
-  <li><b>Compound</b>: an arbitrary number of scalar, list or even nested compound, one after the other:
-  a field terminator is used to mark the end of the block.
-</ol>
-
-<p>Usually an NBT object/file always starts with a <b>Compound</b> or <b>List</b>, otherwise it will
-be limited to a single scalar value, which is not very useful. Each type is stored using a header and
-a payload. The header follows the same structure for every type, the payload is obviously specific to
-each type.
-
-<p>Also, integers bigger than 1 byte and floatting point types are stored in <b>big endian</b> format.
-
-<h4>Header</h4>
-
-<p>Here is the structure of the header:
-<ul>
-  <li><b>1 byte</b>: the first byte encode the type of the record. Here are the possible values:
-  <table>
-  <thead><tr><td>Num<td>Define<td>Description
-  <tbody>
-    <tr><th>0<td><tt>TAG_End</tt><td>This type is used to mark the end of a compound.
-	<p><span class="n">Note</span>: a <tt>TAG_End</tt> does not have any payload beyond this single byte.
-    <tr><th>1<td><tt>TAG_Byte</tt><td>Used to store an <tt class="t">uint8_t</tt>.
-
-    <tr><th>2<td><tt>TAG_Short</tt><td>Store an <tt class="t">uint16_t</tt>.
-    <tr><th>3<td><tt>TAG_Int</tt><td>Store an <tt class="t">uint32_t</tt>.
-    <tr><th>4<td><tt>TAG_Long</tt><td>Store an <tt class="t">uint64_t</tt>.
-    <tr><th>5<td><tt>TAG_Float</tt><td>Store an <tt class="t">float</tt>.
-    <tr><th>6<td><tt>TAG_Double</tt><td>Store an <tt class="t">double</tt>.
-    <tr><th>7<td><tt>TAG_Byte_Array</tt><td>Store an <tt class="t">uint8_t</tt> array.
-    <tr><th>8<td><tt>TAG_String</tt><td>Store an <tt class="t">uint8_t</tt> array
-	<p>The main difference between <tt>TAG_ByteArray</tt> is the maximal length of the array.
-	<tr><th>9<td><tt>TAG_List</tt><td>Store an arbitrary number of a given object (which can be scalar or compound).
-	<p><span class="n">Note</span>: a <tt>TAG_List</tt> of <tt>TAG_End</tt> is permitted
-	if the number of items is 0.
-
-	<tr><th>10<td><tt>TAG_Compound</tt><td>Store an arbitrary number of scalar/compound, not necessarily
-	of the same types.
-	<p>The last item of a compound, must be a <tt>TAG_End</tt>.
-    <tr><th>11<td><tt>TAG_Int_Array</tt><td>Store an <tt class="t">uint32_t</tt> array.
-
-	<p>Why is it not stored as a <tt>TAG_List</tt> of <tt>TAG_Int</tt>, you might ask ? Well, I guess someone forgot this
-	type existed...
-	<p>This type is used by the <tt>HeightMap</tt> entry of a chunk to store the highest
-	value where sky light is at max level.
-  </ul>
-  </table>
-
-  <li><b>2 bytes</b>: all types, except <tt>TAG_End</tt>, are followed by 2 bytes, which encodes a length
-  <p><span class="n">Note</span>: keep in mind, that this length is stored as a big endian number.
-  <li><b>[length] bytes</b>: will contain a string that is the name of this tag (not the value itself).
-  <li><b><em>remaining</em></b>: payload section.
-</ul>
-
-<h4>Payload</h4>
-
-<p>Finally, here are the structure of the different payload sections, according to each tag:
-<table>
-<thead><tr><td>Num<td>Define<td>Description
-<tbody>
-  <tr><th>1<td><tt>TAG_Byte</tt><td>Followed by 1 byte: the integer value.
-  <tr><th>2<td><tt>TAG_Short</tt><td>Followed by 2 bytes: the integer value in big endian format.
-  <tr><th>3<td><tt>TAG_Int</tt><td>Followed by 4 bytes.
-  <tr><th>4<td><tt>TAG_Long</tt><td>Followed by 8 bytes.
-  <tr><th>5<td><tt>TAG_Float</tt><td>Followed by 4 bytes, encoding a floating point in big endian using the IEEE 754 format).
-  <tr><th>6<td><tt>TAG_Double</tt><td>Followed by 8 bytes.
-  <tr><th>7<td><tt>TAG_Byte_Array</tt><td>followed by:
-    <ul>
-	  <li><b>4 bytes</b>: encodes a length.
-	  <li><b>[length] bytes</b>: content of the array.
-	</ul>
-  <tr><th>8<td><tt>TAG_String</tt><td>Followed by:
-    <ul>
-	  <li><b>2 bytes</b>: encodes a length.
-	  <li><b>[length] bytes</b>: content of the string (usually UTF-8 encoded, not 0-terminated).
-	</ul>
-  <tr><th>9<td><tt>TAG_List</tt><td>Followed by:
-    <ul>
-	  <li><b>1 byte</b>: object type stored in this list (any types except <tt>TAG_List</tt>).
-	  <li><b>4 bytes</b>: number of items in the list.
-	  <li><b>...</b>: N objects of given type. In case of scalar, it will N times the size of given scalar.
-	  For compound list the size can be completely arbitrary.
-	</ul>
-	<p class="cont"><span class="n">Note</span>: <tt>TAG_List</tt> of <tt>TAG_Compound</tt> are a bit special though:
-	<ul>
-	  <li>Compounds in a list don't have name. Therefore a compound entry in a list is simply a list
-	  of scalar values until a <tt>TAG_End</tt> is found.
-	  <li>The list ends when [N] compounds have been read (the list itself is not terminated by a <tt>TAG_End</tt>).
-	</ul>
-  <tr><th>10<td><tt>TAG_Compound</tt><td>Immediately followed by NBT tags (including nested compounds),
-  one after the other, until a <tt>TAG_End</tt> is found.
-  <tr><th>11<td><tt>TAG_Int_Array</tt><td>Followed by:
-    <ul>
-	  <li><b>4 bytes</b>: length of the array.
-	  <li><b>[length] <tt>TAG_Int</tt></b>: content of the array.
-	</ul>
-	<p>Thanks to this type, 1 (ONE) byte is saved in the uncompressed stream over using a <tt>TAG_List</tt>.
-</table>
-
-<p>Knowing all of this is kind of important, because, when an NBT is read into memory, <b>it will mimic
-this structure very closely</b> (save a few alignment adjustment and endianess conversion). Also, when you'll
-have to build a NBT fragment, you'll have to match this structure.
-
-<h4>Example</h4>
-
-<p>Let's look at a small example:
-<pre><t>static uint8_t</t> nbt_stream[] = {
-	<v>0x0A</v>, <v>0x00</v>, <v>0x00</v>, <v>0x02</v>, <v>0x00</v>, <v>0x03</v>, <v>0x6D</v>, <v>0x61</v>, <v>0x70</v>, <v>0x00</v>, <v>0x0C</v>, <v>0x00</v>
-};
-</pre>
-
-<ol>
-  <li>First byte is 10, which indicates the start of a compound.
-  <li>Next 2 bytes are 0, 0: this is the length of the compound name. Since it is zero, the first 3
-  bytes marks are the entirety of the compound header. Immediately following, will be a list of
-  NBT tags, until <tt>TAG_End</tt> is found.
-  <li>Next byte is 2, which is a <tt>TAG_Short</tt>.
-  <li>Next 2 bytes are 0, 3, which means this entry has a name of 3 characters.
-  <li>Next 3 bytes are 'm', 'a', 'p': this is the name of this tag (not its value).
-  <li>Next 2 bytes (payload of a <tt>TAG_Short</tt>) is 0, 12, therefore the value associated to this
-  entry is 12.
-  <li>Finally 0 marks the end of the compound, and therefore end of the file.
-</ol>
-
-<p><span class="n">Note</span>: this is the structure of the file <tt>World/data/idcounts.dat</tt>.
-
-
-
-<h3 id="NBTspecapi"><span>NBT Structure in API</span></h3>
-
-<p>This section will explain how this API process NBT files at a high level: some of the techniques induce
-a few caveats that you need to be aware before being able to understand this API.
-
-
-<p>Like said in the previous sections, once read into memory, a NBT file is just <b>a contiguous memory
-buffer</b>. If you look at the main type definition for a NBT file, that's all you'll find:
-<pre><t>struct</t> NBTFile_t
-{
-	<t>int</t>   usage, max;
-	<t>int</t>   alloc, page;
-	DATA8 mem;
-};
-</pre>
-
-<p><tt>mem</tt> contains the NBT tags, <tt>usage</tt> is how many bytes are stored, <tt>max</tt> is how
-many bytes have been allocated. <tt>alloc</tt> and <tt>page</tt> are only needed when reading the file
-(and can be ignored/repurposed after that). This has a few <b>advantages</b>:
-<ul>
-  <li>All the information related to a NBT file is guaranteed to be <b>close in memory</b>: this is interesting
-  to benefit from the CPU cache.
-  <li>Since there is just a single buffer, the only thing to do to <b>free the memory</b> is to call <tt>free()</tt>
-  on the <tt>mem</tt> field: no need to recursively scan all the entries of the file.
-  <li>More often than not, you can get away by just <b>keeping the <tt>mem</tt> field</b> (ie: just a single
-  pointer). Indeed, if you look at the API, some functions only accept a <tt>DATA8</tt> as for the NBT
-  file. This buffer contains enough information to find everything (including end of buffer).
-  <li>Likewise, if the only thing you have is a raw pointer to a NBT stream, a <tt>NBTFile_t</tt> can
-  be trivially constructed by just assigning the <tt>mem</tt> field to that buffer. If the only thing
-  you care is reading (and not modifying), the other fields don't matter.
-</ul>
-
-<p>Obviously, there are <b>drawbacks</b> to this approach:
-<ul>
-  <li>The abstraction provided by the API is kind of shallow: you have to be sure to replicate exactly
-  the specification of a NBT file. For example, if you create a compound, you'll have to add the
-  <tt>TAG_End</tt> manually, this API won't help you. This is harder than it seems, when compounds are
-  nested, it is kind of easy to forget a <tt>TAG_End</tt> in the stream.
-  <li>Adding/removing tags can be expensive. This API has ways to greatly mitigate that cost, but it
-  will involve quite a bit of work.
-</ul>
-
-<p>Since the buffer <tt>mem</tt> can be reallocated, the API relies <b>heavily</b> on byte offset to
-get a reference of a tag or a branch. Indeed, if you look at the API, almost all the functions have an
-offset parameter in their list of arguments or return an integer as their result (<v>0</v> will always
-be the beginning of the file and <v>-1</v> will signal an error). <b>This is the gist of this API</b>:
-you first locate what you want to read/modify/delete, and <b>get an offset to the start of the tag</b>,
-then you can do whatever operation you want on that tag.
-
-<h4>Structure</h4>
-
-<p>This part is technically not required to read for using this API, but for the sake of completeness,
-it is still described. This part will described <b>how the NBT file is stored in memory</b>.
-
-<p>All NBT tags start with the following header (using native endianess for integer more than 1 byte long):
-
-<bits>
-  <brow><hdr>0: </hdr><bitpart class="sz16" bit="32">16: <em>count</em></bitpart><bitpart class="sz8" bit="16">8: <em>minNameSz</em></bitpart><bitpart class="sz4" bit="8"><em>subtype</em></bitpart><bitpart class="sz4" bit="4"><em>type</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
-  <brow><hdr>1: </hdr><bitpart class="sz32" bit="32">32: <em>size</em> (in bytes)</bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
-  <brow><hdr>2: </hdr><bitpart class="sz32" bit="32">32: <em>name</em> (0-terminated)</bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
-  <brow><hdr>... </hdr><bitpart class="sz32" bit="32">optional: more 32bit words follow to store the name</bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
-</bits>
-
-<p>Or visualized as a C struct:
-
-<pre style="font-size: 0.9em">
-<t>struct</t> NBTHdr_t
-{
-   <t>uint8_t</t>  type;        <span class="c">/* TAG_* */</span>
-   <t>uint8_t</t>  minNameSz;   <span class="c">/* min name len: if 255 need to scan up to 0 byte */</span>
-   <t>uint16_t</t> count;       <span class="c">/* number of entries after this node (TAG_List only) */</span>
-   <t>uint32_t</t> size;        <span class="c">/* size of entire hierarchy under this node (including header + name) */</span>
-   <t>uint8_t</t>  name[<v>4</v>];     <span class="c">/* name of node (4-byte alignment) */</span>
-};
-</pre>
-
-<p>Each field has the following purpose:
-<ul class="space">
-  <li><tt>type</tt>: the <b>lower 4bits</b> store the main type of the tag stored at this location.
-  If the type is <tt>TAG_List</tt>, the <b>upper 4bits</b> store the type of tags stored in the list
-  itself. A very common sub-type is <tt>TAG_Compound</tt>, therefore a dedicated define exists for
-  these: <tt>TAG_List_Compound</tt>.
-
-  <li><tt>minNameSz</tt>: encodes the <b>length of the <tt>name</tt> field</b> (<b>not</b> including
-  padding bytes, and <b>not</b> including final <v>0</v>). This field is used internally to quickly
-  have access to the payload section of the tag. This field being 8bits, it means that the maximal
-  length of a tag name must be below 255 bytes. In practice, all tag names have less 64 characters.
-
-
-  <li><tt>count</tt>: if the type of the tag is a <tt>TAG_List</tt>, this field will <b>store the number
-  of items</b> in the list. You might see a limitation here: in the NBT structure, this field is 4 bytes,
-  whereas here it is only 2. Indeed, in theory this might cause problem, in practice however, having
-  more than 65535 items in a list has yet to be seen (and if it happens, it is probably due to a bug).<br>
-  <br>
-  If this is causing problem in the future, some "bits" could be borrowed from the next field (<tt>size</tt>)
-  to increase the precision of this one.
-
-  <li><tt>size</tt>: this field stores the <b>size in bytes of entire tag</b>. This size is always a multiple
-  of 4 bytes. The size is the size of the payload and the header. The idea is, if you have an offset
-  from the start of a tag, adding the size field will bring you to the next NBT tag.<br>
-  <br>
-
-  This field is particularly critical to quickly find tags, without needing to scan entire hierarchies
-  of tags. Tags are searched in breadth-first method: first, all the tag names of a given level are
-  scanned, then if nothing is found, it will recursively scan sub-level.
-
-  <li><tt>name</tt>: <b>name of the tag</b>: it is a direct dump from NBT stream. This string will always be
-  NUL-terminated and padded so that the header size is always a multiple of 4 bytes. I.e: if the name
-  of a tag is 4 characters, the <tt>name</tt> will have enough space to store 8.
-</ul>
-
-<p>The structure is therefore always at the start of every NBT you'll get from this API. Therefore, the
-size of the file can also be retrieved in the first <tt>size</tt> field.
-
-<p>All tags uses this header with the exception of <tt>TAG_End</tt>: this tag is actually encoded as
-4 <v>NUL</v> bytes.
-
-<h4>Payload section</h4>
-
-<p><b>Payload immediately follows the structure header</b>. It will be padded to be a multiple of 4
-bytes (so that next tag will start on a 4-bytes alignment). All scalar and list of scalars will be
-converted to <b>native endianess</b>. This is somewhat useful for list, because you can ask for a raw
-pointer to the start of the list, avoiding the need of extra copy/allocation. However, if the list is
-short (most of them are), you will be better off asking the payload to be formatted in a certain way.
-
-<p><b>For exemple</b>: some list (especially position of objects within 3d space) can be encoded as 3 <tt>TAG_Int</tt>,
-3 <tt>TAG_Float</tt> or 3 <tt>TAG_Double</tt>. If you ask for a raw pointer, you'll have to check the
-type and manually do the conversion. This API has functions to copy the content of a list to a specific
-format.
-
-<h4>Chunk optimization</h4>
-
-<p>A little trick was used to speed-up accessing the various tables from a chunk: block IDs, data
-values, skylight and blocklight values. All those tables will be loaded at fixed offsets from the start
-of the compound where they are contained. When saved on disk, the order is not necessarily the same,
-but this module will make sure it is once the sections are read back.
-
-<p>That means, if you have a pointer to the start of the block IDs, you can access all the other tables
-just by adding a certain offset. It simplify chunk updates considerably, since you only need a single
-pointer, which is very easy to carry around.
-
-<p>Last but not least, these tables are accessed very frequently (especially the ones near the player),
-having them close to each other will somewhat benefit from the CPU cache.
-
-
-<h3 id="NBTpost"><span>NBT post processing</span></h3>
-
-
-<p>This API works rather well when all you want to do is read some data from a NBT file. Even modifying
-arrays by directly overwriting payload section of said array is perfectly fine and efficient. However,
-this API is not so efficient when you have to modify potentially big list of compounds: adding, removing
-and modifying such a list could potentially be very expensive, since the only way to do that is to relocate
-huge chunk of memory to make room for a particular NBT fragment. While the computing power available on
-a modern CPU can easily handle that kind of load, there are more efficient ways to do this.
-
-<p>The way it is handled in this API, is the ability to marks a <tt>TAG_List_Compound</tt> as being
-modified, but not changing anything to the decompressed NBT stream. When time comes to save the changes,
-a callback will be triggered and ask to provide an updated version of that list (one compound at a time).
-
-<p>A single NBT file can have multiple lists though: a typical chunk in a <tt>Minecraft</tt> map has
-at least 3: <tt>Entities</tt>, <tt>TileEntities</tt> and <tt>TileTicks</tt>. Each of them could be modified
-at the same time. When the callback is triggered, it needs to be informed about which list to rebuild.
-
-<p>The rationale behind this approach is that when you create a new entity, block with a tile entity or
-tile ticks, you'll have to allocate some memory and store them in some kind of list. Therefore, you'll
-already have all items of a list somewhere, you just have to format them a bit before saving them on disk.
-
-<pre>
-void  NBT_MarkForUpdate(NBTFile, int offset, int tag);
-DATA8 NBT_Compress(NBTFile, int * size, int page, NBT_WriteCb_t cb, APTR cbparam);
-int   NBT_Save(NBTFile, STRPTR path, NBT_WriteCb_t cb, APTR cbparam);</pre>
-
-
-<h3 id="NBTfunc"><span>NBT function overview</span></h3>
-
-<p>This part will show a quick overview of what each function does.
-
-<h4 id="NBTread">Reading files</h4>
-
-<pre><t>int</t> <b>NBT_Parse</b>(NBTFile file, <t>STRPTR</t> path);
-<t>int</t> <b>NBT_ParseIO</b>(NBTFile file, <t>FILE</t> *, <t>int</t> offset);
-<t>int</t> <b>NBT_ParseZlib</b>(NBTFile file, DATA8 stream, <t>int</t> bytes);
-</pre>
-
-<p>These functions will read various type of files:
-<ul>
-  <li><tt>NBT_Parse</tt>: try to read a gzip-compressed or plain uncompressed file.
-  <li><tt>NBT_ParseIO</tt>: parse a portion of file at given offset: typically to uncompress chunk within region file.
-  <li><tt>NBT_ParseZlib</tt>: read a zlib-compressed file.
-</ul>
-
-<p>The return value for all these function will be <v>1</v> if the file was sucessfully read, <v>0</v>
-if something went wrong.
-
-<p>The <tt>file</tt> parameter will also be ovewritten to contain the content of the
-decoded NBT stream. the stream will be malloc()'ed and will have to be free()'ed by the caller at
-some point when not needed anymore.
-
-
-
-<h4 id="NBTfind">Locate tags</h4>
-
-<p>One you have an NBT file decoded, you can start looking at what's inside using these functions:
-
-<pre><t>int</t> <b>NBT_FindNode</b>(NBTFile file, <t>int</t> offset, <t>STRPTR</t> name);
-<t>int</t> <b>NBT_FindNodeFromStream</b>(DATA8 nbt, <t>int</t> offset, <t>STRPTR</t> name);
-</pre>
-
-<p>Use these functions to find a particular tag within the file. The tag will be searced using a breadth-first
-search, scanning recursively the structure of the NBT file until something is found.
-
-<p><tt>offset</tt> is the byte offset where the search should start. <v>0</v> is the beginning of the
-file. If a negative number is given, the search will be aborted and <v>-1</v> returned.
-
-<p>The <tt>name</tt> parameter can actually be a bit more than just a tag name, it can be a path,
-where tags to search are separated by colon, for example:
-<pre><t>int</t> offset = NBT_FindNode(&amp;levelDat, <v>"Player.EnderItems"</v>);</pre>
-<p>will first search for a tag "Player", then if it has been found and is a <tt>TAG_Compound</tt> or
-<tt>TAG_List_Compound</tt>, will search for a tag "EnderItems" in this branch only.
-
-<p>The return value is the index where the tag was located. This index will be required by almost all
-NBT function. <v>-1</v> will be returned if nothing was found.
-
-
-<h4 id="NBTiter">Iterating properties</h4>
-
-<p>When you know you have a <tt>TAG_Compound</tt>, you might want to iterate over all of its properties.
-Here are the following functions for this:
-<pre><t>void</t>  NBT_InitIter(NBTFile, <t>int</t> offset, NBTIter);
-<t>void</t>  NBT_IterCompound(NBTIter, DATA8 mem);
-<t>int</t>   NBT_Iter(NBTIter iter);</pre>
-
-<p>To iterate over properties, you first need to initialize an iterator: <tt>NBTIter_t</tt>. There are
-2 ways to do so: either you have an NBTFile_t or simply a raw pointer.
-
-<p>Then, you need to repeatedly call <tt>NBT_Iter</tt> this way:
-<pre>
-NBTIter_t iter;
-<t>int</t> offset;
-
-NBT_InitIter(&amp;nbt, NBT_FindNode(&amp;nbt, <v>"..."</v>), &amp;iter);
-<span class="k">while</span> ((i = NBT_Iter(&amp;iter)) &gt;= <v>0</v>)
-{
-	<span class="c">/* iter.name will contain the name of the current tag, &lt;i&gt; is the offset of the tag */</span>
-	...
-}</pre>
-
-<p>If the tag was a <tt>TAG_Compound</tt>, the iterator will iterate over all of its immediate
-properties: if there is a nested compound, its content will be skipped. You'll have to initialize
-another iterator by yourself. If the tag was a <tt>TAG_List_Compound</tt>, the iterator will give the
-starting offset of each compound in the list. You'll have to initialize another iterator to scan the
-properties of each compound.
-
-<h4 id="NBTreadtag">Reading tag value</h4>
-
-<pre>
-<t>Bool</t>  NBT_GetFloat(NBTFile, <t>int</t> offset, <t>float</t> * array, <t>int</t> nb);
-<t>Bool</t>  NBT_GetString(NBTFile root, <t>int</t> offset, <t>STRPTR</t> buffer, <t>int</t> max);
-<t>int</t>   NBT_GetInt(NBTFile, <t>int</t> offset, <t>int</t> def);</pre>
-
-<h4 id="NBTchgtag">Setting tag value</h4>
-
-<pre>
-<t>Bool</t>  NBT_SetFloat(NBTFile, <t>int</t> offset, <t>float</t> * array, <t>int</t> nb);
-<t>Bool</t>  NBT_SetInt(NBTFile, <t>int</t> offset, <t>int64_t</t> val);</pre>
-
-<h4 id="NBTcreate">Creating / modifying nbt</h4>
-
-<pre>
-<t>Bool</t>  NBT_Add(NBTFile nbt, ...);
-<t>Bool</t>  NBT_Delete(NBTFile nbt, <t>int</t> offset, <t>int</t> nth);
-<t>int</t>   NBT_Insert(NBTFile, <t>STRPTR</t> loc, <t>int</t> type, NBTFile fragment);
-<t>int</t>   NBT_AddOrUpdateKey(NBTFile, <t>STRPTR</t> key, <t>int</t> type, <t>APTR</t> value, <t>int</t> offsetTagList);
-<t>DATA8</t> NBT_Copy(<t>DATA8</t> mem);</pre>
-
-<h4 id="NBTother">Others</h4>
-
-<pre>
-int   NBT_Size(DATA8 fragment);
-APTR  NBT_Payload(NBTFile, int offset);
-APTR  NBT_ArrayStart(NBTFile root, int offset, int * size);
-APTR  NBT_PayloadFromStream(DATA8 stream, int offset, STRPTR name);
-</pre>
-
-
-
-
-
 
 <h2 id="opengl">Advanced OpenGL</h2>
 
@@ -1678,7 +1214,7 @@ the camera <b>to the center of the whole quad</b>, that distance being converted
 at the price of a bit more work on the CPU side in order for the GPU to do its work.
 
 <p>In a nutshell, chunks are stored in banks, which are pretty big memory segments (or vertex buffer
-objects) stored on the GPU (as of writing this, there are 20Mb in size). These segments are then managed
+objects) stored on the GPU (as of writing this, there are 20Mb in size). This segment are then managed
 using a custom allocator, where the meta-data used to track free/used memory is of course stored on
 the CPU.
 
@@ -1769,12 +1305,13 @@ and split into <tt>GL_TRIANGLE_STRIP</tt> in a geometry shader.
 
   <brow><hdr>4: </hdr><bitpart class="sz9" bit="32">9: <em>Vlo</em></bitpart><bitpart class="sz9" bit="23">9: <em>U</em></bitpart><bitpart class="sz14" bit="14">14: <em>DZ3</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
 
-  <brow><hdr>5: </hdr><bitpart class="sz8" bit="32">8: <em>Vsz</em></bitpart><bitpart class="sz8" bit="24">8: <em>Usz</em></bitpart><bitpart class="sz1" bit="16"><em>A</em></bitpart><bitpart class="sz1"><em>L</em></bitpart><bitpart class="sz1"><em>D</em></bitpart><bitpart class="sz1"><em>X</em></bitpart><bitpart class="sz3" bit="12">3: <em>N</em></bitpart><bitpart class="sz9" bit="9">9: <em>OCS</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
+  <brow><hdr>5: </hdr><bitpart class="sz8" bit="32">8: <em>Vsz</em></bitpart><bitpart class="sz8" bit="24">8: <em>Usz</em></bitpart><bitpart class="sz2" bit="16">&nbsp;</bitpart><bitpart class="sz1"><em>D</em></bitpart><bitpart class="sz1"><em>X</em></bitpart><bitpart class="sz3" bit="12">3: <em>N</em></bitpart><bitpart class="sz9" bit="9">9: <em>OCS</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
 
   <brow><hdr>6: </hdr><bitpart class="sz8" bit="32">8: <em>Sky/Block</em></bitpart><bitpart class="sz8" bit="24">8: <em>Sky/Block</em></bitpart><bitpart class="sz8" bit="16">8: <em>Sky/Block</em></bitpart><bitpart class="sz8" bit="8">8: <em>Sky/Block</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
 </bits>
 
-<p>Each field has the following meaning:
+<p>As of writing this, there are still some space left in the data: 2bits to be precise, which is not
+very much. Each field has the following meaning:
 
 <ul>
   <li><tt>X<sub>i</sub></tt>, <tt>Y<sub>i</sub></tt>, <tt>Z<sub>i</sub></tt>: to represent a <tt>QUAD</tt>, you need
@@ -1810,10 +1347,6 @@ and split into <tt>GL_TRIANGLE_STRIP</tt> in a geometry shader.
   <li><tt>D</tt>: dual-sided quad: this quad must not be culled by the back-face culling test of OpenGL.
   Vertex data will be rearranged in the geometry shader to make the test pass, without the need of
   extra vertices.
-
-  <li><tt>L</tt>: not-so-pretty hack for very crude handling of liquid. XXX needs to be removed.
-
-  <li><tt>A</tt>: texture will be animated (lava/water animation).
 
   <li><tt>OCS</tt>: ambient occlusion value for 4 vertices, each value being encoded on 2bits.
 
@@ -1917,7 +1450,7 @@ to generate triangles at arbirary position, but the voxel manipulation functions
 it. To place a model at a truly arbitrary position, you need to use entities: this will be covered in the
 next section (and have their own pros and cons).
 
-<h3 id="meshsolid"><span>SOLID voxel</span></h3>
+<h3 id="meshsolid"><span><tt>SOLID</tt> voxel</span></h3>
 
 <p>These blocks requires quite a bit of work to be converted into meshes. First, keep
 <a href="#quadface">this picture</a> in mind, its information will be used <b>extensively</b>
@@ -2063,7 +1596,7 @@ the function <tt>halfBlockGenMesh()</tt> in <tt>halfBlocks.c</tt>.
 
 <p>/* ... */
 
-<h3 id="meshcust"><span>CUST voxel</span></h3>
+<h3 id="meshcust"><span><tt>CUST</tt> voxel</span></h3>
 
 <p>Custom voxels are blocks that cannot be represented as a <tt>SOLID</tt> voxel. They can have an
 arbitrary shape, but their lighting is quite simplified compared to <tt>SOLID</tt>. For example they
@@ -2229,10 +1762,10 @@ Raypicking (ie: pointing an entity with mouse) will take rotation into account t
 <p>Collision detection is implemented using a swept AABB algorithm and correction is done through sliding
 adjustment and was strongly inspired by <a href="https://www.gamedev.net/tutorials/programming/general-and-gameplay-programming/swept-aabb-collision-detection-and-response-r3084/">this article</a>.
 
-<p>This algorithm works extremely well in all use case, but it has one major limitation: it tends to
+<p>This algotrithm works extremely well in all use case, but it has one major limitation: it tends to
 break down when bounding box are already intersecting.
 
-<h3 id="partitioning"><span>Space partioning</span></h3>
+<h3 id="partitioning"><span>Space partionning</span></h3>
 
 <p>One aspect related to collision detection, is <b>entities enumeration</b>. Since entities are spread all
 over the world and don't rely on the voxel grid, enumerating them without scanning the majority of
@@ -2254,7 +1787,7 @@ octree would have made more sense it were used for other purposes, like frustum 
 <p>Another question worth answering is: <b>is it cheaper to use a block map instead of a quadtree?</b>
 
 <p>One may be tempted to use the chunk itself as a crude block map for space partioning. In practice, it
-is not that good of an idea, since a 16x16 area is quite big, even bigger if you consider that entities are
+not that good of an idea, since a 16x16 area is quite big, even bigger if you consider that entities are
 referenced through their center and therefore can overlap a nearby chunk depending on their size. In
 practice, it means you'll have to scan more than one chunk each time you want to do a collision check
 on a given entity.
