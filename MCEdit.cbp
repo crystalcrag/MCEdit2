@@ -135,6 +135,9 @@
 		<Unit filename="texture.c">
 			<Option compilerVar="CC" />
 		</Unit>
+		<Unit filename="tileticks.c">
+			<Option compilerVar="CC" />
+		</Unit>
 		<Unit filename="undoredo.c">
 			<Option compilerVar="CC" />
 		</Unit>

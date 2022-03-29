@@ -15,6 +15,7 @@ Bool mapUpdate(Map, vec4 pos, int blockId, DATA8 tile, int blockUpdate);
 void mapUpdateBlock(Map, struct BlockIter_t, int blockId, int oldBlockId, DATA8 tile, Bool gravity);
 void mapUpdateDeleteRails(Map, BlockIter, int blockId);
 void mapUpdateCheckGravity(struct BlockIter_t iter, int side);
+int  mapUpdateIfPowered(Map, BlockIter, int oldId, int blockId, Bool init, DATA8 * tile);
 int  mapUpdateRails(Map, int blockId, BlockIter);
 int  mapUpdatePowerRails(Map, int id, BlockIter);
 int  mapUpdateGate(BlockIter, int id, Bool init);
@@ -30,7 +31,7 @@ void mapUpdateMesh(Map);
 void mapUpdateFlush(Map);
 void mapUpdatePush(Map, vec4 pos, int blockId, DATA8 tile);
 int  mapUpdateGetCnxGraph(ChunkData, int start, DATA8 visited);
-void mapUpdateFloodFill(Map map, vec4 pos, uint8_t visited[4096], int8_t minMax[8]);
+void mapUpdateFloodFill(Map, vec4 pos, uint8_t visited[4096], int8_t minMax[8]);
 void mapUpdateInit(BlockIter);
 void mapUpdateEnd(Map);
 

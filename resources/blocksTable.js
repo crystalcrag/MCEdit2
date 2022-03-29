@@ -1178,8 +1178,9 @@
 		{state:14, name: "-south", model: [SAME_AS, ID(93,12), 1311]},
 		{state:15, name: "-west",  model: [SAME_AS, ID(93,12), 1823]},
 
+	/* note: does not emit light like redstone torch */
 	{id: 94, name: "Repeater", type: CUST, inv: NONE, bbox: FIRSTBOX, cat: REDSTONE, rswire: FRONTBACK, tech: "powered_repeater", particle: SMOKE, placement: "ground",
-		emitLight: 7, orient: SWNE, rsupdate: INOUT, pushable: DROPITEM},
+		orient: SWNE, rsupdate: INOUT, pushable: DROPITEM},
 		{state: 0, name: "-(ON, delay 1,_north)", tex: [12,11,12,11,12,11,12,11,12,11], emit: [2, 5], model: [
 			287,16,2,16,0,0,0,0,0,0,0,0,0,72894,73920,73936,72910,66754,65728,65712,66738,66754,65728,65712,66738,66754,65728,65712,66738,73920,82128,82144,73936,
 			261,4,6,2,6,2,2,0,0,0,0,0,0,51867,54945,54949,51871,51867,54945,54949,51871,

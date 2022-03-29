@@ -211,45 +211,154 @@ void updateAddRSUpdate(struct BlockIter_t iter, int side, int nbTick)
 	update->blockId = BLOCK_UPDATE;
 }
 
+/* process tile tick coming from NBT: they do not have enough information to be processed as is */
+static void updateTileTick(Map map, BlockIter iter)
+{
+	DATA8 tile = NULL;
+	int blockId = getBlockId(iter);
+	int newId = mapUpdateIfPowered(map, iter, blockId, blockId, True, &tile);
+	if (newId != blockId)
+	{
+		/* note: mapUpdate() has already been configured to use iterator <iter> */
+		mapUpdate(map, NULL, newId, tile, UPDATE_DONTLOG | UPDATE_SILENT);
+	}
+}
+
+/* read tile ticks from NBT records */
+void updateParseNBT(Chunk c)
+{
+	int offset = NBT_FindNode(&c->nbt, 0, "TileTicks");
+
+	if (NBT_Tag(&c->nbt, offset) != TAG_List_Compound)
+		return;
+
+	NBTIter_t iter;
+	NBT_InitIter(&c->nbt, offset, &iter);
+
+	/*
+	 * TAG_List_Compound: each compound has the following fields (from wiki):
+	 * - i: block id (TAG_String)
+	 * - p: priority (TAG_Int): lower number means higher priority
+	 * - t: ticks (TAG_Int): number of ticks the update must be done, can be negative
+	 * - x, y, z: world space coord where the update should happen
+	 */
+	while ((offset = NBT_Iter(&iter)) >= 0)
+	{
+		TileTick_t tick;
+		NBTIter_t compound;
+		NBT_InitIter(&c->nbt, offset, &compound);
+
+		memset(&tick, 0, sizeof tick);
+
+		int off, flags = 0, x = 0, y = 0, z = 0, layer, pos;
+		while ((off = NBT_Iter(&compound)) >= 0 && flags != 63)
+		{
+			switch (compound.name[0]) {
+			case 'i': flags |= 1;  tick.blockId = itemGetByName(NBT_Payload(&c->nbt, off), False); break;
+			case 'p': flags |= 2;  tick.priority = NBT_GetInt(&c->nbt, off, 0); break;
+			case 't': flags |= 4;  tick.tick = NBT_GetInt(&c->nbt, off, 0); break;
+			case 'x': flags |= 8;  x = NBT_GetInt(&c->nbt, off, 0); break;
+			case 'y': flags |= 16; y = NBT_GetInt(&c->nbt, off, 0); break;
+			case 'z': flags |= 32; z = NBT_GetInt(&c->nbt, off, 0);
+			}
+		}
+		pos = (x & 15) | ((z & 15) << 4) | ((y & 15) << 8);
+		layer = y >> 4;
+		if (flags == 63 && (x & ~15) == c->X && (z & ~15) == c->Z && layer < c->maxy && (tick.cd = c->layer[layer]) &&
+		    tick.cd->blockIds[pos] == (tick.blockId >> 4))
+		{
+			TileTick update = updateInsert(tick.cd, pos, globals.curTime + tick.tick * globals.redstoneTick);
+			/* blockId stored in tile tick is not going to help */
+			update->cb = updateTileTick;
+		}
+	}
+	/* already mark the NBT record as modified, this list is short lived anyway */
+	c->cflags |= CFLAG_HAS_TT;
+	chunkMarkForUpdate(c, CHUNK_NBT_TILETICKS);
+}
+
+/* called before saving a chunk to disk */
+int updateCount(Chunk chunk)
+{
+	int count, i, max;
+	for (count = 0, i = 0, max = updates.count; i < max; i ++)
+	{
+		TileTick tile = &updates.list[updates.sorted[i]];
+		if (tile->cd->chunk == chunk) count ++;
+	}
+	return count;
+}
+
+/* serialize a TileTick into an NBT record to be saved on disk */
+Bool updateGetNBT(Chunk chunk, NBTFile nbt, DATA16 index)
+{
+	static uint8_t buffer[256];
+
+	int i, max;
+
+	for (i = index[0], max = updates.count; i < max; i ++)
+	{
+		TileTick tile = &updates.list[updates.sorted[i]];
+		if (tile->cd->chunk != chunk) continue;
+		TEXT techName[64];
+		int  off = tile->offset;
+		int  ticks = (tile->tick - (unsigned) globals.curTime) / globals.redstoneTick;
+		/* we can use a static buffer because saving chunks is not multi-threaded */
+		nbt->mem = buffer;
+		nbt->max = sizeof buffer;
+		nbt->usage = 0;
+		itemGetTechName(ID(tile->cd->blockIds[off], 0), techName, sizeof techName, False);
+		*index = i + 1;
+		NBT_Add(nbt,
+			TAG_String, "i", techName,
+			TAG_Int,    "p", i,
+			TAG_Int,    "t", ticks,
+			TAG_Int,    "x", chunk->X + (off & 15),
+			TAG_Int,    "z", chunk->Z + ((off >> 4) & 15),
+			TAG_Int,    "y", tile->cd->Y + (off >> 8),
+			TAG_End
+		);
+		return True;
+	}
+	return False;
+}
+
 /* usually redstone devices (repeater, torch) update surrounding blocks after a delay */
 void updateTick(void)
 {
+	struct BlockIter_t iter;
 	int i = 0, time = globals.curTime;
-	mapUpdateInit(NULL);
+	mapUpdateInit(&iter);
 	/* more tile ticks can be added while scanning this list */
 	while (updates.count > 0)
 	{
-		int        id   = updates.sorted[0];
-		TileTick   list = updates.list + id;
-		int        off  = list->offset;
-		ChunkData  cd   = list->cd;
-		UpdateCb_t cb   = list->cb;
-		vec4       pos;
+		int        id    = updates.sorted[0];
+		TileTick   list  = updates.list + id;
+		Chunk      chunk = list->cd->chunk;
+		UpdateCb_t cb    = list->cb;
 		if (list->tick > time) break;
-		pos[0] = cd->chunk->X + (off & 15);
-		pos[2] = cd->chunk->Z + ((off>>4) & 15);
-		pos[1] = cd->Y + (off >> 8);
+		mapInitIterOffset(&iter, list->cd, list->offset);
 
 		//fprintf(stderr, "applying block update %d at %d, %d, %d for %d:%d", id,
 		//	(int) pos[0], (int) pos[1], (int) pos[2], list->blockId >> 4, list->blockId & 15);
 		i ++;
 		id = list->blockId;
-		updateRemove(cd, list->offset, False);
+		updateRemove(list->cd, list->offset, False);
 		memmove(updates.sorted, updates.sorted + 1, updates.count * sizeof *updates.sorted);
+		if ((chunk->cflags & CFLAG_REBUILDTT) == 0)
+			chunkMarkForUpdate(chunk, CHUNK_NBT_TILETICKS);
 		//updateDebugSorted(0);
 
 		/* this can modify updates.sorted */
 		if (cb)
 		{
-			cb(globals.level, cd, off);
+			cb(globals.level, &iter);
 		}
 		else if (id == BLOCK_UPDATE)
 		{
-			struct BlockIter_t iter;
-			mapInitIterOffset(&iter, cd, off);
 			mapUpdateChangeRedstone(globals.level, &iter, RSSAMEBLOCK, NULL);
 		}
-		else mapUpdate(globals.level, pos, id, NULL, UPDATE_DONTLOG | UPDATE_SILENT);
+		else mapUpdate(globals.level, NULL, id, NULL, UPDATE_DONTLOG | UPDATE_SILENT);
 	}
 	if (i > 0)
 	{

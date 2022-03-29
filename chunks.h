@@ -37,8 +37,7 @@ Bool      chunkAddTileEntity(Chunk, int XYZ[3], DATA8 mem);
 Bool      chunkUpdateNBT(Chunk, int blockOffset, NBTFile nbt);
 void      chunkUnobserve(ChunkData, int offset, int side);
 void      chunkUpdateTilePosition(Chunk, int * XYZ, DATA8 tile);
-void      chunkMarkForUpdate(Chunk);
-void      chunkUpdateEntities(Chunk);
+void      chunkMarkForUpdate(Chunk, int type);
 void      chunkExpandEntities(Chunk);
 void      chunkDeleteTile(Chunk, DATA8 tile);
 
@@ -72,11 +71,10 @@ struct Chunk_t                         /* an entire column of 16x16 blocks */
 	ChunkData layer[CHUNK_LIMIT];      /* sub-chunk array */
 	uint8_t   outflags[CHUNK_LIMIT+1];
 	uint8_t   neighbor;                /* offset for chunkNeighbor[] table */
-	uint8_t   cflags;                  /* CLFAG_* */
 	uint8_t   maxy;                    /* number of sub-chunks in layer[], starting at 0 */
-
 	uint8_t   noChunks;                /* S,E,N,W bitfield: no chunks in this direction */
-	uint8_t   saveFlags;               /* which section of NBT needs saving */
+
+	uint16_t  cflags;                  /* CLFAG_* */
 	uint16_t  entityList;              /* linked list of all entities in this chunk */
 
 	uint16_t  cdIndex;                 /* iterate over ChunkData/Entities/TileEnt when saving */
@@ -85,9 +83,6 @@ struct Chunk_t                         /* an entire column of 16x16 blocks */
 	int       X, Z;                    /* coord in blocks unit (not chunk, ie: map coord) */
 	DATA32    heightMap;               /* XZ map of lowest Y coordinate where skylight value == 15 */
 	APTR      tileEntities;            /* hashmap of tile entities (direct NBT records) *(TileEntityHash)c->tileEntities */
-	int       secOffset;               /* offset within <nbt> where "Sections" TAG_List_Compound starts */
-	int       teOffset;                /* same with "TileEntities" */
-	int       entOffset;               /* "Entities" offset */
 	NBTFile_t nbt;                     /* keep entire NBT structure, we'll need it to save chunk back to region */
 };
 
@@ -98,15 +93,28 @@ extern ChunkData chunkAir;             /* chunk entirely made of air, skylight =
 
 enum /* flags for Chunk.cflags */
 {
-	CFLAG_GOTDATA    = 0x01,           /* data has been retrieved */
-	CFLAG_HASMESH    = 0x02,           /* mesh generated and pushed to GPU */
-	CFLAG_NEEDSAVE   = 0x04,           /* modifications need to be saved on disk */
-	CFLAG_HASENTITY  = 0x08,           /* entity transfered in active list */
-	CFLAG_REBUILDTE  = 0x10,           /* mark TileEntity list as needing to be rebuilt (the NBT part) */
-	CFLAG_ETTLIGHT   = 0x20,           /* update entity light for this chunk */
-	CFLAG_REBUILDETT = 0x40,           /* mark Entity list for rebuilt when saved */
-	CFLAG_PRIORITIZE = 0x80,           /* already move in front of map->genList */
+	CFLAG_GOTDATA    = 0x0001,         /* data has been retrieved */
+	CFLAG_HASMESH    = 0x0002,         /* mesh generated and pushed to GPU */
+	CFLAG_NEEDSAVE   = 0x0004,         /* modifications need to be saved on disk */
+	CFLAG_HASENTITY  = 0x0008,         /* entity transfered in active list */
+	CFLAG_ETTLIGHT   = 0x0010,         /* update entity light for this chunk */
+	CFLAG_PRIORITIZE = 0x0020,         /* already moved in front of map->genList */
+	CFLAG_REBUILDSEC = 0x0040,
+	CFLAG_REBUILDTE  = 0x0080,         /* mark TileEntity list as needing to be rebuilt (the NBT part) */
+	CFLAG_REBUILDENT = 0x0100,         /* mark Entity list for rebuilt when saved */
+	CFLAG_REBUILDTT  = 0x0200,
+
+	CFLAG_HAS_SEC    = 0x0400,         /* flag set if corresponding NBT record is present */
+	CFLAG_HAS_TE     = 0x0800,
+	CFLAG_HAS_ENT    = 0x1000,         /* note: not exactly the same than CFLAG_HASENTITY (see below) */
+	CFLAG_HAS_TT     = 0x2000,
 };
+
+/*
+ * note: difference between HASENTITY and HAS_ENT:
+ * CFLAG_HAS_ENT: has an "Entities" TAG_List_Compound in the NBT stream.
+ * CFLAG_HAS_ENTITY: entites are loaded and rendered (lazy chunks must not load any though).
+ */
 
 enum /* extra flags for Chunk.noChunks */
 {
@@ -132,11 +140,12 @@ enum /* flags for ChunkData.cdFlags */
 /* alias */
 #define CDFLAG_ISINUPDATE    0x10
 
-enum /* NBT update tag */
+enum /* NBT update tag (type parameter of chunkMarkForUpdate) */
 {
 	CHUNK_NBT_SECTION      = 0x01,
 	CHUNK_NBT_TILEENTITIES = 0x02,
 	CHUNK_NBT_ENTITIES     = 0x04,
+	CHUNK_NBT_TILETICKS    = 0x08
 };
 
 /* chunk vertex data (see doc/internals.html#vtxdata) */

@@ -1,6 +1,7 @@
 =========== Week 12 ===========
 Sun Mar 27:
-	* started tile ticks (finally!).
+	* tile ticks read/write (finally!).
+	* saving chunk logic for TAG_List_Compound reworked.
 
 Sat Mar 26:
 	* more bug fixes: sign edit without tile entities, particle emitters fix was incorrect.

@@ -9,9 +9,10 @@
 
 #include "maps.h"
 
-typedef void (*UpdateCb_t)(Map map, ChunkData cd, int offset);
+typedef void (*UpdateCb_t)(Map map, BlockIter);
 
 void updateTick(void);
+void updateParseNBT(Chunk);
 void updateFinished(DATA8 tile, vec4 dest);
 void updateAdd(BlockIter iter, int blockId, int nbTick);
 void updateAddTickCallback(BlockIter iter, int nbTick, UpdateCb_t cb);
@@ -19,9 +20,12 @@ void updateAddRSUpdate(struct BlockIter_t iter, int side, int nbTick);
 void updateRemove(ChunkData cd, int offset, Bool clearSorted);
 Bool updateAlloc(int max);
 void updateClearAll(void);
+int  updateCount(Chunk);
+Bool updateGetNBT(Chunk, NBTFile nbt, DATA16 index);
 
 #ifdef TILE_TICK_IMPL
 typedef struct TileTick_t *    TileTick;
+typedef struct TileTick_t      TileTick_t;
 #define BLOCK_UPDATE           0x1000000
 
 struct TileTick_t
@@ -30,8 +34,9 @@ struct TileTick_t
 	uint16_t   next;
 	ChunkData  cd;
 	uint16_t   offset;
+	int16_t    priority;
 	ItemID_t   blockId;
-	int        tick;
+	unsigned   tick;
 	UpdateCb_t cb;
 };
 

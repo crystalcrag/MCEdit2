@@ -16,6 +16,7 @@
 #include "blocks.h"
 #include "render.h"
 #include "entities.h"
+#include "tileticks.h"
 #include "NBT2.h"
 #include "sign.h"
 #include "particles.h"
@@ -79,7 +80,7 @@ ChunkData chunkCreateEmpty(Chunk c, int y)
 		memset(cd->blockIds + SKYLIGHT_OFFSET, 255, 2048);
 	}
 	/* we will have to do add it manually to the NBT structure */
-	NBT_MarkForUpdate(&c->nbt, c->secOffset, CHUNK_NBT_SECTION);
+	chunkMarkForUpdate(c, CHUNK_NBT_SECTION);
 	c->maxy = i;
 
 	return cd;
@@ -233,9 +234,9 @@ static void chunkExpandTileEntities(Chunk c)
 	NBTHdr    hdr = (NBTHdr) (nbt.mem + off);
 	NBTIter_t iter;
 
-	c->teOffset = off;
 	if (off < 0) return;
 	/* sometimes this node is saved as a TAG_List_End or TAG_List_Byte :-/ */
+	c->cflags |= CFLAG_HAS_TE;
 	hdr->type = TAG_List_Compound;
 	if (hdr->count == 0) return;
 
@@ -271,10 +272,11 @@ static void chunkExpandTileEntities(Chunk c)
 
 void chunkExpandEntities(Chunk c)
 {
-	int off = c->entOffset;
+	int off = NBT_FindNode(&c->nbt, 0, "Entities");
 	c->cflags |= CFLAG_HASENTITY;
 	if (off > 0)
 	{
+		c->cflags |= CFLAG_HAS_ENT;
 		NBTHdr hdr = (NBTHdr) (c->nbt.mem + off);
 		if (hdr->count == 0) return; /* empty list */
 		NBTIter_t list;
@@ -488,7 +490,6 @@ Bool chunkLoad(Chunk chunk, const char * path, int x, int z)
 			//chunk->terrainDeco    = NBT_GetInt(&nbt, NBT_FindNode(&nbt, 0, "TerrainPopulated"), 0);
 			chunk->heightMap      = NBT_Payload(&nbt, NBT_FindNode(&nbt, 0, "HeightMap"));
 			//chunk->biomeMap       = NBT_Payload(&nbt, NBT_FindNode(&nbt, 0, "Biomes"));
-			chunk->entOffset      = NBT_FindNode(&nbt, 0, "Entities");
 			chunk->entityList     = ENTITY_END;
 
 			chunkExpandTileEntities(chunk);
@@ -498,7 +499,7 @@ Bool chunkLoad(Chunk chunk, const char * path, int x, int z)
 			{
 				NBTIter_t iter;
 				NBT_InitIter(&nbt, secOffset, &iter);
-				chunk->secOffset = secOffset;
+				chunk->cflags |= CFLAG_HAS_SEC;
 				while ((secOffset = NBT_Iter(&iter)) >= 0)
 				{
 					int y = NBT_GetInt(&nbt, NBT_FindNode(&nbt, secOffset, "Y"), 0);
@@ -506,6 +507,9 @@ Bool chunkLoad(Chunk chunk, const char * path, int x, int z)
 						chunkFillData(chunk, y, secOffset);
 				}
 			}
+
+			/* sections have to be parsed first */
+			updateParseNBT(chunk);
 			return True;
 		}
 		else fclose(in);
@@ -515,18 +519,24 @@ Bool chunkLoad(Chunk chunk, const char * path, int x, int z)
 }
 
 /* will have to do some post-processing when saving this chunk */
-void chunkMarkForUpdate(Chunk c)
+void chunkMarkForUpdate(Chunk c, int type)
 {
-	NBT_MarkForUpdate(&c->nbt, c->teOffset < 0 ? NBT_FindNode(&c->nbt, 0, "Level") : c->teOffset, CHUNK_NBT_TILEENTITIES);
-	/* don't call this function again, until this flag is cleared */
-	c->cflags |= CFLAG_REBUILDTE;
-}
-
-/* same with Entities compound list */
-void chunkUpdateEntities(Chunk c)
-{
-	NBT_MarkForUpdate(&c->nbt, c->entOffset < 0 ? NBT_FindNode(&c->nbt, 0, "Level") : c->entOffset, CHUNK_NBT_ENTITIES);
-	c->cflags |= CFLAG_REBUILDETT;
+	int done = type << 6;
+	if ((c->cflags & done) == 0)
+	{
+		STRPTR key;
+		switch (type) {
+		default:
+		case CHUNK_NBT_SECTION:      key = "Sections"; break;
+		case CHUNK_NBT_TILEENTITIES: key = "TileEntities"; break;
+		case CHUNK_NBT_ENTITIES:     key = "Entities"; break;
+		case CHUNK_NBT_TILETICKS:    key = "TileTicks"; break;
+		}
+		int level = NBT_FindNode(&c->nbt, 0, "Level");
+		int tile  = NBT_FindNode(&c->nbt, level, key);
+		NBT_MarkForUpdate(&c->nbt, tile < 0 ? level : tile, type);
+		c->cflags |= done;
+	}
 }
 
 /* insert <nbt> fragment at the location of tile entity pointed by <blockOffset> (ie: coord of tile entity within chunk) */
@@ -559,8 +569,7 @@ Bool chunkUpdateNBT(Chunk c, int blockOffset, NBTFile nbt)
 	}
 
 	/* we will need to modify NBT structure when saving this chunk */
-	if ((c->cflags & CFLAG_REBUILDTE) == 0)
-		chunkMarkForUpdate(c);
+	chunkMarkForUpdate(c, CHUNK_NBT_TILEENTITIES);
 
 	/* add or update pointer in hash */
 	return chunkAddTileEntity(c, XYZ, nbt->mem);
@@ -665,13 +674,21 @@ static void chunkAddNBTEntry(NBTFile nbt, STRPTR name, int tag)
 
 Bool entityGetNBT(NBTFile, int * id);
 
+typedef struct SaveParam_t *     SaveParam;
+struct SaveParam_t
+{
+	Chunk chunk;
+	int   flags;
+};
+
 /* save all the extra NBT tags we added to a chunk */
 static int chunkSaveExtra(int tag, APTR cbparam, NBTFile nbt)
 {
 	ChunkData cd;
 	TileEntityHash hash;
 	TileEntityEntry ent;
-	Chunk chunk = cbparam;
+	SaveParam save = cbparam;
+	Chunk chunk = save->chunk;
 	int i;
 
 	switch (tag) {
@@ -688,12 +705,12 @@ static int chunkSaveExtra(int tag, APTR cbparam, NBTFile nbt)
 			return count;
 		}
 
-		if ((chunk->saveFlags & CHUNK_NBT_TILEENTITIES) == 0)
+		if ((save->flags & CHUNK_NBT_TILEENTITIES) == 0)
 		{
-			/* missing TileEntities entries within NBT: add it now */
-			chunk->saveFlags |= CHUNK_NBT_TILEENTITIES;
+			save->flags |= CHUNK_NBT_TILEENTITIES;
 			chunk->cdIndex = 1;
-			if (chunk->teOffset < 0)
+			/* check for missing TileEntities entries within NBT */
+			if ((chunk->cflags & CFLAG_HAS_TE) == 0)
 			{
 				/* MCEditv1 doesn't like when this is missing, even if it is empty :-/ */
 				chunkAddNBTEntry(nbt, "TileEntities", CHUNK_NBT_TILEENTITIES);
@@ -723,11 +740,11 @@ static int chunkSaveExtra(int tag, APTR cbparam, NBTFile nbt)
 			/* total count of entities for this chunk */
 			return entityCount(chunk->entityList);
 		}
-		if ((chunk->saveFlags & CHUNK_NBT_ENTITIES) == 0)
+		if ((save->flags & CHUNK_NBT_ENTITIES) == 0)
 		{
-			chunk->saveFlags |= CHUNK_NBT_ENTITIES;
+			save->flags |= CHUNK_NBT_ENTITIES;
 			chunk->curEntity = chunk->entityList;
-			if (chunk->entOffset < 0)
+			if ((chunk->cflags & CFLAG_HAS_ENT) == 0)
 			{
 				/* missing "Entities" TAG_List_Compound entry in NBT */
 				chunkAddNBTEntry(nbt, "Entities", CHUNK_NBT_ENTITIES);
@@ -739,15 +756,35 @@ static int chunkSaveExtra(int tag, APTR cbparam, NBTFile nbt)
 		#undef curEntity
 		break;
 
+	case CHUNK_NBT_TILETICKS:
+		if (nbt == NULL)
+		{
+			return updateCount(chunk);
+		}
+		if ((save->flags & CHUNK_NBT_TILETICKS) == 0)
+		{
+			chunk->cdIndex = 0;
+			save->flags |= CHUNK_NBT_TILETICKS;
+			if ((chunk->cflags & CFLAG_HAS_TT) == 0)
+			{
+				/* missing "TileTicks" TAG_List_Compound entry in NBT */
+				chunkAddNBTEntry(nbt, "TileTicks", CHUNK_NBT_ENTITIES);
+				return 1;
+			}
+		}
+		if (updateGetNBT(chunk, nbt, &chunk->cdIndex))
+			return 1;
+		break;
+
 	case CHUNK_NBT_SECTION:
 		/* has to return TAG_List count */
 		if (nbt == NULL)
 			return chunk->maxy;
-		if ((chunk->saveFlags & CHUNK_NBT_SECTION) == 0)
+		if ((save->flags & CHUNK_NBT_SECTION) == 0)
 		{
-			chunk->saveFlags |= CHUNK_NBT_SECTION;
+			save->flags |= CHUNK_NBT_SECTION;
 			chunk->cdIndex = 0;
-			if (chunk->secOffset < 0)
+			if ((chunk->cflags & CFLAG_HAS_SEC) == 0)
 			{
 				chunkAddNBTEntry(nbt, "Sections", CHUNK_NBT_SECTION);
 				return 1;
@@ -810,11 +847,11 @@ Bool chunkSave(Chunk chunk, const char * path)
 
 			fprintf(stderr, "saving chunk %d, %d\n", chunk->X, chunk->Z);
 			//NBT_Dump(&chunk->nbt, 0, 0, 0);
-			chunk->saveFlags = 0;
+			struct SaveParam_t param = {.chunk = chunk, .flags = 0};
 
 			/* compress file in memory first, then write it to disk */
 			chunkOffset = BE24(offset) << 12;
-			zstream     = NBT_Compress(&chunk->nbt, &chunkSize, offset[3], chunkSaveExtra, chunk);
+			zstream     = NBT_Compress(&chunk->nbt, &chunkSize, offset[3], chunkSaveExtra, &param);
 			chunkPage   = (chunkSize + 4100) >> 12;
 
 			/* note +4100 comes from: +4095 to round the number of pages up, and +5 to add the 5 bytes header before z-stream */
@@ -1295,7 +1332,7 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 				c->maxy --;
 				/* cannot delete it now, but will be done after VBO has been cleared */
 				cur->cdFlags = CDFLAG_PENDINGDEL;
-				NBT_MarkForUpdate(&c->nbt, c->secOffset, CHUNK_NBT_SECTION);
+				chunkMarkForUpdate(c, CHUNK_NBT_SECTION);
 
 				/* check if chunk below are also empty */
 				for (i = c->maxy-1; i >= 0; i --)

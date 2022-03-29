@@ -321,8 +321,8 @@ void worldItemDup(Map map, vec info, int entityId)
 	entityGetLight(chunk, dup->pos, dup->light, dup->enflags & ENFLAG_FULLLIGHT);
 	entityAddToCommandList(dup);
 	mapAddToSaveList(map, chunk);
-	if ((chunk->cflags & CFLAG_REBUILDETT) == 0)
-		chunkUpdateEntities(chunk);
+	if ((chunk->cflags & CFLAG_REBUILDENT) == 0)
+		chunkMarkForUpdate(chunk, CHUNK_NBT_ENTITIES);
 }
 
 /* model for full frame is oriented in the XY plane: grab coord of south face and apply entity transformation */

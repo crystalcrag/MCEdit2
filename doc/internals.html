@@ -167,15 +167,15 @@ declared as a value, <b>it is not</b> typedef'ed, and the name <b>always have</b
 
 <p>If there are no trailing <tt>_t</tt> and no <tt class="t">struct</tt>, therefore it is a pointer. Consider the
 following example:
-<pre><span class="t">struct</span> BlockIter_t iter;
+<pre><t>struct</t> BlockIter_t iter;
 BlockIter iterator;</pre>
 
-<p>From this convention, you know the second declaration is a pointer to a <tt><span class="t">struct</span> BlockIter_t</tt>.
+<p>From this convention, you know the second declaration is a pointer to a <tt><t>struct</t> BlockIter_t</tt>.
 
 <p>Sometimes a typedef is introduced for <tt class="t">struct</tt> to remove the need to type this keyword,
 because the type itself is used quite extensively. For example:
-<pre><span class="t">typedef struct</span> NBTIter_t     NBTIter_t;
-<span class="t">typedef struct</span> NBTFile_t     NBTFile_t;</pre>
+<pre><t>typedef struct</t> NBTIter_t     NBTIter_t;
+<t>typedef struct</t> NBTFile_t     NBTFile_t;</pre>
 <p>But, the type will keep the <tt>_t</tt> suffix to indicate it is a value type, not a pointer.
 
 
@@ -257,14 +257,14 @@ goal of one vertex checked per chunk.
 <p>Sadly, the implementation is a lot more complex than this though. Most of the complexity is to deal
 with edge cases though. If you look at the datatype needed for generating the visible list, you can
 see there are a few static tables:
-<pre style="font-size: 1vw"><span class="t">struct</span> Frustum_t
+<pre style="font-size: 1vw"><t>struct</t> Frustum_t
 {
-   <span class="t">int32_t</span> neighbors[<span class="o">8</span>];       <span class="c">/* 8 corners having 8 neighbors: bitfield encode 27 neighbors */</span>
-   <span class="t">uint8_t</span> chunkOffsets[<span class="o">27</span>];   <span class="c">/* bitfield of where each chunks are (S, E, N, W, T, B) */</span>
-   <span class="t">uint8_t</span> faces[<span class="o">6</span>*<span class="o">4</span>];         <span class="c">/* cross-plane faces */</span>
-   <span class="t">uint8_t</span> faceDir[<span class="o">6</span>];         <span class="c">/* direction to go to find chunk connected to face */</span>
-   <span class="t">uint8_t</span> firstFree[<span class="o">256</span>];     <span class="c">/* fake chunk allocator */</span>
-   <span class="t">float</span> * mvp;                <span class="c">/* model-view-projection matrix (4x4) */</span>
+   <t>int32_t</t> neighbors[<v>8</v>];       <span class="c">/* 8 corners having 8 neighbors: bitfield encode 27 neighbors */</span>
+   <t>uint8_t</t> chunkOffsets[<v>27</v>];   <span class="c">/* bitfield of where each chunks are (S, E, N, W, T, B) */</span>
+   <t>uint8_t</t> faces[<v>6</v>*<v>4</v>];         <span class="c">/* cross-plane faces */</span>
+   <t>uint8_t</t> faceDir[<v>6</v>];         <span class="c">/* direction to go to find chunk connected to face */</span>
+   <t>uint8_t</t> firstFree[<v>256</v>];     <span class="c">/* fake chunk allocator */</span>
+   <t>float</t> * mvp;                <span class="c">/* model-view-projection matrix (4x4) */</span>
 };
 </pre>
 
@@ -292,7 +292,7 @@ between 0 and 26, and therefore can be encoded as a bitfield in a 32bit integer.
 
 <table class="skewed">
 <tr><td>14<td>3<td>11
-<tr><td>4<td><span class="o">0</span><td>2
+<tr><td>4<td><v>0</v><td>2
 <tr><td>8<td>1<td>7
 </table>
 
@@ -373,12 +373,12 @@ far plane, and so on...
 
 <p>We can then keep track of which plane the point is outside of, using a bitfield. Since there are
 6 planes, a single byte will be enough. That is the purpose of the <tt>outflags</tt> table in the
-<tt><span class="t">struct</span> Chunk_t</tt> type: keep track of which planes the origin corner
-of each sub-chunk (16x16x16 area, <tt><span class="t">struct</span> ChunkData_t</tt> in the
+<tt><t>struct</t> Chunk_t</tt> type: keep track of which planes the origin corner
+of each sub-chunk (16x16x16 area, <tt><t>struct</t> ChunkData_t</tt> in the
 code) is outside of. The origin corner is the location of block 0, 0, 0 within the chunk.
 
 <p>Therefore to get the <tt>outflags</tt> values of the 8 corners of a <tt>ChunkData</tt>, we will
-have to extract them from the 4 neighbor chunks (<tt><span class="t">struct</span> Chunk_t</tt>):
+have to extract them from the 4 neighbor chunks (<tt><t>struct</t> Chunk_t</tt>):
 for example the <tt>outflags</tt> value for the coordinate <tt>chunk.x + 16, chunk.y, chunk.z</tt>
 is located in the chunk directly to the east of <tt>chunk</tt>: that is how we achieve one matrix
 test per <tt>ChunkData</tt> (on average).
@@ -390,11 +390,11 @@ segments and given 2 points that form a segment, this segment crosses two planes
 <tt>outflags</tt> value of these points have at least <b>2 bits</b> that differ. Using the C language,
 this can be trivially done using a XOR operation:
 
-<pre><span class="t">int</span>    pt1, pt2;      <span class="c">/* we'll see how to enumerate these in a bit */</span>
-<span class="t">int8_t</span> flagsPt1 = outflags[pt1];
-<span class="t">int8_t</span> flagsPt2 = outflags[pt2];
+<pre><t>int</t>    pt1, pt2;      <span class="c">/* we'll see how to enumerate these in a bit */</span>
+<t>int8_t</t> flagsPt1 = outflags[pt1];
+<t>int8_t</t> flagsPt2 = outflags[pt2];
 
-<span class="k">if</span> (popcount(flagsPt1 ^ flagsPt2) &gt;= <span class="o">2</span>)
+<span class="k">if</span> (popcount(flagsPt1 ^ flagsPt2) &gt;= <v>2</v>)
 {
 	<span class="c">/* segment crosses more than 2 planes */</span>
 }</pre>
@@ -413,10 +413,10 @@ since those tests are very cheap.
 
 <p>The first test check if all the <tt>outflags</tt> of a given face have their coordinates
 outside the frustum, using a test like this:
-<pre>sector1*sector2*sector3*sector4 != <span class="o">0</span></pre>
-<p>If one face has a coordinate inside the frustum (<tt>outflags == <span class="o">0</span></tt>),
+<pre>sector1*sector2*sector3*sector4 != <v>0</v></pre>
+<p>If one face has a coordinate inside the frustum (<tt>outflags == <v>0</v></tt>),
 the nearby chunk will already be added by the first pass of the algorithm. Then the second test is:
-<pre>sector1&amp;sector2&amp;sector3&amp;sector4 == <span class="o">0</span></pre>
+<pre>sector1&amp;sector2&amp;sector3&amp;sector4 == <v>0</v></pre>
 <p>This test ensure that not all the coordinates are on the same side of a plane. This happen
 quite often at the starting chunk position: coordinates of a face are all to the left/right of a
 plane, but also cross the top/bottom planes, therefore will be considered a cross-plane face and
@@ -462,16 +462,20 @@ Not good.
 to check where we can go next. Those sub-chunks are actually cheap to allocate because we only need
 a small subset of the fields contained in a <tt>ChunkData</tt> structure.
 
-<p>But to prevent allocating useless fake chunks, we only consider them if <b>they cross the bottom
-plane of the frustum</b>. The reason for checking the bottom plane is because this is the only plane
-a column of <tt>ChunkData</tt> is guaranteed to cross. Column of chunks are always contiguous, if it
-wasn't the case, that heuristic (checking the bottom plane) wouldn't work at all.
+<p>But we need to avoid allocating useless fake chunks: a frustum with a 16 chunks render distance can
+cross several thousands of sub-chunks if the frustum were completely full. When you are walking on the
+surface, most of the frustum is composed of air, which would be wasteful to allocate a fake chunk
+for something that isn't going to be rendered anyway.
+
+<p>The heuristic used here is to only consider adding a fake chunk if <b>it crosses the bottom plane
+of the frustum</b>. The reason for checking the bottom plane is because this is the only plane a column
+of <tt>ChunkData</tt> is guaranteed to cross. Chunk columns are always contiguous: there are no gaps
+between the bottomest and topmost <tt>ChunkData</tt>, if it wasn't the case, that heuristic wouldn't
+work at all. Alsom the pitch (vertical angle) of a player is always between [-pi/2, pi/2] (ie: you
+cannot look upside down).
 
 <p>The way it is checked is very similar to cross-plane faces: by checking the <tt>outflags[]</tt>
-array, for a segment that has its 2 endpoints on the opposite side of the bottom plane. If that's not
-the case, a fake <tt>ChunkData</tt> won't be allocated. This is particularly useful when being above
-ground: a good portion of the frustum doesn't intersect any <tt>ChunkData</tt>. It would be a waste to
-allocate a fake chunk, just to be discarded at the end.
+array, for a segment that has its 2 endpoints on the opposite side of the bottom plane.
 
 
 
@@ -564,9 +568,10 @@ that indicates which face has a visible path to another face. If there are no pa
 face is blocking the visibility of a chunk.
 
 <p>Knowing there is "hole" at the edge of a face (ie: the diagonal of the above matrix) is an information
-we don't need, <b>except for the first chunk</b>. If you start in such a chunk and looking through that
-hole, there won't be any connection and therefore the cave culling will stop right there, which is
-obviously not good. Those extra 6bits are actually stored in a separate field (<tt>cdFlags</tt>).
+we don't need, <b>except for the first visible chunk of the frustum</b>. If you start in such a chunk
+and looking through that hole, there won't be any connection and therefore the cave culling will stop
+right there, which is obviously not good. Those extra 6bits are actually stored in a separate field
+(<tt>cdFlags</tt>).
 
 <h5 id="cnxgraph"><span>Graph traversal</span></h3>
 
@@ -617,16 +622,16 @@ face, from <b>any other direction</b>. Therefore we check all the connection ID 
 for a given face, as described in the <a href="#cnxgraphtbl">previous table</a>. So if we want to know
 if we can reach the south face of the first chunk, we check if one of the connection ID is set for the
 south face, that is either 1, 2, 3, 4 or 5. Since connection graph is encoded as bitfield, the test becomes:
-<pre><span class="t">static uint16_t</span> canGoTo[] = {
-	<span class="o">0x001f</span>, <span class="c">/* to south:  1+2+4+8+16 */</span>
-	<span class="o">0x01e1</span>, <span class="c">/* to east:   1+32+64+128+256 */</span>
-	<span class="o">0x0e22</span>, <span class="c">/* to west:   2+32+512+1024+2048 */</span>
-	<span class="o">0x3244</span>, <span class="c">/* to north:  4+64+512+4096+8192 */</span>
-	<span class="o">0x5488</span>, <span class="c">/* to top:    8+128+1024+4096+16384 */</span>
-	<span class="o">0x6910</span>, <span class="c">/* to bottom: 16+256+2048+8192+16384 */</span>
+<pre><t>static int</t> canGoTo[] = {
+	<v>0x001f</v>+(<v>1</v>&lt;&lt;<v>15</v>), <span class="c">/* to south:  1+2+4+8+16 */</span>
+	<v>0x01e1</v>+(<v>1</v>&lt;&lt;<v>16</v>), <span class="c">/* to east:   1+32+64+128+256 */</span>
+	<v>0x0e22</v>+(<v>1</v>&lt;&lt;<v>17</v>), <span class="c">/* to west:   2+32+512+1024+2048 */</span>
+	<v>0x3244</v>+(<v>1</v>&lt;&lt;<v>18</v>), <span class="c">/* to north:  4+64+512+4096+8192 */</span>
+	<v>0x5488</v>+(<v>1</v>&lt;&lt;<v>19</v>), <span class="c">/* to top:    8+128+1024+4096+16384 */</span>
+	<v>0x6910</v>+(<v>1</v>&lt;&lt;<v>20</v>), <span class="c">/* to bottom: 16+256+2048+8192+16384 */</span>
 };
 <span class="c">/* neighbor is the first ChunkData */</span>
-<span class="k">if</span> (neighbor->cnxGraph &amp; canGoTo[oppSide])
+<span class="k">if</span> ((neighbor->cnxGraph | (neighbor->cdFlags &lt;&lt; <v>15</v>)) &amp; canGoTo[oppSide])
 {
 	<span class="c">/* yes, we can */</span>
 	cur->comingFrom = side;
@@ -634,6 +639,8 @@ south face, that is either 1, 2, 3, 4 or 5. Since connection graph is encoded as
 }
 </pre>
 
+<p>The <tt>cdFlags</tt> test is needed in case the <tt>cnxFlags</tt> is empty (ie: no connections to
+any faces at all), but the chunk has holes at the edge of a face.
 
 <p>This method is not as aggressive as the current version of <prod>Minecraft</prod>: it is far from
 simulating a raycasting traversal, but can still easily cull 50% of chunks when above ground, and nearly
@@ -642,12 +649,15 @@ simulating a raycasting traversal, but can still easily cull 50% of chunks when 
 
 <h3 id="altimpl"><span>Alternate implementation</span></h2>
 
-<p>Understanding what's going on in a 3d space is quite tedious, since it usually involves a lot of
-information. An alternate implementation exists that limits the problem in 2d space, which makes it
-<b>much easier</b> to debug and/or understand what's going on. Check out the repository
-<a href="https://github.com/crystalcrag/MCEdit-utils">MCEdit-utils</a>: the <tt>Frustum</tt> utility
-implement more or less everything that has been described in this chapter. The code in this utility
-is actually very close to what is used in this engine.
+<p>Understanding what's going on in a 3d space is usually quite difficult, since it usually involves
+a lot of information: whether you try to do step by step debugging or display something in the 3d world,
+the result is going to be tedious to analyze. An alternate implementation exists that limits the problem
+in 2d space, which makes it <b>much easier</b> to understand and refactor in case of problems.
+
+<p>Check out the repository <a href="https://github.com/crystalcrag/MCEdit-utils">MCEdit-utils</a>:
+the <tt>Frustum</tt> utility implement more or less everything that has been described in this chapter.
+This utility is actually <b>the reference implementation when something has to be changed</b> in the
+frustum culling algorithm, be it due to bug fix or trying to improve the function.
 
 
 
@@ -701,8 +711,8 @@ possible properties:
     <li><tt>QUAD</tt>: for blocks that are a mix of flat quads that does not necessarily forms a cube.
 	Typical use case: crops, grass or flowers.
     <li><tt>CUST</tt>: completely arbitrary shape, a custom model will be expected for each state
-	description. Keep in mind that the model cannot exceed a 2x2x2 cube in size. If you need more,
-	you will have to use an entity instead.
+	description. Keep in mind that the model cannot exceed a 1x1x1 cube in size, because of frustum
+	culling. If you need more, you will have to use an entity instead.
   </ul>
   <li><tt>name</tt>: a human readable name that will be displayed in various places of the engine.
   <li><tt>tech</tt>: the technical name stored in inventories. If the name is the same as the <tt>name</tt>
@@ -930,7 +940,8 @@ with an integer assigned to it. Beside this property, you can also use these one
   </ul>
 
   <p>Filling those values manually is possible, albeit tedious and error prone. In the default <tt>blockTable.js</tt>
-  field, all the values where filled with the help of <tt>TileFinder</tt>.
+  field, all the values where filled with the help of <tt>TileFinder</tt> (check out the repository
+  <a href="https://github.com/crystalcrag/MCEdit-utils">MCEdit-utils</a>).
   
   <p>This field can include a 13th integer, that will be used to specify the <tt>rotate</tt>
   field (because <tt>TileFinder</tt> can read and write those 13 values at once).
@@ -955,7 +966,7 @@ with an integer assigned to it. Beside this property, you can also use these one
   Remember, that the type of inventory item specified in the block will be applied to all state description.
   The typical use case is to prevent some states from appearing in the inventory (ie: <tt>NONE</tt>).
 
-  <li><tt>model</tt>: an array of floating point numbers. This field is absolutely not intended to
+  <li><tt>model</tt>: an array of floating point numbers. This field is absolutely not intended to be
   edited manually. The format will be described <a href="#blockmodel">below</a>, but even with this
   description, you'll have a hard time filling this field manually.
   <p>Instead, an external tool is almost required: <tt>TileFinder</tt>. You'll notice that all models
@@ -1170,7 +1181,8 @@ each type.
 
 <p>Knowing all of this is kind of important, because, when an NBT is read into memory, <b>it will mimic
 this structure very closely</b> (save a few alignment adjustment and endianess conversion). Also, when you'll
-have to build a NBT fragment, you'll have to match this structure.
+have to build a NBT fragment, you'll have to match this structure: this API has <b>very little</b>
+consistency checks in that regard.
 
 <h4>Example</h4>
 
@@ -1233,8 +1245,8 @@ many bytes have been allocated. <tt>alloc</tt> and <tt>page</tt> are only needed
 <ul>
   <li>The abstraction provided by the API is kind of shallow: you have to be sure to replicate exactly
   the specification of a NBT file. For example, if you create a compound, you'll have to add the
-  <tt>TAG_End</tt> manually, this API won't help you. This is harder than it seems, when compounds are
-  nested, it is kind of easy to forget a <tt>TAG_End</tt> in the stream.
+  <tt>TAG_End</tt> manually, this API won't help you. This is harder than it seems, especially when
+  compounds are nested, it is kind of easy to forget a <tt>TAG_End</tt> in the stream.
   <li>Adding/removing tags can be expensive. This API has ways to greatly mitigate that cost, but it
   will involve quite a bit of work.
 </ul>
@@ -1248,7 +1260,7 @@ then you can do whatever operation you want on that tag.
 
 <h4>Structure</h4>
 
-<p>This part is technically not required to read for using this API, but for the sake of completeness,
+<p>This part is technically not required to use this API, but for the sake of completeness,
 it is still described. This part will described <b>how the NBT file is stored in memory</b>.
 
 <p>All NBT tags start with the following header (using native endianess for integer more than 1 byte long):
@@ -1357,17 +1369,47 @@ modified, but not changing anything to the decompressed NBT stream. When time co
 a callback will be triggered and ask to provide an updated version of that list (one compound at a time).
 
 <p>A single NBT file can have multiple lists though: a typical chunk in a <tt>Minecraft</tt> map has
-at least 3: <tt>Entities</tt>, <tt>TileEntities</tt> and <tt>TileTicks</tt>. Each of them could be modified
-at the same time. When the callback is triggered, it needs to be informed about which list to rebuild.
+at least 4: <tt>Sections</tt>, <tt>Entities</tt>, <tt>TileEntities</tt> and <tt>TileTicks</tt>. Each
+of them could be modified at the same time. When the callback is triggered, it needs to be informed
+about which list to rebuild.
 
 <p>The rationale behind this approach is that when you create a new entity, block with a tile entity or
 tile ticks, you'll have to allocate some memory and store them in some kind of list. Therefore, you'll
 already have all items of a list somewhere, you just have to format them a bit before saving them on disk.
 
-<pre>
-void  NBT_MarkForUpdate(NBTFile, int offset, int tag);
-DATA8 NBT_Compress(NBTFile, int * size, int page, NBT_WriteCb_t cb, APTR cbparam);
-int   NBT_Save(NBTFile, STRPTR path, NBT_WriteCb_t cb, APTR cbparam);</pre>
+<p>To do this, you first have to mark a particular NBT tag in the file as being modified, using the
+following function:
+<pre><t>void</t>  <b>NBT_MarkForUpdate</b>(NBTFile, <t>int</t> offset, <t>int</t> tag);</pre>
+
+<p>Only the first 8bits of <tt>tag</tt> will be taken into account. That means at most 8 different lists
+can be modified at once in a NBT stream. It is highly likely that you <b>cannot</b> use an enumeration
+value, and have to use a bitfield flag. The reason for this, is to handle the special case where the
+<tt>TAG_List_Compound</tt> itself is missing from the stream. In that case, you'll have to mark the
+parent node as modified. If all the lists reside in the same parent, you'll have to use a bitfield.
+
+<p>Then you can provide a callback when it is time to save the NBT stream, using one of this 2 functions:
+
+<pre>DATA8 <b>NBT_Compress</b>(NBTFile, <t>int</t> * size, <t>int</t> page, NBT_WriteCb_t cb, <t>void</t> * cbparam);
+<t>int</t>   <b>NBT_Save</b>(NBTFile, <t>STRPTR</t> path, NBT_WriteCb_t cb, <t>void</t> * cbparam);</pre>
+
+<p>The first function stores the stream in memory, the second one stores it directly on disk. The
+interesting part will happen in the callback <tt>cb</tt>. It must have the following prototype:
+<pre><t>int</t> write_callback(<t>int</t> tag, <t>void</t> * cbparams, NBTFile nbt);</pre>
+
+<p>If an NBT tag is mark for modification, your callback will be first called with the <tt>nbt</tt>
+param set to <tt class="o">NULL</tt>. The expected return value is the number of items your
+<tt>TAG_List_Compound</tt> will contain.
+
+<p>Then your callback will be called again with a valid <tt>nbt</tt> parameter. You'll have to fill
+the <tt>mem</tt> member of that struct so that it contains a valid NBT fragment. <b>No memory will
+be initially allocated</b>. The rationale for this, is that you'll have to allocate an NBT fragment
+anyway when the object (Entity, TileEntity) is created. Therefore, you just have to assign the <tt>mem</tt>
+field to that fragment. You can also create the fragment on the fly (like it is done for <tt>TileTicks</tt>
+is this engine): in that case it is perfectly acceptable to use a static table for this.
+
+<p>The return value should be <tt class="o">1</tt> is a fragment has been assigned to <tt>nbt-&gt;mem</tt>,
+or <tt class="o">0</tt> if the previous call was the last one. Providing less compounds than what was
+returned initially by the callback will cause problems when reading the file back.
 
 
 <h3 id="NBTfunc"><span>NBT function overview</span></h3>
@@ -1385,7 +1427,7 @@ int   NBT_Save(NBTFile, STRPTR path, NBT_WriteCb_t cb, APTR cbparam);</pre>
 <ul>
   <li><tt>NBT_Parse</tt>: try to read a gzip-compressed or plain uncompressed file.
   <li><tt>NBT_ParseIO</tt>: parse a portion of file at given offset: typically to uncompress chunk within region file.
-  <li><tt>NBT_ParseZlib</tt>: read a zlib-compressed file.
+  <li><tt>NBT_ParseZlib</tt>: read a zlib-compressed file (not used by <prod>Minecraft</prod> though).
 </ul>
 
 <p>The return value for all these function will be <v>1</v> if the file was sucessfully read, <v>0</v>
@@ -1421,6 +1463,8 @@ where tags to search are separated by colon, for example:
 NBT function. <v>-1</v> will be returned if nothing was found.
 
 
+
+
 <h4 id="NBTiter">Iterating properties</h4>
 
 <p>When you know you have a <tt>TAG_Compound</tt>, you might want to iterate over all of its properties.
@@ -1450,35 +1494,58 @@ another iterator by yourself. If the tag was a <tt>TAG_List_Compound</tt>, the i
 starting offset of each compound in the list. You'll have to initialize another iterator to scan the
 properties of each compound.
 
+
+
 <h4 id="NBTreadtag">Reading tag value</h4>
 
-<pre>
-<t>Bool</t>  NBT_GetFloat(NBTFile, <t>int</t> offset, <t>float</t> * array, <t>int</t> nb);
-<t>Bool</t>  NBT_GetString(NBTFile root, <t>int</t> offset, <t>STRPTR</t> buffer, <t>int</t> max);
-<t>int</t>   NBT_GetInt(NBTFile, <t>int</t> offset, <t>int</t> def);</pre>
+<p>These functions can format values to a certain type, even if the NBT type is entirely different:
+
+<pre><t>Bool</t> NBT_GetFloat(NBTFile, <t>int</t> offset, <t>float</t> * array, <t>int</t> nb);</pre>
+
+<p>Try to read <tt>n</tt> floating point values from tag. If tag is an integer, it will be converted
+to float. If it is a string, the function <tt>strtod</tt> will be applied on it. If the tag is not a
+scalar (ie: compound or list), <tt class="o">False</tt> will be returned. If the tag have less items
+than requested, the function will also fail.
+
+<pre><t>Bool</t> NBT_GetString(NBTFile root, <t>int</t> offset, <t>STRPTR</t> buffer, <t>int</t> max);
+<t>int</t>  NBT_GetInt(NBTFile, <t>int</t> offset, <t>int</t> def);</pre>
+
+<p>Convert tag to string or integer. The tag needs to be a scalar for this to work.
 
 <h4 id="NBTchgtag">Setting tag value</h4>
 
 <pre>
-<t>Bool</t>  NBT_SetFloat(NBTFile, <t>int</t> offset, <t>float</t> * array, <t>int</t> nb);
-<t>Bool</t>  NBT_SetInt(NBTFile, <t>int</t> offset, <t>int64_t</t> val);</pre>
+<t>Bool</t> NBT_SetFloat(NBTFile, <t>int</t> offset, <t>float</t> * array, <t>int</t> nb);
+<t>Bool</t> NBT_SetInt(NBTFile, <t>int</t> offset, <t>int64_t</t> val);</pre>
+
+<p>Similar to <tt>NBT_Get*</tt>, these function will modify the tag value, <b>keeping the original tag
+type</b>. These functions <b>will not</b> change the tag of the NBT stream.
 
 <h4 id="NBTcreate">Creating / modifying nbt</h4>
+
+<p>These function can be used to <b>create NBT fragment and/or modify existing NBT file</b> (the changes will
+only be done in memory). The modifications are potentially expensive, since bytes will have to be
+relocated if a tag is inserted/modified/deleted in the middle of the stream, plus some metadata will
+have to be updated. But if performance is not that critical, using this functions is perfectly fine.
+
+<p>For extensive modification of <tt>TAG_List_Compound</tt>, you should check the <a href="#NBTpost">NBT
+post processing</a> section: this mechanism is designed to handle arbitrary modifications to a
+<tt>TAG_List_Compound</tt> quite efficiently.
 
 <pre>
 <t>Bool</t>  NBT_Add(NBTFile nbt, ...);
 <t>Bool</t>  NBT_Delete(NBTFile nbt, <t>int</t> offset, <t>int</t> nth);
 <t>int</t>   NBT_Insert(NBTFile, <t>STRPTR</t> loc, <t>int</t> type, NBTFile fragment);
-<t>int</t>   NBT_AddOrUpdateKey(NBTFile, <t>STRPTR</t> key, <t>int</t> type, <t>APTR</t> value, <t>int</t> offsetTagList);
+<t>int</t>   NBT_AddOrUpdateKey(NBTFile, <t>STRPTR</t> key, <t>int</t> type, <t>void</t> * value, <t>int</t> offsetTagList);
 <t>DATA8</t> NBT_Copy(<t>DATA8</t> mem);</pre>
 
 <h4 id="NBTother">Others</h4>
 
 <pre>
-int   NBT_Size(DATA8 fragment);
-APTR  NBT_Payload(NBTFile, int offset);
-APTR  NBT_ArrayStart(NBTFile root, int offset, int * size);
-APTR  NBT_PayloadFromStream(DATA8 stream, int offset, STRPTR name);
+<t>int</t>    NBT_Size(DATA8 fragment);
+<t>void</t> * NBT_Payload(NBTFile, <t>int</t> offset);
+<t>void</t> * NBT_ArrayStart(NBTFile root, int offset, int * size);
+<t>void</t> * NBT_PayloadFromStream(DATA8 stream, <t>int</t> offset, <t>STRPTR</t> name);
 </pre>
 
 
@@ -1928,15 +1995,15 @@ in the entire meshing phase.
 <p>Converting a full solid voxel into a pseudo quad (technically a <tt>GL_POINT</tt>, that will be transformed
 into 2 triangles in the geometry shader to a form a <tt>GL_QUAD</tt>), you need just a couple of look-up tables:
 
-<pre style="font-size: 0.8em"><span class="t">uint8_t</span> vertex[<v>3</v>*<v>8</v>] = { <span class="c">/* 8 vertices of a 1x1x1 cube */</span>
+<pre style="font-size: 0.8em"><t>uint8_t</t> vertex[<v>3</v>*<v>8</v>] = { <span class="c">/* 8 vertices of a 1x1x1 cube */</span>
     <v>0</v>,<v>0</v>,<v>1</v>,  <v>1</v>,<v>0</v>,<v>1</v>,  <v>1</v>,<v>1</v>,<v>1</v>,  <v>0</v>,<v>1</v>,<v>1</v>,
     <v>0</v>,<v>0</v>,<v>0</v>,  <v>1</v>,<v>0</v>,<v>0</v>,  <v>1</v>,<v>1</v>,<v>0</v>,  <v>0</v>,<v>1</v>,<v>0</v>,
 };
-<span class="t">uint8_t</span> cubeIndices[<v>6</v>*<v>4</v>] = { <span class="c">/* face (quad) of cube: S, E, N, W, T, B */</span>
+<t>uint8_t</t> cubeIndices[<v>6</v>*<v>4</v>] = { <span class="c">/* face (quad) of cube: S, E, N, W, T, B */</span>
     <v>9</v>, <v>0</v>, <v>3</v>, <v>6</v>,    <v>6</v>, <v>3</v>, <v>15</v>, <v>18</v>,     <v>18</v>, <v>15</v>, <v>12</v>, <v>21</v>,     <v>21</v>, <v>12</v>, <v>0</v>, <v>9</v>,    <v>21</v>, <v>9</v>, <v>6</v>, <v>18</v>,      <v>0</v>, <v>12</v>, <v>15</v>, <v>3</v>
 <span class="c">/*  3, 0, 1, 2,    2, 1,  5,  6,      6,  5,  4,  7,      7,  4, 0, 3,     7, 3, 2,  6,      0,  4,  5, 1 */</span>
 };
-<span class="t">uint8_t</span> texCoord[] = { <span class="c">/* tex coord for each face: each line is a rotation, indexed by (Block.rotate&amp;3)*8 */</span>
+<t>uint8_t</t> texCoord[] = { <span class="c">/* tex coord for each face: each line is a rotation, indexed by (Block.rotate&amp;3)*8 */</span>
     <v>0</v>,<v>0</v>,    <v>0</v>,<v>1</v>,    <v>1</v>,<v>1</v>,    <v>1</v>,<v>0</v>,
     <v>0</v>,<v>1</v>,    <v>1</v>,<v>1</v>,    <v>1</v>,<v>0</v>,    <v>0</v>,<v>0</v>,
     <v>1</v>,<v>1</v>,    <v>1</v>,<v>0</v>,    <v>0</v>,<v>0</v>,    <v>0</v>,<v>1</v>,
@@ -1991,7 +2058,7 @@ used in the <a jref="#cube3x3">frustum culling</a>:
 
 <table class="skewed">
 <tr><td>9<td>10<td>11
-<tr><td>12<td><span class="o">13</span><td>14
+<tr><td>12<td><v>13</v><td>14
 <tr><td>15<td>16<td>17
 </table>
 
@@ -2097,7 +2164,7 @@ is done in the function <tt>blockGetConnect()</tt>: the return value will be a b
 that should be included in the chunk's mesh.
 
 <p>Then, in the chunk mesh generation, the unused parts are filtered using this simple test:
-<pre><span class="k">if</span> (faceId &gt; <span class="o">0</span> &amp;&amp; (connect &amp; (<span class="o">1</span> &lt;&lt; (faceId-<span class="o">1</span>))) == <span class="o">0</span>)
+<pre><span class="k">if</span> (faceId &gt; <v>0</v> &amp;&amp; (connect &amp; (<v>1</v> &lt;&lt; (faceId-<v>1</v>))) == <v>0</v>)
 {
 	<span class="k">continue</span>;
 }

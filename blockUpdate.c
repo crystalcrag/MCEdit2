@@ -14,6 +14,7 @@
 #include "mapUpdate.h"
 #include "blocks.h"
 #include "blockUpdate.h"
+#include "tileticks.h"
 #include "redstone.h"
 #include "entities.h"
 #include "globals.h"
@@ -620,7 +621,7 @@ static void mapUpdateAddPistonExt(Map map, struct BlockIter_t iter, int blockId,
 	Chunk ref   = iter.ref;
 
 	NBTFile_t ret = {.page = 127};
-	TEXT itemId[128];
+	TEXT itemId[64];
 	int  id = ID(RSPISTONHEAD, blockId & 7);
 
 	if ((blockId >> 4) == RSSTICKYPISTON)

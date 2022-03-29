@@ -346,7 +346,7 @@ void signSetText(Chunk chunk, vec4 pos, DATA8 msg)
 			tile = blockCreateTileEntity(blockId, pos, text);
 			if (tile == NULL) break;
 			chunkAddTileEntity(chunk, XYZ, tile);
-			chunkMarkForUpdate(chunk);
+			chunkMarkForUpdate(chunk, CHUNK_NBT_TILEENTITIES);
 			sign->tile = tile;
 			signParseEntity(sign);
 

@@ -26,6 +26,7 @@
 #include "entities.h"
 #include "waypoints.h"
 #include "worldSelect.h"
+#include "tileticks.h"
 #include "undoredo.h"
 #include "keybindings.h"
 #include "SIT.h"

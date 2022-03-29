@@ -17,6 +17,7 @@
 #include "SIT.h"
 #include "entities.h"
 #include "blockUpdate.h"
+#include "tileticks.h"
 #include "mapUpdate.h"
 #include "cartograph.h"
 #include "render.h"
@@ -1291,8 +1292,8 @@ static DATA16 entityGetPrev(Chunk c, Entity entity, int id)
 void entityMarkListAsModified(Map map, Chunk c)
 {
 	mapAddToSaveList(map, c);
-	if ((c->cflags & CFLAG_REBUILDETT) == 0)
-		chunkUpdateEntities(c);
+	if ((c->cflags & CFLAG_REBUILDENT) == 0)
+		chunkMarkForUpdate(c, CHUNK_NBT_ENTITIES);
 }
 
 /* delete entity from memory and NBT */

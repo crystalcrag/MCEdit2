@@ -1608,7 +1608,7 @@ static int mcuiDeleteTE(SIT_Widget w, APTR cd, APTR ud)
 {
 	BlockIter iter = (BlockIter) w;
 	chunkDeleteTileEntity(iter->ref, (int[3]){iter->x, iter->yabs, iter->z}, False);
-	chunkMarkForUpdate(iter->ref);
+	chunkMarkForUpdate(iter->ref, CHUNK_NBT_TILEENTITIES);
 	/* <cd> contains offset of last item in hash table, dec by 1 to avoid missing if linked list has to be relocated */
 	((int *)cd)[0] --;
 	/* total tile entities removed */

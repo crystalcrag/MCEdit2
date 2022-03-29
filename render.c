@@ -22,6 +22,7 @@
 #include "cartograph.h"
 #include "waypoints.h"
 #include "blockUpdate.h"
+#include "tileticks.h"
 #include "keybindings.h"
 #include "undoredo.h"
 #include "nanovg.h"

@@ -2807,7 +2807,7 @@ int blockGenModel(int vbo, int blockId)
  */
 DATA8 blockCreateTileEntity(int blockId, vec4 pos, APTR arg)
 {
-	TEXT      itemId[128];
+	TEXT      itemId[64];
 	NBTFile_t ret = {.page = 127};
 	int       id  = blockId & 0xfff;
 	Block     b   = &blockIds[id >> 4];

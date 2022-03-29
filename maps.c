@@ -524,7 +524,7 @@ static void mapRedoGenList(Map map)
 	}
 }
 
-/* unload entities from lazy chunk XXX should be kept in a special state */
+/* unload entities from lazy chunk */
 static void mapMarkLazyChunk(Map map)
 {
 	int8_t * ptr;
@@ -661,8 +661,8 @@ void mapGenerateMesh(Map map)
 			/* no chunk at this location */
 			continue;
 
-		if (list == map->center)
-			NBT_Dump(&list->nbt, 0, 0, 0);
+		//if (list == map->center)
+		//	NBT_Dump(&list->nbt, 0, 0, 0);
 
 		/* second: push data to the GPU (only the first chunk) */
 		for (i = 0, j = list->maxy; j > 0; j --, i ++)

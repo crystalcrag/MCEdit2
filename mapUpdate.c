@@ -19,6 +19,7 @@
 #include "particles.h"
 #include "redstone.h"
 #include "entities.h"
+#include "tileticks.h"
 #include "undoredo.h"
 #include "NBT2.h"
 
@@ -1098,8 +1099,6 @@ void mapUpdateDeleteSignal(BlockIter iterator, int blockId)
 	}
 }
 
-static int mapUpdateIfPowered(Map map, BlockIter iterator, int oldId, int blockId, Bool init, DATA8 * tile);
-
 /* redstone power level has been updated in a block, check nearby what updates it will trigger */
 void mapUpdateChangeRedstone(Map map, BlockIter iterator, int side, RSWire dir)
 {
@@ -1207,7 +1206,7 @@ static void mapUpdateConnected(Map map, BlockIter iterator, int blockId)
 }
 
 /* check if a block is powered nearby, change current block to active state then */
-static int mapUpdateIfPowered(Map map, BlockIter iterator, int oldId, int blockId, Bool init, DATA8 * tile)
+int mapUpdateIfPowered(Map map, BlockIter iterator, int oldId, int blockId, Bool init, DATA8 * tile)
 {
 	Block b = &blockIds[blockId >> 4];
 
@@ -1271,8 +1270,12 @@ static int mapUpdateIfPowered(Map map, BlockIter iterator, int oldId, int blockI
 		if (redstoneIsPowered(*iterator, blockSides.repeater[blockId & 3], POW_NORMAL))
 		{
 			/* need to be updated later */
-			updateAdd(iterator, ID(RSREPEATER_ON, blockId & 15), redstoneRepeaterDelay(blockId));
-			return blockId;
+			if (! init)
+			{
+				updateAdd(iterator, ID(RSREPEATER_ON, blockId & 15), redstoneRepeaterDelay(blockId));
+				return blockId;
+			}
+			return ID(RSREPEATER_ON, blockId & 15);
 		}
 		else if ((oldId >> 4) == RSREPEATER_ON)
 		{
@@ -1285,8 +1288,12 @@ static int mapUpdateIfPowered(Map map, BlockIter iterator, int oldId, int blockI
 	case RSREPEATER_ON:
 		if (! redstoneIsPowered(*iterator, blockSides.repeater[blockId & 3], POW_NORMAL))
 		{
-			updateAdd(iterator, ID(RSREPEATER_OFF, blockId & 15), redstoneRepeaterDelay(blockId));
-			return blockId;
+			if (! init)
+			{
+				updateAdd(iterator, ID(RSREPEATER_OFF, blockId & 15), redstoneRepeaterDelay(blockId));
+				return blockId;
+			}
+			return ID(RSREPEATER_OFF, blockId & 15);
 		}
 		else if ((oldId >> 4) == RSREPEATER_OFF)
 		{
@@ -1330,16 +1337,14 @@ static int mapUpdateIfPowered(Map map, BlockIter iterator, int oldId, int blockI
 }
 
 /* tile tick update for gravity blocks: check if we need to convert it to falling block entity */
-static void mapUpdateToEntity(Map map, ChunkData cd, int offset)
+static void mapUpdateToEntity(Map map, BlockIter iterator)
 {
-	struct BlockIter_t iter;
-	mapInitIterOffset(&iter, cd, offset);
+	struct BlockIter_t iter = *iterator;
 	mapIter(&iter, 0, -1, 0);
 	if (iter.blockIds && iter.blockIds[iter.offset] == 0)
 	{
 		mapIter(&iter, 0, 1, 0);
-		Chunk chunk = cd->chunk;
-		vec4 pos = {chunk->X + iter.x, iter.yabs, chunk->Z + iter.z};
+		vec4 pos = {iter.ref->X + iter.x, iter.yabs, iter.ref->Z + iter.z};
 		int blockId = getBlockId(&iter);
 		/* 1 tick is enough for a block to be deleted */
 		if (blockId > 0)
@@ -1347,7 +1352,7 @@ static void mapUpdateToEntity(Map map, ChunkData cd, int offset)
 			mapUpdateInit(&iter);
 			mapUpdate(map, NULL, 0, NULL, UPDATE_SILENT | UPDATE_GRAVITY);
 			mapUpdateEnd(map);
-			entityCreateOrUpdate(chunk, pos, blockId, pos, UPDATE_BY_PHYSICS, NULL);
+			entityCreateOrUpdate(iter.ref, pos, blockId, pos, UPDATE_BY_PHYSICS, NULL);
 		}
 	}
 }
@@ -1862,8 +1867,7 @@ Bool mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 			/* remove off-screen bitmap */
 			signDel(oldTile);
 
-		if ((iter.ref->cflags & CFLAG_REBUILDTE) == 0)
-			chunkMarkForUpdate(iter.ref);
+		chunkMarkForUpdate(iter.ref, CHUNK_NBT_TILEENTITIES);
 	}
 	if ((oldId >> 4) == RSOBSERVER && (blockId >> 4) != RSOBSERVER)
 	{
@@ -1882,8 +1886,7 @@ Bool mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 		/* update position */
 		chunkUpdateTilePosition(iter.ref, XYZ, tile);
 		chunkAddTileEntity(iter.ref, XYZ, tile);
-		if ((iter.ref->cflags & CFLAG_REBUILDTE) == 0)
-			chunkMarkForUpdate(iter.ref);
+		chunkMarkForUpdate(iter.ref, CHUNK_NBT_TILEENTITIES);
 	}
 
 	/* trigger a block update, it might call mapUpdate recursively */

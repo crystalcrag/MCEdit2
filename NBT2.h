@@ -86,6 +86,7 @@ struct NBTHdr_t
 #define NBT_MemPayload(mem)  (((NBTHdr)mem)->name + ((((NBTHdr)mem)->minNameSz + 4) & ~3))
 #define NBT_IsModified(file) (((NBTHdr)(file)->mem)->count > 0)
 #define NBT_Hdr(file,off)    ((NBTHdr)((file)->mem + off))
+#define NBT_Tag(file,off)    (off < 0 ? TAG_End : (file)->mem[off])
 
 /* tags for NBT_Add() */
 #define TAG_End              0
