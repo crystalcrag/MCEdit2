@@ -1269,9 +1269,10 @@ int mapUpdateIfPowered(Map map, BlockIter iterator, int oldId, int blockId, Bool
 	case RSREPEATER_OFF:
 		if (redstoneIsPowered(*iterator, blockSides.repeater[blockId & 3], POW_NORMAL))
 		{
-			/* need to be updated later */
-			if (! init)
+			/* oldId < 0 comes from tile ticks: no need to register a block update, because we already are in a block update */
+			if (oldId >= 0)
 			{
+				/* even if the repeater is placed near a power source, it will be updated to powered state only after a delay */
 				updateAdd(iterator, ID(RSREPEATER_ON, blockId & 15), redstoneRepeaterDelay(blockId));
 				return blockId;
 			}
@@ -1288,7 +1289,7 @@ int mapUpdateIfPowered(Map map, BlockIter iterator, int oldId, int blockId, Bool
 	case RSREPEATER_ON:
 		if (! redstoneIsPowered(*iterator, blockSides.repeater[blockId & 3], POW_NORMAL))
 		{
-			if (! init)
+			if (oldId >= 0)
 			{
 				updateAdd(iterator, ID(RSREPEATER_OFF, blockId & 15), redstoneRepeaterDelay(blockId));
 				return blockId;

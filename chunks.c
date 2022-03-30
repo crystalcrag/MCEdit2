@@ -521,16 +521,19 @@ Bool chunkLoad(Chunk chunk, const char * path, int x, int z)
 /* will have to do some post-processing when saving this chunk */
 void chunkMarkForUpdate(Chunk c, int type)
 {
+	if (type == CHUNK_NBT_TILEENTITIES)
+		puts("here");
 	int done = type << 6;
 	if ((c->cflags & done) == 0)
 	{
 		STRPTR key;
 		switch (type) {
 		default:
-		case CHUNK_NBT_SECTION:      key = "Sections"; break;
-		case CHUNK_NBT_TILEENTITIES: key = "TileEntities"; break;
-		case CHUNK_NBT_ENTITIES:     key = "Entities"; break;
-		case CHUNK_NBT_TILETICKS:    key = "TileTicks"; break;
+		/* these keys must be children of "Level" */
+		case CHUNK_NBT_SECTION:      key = "/Sections"; break;
+		case CHUNK_NBT_TILEENTITIES: key = "/TileEntities"; break;
+		case CHUNK_NBT_ENTITIES:     key = "/Entities"; break;
+		case CHUNK_NBT_TILETICKS:    key = "/TileTicks"; break;
 		}
 		int level = NBT_FindNode(&c->nbt, 0, "Level");
 		int tile  = NBT_FindNode(&c->nbt, level, key);
@@ -714,7 +717,7 @@ static int chunkSaveExtra(int tag, APTR cbparam, NBTFile nbt)
 			{
 				/* MCEditv1 doesn't like when this is missing, even if it is empty :-/ */
 				chunkAddNBTEntry(nbt, "TileEntities", CHUNK_NBT_TILEENTITIES);
-				return 1;
+				return -1;
 			}
 		}
 
@@ -748,7 +751,7 @@ static int chunkSaveExtra(int tag, APTR cbparam, NBTFile nbt)
 			{
 				/* missing "Entities" TAG_List_Compound entry in NBT */
 				chunkAddNBTEntry(nbt, "Entities", CHUNK_NBT_ENTITIES);
-				return 1;
+				return -1;
 			}
 		}
 		if (entityGetNBT(nbt, &chunk->curEntity))
@@ -767,9 +770,11 @@ static int chunkSaveExtra(int tag, APTR cbparam, NBTFile nbt)
 			save->flags |= CHUNK_NBT_TILETICKS;
 			if ((chunk->cflags & CFLAG_HAS_TT) == 0)
 			{
+				/* highly likely */
+				if (updateCount(chunk) == 0) return 0;
 				/* missing "TileTicks" TAG_List_Compound entry in NBT */
 				chunkAddNBTEntry(nbt, "TileTicks", CHUNK_NBT_ENTITIES);
-				return 1;
+				return -1;
 			}
 		}
 		if (updateGetNBT(chunk, nbt, &chunk->cdIndex))
@@ -787,7 +792,7 @@ static int chunkSaveExtra(int tag, APTR cbparam, NBTFile nbt)
 			if ((chunk->cflags & CFLAG_HAS_SEC) == 0)
 			{
 				chunkAddNBTEntry(nbt, "Sections", CHUNK_NBT_SECTION);
-				return 1;
+				return -1;
 			}
 		}
 

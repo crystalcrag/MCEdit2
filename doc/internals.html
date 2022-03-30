@@ -1455,9 +1455,20 @@ file. If a negative number is given, the search will be aborted and <v>-1</v> re
 
 <p>The <tt>name</tt> parameter can actually be a bit more than just a tag name, it can be a path,
 where tags to search are separated by colon, for example:
-<pre><t>int</t> offset = NBT_FindNode(&amp;levelDat, <v>"Player.EnderItems"</v>);</pre>
-<p>will first search for a tag "Player", then if it has been found and is a <tt>TAG_Compound</tt> or
-<tt>TAG_List_Compound</tt>, will search for a tag "EnderItems" in this branch only.
+<pre><t>int</t> offset = NBT_FindNode(&amp;levelDat, <v>0</v>, <v>"Player.EnderItems"</v>);</pre>
+<p>will first search for a tag <tt class="o">"Player"</tt>, then if it has been found and is a
+<tt>TAG_Compound</tt> or <tt>TAG_List_Compound</tt>, will search for a tag <tt class="o">"EnderItems"</tt>
+in this branch only.
+
+<p>If you want to be sure that a tag is only searched in a given branch and not recursively in
+all the compounds and list, you can prefix the name with <tt class="o">"/"</tt>, like this:
+
+<pre><t>int</t> offset = NBT_FindNode(&amp;levelDat, 0, <v>"Data"</v>);
+offset = NBT_FindNode(&amp;levelDat, offset, <v>"/Player"</v>));</pre>
+
+<p>This will first recursively search for a <tt class="o">"Data"</tt> tag. Then check if there is a
+<tt class="o">"Player"</tt> tag in this branch of the file only (and not recursively scan all the
+possible branches).
 
 <p>The return value is the index where the tag was located. This index will be required by almost all
 NBT function. <v>-1</v> will be returned if nothing was found.
@@ -1502,9 +1513,9 @@ properties of each compound.
 
 <pre><t>Bool</t> NBT_GetFloat(NBTFile, <t>int</t> offset, <t>float</t> * array, <t>int</t> nb);</pre>
 
-<p>Try to read <tt>n</tt> floating point values from tag. If tag is an integer, it will be converted
+<p>Try to read <tt>n</tt> floating point values from the tag. If tag is an integer, it will be converted
 to float. If it is a string, the function <tt>strtod</tt> will be applied on it. If the tag is not a
-scalar (ie: compound or list), <tt class="o">False</tt> will be returned. If the tag have less items
+scalar or a list of scalar, <tt class="o">False</tt> will be returned. If the tag have less items
 than requested, the function will also fail.
 
 <pre><t>Bool</t> NBT_GetString(NBTFile root, <t>int</t> offset, <t>STRPTR</t> buffer, <t>int</t> max);
@@ -1521,16 +1532,19 @@ than requested, the function will also fail.
 <p>Similar to <tt>NBT_Get*</tt>, these function will modify the tag value, <b>keeping the original tag
 type</b>. These functions <b>will not</b> change the tag of the NBT stream.
 
+
+
 <h4 id="NBTcreate">Creating / modifying nbt</h4>
 
 <p>These function can be used to <b>create NBT fragment and/or modify existing NBT file</b> (the changes will
 only be done in memory). The modifications are potentially expensive, since bytes will have to be
 relocated if a tag is inserted/modified/deleted in the middle of the stream, plus some metadata will
-have to be updated. But if performance is not that critical, using this functions is perfectly fine.
+have to be updated. But if performance is not that critical, or if its just for a few properties, using
+these functions will be fine.
 
-<p>For extensive modification of <tt>TAG_List_Compound</tt>, you should check the <a href="#NBTpost">NBT
-post processing</a> section: this mechanism is designed to handle arbitrary modifications to a
-<tt>TAG_List_Compound</tt> quite efficiently.
+<p>For extensive modification of a <tt>TAG_List_Compound</tt>, you should check the <a href="#NBTpost">NBT
+post processing</a> section: this mechanism is designed to handle arbitrary modifications to such a
+tag quite efficiently.
 
 <pre>
 <t>Bool</t>  NBT_Add(NBTFile nbt, ...);
@@ -1662,7 +1676,7 @@ from <B>back to front</b>.
 
 <p>This is far from ideal in practice, and this technique has somewhat the same problem than the linked
 list of fragments: it requires too much bandwidth and/or up to date OpenGL implementation, which makes it
-particularly annoying to debug when something goes wrong (usually due to buggy driver).
+particularly annoying to debug when something goes wrong.
 
 
 <h4 id="cpusort"><span>Triangles sorting on CPU</span></h4>
@@ -1697,7 +1711,7 @@ the camera <b>to the center of the whole quad</b>, that distance being converted
 <p>To reduce the amount of sorting needed, a few tricks are used:
 <ul>
   <li><b>Chunks are sorted by the frustum culling</b>: the frustum culling function already builds a list
-  of chunk that are roughly sorted from front to back. It is not perfect, but as far as alpha transparency
+  of chunks that are roughly sorted from front to back. It is not perfect, but as far as alpha transparency
   is concerned, it is good enough. Which means:
 
   <li><b>Vertex sorted per chunk</b>: we only have to sort the alpha triangles on a per chunk basis. Which
@@ -1727,7 +1741,7 @@ the camera <b>to the center of the whole quad</b>, that distance being converted
   can somewhat prove that the alpha triangles <b>cannot overlap each other</b>, then you can draw them
   in any order you want. This is particularly the case for ocean surface: a simple flat plane of alpha
   triangles. Sorting them is a total waste of CPU time, and indeed if you were to sort them anyway,
-  you'd get some noticeable lag spike once the angle threashold is reached. In the middle of an ocean,
+  you'd get some noticeable lag spike once the angle threshold is reached. In the middle of an ocean,
   with a 16 chunk render distance, there can be more than a hundred of these to sort, and it is completely
   unnecessary.
 
@@ -1818,7 +1832,7 @@ quads (not all of them will be rendered at once), or 8M vertices (12M using newe
 would required about 400 Mb of data. While even a GPU from 2010 can easily handle this kind of load,
 reducing the amount of data means we could push the render distance way farther than this.
 
-<p>This engine manage to compress each quad down to 28 bytes (stored as 7 32bit unsigned integer),
+<p>This engine manages to compress each quad down to 28 bytes (stored as 7 32bit unsigned integer),
 that means viewing a world on a far render distance (16 chunks) usually requires about 100Mb of memory
 on the GPU side: that's actually not very much. The vertex data is processed as <tt>GL_POINTS</tt>,
 and split into <tt>GL_TRIANGLE_STRIP</tt> in a geometry shader.
@@ -2400,7 +2414,7 @@ to avoid).
 <p>This schema shows how the information is stored at the <tt>ChunkData</tt> level (in <tt>emitters</tt>
 field):
 <bits>
-  <brow><hdr>0: </hdr><bitpart class="sz8" bit="16">8: <em>count</em></bitpart><bitpart class="sz5" bit="8">5: <em>type</em></bitpart><bitpart class="sz3" bit="3">3: <em>Y</em></bitpart></brow>
+  <brow><hdr>0: </hdr><bitpart class="sz8" bit="16">8: <em>count</em></bitpart><bitpart class="sz5" bit="8">5: <em>type</em></bitpart><bitpart class="sz3" bit="3">3: <em>Y</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
 
   <brow><hdr>1: </hdr><bitpart class="sz16" bit="16">16: <em>interval</em> (ms)</bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
 

@@ -216,7 +216,7 @@ static void updateTileTick(Map map, BlockIter iter)
 {
 	DATA8 tile = NULL;
 	int blockId = getBlockId(iter);
-	int newId = mapUpdateIfPowered(map, iter, blockId, blockId, True, &tile);
+	int newId = mapUpdateIfPowered(map, iter, -1, blockId, True, &tile);
 	if (newId != blockId)
 	{
 		/* note: mapUpdate() has already been configured to use iterator <iter> */
@@ -242,6 +242,7 @@ void updateParseNBT(Chunk c)
 	 * - t: ticks (TAG_Int): number of ticks the update must be done, can be negative
 	 * - x, y, z: world space coord where the update should happen
 	 */
+	int count = 0;
 	while ((offset = NBT_Iter(&iter)) >= 0)
 	{
 		TileTick_t tick;
@@ -270,11 +271,13 @@ void updateParseNBT(Chunk c)
 			TileTick update = updateInsert(tick.cd, pos, globals.curTime + tick.tick * globals.redstoneTick);
 			/* blockId stored in tile tick is not going to help */
 			update->cb = updateTileTick;
+			count ++;
 		}
 	}
-	/* already mark the NBT record as modified, this list is short lived anyway */
 	c->cflags |= CFLAG_HAS_TT;
-	chunkMarkForUpdate(c, CHUNK_NBT_TILETICKS);
+	if (count > 0)
+		/* already mark the NBT record as modified, this list is short lived anyway */
+		chunkMarkForUpdate(c, CHUNK_NBT_TILETICKS);
 }
 
 /* called before saving a chunk to disk */

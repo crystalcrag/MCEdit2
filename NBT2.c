@@ -262,6 +262,8 @@ static int NBT_ParseFile(NBTFile nbt, ZStream in, int flags)
 	case TAG_List:
 		type = gzGetC(in);
 		len  = hdr->count = UINT32(in);
+		if (len == 0xff08)
+			puts("here");
 		hdr->type |= type << 4;
 		switch (type) {
 		case TAG_Byte:
@@ -1280,7 +1282,11 @@ static int NBT_WriteFile(NBTFile nbt, APTR out, int offset, NBTWriteParam param)
 			{
 				sub.alloc = 0;
 				do {
-					sub.alloc += NBT_WriteFile(&sub, out, sub.alloc, param);
+					if (sub.mem[sub.alloc])
+						sub.alloc += NBT_WriteFile(&sub, out, sub.alloc, param);
+					else
+						/* we will add compound terminator right after */
+						break;
 				} while (sub.alloc < sub.usage);
 				/* compound terminator */
 				type = 0;
@@ -1327,7 +1333,7 @@ static int NBT_WriteFile(NBTFile nbt, APTR out, int offset, NBTWriteParam param)
 		{
 			offset += i; off += i; p += i;
 			/* node has been modified, other properties might follow, do not add 0 yet */
-			if (p[0] == 0 && p[1]) break;
+			if (p[0] == 0 && hdr->count >= NBT_NODE_CHANGED) break;
 		}
 		off += 4;
 		if (hdr->count >= NBT_NODE_CHANGED && param->cb)
@@ -1338,16 +1344,20 @@ static int NBT_WriteFile(NBTFile nbt, APTR out, int offset, NBTWriteParam param)
 			for (tag = 1, tags = hdr->count & ~ NBT_NODE_CHANGED; tags; tags >>= 1, tag <<= 1)
 			{
 				if ((tags & 1) == 0) continue;
-				while (param->cb(tag, param->cbdata, &sub))
+				while ((i = param->cb(tag, param->cbdata, &sub)))
 				{
 					sub.alloc = 0;
 					do {
-						sub.alloc += NBT_WriteFile(&sub, out, sub.alloc, param);
+						if (sub.mem[sub.alloc])
+							sub.alloc += NBT_WriteFile(&sub, out, sub.alloc, param);
+						else /* we will add the compound terminator in this function */
+							break;
 					} while (sub.alloc < sub.usage);
-					type = 0;
-					puts(out, &type, 1, 0);
+					if (i < 0) break; /* only call cb once */
 				}
 			}
+			type = 0;
+			puts(out, &type, 1, 0);
 		}
 		break;
 	case TAG_Int_Array:
@@ -1503,12 +1513,14 @@ int NBT_Dump(NBTFile root, int offset, int level, FILE * out)
 			break;
 		case TAG_Compound:
 			level += 3;
-			for (i = 0; i < hdr->count; i ++)
+			/* note: can't use hdr->count because of post-processing */
+			for (i = mem - (DATA8) hdr; i < hdr->size; )
 			{
 				fprintf(out, "%*sTAG_Compound(\"\") [%d]:\n%*s{\n", level, "", offset, level, "");
 				while ((sz = NBT_Dump(root, offset, level + 3, out)) > 0)
-					offset += sz;
+					offset += sz, i += sz;
 				offset += 4;
+				i += 4;
 				fprintf(out, "%*s}\n", level, "");
 			}
 			sz = 0;

@@ -1,3 +1,10 @@
+=========== Week 13 ===========
+Tue Mar 29:
+	* started model data refactorign (at last).
+
+Mon Mar 28:
+	* nasty bug fixed when adding a TAG_List_Compound to a NBT stream.
+
 =========== Week 12 ===========
 Sun Mar 27:
 	* tile ticks read/write (finally!).

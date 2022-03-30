@@ -414,12 +414,18 @@ Bool minecartUpdate(Entity entity, float deltaFrame)
 	minecartSetOrient(entity);
 //	fprintf(stderr, "minecart dest = %g,%g (from %g to %g)\n", entity->pos[VX] - 0.625f, entity->pos[VX] + 0.625f, entity->pos[VX], oldVX);
 
-	if (oldPos[VY] > entity->pos[VY] || (entity->enflags & ENFLAG_POWRAIL_ON))
+	if (entity->enflags & ENFLAG_POWRAIL_OFF)
+	{
+		/* contrary to uphill momemtum, direction won't be reversed */
+		physics->dir[0] -= 0.05f * deltaFrame;
+		if (physics->dir[0] < 0) physics->dir[0] = 0;
+	}
+	else if (oldPos[VY] > entity->pos[VY] || (entity->enflags & ENFLAG_POWRAIL_ON))
 	{
 		/* minecart going down: gain momentum */
 		physics->dir[0] += 0.05f * deltaFrame;
 	}
-	else if (oldPos[VY] < entity->pos[VY] || (entity->enflags & ENFLAG_POWRAIL_OFF))
+	else if (oldPos[VY] < entity->pos[VY])
 	{
 		/* going uphill: losing momentum */
 		physics->dir[0] -= 0.05f * deltaFrame;
@@ -539,8 +545,8 @@ Bool minecartTryUsing(ItemID_t itemId, vec4 pos, int pointToBlock)
 
 	/* click on a rail: find the location where to place minecart */
 	memset(lines, 0, sizeof lines);
-	lines[0] = lines[2] = (int) pos[VX] + 0.5f;
-	lines[1] = lines[3] = (int) pos[VZ] + 0.5f;
+	lines[0] = lines[2] = floorf(pos[VX]) + 0.5f;
+	lines[1] = lines[3] = floorf(pos[VZ]) + 0.5f;
 	data = pointToBlock & 15;
 	if (b->id != RSRAILS) data &= 7;
 	for (i = 0, side = railsNeigbors + data * 8 + 3, points = lines; i < 2; i ++, side += 4, points += 2)
