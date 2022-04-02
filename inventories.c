@@ -121,6 +121,9 @@ static int inventoryRender(SIT_Widget w, APTR cd, APTR ud)
 	return 0;
 }
 
+/*
+ * fill tooltip text when hovering an item
+ */
 void inventorySetTooltip(SIT_Widget toolTip, Item item, STRPTR extra)
 {
 	TEXT title[256];

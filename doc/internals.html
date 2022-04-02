@@ -471,7 +471,7 @@ for something that isn't going to be rendered anyway.
 of the frustum</b>. The reason for checking the bottom plane is because this is the only plane a column
 of <tt>ChunkData</tt> is guaranteed to cross. Chunk columns are always contiguous: there are no gaps
 between the bottomest and topmost <tt>ChunkData</tt>, if it wasn't the case, that heuristic wouldn't
-work at all. Alsom the pitch (vertical angle) of a player is always between [-pi/2, pi/2] (ie: you
+work at all. Also, the pitch (vertical angle) of a player is always between [-pi/2, pi/2] (ie: you
 cannot look upside down).
 
 <p>The way it is checked is very similar to cross-plane faces: by checking the <tt>outflags[]</tt>
@@ -507,6 +507,10 @@ fake chunk.
 are completely hidden by nearer chunks. A good primer on how this algorithm works can be read from the
 original <a href="https://tomcc.github.io/2014/08/31/visibility-1.html">author</a> that developed it
 for Minecraft MCPE.
+
+<p>Cave visibility check is also <b>applied very early in the culling phase</b>, because it can prune
+huge branches of chunks and thus avoid checking if a vertex is within the frustum, which, as a reminder,
+requires a 4x4 matrix multiplication for each vertex.
 
 <h4 id="cavecullv1"><span>First attempt</span></h3>
 
@@ -1368,7 +1372,7 @@ a modern CPU can easily handle that kind of load, there are more efficient ways 
 modified, but not changing anything to the decompressed NBT stream. When time comes to save the changes,
 a callback will be triggered and ask to provide an updated version of that list (one compound at a time).
 
-<p>A single NBT file can have multiple lists though: a typical chunk in a <tt>Minecraft</tt> map has
+<p>A single NBT file can have multiple lists though: a typical chunk in a <prod>Minecraft</prod> map has
 at least 4: <tt>Sections</tt>, <tt>Entities</tt>, <tt>TileEntities</tt> and <tt>TileTicks</tt>. Each
 of them could be modified at the same time. When the callback is triggered, it needs to be informed
 about which list to rebuild.
@@ -1382,10 +1386,10 @@ following function:
 <pre><t>void</t>  <b>NBT_MarkForUpdate</b>(NBTFile, <t>int</t> offset, <t>int</t> tag);</pre>
 
 <p>Only the first 8bits of <tt>tag</tt> will be taken into account. That means at most 8 different lists
-can be modified at once in a NBT stream. It is highly likely that you <b>cannot</b> use an enumeration
-value, and have to use a bitfield flag. The reason for this, is to handle the special case where the
-<tt>TAG_List_Compound</tt> itself is missing from the stream. In that case, you'll have to mark the
-parent node as modified. If all the lists reside in the same parent, you'll have to use a bitfield.
+can be modified at once in a NBT stream. You <b>cannot</b> use an enumeration value, and have to use a
+bitfield flag. The reason for this, is to handle the special case where the <tt>TAG_List_Compound</tt>
+itself is missing from the stream. In that case, you'll have to mark the parent node as modified, and it
+will be extremely likely that all lists remain in the same parent node.
 
 <p>Then you can provide a callback when it is time to save the NBT stream, using one of this 2 functions:
 
@@ -1401,20 +1405,77 @@ param set to <tt class="o">NULL</tt>. The expected return value is the number of
 <tt>TAG_List_Compound</tt> will contain.
 
 <p>Then your callback will be called again with a valid <tt>nbt</tt> parameter. You'll have to fill
-the <tt>mem</tt> member of that struct so that it contains a valid NBT fragment. <b>No memory will
-be initially allocated</b>. The rationale for this, is that you'll have to allocate an NBT fragment
-anyway when the object (Entity, TileEntity) is created. Therefore, you just have to assign the <tt>mem</tt>
-field to that fragment. You can also create the fragment on the fly (like it is done for <tt>TileTicks</tt>
-is this engine): in that case it is perfectly acceptable to use a static table for this.
+the <tt>mem</tt> <b>and</b> <tt>usage</tt> member of that struct so that it contains a valid NBT fragment
+<b>for one item</b> (not the entire list). <span class="n">Note</span>: <tt class="o">NUL</tt> terminator
+(ie: <tt>TAG_End</tt>) is optional: if it is missing, it will be added automatically.
+
+<p><b>No memory will be initially allocated</b>. The rationale for this, is that you'll have to allocate
+an NBT fragment anyway when the object (Entity, TileEntity) is created. Therefore, you just have to
+assign the <tt>mem</tt> and <tt>usage</tt> field to that fragment. You can also create the fragment
+on the fly (like it is done for <tt>TileTicks</tt> is this engine): in that case it is perfectly
+acceptable to use a static table for this.
 
 <p>The return value should be <tt class="o">1</tt> is a fragment has been assigned to <tt>nbt-&gt;mem</tt>,
 or <tt class="o">0</tt> if the previous call was the last one. Providing less compounds than what was
 returned initially by the callback will cause problems when reading the file back.
 
 
+<p>To handle the special case when the <b>NBT entry for the list itself is missing</b>, it will involve
+a bit more work. For this, when your callback is triggered with a valid <tt>nbt</tt>, instead of returning
+the first entry of the <tt>TAG_List_Compound</tt>, what you can do, is returning the <b>start of</b>
+a <tt>TAG_List_Compound</tt>, <b>pre-marked</b> as being modified. For example:
+
+<pre>
+<t>struct</t> SaveParams_t
+{
+	<t>int</t> topTagMissing;
+	<t>int</t> curObject;
+	<t>int</t> totalObjects;
+}
+<c>/* NBT save callback */</c>
+<t>static int</t> saveNBT(<t>int</t> tag, <t>void</t> * params, NBTFile nbt)
+{
+	<k>if</k> (tag == <v>1</v>) <c>/* better use a symbol here instead of a magic number */</c>
+	{
+		<c>/* this structure needs to be set before saving the stream, obviously */</c>
+		<t>struct</t> SaveParams_t * save = params;
+
+		<k>if</k> (nbt == <v>NULL</v>)
+			<k>return</k> save->totalObjects;
+
+		<k>if</k> (save->topTagMissing)
+		{
+			<t>static uint8_t</t> content[<v>64</v>];
+
+			nbt->mem = content;
+			nbt->max = <k>sizeof</k> content;
+			nbt->usage = <v>0</v>;
+
+			NBT_Add(nbt,
+				TAG_List_Compound, <v>"TileTicks"</v>, <v>0</v>,
+				TAG_Compound_End
+			);
+			<c>/* this is the trick to call this callback again */</c>
+			NBT_MarkForUpdate(nbt, <v>0</v>, tag);
+			<c>/* obviously, only do that once */</c>
+			save->topTagMissing = <v>0</v>;
+			<k>return</k> <v>1</v>;
+		}
+
+		save->curObject ++;
+		<k>return</k> getNthObject(nbt, save->curObject);
+	}
+	<k>return</k> <v>0</v>;
+}
+</pre>
+
+<p>There we go: with little overhead, you can perform any modifications you want to a list of compounds.
+Even better, since the original NBT stream is never modified, you can keep pointer within that file
+and be guaranteed that it will never point to freed memory.
+
 <h3 id="NBTfunc"><span>NBT function overview</span></h3>
 
-<p>This part will show a quick overview of what each function does.
+<p>This part will show a quick overview of what the most important functions do.
 
 <h4 id="NBTread">Reading files</h4>
 
@@ -1447,14 +1508,14 @@ some point when not needed anymore.
 <t>int</t> <b>NBT_FindNodeFromStream</b>(DATA8 nbt, <t>int</t> offset, <t>STRPTR</t> name);
 </pre>
 
-<p>Use these functions to find a particular tag within the file. The tag will be searced using a breadth-first
+<p>Use these functions to find a particular tag within the file. The tag will be searched using a breadth-first
 search, scanning recursively the structure of the NBT file until something is found.
 
 <p><tt>offset</tt> is the byte offset where the search should start. <v>0</v> is the beginning of the
 file. If a negative number is given, the search will be aborted and <v>-1</v> returned.
 
 <p>The <tt>name</tt> parameter can actually be a bit more than just a tag name, it can be a path,
-where tags to search are separated by colon, for example:
+where tags to search are separated by a period, for example:
 <pre><t>int</t> offset = NBT_FindNode(&amp;levelDat, <v>0</v>, <v>"Player.EnderItems"</v>);</pre>
 <p>will first search for a tag <tt class="o">"Player"</tt>, then if it has been found and is a
 <tt>TAG_Compound</tt> or <tt>TAG_List_Compound</tt>, will search for a tag <tt class="o">"EnderItems"</tt>
@@ -1463,10 +1524,10 @@ in this branch only.
 <p>If you want to be sure that a tag is only searched in a given branch and not recursively in
 all the compounds and list, you can prefix the name with <tt class="o">"/"</tt>, like this:
 
-<pre><t>int</t> offset = NBT_FindNode(&amp;levelDat, 0, <v>"Data"</v>);
+<pre><t>int</t> offset = NBT_FindNode(&amp;levelDat, <v>0</v>, <v>"Data"</v>);
 offset = NBT_FindNode(&amp;levelDat, offset, <v>"/Player"</v>));</pre>
 
-<p>This will first recursively search for a <tt class="o">"Data"</tt> tag. Then check if there is a
+<p>This will first recursively search for a <tt class="o">"Data"</tt> tag. Then, check if there is a
 <tt class="o">"Player"</tt> tag in this branch of the file only (and not recursively scan all the
 possible branches).
 
@@ -1543,8 +1604,8 @@ have to be updated. But if performance is not that critical, or if its just for 
 these functions will be fine.
 
 <p>For extensive modification of a <tt>TAG_List_Compound</tt>, you should check the <a href="#NBTpost">NBT
-post processing</a> section: this mechanism is designed to handle arbitrary modifications to such a
-tag quite efficiently.
+post processing</a> section: this mechanism is designed to handle arbitrary modifications to such type
+of tags quite efficiently.
 
 <pre>
 <t>Bool</t>  NBT_Add(NBTFile nbt, ...);
@@ -1552,6 +1613,39 @@ tag quite efficiently.
 <t>int</t>   NBT_Insert(NBTFile, <t>STRPTR</t> loc, <t>int</t> type, NBTFile fragment);
 <t>int</t>   NBT_AddOrUpdateKey(NBTFile, <t>STRPTR</t> key, <t>int</t> type, <t>void</t> * value, <t>int</t> offsetTagList);
 <t>DATA8</t> NBT_Copy(<t>DATA8</t> mem);</pre>
+
+<p><tt>NBT_Add</tt> is used to build fragments. This is where you need to be careful to match the
+NBT specification: this API isn't going to provide a lot of checks and balance in that regard.
+
+<p>The vararg part of this function expect a triplet of parameters until a <tt>TAG_End</tt> or
+<tt>TAG_Compound_End</tt>. The first item in the triplet has to be the tag type (ie: <tt>TAG_*</tt>),
+the tag name as a string, and finally the payload of the tag. For example to create a string fragment:
+
+<pre><t>struct</t> NBTFile_t nbt = {<v>0</v>};
+NBT_Add(&amp;nbt, TAG_String, <v>"doDayNightCycle"</v>, <v>"false"</v>, TAG_Compound_End);
+</pre>
+
+<p>The difference between <tt>TAG_End</tt> and <tt>TAG_Compound_End</tt> is whether or not you want
+the terminator to be included in the stream. <tt>TAG_End</tt> will add a terminator (and stop processing
+arguments, if any), while <tt>TAG_Compound_End</tt> will stop right there (without adding anything more
+to the stream).
+
+<p>The <b>payload for array is a bit different</b> though: instead of the actual data, you need to provide
+the number of items (not bytes), the array will contain. This is for <tt>TAG_List</tt> (any sub-type)
+and <tt>TAG_Int_Array</tt>. You can <tt>or</tt> the length of the array with the special constant
+<tt>NBT_WithInit</tt>, and provide an additional parameter: a pointer to buffer that will be used to
+initialize the array. Otherwise, the array will be set to all zeros. For example:
+
+<pre><t>struct</t> NBTFile_t nbt = {<v>0</v>};
+vec4 pos = ...
+NBT_Add(&amp;nbt, TAG_List_Float, <v>"Coordinates"</v>, <v>3</v> | NBT_WithInit, pos, TAG_Compound_End);
+</pre>
+
+<p>Note: you have to make the initializer is of the same type <b>and same size</b> than what you requested
+in the <tt>NBT_Add</tt> parameters. No automatic conversion will be done you (there isn't enough
+information for this function to do anything more anyway).
+
+
 
 <h4 id="NBTother">Others</h4>
 

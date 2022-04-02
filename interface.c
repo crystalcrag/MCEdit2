@@ -125,7 +125,7 @@ Item mcuiAddItemToRender(void)
 void mcuiAskSave(SIT_CallProc cb)
 {
 	SIT_Widget ask = SIT_CreateWidget("ask.mc", SIT_DIALOG, globals.app,
-		SIT_DialogStyles, SITV_Plain | SITV_Modal | SITV_Movable,
+		SIT_DialogStyles, SITV_Plain | SITV_Modal,
 		SIT_Style,        "padding: 1em",
 		NULL
 	);

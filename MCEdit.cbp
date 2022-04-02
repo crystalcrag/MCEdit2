@@ -99,6 +99,9 @@
 		<Unit filename="minecarts.c">
 			<Option compilerVar="CC" />
 		</Unit>
+		<Unit filename="mobEntity.c">
+			<Option compilerVar="CC" />
+		</Unit>
 		<Unit filename="models.c">
 			<Option compilerVar="CC" />
 		</Unit>

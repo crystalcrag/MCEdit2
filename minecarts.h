@@ -8,7 +8,7 @@
 #define MC_MINECARTS_H
 
 Bool minecartTryUsing(ItemID_t itemId, vec4 pos, int pointToBlock);
-int  minecartParse(NBTFile file, Entity entity);
+int  minecartParse(NBTFile file, Entity entity, STRPTR id);
 int  minecartPush(Entity, float broad[6], vec dir);
 Bool minecartUpdate(Entity, float speed);
 

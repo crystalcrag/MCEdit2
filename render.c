@@ -356,7 +356,7 @@ void renderSetSelectionPoint(int action)
 	}
 }
 
-void renderSetSelection(DATA32 points)
+void renderSetSelection(int32_t points[6])
 {
 	render.debugInfo |= DEBUG_SELECTION;
 	render.inventory->offhand = 1;
@@ -1347,23 +1347,26 @@ static void renderText(NVGcontext * vg, int x, int y, STRPTR text, float a)
 /* show tooltip near mouse cursor containing some info on the block selected */
 void renderBlockInfo(SelBlock_t * sel)
 {
-	int XYZ[3];
-	if (sel->extra.entity > 0)
-		XYZ[0] = entityGetCRC(sel->extra.entity), XYZ[1] = XYZ[2] = 0;
-	else
-		XYZ[0] = sel->current[0], XYZ[1] = sel->current[1], XYZ[2] = sel->current[2];
-	if (memcmp(render.oldBlockPos, XYZ, sizeof XYZ))
+	int curCRC;
+	if (sel->extra.entity == 0)
+	{
+		/* pointing to a block: get blockId */
+		curCRC = mapGetBlockId(globals.level, sel->current, NULL);
+	}
+	else curCRC = entityGetCRC(sel->extra.entity);
+	if (curCRC != render.oldBlockCRC)
 	{
 		TEXT msg[256];
-		memcpy(render.oldBlockPos, XYZ, sizeof XYZ);
+		render.oldBlockCRC = curCRC;
 		if (sel->extra.entity == 0)
 		{
 			int id = sel->extra.blockId;
+			int XYZ[] = {sel->current[VX], sel->current[VY], sel->current[VZ]};
 
 			if (sel->extra.special == BLOCK_BED)
 			{
 				/* color is encoded in tile entity :-/ */
-				DATA8 tile = chunkGetTileEntity(sel->extra.chunk, (int[3]) {XYZ[0]&15, XYZ[1], XYZ[2]&15});
+				DATA8 tile = chunkGetTileEntity(sel->extra.chunk, (int[3]){XYZ[VX]&15, XYZ[VY], XYZ[VZ]&15});
 				if (tile)
 				{
 					struct NBTFile_t nbt = {.mem = tile};
@@ -1770,7 +1773,7 @@ void renderSaveRestoreState(Bool save)
 	}
 	else
 	{
-		memset(render.oldBlockPos, 0, sizeof render.oldBlockPos);
+		render.oldBlockCRC = 0;
 		if (render.selWnd)  SIT_InsertDialog(render.selWnd),  render.selWnd = NULL;
 		if (render.libWnd)  SIT_InsertDialog(render.libWnd),  render.libWnd = NULL;
 		if (render.editWnd) SIT_InsertDialog(render.editWnd), render.editWnd = NULL;

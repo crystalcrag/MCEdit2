@@ -117,15 +117,7 @@ static Bool entityCreateModel(const char * file, STRPTR * keys, int lineNum)
 	struct CustModel_t cust = {.vertex = index, .model = alloca(index * 4)};
 
 	/* convert model text to float */
-	for (index = 0, model ++; index < cust.vertex && IsDef(model); index ++)
-	{
-		float val = strtof(model, &model);
-		while (isspace(*model)) model ++;
-		if (*model == ',')
-			 model ++;
-		while (isspace(*model)) model ++;
-		cust.model[index] = val;
-	}
+	blockParseModelJSON(cust.model, index, model+1);
 
 	switch (FindInList("painting,item_frame", id, 0)) {
 	case 0:
@@ -153,7 +145,9 @@ static Bool entityCreateModel(const char * file, STRPTR * keys, int lineNum)
 		name = jsonValue(keys, "texAtlas");
 		cust.texId = name && strcmp(name, "ENTITIES") == 0;
 		/* TODO: other entities */
-		modelId = ITEMID(ENTITY_MINECART, 0);
+		index = FindInList(mobIdList, id, 0);
+		if (index < 0) return False;
+		modelId = ITEMID(ENTITY_MINECART + index, 0);
 	}
 
 	entityAddModel(modelId, 0, &cust, NULL, MODEL_DONT_SWAP);
@@ -182,6 +176,7 @@ Bool entityInitStatic(void)
 	entities.initVtxCount = bank->vtxCount;
 
 	worldItemInit();
+	mobEntityInit();
 
 	entities.shader = createGLSLProgram("entities.vsh", "entities.fsh", NULL);
 	return entities.shader;
@@ -420,7 +415,7 @@ static int entityGenModel(EntityBank bank, ItemID_t itemId, int cnx, CustModel c
 	else if (cust)
 	{
 		count = blockCountModelVertex(cust->model, cust->vertex);
-		blockParseModel(cust->model, cust->vertex, buffer);
+		blockParseModel(cust->model, cust->vertex, buffer, -1);
 		U = cust->U;
 		V = cust->V;
 		atlas = cust->texId;
@@ -643,7 +638,7 @@ int entityGetModelId(Entity entity)
 	{
 		if (strcasecmp(entype->type, id) == 0)
 		{
-			i = entype->cb(&nbt, entity);
+			i = entype->cb(&nbt, entity, id);
 			if (i > 0) return i;
 			break;
 		}

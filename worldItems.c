@@ -51,7 +51,7 @@ static int worldItemSwapAxis(Entity entity)
 /*
  * callbacks to parse NBT records from chunk
  */
-static int worldItemParseFallingBlock(NBTFile nbt, Entity entity)
+static int worldItemParseFallingBlock(NBTFile nbt, Entity entity, STRPTR unused)
 {
 	STRPTR block = NULL;
 	int    data  = 0;
@@ -76,7 +76,7 @@ static int worldItemParseFallingBlock(NBTFile nbt, Entity entity)
 	return 0;
 }
 
-static int worldItemParsePainting(NBTFile nbt, Entity entity)
+static int worldItemParsePainting(NBTFile nbt, Entity entity, STRPTR unused)
 {
 	int off = NBT_FindNode(nbt, 0, "Motive");
 	if (off >= 0)
@@ -91,7 +91,7 @@ static int worldItemParsePainting(NBTFile nbt, Entity entity)
 	return 0;
 }
 
-static int worldItemParseItemFrame(NBTFile nbt, Entity entity)
+static int worldItemParseItemFrame(NBTFile nbt, Entity entity, STRPTR unused)
 {
 	int item = NBT_FindNode(nbt, 0, "Item");
 	entity->entype = ENTYPE_FRAME;
@@ -127,7 +127,7 @@ static int worldItemParseItemFrame(NBTFile nbt, Entity entity)
 }
 
 /* item laying in the world */
-static int worldItemParseItem(NBTFile nbt, Entity entity)
+static int worldItemParseItem(NBTFile nbt, Entity entity, STRPTR unused)
 {
 	int desc = NBT_FindNode(nbt, 0, "Item");
 //	int count = NBT_GetInt(nbt, NBT_FindNode(nbt, desc, "Count"), 1);

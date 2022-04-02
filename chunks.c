@@ -1256,8 +1256,8 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 	memset(visited, 0, sizeof visited);
 	hasLights = (cur->cdFlags & CDFLAG_NOLIGHT) == 0;
 
-//	if (c->X == -16 && cur->Y == 48 && c->Z == -528)
-//		globals.breakPoint = 1;
+	if (c->X == 224 && cur->Y == 96 && c->Z == 992)
+		globals.breakPoint = 1;
 
 	for (Y = 0, pos = air = 0; Y < 16; Y ++)
 	{
@@ -1276,8 +1276,8 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 			block = cur->blockIds[pos];
 			state = blockGetById(ID(block, data));
 
-//			if (globals.breakPoint && pos == 496)
-//				globals.breakPoint = 2;
+			if (globals.breakPoint && pos == 2830)
+				globals.breakPoint = 2;
 
 			/* 3d flood fill for cave culling */
 			if ((slotsXZ[pos & 0xff] || slotsY[pos >> 8]) && ! blockIsFullySolid(state))
@@ -1707,8 +1707,8 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 		break;
 	case BLOCK_WALL:
 		/* need: 4 surrounding blocks (S, E, W, N), 1 bottom (only for face culling), 1 top */
-		cnxBlock = connect6blocks + 4;
-		count = 10;
+		cnxBlock = connect6blocks + 5;
+		count = 9;
 		break;
 	case BLOCK_BED:
 		cnxBlock = chunkGetTileEntityFromOffset(c, neighbors[6]->Y, pos);
@@ -1742,6 +1742,7 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 		uint16_t blockIdAndData[14];
 		uint8_t  i;
 		for (i = 0; i < count; blockIdAndData[i] = blockIds3x3[cnxBlock[i]], i ++);
+		if (b->special == BLOCK_WALL) blockIdAndData[4] = blockIdAndData[8];
 		connect = blockGetConnect(b, blockIdAndData);
 	}
 

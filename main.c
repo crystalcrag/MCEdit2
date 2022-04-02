@@ -1178,7 +1178,7 @@ void mceditPlaceBlock(void)
 	}
 	if (sel->entity > 0) /* pointing at an entity */
 	{
-		if (id == 0 /* no block selected in inventory bar */)
+		if (id == 0) /* no block selected in inventory bar */
 		{
 			if (sel->side == SIDE_ENTITY && entityDeleteById(globals.level, sel->entity))
 				renderAddModif();
@@ -1711,15 +1711,6 @@ int WINAPI WinMain(
 	int      nb, i;
 	LPWSTR * argvUTF16 = CommandLineToArgvW(GetCommandLineW(), &nb);
 	STRPTR * argvUTF8  = (STRPTR *) argvUTF16;
-
-	#if 0
-	HANDLE user32 = LoadLibraryA("user32.dll");
-	if (user32)
-	{
-		WINAPI BOOL (*proc)() = GetProcAddress(user32, "SetProcessDPIAware");
-		proc();
-	}
-	#endif
 
 	/* convert strings to UTF8 */
 	for (i = 0; i < nb; )

@@ -1,6 +1,20 @@
 =========== Week 13 ===========
+Sat Apr 2:
+	* model refactoring done.
+
+Fri Apr 1:
+	* model refactoring mostly done.
+	* cobble wall was FUBAR.
+
+Thu Mar 31:
+	* model refactoring continued.
+	* frustum culling util done: many bugs fixed.
+
+Wed Mar 30:
+	* models converted, started block parsing refactoring (again, sigh...).
+
 Tue Mar 29:
-	* started model data refactorign (at last).
+	* started model data refactorign (at last) 101/252.
 
 Mon Mar 28:
 	* nasty bug fixed when adding a TAG_List_Compound to a NBT stream.

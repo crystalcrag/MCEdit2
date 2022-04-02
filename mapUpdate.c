@@ -1216,7 +1216,7 @@ int mapUpdateIfPowered(Map map, BlockIter iterator, int oldId, int blockId, Bool
 		break;
 	case RSSTICKYPISTON:
 	case RSPISTON:
-		return mapUpdatePiston(map, iterator, blockId, init, tile, track.curUpdate);
+		return mapUpdatePiston(map, iterator, blockId, init, track.curUpdate);
 	case RSDISPENSER:
 	case RSDROPPER:
 		/* very similar to fence gate actually */

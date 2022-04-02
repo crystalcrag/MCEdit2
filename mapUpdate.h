@@ -20,7 +20,7 @@ int  mapUpdateRails(Map, int blockId, BlockIter);
 int  mapUpdatePowerRails(Map, int id, BlockIter);
 int  mapUpdateGate(BlockIter, int id, Bool init);
 int  mapUpdateDoor(BlockIter, int blockId, Bool init);
-int  mapUpdatePiston(Map, BlockIter, int blockId, Bool init, DATA8 * tile, BlockUpdate blocked);
+int  mapUpdatePiston(Map, BlockIter, int blockId, Bool init, BlockUpdate blocked);
 int  mapUpdateComparator(Map, BlockIter, int blockId, Bool init, DATA8 * tile);
 void mapUpdatePressurePlate(BlockIter iter, float entityBBox[6]);
 void mapUpdateObserver(BlockIter iter, int from);

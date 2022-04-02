@@ -141,7 +141,7 @@ void undoLog(int type, ...)
 		{
 			struct UndoBlock_t mem;
 			mem.itemId = blockId;
-			int size  = 0;
+			int size = 0;
 			if (tile)
 			{
 				/* no pointers outside this module must be stored in the journal */

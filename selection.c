@@ -1845,6 +1845,18 @@ static void selectionFindVariant(int variant[3], int blockId)
 //		variant[1]>>4, variant[1]&15, variant[2]>>4, variant[2]&15);
 }
 
+static Bool keepDataValues(int srcId, int dstId)
+{
+	Block src = &blockIds[srcId>>4];
+	Block dst = &blockIds[dstId>>4];
+	if (src->special == dst->special)
+	{
+		if (src->special == BLOCK_TRAPDOOR ||
+		    src->special == BLOCK_LEAVES ||
+		    src->special == BLOCK_PLATE) return True;
+	}
+	return False;
+}
 
 /* thread that will process block replace */
 static void selectionProcessReplace(void * unsued)
@@ -1874,33 +1886,61 @@ static void selectionProcessReplace(void * unsued)
 	if (selectionAsync.similar)
 	{
 		/* find block, stairs and slab variant of each block type */
-		selectionFindVariant(variant,   blockId);
-		selectionFindVariant(variant+3, replId);
-		variant[1] >>= 4;
-		while (dy > 0)
+		if (keepDataValues(blockId, replId))
 		{
-			for (z = dz; z > 0; z --, mapIter(&iter, -dx, 0, 1))
+			blockId >>= 4;
+			replId  >>= 4;
+			/* only replace blockIds, keep data values */
+			while (dy > 0)
 			{
-				for (x = dx; x > 0; x --, mapIter(&iter, 1, 0, 0))
+				for (z = dz; z > 0; z --, mapIter(&iter, -dx, 0, 1))
 				{
-					int srcId = iter.blockIds ? getBlockId(&iter) : 0;
-
-					if (srcId == blockId)
-						/* replace full blocks */
-						mapUpdate(map, NULL, variant[3], NULL, UPDATE_SILENT);
-					else if ((srcId >> 4) == variant[1])
-						/* replace stairs */
-						mapUpdate(map, NULL, variant[4] | (srcId&15), NULL, UPDATE_SILENT);
-					else if ((srcId & ~8) == variant[2])
-						/* replace slabs */
-						mapUpdate(map, NULL, variant[5] | (srcId&8), NULL, UPDATE_SILENT);
+					for (x = dx; x > 0; x --, mapIter(&iter, 1, 0, 0))
+					{
+						if (iter.blockIds && iter.blockIds[iter.offset] == blockId)
+						{
+							int data = getBlockId(&iter);
+							mapUpdate(map, NULL, ID(replId, data&15), NULL, UPDATE_SILENT);
+						}
+					}
+					/* emergency exit */
+					if (selectionAsync.cancel) goto break_all;
+					selectionAsync.progress[0] += dx;
 				}
-				/* emergency exit */
-				if (selectionAsync.cancel) goto break_all;
-				selectionAsync.progress[0] += dx;
+				mapIter(&iter, 0, 1, -dz);
+				dy --;
 			}
-			mapIter(&iter, 0, 1, -dz);
-			dy --;
+		}
+		else /* replace by similar types */
+		{
+			selectionFindVariant(variant,   blockId);
+			selectionFindVariant(variant+3, replId);
+			variant[1] >>= 4;
+			while (dy > 0)
+			{
+				for (z = dz; z > 0; z --, mapIter(&iter, -dx, 0, 1))
+				{
+					for (x = dx; x > 0; x --, mapIter(&iter, 1, 0, 0))
+					{
+						int srcId = iter.blockIds ? getBlockId(&iter) : 0;
+
+						if (srcId == blockId)
+							/* replace full blocks */
+							mapUpdate(map, NULL, variant[3], NULL, UPDATE_SILENT);
+						else if ((srcId >> 4) == variant[1])
+							/* replace stairs */
+							mapUpdate(map, NULL, variant[4] | (srcId&15), NULL, UPDATE_SILENT);
+						else if ((srcId & ~8) == variant[2])
+							/* replace slabs */
+							mapUpdate(map, NULL, variant[5] | (srcId&8), NULL, UPDATE_SILENT);
+					}
+					/* emergency exit */
+					if (selectionAsync.cancel) goto break_all;
+					selectionAsync.progress[0] += dx;
+				}
+				mapIter(&iter, 0, 1, -dz);
+				dy --;
+			}
 		}
 	}
 	else /* only replace <blockId> */

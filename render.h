@@ -41,7 +41,7 @@ int  renderInitUBO(void);
 void renderSetFOV(float fov);
 void renderSetFOG(int fogEnabled);
 Bool renderRotatePreview(int dir);
-void renderSetSelection(DATA32 points);
+void renderSetSelection(int32_t points[6]);
 MapExtraData renderGetSelectedBlock(vec4 pos, int * blockModel);
 
 enum /* possible values for <action> of renderSetSelectionPoint */
@@ -187,7 +187,7 @@ struct RenderWorld_t
 	int        invExt;
 	Item       toolbarItem;        /* item being hovered by mouse */
 	Message_t  message;            /* message at bottom left of screen */
-	int        oldBlockPos[3];     /* check if we need to change tooltip message */
+	int        oldBlockCRC;        /* check if we need to change tooltip message */
 	APTR       blockInfo;          /* SIT_TOOLTIP */
 	APTR       selWnd, libWnd;     /* SIT_DIALOG */
 	APTR       editWnd;            /* SIT_DIALOG */

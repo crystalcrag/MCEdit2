@@ -40,7 +40,8 @@ int     blockModelStairs(DATA16 buffer, int blockId);
 int     blockCountModelVertex(float * vert, int count);
 DATA8   blockGetDurability(float dura);
 DATA8   blockCreateTileEntity(int blockId, vec4 pos, APTR arg);
-DATA16  blockParseModel(float * values, int count, DATA16 buffer);
+DATA16  blockParseModel(float * values, int count, DATA16 buffer, int forceRot90);
+Bool    blockParseModelJSON(vec table, int max, STRPTR value);
 void    blockGetEmitterLocation(int blockId, float offset[5]);
 int     blockInvCountVertex(DATA16 model, int faceId);
 int     blockInvCopyFromModel(DATA16 ret, DATA16 model, int faceId);
@@ -252,7 +253,8 @@ enum                             /* orientation method: Block.orientHint */
 	ORIENT_SE,
 	ORIENT_LEVER,
 	ORIENT_SNOW,
-	ORIENT_VINES
+	ORIENT_VINES,
+	ORIENT_HOPPER
 };
 
 enum                             /* editable tile entity XXX deprecated */
@@ -444,14 +446,28 @@ struct BlockVertex_t       /* store custom block model vertex data (needed by ch
 	uint8_t     buffer[8];
 };
 
-#define BHDR_FACESMASK           63
-#define BHDR_INVERTNORM          0x40
-#define BHDR_CUBEMAP             0x80
+enum /* special tags in model definition */
+{
+	BHDR_FACES   = 1,
+	BHDR_CUBEMAP = 2,
+	BHDR_DETAIL  = 3,
+	BHDR_INHERIT = 4,
+	BHDR_SIZE    = 5,
+	BHDR_TR      = 6,
+	BHDR_ROT     = 7,
+	BHDR_ROTCAS  = 8,
+	BHDR_REF     = 9,
+	BHDR_ROT90   = 10,
+	BHDR_TEX     = 11,
+	BHDR_INVERT  = 12,
+	BHDR_INCFACE = 13,
+	BHDR_MAXTOK  = 14
+};
+
 #define BHDR_FUSED               0x80
 #define BHDR_FUSE                0x1000
 #define BHDR_CONTINUE            0x100
 #define BHDR_ROT90SHIFT          9
-#define BHDR_DETAILFACES         11
 #define BHDR_INCFACEID           (1<<17)
 #define SAME_AS                  -100
 #define COPY_MODEL               1e6f

@@ -93,11 +93,17 @@ enum /* transform param for entityCopyTransform() */
 
 enum /* entity id and models */
 {
-	ENTITY_UNKNOWN        = 0,     /* internal id, not saved in NBT */
-	ENTITY_PAINTINGS      = 0x800,
-	ENTITY_ITEMFRAME      = 0x801,
-	ENTITY_ITEMFRAME_FULL = 0x802,
-	ENTITY_MINECART       = 0x803,
+	/*
+	 * entity id shares the same space than items (not block ids though). So far items have been
+	 * allocated to range [0 - 0x100] (normal items) and [0x7d0 - 0x7db] (music discs); max id for
+	 * items is 0x7fff. note: those id are not saved in NBT, only for internal use.
+	 */
+	ENTITY_UNKNOWN        = 0,
+	ENTITY_PAINTINGS      = 0x400,
+	ENTITY_ITEMFRAME      = 0x401,
+	ENTITY_ITEMFRAME_FULL = 0x402,
+	ENTITY_MINECART       = 0x403,
+	ENTITY_CREEPER        = 0x404,
 	ENTITY_CHICKEN,
 	ENTITY_SHEEP,
 	ENTITY_COW,
@@ -106,10 +112,8 @@ enum /* entity id and models */
 	ENTITY_SQUID,
 	ENTITY_BAT,
 	ENTITY_ZOMBIE,
-	ENTITY_CREEPER,
 	ENTITY_SKELETON,
-	ENTITY_ENDERMAN,
-	ENTITY_FALLING
+	ENTITY_ENDERMAN
 };
 
 typedef struct Paintings_t         Paintings_t;
@@ -155,7 +159,7 @@ typedef struct EntityPhysBatch_t * EntityPhysBatch;
 typedef struct CustModel_t *       CustModel;
 typedef struct PhysicsBBox_t *     PhysicsBBox;
 
-typedef int (*EntityParseCb_t)(NBTFile, Entity);
+typedef int (*EntityParseCb_t)(NBTFile, Entity, STRPTR id);
 
 EntityModel entityGetModelById(int modelBank);
 
@@ -201,7 +205,8 @@ enum                               /* possible values for Entity_t.entype */
 	ENTYPE_FRAME     = 1,          /* item frame (no items in it) */
 	ENTYPE_FILLEDMAP = 2,          /* blockId contains map id to use on disk (data/map_%d.dat) */
 	ENTYPE_FRAMEITEM = 3,          /* blockId contains item/block id within the frame */
-	ENTYPE_MINECART  = 4
+	ENTYPE_MINECART  = 4,
+	ENTYPE_MOB       = 5,
 };
 
 struct EntityEntry_t               /* HashTable entry */
@@ -343,6 +348,10 @@ void   worldItemDelete(Entity);
 void   worldItemCreateGeneric(NBTFile nbt, Entity entity, STRPTR name);
 void   worldItemCreateBlock(Entity, Bool fallingEntity);
 void   worldItemPlaceOrCreate(Entity);
+
+void   mobEntityInit(void);
+
+extern char mobIdList[];
 
 #endif
 #endif

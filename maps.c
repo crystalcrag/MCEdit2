@@ -191,6 +191,10 @@ int mapGetBlockId(Map map, vec4 pos, MapExtraData extra)
 			case BLOCK_RSWIRE:
 				extra->cnxFlags = mapGetConnectWire(cd, offset, b);
 				break;
+			case BLOCK_WALL:
+				/* don't care about center piece for bbox */
+				extra->cnxFlags = mapGetConnect(cd, offset, b) & 15;
+				break;
 			case BLOCK_CHEST:
 			case BLOCK_FENCE:
 			case BLOCK_FENCE2:

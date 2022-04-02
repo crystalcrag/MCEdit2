@@ -450,7 +450,7 @@ Bool minecartUpdate(Entity entity, float deltaFrame)
 }
 
 /* extract info from NBT structure */
-int minecartParse(NBTFile file, Entity entity)
+int minecartParse(NBTFile file, Entity entity, STRPTR unused)
 {
 	entity->enflags |= ENFLAG_TEXENTITES | ENFLAG_HASBBOX | ENFLAG_USEMOTION;
 	entity->entype = ENTYPE_MINECART;

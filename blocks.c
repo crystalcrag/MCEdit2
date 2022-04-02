@@ -87,7 +87,15 @@ static float bboxModels[] = {
 	 311+BHDR_INCFACEID, 6,24, 4, 10, 0, 6,
 	 318+BHDR_INCFACEID, 4,24, 6,  6, 0, 0,
 	  61+BHDR_INCFACEID, 6,24, 4,  0, 0, 6,
+	 319+BHDR_FUSE,      8,16, 8,  4, 0, 4,     /* wall: simplified */
+	 315+BHDR_INCFACEID, 8,16, 4,  4, 0,12,
+	 311+BHDR_INCFACEID, 4,16, 8, 12, 0, 4,
+	 318+BHDR_INCFACEID, 8,16, 4,  4, 0, 0,
+	  61+BHDR_INCFACEID, 4,16, 8,  0, 0, 4,
 };
+
+/* how many arguments each BHDR_* tag takes */
+static uint8_t modelTagArgs[] = {0, 1, 0, 0, 0, 3, 3, 3, 3, 3, 1, 255, 0, 0, 1, 2};
 
 uint8_t blockTexResol;
 
@@ -282,6 +290,7 @@ static void blockSetUVAndNormals(DATA16 vert, int inv, int setUV, float * vertex
 	if (v1[0] < 0) dir ++;
 
 	dir = norm2face[dir];
+	texCube += dir * 4;
 	/* reverse normals */
 	if (inv) dir = invers[dir];
 
@@ -289,7 +298,6 @@ static void blockSetUVAndNormals(DATA16 vert, int inv, int setUV, float * vertex
 	if (setUV)
 	{
 		uint16_t tex[8];
-		texCube += dir * 4;
 		U = Ucoord[dir];
 		V = Vcoord[dir];
 
@@ -370,44 +378,42 @@ void blockCenterModel(DATA16 vertex, int count, int dU, int dV, Bool center, DAT
 
 int blockCountModelVertex(float * vert, int count)
 {
-	int i, j, faces, cont, cubeMap;
-	cubeMap = ((int) vert[0] & BHDR_CUBEMAP) > 0;
-	for (j = i = 0, faces = vert[0]; ; )
+	int i, arg, vertex, faces, mode;
+	for (i = vertex = faces = 0, mode = BHDR_CUBEMAP; i < count; i += arg+1)
 	{
-		cont = faces & BHDR_CONTINUE;
-		if (cubeMap && (faces & BHDR_CUBEMAP) == 0)
-			j += popcount((faces >> BHDR_DETAILFACES) & BHDR_FACESMASK) * 4;
-
-		faces = popcount(faces & BHDR_FACESMASK);
-		switch (cubeMap) {
-		case 0: j += 13 + faces * 4; break;
-		case 1: j += 13 + 6 * 4; cubeMap ++; break; /* only first line is fully defined */
-		case 2: j += 13;
+		arg = vert[i];
+		if (arg > BHDR_INCFACE) return 0;
+		switch (arg) {
+		case BHDR_FACES: faces = vert[i+1]; vertex += popcount(faces & 63) * 6; break;
+		case BHDR_TEX:   arg = mode == BHDR_DETAIL ? popcount(faces & 63) * 4 :
+		                       mode == BHDR_CUBEMAP ? 4 * 6 : 0; continue;
+		case BHDR_CUBEMAP:
+		case BHDR_DETAIL:
+		case BHDR_INHERIT: mode = arg; break;
 		}
-		i += faces * 6;
-		if (cont == 0) break;
-		faces = vert[j];
+		arg = modelTagArgs[arg];
 	}
-	return j > count ? 0 : i;
+	return vertex;
 }
 
 /*
  * main function to generate vertex data from TileFinder numbers
  */
-DATA16 blockParseModel(float * values, int count, DATA16 buffer)
+DATA16 blockParseModel(float * values, int count, DATA16 buffer, int forceRot90)
 {
 	float * vert;
-	float * first;
-	int     i, j, k, rotCas;
-	int     faces, faceId, cont;
-	uint8_t rot90step, cubeMap;
+	float * eof;
+	float * tex;
+	int     i, j, rotCas;
+	int     faces, faceId;
+	uint8_t rot90step;
 	mat4    rotCascade;
 	DATA16  start, p;
 
-	vert = first = values;
-	rot90step = (int) vert[0] >> BHDR_ROT90SHIFT;
-	cubeMap = ((int) vert[0] & BHDR_CUBEMAP) > 0;
 	faceId = 0;
+	rotCas = 0;
+	rot90step = forceRot90 < 0 ? 0 : forceRot90;
+	tex = NULL;
 	matIdent(rotCascade);
 
 	/* count the vertex needed for this model */
@@ -418,63 +424,84 @@ DATA16 blockParseModel(float * values, int count, DATA16 buffer)
 	DATA16 out = buffer ? buffer : blockAllocVertex(i);
 
 	/* scan each primitives */
-	for (p = out, rotCas = 0, i = 13; ; )
+	for (p = out, vert = values, eof = vert + count; vert < eof; )
 	{
-		float * tex;
 		float * coord;
-		float   trans[3];
-		int     nbRot = 0, idx;
-		int     inv, detail;
+		float   size[3];
+		float   trans[6];
+		int     idx;
+		uint8_t nbRot, inv, detail, resetRC, center;
 		mat4    rotation, rot90, tmp;
 
-		/* vert[0]: faces:0-5, inv normals:6, cubeMap:7, continue:8, rot90:9-10, detailFaces:11-16, incFaceId:17 */
-		faces = vert[0];
-		if (faces & BHDR_INCFACEID)
-			faceId += 1<<8, matIdent(rotCascade), rotCas = 0;
-
-		/* rotation cascading to other primitives */
-		for (cont = 0; cont < 3; cont ++)
+		if (vert[0] != BHDR_FACES) break;
+		faces   = vert[1];
+		vert   += 2;
+		inv     = 0;
+		center  = 1;
+		nbRot   = 0;
+		resetRC = 0;
+		detail  = BHDR_CUBEMAP;
+		matIdent(rotation);
+		matIdent(rot90);
+		trans[VX] = trans[VY] = trans[VZ] = -0.5f;
+		memset(size,  0, sizeof size);
+		/* get all the information about one primitive */
+		while (vert < eof && vert[0] != BHDR_FACES)
 		{
-			float v = vert[10+cont];
-			if (v != 0)
-			{
-				matRotate(tmp, v * DEG_TO_RAD, cont);
-				matMult(rotCascade, rotCascade, tmp);
-				rotCas ++;
+			switch ((int) vert[0]) {
+			case BHDR_CUBEMAP: detail = BHDR_CUBEMAP; break;
+			case BHDR_DETAIL:  detail = BHDR_DETAIL; break;
+			case BHDR_INHERIT: detail = BHDR_INHERIT; break;
+			case BHDR_INCFACE: faceId += 1<<8; resetRC = 1; break;
+			case BHDR_INVERT:  inv = True; break;
+			case BHDR_ROT90:   if (forceRot90 < 0) rot90step = vert[1] / 90; break;
+			case BHDR_TR:
+				trans[VX] = vert[1] / 16 - 0.5f;
+				trans[VY] = vert[2] / 16 - 0.5f;
+				trans[VZ] = vert[3] / 16 - 0.5f;
+				break;
+			case BHDR_REF:
+				trans[VX+3] = vert[1] / 16;
+				trans[VY+3] = vert[2] / 16;
+				trans[VZ+3] = vert[3] / 16;
+				center = False;
+				break;
+			case BHDR_ROTCAS:
+				/* rotation cascading to other primitives */
+				for (i = 1; i <= 3; i ++)
+				{
+					float v = vert[i];
+					if (v != 0)
+					{
+						matRotate(tmp, v * DEG_TO_RAD, i-1);
+						matMult(rotCascade, rotCascade, tmp);
+						rotCas ++;
+					}
+				}
+				break;
+			case BHDR_SIZE:
+				size[VX] = vert[1] / 16;
+				size[VY] = vert[2] / 16;
+				size[VZ] = vert[3] / 16;
+				break;
+			case BHDR_ROT:
+				for (i = 1; i <= 3; i ++)
+				{
+					float v = vert[i];
+					if (v != 0)
+					{
+						matRotate(tmp, v * DEG_TO_RAD, i-1);
+						matMult(rotation, rotation, tmp);
+						nbRot ++;
+					}
+				}
+				break;
+			case BHDR_TEX:
+				if (detail != BHDR_INHERIT)
+					tex = vert + 1, vert += (detail == BHDR_CUBEMAP ? 6 : popcount(faces)) * 4 + 1;
+				continue;
 			}
-		}
-
-		detail = 0;
-		cont   = faces & BHDR_CONTINUE;
-		inv    = faces & BHDR_INVERTNORM;
-		vert ++;
-		tex = vert + 12;
-		/* if cube map, already move <tex> to next block (and only first line has full tex) */
-		if (cubeMap && p == out) tex += 4*6;
-		if (cubeMap && (faces & BHDR_CUBEMAP) == 0)
-			detail = faces >> BHDR_DETAILFACES;
-		faces &= BHDR_FACESMASK;
-
-		/* first 12 floats encodes: dimension, translation, rotation, and model rotation */
-		if (vert[6] != 0)
-			matRotate(rotation, vert[6] * DEG_TO_RAD, VX), nbRot ++;
-
-		if (vert[7] != 0)
-		{
-			matRotate(tmp, vert[7] * DEG_TO_RAD, VY), nbRot ++;
-			if (nbRot == 1)
-				memcpy(rotation, tmp, sizeof tmp);
-			else
-				matMult(rotation, rotation, tmp);
-		}
-
-		if (vert[8] != 0)
-		{
-			matRotate(tmp, vert[8] * DEG_TO_RAD, VZ), nbRot ++;
-			if (nbRot == 1)
-				memcpy(rotation, tmp, sizeof tmp);
-			else
-				matMult(rotation, rotation, tmp);
+			vert += modelTagArgs[(int) vert[0]] + 1;
 		}
 
 		switch (rot90step) {
@@ -483,32 +510,40 @@ DATA16 blockParseModel(float * values, int count, DATA16 buffer)
 		case 3: matRotate(rot90, M_PI+M_PI_2, VY);
 		}
 
-		trans[0] = vert[3] / 16 - 0.5f;
-		trans[1] = vert[4] / 16 - 0.5f;
-		trans[2] = vert[5] / 16 - 0.5f;
-
-		for (j = idx = 0, start = p; faces; j ++, faces >>= 1, detail >>= 1)
+		for (i = idx = 0, start = p; faces; i ++, faces >>= 1)
 		{
 			if ((faces & 1) == 0) { idx += 4; continue; }
 
-			for (k = 0, coord = tmp; k < 4; k ++, idx ++, p += INT_PER_VERTEX, coord += 3)
+			for (j = 0, coord = tmp; j < 4; j ++, idx ++, p += INT_PER_VERTEX, coord += 3)
 			{
 				DATA8 v = cubeVertex + cubeIndices[idx];
 				int val;
-				coord[0] = v[0] * vert[0]/16;
-				coord[1] = v[1] * vert[1]/16;
-				coord[2] = v[2] * vert[2]/16;
+				coord[VX] = v[VX] * size[VX];
+				coord[VY] = v[VY] * size[VY];
+				coord[VZ] = v[VZ] * size[VZ];
 				if (nbRot > 0)
 				{
 					/* rotation centered on block */
-					float tr[3] = {vert[0]/32, vert[1]/32, vert[2]/32};
+					float tr[3];
+					if (center)
+					{
+						tr[VX] = size[VX] * 0.5f;
+						tr[VY] = size[VY] * 0.5f;
+						tr[VZ] = size[VZ] * 0.5f;
+					}
+					else
+					{
+						tr[VX] = trans[VX+3] - 0.5f - trans[VX];
+						tr[VY] = trans[VY+3] - 0.5f - trans[VY];
+						tr[VZ] = trans[VZ+3] - 0.5f - trans[VZ];
+					}
 					vecSub(coord, coord, tr);
 					matMultByVec3(coord, rotation, coord);
 					vecAdd(coord, coord, tr);
 				}
-				coord[0] += trans[0];
-				coord[1] += trans[1];
-				coord[2] += trans[2];
+				coord[VX] += trans[VX];
+				coord[VY] += trans[VY];
+				coord[VZ] += trans[VZ];
 				/* rotate entire model */
 				if (rotCas > 0)
 					matMultByVec3(coord, rotCascade, coord);
@@ -520,14 +555,14 @@ DATA16 blockParseModel(float * values, int count, DATA16 buffer)
 				 * X, Y, Z can vary between -7.5 and 23.5; each mapped to [0 - 65535];
 				 * coord[] is centered around 0,0,0 (a cube of unit 1 has vertices of +/- 0.5)
 				 */
-				val = roundf((coord[0] + 0.5f) * BASEVTX) + ORIGINVTX; p[0] = MIN(val, 65535);
-				val = roundf((coord[1] + 0.5f) * BASEVTX) + ORIGINVTX; p[1] = MIN(val, 65535);
-				val = roundf((coord[2] + 0.5f) * BASEVTX) + ORIGINVTX; p[2] = MIN(val, 65535);
+				val = roundf((coord[VX] + 0.5f) * BASEVTX) + ORIGINVTX; p[VX] = MIN(val, 65535);
+				val = roundf((coord[VY] + 0.5f) * BASEVTX) + ORIGINVTX; p[VY] = MIN(val, 65535);
+				val = roundf((coord[VZ] + 0.5f) * BASEVTX) + ORIGINVTX; p[VZ] = MIN(val, 65535);
 				/* needed for blockSetUVAndNormals() */
-				coord[0] += 0.5f;
-				coord[1] += 0.5f;
-				coord[2] += 0.5f;
-				if (cubeMap == 0 || (detail & 1))
+				coord[VX] += 0.5f;
+				coord[VY] += 0.5f;
+				coord[VZ] += 0.5f;
+				if (detail == BHDR_DETAIL)
 				{
 					div_t res = div(tex[0], 513);
 					tex ++;
@@ -536,8 +571,8 @@ DATA16 blockParseModel(float * values, int count, DATA16 buffer)
 				}
 			}
 			/* recompute normal vector because of rotation */
-			blockSetUVAndNormals(p - 20, inv, cubeMap && (detail & 1) == 0, tmp, values + i);
-			/* will allow the vertex shader to discard some faces (blocks with auto-connected parts) */
+			blockSetUVAndNormals(p - 20, inv, detail != BHDR_DETAIL, tmp, tex);
+			/* will allow the mesh generation to discard some faces (blocks with auto-connected parts) */
 			p[-1] |= faceId; p[-11] |= faceId;
 			p[-6] |= faceId; p[-16] |= faceId;
 			/* opengl needs triangles not quads though */
@@ -556,29 +591,11 @@ DATA16 blockParseModel(float * values, int count, DATA16 buffer)
 			memcpy(p+5, p - 10, BYTES_PER_VERTEX);
 			p += INT_PER_VERTEX*2;
 		}
+		if (resetRC) matIdent(rotCascade), rotCas = 0;
 		/* marks the beginning of a new primitive (only needed by bounding box) */
 		if (start > out) start[4] |= NEW_BBOX;
-		vert = tex;
-		if (cont == 0) break;
 	}
 	return out;
-}
-
-/* rotate a custom model by 90deg step */
-static DATA16 blockRotateModel(int id, int orient)
-{
-	int count = blocks.modelCount[id];
-
-	if (count > 0)
-	{
-		float * model   = blocks.lastModel + blocks.modelRef[id];
-		int     current = (int) model[0] & ~ (3 << BHDR_ROT90SHIFT);
-
-		model[0] = current | (orient & (3 << BHDR_ROT90SHIFT));
-
-		return blockParseModel(model, count, NULL);
-	}
-	return NULL;
 }
 
 /* some blocks are just retextured from other models: too tedious to copy vertex data all over the place */
@@ -647,6 +664,35 @@ static void blockExtractEmitterLoction(DATA16 model, DATA8 loc, int box)
 	loc[0] = min[0] * 16 / BASEVTX; loc[3] = max[0] * 16 / BASEVTX;
 	loc[2] = min[2] * 16 / BASEVTX; loc[5] = max[2] * 16 / BASEVTX;
 	loc[1] = loc[4] = max[1] * 16 / BASEVTX;
+}
+
+/* convert symbols into numeric and parse float */
+Bool blockParseModelJSON(vec table, int max, STRPTR value)
+{
+	int index;
+	for (index = 0; index < max && IsDef(value); index ++)
+	{
+		/* identifier must be upper case */
+		if ('A' <= value[0] && value[0] <= 'Z')
+		{
+			STRPTR end;
+			int token;
+			for (end = value + 1; *end && *end != ','; end ++);
+			token = FindInList("FACES,TEX_CUBEMAP,TEX_DETAIL,TEX_INHERIT,SIZE,TR,ROT,ROTCAS,REF,ROT90,TEX,INVERT,INC_FACEID,COPY,SAME_AS", value, end-value) + 1;
+			if (token == 0) return False;
+			if (token == BHDR_MAXTOK) token = COPY_MODEL; else
+			if (token == BHDR_MAXTOK+1) token = SAME_AS;
+			table[index] = token;
+			value = end;
+		}
+		else table[index]= strtof(value, &value);
+
+		while (isspace(*value)) value ++;
+		if (*value == ',')
+			value ++;
+		while (isspace(*value)) value ++;
+	}
+	return True;
 }
 
 /*
@@ -750,7 +796,7 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 		value = jsonValue(keys, "orient");
 		if (value)
 		{
-			block.orientHint = FindInList("LOG,FULL,BED,SLAB,TORCH,STAIRS,NSWE,SWNE,DOOR,RAILS,SE,LEVER,SNOW,VINES", value, 0)+1;
+			block.orientHint = FindInList("LOG,FULL,BED,SLAB,TORCH,STAIRS,NSWE,SWNE,DOOR,RAILS,SE,LEVER,SNOW,VINES,HOPPER", value, 0)+1;
 			if (block.orientHint == 0)
 			{
 				SIT_Log(SIT_ERROR, "%s: unknown orient hint '%s' on line %d\n", file, value, line);
@@ -885,33 +931,18 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 		value = jsonValue(keys, "invmodel");
 		if (value && value[0] == '[')
 		{
-			STRPTR  start;
-			int     count = StrCount(value, ',') + 1;
-			float * table = alloca(count * sizeof *table);
-			for (count = 0, value ++; IsDef(value); count ++)
+			int count = StrCount(value, ',') + 1;
+			vec table = alloca(count * sizeof *table);
+			if (! blockParseModelJSON(table, count, value + 1))
 			{
-				start = value;
-				if (strncasecmp(value, "COPY", 4) == 0)
-				{
-					table[count] = COPY_MODEL;
-					value += 4;
-				}
-				else table[count] = strtof(value, &value);
-				if (strncasecmp(value, "+BHDR_INCFACEID", 15) == 0)
-					table[count] += BHDR_INCFACEID, value += 15;
-				if (*value == ',') value ++;
-				while (isspace(*value)) value ++;
-				if (value == start)
-				{
-					SIT_Log(SIT_ERROR, "%s: bad value on line %d\n", file, line);
-					return False;
-				}
+				SIT_Log(SIT_ERROR, "%s: bad value on line %d\n", file, line);
+				return False;
 			}
 			if (table[0] == COPY_MODEL)
 			{
 				block.copyModel = table[1];
 			}
-			else block.model = blockParseModel(table, count, NULL);
+			else block.model = blockParseModel(table, count, NULL, -1);
 			block.invState = (block.orientHint != ORIENT_BED);
 		}
 
@@ -1172,35 +1203,14 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 		if (value && value[0] == '[')
 		{
 			/* pre-parse table */
-			int     count = StrCount(++ value, ',') + 1;
-			float * table = alloca(sizeof (float) * count);
-			int     index;
-			for (index = 0; index < count && IsDef(value); index ++)
+			int count = StrCount(++ value, ',') + 1;
+			vec table = alloca(sizeof (float) * count);
+			if (! blockParseModelJSON(table, count, value))
 			{
-				float val;
-				if (strncasecmp(value, "SAME_AS", 7) == 0)
-				{
-					val = SAME_AS;
-					value += 7;
-				}
-				else if (strncasecmp(value, "COPY", 4) == 0)
-				{
-					val = COPY_MODEL;
-					value += 4;
-				}
-				else val = strtof(value, &value);
-
-				if (strncasecmp(value, "+BHDR_INCFACEID", 15) == 0)
-				{
-					val += BHDR_INCFACEID;
-					value += 15;
-				}
-				while (isspace(*value)) value ++;
-				if (*value == ',')
-					value ++;
-				while (isspace(*value)) value ++;
-				table[index] = val;
+				SIT_Log(SIT_ERROR, "%s: bad value on line %d\n", file, line);
+				return False;
 			}
+
 			if (table[0] == SAME_AS)
 			{
 				BlockState old = blockGetById((int) table[1]);
@@ -1211,7 +1221,17 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 					/* we'll know that this model is a carbon copy of an earlier one (save some mem) */
 					state.ref = blockStates + blocks.totalStates - old;
 				}
-				else state.custModel = blockRotateModel(old->id & 15, table[2]);
+				else
+				{
+					count = blocks.modelCount[old->id & 15];
+
+					if (count > 0)
+					{
+						float * model = blocks.lastModel + blocks.modelRef[old->id & 15];
+
+						state.custModel = blockParseModel(model, count, NULL, table[2] / 90);
+					}
+				}
 			}
 			else if (table[0] == COPY_MODEL)
 			{
@@ -1221,7 +1241,7 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 			}
 			else
 			{
-				state.custModel = blockParseModel(table, count, NULL);
+				state.custModel = blockParseModel(table, count, NULL, -1);
 
 				if (state.custModel == NULL)
 				{
@@ -1669,12 +1689,14 @@ void blockParseInventory(int vbo)
 
 VTXBBox blockGetBBoxForVertex(BlockState b)
 {
+	/* bbox used for display (they are slightly offseted to prevent z-fighting) */
 	int index = b->bboxId;
 	return index == 0 ? NULL : blocks.bbox + index;
 }
 
 VTXBBox blockGetBBox(BlockState b)
 {
+	/* bbox for collision detection */
 	int index = b->bboxId;
 	if (b->special == BLOCK_FENCE || b->special == BLOCK_FENCE2)
 	{
@@ -2122,6 +2144,7 @@ void blockParseBoundingBox(void)
 				case BLOCK_GLASS:  j = 10; break;
 				case BLOCK_RSWIRE: j = 11; break;
 				case BLOCK_FENCE:  j = 12; break;
+				case BLOCK_WALL:   j = 13; break;
 				}
 				break;
 			case QUAD:
@@ -2387,6 +2410,7 @@ int blockAdjustOrient(int blockId, BlockOrient info, vec4 inter)
 	static uint8_t orientLever[]  = {3, 1, 4, 2, 5, 7, 6, 0};
 	static uint8_t orientSWNE[]   = {0, 3, 2, 1};
 	static uint8_t orientSNEW[]   = {0, 2, 1, 3};
+	static uint8_t orientHopper[] = {2, 4, 3, 5};
 	extern int8_t  opp[];
 
 	uint8_t side = info->side;
@@ -2458,6 +2482,10 @@ int blockAdjustOrient(int blockId, BlockOrient info, vec4 inter)
 			return info->pointToId + 1;
 		}
 		break;
+	case ORIENT_HOPPER:
+		if (side == SIDE_TOP || side == SIDE_BOTTOM)
+			return (blockId & ~15);
+		return (blockId & ~15) | orientHopper[side];
 	default:
 		/* special block placement */
 		switch (b->special) {
@@ -2767,6 +2795,7 @@ int blockGenModel(int vbo, int blockId)
 				break;
 			case BLOCK_FENCE:
 			case BLOCK_FENCE2:
+			case BLOCK_WALL:
 				/* only center piece */
 				vtx = blockInvCopyFromModel(buffer, b->custModel, 0);
 				break;
@@ -3177,31 +3206,31 @@ int blockGetConnect(BlockState b, DATA16 neighbors)
 	case BLOCK_CHEST: /* 4 neighbors */
 		/* use orientation to check connection */
 		ret = 1;
-		middle = b->id >> 4;
-		if ((b->id & 0xf) < 4)
+		type = b->id >> 4;
+		if ((b->id & 15) < 4)
 		{
 			/* oriented N/S */
-			if ((neighbors[3] >> 4) == middle) ret = 2; else
-			if ((neighbors[1] >> 4) == middle) ret = 4;
+			if ((neighbors[3] >> 4) == type) ret = 2; else
+			if ((neighbors[1] >> 4) == type) ret = 4;
 		}
 		else /* oriented E/W */
 		{
-			if ((neighbors[2] >> 4) == middle) ret = 4; else
-			if ((neighbors[0] >> 4) == middle) ret = 2;
+			if ((neighbors[2] >> 4) == type) ret = 4; else
+			if ((neighbors[0] >> 4) == type) ret = 2;
 		}
 		if (ret > 1 && (b->id & 1)) ret = 6-ret;
 		break;
 	case BLOCK_FENCE:
 	case BLOCK_FENCE2: /* 4 neighbors */
 		return blockGetConnect4(neighbors, type);
-	case BLOCK_WALL: /* 6 neighbors */
-		ret = blockGetConnect4(neighbors+5, type);
+	case BLOCK_WALL: /* 5 neighbors */
+		ret = blockGetConnect4(neighbors, type);
 		/* if not connected to exactly 2 walls, drawn a bigger center piece */
-		if ((ret != 5 && ret != 10) || neighbors[13] > 0)
+		if ((ret != 5 && ret != 10) || neighbors[4] > 0)
 			ret |= 16;
-		nbor = blockGetById(neighbors[4]);
-		if (nbor->type == SOLID)
-			ret |= 32; /* do some face culling */
+//		nbor = blockGetById(neighbors[4]);
+//		if (nbor->type == SOLID)
+//			ret |= 32; /* do some face culling */
 		break;
 	case BLOCK_GLASS: /* 12 bit parts - glass pane/iron bars */
 		/* middle: bit4~7 */

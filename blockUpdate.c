@@ -250,6 +250,26 @@ void mapUpdateBlock(Map map, struct BlockIter_t iter, int blockId, int oldBlockI
 				mapUpdateRailsChain(map, iter, blockId, 4, blockId & 8);
 			}
 			break;
+		case BLOCK_CHEST:
+			/* check if neighbor is a chest and has same orientation */
+			i = blockId >> 4;
+			if ((blockId & 15) < 4)
+			{
+				/* oriented N/S */
+				if ((neighbors[3] >> 4) == i) i = 3; else
+				if ((neighbors[1] >> 4) == i) i = 1; else break;
+			}
+			else /* oriented E/W */
+			{
+				if ((neighbors[2] >> 4) == i) i = 2; else
+				if ((neighbors[0] >> 4) == i) i = 0; else break;
+			}
+			if (neighbors[i] != blockId)
+			{
+				/* not the same orient: adjust then */
+				mapIter(&iter, relx[i], 0, relz[i]);
+				mapUpdateTable(&iter, blockId & 15, DATA_OFFSET);
+			}
 		}
 		for (i = 0; i < 6; i ++)
 		{
@@ -334,7 +354,7 @@ void mapUpdateBlock(Map map, struct BlockIter_t iter, int blockId, int oldBlockI
 							continue;
 						break;
 					default:
-						if (! blockIsAttached(neighbors[i], opp[i], False))
+						if (! blockIsAttached(neighbors[i], opp[i], i == 4))
 							continue;
 					}
 					break_block:
@@ -609,7 +629,7 @@ static Bool mapUpdateIsPistonActivated(struct BlockIter_t iter, int blockId)
 }
 
 /* add tile entity for piston extension: <iter> points at piston block */
-static void mapUpdateAddPistonExt(Map map, struct BlockIter_t iter, int blockId, Bool extend, DATA8 * tile_ret)
+static void mapUpdateAddPistonExt(Map map, struct BlockIter_t iter, int blockId, Bool extend)
 {
 	uint8_t ext = blockSides.piston[blockId & 7];
 	vec4    src = {iter.x + iter.ref->X, iter.yabs, iter.z + iter.ref->Z};
@@ -656,9 +676,6 @@ static void mapUpdateAddPistonExt(Map map, struct BlockIter_t iter, int blockId,
 		chunkAddTileEntity(ref, (int[3]) {(int) dest[VX] & 15, dest[VY], (int) dest[VZ] & 15}, ret.mem);
 	}
 	else mapUpdate(map, dest, ID(RSPISTONEXT, 0), ret.mem, UPDATE_KEEPLIGHT | UPDATE_DONTLOG);
-
-	if (tile_ret)
-		*tile_ret = ret.mem;
 
 	blockId = itemGetByName(NBT_PayloadFromStream(ret.mem, 0, "id"), False);
 	/* create or update the moving piston head */
@@ -740,7 +757,7 @@ void mapUpdateToBlock36(Map map, RSWire list, int count, int dir, BlockIter iter
 }
 
 /* power level near piston has changed */
-int mapUpdatePiston(Map map, BlockIter iterator, int blockId, Bool init, DATA8 * tile, BlockUpdate blockedBy)
+int mapUpdatePiston(Map map, BlockIter iterator, int blockId, Bool init, BlockUpdate blockedBy)
 {
 	/* it is MAXPUSH * 2, because some items can be destroyed in the process (and do not count toward MAXPUSH limit) */
 	struct RSWire_t connect[MAXPUSH*2];
@@ -761,7 +778,7 @@ int mapUpdatePiston(Map map, BlockIter iterator, int blockId, Bool init, DATA8 *
 		/* <0 == movement is blocked */
 		if (count < 0) return blockId;
 
-		mapUpdateAddPistonExt(map, *iterator, blockId, False, NULL);
+		mapUpdateAddPistonExt(map, *iterator, blockId, False);
 		mapUpdateToBlock36(map, connect, count, opp[avoid], iterator);
 
 		if (blockedBy)
@@ -781,7 +798,7 @@ int mapUpdatePiston(Map map, BlockIter iterator, int blockId, Bool init, DATA8 *
 
 		/* convert all blocks pushed to block 36 (in reverse order) */
 		mapUpdateToBlock36(map, EOT(connect) - count, count, avoid, iterator);
-		mapUpdateAddPistonExt(map, *iterator, blockId, True, init ? tile : NULL);
+		mapUpdateAddPistonExt(map, *iterator, blockId, True);
 
 		if (init)
 			blockId |= 8;
@@ -954,7 +971,7 @@ int mapActivateBlock(BlockIter iter, vec4 pos, int blockId)
 	default:
 		switch (FindInList(
 			"unpowered_repeater,powered_repeater,cake,lever,stone_button,"
-			"wooden_button,cocoa_beans,cauldron,comparator", b->tech, 0)) {
+			"wooden_button,cocoa_beans,cauldron,comparator,anvil", b->tech, 0)) {
 		case 0:
 		case 1: /* repeater: bit3~4: delay */
 			if ((blockId & 12) == 12) blockId &= ~12;
@@ -983,6 +1000,7 @@ int mapActivateBlock(BlockIter iter, vec4 pos, int blockId)
 			else return 0;
 			break;
 		case 6: /* cocoa beans: cycle through different growth stage */
+		case 9: /* anvil: toggle between damaged state */
 			if ((blockId & 15) < 8) blockId += 4;
 			else                    blockId &= 0xfff0;
 			break;
