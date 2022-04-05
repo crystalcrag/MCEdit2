@@ -137,7 +137,7 @@ struct ChunkFake_t
 {
 	ChunkFake next;
 	uint32_t  usage;
-	uint8_t   total;
+//	uint8_t   total;
 	uint8_t   buffer[0]; /* more bytes will follow */
 };
 

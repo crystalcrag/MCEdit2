@@ -70,7 +70,11 @@ Bool skydomeInit(void)
 	glActiveTexture(GL_TEXTURE3); glBindTexture(GL_TEXTURE_2D, skydome.texTint2);
 	glActiveTexture(GL_TEXTURE4); glBindTexture(GL_TEXTURE_2D, skydome.texSun);
 	glActiveTexture(GL_TEXTURE5); glBindTexture(GL_TEXTURE_2D, skydome.texClouds);
-	glActiveTexture(GL_TEXTURE6); /* XXX needs to be active for texClouds to work ??? why? */
+	/*
+	 * XXX needs to be active for texClouds to work ??? why?
+	 * => probably because if we later to a glBindTexture(GL_TEXTURE_2D), we will shange GL_TEXTURE5 instead, without this :-/
+	 */
+	glActiveTexture(GL_TEXTURE6);
 
 	float arg = 1;
 	setShaderValue(skydome.shader, "weather",   1, &arg); arg = 0;

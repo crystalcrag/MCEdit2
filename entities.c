@@ -144,10 +144,14 @@ static Bool entityCreateModel(const char * file, STRPTR * keys, int lineNum)
 	default:
 		name = jsonValue(keys, "texAtlas");
 		cust.texId = name && strcmp(name, "ENTITIES") == 0;
-		/* TODO: other entities */
 		index = FindInList(mobIdList, id, 0);
-		if (index < 0) return False;
+		if (index < 0)
+		{
+			SIT_Log(SIT_ERROR, "%s: unknown entity type", id);
+			return False;
+		}
 		modelId = ITEMID(ENTITY_MINECART + index, 0);
+		mobEntityProcess(modelId, cust.model, cust.vertex);
 	}
 
 	entityAddModel(modelId, 0, &cust, NULL, MODEL_DONT_SWAP);
@@ -166,10 +170,10 @@ Bool entityInitStatic(void)
 	if (! jsonParse(RESDIR "entities.js", entityCreateModel))
 		return False;
 
-	entities.type = calloc(sizeof *entities.type, 8);
-	entities.typeMax = 8;
+	entities.type = calloc(sizeof *entities.type, 23);
+	entities.typeMax = 23;
 	entities.typeCount = 0;
-	entities.texEntity = textureLoad(RESDIR, "entities.png", 1, NULL);
+	entities.texEntity = textureLoad(RESDIR, "entities.png", 1, mobEntityProcessTex);
 
 	EntityBank bank = HEAD(entities.banks);
 	entities.initModelCount = bank->modelCount;
@@ -184,8 +188,28 @@ Bool entityInitStatic(void)
 
 void entityRegisterType(STRPTR id, EntityParseCb_t cb)
 {
-	EntityType type = entities.type + entities.typeCount;
-	type->type = id;
+	int slot = crc32(0, id, strlen(id)+1) % entities.typeMax;
+	EntityType type, first, eof;
+
+	if (entities.typeCount > entities.typeMax - 2)
+	{
+		puts("TODO: enlarge hash");
+		return;
+	}
+
+	for (type = first = entities.type + slot, eof = entities.type + entities.typeMax; type->id; )
+	{
+		type ++;
+		if (type == eof)
+			type = entities.type;
+	}
+	if (first != type)
+	{
+		type->next = first->next;
+		first->next = type - entities.type;
+	}
+	else type->next = -1;
+	type->id = id;
 	type->cb = cb;
 	entities.typeCount ++;
 }
@@ -351,8 +375,9 @@ static int entityGenModel(EntityBank bank, ItemID_t itemId, int cnx, CustModel c
 	uint16_t U, V;
 	uint16_t sizes[3];
 	uint16_t atlas;
+	uint16_t faceId;
 
-	U = V = atlas = 0;
+	U = V = atlas = faceId = 0;
 	buffer += bank->vtxCount * INT_PER_VERTEX;
 	if (isBlockId(itemId))
 	{
@@ -418,12 +443,13 @@ static int entityGenModel(EntityBank bank, ItemID_t itemId, int cnx, CustModel c
 		blockParseModel(cust->model, cust->vertex, buffer, -1);
 		U = cust->U;
 		V = cust->V;
+		faceId = cust->faceId;
 		atlas = cust->texId;
 	}
 	else count = itemGenMesh(itemId, buffer), center = 0;
 
 	/* entities have their position centered in the middle of their bbox */
-	blockCenterModel(buffer, count, U, V, center, sizes);
+	blockCenterModel(buffer, count, U, V, faceId, center, sizes);
 	glUnmapBuffer(GL_ARRAY_BUFFER);
 	bank->vtxCount += count;
 
@@ -633,17 +659,20 @@ int entityGetModelId(Entity entity)
 
 	/* check for a registered type */
 	EntityType entype;
-	int i;
-	for (entype = entities.type, i = entities.typeCount; i > 0; i --, entype ++)
+	int slot = crc32(0, id, strlen(id)+1) % entities.typeMax;
+	for (entype = entities.type + slot; entype->id; )
 	{
-		if (strcasecmp(entype->type, id) == 0)
+		if (strcmp(entype->id, id) == 0)
 		{
-			i = entype->cb(&nbt, entity, id);
-			if (i > 0) return i;
-			break;
+			slot = entype->cb(&nbt, entity, id);
+			if (slot > 0) return slot;
+			else goto not_found;
 		}
+		if (entype->next < 0) goto not_found;
+		entype = entities.type + entype->next;
 	}
 
+	not_found:
 	entity->szx = entity->szy = entity->szz = BASEVTX; /* 1x1x1 */
 	return ENTITY_UNKNOWN;
 }

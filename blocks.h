@@ -22,7 +22,7 @@ void    blockParseConnectedTexture(void);
 void    blockParseBoundingBox(void);
 void    blockParseInventory(int vbo);
 void    blockPostProcessTexture(DATA8 * data, int * w, int * h, int bpp);
-void    blockCenterModel(DATA16 vertex, int count, int U, int V, Bool shiftY, DATA16 sizes);
+void    blockCenterModel(DATA16 vertex, int count, int U, int V, int faceId, Bool shiftY, DATA16 sizes);
 int     blockGetConnect(BlockState, DATA16 neighbors);
 VTXBBox blockGetBBox(BlockState);
 VTXBBox blockGetBBoxForVertex(BlockState);
@@ -478,7 +478,7 @@ enum /* special tags in model definition */
 #define GET_NORMAL(vertex)       (((vertex)[4] >> 3) & 7)
 
 #define SET_UVCOORD(vertex,U,V)  ((vertex)[3] = (U) | ((V) & ~7) << 6, (vertex)[4] = (V) & 7)
-#define CHG_UVCOORD(vertex,U,V)  ((vertex)[3] = (U) | ((V) & ~7) << 6, (vertex)[4] &= ~7, (vertex)[4] |= (V) & 7)
+#define CHG_UVCOORD(vertex,U,V)  ((vertex)[3] = (U) | ((V) & ~7) << 6, (vertex)[4] = ((vertex)[4] & ~7) | ((V) & 7))
 
 #define STR_POOL_SIZE            (4096 - offsetof(struct BlockVertex_t, buffer))
 

@@ -1981,6 +1981,7 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 
 		/* generate one quad (see internals.html for format) */
 		{
+			static uint8_t oppSideBlock[] = {16, 14, 10, 12, 22, 4};
 			DATA8    coord = cubeVertex + cubeIndices[i+3];
 			uint16_t texU  = (texCoord[j]   + tex[0]) << 4;
 			uint16_t texV  = (texCoord[j+1] + tex[1]) << 4;
@@ -2005,7 +2006,10 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 
 			/* flip tex */
 			if (texCoord[j] == texCoord[j + 6]) out[5] |= FLAG_TEX_KEEPX;
-			if (b->special == BLOCK_LIQUID && i < SIDE_TOP * 4) out[5] |= FLAG_ANIMATE;
+			/* XXX disable sky fog for underwater blocks: fog makes them way brighter than they should be */
+			if (blockIds[blockIds3x3[oppSideBlock[i>>2]] >> 4].special == BLOCK_LIQUID && (skyBlock[oppSideBlock[i>>2]] >> 4) < 12)
+				/* XXX need to render water in a separate pass and use depth buffer from this pass instead */
+				out[5] |= FLAG_UNDERWATER;
 
 			/* sky/block light values: 2*4bits per vertex = 4 bytes needed, ambient occlusion: 2bits per vertex = 1 byte needed */
 			for (k = 0; k < 4; k ++)

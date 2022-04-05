@@ -104,16 +104,26 @@ enum /* entity id and models */
 	ENTITY_ITEMFRAME_FULL = 0x402,
 	ENTITY_MINECART       = 0x403,
 	ENTITY_CREEPER        = 0x404,
-	ENTITY_CHICKEN,
-	ENTITY_SHEEP,
-	ENTITY_COW,
+	ENTITY_COW            = 0x405,
+	ENTITY_PIG            = 0x406,
+	ENTITY_SHEEP          = 0x407,
+	ENTITY_SHEEPWOOL      = 0x408,
+	ENTITY_CHICKEN        = 0x409,
+	ENTITY_SQUID          = 0x410,
+	ENTITY_LLAMA,
+	ENTITY_BEAR,
+	ENTITY_SLIME,
+	ENTITY_SPIDER,
 	ENTITY_MOOSHROOM,
 	ENTITY_HORSE,
-	ENTITY_SQUID,
 	ENTITY_BAT,
 	ENTITY_ZOMBIE,
 	ENTITY_SKELETON,
-	ENTITY_ENDERMAN
+	ENTITY_ENDERMAN,
+	ENTITY_XPORB,
+	ENTITY_IRONGOLEM,
+	ENTITY_SNOWMAN,
+	ENTITY_ZISTEAU
 };
 
 typedef struct Paintings_t         Paintings_t;
@@ -256,8 +266,9 @@ struct EntityBank_t                /* contains models up to 65536 vertices (BANK
 
 struct EntityType_t                /* callbacks to parse content of NBT records */
 {
-	STRPTR          type;          /* one callback per entity id */
 	EntityParseCb_t cb;
+	STRPTR          id;            /* one callback per entity id */
+	int             next;          /* linked list within hash table */
 };
 
 struct PhysicsBBox_t               /* to alloc bbox at the same time */
@@ -288,6 +299,7 @@ struct EntitiesPrivate_t           /* static vars for entity.c */
 	int          typeMax;
 	int          shader;
 	int          texEntity;
+	int          texTerrain;
 	/* clear fields below on map exit */
 	int          animCount;
 	int          animMax;
@@ -304,12 +316,13 @@ struct EntityAnim_t
 	Entity   entity;
 };
 
-struct CustModel_t
+struct CustModel_t                 /* custom entity model (instead of being derived from block models) */
 {
-	float *  model;
-	uint16_t vertex;
-	uint16_t texId;
-	uint16_t U, V;
+	float *  model;                /* vertex data from TileFinder (converted to num) */
+	uint16_t vertex;               /* number of items in <model> */
+	uint8_t  texId;                /* 0: terrain tex, 1: entity tex */
+	uint8_t  faceId;               /* relocate tex only for these face */
+	uint16_t U, V;                 /* relocate texture (px unit) */
 };
 
 void   entityRegisterType(STRPTR id, EntityParseCb_t);
@@ -350,6 +363,8 @@ void   worldItemCreateBlock(Entity, Bool fallingEntity);
 void   worldItemPlaceOrCreate(Entity);
 
 void   mobEntityInit(void);
+void   mobEntityProcessTex(DATA8 * data, int * width, int * height, int bpp);
+void   mobEntityProcess(int entityId, float * model, int count);
 
 extern char mobIdList[];
 

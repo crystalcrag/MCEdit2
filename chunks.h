@@ -116,12 +116,6 @@ enum /* flags for Chunk.cflags */
  * CFLAG_HAS_ENTITY: entites are loaded and rendered (lazy chunks must not load any though).
  */
 
-enum /* extra flags for Chunk.noChunks */
-{
-	NOCHUNK_FRUSTUMCHECK = 0x40,       /* reduce the number of FakeChunk alloc */
-	NOCHUNK_ISINTRUSTUM  = 0xc0,
-};
-
 enum /* flags for ChunkData.cdFlags */
 {
 	CDFLAG_CHUNKAIR     = 0x0001,      /* chunk is a full of air (sky = 15, light = 0, data = 0) */
@@ -152,7 +146,7 @@ enum /* NBT update tag (type parameter of chunkMarkForUpdate) */
 #define FLAG_TEX_KEEPX                 (1 << 12)
 #define FLAG_DUAL_SIDE                 (1 << 13)
 #define FLAG_TRIANGLE                  (1 << 14)
-#define FLAG_ANIMATE                   (1 << 15)
+#define FLAG_UNDERWATER                (1 << 15)
 
 #ifdef CHUNK_IMPL                      /* private stuff below */
 

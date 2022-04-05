@@ -171,9 +171,6 @@ msgstr "Sélectionner votre dossier"
 msgid "&#x25cf; Player mode will toggle between survival, creative and spectator"
 msgstr "&#x25cf; Le mode de jeu basculera entre survie, créatif ou spectateur"
 
-msgid "Configuration\tKey bindings\tMenu commands\tGraphics"
-msgstr "Configuration\tTouche clavier\tCommandes\tGraphisme"
-
 msgid "(need restart)"
 msgstr "(redémarrage requis)"
 
@@ -769,3 +766,35 @@ msgstr "Résolution plein écran"
 
 msgid "<unknown>"
 msgstr "<inconnu>"
+
+msgid "Zoom"
+msgstr "Vue rapprochée"
+
+msgid "Selection up"
+msgstr "Sélection vers le haut"
+
+msgid "Selection down"
+msgstr "Sélection vers le bas"
+
+msgid "Frame advance"
+msgstr "Mode trame par trame"
+
+msgid "Location saved"
+msgstr "Position sauvée"
+
+msgid "Switch to extended selection <b>(shortcut: %s)</b><br>"
+      "Click to select which point to set/change <b>(shortcut: 0 [zero])</b>"
+msgstr "Passer en mode sélection étendue <b>(raccourci: %s)</b><br>"
+       "Cliquez pour sélectionner le point à changer <b>(raccourci: 0 [zéro])</b>"
+
+msgid "shortcut"
+msgstr "raccourci"
+
+msgid "Use '%s' to advance next frame, Esc to exit this mode"
+msgstr "Utilisez la touche '%s' pour avancer d'une trame. 'Échap' pour quitter ce mode"
+
+msgid "This shortcuts are mostly useful for debugging.<br>You might want to disable them"
+msgstr "Ces raccourcis ne sont utiles qu'à des fins de diagnostique.<br>Il est préférable de les désactiver"
+
+msgid "Configuration\tKey bindings\tMenu commands\tGraphics\tExtra"
+msgstr "Configuration\tTouche clavier\tCommandes\tGraphisme\tExtra"

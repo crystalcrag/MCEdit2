@@ -16,7 +16,6 @@ flat in vec2  baseTex;
 flat in uint  rswire;
 flat in uint  ocsmap;
 flat in uint  normal;
-flat in uint  animate;
 
 layout (binding=0) uniform sampler2D blockTex; // Main texture for blocks
 
@@ -28,11 +27,7 @@ uniform uint timeMS;      // time in millisec
 
 void main(void)
 {
-	if (animate > 0)
-	{
-		color = texture(blockTex, vec2(tc.x, baseTex.y + mod(float(tc.y - double(timeMS) * 0.000001), 16*TEX_COORD_Y)));
-	}
-	else color = texture(blockTex, tc);
+	color = texture(blockTex, tc);
 	// prevent writing to the depth buffer: easy way to handle opacity for transparent block
 	if (color.a < 0.004)
 		discard;

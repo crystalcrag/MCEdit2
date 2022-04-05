@@ -329,7 +329,7 @@ static void blockSetUVAndNormals(DATA16 vert, int inv, int setUV, float * vertex
 }
 
 /* needed by entity models */
-void blockCenterModel(DATA16 vertex, int count, int dU, int dV, Bool center, DATA16 sizes)
+void blockCenterModel(DATA16 vertex, int count, int dU, int dV, int faceId, Bool center, DATA16 sizes)
 {
 	uint16_t buffer[6];
 	DATA16   start = vertex;
@@ -337,7 +337,7 @@ void blockCenterModel(DATA16 vertex, int count, int dU, int dV, Bool center, DAT
 	int      i, U, V;
 	memset(min = buffer,   0xff, 3 * sizeof *min);
 	memset(max = buffer+3, 0x00, 3 * sizeof *max);
-	for (i = 0; i < count; i ++, vertex += INT_PER_VERTEX)
+	for (i = 0, faceId <<= 8; i < count; i ++, vertex += INT_PER_VERTEX)
 	{
 		uint16_t x = vertex[0], y = vertex[1], z = vertex[2];
 		if (min[0] > x) min[0] = x;   if (max[0] < x) max[0] = x;
@@ -345,12 +345,14 @@ void blockCenterModel(DATA16 vertex, int count, int dU, int dV, Bool center, DAT
 		if (min[2] > z) min[2] = z;   if (max[2] < z) max[2] = z;
 
 		/* shift texture U, V */
-		U = GET_UCOORD(vertex) + dU;
-		V = GET_VCOORD(vertex) + dV;
-		if (U == 512)  U = 511;
-		if (V == 1024) V = 1023;
-
-		CHG_UVCOORD(vertex, U, V);
+		if ((vertex[4] & 0x7f00) == faceId)
+		{
+			U = GET_UCOORD(vertex) + dU;
+			V = GET_VCOORD(vertex) + dV;
+			if (U == 512)  U = 511;
+			if (V == 1024) V = 1023;
+			CHG_UVCOORD(vertex, U, V);
+		}
 	}
 	uint16_t shift[3];
 

@@ -30,7 +30,6 @@ flat out vec2  baseTex;
 flat out uint  rswire;
 flat out uint  ocsmap;
 flat out uint  normal;
-flat out uint  animate;
 
 void main(void)
 {
@@ -54,7 +53,6 @@ void main(void)
 
 	rswire = normal == 7 ? (skyBlockLight[0] & 15) + 1 : 0;
 	ocsmap = ocsField[0];
-	animate = normFlags[0] & (1 << 6);
 
 	vec3 V1 = vertex1[0];
 	vec3 V2 = vertex2[0];
@@ -107,7 +105,7 @@ void main(void)
 	shadeSky *= sky * clamp(1 + MIN_BRIGHTNESS * 0.1, 1.0, 1.07) / 15;
 
 	// fogStrength == how much fragment will blend with sky, 0 = normal fragment color, 1 = fragment will use sky color
-	if (FOG_DISTANCE > 0)
+	if (FOG_DISTANCE > 0 && (normFlags[0] & (1 << 6)) == 0)
 	{
 		float fogStrength = clamp(distance(camera.xz, (V1.xz+V4.xz) * 0.5) / FOG_DISTANCE, 0.0, 1.0);
 		fogFactor = 1 - fogStrength * fogStrength;

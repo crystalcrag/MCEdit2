@@ -1,6 +1,15 @@
+=========== Week 14 ===========
+Mon Apr 4:
+	* added colored sheeps, chicken and squid models.
+
 =========== Week 13 ===========
+Sun Apr 3:
+	* moar entity models and more fixes for TileFinder.
+	* frustum culling backport to 3d space.
+
 Sat Apr 2:
 	* model refactoring done.
+	* added more entity models (creeper, cow, pig), at last!
 
 Fri Apr 1:
 	* model refactoring mostly done.
@@ -8,13 +17,13 @@ Fri Apr 1:
 
 Thu Mar 31:
 	* model refactoring continued.
-	* frustum culling util done: many bugs fixed.
+	* frustum culling utility done: many bugs fixed.
 
 Wed Mar 30:
 	* models converted, started block parsing refactoring (again, sigh...).
 
 Tue Mar 29:
-	* started model data refactorign (at last) 101/252.
+	* started model data refactoring (at last) 101/252.
 
 Mon Mar 28:
 	* nasty bug fixed when adding a TAG_List_Compound to a NBT stream.

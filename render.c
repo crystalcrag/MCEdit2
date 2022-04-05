@@ -27,6 +27,7 @@
 #include "undoredo.h"
 #include "nanovg.h"
 #include "SIT.h"
+#include "zlib.h" /* crc32 */
 #include "globals.h"
 
 struct RenderWorld_t render;
@@ -398,21 +399,22 @@ void renderPointToBlock(int mx, int my)
 
 		if (hover->id > 0 && hover != render.toolbarItem)
 		{
+			TEXT message[256];
 			render.toolbarItem = hover;
 			renderShowBlockInfo(True, DEBUG_BLOCK);
 			if (item == 9)
 			{
-				SIT_SetValues(render.blockInfo, SIT_Title,
-					"Switch to extended selection <b>(shortcut: G)</b><br>"
-					"Click to select which point to set/change <b>(shortcut: 0 [zero])</b>.",
-					NULL
+				snprintf(message, sizeof message,
+					LANG("Switch to extended selection <b>(shortcut: %s)</b><br>"
+					     "Click to select which point to set/change <b>(shortcut: 0 [zero])</b>."),
+					keyGetText(KBD_SWITCH_OFFHAND)
 				);
+				SIT_SetValues(render.blockInfo, SIT_Title, message, NULL);
 			}
 			else
 			{
-				TEXT extra[32];
-				sprintf(extra, "<br><b>shortcut: %c</b>", '1' + item);
-				inventorySetTooltip(render.blockInfo, hover, extra);
+				snprintf(message, sizeof message, "<br><b>%s: %c</b>", LANG("shortcut"), '1' + item);
+				inventorySetTooltip(render.blockInfo, hover, message);
 			}
 		}
 		if (hover->id == 0)
@@ -1351,7 +1353,7 @@ void renderBlockInfo(SelBlock_t * sel)
 	if (sel->extra.entity == 0)
 	{
 		/* pointing to a block: get blockId */
-		curCRC = mapGetBlockId(globals.level, sel->current, NULL);
+		curCRC = crc32(crc32(0, (DATA8) &sel->extra.blockId, sizeof sel->extra.blockId), (DATA8) sel->current, 3 * sizeof (float));
 	}
 	else curCRC = entityGetCRC(sel->extra.entity);
 	if (curCRC != render.oldBlockCRC)

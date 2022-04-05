@@ -24,13 +24,30 @@
 //#define SLOW_CHUNK_LOAD   /* load 1 chunk (entire column) per second */
 
 static struct Frustum_t frustum = {
-	#if 0
-	.neighbors    = {0x0000161b, 0x00004c36, 0x000190d8, 0x000341b0, 0x006c1600, 0x00d84c00, 0x03619000, 0x06c34000},
-	.chunkOffsets = {44,36,38,40,32,34,41,33,35,12,4,6,8,0,2,9,1,3,28,20,22,24,16,18,25,17,19}
-	#else
-	.neighbors    = {0x00410632, 0x0020431a, 0x001014a6, 0x0008098e, 0x04070070, 0x0202c058, 0x01043064, 0x0080a84c},
-	.chunkOffsets = {0,32,1,2,4,8,16,33,34,36,40,3,9,17,6,18,12,20,24,35,41,38,44,19,25,22,28}
-	#endif
+	.neighbors    = {0x0202a02c, 0x00809426, 0x002202a9, 0x00081263, 0x0101601c, 0x00404c16, 0x00110199, 0x00040953},
+	.chunkOffsets = {0,1,2,4,8,16,32,3,9,17,33,6,18,34,12,20,36,24,40,19,35,25,41,22,38,28,44}
+};
+
+static uint8_t edgeCheck[] = {
+	/* 6 one step away + 12 two steps away */
+	19+0,   19+8, 19+16, 19+24, 19+32, 19+40,
+	19+48, 19+50, 19+52, 19+54, 19+56, 19+58,
+	19+60, 19+62, 19+64, 19+66, 19+68, 19+70,
+	19+72,
+
+	/* 1 step from center: S, E, N, W, T, B (4 lines to check) */
+	2, 3, 3, 7, 6, 7, 6, 2,
+	3, 1, 1, 5, 5, 7, 7, 3,
+	1, 7, 7, 4, 4, 5, 5, 1,
+	0, 2, 2, 6, 6, 4, 4, 0,
+	4, 5, 5, 7, 7, 6, 6, 4,
+	0, 1, 1, 3, 3, 2, 2, 0,
+
+	/* 2 steps from center (1 line to check) */
+	7, 3, 6, 2, 6, 7, 2, 3,
+	5, 1, 7, 5, 3, 1, 0, 4,
+	4, 5, 0, 1, 4, 6, 0, 2,
+
 };
 
 /* given a direction encodded as bitfield (S, E, N, W), return offset of where that chunk is */
@@ -1321,6 +1338,8 @@ static void mapFreeFakeChunk(ChunkData cd)
 	Chunk     c  = cd->chunk;
 	cf->usage &= ~(1 << slot);
 	c->layer[cd->Y>>4] = NULL;
+
+	//fprintf(stderr, "free fake chunk at %d, %d, %d: %d\n", c->X, cd->Y, c->Z, cd->slot);
 }
 
 static int mapGetOutFlags(Map map, ChunkData cur, DATA8 outflags)
@@ -1336,9 +1355,7 @@ static int mapGetOutFlags(Map map, ChunkData cur, DATA8 outflags)
 		if (neighbor->chunkFrame != map->frame)
 		{
 			memset(neighbor->outflags, UNVISITED, sizeof neighbor->outflags);
-			neighbor->cdIndex = 255;
 			neighbor->chunkFrame = map->frame;
-			neighbor->noChunks &= ~ NOCHUNK_ISINTRUSTUM;
 		}
 		int Y = layer + (dir[i]>>4);
 		if ((sector = neighbor->outflags[Y]) & UNVISITED)
@@ -1368,21 +1385,7 @@ static int mapGetOutFlags(Map map, ChunkData cur, DATA8 outflags)
 	return neighbors;
 }
 
-static Bool chunkAtBottomIsVisible(Chunk chunk)
-{
-	/* check the center top of the bottomest chunk */
-	float B[] = {chunk->X + 8, chunk->maxy << 4, chunk->Z + 8};
-	/* only need to check if VY is within the frustum */
-	vec A = globals.matMVP;
-	/* the test is not perfect, but the worst case scenario is to alloc more fake chunk than necessary */
-	float clipY = A[A10]*B[VX] + A[A11]*B[VY] + A[A12]*B[VZ] + A[A13];
-	float clipW = A[A30]*B[VX] + A[A31]*B[VY] + A[A32]*B[VZ] + A[A33];
-
-	chunk->noChunks |= NOCHUNK_FRUSTUMCHECK;
-	return -clipW <= clipY && clipY <= clipW;
-}
-
-static ChunkData mapAddToVisibleList(Map map, Chunk from, int direction, int layer, int frame)
+static ChunkData mapAddToVisibleList(Map map, Chunk from, int direction, int layer, DATA8 outFlagsFrom, int frame)
 {
 	static int8_t dir[] = {0, 1, -1};
 	uint8_t dirFlags = frustum.chunkOffsets[direction];
@@ -1402,9 +1405,7 @@ static ChunkData mapAddToVisibleList(Map map, Chunk from, int direction, int lay
 	if (c->chunkFrame != frame)
 	{
 		memset(c->outflags, UNVISITED, sizeof c->outflags);
-		c->cdIndex = 255;
 		c->chunkFrame = frame;
-		c->noChunks &= ~ NOCHUNK_ISINTRUSTUM;
 	}
 	if ((c->cflags & CFLAG_HASMESH) == 0)
 	{
@@ -1424,61 +1425,44 @@ static ChunkData mapAddToVisibleList(Map map, Chunk from, int direction, int lay
 	 * As we get farther from the camera, we might eventually intersect with these, that's why we have
 	 * to add those fake chunks along the bottom plane of the frustum.
 	 */
-	if (Y >= c->maxy)
+	cd = c->layer[Y];
+	if (cd == NULL)
 	{
-		if (Y >= CHUNK_LIMIT)
+		if (Y >= CHUNK_LIMIT || direction >= 19 || (c->outflags[Y] & VISIBLE))
 			return NULL;
-		struct ChunkData_t dummy;
-		uint8_t out[9];
-		dummy.chunk = c;
-		dummy.Y = Y << 4;
 
-		/* note: at this point, we know that the chunk is intersecting with the frustum */
-		mapGetOutFlags(map, &dummy, out);
-
-		switch (c->noChunks & NOCHUNK_ISINTRUSTUM) {
-		case NOCHUNK_ISINTRUSTUM:
-			/* a lower ChunkData is in frustum, no need to add a fake chunk */
-			if (c->cdIndex == 255)
-				return NULL;
-			break;
-		/* if only has NOCHUNK_FRUSTUMCHECK, it means that this test has been done, but bottomest chunk is not visible: need a fake chunk */
-		case 0:
-			/* test not done yet */
-			if (c->cdIndex == 255 && chunkAtBottomIsVisible(c))
+		/* check if faces/edges cross bottom plane */
+		DATA8 edges = edgeCheck + edgeCheck[direction - 1];
+		DATA8 end   = edgeCheck + edgeCheck[direction];
+		while (edges < end)
+		{
+			if ((outFlagsFrom[edges[0]] ^ outFlagsFrom[edges[1]]) & 4)
 			{
-				/* check if there is a path to this chunk though */
-				if ((from->noChunks & NOCHUNK_ISINTRUSTUM) == NOCHUNK_ISINTRUSTUM)
+				#if 0
+				if (Y > 0 && (c->outflags[Y-1] & VISIBLE))
 				{
-					/* yes, there will be a chunk that will be in the frustum */
-					c->noChunks |= NOCHUNK_ISINTRUSTUM;
+					fprintf(stderr, "not allocating fake chunk because lower one is visible\n");
+					/* lower chunk is visible */
+					c->outflags[Y] |= VISIBLE;
 					return NULL;
 				}
+				#endif
+				cd = mapAllocFakeChunk(map);
+				cd->Y = Y << 4;
+				cd->chunk = c;
+				cd->frame = frame;
+				c->layer[Y] = cd;
+/*				if (map->fakeMax == 1)
+					puts("==========================");
+				fprintf(stderr, "allocating fake chunk at %d, %d, %d: %d\n", c->X, cd->Y, c->Z, cd->slot);
+*/				goto break_all;
 			}
+			edges += 2;
 		}
+		return NULL;
+	}
 
-		/* but, we only want chunks that are intersecting the bottom plane of the frustum */
-		if (Y < c->cdIndex && c->outflags[Y] < VISIBLE)
-		{
-			/* fake chunks are alloced above ground, make sure we are going downward if we alloc some */
-			c->cdIndex = Y;
-			cd = mapAllocFakeChunk(map);
-			cd->Y = Y << 4;
-			cd->chunk = c;
-			c->layer[Y] = cd;
-			#ifdef FRUSTUM_DEBUG
-			fprintf(stderr, "alloc fake chunk at %d, %d: %d [from %d, %d, %d: %x,%x,%x,%x]\n", c->X, c->Z, Y<<4,
-				from->X, from->Z, layer<<4, out[0], out[1], out[2], out[3]);
-			#endif
-		}
-		else return NULL;
-	}
-	else
-	{
-		if ((c->noChunks & NOCHUNK_FRUSTUMCHECK) == 0)
-			c->noChunks |= NOCHUNK_ISINTRUSTUM;
-		cd = c->layer[Y];
-	}
+	break_all:
 	if (cd && c->outflags[Y] < VISIBLE)
 	{
 		/* not visited yet */
@@ -1497,6 +1481,10 @@ static void mapCullCave(ChunkData cur, vec4 camera)
 	Chunk   chunk = cur->chunk;
 	int     X = chunk->X;
 	int     Z = chunk->Z;
+	int     frame = chunk->chunkFrame;
+
+//	if (chunk->X == 224 && chunk->Z == 976)
+//		puts("here");
 
 	/* try to get back to a known location from <cur> */
 	for (i = 0; i < 3; i ++)
@@ -1527,21 +1515,22 @@ static void mapCullCave(ChunkData cur, vec4 camera)
 		neighbor = chunk->layer[(cur->Y >> 4) + TB[oppSide]];
 		side     = 1 << opp[oppSide];
 
-		if (neighbor == NULL)
+		if (neighbor && chunk->chunkFrame != frame) continue;
+		if (neighbor == NULL || neighbor->slot > 0)
 		{
 			/* high column without neighbor: consider this chunk visible */
 			cur->comingFrom = side;
 			break;
 		}
-		if (neighbor->comingFrom > 0 /* can be visited */ && neighbor->slot == 0 /* non-fake chunk */)
+		if (neighbor->comingFrom > 0 /* can be visited */)
 		{
 			extern uint16_t hasCnx[]; /* from chunks.c */
 			if (neighbor->comingFrom == 255)
 			{
 				/* starting pos: multiple paths possible */
-				static uint16_t canGoTo[] = { /* S, E, N, W, T, B */
-					1+2+4+8+16, 1+32+64+128+256, 2+32+512+1024+2048, 4+64+512+4096+8192,
-					8+128+1024+4096+16384, 16+256+2048+8192+16384
+				static int canGoTo[] = { /* S, E, N, W, T, B */
+					1+2+4+8+16+(1<<15), 1+32+64+128+256+(1<<16), 2+32+512+1024+2048+(1<<17), 4+64+512+4096+8192+(1<<18),
+					8+128+1024+4096+16384+(1<<19), 16+256+2048+8192+16384+(1<<20)
 				};
 				if (neighbor->cnxGraph & canGoTo[oppSide])
 				{
@@ -1674,18 +1663,15 @@ void mapViewFrustum(Map map, vec4 camera)
 	cur->visible = NULL;
 	cur->comingFrom = 255;
 	memset(chunk->outflags, UNVISITED, sizeof chunk->outflags);
-	chunk->cdIndex = frame;
 	chunk->outflags[cur->Y>>4] |= VISIBLE;
 	frame = ++ map->frame;
 	chunk->chunkFrame = frame;
+	/* limit cave fog check */
 	renderDist = ((map->maxDist >> 1) - 1) * ((map->maxDist >> 1) - 1) * 256;
 	checkFog = NULL;
-	if (chunkAtBottomIsVisible(chunk))
-		chunk->noChunks |= NOCHUNK_ISINTRUSTUM;
-	else
-		chunk->noChunks = (chunk->noChunks & ~NOCHUNK_ISINTRUSTUM) | NOCHUNK_FRUSTUMCHECK;
+//	puts("=====================================");
 
-	for (last = cur; cur; cur = cur->visible)
+	for (last = cur; cur; cur = *prev)
 	{
 		uint8_t outflags[9];
 		int     i, neighbors;
@@ -1699,16 +1685,30 @@ void mapViewFrustum(Map map, vec4 camera)
 		fprintf(stderr, "chunk %d, %d, %d: outflags = %d,%d,%d,%d,%d,%d,%d,%d\n", chunk->X, chunk->Z, cur->Y,
 			outflags[0], outflags[1], outflags[2], outflags[3], outflags[4], outflags[5], outflags[6], outflags[7]);
 		#endif
+		//if (chunk->X == 224 && chunk->Z == 976)
+		//	puts("here");
 
 		/* up to 26 neighbor chunks can be added for the 8 corners */
-		for (i = 0; neighbors; i ++, neighbors >>= 1)
+		for (i = 1; neighbors; i ++, neighbors >>= 1)
 		{
 			if ((neighbors & 1) == 0) continue;
-			ChunkData cd = mapAddToVisibleList(map, chunk, i, center[1], frame);
+			ChunkData cd = mapAddToVisibleList(map, chunk, i, center[1], outflags, frame);
 			if (cd)
 			{
-				last->visible = cd;
-				last = cd;
+				/* by culling chunk early, it will prune huge branch of chunks from frustum */
+				mapCullCave(cd, camera);
+				//cd->comingFrom = 1;
+				/* fake chunks (slot > 0) must not be culled (yet) */
+				if (cd->comingFrom > 0 || cd->slot > 0)
+				{
+					last->visible = cd;
+					last = cd;
+					cd->frame = frame;
+				}
+				else /* ignore this chunk */
+				{
+					map->chunkCulled ++;
+				}
 			}
 		}
 
@@ -1716,13 +1716,13 @@ void mapViewFrustum(Map map, vec4 camera)
 		if (outflags[8] >= 2)
 		{
 			static uint8_t faces[] = {
-				/* numbers reference boxPts, order is B, S, E, N, W, T */
-				0, 1, 2, 3,
+				/* numbers reference boxPts, order is S, E, N, W, T, B */
 				3, 2, 7, 6,
 				1, 3, 5, 7,
 				0, 1, 4, 5,
 				2, 0, 6, 4,
 				4, 5, 6, 7,
+				0, 1, 2, 3,
 			};
 			DATA8 p;
 			for (i = 0, p = faces; i < sizeof faces/4; i ++, p += 4)
@@ -1741,14 +1741,22 @@ void mapViewFrustum(Map map, vec4 camera)
 				     popcount(sector1 ^ sector3) >= 2))
 				{
 					/* face crosses a plane: add chunk connected to it to the visible list */
-					ChunkData cd = mapAddToVisibleList(map, chunk, i+1, center[1], frame);
+					ChunkData cd = mapAddToVisibleList(map, chunk, i+1, center[1], outflags, frame);
 					if (cd)
 					{
-						#ifdef FRUSTUM_DEBUG
-						fprintf(stderr, "extra chunk added: %d, %d [%d]\n", chunk->X, chunk->Z, cd->Y);
-						#endif
-						last->visible = cd;
-						last = cd;
+						mapCullCave(cd, camera);
+						//cd->comingFrom = 1;
+						/* fake chunks (slot > 0) must not be culled (yet) */
+						if (cd->comingFrom > 0 || cd->slot > 0)
+						{
+							#ifdef FRUSTUM_DEBUG
+							fprintf(stderr, "extra chunk added: %d, %d [%d]\n", chunk->X, chunk->Z, cd->Y);
+							#endif
+							last->visible = cd;
+							last = cd;
+							cd->frame = frame;
+						}
+						else map->chunkCulled ++;
 					}
 				}
 			}
@@ -1757,36 +1765,30 @@ void mapViewFrustum(Map map, vec4 camera)
 		if (cur->slot > 0 || cur->glBank == NULL)
 		{
 			/* fake or empty chunk: remove from list */
+			*prev = cur->visible;
 			if (cur->slot > 0)
 				mapFreeFakeChunk(cur);
-			else /* still need to mark from which direction we went */
-				mapCullCave(cur, camera);
-			*prev = cur->visible;
 		}
 		else
 		{
-			mapCullCave(cur, camera);
-			if (cur->comingFrom > 0)
+			renderAddToBank(cur);
+//			fprintf(stderr, "adding chunk %d, %d, %d from %d to visible list\n",
+//				chunk->X, cur->Y, chunk->Z, cur->comingFrom);
+			prev = &cur->visible;
+			cur->cdFlags &= ~ CDFLAG_EDGESENW;
+			/* setup cave fog flags */
+			if (! checkFog)
 			{
-				renderAddToBank(cur);
-				prev = &cur->visible;
-				cur->frame = frame;
-				cur->cdFlags &= ~ CDFLAG_EDGESENW;
-				/* setup cave fog flags */
-				if (! checkFog)
-				{
-					float dx = camera[VX] - chunk->X;
-					float dz = camera[VZ] - chunk->Z;
-					/* 90% of chunks don't need this information */
-					if (dx * dx + dz * dz >= renderDist)
-						checkFog = cur;
-				}
+				float dx = camera[VX] - chunk->X;
+				float dz = camera[VZ] - chunk->Z;
+				/* 90% of chunks don't need this information */
+				if (dx * dx + dz * dz >= renderDist)
+					checkFog = cur;
 			}
-			else /* ignore this chunk */
-				*prev = cur->visible, map->chunkCulled ++;
 		}
 	}
 
+	/* cannot check this in the previous loop: beed all the information first */
 	for (cur = checkFog; cur; cur = cur->visible)
 	{
 		int i;
