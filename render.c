@@ -142,15 +142,19 @@ static void renderSelection(void)
 				}
 				break;
 			case PLACEMENT_OK:
-				offset = cubeNormals + render.selection.extra.side * 4;
-				loc[0] = render.selection.current[0] + offset[0];
-				loc[1] = render.selection.current[1] + offset[1];
-				loc[2] = render.selection.current[2] + offset[2];
-				if (mapGetBlockId(globals.level, loc, NULL) != 0)
+				if (blockIds[info.pointToId>>4].special != BLOCK_POT)
 				{
-					render.selection.selFlags |= SEL_NOCURRENT;
-					return;
+					offset = cubeNormals + render.selection.extra.side * 4;
+					loc[0] = render.selection.current[0] + offset[0];
+					loc[1] = render.selection.current[1] + offset[1];
+					loc[2] = render.selection.current[2] + offset[2];
+					if (mapGetBlockId(globals.level, loc, NULL) != 0)
+					{
+						render.selection.selFlags |= SEL_NOCURRENT;
+						return;
+					}
 				}
+				else info.keepPos = 1;
 			}
 		}
 

@@ -35,6 +35,10 @@ int8_t railsNeigbors[] = { /* find the potential 2 neighbors of a rail based on 
 /* minecraft update order is S, E, W, N; default neighbor enumeration will be ordered S, E, N, W */
 static uint8_t mcNextOrder[] = {1, 3, 4, 2};
 
+/* blocks accepted by flower pot */
+TEXT flowerPotList[] =
+	"yellow_flower,red_flower,sapling,cactus,brown_mushroom,red_mushroom,cactus,tall_grass";
+
 void mapUpdateChangeRedstone(Map map, BlockIter iterator, int side, RSWire dir);
 
 /* update "Data" NBT array */
@@ -930,6 +934,55 @@ void mapUpdateObserver(BlockIter iterator, int from)
 		if ((blockId >> 4) == RSOBSERVER && (blockId & 8) == 0 && blockSides.piston[blockId&7] == opp[i])
 			updateAdd(&iter, blockId | 8, 1);
 	}
+}
+
+int mapUpdatePot(int blockId, ItemID_t itemId, DATA8 * tile)
+{
+	NBTFile_t nbt = {.mem = *tile};
+	int curItemId = itemGetByName(NBT_Payload(&nbt, NBT_FindNode(&nbt, 0, "Item")), False);
+	if (itemId == 0)
+	{
+		/* delete item in the pot */
+		if (curItemId == 0)
+			/* already empty: delete pot then */
+			return 2;
+	}
+	else /* check if item can be placed in pot */
+	{
+		uint8_t data = itemId & 15;
+		/* yellow_flower,red_flower,sapling,cactus,brown_mushroom,red_mushroom,cactus,tall_grass */
+		switch (FindInList(flowerPotList, blockIds[itemId>>4].tech, 0)) {
+		case 0: if (data > 0) return 0; break;
+		case 1: if (data > 8) return 0; break;
+		case 2: if (data > 5) return 0; break;
+		case -1: return 0;
+		}
+	}
+	if (itemId > 0)
+		curItemId |= NBT_GetInt(&nbt, NBT_FindNode(&nbt, 0, "Data"), 0);
+	if (curItemId == itemId)
+		return 0;
+
+	/* recreate tile entity */
+	static uint8_t tileBuffer[256];
+	TEXT itemInPot[64];
+	itemGetTechName(itemId, itemInPot, sizeof itemInPot, False);
+	memset(&nbt, 0, sizeof nbt);
+	/* tile will be dup'ed right after, no need to alloc anything here */
+	nbt.mem = tileBuffer;
+	nbt.max = sizeof tileBuffer;
+	/* note: coordinates will be reset in mapUpdate(), no need to bother right now */
+	NBT_Add(&nbt,
+		TAG_String, "Item", itemInPot,
+		TAG_Byte,   "Data", itemId & 15,
+		TAG_Int,    "x",    0,
+		TAG_Int,    "y",    0,
+		TAG_Int,    "z",    0,
+		TAG_String, "id",   blockIds[blockId>>4].tech,
+		TAG_Compound_End
+	);
+	*tile = nbt.mem;
+	return 1;
 }
 
 /* return the activated state of <blockId>, but does not modify any tables */

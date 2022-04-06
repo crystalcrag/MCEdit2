@@ -197,6 +197,7 @@ enum                             /* values for Block_t.special */
 	BLOCK_PLATE,                 /* pressure plate */
 	BLOCK_SOLIDOUTER,            /* custom model with solid cube as outer face (slime block) */
 	BLOCK_JITTER,                /* add a small random XYZ offset to block mesh (QUAD only) */
+	BLOCK_POT,                   /* flower pot: need to check for tile entity */
 	BLOCK_LASTSPEC,
 	BLOCK_BED,
 

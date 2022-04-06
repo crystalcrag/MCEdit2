@@ -1,4 +1,7 @@
 =========== Week 14 ===========
+Tue Apr 5:
+	* flower pot: rendering and editing.
+
 Mon Apr 4:
 	* added colored sheeps, chicken and squid models.
 

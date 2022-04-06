@@ -1187,6 +1187,7 @@ void mceditPlaceBlock(void)
 	}
 	else if (isBlockId(id))
 	{
+		DATA8 tile = item->extra;
 		/* 2 slabs in same block try to convert them in 1 double-slab */
 		if (blockIds[block>>4].special == BLOCK_HALF)
 		{
@@ -1196,7 +1197,16 @@ void mceditPlaceBlock(void)
 				/* can be combined */
 				block = (block-16) & ~8;
 		}
-		DATA8 tile = item->extra;
+		else if (blockIds[sel->blockId>>4].special == BLOCK_POT)
+		{
+			tile = chunkGetTileEntityFromOffset(sel->chunk, sel->cd->Y, sel->offset);
+			/* modify content of flower pot instead */
+			switch (mapUpdatePot(sel->blockId, id, &tile)) {
+			case 0: return;
+			case 1: block = id = sel->blockId; break;
+			case 2: tile = NULL;
+			}
+		}
 		if (id == 0) block = 0;
 		if (! tile) tile = blockCreateTileEntity(block, pos, NULL);
 		else        tile = NBT_Copy(tile);

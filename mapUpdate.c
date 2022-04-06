@@ -1824,7 +1824,7 @@ Bool mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 		mapUpdateRestoreLight(iter);
 	}
 
-	if ((iter.cd->cdFlags & CDFLAG_ISINUPDATE) == 0 && (blockId != oldId || (blockUpdate & UPDATE_FORCE)))
+	if ((iter.cd->cdFlags & CDFLAG_ISINUPDATE) == 0)
 	{
 		/* not in update list: add it now */
 		mapUpdateChunkData(iter.cd,

@@ -354,6 +354,8 @@ Bool NBT_Add(NBTFile nbt, ...)
 	NBTHdr  hdr;
 
 	/* opened compound that needs closing */
+	if (nbt->page == 0)
+		nbt->page = 255;
 	compound = nbt->alloc;
 	for (va_start(args, nbt), nested = 0; ; )
 	{

@@ -1710,6 +1710,33 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 		cnxBlock = connect6blocks + 5;
 		count = 9;
 		break;
+	case BLOCK_POT:
+		/* flower pot: check if there is a plant in the pot */
+		cnxBlock = chunkGetTileEntityFromOffset(c, neighbors[6]->Y, pos);
+		if (cnxBlock)
+		{
+			struct NBTFile_t nbt = {.mem = cnxBlock};
+			uint8_t data;
+			cnxBlock = NBT_Payload(&nbt, NBT_FindNode(&nbt, 0, "Item"));
+			data = NBT_GetInt(&nbt, NBT_FindNode(&nbt, 0, "Data"), 0);
+			if (cnxBlock && strncmp(cnxBlock, "minecraft:", 10) == 0)
+			{
+				extern TEXT flowerPotList[];
+				cnxBlock += 10;
+				/* yellow_flower,red_flower,sapling,cactus,brown_mushroom,red_mushroom,cactus,tall_grass */
+				switch (FindInList(flowerPotList, cnxBlock, 0)) {
+				/* bitfield must ordered in the way they are in blockTable.js */
+				case 0: connect = 1; break;
+				case 1: connect = 1 << (1 + data); break;
+				case 2: connect = 1 << (10 + data); break;
+				case 3: connect = 1 << 16; break;
+				case 4: connect = 1 << 17; break;
+				case 5: connect = 1 << 18; break;
+				case 6: connect = 1 << (data == 0 ? 19 : 20); break;
+				}
+			}
+		}
+		break;
 	case BLOCK_BED:
 		cnxBlock = chunkGetTileEntityFromOffset(c, neighbors[6]->Y, pos);
 		if (cnxBlock)

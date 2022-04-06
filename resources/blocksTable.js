@@ -36,7 +36,7 @@
 		{state: 4, name: "+acacia",   tex: [0,15, 0,15, 0,15, 0,15, 0,15, 0,15]},
 		{state: 5, name: "+dark oak", tex: [1,15, 1,15, 1,15, 1,15, 1,15, 1,15]},
 
-	{id: 6, name: "Sapling", type: QUAD, inv: ITEM2D, cat: CROPS, placement: "dirt,grass", density: WOOD, special: JITTER},
+	{id: 6, name: "Sapling", type: QUAD, inv: ITEM2D, cat: CROPS, placement: "dirt,grass,flower_pot", density: WOOD, special: JITTER},
 		{state: 0, name: "+oak",      tex: [15, 0], quad: [CROSS]},
 		{state: 1, name: "+spruce",   tex: [14, 0], quad: [CROSS]},
 		{state: 2, name: "+birch",    tex: [15, 1], quad: [CROSS]},
@@ -454,7 +454,7 @@
 	{id: 30, name: "Cobweb", type: QUAD, inv: ITEM2D, cat: DECO, pushable: DROPITEM, bboxPlayer: AUTO, density: 0.3, viscosity: 0.025},
 		{state: 0, tex: [11, 0], quad: [CROSS]},
 
-	{id: 31, name: "Tall grass", type: QUAD, inv: ITEM2D, cat: DECO, placement: "ground", density: PLANTS, special: JITTER},
+	{id: 31, name: "Tall grass", type: QUAD, inv: ITEM2D, cat: DECO, placement: "ground,flower_pot", density: PLANTS, special: JITTER},
 		{state: 0, name: "Dead bush",   tex: [7, 3], quad: [CROSS]},
 		{state: 1, name: "Tall grass",  tex: [7, 2], quad: [CROSS]},
 		{state: 2, name: "Fern",        tex: [8, 3], quad: [CROSS]},
@@ -534,10 +534,10 @@
 
 	{id: 36, name: "Block 36", type: INVIS, tech: "piston_extension", pushable: NO}, /* block moved by piston */
 
-	{id: 37, name: "Dandelion", type: QUAD, inv: ITEM2D, cat: DECO, tech: "yellow_flower", placement: "dirt,grass", density: PLANTS, pushable: DROPITEM, special: JITTER},
+	{id: 37, name: "Dandelion", type: QUAD, inv: ITEM2D, cat: DECO, tech: "yellow_flower", placement: "dirt,grass,flower_pot", density: PLANTS, pushable: DROPITEM, special: JITTER},
 		{state: 0, tex: [13, 0], quad: [CROSS]},
 
-	{id: 38, name: "Poppy", type: QUAD,  inv: ITEM2D, cat: DECO, tech: "red_flower", placement: "dirt,grass", density: PLANTS, pushable: DROPITEM, special: JITTER},
+	{id: 38, name: "Poppy", type: QUAD,  inv: ITEM2D, cat: DECO, tech: "red_flower", placement: "dirt,grass,flower_pot", density: PLANTS, pushable: DROPITEM, special: JITTER},
 		{state: 0, name: "-",            tex: [12, 0], quad: [CROSS]},
 		{state: 1, name: "Blue orchid",  tex: [16, 0], quad: [CROSS]},
 		{state: 2, name: "Allium",       tex: [17, 0], quad: [CROSS]},
@@ -548,10 +548,10 @@
 		{state: 7, name: "Pink tulip",   tex: [18, 1], quad: [CROSS]},
 		{state: 8, name: "Oxeye daisy",  tex: [19, 1], quad: [CROSS]},
 
-	{id: 39, name: "Brown mushroom", type: QUAD, inv: ITEM2D, cat: DECO, placement: "ground", density: PLANTS, pushable: DROPITEM, special: JITTER},
+	{id: 39, name: "Brown mushroom", type: QUAD, inv: ITEM2D, cat: DECO, placement: "ground,flower_pot", density: PLANTS, pushable: DROPITEM, special: JITTER},
 		{state: 0, tex: [13, 1], quad: [CROSS]},
 
-	{id: 40, name: "Red mushroom", type: QUAD, inv: ITEM2D, cat: DECO, placement: "ground", density: PLANTS, pushable: DROPITEM, special: JITTER},
+	{id: 40, name: "Red mushroom", type: QUAD, inv: ITEM2D, cat: DECO, placement: "ground,flower_pot", density: PLANTS, pushable: DROPITEM, special: JITTER},
 		{state: 0, tex: [12, 1], quad: [CROSS]},
 
 	{id: 41, name: "Gold block", type: SOLID, inv: CUBE, cat: BUILD, density: 20},
@@ -1076,7 +1076,7 @@
 	{id: 80, name: "Snow block", type: SOLID, inv: CUBE, cat: DECO, tech: "snow", density: ICE},
 		{state: 0, tex: [2, 4, 2, 4, 2, 4, 2, 4, 2, 4, 2, 4]},
 
-	{id: 81, name: "Cactus", type: CUST, bbox: MAX, placement: "sand,cactus", inv: MODEL, invState: 0, cat: DECO, density: PLANTS, pushable: DROPITEM},
+	{id: 81, name: "Cactus", type: CUST, bbox: MAX, placement: "sand,cactus,flower_pot", inv: MODEL, invState: 0, cat: DECO, density: PLANTS, pushable: DROPITEM},
 		{state: 0, tex: [6, 4, 6, 4, 6, 4, 6, 4, 5, 4, 7, 4], model: [
 			FACES,5,TEX_DETAIL,SIZE,16,16,14,TR,0,0,1,TEX,32928,41136,41152,32944,32928,41136,41152,32944,
 			FACES,10,TEX_DETAIL,SIZE,14,16,16,TR,1,0,0,TEX,32928,41136,41152,32944,32928,41136,41152,32944,
@@ -1935,11 +1935,75 @@
 			FACES,63,TEX_INHERIT,SIZE,8,16,8,TR,4,0,4,INC_FACEID,
 		]},
 
-	{id: 140, name: "Flower Pot", type: CUST, bbox: MAX, pushable: DROPITEM},
+	{id: 140, name: "Flower Pot", type: CUST, pushable: DROPITEM, special: POT, bbox: FIRSTBOX},
 		{state: 0, tex: [10,11,10,11,10,11,10,11,10,11], model: [
 			FACES,47,TEX_DETAIL,SIZE,6,6,6,TR,5,0,5,TEX,95583,98661,98667,95589,95583,98661,98667,95589,95583,98661,98667,95589,95583,98661,98667,95589,95583,98661,98667,95589,
 			FACES,47,TEX_DETAIL,INVERT,SIZE,4,2,4,TR,6,4,6,TEX,97636,98662,98666,97640,96100,98152,98154,96102,95584,96610,96614,95588,96096,98148,98150,96098,3116,5168,5172,3120,
 			FACES,16,TEX_DETAIL,SIZE,6,6,6,TR,5,0,5,TEX,91992,95070,95076,91998,
+			/* 0: dandelion */
+			FACES,5,TEX_DETAIL,SIZE,8,8,0,TR,4,4,8,ROT,0,45,0,INC_FACEID,TEX,4316,8420,8428,4324,4324,8428,8420,4316,
+			FACES,5,TEX_DETAIL,SIZE,8,8,0,TR,4,4,8,ROT,0,-45,0,TEX,4316,8420,8428,4324,4324,8428,8420,4316,
+			/* 1: poppy */
+			FACES,5,TEX_DETAIL,SIZE,9,12,0,TR,4,4,8,ROT,0,45,0,INC_FACEID,TEX,2248,8404,8413,2257,2257,8413,8404,2248,
+			FACES,5,TEX_DETAIL,SIZE,9,12,0,TR,4,4,8,ROT,0,-45,0,TEX,2248,8404,8413,2257,2257,8413,8404,2248,
+			/* 2: blue orchid */
+			FACES,5,TEX_DETAIL,SIZE,14,14,0,TR,1,2,8,ROT,0,45,0,INC_FACEID,TEX,1284,8466,8480,1298,1298,8480,8466,1284,
+			FACES,5,TEX_DETAIL,SIZE,14,14,0,TR,1,2,8,ROT,0,-45,0,TEX,1284,8466,8480,1298,1298,8480,8466,1284,
+			/* 3: allium */
+			FACES,5,TEX_DETAIL,SIZE,9,14,0,TR,3.5,2,8,ROT,0,45,0,INC_FACEID,TEX,1311,8493,8484,1302,1302,8484,8493,1311,
+			FACES,5,TEX_DETAIL,SIZE,9,14,0,TR,3.5,2,8,ROT,0,-45,0,TEX,1311,8493,8484,1302,1302,8484,8493,1311,
+			/* 4: azure bluet */
+			FACES,5,TEX_DETAIL,SIZE,11,11,0,TR,2.5,4,8,ROT,0,45,0,INC_FACEID,TEX,2856,8499,8510,2867,2867,8510,8499,2856,
+			FACES,5,TEX_DETAIL,SIZE,11,11,0,TR,2.5,4,8,ROT,0,-45,0,TEX,2856,8499,8510,2867,2867,8510,8499,2856,
+			/* 5: red tulip */
+			FACES,5,TEX_DETAIL,SIZE,9,14,0,TR,3.5,3,8,ROT,0,45,0,INC_FACEID,TEX,1334,8516,8525,1343,1343,8525,8516,1334,
+			FACES,5,TEX_DETAIL,SIZE,9,14,0,TR,3.5,3,8,ROT,0,-45,0,TEX,1334,8516,8525,1343,1343,8525,8516,1334,
+			/* 6: orange tulip */
+			FACES,5,TEX_DETAIL,SIZE,9,14,0,TR,3.5,3,8,ROT,0,45,0,INC_FACEID,TEX,9494,16676,16685,9503,9503,16685,16676,9494,
+			FACES,5,TEX_DETAIL,SIZE,9,14,0,TR,3.5,3,8,ROT,0,-45,0,TEX,9494,16676,16685,9503,9503,16685,16676,9494,
+			/* 7: white tulip */
+			FACES,5,TEX_DETAIL,SIZE,9,14,0,TR,3.5,3,8,ROT,0,45,0,INC_FACEID,TEX,9510,16692,16701,9519,9519,16701,16692,9510,
+			FACES,5,TEX_DETAIL,SIZE,9,14,0,TR,3.5,3,8,ROT,0,-45,0,TEX,9510,16692,16701,9519,9519,16701,16692,9510,
+			/* 8: pink tulip */
+			FACES,5,TEX_DETAIL,SIZE,9,14,0,TR,3.5,3,8,ROT,0,45,0,INC_FACEID,TEX,9526,16708,16717,9535,9535,16717,16708,9526,
+			FACES,5,TEX_DETAIL,SIZE,9,14,0,TR,3.5,3,8,ROT,0,-45,0,TEX,9526,16708,16717,9535,9535,16717,16708,9526,
+			/* 9: oxeye daisy */
+			FACES,5,TEX_DETAIL,SIZE,9,14,0,TR,3.5,3,8,ROT,0,45,0,INC_FACEID,TEX,9542,16724,16733,9551,9551,16733,16724,9542,
+			FACES,5,TEX_DETAIL,SIZE,9,14,0,TR,3.5,3,8,ROT,0,-45,0,TEX,9542,16724,16733,9551,9551,16733,16724,9542,
+			/* 10: oak sapling */
+			FACES,5,TEX_DETAIL,SIZE,14,13,0,TR,1,3,8,ROT,0,45,0,INC_FACEID,TEX,755,8450,8464,769,769,8464,8450,755,
+			FACES,5,TEX_DETAIL,SIZE,14,13,0,TR,1,3,8,ROT,0,-45,0,TEX,755,8450,8464,769,769,8464,8450,755,
+			/* 11: spruce sapling */
+			FACES,5,TEX_DETAIL,SIZE,14,13,0,TR,1,3,8,ROT,0,45,0,INC_FACEID,TEX,737,8432,8446,751,751,8446,8432,737,
+			FACES,5,TEX_DETAIL,SIZE,14,13,0,TR,1,3,8,ROT,0,-45,0,TEX,737,8432,8446,751,751,8446,8432,737,
+			/* 12: birch sapling */
+			FACES,5,TEX_DETAIL,SIZE,14,13,0,TR,1,3,8,ROT,0,45,0,INC_FACEID,TEX,8962,16657,16671,8976,8976,16671,16657,8962,
+			FACES,5,TEX_DETAIL,SIZE,14,13,0,TR,1,3,8,ROT,0,-45,0,TEX,8962,16657,16671,8976,8976,16671,16657,8962,
+			/* 13: jungle sapling */
+			FACES,5,TEX_DETAIL,SIZE,14,13,0,TR,1,3,8,ROT,0,45,0,INC_FACEID,TEX,8433,16641,16655,8447,8447,16655,16641,8433,
+			FACES,5,TEX_DETAIL,SIZE,14,13,0,TR,1,3,8,ROT,0,-45,0,TEX,8433,16641,16655,8447,8447,16655,16641,8433,
+			/* 14: acacia sapling */
+			FACES,5,TEX_DETAIL,SIZE,14,13,0,TR,1,3,8,ROT,0,45,0,INC_FACEID,TEX,9042,16737,16751,9056,9042,16737,16751,9056,
+			FACES,5,TEX_DETAIL,SIZE,14,13,0,TR,1,3,8,ROT,0,-45,0,TEX,9042,16737,16751,9056,9042,16737,16751,9056,
+			/* 15: dark oak sapling */
+			FACES,5,TEX_DETAIL,SIZE,14,13,0,TR,0.5,3,7.5,ROT,0,45,0,INC_FACEID,TEX,834,8529,8542,847,847,8542,8529,834,
+			FACES,5,TEX_DETAIL,SIZE,14,13,0,TR,0.5,3,7.5,ROT,0,-45,0,TEX,834,8529,8542,847,847,8542,8529,834,
+			/* 16: brown mushroom */
+			FACES,5,TEX_DETAIL,SIZE,8,7,0,TR,4,4,8,ROT,0,45,0,INC_FACEID,TEX,13037,16628,16636,13045,13045,16636,16628,13037,
+			FACES,5,TEX_DETAIL,SIZE,8,7,0,TR,4,4,8,ROT,0,-45,0,TEX,13037,16628,16636,13045,13045,16636,16628,13037,
+			/* 17: red mushroom */
+			FACES,5,TEX_DETAIL,SIZE,8,7,0,TR,4,4,8,ROT,0,45,0,INC_FACEID,TEX,13021,16612,16620,13029,13029,16620,16612,13021,
+			FACES,5,TEX_DETAIL,SIZE,8,7,0,TR,4,4,8,ROT,0,-45,0,TEX,13021,16612,16620,13029,13029,16620,16612,13021,
+			/* 18: cactus */
+			FACES,5,TEX_DETAIL,SIZE,4,12,3.5,TR,6,4,6.25,INC_FACEID,TEX,32928,41136,41152,32944,32928,41136,41152,32944,
+			FACES,10,TEX_DETAIL,SIZE,3.5,12,4,TR,6.25,4,6,TEX,32928,41136,41152,32944,32928,41136,41152,32944,
+			FACES,16,TEX_DETAIL,SIZE,3.5,16,3.5,TR,6.25,0,6.25,TEX,33458,40640,40654,33472,
+			/* 19: dead bush */
+			FACES,5,TEX_DETAIL,SIZE,14,14,0,TR,0.5,3,8,ROT,0,45,0,INC_FACEID,TEX,24737,32945,32959,24751,24751,32959,32945,24737,
+			FACES,5,TEX_DETAIL,SIZE,14,14,0,TR,0.5,3,8,ROT,0,-45,0,TEX,24737,32945,32959,24751,24751,32959,32945,24737,
+			/* 20: fern */
+			FACES,5,TEX_DETAIL,SIZE,10,14,0,TR,3,3,8,ROT,0,45,0,INC_FACEID,TEX,25781,32963,32973,25791,25791,32973,32963,25781,
+			FACES,5,TEX_DETAIL,SIZE,10,14,0,TR,3,3,8,ROT,0,-45,0,TEX,25781,32963,32973,25791,25791,32973,32963,25781,
 		]},
 
 	{id: 141, name: "Carrots", type: QUAD, pushable: DROPITEM, density: PLANTS},
