@@ -95,7 +95,7 @@ static float bboxModels[] = {
 };
 
 /* how many arguments each BHDR_* tag takes */
-static uint8_t modelTagArgs[] = {0, 1, 0, 0, 0, 3, 3, 3, 3, 3, 1, 255, 0, 0, 1, 2};
+uint8_t modelTagArgs[] = {0, 1, 0, 0, 0, 3, 3, 3, 3, 3, 1, 255, 0, 0, 1, 2};
 
 uint8_t blockTexResol;
 
@@ -380,20 +380,22 @@ void blockCenterModel(DATA16 vertex, int count, int dU, int dV, int faceId, Bool
 
 int blockCountModelVertex(float * vert, int count)
 {
-	int i, arg, vertex, faces, mode;
-	for (i = vertex = faces = 0, mode = BHDR_CUBEMAP; i < count; i += arg+1)
+	int i, arg, vertex, faces;
+	for (i = vertex = faces = 0; i < count; i += arg+1)
 	{
 		arg = vert[i];
-		if (arg > BHDR_INCFACE) return 0;
-		switch (arg) {
-		case BHDR_FACES: faces = vert[i+1]; vertex += popcount(faces & 63) * 6; break;
-		case BHDR_TEX:   arg = mode == BHDR_DETAIL ? popcount(faces & 63) * 4 :
-		                       mode == BHDR_CUBEMAP ? 4 * 6 : 0; continue;
-		case BHDR_CUBEMAP:
-		case BHDR_DETAIL:
-		case BHDR_INHERIT: mode = arg; break;
+		if ((arg & 0xff) > BHDR_INCFACE) return 0;
+		switch (arg & 0xff) {
+		case BHDR_FACES:
+			faces = vert[i+1];
+			vertex += popcount(faces & 63) * 6;
+			// no break;
+		default:
+			arg = modelTagArgs[arg];
+			break;
+		case BHDR_TEX:
+			arg >>= 8;
 		}
-		arg = modelTagArgs[arg];
 	}
 	return vertex;
 }
@@ -450,7 +452,7 @@ DATA16 blockParseModel(float * values, int count, DATA16 buffer, int forceRot90)
 		/* get all the information about one primitive */
 		while (vert < eof && vert[0] != BHDR_FACES)
 		{
-			switch ((int) vert[0]) {
+			switch ((int) vert[0] & 0xff) {
 			case BHDR_CUBEMAP: detail = BHDR_CUBEMAP; break;
 			case BHDR_DETAIL:  detail = BHDR_DETAIL; break;
 			case BHDR_INHERIT: detail = BHDR_INHERIT; break;
@@ -671,23 +673,33 @@ static void blockExtractEmitterLoction(DATA16 model, DATA8 loc, int box)
 /* convert symbols into numeric and parse float */
 Bool blockParseModelJSON(vec table, int max, STRPTR value)
 {
-	int index;
-	for (index = 0; index < max && IsDef(value); index ++)
+	int index, token, mode, faces;
+	for (index = token = mode = 0; index < max && IsDef(value); index ++)
 	{
 		/* identifier must be upper case */
 		if ('A' <= value[0] && value[0] <= 'Z')
 		{
 			STRPTR end;
-			int token;
 			for (end = value + 1; *end && *end != ','; end ++);
 			token = FindInList("FACES,TEX_CUBEMAP,TEX_DETAIL,TEX_INHERIT,SIZE,TR,ROT,ROTCAS,REF,ROT90,TEX,INVERT,INC_FACEID,COPY,SAME_AS", value, end-value) + 1;
-			if (token == 0) return False;
-			if (token == BHDR_MAXTOK) token = COPY_MODEL; else
-			if (token == BHDR_MAXTOK+1) token = SAME_AS;
+			switch (token) {
+			case 0: return False;
+			case BHDR_MAXTOK:   token = COPY_MODEL; break;
+			case BHDR_MAXTOK+1: token = SAME_AS; break;
+			case BHDR_CUBEMAP:
+			case BHDR_DETAIL:
+			case BHDR_INHERIT:  mode = token; break;
+			case BHDR_TEX:      token |= (mode == BHDR_CUBEMAP ? 4*6 : (mode == BHDR_DETAIL ? popcount(faces) * 4 : 0)) << 8; /* easier to parse later */
+			}
 			table[index] = token;
 			value = end;
 		}
-		else table[index]= strtof(value, &value);
+		else
+		{
+			table[index]= strtof(value, &value);
+			if (token == BHDR_FACES)
+				faces = table[index];
+		}
 
 		while (isspace(*value)) value ++;
 		if (*value == ',')

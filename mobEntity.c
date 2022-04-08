@@ -1,5 +1,5 @@
 /*
- * mobEntity.c: manage mob entities, although this module not doing much right now.
+ * mobEntity.c: manage mob entities, although this module is not doing much right now.
  *
  * written by T.Pierron, apr 2022.
  */
@@ -15,7 +15,9 @@
 #include "globals.h"
 
 
-char mobIdList[] = "minecart,creeper,cow,pig,sheep,sheep_wool,chicken,mooshroom,horse,squid,bat,zombie,skeleton,enderman";
+static char mobIdList[] =
+	"creeper,cow,pig,sheep,sheep_wool,chicken,squid,mooshroom,polar_bear,llama,"
+	"slime,spider,horse,bat,zombie,skeleton,enderman";
 
 /* default sheep colormap if nothing is found (broken blockTable.js) */
 static uint8_t sheepWoolColors[] = {
@@ -40,23 +42,25 @@ static uint8_t sheepWoolColors[] = {
 #define TEX_WOOL_SHEEP_Y      128
 #define TEX_WOOL_SHEEP_W      64
 #define TEX_WOOL_SHEEP_H      32
+#define ENTITY_FIRST_MOB      ENTITY_CREEPER
 
 /* used to generated colored sheep model from base model (white) */
-static struct CustModel_t sheepModel;
+static struct CustModel_t sheepModel, slimeModel;
+
 
 static int mobEntityCreate(NBTFile nbt, Entity entity, STRPTR id)
 {
 	entity->enflags |= ENFLAG_TEXENTITES;
 	entity->entype = ENTYPE_MOB;
 
-	int entityId = FindInList(mobIdList, id, 0) + ENTITY_MINECART;
-	int data = 0;
-	if (entityId < ENTITY_MINECART) return 0;
-	if (entityId == ENTITY_MINECART)
-		entity->enflags |= ENFLAG_HASBBOX;
+	EntityType entype = entityFindType(id);
+	if (! entype) return 0;
 
-	if (entityId == ENTITY_SHEEP)
-	{
+	int entityId = entype->entityId;
+	int data = 0;
+
+	switch (entityId) {
+	case ENTITY_SHEEP:
 		/* check if it has been sheared */
 		if (NBT_GetInt(nbt, NBT_FindNode(nbt, 0, "/Sheared"), 0) == 0)
 		{
@@ -73,6 +77,44 @@ static int mobEntityCreate(NBTFile nbt, Entity entity, STRPTR id)
 				entityAddModel(ITEMID(ENTITY_SHEEPWOOL, data), 0, &sheepModel, NULL, False);
 			}
 		}
+		break;
+	case ENTITY_LLAMA:
+		data = NBT_GetInt(nbt, NBT_FindNode(nbt, 0, "/Variant"), 0);
+		break;
+	case ENTITY_SLIME:
+		data = NBT_GetInt(nbt, NBT_FindNode(nbt, 0, "/Size"), 0);
+		if (data > 0)
+		{
+			/* only smallest size is generated initially: generate the others on the fly */
+			if (data > 3) data = 3;
+			if (entityGetModelBank(ITEMID(ENTITY_SLIME, data)) == 0)
+			{
+				struct CustModel_t slime = slimeModel;
+				slime.model = alloca(sizeof *slime.model * slime.vertex);
+				/* change size of model */
+				memcpy(slime.model, slimeModel.model, sizeof *slime.model * slime.vertex);
+				vec dst, eof;
+				int arg;
+				for (data ++, dst = slime.model, eof = dst + slime.vertex; dst < eof; dst += arg+1)
+				{
+					extern uint8_t modelTagArgs[];
+					arg = dst[0];
+					switch (arg & 0xff) {
+					case BHDR_SIZE:
+						dst[1] *= data;
+						dst[2] *= data;
+						dst[3] *= data;
+						// no break;
+					default:
+						arg = modelTagArgs[arg];
+						break;
+					case BHDR_TEX:
+						arg >>= 8;
+					}
+				}
+				entityAddModel(ITEMID(ENTITY_SLIME, data), 0, &slime, NULL, False);
+			}
+		}
 	}
 
 	int vboBank = entityAddModel(ITEMID(entityId, data), 0, NULL, &entity->szx, MODEL_DONT_SWAP);
@@ -85,22 +127,31 @@ static int mobEntityCreate(NBTFile nbt, Entity entity, STRPTR id)
 
 void mobEntityInit(void)
 {
-	entityRegisterType("creeper", mobEntityCreate);
-	entityRegisterType("cow",     mobEntityCreate);
-	entityRegisterType("pig",     mobEntityCreate);
-	entityRegisterType("sheep",   mobEntityCreate);
-	entityRegisterType("chicken", mobEntityCreate);
-	entityRegisterType("squid",   mobEntityCreate);
+	STRPTR mob, next;
+	int    entityId = ENTITY_FIRST_MOB;
+	for (mob = mobIdList; *mob; mob = next, entityId ++)
+	{
+		for (next = mob; *next && *next != ','; next ++);
+		if (*next) *next++ = 0;
+		entityRegisterType(mob, mobEntityCreate, entityId);
+	}
 }
 
 void mobEntityProcess(int entityId, float * model, int count)
 {
-	if (entityId == ITEMID(ENTITY_SHEEPWOOL, 0))
-	{
+	switch (ITEMNUM(entityId)) {
+	case ENTITY_SHEEPWOOL:
 		sheepModel.model = malloc(sizeof *model * count);
 		sheepModel.vertex = count;
 		sheepModel.texId = 1;
 		memcpy(sheepModel.model, model, sizeof *model * count);
+		break;
+
+	case ENTITY_SLIME:
+		slimeModel.model = malloc(sizeof *model * count);
+		slimeModel.vertex = count;
+		slimeModel.texId = count;
+		memcpy(slimeModel.model, model, sizeof *model * count);
 	}
 }
 

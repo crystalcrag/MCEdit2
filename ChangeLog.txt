@@ -1,4 +1,10 @@
 =========== Week 14 ===========
+Thu Apr 7:
+	* mob entity logic streamlined, added spider model.
+
+Wed Apr 6:
+	* added entity models: polar bear, llama, 
+
 Tue Apr 5:
 	* flower pot: rendering and editing.
 

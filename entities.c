@@ -144,13 +144,16 @@ static Bool entityCreateModel(const char * file, STRPTR * keys, int lineNum)
 	default:
 		name = jsonValue(keys, "texAtlas");
 		cust.texId = name && strcmp(name, "ENTITIES") == 0;
-		index = FindInList(mobIdList, id, 0);
-		if (index < 0)
+		name = jsonValue(keys, "data");
 		{
-			SIT_Log(SIT_ERROR, "%s: unknown entity type", id);
-			return False;
+			EntityType entype = entityFindType(id);
+			if (! entype)
+			{
+				SIT_Log(SIT_ERROR, "%s: unknown entity type", id);
+				return False;
+			}
+			modelId = ITEMID(entype->entityId, name ? atoi(name) : 0);
 		}
-		modelId = ITEMID(ENTITY_MINECART + index, 0);
 		mobEntityProcess(modelId, cust.model, cust.vertex);
 	}
 
@@ -166,12 +169,7 @@ Bool entityInitStatic(void)
 	/* already add model for unknown entity */
 	entityAddModel(0, 0, NULL, NULL, MODEL_DONT_SWAP);
 
-	/* parse entity description models */
-	if (! jsonParse(RESDIR "entities.js", entityCreateModel))
-		return False;
-
-	entities.type = calloc(sizeof *entities.type, 23);
-	entities.typeMax = 23;
+	entities.type = calloc(sizeof *entities.type, entities.typeMax = 31);
 	entities.typeCount = 0;
 	entities.texEntity = textureLoad(RESDIR, "entities.png", 1, mobEntityProcessTex);
 
@@ -182,11 +180,15 @@ Bool entityInitStatic(void)
 	worldItemInit();
 	mobEntityInit();
 
+	/* parse entity description models */
+	if (! jsonParse(RESDIR "entities.js", entityCreateModel))
+		return False;
+
 	entities.shader = createGLSLProgram("entities.vsh", "entities.fsh", NULL);
 	return entities.shader;
 }
 
-void entityRegisterType(STRPTR id, EntityParseCb_t cb)
+void entityRegisterType(STRPTR id, EntityParseCb_t cb, ItemID_t entityId)
 {
 	int slot = crc32(0, id, strlen(id)+1) % entities.typeMax;
 	EntityType type, first, eof;
@@ -211,7 +213,23 @@ void entityRegisterType(STRPTR id, EntityParseCb_t cb)
 	else type->next = -1;
 	type->id = id;
 	type->cb = cb;
+	type->entityId = entityId;
 	entities.typeCount ++;
+}
+
+/* search among registered types */
+EntityType entityFindType(STRPTR id)
+{
+	EntityType entype;
+	int slot = crc32(0, id, strlen(id)+1) % entities.typeMax;
+	for (entype = entities.type + slot; entype->id; )
+	{
+		if (strcmp(entype->id, id) == 0)
+			return entype;
+		if (entype->next < 0) return NULL;
+		entype = entities.type + entype->next;
+	}
+	return NULL;
 }
 
 /*
@@ -658,21 +676,13 @@ int entityGetModelId(Entity entity)
 		id += 10;
 
 	/* check for a registered type */
-	EntityType entype;
-	int slot = crc32(0, id, strlen(id)+1) % entities.typeMax;
-	for (entype = entities.type + slot; entype->id; )
+	EntityType entype = entityFindType(id);
+	if (entype)
 	{
-		if (strcmp(entype->id, id) == 0)
-		{
-			slot = entype->cb(&nbt, entity, id);
-			if (slot > 0) return slot;
-			else goto not_found;
-		}
-		if (entype->next < 0) goto not_found;
-		entype = entities.type + entype->next;
+		int vbo = entype->cb(&nbt, entity, id);
+		if (vbo > 0) return vbo;
 	}
 
-	not_found:
 	entity->szx = entity->szy = entity->szz = BASEVTX; /* 1x1x1 */
 	return ENTITY_UNKNOWN;
 }

@@ -109,12 +109,12 @@ enum /* entity id and models */
 	ENTITY_SHEEP          = 0x407,
 	ENTITY_SHEEPWOOL      = 0x408,
 	ENTITY_CHICKEN        = 0x409,
-	ENTITY_SQUID          = 0x410,
-	ENTITY_LLAMA,
-	ENTITY_BEAR,
-	ENTITY_SLIME,
-	ENTITY_SPIDER,
-	ENTITY_MOOSHROOM,
+	ENTITY_SQUID          = 0x40a,
+	ENTITY_MOOSHROOM      = 0x40b,
+	ENTITY_BEAR           = 0x40c,
+	ENTITY_LLAMA          = 0x40d,
+	ENTITY_SLIME          = 0x40e,
+	ENTITY_SPIDER         = 0x40f,
 	ENTITY_HORSE,
 	ENTITY_BAT,
 	ENTITY_ZOMBIE,
@@ -269,6 +269,7 @@ struct EntityType_t                /* callbacks to parse content of NBT records 
 	EntityParseCb_t cb;
 	STRPTR          id;            /* one callback per entity id */
 	int             next;          /* linked list within hash table */
+	ItemID_t        entityId;      /* ENTITY_* */
 };
 
 struct PhysicsBBox_t               /* to alloc bbox at the same time */
@@ -325,7 +326,7 @@ struct CustModel_t                 /* custom entity model (instead of being deri
 	uint16_t U, V;                 /* relocate texture (px unit) */
 };
 
-void   entityRegisterType(STRPTR id, EntityParseCb_t);
+void   entityRegisterType(STRPTR id, EntityParseCb_t, ItemID_t entityId);
 Entity entityAlloc(uint16_t * entityLoc);
 Entity entityGetById(int id);
 int    entityGetModelId(Entity);
@@ -341,6 +342,8 @@ void   entityGetBoundsForFace(Entity, int face, vec4 V0, vec4 V1);
 void   entityFreePhysics(Entity);
 void   entityAllocPhysics(Entity);
 void   entityInitMove(Entity, int side, float factor);
+
+EntityType entityFindType(STRPTR id);
 
 enum                  /* possible values for swapAxis of entityAddModel() */
 {
@@ -365,8 +368,6 @@ void   worldItemPlaceOrCreate(Entity);
 void   mobEntityInit(void);
 void   mobEntityProcessTex(DATA8 * data, int * width, int * height, int bpp);
 void   mobEntityProcess(int entityId, float * model, int count);
-
-extern char mobIdList[];
 
 #endif
 #endif

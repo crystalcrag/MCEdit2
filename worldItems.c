@@ -146,11 +146,11 @@ static int worldItemParseItem(NBTFile nbt, Entity entity, STRPTR unused)
 void worldItemInit(void)
 {
 	/* will be called from entities.c */
-	entityRegisterType("falling_block", worldItemParseFallingBlock);
-	entityRegisterType("painting",      worldItemParsePainting);
-	entityRegisterType("item_frame",    worldItemParseItemFrame);
-	entityRegisterType("item",          worldItemParseItem);
-	entityRegisterType("minecart",      minecartParse);
+	entityRegisterType("falling_block", worldItemParseFallingBlock, 0);
+	entityRegisterType("painting",      worldItemParsePainting, ENTITY_PAINTINGS);
+	entityRegisterType("item_frame",    worldItemParseItemFrame, ENTITY_ITEMFRAME);
+	entityRegisterType("item",          worldItemParseItem, ENTITY_ITEM);
+	entityRegisterType("minecart",      minecartParse, ENTITY_MINECART);
 
 	itemRegisterUse("minecart", minecartTryUsing);
 }
