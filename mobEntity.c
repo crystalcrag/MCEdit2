@@ -17,9 +17,10 @@
 
 static char mobIdList[] =
 	"creeper,cow,pig,sheep,sheep_wool,chicken,squid,mooshroom,polar_bear,llama,"
-	"slime,spider,horse,bat,zombie,skeleton,enderman";
+	"slime,spider,zombie,skeleton,enderman,iron_golem,snow_golem,bat,wolf,ocelot,"
+	"horse,villager,witch";
 
-/* default sheep colormap if nothing is found (broken blockTable.js) */
+/* default sheep colormap if nothing is found (missing entries in blockTable.js) */
 static uint8_t sheepWoolColors[] = {
 	0xda, 0x7d, 0x3e, 0xff,   /* orange */
 	0xb4, 0x50, 0xbc, 0xff,   /* magenta */
@@ -42,11 +43,18 @@ static uint8_t sheepWoolColors[] = {
 #define TEX_WOOL_SHEEP_Y      128
 #define TEX_WOOL_SHEEP_W      64
 #define TEX_WOOL_SHEEP_H      32
+#define TEX_HORSE_W           128
+#define TEX_HORSE_H           84
+#define TEX_VILLAGER_W        64
 #define ENTITY_FIRST_MOB      ENTITY_CREEPER
 
 /* used to generated colored sheep model from base model (white) */
-static struct CustModel_t sheepModel, slimeModel;
+static struct
+{
+	/* variants will be derived from these */
+	struct CustModel_t sheep, slime, llama, horse, villager;
 
+}	mobModels;
 
 static int mobEntityCreate(NBTFile nbt, Entity entity, STRPTR id)
 {
@@ -70,16 +78,48 @@ static int mobEntityCreate(NBTFile nbt, Entity entity, STRPTR id)
 			/* only white sheep is initially added, add the other on the fly */
 			if (data > 0 && entityGetModelBank(ITEMID(ENTITY_SHEEPWOOL, data)) == 0)
 			{
-				/* only change wool coating of model */
-				sheepModel.faceId = 1;
-				sheepModel.U = (data & 7) * TEX_WOOL_SHEEP_W;
-				sheepModel.V = (data >> 3) * TEX_WOOL_SHEEP_H;
-				entityAddModel(ITEMID(ENTITY_SHEEPWOOL, data), 0, &sheepModel, NULL, False);
+				/* only change texture wool coating of model id 1 */
+				mobModels.sheep.faceId = 1;
+				mobModels.sheep.U = (data &  7) * TEX_WOOL_SHEEP_W;
+				mobModels.sheep.V = (data >> 3) * TEX_WOOL_SHEEP_H;
+				entityAddModel(ITEMID(ENTITY_SHEEPWOOL, data), 0, &mobModels.sheep, NULL, False);
 			}
 		}
 		break;
 	case ENTITY_LLAMA:
 		data = NBT_GetInt(nbt, NBT_FindNode(nbt, 0, "/Variant"), 0);
+		/* only creamy variant is generated at start */
+		if (data > 0 && entityGetModelBank(ITEMID(ENTITY_LLAMA, data)) == 0)
+		{
+			/* add the other on the fly */
+			mobModels.llama.U = 64 * data;
+			entityAddModel(ITEMID(ENTITY_LLAMA, data), 0, &mobModels.llama, NULL, False);
+		}
+		break;
+	case ENTITY_HORSE:
+		/* will ignore markings (stored in bits >= 8) */
+		data = NBT_GetInt(nbt, NBT_FindNode(nbt, 0, "/Variant"), 0);
+		if (data > 5) data = 1;
+		if (data > 0 && entityGetModelBank(ITEMID(ENTITY_HORSE, data)) == 0)
+		{
+			mobModels.horse.U = TEX_HORSE_W * (data & 3);
+			mobModels.horse.V = TEX_HORSE_H * (data >> 2);
+			mobModels.horse.faceId = 0xff;
+			entityAddModel(ITEMID(ENTITY_HORSE, data), 0, &mobModels.horse, NULL, False);
+		}
+		break;
+	case ENTITY_VILLAGER:
+		/* XXX probably used for their head orient */
+		entity->rotation[1] = 0;
+		data = NBT_GetInt(nbt, NBT_FindNode(nbt, 0, "/Profession"), 0);
+		if (data > 5) data = 5;
+		if (data > 0 && entityGetModelBank(ITEMID(ENTITY_VILLAGER, data)) == 0)
+		{
+			/* only farmer model initially added */
+			mobModels.villager.U = TEX_VILLAGER_W * data;
+			mobModels.villager.faceId = 0xff;
+			entityAddModel(ITEMID(ENTITY_VILLAGER, data), 0, &mobModels.villager, NULL, False);
+		}
 		break;
 	case ENTITY_SLIME:
 		data = NBT_GetInt(nbt, NBT_FindNode(nbt, 0, "/Size"), 0);
@@ -89,10 +129,10 @@ static int mobEntityCreate(NBTFile nbt, Entity entity, STRPTR id)
 			if (data > 3) data = 3;
 			if (entityGetModelBank(ITEMID(ENTITY_SLIME, data)) == 0)
 			{
-				struct CustModel_t slime = slimeModel;
+				struct CustModel_t slime = mobModels.slime;
 				slime.model = alloca(sizeof *slime.model * slime.vertex);
 				/* change size of model */
-				memcpy(slime.model, slimeModel.model, sizeof *slime.model * slime.vertex);
+				memcpy(slime.model, mobModels.slime.model, sizeof *slime.model * slime.vertex);
 				vec dst, eof;
 				int arg;
 				for (data ++, dst = slime.model, eof = dst + slime.vertex; dst < eof; dst += arg+1)
@@ -139,20 +179,20 @@ void mobEntityInit(void)
 
 void mobEntityProcess(int entityId, float * model, int count)
 {
+	CustModel cust;
 	switch (ITEMNUM(entityId)) {
-	case ENTITY_SHEEPWOOL:
-		sheepModel.model = malloc(sizeof *model * count);
-		sheepModel.vertex = count;
-		sheepModel.texId = 1;
-		memcpy(sheepModel.model, model, sizeof *model * count);
-		break;
-
-	case ENTITY_SLIME:
-		slimeModel.model = malloc(sizeof *model * count);
-		slimeModel.vertex = count;
-		slimeModel.texId = count;
-		memcpy(slimeModel.model, model, sizeof *model * count);
+	default: return;
+	case ENTITY_SHEEPWOOL: cust = &mobModels.sheep; break;
+	case ENTITY_SLIME:     cust = &mobModels.slime; break;
+	case ENTITY_LLAMA:     cust = &mobModels.llama; break;
+	case ENTITY_HORSE:     cust = &mobModels.horse; break;
+	case ENTITY_VILLAGER:  cust = &mobModels.villager; break;
 	}
+
+	cust->model = malloc(sizeof *model * count);
+	cust->vertex = count;
+	cust->texId = 1;
+	memcpy(cust->model, model, sizeof *model * count);
 }
 
 void mobEntityProcessTex(DATA8 * data, int * width, int * height, int bpp)

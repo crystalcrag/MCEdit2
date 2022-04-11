@@ -179,10 +179,6 @@ enum
 
 static void accumPush(STRPTR * accum, STRPTR mem, int length, int split)
 {
-	/* remove quote from string: not needed anymore */
-	if (mem[0] == '\"')
-		mem ++, length -= 2;
-
 	STRPTR buffer = *accum;
 	DATA16 header = (DATA16) buffer;
 	int    add    = split ? 2 + length : length;
@@ -435,7 +431,12 @@ Bool jsonParse(const char * file, JSONParseCb_t cb)
 					}
 					else
 					{
-						accumPush(&accum, ident, p - ident, True);
+						int len = p - ident;
+						/* remove quote from string: not needed anymore */
+						if (ident[0] == '\"')
+							ident ++, len -= 2;
+
+						accumPush(&accum, ident, len, True);
 						expect = PARSE_SEP | PARSE_ENDOBJ;
 						nbKeys ++;
 					}

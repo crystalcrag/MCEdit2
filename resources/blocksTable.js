@@ -337,6 +337,7 @@
 		{state: 5, name: "+lime"},
 		{state: 6, name: "+pink"},
 		{state: 7, name: "+gray"},
+		/* head */
 		{state: 8, name: "+light gray", model: [
 			/* white */
 			FACES,27,TEX_DETAIL,SIZE,16,9,16,INC_FACEID,TEX,77607,82224,82208,77591,209111,213728,213712,209095,209095,213712,213728,209111,221920,221936,213728,213712,

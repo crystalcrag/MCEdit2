@@ -95,7 +95,7 @@ static float bboxModels[] = {
 };
 
 /* how many arguments each BHDR_* tag takes */
-uint8_t modelTagArgs[] = {0, 1, 0, 0, 0, 3, 3, 3, 3, 3, 1, 255, 0, 0, 1, 2};
+uint8_t modelTagArgs[] = {0, 1, 0, 0, 0, 3, 3, 3, 3, 3, 1, 255, 0, 0, 1, 0, 1, 2};
 
 uint8_t blockTexResol;
 
@@ -345,7 +345,7 @@ void blockCenterModel(DATA16 vertex, int count, int dU, int dV, int faceId, Bool
 		if (min[2] > z) min[2] = z;   if (max[2] < z) max[2] = z;
 
 		/* shift texture U, V */
-		if ((vertex[4] & 0x7f00) == faceId)
+		if (faceId == 0xff00 || (vertex[4] & 0x7f00) == faceId)
 		{
 			U = GET_UCOORD(vertex) + dU;
 			V = GET_VCOORD(vertex) + dV;
@@ -384,7 +384,7 @@ int blockCountModelVertex(float * vert, int count)
 	for (i = vertex = faces = 0; i < count; i += arg+1)
 	{
 		arg = vert[i];
-		if ((arg & 0xff) > BHDR_INCFACE) return 0;
+		if ((arg & 0xff) >= BHDR_MAXTOK) return 0;
 		switch (arg & 0xff) {
 		case BHDR_FACES:
 			faces = vert[i+1];
@@ -408,6 +408,7 @@ DATA16 blockParseModel(float * values, int count, DATA16 buffer, int forceRot90)
 	float * vert;
 	float * eof;
 	float * tex;
+	float   refRC[3];
 	int     i, j, rotCas;
 	int     faces, faceId;
 	uint8_t rot90step;
@@ -419,6 +420,7 @@ DATA16 blockParseModel(float * values, int count, DATA16 buffer, int forceRot90)
 	rot90step = forceRot90 < 0 ? 0 : forceRot90;
 	tex = NULL;
 	matIdent(rotCascade);
+	memset(refRC, 0, sizeof refRC);
 
 	/* count the vertex needed for this model */
 	i = blockCountModelVertex(values, count);
@@ -433,6 +435,7 @@ DATA16 blockParseModel(float * values, int count, DATA16 buffer, int forceRot90)
 		float * coord;
 		float   size[3];
 		float   trans[6];
+		vec     angles;
 		int     idx;
 		uint8_t nbRot, inv, detail, resetRC, center;
 		mat4    rotation, rot90, tmp;
@@ -444,6 +447,7 @@ DATA16 blockParseModel(float * values, int count, DATA16 buffer, int forceRot90)
 		center  = 1;
 		nbRot   = 0;
 		resetRC = 0;
+		angles  = NULL;
 		detail  = BHDR_CUBEMAP;
 		matIdent(rotation);
 		matIdent(rot90);
@@ -472,16 +476,7 @@ DATA16 blockParseModel(float * values, int count, DATA16 buffer, int forceRot90)
 				break;
 			case BHDR_ROTCAS:
 				/* rotation cascading to other primitives */
-				for (i = 1; i <= 3; i ++)
-				{
-					float v = vert[i];
-					if (v != 0)
-					{
-						matRotate(tmp, v * DEG_TO_RAD, i-1);
-						matMult(rotCascade, rotCascade, tmp);
-						rotCas ++;
-					}
-				}
+				angles = vert + 1;
 				break;
 			case BHDR_SIZE:
 				size[VX] = vert[1] / 16;
@@ -506,6 +501,27 @@ DATA16 blockParseModel(float * values, int count, DATA16 buffer, int forceRot90)
 				continue;
 			}
 			vert += modelTagArgs[(int) vert[0]] + 1;
+		}
+		if (resetRC)
+			matIdent(rotCascade), rotCas = 0;
+		if (angles)
+		{
+			for (i = 0; i < 3; i ++)
+			{
+				float v = angles[i];
+				if (v != 0)
+				{
+					matRotate(tmp, v * DEG_TO_RAD, i);
+					matMult(rotCascade, rotCascade, tmp);
+					if (rotCas == 0 && ! center)
+					{
+						refRC[VX] = trans[VX+3] - 0.5f;
+						refRC[VY] = trans[VY+3] - 0.5f;
+						refRC[VZ] = trans[VZ+3] - 0.5f;
+					}
+					rotCas ++;
+				}
+			}
 		}
 
 		switch (rot90step) {
@@ -550,7 +566,11 @@ DATA16 blockParseModel(float * values, int count, DATA16 buffer, int forceRot90)
 				coord[VZ] += trans[VZ];
 				/* rotate entire model */
 				if (rotCas > 0)
+				{
+					vecSub(coord, coord, refRC);
 					matMultByVec3(coord, rotCascade, coord);
+					vecAdd(coord, coord, refRC);
+				}
 				/* only this block */
 				if (rot90step > 0)
 					matMultByVec3(coord, rot90, coord);
@@ -595,7 +615,6 @@ DATA16 blockParseModel(float * values, int count, DATA16 buffer, int forceRot90)
 			memcpy(p+5, p - 10, BYTES_PER_VERTEX);
 			p += INT_PER_VERTEX*2;
 		}
-		if (resetRC) matIdent(rotCascade), rotCas = 0;
 		/* marks the beginning of a new primitive (only needed by bounding box) */
 		if (start > out) start[4] |= NEW_BBOX;
 	}
@@ -677,11 +696,15 @@ Bool blockParseModelJSON(vec table, int max, STRPTR value)
 	for (index = token = mode = 0; index < max && IsDef(value); index ++)
 	{
 		/* identifier must be upper case */
-		if ('A' <= value[0] && value[0] <= 'Z')
+		uint8_t chr = value[0];
+		if ('A' <= chr && chr <= 'Z')
 		{
 			STRPTR end;
 			for (end = value + 1; *end && *end != ','; end ++);
-			token = FindInList("FACES,TEX_CUBEMAP,TEX_DETAIL,TEX_INHERIT,SIZE,TR,ROT,ROTCAS,REF,ROT90,TEX,INVERT,INC_FACEID,COPY,SAME_AS", value, end-value) + 1;
+			token = FindInList(
+				"FACES,TEX_CUBEMAP,TEX_DETAIL,TEX_INHERIT,SIZE,TR,ROT,ROTCAS,REF,ROT90,"
+				"TEX,INVERT,INC_FACEID,NAME,DUALSIDE,COPY,SAME_AS", value, end-value
+			) + 1;
 			switch (token) {
 			case 0: return False;
 			case BHDR_MAXTOK:   token = COPY_MODEL; break;
@@ -694,18 +717,27 @@ Bool blockParseModelJSON(vec table, int max, STRPTR value)
 			table[index] = token;
 			value = end;
 		}
-		else
+		else if (('0' <= chr && chr <= '9') || chr == '-')
 		{
-			table[index]= strtof(value, &value);
+			table[index] = strtof(value, &value);
 			if (token == BHDR_FACES)
 				faces = table[index];
 		}
+		else if (chr == '\"')
+		{
+			table[index] = 0;
+			for (value ++; *value && *value != '\"'; value ++);
+			if (*value) value ++;
+		}
+		else return False;
 
 		while (isspace(*value)) value ++;
 		if (*value == ',')
 			value ++;
 		while (isspace(*value)) value ++;
 	}
+	while (index < max)
+		table[index++] = 0;
 	return True;
 }
 

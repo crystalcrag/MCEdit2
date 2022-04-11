@@ -449,20 +449,22 @@ struct BlockVertex_t       /* store custom block model vertex data (needed by ch
 
 enum /* special tags in model definition */
 {
-	BHDR_FACES   = 1,
-	BHDR_CUBEMAP = 2,
-	BHDR_DETAIL  = 3,
-	BHDR_INHERIT = 4,
-	BHDR_SIZE    = 5,
-	BHDR_TR      = 6,
-	BHDR_ROT     = 7,
-	BHDR_ROTCAS  = 8,
-	BHDR_REF     = 9,
-	BHDR_ROT90   = 10,
-	BHDR_TEX     = 11,
-	BHDR_INVERT  = 12,
-	BHDR_INCFACE = 13,
-	BHDR_MAXTOK  = 14
+	BHDR_FACES    = 1,
+	BHDR_CUBEMAP  = 2,
+	BHDR_DETAIL   = 3,
+	BHDR_INHERIT  = 4,
+	BHDR_SIZE     = 5,
+	BHDR_TR       = 6,
+	BHDR_ROT      = 7,
+	BHDR_ROTCAS   = 8,
+	BHDR_REF      = 9,
+	BHDR_ROT90    = 10,
+	BHDR_TEX      = 11,
+	BHDR_INVERT   = 12,
+	BHDR_INCFACE  = 13,
+	BHDR_NAME     = 14,
+	BHDR_DUALSIDE = 15,
+	BHDR_MAXTOK   = 16
 };
 
 #define BHDR_FUSED               0x80

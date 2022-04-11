@@ -115,15 +115,19 @@ enum /* entity id and models */
 	ENTITY_LLAMA          = 0x40d,
 	ENTITY_SLIME          = 0x40e,
 	ENTITY_SPIDER         = 0x40f,
-	ENTITY_HORSE,
-	ENTITY_BAT,
-	ENTITY_ZOMBIE,
-	ENTITY_SKELETON,
-	ENTITY_ENDERMAN,
-	ENTITY_XPORB,
-	ENTITY_IRONGOLEM,
-	ENTITY_SNOWMAN,
-	ENTITY_ZISTEAU
+	ENTITY_ZOMBIE         = 0x410,
+	ENTITY_SKELETON       = 0x411,
+	ENTITY_ENDERMAN       = 0x412,
+	ENTITY_IRONGOLEM      = 0x413,
+	ENTITY_SNOWMAN        = 0x414,
+	ENTITY_BAT            = 0x415,
+	ENTITY_WOLF           = 0x416,
+	ENTITY_OCELOT         = 0x417,
+	ENTITY_HORSE          = 0x418,
+	ENTITY_VILLAGER       = 0x419,
+	ENTITY_WITCH          = 0x420,
+	ENTITY_CAVESPIDER,
+	ENTITY_PLAYER
 };
 
 typedef struct Paintings_t         Paintings_t;

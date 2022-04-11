@@ -1,4 +1,11 @@
 =========== Week 14 ===========
+Sun Apr 10:
+	* almost all mob models added to entities list.
+
+Sat Apr 9:
+	* mob entity/tile finder improvements.
+	* horse model added.
+
 Thu Apr 7:
 	* mob entity logic streamlined, added spider model.
 
