@@ -129,6 +129,14 @@ enum /* flags for ChunkData.cdFlags */
 	CDFLAG_EDGENORTH    = 0x0080,
 	CDFLAG_EDGEWEST     = 0x0100,
 	CDFLAG_EDGESENW     = 0x01e0,
+
+	CDFLAG_SOUTHHOLE    = 0x0200,      /* needed by the cave culling for the initial ChunkData */
+	CDFLAG_EASTHOLE     = 0x0400,
+	CDFLAG_NORTHHOLE    = 0x0800,
+	CDFLAG_WESTHOLE     = 0x1000,
+	CDFLAG_TOPHOLE      = 0x2000,
+	CDFLAG_BOTTOMHOLE   = 0x4000,
+	CDFLAG_HOLE         = 0x7e00,
 };
 
 /* alias */

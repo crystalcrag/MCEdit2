@@ -1,3 +1,14 @@
+=========== Week 15 ===========
+Wed Apr 13:
+	* underwater fog: result is meh, but slightly better than what was before.
+
+Tue Apr 12:
+	* used a FBO for alpha tex so that fog can be applied correctly.
+
+Mon Apr 11:
+	* bug fixes for listbox cell editing (waypoint editor).
+	* forget diagonal matrix for cave culling.
+
 =========== Week 14 ===========
 Sun Apr 10:
 	* almost all mob models added to entities list.

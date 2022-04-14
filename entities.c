@@ -173,16 +173,16 @@ Bool entityInitStatic(void)
 	entities.typeCount = 0;
 	entities.texEntity = textureLoad(RESDIR, "entities.png", 1, mobEntityProcessTex);
 
-	EntityBank bank = HEAD(entities.banks);
-	entities.initModelCount = bank->modelCount;
-	entities.initVtxCount = bank->vtxCount;
-
 	worldItemInit();
 	mobEntityInit();
 
 	/* parse entity description models */
 	if (! jsonParse(RESDIR "entities.js", entityCreateModel))
 		return False;
+
+	EntityBank bank = HEAD(entities.banks);
+	entities.initModelCount = bank->modelCount;
+	entities.initVtxCount = bank->vtxCount;
 
 	entities.shader = createGLSLProgram("entities.vsh", "entities.fsh", NULL);
 	return entities.shader;

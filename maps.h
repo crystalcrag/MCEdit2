@@ -113,6 +113,7 @@ void    mapDecodeItems(Item item, int count, NBTHdr nbtItems);
 Bool    mapSerializeItems(MapExtraData sel, STRPTR listName, Item items, int count, NBTFile ret);
 Bool    mapUpdateNBT(MapExtraData sel, NBTFile nbt);
 void    mapViewFrustum(Map, vec4 camera);
+int     mapIsPositionInLiquid(Map, vec4 pos);
 int     mapFirstFree(uint32_t * usage, int count);
 Chunk   mapGetChunk(Map, vec4 pos);
 VTXBBox mapGetBBox(BlockIter iterator, int * count, int * cnxFlags);

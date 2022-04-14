@@ -375,21 +375,20 @@ static int wayPointsClick(SIT_Widget w, APTR cd, APTR ud)
 	int   click;
 	if (msg->state == SITOM_ButtonPressed && msg->button == SITOM_ButtonRight)
 	{
-		click = SIT_ListGetItemOver(w, rect, msg->x, msg->y, w);
+		SIT_Widget parent = w;
+		click = SIT_ListGetItemOver(w, rect, msg->x, msg->y, &parent);
 		if (click >= 0)
 		{
 			WayPoint wp = vector_nth(&waypoints.all, click >> 8);
 			TEXT     coord[64];
-			int      padding[4];
-			float    left, top;
 
 			click &= 0xff;
 			switch (click) {
 			case 0: /* color value: show a color chooser */
-				w = CCOpen(w, wp->color, wayPointsSetColor, wp, 50 - (int) SIT_EmToReal(w, SITV_Em(1)));
+				w = CCOpen(parent, wp->color, wayPointsSetColor, wp, 50 - (int) SIT_EmToReal(w, SITV_Em(1)));
 				SIT_SetValues(w,
-					SIT_Left, SITV_AttachForm, NULL, (int) rect[0] - 50,
-					SIT_Top,  SITV_AttachForm, NULL, (int) rect[3] + 5,
+					SIT_Left, SITV_AttachOpposite, parent, SITV_Px((int) rect[0] - 50),
+					SIT_Top,  SITV_AttachOpposite, parent, (int) rect[3] + 5,
 					NULL
 				);
 				SIT_ManageWidget(w);
@@ -398,17 +397,15 @@ static int wayPointsClick(SIT_Widget w, APTR cd, APTR ud)
 				snprintf(coord, sizeof coord, "%d, %d, %d", (int) wp->location[VX], (int) wp->location[VY], (int) wp->location[VZ]);
 				// no break;
 			case 1: /* name: same */
-				SIT_GetValues(w, SIT_Parent, &w, NULL);
-				SIT_GetValues(w, SIT_X, &left, SIT_Y, &top, SIT_Padding, padding, NULL);
 				waypoints.cancelEdit = 0;
-				w = SIT_CreateWidget("editname", SIT_EDITBOX, w,
+				w = SIT_CreateWidget("editname", SIT_EDITBOX, parent,
 					/* cannot edit wp->name directly: we want this to be cancellable */
 					SIT_Title,      click == 2 ? coord : wp->name,
 					SIT_EditLength, sizeof wp->name,
-					SIT_Left,       SITV_AttachForm, NULL, (int) (rect[0] - left) - padding[0],
-					SIT_Top,        SITV_AttachForm, NULL, (int) (rect[1] - top)  - padding[1] - 1,
-					SIT_Width,      (int) (rect[2] - rect[0] - 2),
-					SIT_Height,     (int) (rect[3] - rect[1] - 3),
+					SIT_X,          (int) rect[0],
+					SIT_Y,          (int) rect[1],
+					SIT_Width,      (int) (rect[2] - rect[0] - 4),
+					SIT_Height,     (int) (rect[3] - rect[1] - 4),
 					SIT_Style,      "border: 0; padding: 0",
 					SIT_UserData,   (APTR) click,
 					NULL

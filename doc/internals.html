@@ -992,53 +992,77 @@ with an integer assigned to it. Beside this property, you can also use these one
 <h3 id="blockmodel"><span>Block models</span></h3>
 
 <p>Custom models that don't fit <tt>QUAD</tt> or <tt>SOLID</tt> can still use arbitrary shapes using
-the property <tt>model</tt> on a state description object. All the models has been filled using using
-an external application: <tt>TileFinder</tt>. This section will describe how the models are encoded,
-but be warned that this format has not been designed to be manually edited.
+the property <tt>model</tt> on a state description object. All the models has been filled using
+an external application: <a href="https://github.com/crystalcrag/MCEdit-utils"><tt>TileFinder</tt></a>.
+This section will describe how the models are encoded, even though it can be edited by hand, anything
+more complex than a slight value change will certainly require the use of a 3d modeler.
 
 <p>Contrary to typical models description format (like <tt>.obj</tt>) which usually only contains
 triangles, this format uses cubes/boxes as basic primitives, where each face can be selectively
 hidden or textured. You can also apply rotation, scaling, translation to each individual box and
 by grouping multiple boxes, you get a model.
 
-<p>Each lines usually represent a primitives (ie: box), even though to keep line length under control,
-some might have been wrapped. The first number is a bit field encoding quite a few parameters:
-<ul>
-  <li><tt>bit0~5</tt>: faces activated for this box, bitfield ordered <tt>S,E,N,W,T,B</tt>. Faces not
-  activated will have no triangles generated for them at all.
-  <li><tt>bit6</tt>: normals are inverted: ie: if south face is active, it should use normal for the
-  north face.
-  <li><tt>bit7</tt>: texture should be applied using a cube map. Texture coordinates refer to a
-  tile in the main texture file, but should be reduced according to the face size/position.
-  <li><tt>bit8</tt>: if set, it means there are more primitives following this one.
-  <li><tt>bit9~10</tt>: model needs to be rotated by 90 degrees increment CCW (ie: trigonometric rotation).
-  Careful though: normals will need to be readjusted. This field is carried to next primitives if any,
-  therefore should only be set on the first one.
-  <li><tt>bit11~16</tt>: detail face: <tt>S,E,N,W,T,B</tt> bitfield indicating faces for which an exact
-  texture coordinate will be provided, instead of a cube map. Usually <tt>bit7</tt> is also set when
-  using these.
-  <li><tt>bit17~...</tt>: face ID: used for models that have optional parts (fences, glass panes, iron bar, restone
-  dust, ...). More on this field later.
-</ul>
+<p>Each lines usually represent a primitive (ie: box), with tags describing what the following numbers
+means. A line ends where the next one starts (or when there are no more numbers to process). The starting
+tag will always be <tt>FACES</tt>. All the other tags can be specified in any order. Here are all the
+tags recognized, their and the expected arguments:
 
-<p>After that, numbers are a bit more straightforward:
-<ul>
-  <li><b>3 floats</b>: size of the box, in 1/16 units (ie: 16 = a full voxel), specified in X, Y, Z order.
-  Can be fractional if needed. Model can have size of up to <tt>112x112x112</tt> (7 voxels). Although,
-  due to frustum culling, it is advised to keep them below 16x16x16 (1 voxel).
-  <li><b>3 floats</b>: translation to apply, also in 1/16 unit, that will be applied to the X, Y, Z axis.
-  <li><b>3 floats</b>: rotation in degrees, CCW (trigonometric rotation) on the X, Y, Z axis.
-  <li><b>3 floats</b>: rotation in degrees, CCW. The difference with the previous 3 numbers, is that
-  these rotations will be carried onto the next primitives.
-</ul>
+<table class="listview">
+<thead><tr><td>TAGS<td>argument<td>Description</thead>
+<tbody>
+  <tr><td><tt>FACES</tt><td>1 integer<td>This tag describe the start of a new primitive. If a previous
+  <tt>FACES</tt> tag was found, the previous primitive will stop processing arguments and generate
+  triangles out of all the parameters given. The agument to this tag is one integer encoding a bitfield
+  of the sides of a cube that will have texture information. The bitfeld uses the order <tt>S, E, N, W, T, B</tt>
+  order, which are respectively assigned to the number 1, 2, 4, 8, 16, 32. Therefore 63 is a full box.
+  <tr><td><tt>DETAIL</tt><td>none<td><tt>TEX</tt> parameter will describe the exact coordinates to apply
+  to each face of the primitive.
+  <tr><td><tt>CUBEMAP</tt><td>none<td><tt>TEX</tt> will be a single tile from the main texture atlas, 
+  but will be reduced to the size/location of the primitive, within that tile. Typical use case is to
+  applied wood texture on fences for example, without having to precisely select the coordinates
+  for each faces.
+  <tr><td><tt>INHERIT</tt><td>none<td>Similar to <tt>CUBEMAP</tt>, but reuse texture coordinates specified
+  for the last line that had <tt>CUBEMAP</tt>. This keyword cannot be set on the first line, there must
+  be a previous <tt>CUBEMAP</tt>, otherwise it is considered a bug.
+  <tr><td><tt>SIZE</tt><td>3 floats<td>Size of the box, specifying the X, Y, and Z axis. 16 represent
+  the size of a voxel (because original texture tile were 16x16px). You can specify fractional number.
+  <tr><td><tt>ROT90</tt><td> 1 integer<td>Rotate the model by 90 degrees steps on the Y axis. Similar
+  to <tt>ROT</tt> or <tt>ROTCAS</tt>. Unit is in degrees and must be multiple of 90 (ie: should only
+  use the numbers 0, 90, 180 or 270). Normals will be recomputed. This tag is only recognized on the
+  <b>first line</b>, will be ignored on subsequent lines and <b>cannot</b> be cancelled.
+  <tr><td><tt>ROT</tt><td>3 floats<td>Arbitrary rotation on X, Y and/or Z axis. The rotation will only
+  be applied to the current model. Unit is in degree.
+  <tr><td><tt>ROTCAS</tt><td>3 floats<td>Similar to <tt>ROT</tt>, but the resulting matrix will be
+  applied to subsequent models too. <tt>ROTCAS</tt> can be reset to identity with the <tt>INC_FACEID</tt>
+  keyword.
+  <tr><td><tt>TR</tt><td>3 floats<td>Apply a translation to the primitive. Same unit as <tt>SIZE</tt>.
+  <tr><td><tt>REF<tt><td>3 floats<td>Center of rotation for <tt>ROT</tt> or <tt>ROTCAS</tt>. Without
+  this tag, the center of rotation will be the center of the primitive. Same unit as <tt>SIZE</tt>.
+  <tr><td><tt>NAME</tt><td>string<td>Only used by TileFinder: giving a name to model parts, makes it
+  easier to locate when there are a lot of them.
+  <tr><td><tt>DUALSIDE</tt><td>none<td>All faces defined for this primitive must not be culled by
+  the back-face culling test.
+  <tr><td><tt>INC_FACEID</tt><td>none<td>Used by connected models. This tag can also be used to reset
+  the <tt>ROTCAS</tt> matrix to identity: useful if you want to group boxes and move them as one unit.
+  <tr><td><tt>TEX</tt><td>n floats<td>A variable number of floats depending on which tag was provided
+  earlier. It depends on <tt>FACES</tt> and texture apply mode (<tt>DETAIL</tt>, <tt>CUBEMAP</tt> or
+  <tt>INHERIT</tt>):
+  <ul>
+    <li><tt>CUBEMAP</tt>: 24 numbers, grouped as 6 x 4 numbers: describe the texture to apply on each face
+	(S, E, N, W, T, B order), with 4 numbers per face (see below for format).
+	<li><tt>INHERIT</tt>: nothing. Should use the numbers provided by the last <tt>CUBEMAP</tt> line.
+	<li><tt>DETAIL</tt>: 4 numbers per active face (ie: <tt>popcount(FACES) * 4</tt>).
+  </ul>
+  <p>Each number must encode a <tt>UV</tt> coordinate (ie: two numbers). <tt>U</tt> can vary from 0 to 512,
+  and <tt>V</tt> from 0 to 1024. <tt>U</tt> can therefore address 513 numbers, thus the formula for each
+  number is <tt>U + V * 513</tt>. To get back the coordinates for these numbers, you can use:
+  <pre>div_t UV = div(tileUV, <v>513</v>); <c>/* UV.quot = U, UV.rem = V */</v></pre>
+</table>
 
-<p>At last, these number can be followed by up to 24 integers which represent the UV coordinates of
-the texture to use for the faces defined for this box. There are 4 numbers per face. The number of
-faces is the number of bits activated in the first number (ie: <tt>popcount((int) model[0] & 63) * 4</tt>).
+<p>Remember, that you can copy a group of lines to the clipboard and paste them into <tt>TileFinder</tt>
+to see what a model will look like. You can then modify the model in here, and once you are satisfied
+with the changes, copy the model back to clipboard to paste it back in the file.
 
-<p>Each number must encode a <tt>UV</tt> coordinate as two integers. <tt>U</tt> can vary from 0 to 512,
-and <tt>V</tt> from 0 to 1024. <tt>U</tt> can therefore address 513 numbers, thus the formula for each
-number is <tt>U + V * 513</tt>.
 
 <h2 id="NBTapi">NBT API</h2>
 
@@ -1633,7 +1657,7 @@ to the stream).
 <p>The <b>payload for array is a bit different</b> though: instead of the actual data, you need to provide
 the number of items (not bytes), the array will contain. This is for <tt>TAG_List</tt> (any sub-type)
 and <tt>TAG_Int_Array</tt>. You can <tt>or</tt> the length of the array with the special constant
-<tt>NBT_WithInit</tt>, and provide an additional parameter: a pointer to buffer that will be used to
+<tt>NBT_WithInit</tt>, and provide an additional parameter: a pointer to a buffer that will be used to
 initialize the array. Otherwise, the array will be set to all zeros. For example:
 
 <pre><t>struct</t> NBTFile_t nbt = {<v>0</v>};
@@ -1641,9 +1665,9 @@ vec4 pos = ...
 NBT_Add(&amp;nbt, TAG_List_Float, <v>"Coordinates"</v>, <v>3</v> | NBT_WithInit, pos, TAG_Compound_End);
 </pre>
 
-<p>Note: you have to make the initializer is of the same type <b>and same size</b> than what you requested
-in the <tt>NBT_Add</tt> parameters. No automatic conversion will be done you (there isn't enough
-information for this function to do anything more anyway).
+<p>Note: you have to make sure the initializer is of the same type <b>and same size</b> than what you
+requested in the <tt>NBT_Add</tt> parameters. No automatic conversion will be done you (there isn't
+enough information for this function to do anything more anyway).
 
 
 
@@ -1706,7 +1730,8 @@ framebuffer of <tt>1920x1080px</tt>):
   <li>Each pixel of the framebuffer will have to write 2 fragments in the linked list.
   <li><tt>2</tt> fragments times <tt>1920px</tt> times <tt>1080px</tt> times <tt>16</tt> bytes (12 bytes
   per fragment + 4 bytes for head of linked list) times <tt>60</tt> (frame per second) = a little bit
-  under 4 Gb / second. That is going to saturate the memory bandwidth of all but high-end configuration.
+  under 4 Gb / second. That is going to saturate the memory bandwidth of a lot of GPU (integrated and
+  mobile chip mostly, discrete GPU will probably be fine due to dedicated memory lines).
   <li>To add insult to injury, if you were to sort those quads using the CPU, it would be just a few
   hundreds <b>of bytes</b> to move around each second.
 </ul>

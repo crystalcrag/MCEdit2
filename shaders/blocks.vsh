@@ -11,7 +11,6 @@ layout (location=2) in vec4  offsets;
 layout (binding=0) uniform sampler2D blockTex;
 
 uniform vec3 biomeColor;
-uniform uint timeMS;      // time in millisec
 
 // extension provided by stb_include.h
 #include "uniformBlock.glsl"

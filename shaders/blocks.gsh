@@ -105,7 +105,7 @@ void main(void)
 	shadeSky *= sky * clamp(1 + MIN_BRIGHTNESS * 0.1, 1.0, 1.07) / 15;
 
 	// fogStrength == how much fragment will blend with sky, 0 = normal fragment color, 1 = fragment will use sky color
-	if (FOG_DISTANCE > 0 && (normFlags[0] & (1 << 6)) == 0)
+	if (FOG_DISTANCE > 0)
 	{
 		float fogStrength = clamp(distance(camera.xz, (V1.xz+V4.xz) * 0.5) / FOG_DISTANCE, 0.0, 1.0);
 		fogFactor = 1 - fogStrength * fogStrength;

@@ -116,7 +116,8 @@ DLLIMP SIT_Widget SIT_ListInsertControlIntoCell(SIT_Widget, int row, int cell);
 DLLIMP void       SIT_ListFinishInsertControl(SIT_Widget);
 DLLIMP STRPTR     SIT_ListGetCellText(SIT_Widget, int col, int row);
 DLLIMP int        SIT_ListFindByTag(SIT_Widget w, APTR tag);
-DLLIMP int        SIT_ListGetItemOver(SIT_Widget, float rect[4], float mouseX, float mouseY, SIT_Widget mouseIsRelTo);
+DLLIMP int        SIT_ListGetItemOver(SIT_Widget, float rect[4], float mouseX, float mouseY, SIT_Widget * mouseIsRelTo);
+DLLIMP SIT_Widget SIT_ListGetItemRect(SIT_Widget, float rect[4], int row, int col);
 DLLIMP void       SIT_ListReorgColumns(SIT_Widget, STRPTR);
 DLLIMP int        SIT_TextGetWithSoftline(SIT_Widget, STRPTR buffer, int max);
 DLLIMP void       SIT_MoveNearby(SIT_Widget, int XYWH[4], int defAlign);
@@ -241,9 +242,9 @@ enum
 	SIT_MinHeight        = 51,   /* CSGR: Int (unit) */
 	SIT_MaxBoxWidth      = 52,   /* CSGR: Int (unit) */
 	SIT_MaxBoxHeight     = 53,   /* CSGR: Int (unit) */
-	SIT_EndCommonTags    = 54,   /* Sentinel, not a tag */
 
 	/* App */
+	SIT_DefRoundTo       = 54,   /* _SG: Int */
 	SIT_SetAppIcon       = 55,   /* _S_: Int (resource id for icon) */
 	SIT_DefSBArrows      = 56,   /* CSG: Enum, see SIT_ArrowType */
 	SIT_DefSBSize        = 57,   /* CSG: Int (unit) */
@@ -291,7 +292,7 @@ enum
 	SIT_Lexer            = 90,   /* _SG: SIT_CallProc */
 	SIT_LexerData        = 91,   /* _SG: APTR */
 	SIT_EditAddText      = 92,   /* _S_: STRPTR */
-	// SIT_CurValue      = 75,   /* _SG: Pointer (already defined for SIT_BUTTON) */
+	// SIT_CurValue      = 76,   /* _SG: Pointer (already defined for SIT_BUTTON) */
 
 	/* List box */
 	SIT_ListBoxFlags     = 93,   /* C__: Enum */
@@ -326,7 +327,7 @@ enum
 	SIT_DragNotify       = 118,  /* __G: Bool */
 	SIT_ArrowType        = 119,  /* C__: Enum */
 	SIT_WheelMult        = 120,  /* CSG: Int */
-	// SIT_CurValue      = 75,   /* _SG: Int * (slider only, already defined for SIT_BUTTON) */
+	// SIT_CurValue      = 76,   /* _SG: Int * (slider only, already defined for SIT_BUTTON) */
 
 	/* ComboBox */
 	SIT_InitialValues    = 121,  /* CSG: String */
@@ -357,6 +358,8 @@ enum
 	SIT_TagPrivate       = 0x100,
 	SIT_TagUser          = 0x1000
 };
+
+#define SIT_EndCommonTags        SIT_MaxBoxHeight
 
 /* aliases */
 #define	SIT_SliderPos            SIT_ScrollPos
@@ -672,7 +675,7 @@ enum /* possible return codes from SITE_OnSortItem callback */
 };
 
 #define	SITV_Em(em)        (((int)(em*8192) & 0x7fffffff) | (1<<31))
-#define	SITV_Px(px)        (px & ~(1<<31)) /* needed for negative number */
+#define	SITV_Px(px)        ((px) & ~(1<<31)) /* needed for negative number */
 #define SITV_NoPad         262144
 
 typedef struct KeyVal_t /* SIT_TagList value */

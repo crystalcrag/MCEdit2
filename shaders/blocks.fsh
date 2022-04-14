@@ -21,12 +21,16 @@ layout (binding=0) uniform sampler2D blockTex; // Main texture for blocks
 
 // current sky texture as rendered by skydone.fsh
 layout (binding=6) uniform sampler2D skyTex;
+layout (binding=7) uniform sampler2D alphaDepth;
 
 uniform vec3 biomeColor;
-uniform uint timeMS;      // time in millisec
+uniform uint underWater;
+uniform uint renderAlpha;      // cannot use alphaDepth
 
 void main(void)
 {
+	if (renderAlpha == 0)
+		return;
 	color = texture(blockTex, tc);
 	// prevent writing to the depth buffer: easy way to handle opacity for transparent block
 	if (color.a < 0.004)
@@ -108,7 +112,16 @@ void main(void)
 	color *= vec4(sky, sky, sky, 1) + vec4(1.5 * block, 1.2 * block, 1 * block, 0);
 
 	// compute fog contribution
-	if (fogFactor < 1)
+	if (underWater > 0)
+	{
+		if (fogFactor < 1)
+		{
+			vec4 skyColor = texelFetch(skyTex, ivec2(int(gl_FragCoord.x / SCR_WIDTH*255), int(gl_FragCoord.y / SCR_HEIGHT*255)), 0);
+			skyColor.a = 1;
+			color = mix(skyColor, color, fogFactor);
+		}
+	}
+	else if (fogFactor < 1 && (renderAlpha == 2 || gl_FragCoord.z < texelFetch(alphaDepth, ivec2(int(gl_FragCoord.x), int(gl_FragCoord.y)), 0).r))
 	{
 		vec4 skyColor = (skyLight > 0 ? texelFetch(skyTex, ivec2(int(gl_FragCoord.x / SCR_WIDTH*255), int(gl_FragCoord.y / SCR_HEIGHT*255)), 0) : vec4(0.1,0.1,0.1,1));
 		skyColor.a = 1;

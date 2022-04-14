@@ -1251,13 +1251,13 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 	/* default sorting for alpha quads */
 	cur->yaw = M_PIf * 1.5f;
 	cur->pitch = 0;
-	cur->cdFlags &= ~(CDFLAG_CHUNKAIR | CDFLAG_PENDINGMESH | CDFLAG_NOALPHASORT);
+	cur->cdFlags &= ~(CDFLAG_CHUNKAIR | CDFLAG_PENDINGMESH | CDFLAG_NOALPHASORT | CDFLAG_HOLE);
 
 	memset(visited, 0, sizeof visited);
 	hasLights = (cur->cdFlags & CDFLAG_NOLIGHT) == 0;
 
-	if (c->X == 224 && cur->Y == 96 && c->Z == 992)
-		globals.breakPoint = 1;
+//	if (c->X == -96 && cur->Y == 48 && c->Z == 144)
+//		globals.breakPoint = 1;
 
 	for (Y = 0, pos = air = 0; Y < 16; Y ++)
 	{
@@ -1276,8 +1276,8 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 			block = cur->blockIds[pos];
 			state = blockGetById(ID(block, data));
 
-			if (globals.breakPoint && pos == 2830)
-				globals.breakPoint = 2;
+//			if (globals.breakPoint && pos == 2830)
+//				globals.breakPoint = 2;
 
 			/* 3d flood fill for cave culling */
 			if ((slotsXZ[pos & 0xff] || slotsY[pos >> 8]) && ! blockIsFullySolid(state))
@@ -1287,6 +1287,7 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 				/* cave fog quad */
 				if (hasLights && slotsXZ[pos & 0xff])
 					chunkFillCaveHoles(cur, state, pos, (DATA16) (visited + 512));
+				cur->cdFlags |= (slotsXZ[pos & 0xff] | slotsY[pos >> 8]) << 9;
 			}
 
 			if (hasLights)
@@ -2008,7 +2009,6 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 
 		/* generate one quad (see internals.html for format) */
 		{
-			static uint8_t oppSideBlock[] = {16, 14, 10, 12, 22, 4};
 			DATA8    coord = cubeVertex + cubeIndices[i+3];
 			uint16_t texU  = (texCoord[j]   + tex[0]) << 4;
 			uint16_t texV  = (texCoord[j+1] + tex[1]) << 4;
@@ -2033,10 +2033,13 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 
 			/* flip tex */
 			if (texCoord[j] == texCoord[j + 6]) out[5] |= FLAG_TEX_KEEPX;
+			#if 0
+			static uint8_t oppSideBlock[] = {16, 14, 10, 12, 22, 4};
 			/* XXX disable sky fog for underwater blocks: fog makes them way brighter than they should be */
 			if (blockIds[blockIds3x3[oppSideBlock[i>>2]] >> 4].special == BLOCK_LIQUID && (skyBlock[oppSideBlock[i>>2]] >> 4) < 12)
 				/* XXX need to render water in a separate pass and use depth buffer from this pass instead */
 				out[5] |= FLAG_UNDERWATER;
+			#endif
 
 			/* sky/block light values: 2*4bits per vertex = 4 bytes needed, ambient occlusion: 2bits per vertex = 1 byte needed */
 			for (k = 0; k < 4; k ++)

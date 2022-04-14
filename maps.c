@@ -1293,6 +1293,52 @@ int mapConnectChest(Map map, MapExtraData sel, MapExtraData ret)
 }
 
 /*
+ * if underwater (or inside lava) we'll have to change how fog is applied
+ */
+int mapIsPositionInLiquid(Map map, vec4 pos)
+{
+	Chunk chunk = mapGetChunk(map, pos);
+
+	int Y = CPOS(pos[VY]);
+
+	if (0 <= Y && Y < chunk->maxy)
+	{
+		ChunkData cur = chunk->layer[Y];
+
+		int offset =
+			 (int) (pos[VX] - chunk->X) +
+			((int) (pos[VZ] - chunk->Z) << 4) +
+			((int) (pos[VY] - cur->Y) << 8);
+
+		Block b = blockIds + cur->blockIds[offset];
+
+		if (b->special == BLOCK_LIQUID)
+		{
+			/* skylight rapidly change when underwater: smooth transition a little bit */
+			if (b->emitLight == 0)
+			{
+				/* underwater */
+				uint8_t sky = cur->blockIds[SKYLIGHT_OFFSET + (offset >> 1)];
+				uint8_t sky2;
+				/* get skylight just above this block */
+				if (offset >= 4096-256)
+				{
+					Y ++;
+					sky2 = Y < chunk->maxy ? chunk->layer[Y]->blockIds[SKYLIGHT_OFFSET + ((offset & 255) >> 1)] : 15;
+				}
+				else sky2 = cur->blockIds[SKYLIGHT_OFFSET + 128 + (offset >> 1)];
+
+				float diff = ceilf(pos[VY]) - pos[VY];
+
+				return 1 | (lroundf(sky * diff + sky2 * (1-diff)) << 8);
+			}
+			else return 2 | (255 << 8); /* inside lava */
+		}
+	}
+	return 0;
+}
+
+/*
  * Frustum culling: the goal of these functions is to create a linked list of chunks
  * representing all the ones that are visible in the current view matrix (MVP)
  * check doc/internals.html for explanation on how this part works.
@@ -1532,7 +1578,7 @@ static void mapCullCave(ChunkData cur, vec4 camera)
 					1+2+4+8+16+(1<<15), 1+32+64+128+256+(1<<16), 2+32+512+1024+2048+(1<<17), 4+64+512+4096+8192+(1<<18),
 					8+128+1024+4096+16384+(1<<19), 16+256+2048+8192+16384+(1<<20)
 				};
-				if (neighbor->cnxGraph & canGoTo[oppSide])
+				if ((neighbor->cnxGraph | ((neighbor->cdFlags & CDFLAG_HOLE) << 6)) & canGoTo[oppSide])
 				{
 					cur->comingFrom = side;
 					break;
@@ -1568,7 +1614,7 @@ void mapViewFrustum(Map map, vec4 camera)
 
 	#if 0
 	/*
-	 * DEBUG: all chunks that have a mesh will be sent to GPU. If frustum culling function is FUBAR'ed
+	 * DEBUG: all chunks that have a mesh will be sent to GPU. If frustum culling function is FUBAR
 	 * you can reactivate this code to see the world again.
 	 */
 	int8_t * spiral;
@@ -1669,7 +1715,6 @@ void mapViewFrustum(Map map, vec4 camera)
 	/* limit cave fog check */
 	renderDist = ((map->maxDist >> 1) - 1) * ((map->maxDist >> 1) - 1) * 256;
 	checkFog = NULL;
-//	puts("=====================================");
 
 	for (last = cur; cur; cur = *prev)
 	{

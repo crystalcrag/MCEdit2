@@ -16,9 +16,10 @@ layout (binding=3) uniform sampler2D tint2;   // the color of the sky on the opp
 layout (binding=4) uniform sampler2D sun;
 layout (binding=5) uniform sampler2D clouds1; // light clouds texture (spherical UV projection)
 
-uniform float weather;//mixing factor (0.5 to 1.0)
+uniform float weather; // mixing factor (0.5 to 1.0)
 uniform float time;
 uniform float skyTexOnly;
+uniform vec4  overlay;
 
 out vec4 fragcol;
 
@@ -43,6 +44,12 @@ float Noise3d(vec3 x)
 
 void main()
 {
+	if (overlay.a == 1)
+	{
+		fragcol = overlay;
+		return;
+	}
+
 	vec3 color;
 	vec3 pos_norm = normalize(pos);
 	float dist = dot(sun_norm, pos_norm);

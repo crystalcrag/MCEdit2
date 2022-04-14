@@ -152,6 +152,8 @@ struct RenderWorld_t
 	GLuint     shaderBlocks;       /* compiled shaders */
 	GLuint     shaderItems;
 	GLuint     uniformTime;
+	GLuint     uniformAlpha;
+	GLuint     uniformOverlay;
 	GLuint     vaoInventory;       /* vao to draw inventory object */
 	GLuint     vaoBBox;
 	GLuint     vaoPreview;
@@ -166,8 +168,9 @@ struct RenderWorld_t
 	GLuint     vboPreview;
 	GLuint     vboPreviewLoc;
 	GLuint     vboInventory;       /* block model for rendering inventory */
-	GLuint     vboParticles;
 	GLuint     fboSky;
+	GLuint     fboAlphaDepth;
+	GLuint     texAlphaDepth;
 	int        compass;            /* image id from nanovg */
 	float      compassOffset;      /* pixel offset from right border to start drawing compass */
 	float      yaw, pitch;
@@ -176,6 +179,7 @@ struct RenderWorld_t
 	uint8_t    debugInfo;          /* tooltip over block highligted (DEBUG_*) */
 	uint8_t    setFrustum;         /* recompute chunk visible list */
 	uint8_t    previewItem;        /* >0 == preview item being displayed */
+	int        underWater;         /* >0 == player in underwater */
 	int        debugFont;          /* font id from nanovg (init by SITGL) */
 	int        debugTotalTri;      /* triangle count being drawn */
 	int        mouseX, mouseY;
