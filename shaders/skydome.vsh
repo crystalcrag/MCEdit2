@@ -12,7 +12,6 @@ layout (location=0) in vec3 vpoint;
 #include "uniformBlock.glsl"
 
 uniform float sun_angle;
-uniform vec4  overlay;
 
 out vec3 pos;
 out vec3 star_pos;

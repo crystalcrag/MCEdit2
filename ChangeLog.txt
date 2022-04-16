@@ -1,4 +1,9 @@
 =========== Week 15 ===========
+Thu Apr 14:
+	* more robust underwater fog: derived from cave fog.
+	* bugs fixed: entity selection was cut short, AO on cust checked wrong block layer, modifying chunks
+	              and then changing render distance would crash when saving.
+
 Wed Apr 13:
 	* underwater fog: result is meh, but slightly better than what was before.
 

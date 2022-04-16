@@ -1130,7 +1130,7 @@ void entityGetBoundsForFace(Entity entity, int face, vec4 V0, vec4 V1)
 /* check if vector <dir> intersects an entity bounding box (from position <camera>) */
 int entityRaypick(Chunk c, vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos)
 {
-	float maxDist = cur ? vecDistSquare(camera, cur)+1 : 1e6f;
+	float maxDist = cur ? vecDistSquare(camera, cur)+5 : 1e6f;
 	int   flags = (dir[VX] < 0 ? 2 : 8) | (dir[VY] < 0 ? 16 : 32) | (dir[VZ] < 0 ? 1 : 4);
 	int   i, id, curId;
 	Chunk chunks[4];

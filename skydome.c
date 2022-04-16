@@ -47,7 +47,6 @@ Bool skydomeInit(void)
 
 	skydome.uniformTime    = glGetUniformLocation(skydome.shader, "time");
 	skydome.uniformTexOnly = glGetUniformLocation(skydome.shader, "skyTexOnly");
-	skydome.uniformOverlay = glGetUniformLocation(skydome.shader, "overlay");
 
 	/* vertex data */
 	glBindBuffer(GL_ARRAY_BUFFER, skydome.vbo);
@@ -100,14 +99,6 @@ void skydomeRender(int fboSky, int underWater)
 	glFrontFace(GL_CW);
 	glBindVertexArray(skydome.vao);
 	glUseProgram(skydome.shader);
-
-	if (underWater & 255)
-	{
-		float fact = (underWater >> 8) * (1/255.0f);
-		vec4 overlay = {0x2f/255.0f * fact, 0x44/255.0f * fact, 0xf4/255.0f * fact, 1};
-		glProgramUniform4fv(skydome.shader, skydome.uniformOverlay, 1, overlay);
-	}
-	else glProgramUniform4fv(skydome.shader, skydome.uniformOverlay, 1, (vec4) {0,0,0,0});
 
 	float time = globals.curTime * 0.000005;
 	glProgramUniform1fv(skydome.shader, skydome.uniformTime,    1, &time); time = 1;

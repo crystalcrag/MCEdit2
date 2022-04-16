@@ -1226,7 +1226,7 @@ int mapUpdateGetCnxGraph(ChunkData, int start, DATA8 visited);
  */
 void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 {
-	static uint8_t visited[512 + 256];
+	static uint8_t visited[512 + 264];
 	struct WriteBuffer_t alpha, opaque;
 	ChunkData neighbors[7];    /* S, E, N, W, T, B, current */
 	ChunkData cur;
@@ -1256,7 +1256,7 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 	memset(visited, 0, sizeof visited);
 	hasLights = (cur->cdFlags & CDFLAG_NOLIGHT) == 0;
 
-//	if (c->X == -96 && cur->Y == 48 && c->Z == 144)
+//	if (c->X == 32 && cur->Y == 64 && c->Z == -16)
 //		globals.breakPoint = 1;
 
 	for (Y = 0, pos = air = 0; Y < 16; Y ++)
@@ -1276,7 +1276,7 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 			block = cur->blockIds[pos];
 			state = blockGetById(ID(block, data));
 
-//			if (globals.breakPoint && pos == 2830)
+//			if (globals.breakPoint && pos == 722)
 //				globals.breakPoint = 2;
 
 			/* 3d flood fill for cave culling */
@@ -1588,11 +1588,13 @@ static uint32_t chunkFillCustLight(DATA16 model, DATA8 skyBlock, DATA32 ocs, int
 
 			if (hasOCS)
 			{
+				/* if cust is in lower half, check blocks at current level */
+				int check = model[VY] < ORIGINVTX+BASEVTX/2 ? occlusion << 9 : occlusion;
 				/* only on top (mostly needed by snow layer and carpet) */
-				switch (popcount(occlusion & occlusionIfNeighbor[i+16])) {
+				switch (popcount(check & occlusionIfNeighbor[i+16])) {
 				case 2:  ocs[0] |= 3 << i*2; break;
 				case 1:  ocs[0] |= 1 << i*2; break;
-				default: ocs[0] |= (occlusion & occlusionIfCorner[i+16] ? 1 : 0) << i*2;
+				default: ocs[0] |= (check & occlusionIfCorner[i+16] ? 1 : 0) << i*2;
 				}
 			}
 
@@ -2033,13 +2035,6 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 
 			/* flip tex */
 			if (texCoord[j] == texCoord[j + 6]) out[5] |= FLAG_TEX_KEEPX;
-			#if 0
-			static uint8_t oppSideBlock[] = {16, 14, 10, 12, 22, 4};
-			/* XXX disable sky fog for underwater blocks: fog makes them way brighter than they should be */
-			if (blockIds[blockIds3x3[oppSideBlock[i>>2]] >> 4].special == BLOCK_LIQUID && (skyBlock[oppSideBlock[i>>2]] >> 4) < 12)
-				/* XXX need to render water in a separate pass and use depth buffer from this pass instead */
-				out[5] |= FLAG_UNDERWATER;
-			#endif
 
 			/* sky/block light values: 2*4bits per vertex = 4 bytes needed, ambient occlusion: 2bits per vertex = 1 byte needed */
 			for (k = 0; k < 4; k ++)
@@ -2075,6 +2070,7 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 			}
 			if (b->special == BLOCK_LIQUID)
 			{
+				/* lower some edges of a liquid block if we can (XXX need a better solution than this :-/) */
 				uint8_t edges = 0;
 				switch (i >> 2) {
 				case SIDE_SOUTH: edges = (liquid&12)>>2; break;
@@ -2110,26 +2106,45 @@ static void chunkFillCaveHoles(ChunkData cur, BlockState state, int pos, DATA16 
 	/* sky value need to be 0 for the hole to be covered */
 	if (state->special == BLOCK_STAIRS || state->special == BLOCK_HALF)
 	{
-		/* half-slab/stairs always have a skylight of 0, but will need patching if no sky light is around */
+		/* half-slab/stairs always have a skylight of 0, but will need patching if a sky light is around */
 		struct BlockIter_t iter;
 		mapInitIterOffset(&iter, cur, pos);
-		sky = chunkPatchLight(iter) >> 4;
+		if (chunkPatchLight(iter) >> 4 > 0)
+			holes += 16;
 	}
-	else
+	else if (state->special != BLOCK_LIQUID)
 	{
 		sky = cur->blockIds[SKYLIGHT_OFFSET + (pos >> 1)];
 
 		if (pos & 1) sky >>= 4;
 		else         sky &= 15;
-	}
 
-	if (sky > 0) holes += 16;
+		if (sky > 0) holes += 16;
+	}
+	else /* "cave" fog will also be applied to ocean (to cover "holes" at the edge of the render distance) */
+	{
+		sky = 0;
+		if (y >= 15)
+		{
+			uint8_t layer = (cur->Y >> 4) + 1;
+			if (layer < cur->chunk->maxy && (cur = cur->chunk->layer[layer]))
+				sky = cur->blockIds[pos & 255];
+		}
+		else sky = cur->blockIds[pos+256];
+		if (blockIds[sky].special != BLOCK_LIQUID)
+		{
+			if (sides & 1) holes[32]  |= 1 << y;
+			if (sides & 2) holes[65]  |= 1 << y;
+			if (sides & 4) holes[98]  |= 1 << y;
+			if (sides & 8) holes[131] |= 1 << y;
+		}
+	}
 
 	/* S, E, N, W sides */
 	if (sides & 1) holes[   y] |= mask16bit[x];
-	if (sides & 2) holes[32+y] |= mask16bit[z];
-	if (sides & 4) holes[64+y] |= mask16bit[x];
-	if (sides & 8) holes[96+y] |= mask16bit[z];
+	if (sides & 2) holes[33+y] |= mask16bit[z];
+	if (sides & 4) holes[66+y] |= mask16bit[x];
+	if (sides & 8) holes[99+y] |= mask16bit[z];
 }
 
 /* generate actual quads, but we need holes data first (result from previous function) */
@@ -2139,7 +2154,7 @@ static void chunkGenFOG(ChunkData cur, WriteBuffer buffer, DATA16 holesSENW)
 	uint8_t XYZ[4], w, h;
 
 	/* block type is air */
-	for (side = 0; side < 4; side ++, holesSENW += 32)
+	for (side = 0; side < 4; side ++, holesSENW += 33)
 	{
 		uint16_t holes, avoid;
 		DATA16   p;
@@ -2198,6 +2213,14 @@ static void chunkGenFOG(ChunkData cur, WriteBuffer buffer, DATA16 holesSENW)
 					out[3] = (16 << 14) | (XYZ2[VX+4] + 16 - XYZ2[VX]);
 					out[4] = (XYZ2[VZ+4] + 16 - XYZ2[VZ]);
 					out[5] = side << 9;
+
+					/* liquid blocks are lowered by 0.2 unit in geometry shader, need to also be applied on fog quad :-/ */
+					if (holesSENW[32] & (1 << (XYZ2[VY+4]-1)))
+					{
+						/* lower vertex V1 and V3 */
+						out[5] |= FLAG_TRIANGLE;
+						out[2] |= 5 << 28;
+					}
 
 					/*
 					 * cave fog does not really work with anything but block light == 0

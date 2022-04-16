@@ -874,7 +874,7 @@ void mceditWorld(void)
 					break;
 				case SDLK_F7:
 					globals.breakPoint = ! globals.breakPoint;
-					renderPointToBlock(564, 434);
+					renderPointToBlock(882, 526);
 					//FramePauseUnpause(globals.breakPoint);
 					break;
 				#endif

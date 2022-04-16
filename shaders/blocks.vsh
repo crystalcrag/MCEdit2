@@ -77,7 +77,7 @@ void main(void)
 			float(bitfieldExtract(position.w, 14, 14)) - 16 + vertex1.y,
 			float(bitfieldExtract(info.x,      0, 14)) - 16 + vertex1.z
 		);
-		// texture does not really matter, 95% of the color will come from fog
+		// texture does not really matter, 99% of the color will come from fog
 		texCoord = vec4(
 			 (0+16) * TEX_COORD_X,  (1*16) * TEX_COORD_X,
 			(23*16) * TEX_COORD_Y, (24*16) * TEX_COORD_Y

@@ -679,8 +679,14 @@ void mapGenerateMesh(Map map)
 			}
 		}
 		if ((list->cflags & CFLAG_GOTDATA) == 0)
+		{
+			#ifndef SLOW_CHUNK_LOAD
+			if (TimeMS() - start > 15)
+				break;
+			#endif
 			/* no chunk at this location */
 			continue;
+		}
 
 		//if (list == map->center)
 		//	NBT_Dump(&list->nbt, 0, 0, 0);
@@ -839,8 +845,11 @@ Bool mapSetRenderDist(Map map, int maxDist)
 
 				Chunk source = map->chunks + XC + ZC * oldArea;
 				Chunk dest   = chunks + (XZmid+i) + (XZmid+j) * area;
-				memcpy(dest, source, sizeof *dest);
+				char  nbor   = dest->neighbor;
+				memcpy(&dest->save, &source->save, sizeof *dest - offsetp(Chunk, save));
 				source->cflags = 0;
+				dest->cflags &= ~CFLAG_PRIORITIZE;
+				dest->neighbor = nbor;
 
 				/* ChunkData ref needs to be readjusted */
 				for (k = dest->maxy-1; k >= 0; k --)
@@ -852,8 +861,6 @@ Bool mapSetRenderDist(Map map, int maxDist)
 			}
 		}
 
-		int freed = 0;
-		int genlist = 0;
 		if (oldArea > area)
 		{
 			Chunk old;
@@ -861,25 +868,43 @@ Bool mapSetRenderDist(Map map, int maxDist)
 			for (i = 0, j = oldArea * oldArea, old = map->chunks; i < j; old ++, i ++)
 			{
 				if (old->cflags & (CFLAG_HASMESH|CFLAG_GOTDATA))
-					chunkFree(old, True), freed ++;
+					chunkFree(old, True);
 			}
 		}
+		/* need to point to the new chunk array, otherwise it will point to some free()'ed memory */
+		Chunk * prev;
+		Chunk   list;
+		i = map->center->X;
+		j = map->center->Z;
+		maxDist += 2;
+		for (list = map->needSave, prev = &map->needSave; list; list = list->save)
+		{
+			int DX = (list->X - i) >> 4;
+			int DZ = (list->Z - j) >> 4;
+			if (abs(DX) < maxDist && abs(DZ) < maxDist)
+			{
+				*prev = chunks + (XZmid + DX) + (XZmid + DZ) * area;
+				prev = &(*prev)->save;
+			}
+			else fprintf(stderr, "discarding modified chunk %d, %d out of render distance\n", list->X, list->Z);
+		}
+		*prev = NULL;
 
 		free(map->chunks);
 		map->maxDist  = area - 4;
 		map->mapArea  = area;
 		map->mapZ     = map->mapX = XZmid;
+		map->genLast  = NULL;
 		map->chunks   = chunks;
 		map->GPUchunk = loaded;
 		map->center   = map->chunks + map->mapX + map->mapZ * area;
 		if (oldArea < area || map->genList.lh_Head)
 		{
 			mapRedoGenList(map);
-			for (chunks = HEAD(map->genList); chunks; genlist ++, NEXT(chunks));
+			for (chunks = HEAD(map->genList); chunks; NEXT(chunks));
 		}
 		//if (map->genList.lh_Head == NULL)
 		//	mapShowChunks(map);
-		//fprintf(stderr, "chunk free = %d, genlist = %d, maxDist = %d\n", freed, genlist, map->maxDist);
 		return True;
 	}
 

@@ -30,8 +30,6 @@ struct SkyDome_t
 	int   texClouds, texClouds2;
 	int   texMoon, texSun;
 	int   uniformTime, uniformTexOnly;
-	int   uniformOverlay;
-	Map   clouds;
 };
 #endif
 
