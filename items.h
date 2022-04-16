@@ -83,7 +83,7 @@ struct ItemHash_t              /* easy access of items by name */
 };
 
 
-struct ItemsState_t            /* global structure */
+struct ItemsState_t            /* info about all items from itemTable.js */
 {
 	ItemDesc table;
 	ItemHash hashByName;

@@ -2270,6 +2270,12 @@
 		{state: 4, name: "-west", model:  [SAME_AS, ID(154, 5), 180]},
 		{state: 2, name: "-north", model: [SAME_AS, ID(154, 5), 270]},
 
+		{state: 8, name: "-locked, facing_down", model: [SAME_AS, ID(154, 0)]},
+		{state:13, name: "-east",                model: [SAME_AS, ID(154, 5)]},
+		{state:11, name: "-south",               model: [SAME_AS, ID(154, 3)]},
+		{state:12, name: "-west",                model: [SAME_AS, ID(154, 4)]},
+		{state:10, name: "-north",               model: [SAME_AS, ID(154, 2)]},
+
 	{id: 155, name: "Quartz block", type: SOLID, inv: CUBE, cat: BUILD, orient: LOG}, 
 		{state: 0, name: "-",               tex: [ 9,13, 9,13, 9,13, 9,13, 9,13, 9,13]},
 		{state: 1, name: "Chiseled quartz", tex: [ 8,15, 8,15, 8,15, 8,15, 9,15, 9,15]},

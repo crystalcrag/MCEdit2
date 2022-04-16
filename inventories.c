@@ -1,6 +1,6 @@
 /*
  * inventories.c: generic inventory interface management: move/drag/split/draw items between inventories
- *                with mouse or keyboard.
+ *                with mouse, keyboard or block update (like hopper).
  *
  * written by T.Pierron, oct 2020.
  */
@@ -901,4 +901,182 @@ void inventoryResize(void)
 		MCInventory inv = inventories.groups[i >= inventories.groupCount ? 9 - i + inventories.groupCount : i];
 		SIT_SetValues(inv->canvas, SIT_Width, inv->invCol * inventories.cellSz, SIT_Height, inv->invRow * inventories.cellSz, NULL);
 	}
+}
+
+/*
+ * container manipulation (mostly needed by hoppers)
+ */
+
+/* old save file (<1.8, I think), saved items in numeric format (as TAG_Short): convert these to strings */
+STRPTR inventoryItemName(NBTFile nbt, int offset, TEXT itemId[16])
+{
+	NBTHdr hdr = NBT_Hdr(nbt, offset);
+	if (hdr->type != TAG_String)
+	{
+		sprintf(itemId, "%d", NBT_GetInt(nbt, offset, 0));
+		return itemId;
+	}
+	return NBT_Payload(nbt, offset);
+}
+
+/* read TileEntities.Items from a container */
+void inventoryDecodeItems(Item container, int count, NBTHdr hdrItems)
+{
+	DATA8 mem;
+	int   index;
+
+	memset(container, 0, sizeof *container * count);
+
+	if (hdrItems)
+	for (index = hdrItems->count, mem = NBT_MemPayload(hdrItems); index > 0; index --)
+	{
+		NBTIter_t properties;
+		NBTFile_t nbt = {.mem = mem};
+		TEXT      itemId[16];
+		Item_t    item;
+		int       off;
+		memset(&item, 0, sizeof item);
+		NBT_IterCompound(&properties, nbt.mem);
+		while ((off = NBT_Iter(&properties)) >= 0)
+		{
+			switch (FindInList("id,Slot,Count,Damage", properties.name, 0)) {
+			case 0:  item.id = itemGetByName(inventoryItemName(&nbt, off, itemId), True); break;
+			case 1:  item.slot = NBT_GetInt(&nbt, off, 255); break;
+			case 2:  item.count = NBT_GetInt(&nbt, off, 1); break;
+			case 3:  item.uses = NBT_GetInt(&nbt, off, 0); break;
+			default: if (! item.extra) item.extra = nbt.mem;
+			}
+		}
+		if (isBlockId(item.id))
+		{
+			/* select a state with an inventory model */
+			BlockState state = blockGetById(item.id);
+			if (state->invId == 0)
+			{
+				Block b = &blockIds[item.id >> 4];
+				if (b->special == BLOCK_TALLFLOWER)
+					/* really weird state values :-/ */
+					item.id += 10;
+				else
+					item.id = (item.id & ~15) | b->invState;
+			}
+		}
+		if (item.uses > 0 && itemMaxDurability(item.id) < 0)
+			/* damage means meta-data from these items :-/ */
+			item.id += item.uses, item.uses = 0;
+		if (item.slot < count)
+		{
+			off = item.slot;
+			item.slot = 0;
+			container[off] = item;
+		}
+		mem += properties.offset;
+	}
+}
+
+/* convert a list of <items> into an NBT stream */
+Bool inventorySerializeItems(ChunkData cd, int offset, STRPTR listName, Item items, int itemCount, NBTFile ret)
+{
+	TEXT itemId[128];
+	int  i;
+
+	memset(ret, 0, sizeof *ret);
+	ret->page = 511;
+
+	if (cd)
+	{
+		Chunk c = cd->chunk;
+		DATA8 tile;
+		int   XYZ[3];
+
+		XYZ[0] = offset & 15; offset >>= 4;
+		XYZ[2] = offset & 15; offset >>= 4;
+		XYZ[1] = offset + cd->Y;
+
+		tile = chunkGetTileEntity(c, XYZ);
+
+		if (tile)
+		{
+			/* quote tags from original tile entity */
+			NBTIter_t iter;
+			NBT_IterCompound(&iter, tile);
+			while ((i = NBT_Iter(&iter)) >= 0)
+			{
+				if (strcasecmp(iter.name, listName))
+					NBT_Add(ret, TAG_Raw_Data, NBT_HdrSize(tile+i), tile + i, TAG_End);
+			}
+		}
+		else
+		{
+			/* not yet created: add required fields */
+			NBT_Add(ret,
+				TAG_String, "id", itemGetTechName(ID(cd->blockIds[offset], 0), itemId, sizeof itemId, False),
+				TAG_Int,    "x",  XYZ[0] + c->X,
+				TAG_Int,    "y",  XYZ[1],
+				TAG_Int,    "z",  XYZ[2] + c->Z,
+				TAG_End
+			);
+		}
+	}
+
+	int count;
+	for (i = 0, count = 0; i < itemCount; count += items[i].id > 0, i ++);
+
+	NBT_Add(ret,
+		TAG_List_Compound, listName, count,
+		TAG_End
+	);
+
+	for (i = 0; i < itemCount; i ++, items ++)
+	{
+		if (items->id == 0) continue;
+		ItemID_t id = items->id;
+		uint16_t data;
+		/* data (or damage) is only to get a specific inventory model: not needed in NBT */
+		if (isBlockId(id))
+		{
+			Block b = &blockIds[id>>4];
+			data = id & 15;
+			if (b->invState == data)
+				data = 0;
+			else if (b->special == BLOCK_TALLFLOWER)
+				data -= 10;
+		}
+		else data = ITEMMETA(id);
+
+		NBT_Add(ret,
+			TAG_String, "id",     itemGetTechName(id, itemId, sizeof itemId, False),
+			TAG_Byte,   "Slot",   i,
+			TAG_Short,  "Damage", itemMaxDurability(items->id) > 0 ? items->uses : data,
+			TAG_Byte,   "Count",  items->count,
+			TAG_End
+		);
+		if (items->extra)
+		{
+			/* merge entries we didn't care about */
+			NBTIter_t iter;
+			DATA8     mem;
+			int       off;
+			NBT_IterCompound(&iter, mem = items->extra);
+			while ((off = NBT_Iter(&iter)) >= 0)
+			{
+				if (FindInList("id,Slot,Count,Damage", iter.name, 0) >= 0)
+					/* these one already are */
+					continue;
+
+				NBT_Add(ret, TAG_Raw_Data, NBT_HdrSize(mem+off), mem + off, TAG_End);
+			}
+		}
+		NBT_Add(ret, TAG_Compound_End);
+	}
+	if (cd)
+		NBT_Add(ret, TAG_Compound_End);
+
+	return True;
+}
+
+/* try to grab one item from <itemList> and stroe it in inventory pointed by <cd,offset> (ie: hopper logic) */
+Bool inventoryPushItem(ChunkData cd, int offset, DATA8 nbtInvStart, Item itemList, int count)
+{
+	return False;
 }

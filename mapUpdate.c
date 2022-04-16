@@ -1219,6 +1219,7 @@ int mapUpdateIfPowered(Map map, BlockIter iterator, int oldId, int blockId, Bool
 		return mapUpdatePiston(map, iterator, blockId, init, track.curUpdate);
 	case RSDISPENSER:
 	case RSDROPPER:
+	case RSHOPPER:
 		/* very similar to fence gate actually */
 		return mapUpdateGate(iterator, blockId, init);
 	case RSPOWERRAILS:
@@ -1599,6 +1600,7 @@ static void mapUpdateCheckPiston(BlockUpdate update)
 	}
 }
 
+/* reschedule an update */
 static void mapUpdateAddCheck(BlockUpdate update)
 {
 	UpdateBuffer updates;

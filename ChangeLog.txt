@@ -1,4 +1,10 @@
 =========== Week 15 ===========
+Sat Apr 16:
+	* moved some code from maps.c to inventories.c.
+
+Fri Apr 15:
+	* started hopper logic.
+
 Thu Apr 14:
 	* more robust underwater fog: derived from cave fog.
 	* bugs fixed: entity selection was cut short, AO on cust checked wrong block layer, modifying chunks
@@ -16,7 +22,7 @@ Mon Apr 11:
 
 =========== Week 14 ===========
 Sun Apr 10:
-	* almost all mob models added to entities list.
+	* almost all overworld mob models added to entities list.
 
 Sat Apr 9:
 	* mob entity/tile finder improvements.
@@ -26,10 +32,10 @@ Thu Apr 7:
 	* mob entity logic streamlined, added spider model.
 
 Wed Apr 6:
-	* added entity models: polar bear, llama, 
+	* added entity models: polar bear, llama.
 
 Tue Apr 5:
-	* flower pot: rendering and editing.
+	* flower pot with item: rendering and editing.
 
 Mon Apr 4:
 	* added colored sheeps, chicken and squid models.

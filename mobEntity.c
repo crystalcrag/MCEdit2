@@ -48,7 +48,7 @@ static uint8_t sheepWoolColors[] = {
 #define TEX_VILLAGER_W        64
 #define ENTITY_FIRST_MOB      ENTITY_CREEPER
 
-/* used to generated colored sheep model from base model (white) */
+/* used to generate colored sheep model from base model (white) */
 static struct
 {
 	/* variants will be derived from these */
@@ -231,13 +231,4 @@ void mobEntityProcessTex(DATA8 * data, int * width, int * height, int bpp)
 			}
 		}
 	}
-	#if 0
-	FILE * out = fopen("dump.ppm", "wb");
-	if (out)
-	{
-		fprintf(out, "P6\n%d %d 255\n", *width, *height);
-		fwrite(*data, *width * bpp, *height, out);
-		fclose(out);
-	}
-	#endif
 }

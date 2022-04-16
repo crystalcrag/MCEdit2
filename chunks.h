@@ -99,10 +99,10 @@ enum /* flags for Chunk.cflags */
 	CFLAG_HASENTITY  = 0x0008,         /* entity transfered in active list */
 	CFLAG_ETTLIGHT   = 0x0010,         /* update entity light for this chunk */
 	CFLAG_PRIORITIZE = 0x0020,         /* already moved in front of map->genList */
-	CFLAG_REBUILDSEC = 0x0040,
+	CFLAG_REBUILDSEC = 0x0040,         /* Sections list in NBT needs to be rebuilt */
 	CFLAG_REBUILDTE  = 0x0080,         /* mark TileEntity list as needing to be rebuilt (the NBT part) */
 	CFLAG_REBUILDENT = 0x0100,         /* mark Entity list for rebuilt when saved */
-	CFLAG_REBUILDTT  = 0x0200,
+	CFLAG_REBUILDTT  = 0x0200,         /* TileTicks */
 
 	CFLAG_HAS_SEC    = 0x0400,         /* flag set if corresponding NBT record is present */
 	CFLAG_HAS_TE     = 0x0800,
@@ -154,7 +154,6 @@ enum /* NBT update tag (type parameter of chunkMarkForUpdate) */
 #define FLAG_TEX_KEEPX                 (1 << 12)
 #define FLAG_DUAL_SIDE                 (1 << 13)
 #define FLAG_TRIANGLE                  (1 << 14)
-#define FLAG_UNDERWATER                (1 << 15)
 
 #ifdef CHUNK_IMPL                      /* private stuff below */
 

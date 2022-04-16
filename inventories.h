@@ -12,12 +12,16 @@
 
 typedef struct MCInventory_t *       MCInventory;
 
-int * inventoryReset(void);
-void  inventoryResize(void);
-Item  inventoryDraggedItem(void);
-void  inventorySetTooltip(SIT_Widget toolTip, Item item, STRPTR extra);
-void  inventoryInit(MCInventory, SIT_Widget canvas, int max);
-void  inventoryResetScrollbar(MCInventory);
+int *  inventoryReset(void);
+void   inventoryResize(void);
+Item   inventoryDraggedItem(void);
+void   inventorySetTooltip(SIT_Widget toolTip, Item item, STRPTR extra);
+void   inventoryInit(MCInventory, SIT_Widget canvas, int max);
+void   inventoryResetScrollbar(MCInventory);
+void   inventoryDecodeItems(Item container, int count, NBTHdr hdrItems);
+STRPTR inventoryItemName(NBTFile nbt, int offset, TEXT itemId[16]);
+Bool   inventorySerializeItems(ChunkData, int offset, STRPTR listName, Item items, int itemCount, NBTFile ret);
+Bool   inventoryPushItem(ChunkData, int offset, DATA8 nbtInvStart, Item itemList, int count);
 
 
 struct MCInventory_t

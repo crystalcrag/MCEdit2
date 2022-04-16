@@ -17,6 +17,7 @@
 #include "tileticks.h"
 #include "redstone.h"
 #include "entities.h"
+#include "inventories.h"
 #include "globals.h"
 
 int8_t railsNeigbors[] = { /* find the potential 2 neighbors of a rail based on data table */
@@ -944,10 +945,10 @@ int mapUpdatePot(int blockId, ItemID_t itemId, DATA8 * tile)
 	{
 		/* delete item in the pot */
 		if (curItemId == 0)
-			/* already empty: delete pot then */
+			/* already empty: delete the pot then */
 			return 2;
 	}
-	else /* check if item can be placed in pot */
+	else /* check if the item can be placed in the pot */
 	{
 		uint8_t data = itemId & 15;
 		/* yellow_flower,red_flower,sapling,cactus,brown_mushroom,red_mushroom,cactus,tall_grass */
@@ -983,6 +984,48 @@ int mapUpdatePot(int blockId, ItemID_t itemId, DATA8 * tile)
 	);
 	*tile = nbt.mem;
 	return 1;
+}
+
+/* called from meshing/chunk loading: schedule an update */
+void mapUpdateHopper(ChunkData cd, int pos)
+{
+	struct BlockIter_t iter;
+	mapInitIterOffset(&iter, cd, pos);
+	int blockId = getBlockId(&iter);
+	if ((blockId & 8) == 0)
+	{
+		/* unlocked hopper: check first if we can transmit block */
+		Item_t itemList[5];
+		DATA8  tile = chunkGetTileEntity(iter.ref, (int [3]) {iter.x, iter.yabs, iter.z});
+		int    offset, dir;
+
+		/* get hopper content */
+		memset(itemList, 0, sizeof itemList);
+		if (tile)
+		{
+			NBTFile_t nbt = {.mem = tile};
+			offset = NBT_FindNode(&nbt, 0, "Items");
+			if (offset >= 0)
+				inventoryDecodeItems(itemList, DIM(itemList), NBT_Payload(&nbt, offset));
+		}
+
+		dir = blockSides.piston[blockId & 7];
+		mapIter(&iter, relx[dir], rely[dir], relz[dir]);
+		/* check if pointed block is a container */
+		tile = chunkGetTileEntity(iter.ref, (int [3]) {iter.x, iter.yabs, iter.z});
+		if (tile)
+		{
+			NBTFile_t nbt = {.mem = tile};
+			offset = NBT_FindNode(&nbt, 0, "Items");
+			if (offset >= 0)
+				inventoryPushItem(iter.cd, iter.offset, tile + offset, itemList, DIM(itemList));
+		}
+	}
+}
+
+/* container changed at given location, check if nearby hopper might need to be updated */
+void mapUpdateContainerChanged(ChunkData cd, int pos)
+{
 }
 
 /* return the activated state of <blockId>, but does not modify any tables */

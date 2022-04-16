@@ -14,6 +14,7 @@
 #include "entities.h"
 #include "SIT.h"
 #include "mapUpdate.h"
+#include "inventories.h"
 #include "keybindings.h"
 #include "globals.h"
 
@@ -76,7 +77,7 @@ void playerUpdateInventory(Player p)
 	NBTFile levelDat = &globals.level->levelDat;
 	int offset = NBT_FindNode(levelDat, 0, "Player.Inventory");
 	if (offset > 0)
-		mapDecodeItems(p->inventory.items, MAXCOLINV * 4, (NBTHdr) (levelDat->mem + offset));
+		inventoryDecodeItems(p->inventory.items, MAXCOLINV * 4, (NBTHdr) (levelDat->mem + offset));
 }
 
 
@@ -579,13 +580,13 @@ void playerUpdateNBT(Player p)
 	struct NBTFile_t inventory = {0};
 
 	NBTFile levelDat = p->levelDat;
-	if (mapSerializeItems(NULL, "Inventory", p->inventory.items, PLAYER_MAX_ITEMS, &inventory))
+	if (inventorySerializeItems(NULL, 0, "Inventory", p->inventory.items, PLAYER_MAX_ITEMS, &inventory))
 	{
 		int offset = NBT_Insert(levelDat, "Player.Inventory", TAG_List_Compound, &inventory);
 		NBT_Free(&inventory);
 		if (offset >= 0)
 		{
-			mapDecodeItems(p->inventory.items, PLAYER_MAX_ITEMS, NBT_Hdr(levelDat, offset));
+			inventoryDecodeItems(p->inventory.items, PLAYER_MAX_ITEMS, NBT_Hdr(levelDat, offset));
 			p->inventory.update ++;
 		}
 	}

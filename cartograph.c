@@ -277,7 +277,7 @@ static void cartoGenVertex(Cartograph map, CartoBank bank, float points[12])
 	float vertices[4*6], meta;
 	uint8_t slot;
 
-	/* using 4 light values will provide a smooth transition between corners if there is a light source near the item frames */
+	/* using 4 light values will provide a smooth transition between corners if there is a light source near the item frame */
 	slot = CBANK_SLOT(map->bank);
 	meta = ((slot / CBANK_WIDTH) << 15) | ((slot & (CBANK_WIDTH-1)) << 10);
 
@@ -330,8 +330,9 @@ static void cartoAddToBank(Cartograph map, float points[12])
 	int       i, slot;
 
 	/*
-	 * we could check if map->mapId has already been processed: in practice it is way TOO MUCH
-	 * boilerplate work, for something that should not happen very often.
+	 * we could check if map->mapId (ie: the number in the file data/map_%d.dat) has already been
+	 * processed (if the map was copied in game), and reuse the texture instead of creating a new slot
+	 * in practice it is way TOO MUCH boilerplate, for something that should not happen very often.
 	 */
 	for (i = 0, slot = -1, bank = cartograph.banks; i < cartograph.maxBank; i ++, bank ++)
 	{
@@ -373,7 +374,7 @@ static void cartoAddToBank(Cartograph map, float points[12])
 	if (bank->glTex == 0)
 	{
 		int texId;
-		/* that's the main difference with signs: we are using a simple GL texture for maps, no renderbuffer */
+		/* that's the main difference with signs: we are using a simple GL texture for maps, no FBO */
 		glGenTextures(1, &texId);
 		glBindTexture(GL_TEXTURE_2D, texId);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
@@ -546,21 +547,16 @@ void cartoRender(void)
 	if (cartograph.toRender == 0)
 		return;
 
+	/* contrary to sign, glPolygonOffset must not be used, otherwise the map quad will intersect its item frame */
 	glCullFace(GL_BACK);
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glEnable(GL_DEPTH_TEST);
-//	glEnable(GL_POLYGON_OFFSET_FILL);
 	glDepthFunc(GL_LEQUAL);
 	glDisable(GL_SCISSOR_TEST);
 	glDisable(GL_STENCIL_TEST);
 	glFrontFace(GL_CCW);
 	glActiveTexture(GL_TEXTURE0);
-	/*
-	 * maps shouldn't have any geometry behind, therefore depth buffer shouldn't interfere
-	 * but let's be safe, and apply the same offset than sign rendering.
-	 */
-//	glPolygonOffset(-5.0, -5.0);
 
 	/* will use the same shader than signs actually (decals.vsh) */
 	glUseProgram(cartograph.shader);

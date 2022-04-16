@@ -1,7 +1,7 @@
 /*
  * interface.c: handle user interface for MCEdit (based on SITGL); contains code for the following interfaces:
  *  - creative inventory editor
- *  - chest/furnace/dropper/dispenser editor
+ *  - chest/furnace/dropper/dispenser/hopper editor
  *  - text sign editor
  *  - analyze block window
  *  - fill/replace blocks
@@ -414,7 +414,10 @@ void mcuiEditChestInventory(Inventory player, Item items, int count, Block type)
 				"<inv left=", SITV_AttachCenter, ">"
 				"<msg left=", SITV_AttachCenter, ">"
 			);
-			chest.invRow = chest.invCol = 3;
+			if (count == MAXCOLINV)
+				chest.invRow = chest.invCol = 3;
+			else
+				chest.invRow = 1, chest.invCol = count;
 		}
 		chest.items   = items;
 		chest.itemsNb = count;
@@ -661,8 +664,6 @@ static void storeTileEntity(TileList tiles, int type, DATA8 tile)
 
 #define invType       copyModel /* this field is not needed past initialization phase */
 
-STRPTR mapItemName(NBTFile nbt, int offset, TEXT itemId[16]);
-
 static int mergeItems(ItemStat * ret, int max, DATA8 tile, int tileId)
 {
 	ItemStat  stat  = *ret;
@@ -689,7 +690,7 @@ static int mergeItems(ItemStat * ret, int max, DATA8 tile, int tileId)
 		while ((off = NBT_Iter(&properties)) >= 0)
 		{
 			switch (FindInList("id,Count,Damage", properties.name, 0)) {
-			case 0:  id    = itemGetByName(mapItemName(&nbt, items + off, itemId), True); break;
+			case 0:  id    = itemGetByName(inventoryItemName(&nbt, items + off, itemId), True); break;
 			case 1:  count = NBT_GetInt(&nbt, items + off, 1); break;
 			case 2:  data  = NBT_GetInt(&nbt, items + off, 0);
 			}

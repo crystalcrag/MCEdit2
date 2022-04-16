@@ -27,6 +27,7 @@
 #include "waypoints.h"
 #include "worldSelect.h"
 #include "tileticks.h"
+#include "inventories.h"
 #include "undoredo.h"
 #include "keybindings.h"
 #include "SIT.h"
@@ -1275,6 +1276,30 @@ static int mceditChooseSave(SIT_Widget w, APTR cd, APTR ud)
 /*
  * display a modal user interface on top of editor
  */
+static NBTHdr locateItems(MapExtraData sel)
+{
+	Chunk c = sel->chunk;
+	int   offset = sel->offset;
+	int   XYZ[3];
+	DATA8 tile;
+
+	XYZ[0] = offset & 15; offset >>= 4;
+	XYZ[2] = offset & 15; offset >>= 4;
+	XYZ[1] = offset + sel->cd->Y;
+
+	tile = chunkGetTileEntity(c, XYZ);
+
+	if (tile)
+	{
+		NBTFile_t nbt = {.mem = tile};
+		offset = NBT_FindNode(&nbt, 0, "Items");
+		if (offset >= 0)
+			return (NBTHdr) (tile + offset);
+	}
+	return NULL;
+}
+
+
 void mceditUIOverlay(int type)
 {
 	static struct Item_t oldPlayerInv[MAXCOLINV * 4];
@@ -1321,10 +1346,13 @@ void mceditUIOverlay(int type)
 			STRPTR sep  = strchr(tech, '_');
 			/* skip color name :-/ */
 			if (sep && strcmp(sep+1, "shulker_box") == 0)
+			{
+				itemCount = 27;
 				goto case_INV;
+			}
 
 			/* extract inventories from NBT structure */
-			switch (FindInList("chest,trapped_chest,ender_chest,dispenser,dropper,furnace,lit_furnace", tech, 0)) {
+			switch (FindInList("chest,trapped_chest,ender_chest,dispenser,dropper,furnace,lit_furnace,hopper", tech, 0)) {
 			case 0:
 			case 1:
 				/* possibly a double-chest */
@@ -1336,51 +1364,46 @@ void mceditUIOverlay(int type)
 					item = alloca(sizeof *item * 54 * 2);
 					switch (itemConnect) {
 					case 1:
-						mapDecodeItems(item,    27, mapLocateItems(sel));
-						mapDecodeItems(item+27, 27, mapLocateItems(&link));
+						inventoryDecodeItems(item,    27, locateItems(sel));
+						inventoryDecodeItems(item+27, 27, locateItems(&link));
 						break;
 					case 2:
-						mapDecodeItems(item,    27, mapLocateItems(&link));
-						mapDecodeItems(item+27, 27, mapLocateItems(sel));
+						inventoryDecodeItems(item,    27, locateItems(&link));
+						inventoryDecodeItems(item+27, 27, locateItems(sel));
 					}
 					memcpy(item + 54, item, 54 * sizeof *item);
 					mcuiEditChestInventory(&mcedit.player.inventory, item, 54, b);
 					break;
 				}
 				// else no break;
+				itemCount = 27;
 			case_INV:
 				/* single chest */
-				itemCount = 27;
-				item = alloca(sizeof *item * 27 * 2);
-				mapDecodeItems(item, 27, mapLocateItems(sel));
-				memcpy(item + 27, item, 27 * sizeof *item);
-				mcuiEditChestInventory(&mcedit.player.inventory, item, 27, b);
+				item = alloca(sizeof *item * itemCount * 2);
+				inventoryDecodeItems(item, itemCount, locateItems(sel));
+				memcpy(item + itemCount, item, itemCount * sizeof *item);
+				mcuiEditChestInventory(&mcedit.player.inventory, item, itemCount, b);
 				break;
 			case 2: /* ender chest */
 				itemCount = 27;
 				enderItems = 1;
 				item = alloca(sizeof *item * 27 * 2);
-				mapDecodeItems(item, 27, mceditGetEnderItems());
+				inventoryDecodeItems(item, 27, mceditGetEnderItems());
 				memcpy(item + 27, item, 27 * sizeof *item);
 				mcuiEditChestInventory(&mcedit.player.inventory, item, 27, b);
 				break;
 			case 3: /* dispenser */
 			case 4: /* dropper */
 				itemCount = 9;
-				item = alloca(sizeof *item * 9 * 2);
-				mapDecodeItems(item, 9, mapLocateItems(sel));
-				memcpy(item + 9, item, 9 * sizeof *item);
-				mcuiEditChestInventory(&mcedit.player.inventory, item, 9, b);
-				break;
+				goto case_INV;
 			case 6: /* lit furnace */
 				b --;
 			case 5: /* furnace */
 				itemCount = 3;
-				item = alloca(sizeof *item * 3 * 2);
-				mapDecodeItems(item, 9, mapLocateItems(sel));
-				memcpy(item + 3, item, 3 * sizeof *item);
-				mcuiEditChestInventory(&mcedit.player.inventory, item, 3, b);
-				break;
+				goto case_INV;
+			case 7: /* hopper */
+				itemCount = 5;
+				goto case_INV;
 
 			default:
 				if (b->special == BLOCK_SIGN)
@@ -1494,7 +1517,7 @@ void mceditUIOverlay(int type)
 			if (enderItems)
 			{
 				/* these need to be stored in level.dat */
-				mapSerializeItems(NULL, "EnderItems", item, itemCount, &chest);
+				inventorySerializeItems(NULL, 0, "EnderItems", item, itemCount, &chest);
 				NBT_Insert(mcedit.player.levelDat, "Player.EnderItems", TAG_List_Compound, &chest);
 				NBT_Free(&chest);
 				memset(&chest, 0, sizeof chest);
@@ -1502,21 +1525,21 @@ void mceditUIOverlay(int type)
 			/* double-chest items need to be split in 2 different tile entity */
 			else switch (itemConnect) {
 			case 1:
-				mapSerializeItems(sel,   "Items", item,    27, &chest);
-				mapSerializeItems(&link, "Items", item+27, 27, &chest2);
+				inventorySerializeItems(sel->cd, sel->offset, "Items", item,    27, &chest);
+				inventorySerializeItems(link.cd, link.offset, "Items", item+27, 27, &chest2);
 				break;
 			case 2:
-				mapSerializeItems(&link, "Items", item,    27, &chest2);
-				mapSerializeItems(sel,   "Items", item+27, 27, &chest);
+				inventorySerializeItems(link.cd, link.offset, "Items", item,    27, &chest2);
+				inventorySerializeItems(sel->cd, sel->offset, "Items", item+27, 27, &chest);
 				break;
 			default:
-				mapSerializeItems(sel, "Items", item, itemCount, &chest);
+				inventorySerializeItems(sel->cd, sel->offset, "Items", item, itemCount, &chest);
 			}
 		}
 
 		if (mcedit.player.pmode >= MODE_CREATIVE && memcmp(oldPlayerInv, mcedit.player.inventory.items, sizeof oldPlayerInv))
 			/* only update NBT if player is in creative mode */
-			mapSerializeItems(NULL, "Inventory", mcedit.player.inventory.items, DIM(oldPlayerInv), &playerInv);
+			inventorySerializeItems(NULL, 0, "Inventory", mcedit.player.inventory.items, DIM(oldPlayerInv), &playerInv);
 
 		if (chest.mem)
 		{
