@@ -264,7 +264,7 @@ static int pixArtDrawMapColor(SIT_Widget w, APTR cd, APTR ud)
 	int offX = (rect[2] - sz) >> 1;
 	int offY = (rect[3] - sz) >> 1;
 	nvgStrokeWidth(vg, 2);
-	nvgFillColorRGBA8(vg, item->extra);
+	nvgFillColorRGBA8(vg, item->tile);
 	nvgRect(vg, rect[0]+offX, rect[1]+offY, sz, sz);
 	nvgFill(vg);
 	int x = rect[0]+offX;
@@ -692,7 +692,7 @@ static void pixArtFillMapColors(MCInventory inv)
 	for (item = inv->items + inv->itemsNb, i = 0; i < 64; i ++, item ++)
 	{
 		item->id = 0xffff;
-		item->extra = mapRGB + i * 4;
+		item->tile = mapRGB + i * 4;
 	}
 }
 

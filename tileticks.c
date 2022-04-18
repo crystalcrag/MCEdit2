@@ -27,7 +27,7 @@ void mapUpdateChangeRedstone(Map map, BlockIter iterator, int side, RSWire dir);
 #define TOHASH(cd, offset)      (((uint64_t) (int)cd) | ((uint64_t)offset << 32))
 #define EOL                     0xffff
 
-Bool updateAlloc(int max)
+static Bool updateAlloc(int max)
 {
 	max = roundToUpperPrime(max < 32 ? 32 : max);
 
@@ -173,6 +173,26 @@ void updateRemove(ChunkData cd, int offset, Bool clearSorted)
 			break;
 		}
 	}
+}
+
+/* check if a tile tick is scheduled for this location */
+Bool updateScheduled(ChunkData cd, int offset)
+{
+	if (updates.max == 0)
+		return 0;
+
+	TileTick entry;
+	int      index = TOHASH(cd, offset) % updates.max;
+
+	for (entry = updates.list + index; entry->tick; entry = updates.list + entry->next)
+	{
+		/* check if already inserted */
+		if (entry->cd == cd && entry->offset == offset)
+			return True;
+		if (entry->next == EOL)
+			break;
+	}
+	return False;
 }
 
 #if 0

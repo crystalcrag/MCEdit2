@@ -486,12 +486,11 @@ void selectionRender(void)
 /*
  * clone selection tool: create a mini-map from the selected blocks
  */
-#define chunkDeleteIterTE(iter)   chunkDeleteTileEntity((iter).ref, (int[3]){(iter).x-1, (iter).yabs-1, (iter).z-1}, True)
+#define chunkDeleteIterTE(iter)   chunkDeleteTileEntity((iter).cd, (iter).offset, True, NULL)
 #define chunkAddIterTE(iter,tile) \
 { \
-	int xyz[] = {(iter).x-1, (iter).yabs-1, (iter).z-1}; \
-	chunkAddTileEntity((iter).ref, xyz, tile); \
-	chunkUpdateTilePosition((iter).ref, xyz, tile); \
+	chunkAddTileEntity((iter).cd, (iter).offset, tile); \
+	chunkUpdateTilePosition((iter).cd, (iter).offset, tile); \
 }
 
 /* move brush */
@@ -1020,7 +1019,7 @@ Map selectionClone(vec4 pos, int side, Bool genMesh)
 					dst.blockIds[DATA_OFFSET + (dst.offset>>1)] |= dst.offset & 1 ? data << 4 : data;
 
 					/* also need to copy tile entities */
-					DATA8 tile = chunkGetTileEntity(src.ref, (int[3]) {src.x, src.yabs, src.z});
+					DATA8 tile = chunkGetTileEntity(src.cd, src.offset);
 					if (tile) chunkAddIterTE(dst, tile = NBT_Copy(tile));
 				}
 			}
@@ -1134,7 +1133,11 @@ void selectionUseBrush(Map lib, Bool dup)
 					DATA8 tile;
 					int   XYZ[3], offset;
 					for (offset = 0; (tile = chunkIterTileEntity(srcChunk, XYZ, &offset)); )
-						chunkAddTileEntity(dstChunk, XYZ, NBT_Copy(tile));
+					{
+						struct BlockIter_t iter;
+						mapInitIter(brush, &iter, (vec4) {XYZ[0], XYZ[1], XYZ[2]}, False);
+						chunkAddTileEntity(iter.cd, iter.offset, NBT_Copy(tile));
+					}
 				}
 				chunkUpdate(dstChunk, chunkAir, brush->chunkOffsets, y);
 				renderFinishMesh(brush, True);

@@ -1438,7 +1438,7 @@ void renderBlockInfo(SelBlock_t * sel)
 			if (sel->extra.special == BLOCK_BED)
 			{
 				/* color is encoded in tile entity :-/ */
-				DATA8 tile = chunkGetTileEntity(sel->extra.chunk, (int[3]){XYZ[VX]&15, XYZ[VY], XYZ[VZ]&15});
+				DATA8 tile = chunkGetTileEntity(sel->extra.cd, sel->extra.offset);
 				if (tile)
 				{
 					struct NBTFile_t nbt = {.mem = tile};

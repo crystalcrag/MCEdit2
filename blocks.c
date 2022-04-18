@@ -693,7 +693,7 @@ static void blockExtractEmitterLoction(DATA16 model, DATA8 loc, int box)
 Bool blockParseModelJSON(vec table, int max, STRPTR value)
 {
 	int index, token, mode, faces;
-	for (index = token = mode = 0; index < max && IsDef(value); index ++)
+	for (index = token = faces = mode = 0; index < max && IsDef(value); index ++)
 	{
 		/* identifier must be upper case */
 		uint8_t chr = value[0];
@@ -1084,6 +1084,23 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 		}
 		if (block.rswire)
 			block.updateNearby = 2;
+
+		/* XXX might be interesting to make it available from blockTable.js */
+		block.containerSize = 0;
+		value = strchr(block.tech, '_');
+		if (value && strcmp(value+1, "shulker_box") == 0)
+			block.containerSize = 27;
+		else switch (FindInList("chest,trapped_chest,ender_chest,dispenser,dropper,furnace,lit_furnace,brewing_stand,hopper", block.tech, 0)) {
+		case 0:
+		case 1:
+		case 2: block.containerSize = 27; break;
+		case 3:
+		case 4: block.containerSize = 9; break;
+		case 5:
+		case 6:
+		case 7: block.containerSize = 3; break;
+		case 8: block.containerSize = 5;
+		}
 
 		/* check for misspelled property name */
 		#ifdef STRICT_PARSING
@@ -2890,6 +2907,8 @@ DATA8 blockCreateTileEntity(int blockId, vec4 pos, APTR arg)
 
 	if (! b->tileEntity)
 		return NULL;
+	if (b->containerSize > 0)
+		ret.page = 511;
 
 	/* standard fields for tile entity */
 	NBT_Add(&ret,

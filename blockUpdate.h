@@ -9,11 +9,11 @@
 
 #include "maps.h"
 
-int  blockRotateX90(BlockIter);
-int  blockRotateY90(int blockId);
-int  blockRotateZ90(BlockIter);
-int  blockMirrorX(BlockIter);
-int  blockMirrorY(BlockIter);
-int  blockMirrorZ(BlockIter);
+int blockRotateX90(BlockIter);
+int blockRotateY90(int blockId);
+int blockRotateZ90(BlockIter);
+int blockMirrorX(BlockIter);
+int blockMirrorY(BlockIter);
+int blockMirrorZ(BlockIter);
 
 #endif

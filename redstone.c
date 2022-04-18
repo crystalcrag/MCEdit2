@@ -447,7 +447,7 @@ static int redstoneGetComparatorSignal(struct BlockIter_t iter, RSWire cnx)
 	if (cnx)
 		mapIter(&iter, cnx->dx, cnx->dy, cnx->dz);
 
-	DATA8 tile = chunkGetTileEntity(iter.ref, (int[3]) {iter.x, iter.yabs, iter.z});
+	DATA8 tile = chunkGetTileEntity(iter.cd, iter.offset);
 
 	if (tile)
 	{

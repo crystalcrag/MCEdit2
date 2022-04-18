@@ -158,7 +158,7 @@ int mapGetBlockId(Map map, vec4 pos, MapExtraData extra)
 		int blockId = cd->blockIds[offset] << 4;
 		int data    = cd->blockIds[(offset>>1) + DATA_OFFSET];
 		/* retracting piston head: ignore */
-		if (blockId == ID(RSPISTONHEAD, 0) && chunkGetTileEntity(ref, (int[3]) {offset & 15, pos[1], (offset >> 4) & 15}))
+		if (blockId == ID(RSPISTONHEAD, 0) && chunkGetTileEntity(cd, offset))
 			blockId = data = 0;
 
 		if (offset & 1) data >>= 4;
@@ -245,7 +245,7 @@ VTXBBox mapGetBBox(BlockIter iterator, int * count, int * cnxFlags)
 	if (block->bboxPlayer == BBOX_NONE || (id & block->bboxIgnoreBit))
 		return NULL;
 
-	if (block->id == RSPISTONHEAD && chunkGetTileEntity(iterator->ref, (int[3]) {iterator->x, iterator->yabs, iterator->z}))
+	if (block->id == RSPISTONHEAD && chunkGetTileEntity(iterator->cd, iterator->offset))
 		return NULL;
 
 	*cnxFlags = 0xffff;

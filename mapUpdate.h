@@ -25,6 +25,8 @@ int  mapUpdateComparator(Map, BlockIter, int blockId, Bool init, DATA8 * tile);
 void mapUpdatePressurePlate(BlockIter iter, float entityBBox[6]);
 void mapUpdateObserver(BlockIter iter, int from);
 int  mapUpdatePot(int blockId, ItemID_t itemId, DATA8 * tile);
+void mapUpdateHopper(ChunkData, int pos);
+void mapUpdateContainerChanged(ChunkData, int pos);
 void mapUpdateTable(BlockIter, int val, int table);
 Bool mapActivate(Map, vec4 pos);
 int  mapActivateBlock(BlockIter, vec4 pos, int blockId);

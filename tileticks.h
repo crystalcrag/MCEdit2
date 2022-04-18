@@ -18,10 +18,10 @@ void updateAdd(BlockIter iter, int blockId, int nbTick);
 void updateAddTickCallback(BlockIter iter, int nbTick, UpdateCb_t cb);
 void updateAddRSUpdate(struct BlockIter_t iter, int side, int nbTick);
 void updateRemove(ChunkData cd, int offset, Bool clearSorted);
-Bool updateAlloc(int max);
 void updateClearAll(void);
 int  updateCount(Chunk);
 Bool updateGetNBT(Chunk, NBTFile nbt, DATA16 index);
+Bool updateScheduled(ChunkData cd, int offset);
 
 #ifdef TILE_TICK_IMPL
 typedef struct TileTick_t *    TileTick;

@@ -475,9 +475,9 @@ void playerMove(Player p)
 
 void playerCheckNearby(Player p, float areaChanged[6])
 {
-	if (p->pos[VX] + playerBBox.pt1[VX] < areaChanged[VX+3] && p->pos[VX] + playerBBox.pt1[VX+3] > areaChanged[VX] &&
-		p->pos[VY] + playerBBox.pt1[VY] < areaChanged[VY+3] && p->pos[VY] + playerBBox.pt1[VY+3] > areaChanged[VY] &&
-		p->pos[VZ] + playerBBox.pt1[VZ] < areaChanged[VZ+3] && p->pos[VZ] + playerBBox.pt1[VZ+3] > areaChanged[VZ])
+	if (p->pos[VX] + playerBBox.pt1[VX] < areaChanged[VX+3] && p->pos[VX] + playerBBox.pt2[VX] > areaChanged[VX] &&
+		p->pos[VY] + playerBBox.pt1[VY] < areaChanged[VY+3] && p->pos[VY] + playerBBox.pt2[VY] > areaChanged[VY] &&
+		p->pos[VZ] + playerBBox.pt1[VZ] < areaChanged[VZ+3] && p->pos[VZ] + playerBBox.pt2[VZ] > areaChanged[VZ])
 	{
 		p->onground = physicsCheckOnGround(globals.level, p->pos, &playerBBox);
 		if (! p->onground)
@@ -621,7 +621,7 @@ Bool playerAddInventory(Player p, Item add)
 		/* check if it is already in inventory */
 		slot = -1;
 		do {
-			for (item = p->inventory.items, slot ++; slot < PLAYER_MAX_ITEMS && !(item->id == itemId && item->extra == NULL); slot ++, item ++);
+			for (item = p->inventory.items, slot ++; slot < PLAYER_MAX_ITEMS && !(item->id == itemId && item->tile == NULL); slot ++, item ++);
 
 			if (slot < PLAYER_MAX_ITEMS)
 			{
@@ -664,7 +664,8 @@ Bool playerAddInventory(Player p, Item add)
 					 */
 					item->id = itemId;
 					item->count = add->count;
-					item->extra = add->extra;
+					item->tile = add->tile;
+					item->extraF = add->extraF;
 					item->uses = add->uses;
 					break;
 				}

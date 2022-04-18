@@ -618,7 +618,7 @@ int mapUpdateDoor(BlockIter iterator, int blockId, Bool init)
 /* cannot update a piston while its head is moving */
 static Bool mapUpdateIsPistonActivated(struct BlockIter_t iter, int blockId)
 {
-	if (chunkGetTileEntity(iter.ref, (int[3]) {iter.x, iter.yabs, iter.z}))
+	if (chunkGetTileEntity(iter.cd, iter.offset))
 		return False;
 
 	/* <iter> points to piston body */
@@ -627,7 +627,7 @@ static Bool mapUpdateIsPistonActivated(struct BlockIter_t iter, int blockId)
 		/* tile entity could be one block ahead of facing direction */
 		uint8_t ext = blockSides.piston[blockId & 7];
 		mapIter(&iter, relx[ext], rely[ext], relz[ext]);
-		if (chunkGetTileEntity(iter.ref, (int[3]) {iter.x, iter.yabs, iter.z}))
+		if (chunkGetTileEntity(iter.cd, iter.offset))
 			return False;
 	}
 	return True;
@@ -640,10 +640,10 @@ static void mapUpdateAddPistonExt(Map map, struct BlockIter_t iter, int blockId,
 	vec4    src = {iter.x + iter.ref->X, iter.yabs, iter.z + iter.ref->Z};
 
 	/* place tile entity into final position (that way it will mark the block as occupied) */
-	mapIter(&iter, relx[ext], rely[ext], relz[ext]);
+	struct BlockIter_t head = iter;
+	mapIter(&head, relx[ext], rely[ext], relz[ext]);
 
-	vec4  dest  = {iter.x + iter.ref->X, iter.yabs, iter.z + iter.ref->Z};
-	Chunk ref   = iter.ref;
+	vec4 dest = {head.x + head.ref->X, head.yabs, head.z + head.ref->Z};
 
 	NBTFile_t ret = {.page = 127};
 	TEXT itemId[64];
@@ -678,7 +678,7 @@ static void mapUpdateAddPistonExt(Map map, struct BlockIter_t iter, int blockId,
 		memcpy(dest, tmp,  12);
 		/* already delete piston head */
 		mapUpdate(map, src, 0, NULL, UPDATE_KEEPLIGHT | UPDATE_DONTLOG | UPDATE_SILENT);
-		chunkAddTileEntity(ref, (int[3]) {(int) dest[VX] & 15, dest[VY], (int) dest[VZ] & 15}, ret.mem);
+		chunkAddTileEntity(iter.cd, iter.offset, ret.mem);
 	}
 	else mapUpdate(map, dest, ID(RSPISTONEXT, 0), ret.mem, UPDATE_KEEPLIGHT | UPDATE_DONTLOG);
 
@@ -686,7 +686,7 @@ static void mapUpdateAddPistonExt(Map map, struct BlockIter_t iter, int blockId,
 	/* create or update the moving piston head */
 	if (blockId > 0)
 		/* XXX need progress */
-		entityCreateOrUpdate(ref, src, blockId, dest, 1, ret.mem);
+		entityCreateOrUpdate(iter.ref, src, blockId, dest, 1, ret.mem);
 }
 
 /* convert blocks push/rectracted by a piston into block 36 */
@@ -735,7 +735,7 @@ void mapUpdateToBlock36(Map map, RSWire list, int count, int dir, BlockIter iter
 			cnx = 1;
 		}
 
-		DATA8 compound = chunkDeleteTileEntity(iter.ref, (int[3]){iter.x, iter.yabs, iter.z}, True);
+		DATA8 compound = chunkDeleteTileEntity(iter.cd, iter.offset, True, NULL);
 
 		NBT_Add(&tile,
 			TAG_String,  "id",        itemId,
@@ -826,7 +826,7 @@ int mapUpdateComparator(Map map, BlockIter iterator, int blockId, Bool init, DAT
 	struct BlockIter_t input = *iterator;
 	NBTFile_t nbt = {.page = 127};
 	if (tile == NULL)
-		nbt.mem = chunkGetTileEntity(input.ref, (int[3]) {input.x, input.yabs, input.z});
+		nbt.mem = chunkGetTileEntity(input.cd, input.offset);
 	else
 		nbt.mem = *tile;
 
@@ -986,39 +986,42 @@ int mapUpdatePot(int blockId, ItemID_t itemId, DATA8 * tile)
 	return 1;
 }
 
+static void mapUpdateHopperTick(Map map, BlockIter iter)
+{
+	mapUpdateHopper(iter->cd, iter->offset);
+}
+
 /* called from meshing/chunk loading: schedule an update */
 void mapUpdateHopper(ChunkData cd, int pos)
 {
 	struct BlockIter_t iter;
 	mapInitIterOffset(&iter, cd, pos);
 	int blockId = getBlockId(&iter);
+	printCoord(&iter);
 	if ((blockId & 8) == 0)
 	{
 		/* unlocked hopper: check first if we can transmit block */
-		Item_t itemList[5];
-		DATA8  tile = chunkGetTileEntity(iter.ref, (int [3]) {iter.x, iter.yabs, iter.z});
-		int    offset, dir;
+		struct BlockIter_t neighbor = iter;
+		int dir = blockSides.piston[blockId & 7];
+		mapIter(&neighbor, relx[dir], rely[dir], relz[dir]);
 
-		/* get hopper content */
-		memset(itemList, 0, sizeof itemList);
-		if (tile)
-		{
-			NBTFile_t nbt = {.mem = tile};
-			offset = NBT_FindNode(&nbt, 0, "Items");
-			if (offset >= 0)
-				inventoryDecodeItems(itemList, DIM(itemList), NBT_Payload(&nbt, offset));
+		switch (inventoryPushItem(&iter, &neighbor)) {
+		case 1: /* an item was pushed in the container: more are inside hopper */
+		case 2: /* an item was pushed, hopper is empty now */
+			fprintf(stderr, "pushed into container\n");
+			updateAddTickCallback(&iter, HOPPER_COOLDOWN, mapUpdateHopperTick);
+			return;
+		/* else nothing was grabbed, check if we can pull */
 		}
 
-		dir = blockSides.piston[blockId & 7];
-		mapIter(&iter, relx[dir], rely[dir], relz[dir]);
-		/* check if pointed block is a container */
-		tile = chunkGetTileEntity(iter.ref, (int [3]) {iter.x, iter.yabs, iter.z});
-		if (tile)
+		neighbor = iter;
+		mapIter(&neighbor, 0, 1, 0);
+		if (inventoryPushItem(&neighbor, &iter) > 0)
 		{
-			NBTFile_t nbt = {.mem = tile};
-			offset = NBT_FindNode(&nbt, 0, "Items");
-			if (offset >= 0)
-				inventoryPushItem(iter.cd, iter.offset, tile + offset, itemList, DIM(itemList));
+			/* an item was pulled from the container <neighbor>: more are inside */
+			fprintf(stderr, "pulled from container\n");
+			updateAddTickCallback(&iter, HOPPER_COOLDOWN, mapUpdateHopperTick);
+			mapUpdateContainerChanged(neighbor.cd, neighbor.offset);
 		}
 	}
 }
@@ -1026,6 +1029,20 @@ void mapUpdateHopper(ChunkData cd, int pos)
 /* container changed at given location, check if nearby hopper might need to be updated */
 void mapUpdateContainerChanged(ChunkData cd, int pos)
 {
+	struct BlockIter_t iter;
+	int i;
+	mapInitIterOffset(&iter, cd, pos);
+	for (i = 0; i < 7; i ++)
+	{
+		int blockId = getBlockId(&iter);
+		if ((blockId >> 4) == RSHOPPER && (blockId & 8) == 0 && (i == 0 || i == 6 || blockSides.piston[blockId&7] == opp[i-1]) &&
+		    ! updateScheduled(iter.cd, iter.offset))
+		{
+			/* this hopper might be interested by the container update */
+			updateAddTickCallback(&iter, HOPPER_COOLDOWN, mapUpdateHopperTick);
+		}
+		mapIter(&iter, xoff[i], yoff[i], zoff[i]);
+	}
 }
 
 /* return the activated state of <blockId>, but does not modify any tables */

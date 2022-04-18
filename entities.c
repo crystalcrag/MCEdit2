@@ -1465,7 +1465,7 @@ void entityGetItem(int entityId, Item ret)
 		NBTFile_t nbt = {.mem = entity->tile};
 		int offset = NBT_FindNode(&nbt, 0, "Item");
 		if (offset > 0)
-			ret->extra = NBT_Payload(&nbt, offset);
+			ret->tile = NBT_Payload(&nbt, offset), ret->extraF = 1;
 
 		ret->count = NBT_GetInt(&nbt, NBT_FindNode(&nbt, offset, "Count"), 1);
 		if (ret->count < 0)

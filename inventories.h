@@ -21,7 +21,7 @@ void   inventoryResetScrollbar(MCInventory);
 void   inventoryDecodeItems(Item container, int count, NBTHdr hdrItems);
 STRPTR inventoryItemName(NBTFile nbt, int offset, TEXT itemId[16]);
 Bool   inventorySerializeItems(ChunkData, int offset, STRPTR listName, Item items, int itemCount, NBTFile ret);
-Bool   inventoryPushItem(ChunkData, int offset, DATA8 nbtInvStart, Item itemList, int count);
+int    inventoryPushItem(BlockIter from, BlockIter to);
 
 
 struct MCInventory_t

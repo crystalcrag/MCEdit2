@@ -450,11 +450,11 @@ static Bool libraryParseSchematics(LibBrush lib, DATA16 size)
 			int XYZ[3];
 			GetTilePosition(XYZ, lib->nbt.mem + x);
 			mapInitIterOffset(&iter, brush->firstVisible, 256+16+1);
-			if (0 <= XYZ[VX] && XYZ[VX] < size[VX] && 0 <= XYZ[VZ] && XYZ[VZ] <= size[VZ])
+			if ((unsigned) XYZ[VX] < size[VX] && (unsigned) XYZ[VZ] <= size[VZ])
 			{
 				mapIter(&iter, XYZ[0], XYZ[1], XYZ[2]);
-				if (iter.cd) /* Y check (XYZ[VY]) */
-					chunkAddTileEntity(iter.ref, (int[3]){iter.x-1, iter.yabs-1, iter.z-1}, NBT_Copy(lib->nbt.mem + x));
+				if (iter.cd)
+					chunkAddTileEntity(iter.cd, iter.offset, NBT_Copy(lib->nbt.mem + x));
 			}
 		}
 	}
@@ -517,7 +517,7 @@ static Bool librarySaveAsStream(Map brush)
 				uint8_t state = iter.blockIds[DATA_OFFSET + (iter.offset >> 1)];
 				nbt.mem[blocks] = iter.blockIds[iter.offset];
 				nbt.mem[data]   = iter.offset & 1 ? state >> 4 : state & 15;
-				DATA8 tile = chunkGetTileEntity(iter.ref, (int[3]){iter.x, iter.yabs, iter.z});
+				DATA8 tile = chunkGetTileEntity(iter.cd, iter.offset);
 				if (tile)
 				{
 					NBTIter_t iterTE;

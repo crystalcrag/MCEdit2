@@ -711,10 +711,9 @@ Bool mceditProcessCommand(EventState state, int keyUp)
 					struct Item_t item = {0};
 					if (sel->entity == 0)
 					{
-						int XYZ[] = {pos[0] - sel->chunk->X, pos[1], pos[2] - sel->chunk->Z};
 						item.count = 1;
 						item.id = sel->blockId;
-						item.extra = chunkGetTileEntity(sel->chunk, XYZ);
+						item.tile = chunkGetTileEntity(sel->cd, sel->offset);
 						playerAddInventory(&mcedit.player, &item);
 					}
 					else
@@ -1188,7 +1187,7 @@ void mceditPlaceBlock(void)
 	}
 	else if (isBlockId(id))
 	{
-		DATA8 tile = item->extra;
+		DATA8 tile = item->extraF ? item->tile : NULL;
 		/* 2 slabs in same block try to convert them in 1 double-slab */
 		if (blockIds[block>>4].special == BLOCK_HALF)
 		{
@@ -1200,7 +1199,7 @@ void mceditPlaceBlock(void)
 		}
 		else if (blockIds[sel->blockId>>4].special == BLOCK_POT)
 		{
-			tile = chunkGetTileEntityFromOffset(sel->chunk, sel->cd->Y, sel->offset);
+			tile = chunkGetTileEntity(sel->cd, sel->offset);
 			/* modify content of flower pot instead */
 			switch (mapUpdatePot(sel->blockId, id, &tile)) {
 			case 0: return;
@@ -1208,11 +1207,14 @@ void mceditPlaceBlock(void)
 			case 2: tile = NULL;
 			}
 		}
-		if (id == 0) block = 0;
-		if (! tile) tile = blockCreateTileEntity(block, pos, NULL);
-		else        tile = NBT_Copy(tile);
-		/* bed need extra data :-/ */
-		block &= 0xfff;
+		if (id > 0)
+		{
+			if (! tile) tile = blockCreateTileEntity(block, pos, NULL);
+			else        tile = NBT_Copy(tile);
+			/* bed need extra data :-/ */
+			block &= 0xfff;
+		}
+		else block = 0;
 
 		/*
 		 * udpdate the map and all the tables associated, will also trigger cascading updates
@@ -1276,18 +1278,9 @@ static int mceditChooseSave(SIT_Widget w, APTR cd, APTR ud)
 /*
  * display a modal user interface on top of editor
  */
-static NBTHdr locateItems(MapExtraData sel)
+NBTHdr locateItems(ChunkData cd, int offset)
 {
-	Chunk c = sel->chunk;
-	int   offset = sel->offset;
-	int   XYZ[3];
-	DATA8 tile;
-
-	XYZ[0] = offset & 15; offset >>= 4;
-	XYZ[2] = offset & 15; offset >>= 4;
-	XYZ[1] = offset + sel->cd->Y;
-
-	tile = chunkGetTileEntity(c, XYZ);
+	DATA8 tile = chunkGetTileEntity(cd, offset);
 
 	if (tile)
 	{
@@ -1341,75 +1334,47 @@ void mceditUIOverlay(int type)
 
 		if (sel)
 		{
-			Block  b    = &blockIds[sel->blockId>>4];
-			STRPTR tech = b->tech;
-			STRPTR sep  = strchr(tech, '_');
-			/* skip color name :-/ */
-			if (sep && strcmp(sep+1, "shulker_box") == 0)
+			Block b = &blockIds[sel->blockId>>4];
+
+			if (b->containerSize > 0)
 			{
-				itemCount = 27;
-				goto case_INV;
-			}
-
-			/* extract inventories from NBT structure */
-			switch (FindInList("chest,trapped_chest,ender_chest,dispenser,dropper,furnace,lit_furnace,hopper", tech, 0)) {
-			case 0:
-			case 1:
-				/* possibly a double-chest */
-				itemConnect = mapConnectChest(globals.level, sel, &link);
-
-				if (itemConnect > 0)
+				if (b->special == BLOCK_CHEST)
 				{
-					itemCount = 54;
-					item = alloca(sizeof *item * 54 * 2);
-					switch (itemConnect) {
-					case 1:
-						inventoryDecodeItems(item,    27, locateItems(sel));
-						inventoryDecodeItems(item+27, 27, locateItems(&link));
-						break;
-					case 2:
-						inventoryDecodeItems(item,    27, locateItems(&link));
-						inventoryDecodeItems(item+27, 27, locateItems(sel));
+					/* chest and trapped_chest: can be double-chest: edit them as one */
+					itemConnect = mapConnectChest(globals.level, sel, &link);
+
+					if (itemConnect > 0)
+					{
+						itemCount = 54;
+						item = alloca(sizeof *item * 54 * 2);
+						switch (itemConnect) {
+						case 1:
+							inventoryDecodeItems(item,    27, locateItems(sel->cd, sel->offset));
+							inventoryDecodeItems(item+27, 27, locateItems(link.cd, link.offset));
+							break;
+						case 2:
+							inventoryDecodeItems(item,    27, locateItems(link.cd, link.offset));
+							inventoryDecodeItems(item+27, 27, locateItems(sel->cd, sel->offset));
+						}
+						memcpy(item + 54, item, 54 * sizeof *item);
+						mcuiEditChestInventory(&mcedit.player.inventory, item, 54, b);
+						goto break_all;
 					}
-					memcpy(item + 54, item, 54 * sizeof *item);
-					mcuiEditChestInventory(&mcedit.player.inventory, item, 54, b);
-					break;
 				}
-				// else no break;
-				itemCount = 27;
-			case_INV:
-				/* single chest */
+				if (strncmp(b->tech, "lit_", 4) == 0) b --;
+				itemCount = b->containerSize;
 				item = alloca(sizeof *item * itemCount * 2);
-				inventoryDecodeItems(item, itemCount, locateItems(sel));
+				inventoryDecodeItems(item, itemCount, strncmp(b->tech, "ender_", 6) == 0 ? mceditGetEnderItems() : locateItems(sel->cd, sel->offset));
 				memcpy(item + itemCount, item, itemCount * sizeof *item);
 				mcuiEditChestInventory(&mcedit.player.inventory, item, itemCount, b);
-				break;
-			case 2: /* ender chest */
-				itemCount = 27;
-				enderItems = 1;
-				item = alloca(sizeof *item * 27 * 2);
-				inventoryDecodeItems(item, 27, mceditGetEnderItems());
-				memcpy(item + 27, item, 27 * sizeof *item);
-				mcuiEditChestInventory(&mcedit.player.inventory, item, 27, b);
-				break;
-			case 3: /* dispenser */
-			case 4: /* dropper */
-				itemCount = 9;
-				goto case_INV;
-			case 6: /* lit furnace */
-				b --;
-			case 5: /* furnace */
-				itemCount = 3;
-				goto case_INV;
-			case 7: /* hopper */
-				itemCount = 5;
-				goto case_INV;
-
-			default:
-				if (b->special == BLOCK_SIGN)
-					mcuiCreateSignEdit(pos, sel->blockId);
-				else
-					mcuiCreateInventory(&mcedit.player.inventory);
+			}
+			else if (b->special == BLOCK_SIGN)
+			{
+				mcuiCreateSignEdit(pos, sel->blockId);
+			}
+			else
+			{
+				mcuiCreateInventory(&mcedit.player.inventory);
 			}
 		}
 		else mcuiCreateInventory(&mcedit.player.inventory);
@@ -1435,6 +1400,7 @@ void mceditUIOverlay(int type)
 	case MCUI_OVERLAY_ASKIFSAVE:  mcuiAskSave(mceditChooseSave); mcedit.askIfSave = 2; break;
 	}
 
+	break_all:
 	SDL_EnableUNICODE(1);
 
 	while (! mcedit.exit)
@@ -1513,7 +1479,7 @@ void mceditUIOverlay(int type)
 
 		if (itemCount > 0 && memcmp(item, item + itemCount, itemCount * sizeof *item))
 		{
-			/* changes were made to container */
+			/* changes were made to the container */
 			if (enderItems)
 			{
 				/* these need to be stored in level.dat */
@@ -1546,12 +1512,12 @@ void mceditUIOverlay(int type)
 			if (chest2.mem)
 			{
 				/* double-chest are split in 2 */
-				undoLog(LOG_BLOCK | UNDO_LINK, link.blockId, chunkGetTileEntityFromOffset(link.chunk, link.cd->Y, link.offset),
-					link.cd, link.offset);
-				chunkUpdateNBT(link.chunk, link.offset + (link.cd->Y<<8), &chest2);
+				undoLog(LOG_BLOCK | UNDO_LINK, link.blockId, chunkGetTileEntity(link.cd, link.offset), link.cd, link.offset);
+				chunkUpdateNBT(link.cd, link.offset, &chest2);
 			}
-			undoLog(LOG_BLOCK, sel->blockId, chunkGetTileEntityFromOffset(sel->chunk, sel->cd->Y, sel->offset), sel->cd, sel->offset);
-			chunkUpdateNBT(sel->chunk, sel->offset + (sel->cd->Y<<8), &chest);
+			undoLog(LOG_BLOCK, sel->blockId, chunkGetTileEntity(sel->cd, sel->offset), sel->cd, sel->offset);
+			chunkUpdateNBT(sel->cd, sel->offset, &chest);
+			mapUpdateContainerChanged(sel->cd, sel->offset);
 			mapAddToSaveList(globals.level, sel->chunk);
 			renderAddModif();
 		}

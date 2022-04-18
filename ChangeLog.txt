@@ -1,5 +1,10 @@
 =========== Week 15 ===========
+Sun Apr 17:
+	* changed tile entity API from XYZ to ChunkData+offset (what you get from iterator).
+	* hopper logic mostly done.
+
 Sat Apr 16:
+	* hooper logic continued.
 	* moved some code from maps.c to inventories.c.
 
 Fri Apr 15:

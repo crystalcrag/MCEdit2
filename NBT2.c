@@ -364,15 +364,27 @@ Bool NBT_Add(NBTFile nbt, ...)
 		{
 			break; /* done */
 		}
+		else if (type == TAG_List_End)
+		{
+			hdr = NBT_Hdr(nbt, compound);
+			if (hdr->type == TAG_List_Compound)
+			{
+				hdr->size = nbt->usage - compound;
+				compound = 0;
+			}
+			continue;
+		}
 		else if (type == TAG_Compound_End)
 		{
 			mem = NBT_AddBytes(nbt, 1);
 			hdr = NBT_Hdr(nbt, compound);
-			if (hdr->type == TAG_Compound)
-				hdr->size = nbt->usage - compound;
-			compound = 0;
-			nested --;
 			SET_NULL(mem);
+			if (hdr->type == TAG_Compound)
+			{
+				hdr->size = nbt->usage - compound;
+				compound = 0;
+				nested --;
+			}
 			if (nested <= 0) break;
 			else continue;
 		}
@@ -450,6 +462,7 @@ Bool NBT_Add(NBTFile nbt, ...)
 				// TODO
 				return False;
 			case TAG_Compound:
+				compound = (DATA8) hdr - nbt->mem;
 				hdr->count = va_arg(args, int);
 				if (hdr->count > 0) nested ++;
 				continue;
@@ -500,7 +513,10 @@ static void NBT_UpdateHdrSize(NBTFile nbt, int diff, int offset)
 	int    i;
 
 	/* change size of higher level nodes */
-	for (hdr = HDR(nbt, 0), mem = nbt->mem, eof = mem + offset; mem < eof; )
+	hdr = HDR(nbt, 0);
+	if (hdr->type != TAG_Compound && hdr->type != TAG_List_Compound)
+		return;
+	for (mem = nbt->mem, eof = mem + offset; mem < eof; )
 	{
 		hdr->size += diff;
 		mem = hdr->name + ((hdr->minNameSz + 4) & ~3); /* payload */
@@ -567,6 +583,7 @@ Bool NBT_Delete(NBTFile nbt, int offset, int nth)
 			p += sub->size;
 			size += sub->size;
 		}
+		hdr->size -= size;
 		hdr->count --;
 	}
 
@@ -979,7 +996,6 @@ static int NBT_InsertAt(NBTFile nbt, int offset, NBTFile fragment, Bool overwrit
 	DATA8 mem  = nbt->mem + offset;
 	int   size = mem ? ((NBTHdr)mem)->size : 0;
 	int   ins  = offset;
-	char  hdr  = 0;
 	int   diff, remain;
 
 	if (! overwrite)
@@ -989,12 +1005,14 @@ static int NBT_InsertAt(NBTFile nbt, int offset, NBTFile fragment, Bool overwrit
 		ins += size; size = 0;
 		if (mem)
 		{
-			switch (((NBTHdr)mem)->type & 15) {
+			NBTHdr hdr = (NBTHdr) mem;
+			switch (hdr->type & 15) {
 			case TAG_Compound: ins -= 4; break; /* before TAG_End */
 			case TAG_List:
 				/* often have the wrong sub-type :-/ */
-				((NBTHdr)mem)->type = TAG_List_Compound;
-				hdr = 1;
+				hdr->size += diff;
+				hdr->type = TAG_List_Compound;
+				hdr->count ++;
 			}
 		}
 	}
@@ -1012,7 +1030,6 @@ static int NBT_InsertAt(NBTFile nbt, int offset, NBTFile fragment, Bool overwrit
 	memmove(mem + fragment->usage, mem + size, remain);
 	memcpy(mem, fragment->mem, fragment->usage);
 
-	if (hdr) NBT_Hdr(nbt, offset)->count ++;
 	NBT_UpdateHdrSize(nbt, diff, ins);
 
 	//NBT_Dump(nbt, 0, 0, stderr);
@@ -1053,7 +1070,17 @@ int NBT_Insert(NBTFile nbt, STRPTR loc, int type, NBTFile fragment)
 			if (offset < 0) return -1;
 		}
 	}
-	else offset = NBT_FindNode(nbt, 0, loc); /* hmm, no indirection */
+	else
+	{
+		offset = NBT_FindNode(nbt, 0, loc);
+		if (offset < 0)
+		{
+			/* missing list: add at the end */
+			nbt->usage -= 4;
+			offset = nbt->usage;
+			NBT_Add(nbt, TAG_List_Compound, loc, 0, TAG_Compound_End, TAG_End);
+		}
+	}
 
 	return offset >= 0 ? NBT_InsertAt(nbt, offset, fragment, (type & TAG_InsertAtEnd) == 0) : -1;
 }

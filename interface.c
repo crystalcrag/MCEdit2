@@ -1080,7 +1080,7 @@ void mcuiAnalyze(void)
 				b = blockGetById(id);
 				DATA8 tile;
 				/* check if there are items we might want to inspect in this block */
-				if (block->invType > 0 && (tile = chunkGetTileEntity(iter.ref, (int[3]) {iter.x, iter.yabs, iter.z})))
+				if (block->invType > 0 && (tile = chunkGetTileEntity(iter.cd, iter.offset)))
 				{
 					NBTFile_t nbt = {.mem = tile};
 					int items = NBT_FindNode(&nbt, 0, "Items");
@@ -1608,7 +1608,7 @@ static int mcuiAutoCheck(SIT_Widget w, APTR cd, APTR ud)
 static int mcuiDeleteTE(SIT_Widget w, APTR cd, APTR ud)
 {
 	BlockIter iter = (BlockIter) w;
-	chunkDeleteTileEntity(iter->ref, (int[3]){iter->x, iter->yabs, iter->z}, False);
+	chunkDeleteTileEntity(iter->cd, iter->offset, False, NULL);
 	chunkMarkForUpdate(iter->ref, CHUNK_NBT_TILEENTITIES);
 	/* <cd> contains offset of last item in hash table, dec by 1 to avoid missing if linked list has to be relocated */
 	((int *)cd)[0] --;

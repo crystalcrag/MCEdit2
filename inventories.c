@@ -128,7 +128,7 @@ void inventorySetTooltip(SIT_Widget toolTip, Item item, STRPTR extra)
 {
 	TEXT title[256];
 	TEXT id[16];
-	int  tag = NBT_FindNodeFromStream(item->extra, 0, "/tag.ench");
+	int  tag = NBT_FindNodeFromStream(item->tile, 0, "/tag.ench");
 	int  index = 0;
 	int  itemNum;
 	int  metaData;
@@ -179,16 +179,16 @@ void inventorySetTooltip(SIT_Widget toolTip, Item item, STRPTR extra)
 
 		/* add enchant if any */
 		if (tag >= 0)
-			itemDecodeEnchants(item->extra + tag, title, sizeof title);
+			itemDecodeEnchants(item->tile + tag, title, sizeof title);
 
 		index = StrCat(title, sizeof title, index, "<br><dim>");
 
 		/* check if this is an item container */
-		int inventory = NBT_FindNodeFromStream(item->extra, 0, "/Items");
+		int inventory = NBT_FindNodeFromStream(item->tile, 0, "/Items");
 
 		if (inventory >= 0)
 		{
-			inventory = ((NBTHdr)(item->extra + inventory))->count;
+			inventory = ((NBTHdr)(item->tile + inventory))->count;
 			sprintf(id, "+%d ", inventory);
 			index = StrCat(title, sizeof title, index, id);
 			index = StrCat(title, sizeof title, index, inventory > 1 ? "Items" : "Item");
@@ -525,7 +525,8 @@ static int inventoryMouse(SIT_Widget w, APTR cd, APTR ud)
 						inventories.drag.id = old->id;
 						inventories.drag.count = old->count;
 						inventories.drag.uses = old->uses;
-						inventories.drag.extra = old->extra;
+						inventories.drag.tile = old->tile;
+						inventories.drag.extraF = old->extraF;
 						*old = buf;
 						if (inv->movable & INV_SINGLE_DROP)
 							old->count = 1;
@@ -923,12 +924,12 @@ STRPTR inventoryItemName(NBTFile nbt, int offset, TEXT itemId[16])
 void inventoryDecodeItems(Item container, int count, NBTHdr hdrItems)
 {
 	DATA8 mem;
-	int   index;
+	int   index, max;
 
 	memset(container, 0, sizeof *container * count);
 
 	if (hdrItems)
-	for (index = hdrItems->count, mem = NBT_MemPayload(hdrItems); index > 0; index --)
+	for (index = 0, max = hdrItems->count, mem = NBT_MemPayload(hdrItems); index < max; index ++)
 	{
 		NBTIter_t properties;
 		NBTFile_t nbt = {.mem = mem};
@@ -937,6 +938,8 @@ void inventoryDecodeItems(Item container, int count, NBTHdr hdrItems)
 		int       off;
 		memset(&item, 0, sizeof item);
 		NBT_IterCompound(&properties, nbt.mem);
+		item.tile = nbt.mem;
+		item.x = index;
 		while ((off = NBT_Iter(&properties)) >= 0)
 		{
 			switch (FindInList("id,Slot,Count,Damage", properties.name, 0)) {
@@ -944,7 +947,7 @@ void inventoryDecodeItems(Item container, int count, NBTHdr hdrItems)
 			case 1:  item.slot = NBT_GetInt(&nbt, off, 255); break;
 			case 2:  item.count = NBT_GetInt(&nbt, off, 1); break;
 			case 3:  item.uses = NBT_GetInt(&nbt, off, 0); break;
-			default: if (! item.extra) item.extra = nbt.mem;
+			default: item.extraF = 1;
 			}
 		}
 		if (isBlockId(item.id))
@@ -974,6 +977,50 @@ void inventoryDecodeItems(Item container, int count, NBTHdr hdrItems)
 	}
 }
 
+static void inventoryItemToNBT(NBTFile ret, Item item, int slot)
+{
+	TEXT     itemId[128];
+	ItemID_t id = item->id;
+	uint16_t data;
+
+	/* data (or damage) is only to get a specific inventory model: not needed in NBT */
+	if (isBlockId(id))
+	{
+		Block b = &blockIds[id>>4];
+		data = id & 15;
+		if (b->invState == data)
+			data = 0;
+		else if (b->special == BLOCK_TALLFLOWER)
+			data -= 10;
+	}
+	else data = ITEMMETA(id);
+
+	NBT_Add(ret,
+		TAG_String, "id",     itemGetTechName(id, itemId, sizeof itemId, False),
+		TAG_Byte,   "Slot",   slot,
+		TAG_Short,  "Damage", itemMaxDurability(item->id) > 0 ? item->uses : data,
+		TAG_Byte,   "Count",  item->count,
+		TAG_End
+	);
+	if (item->extraF)
+	{
+		/* merge entries we didn't care about */
+		NBTIter_t iter;
+		DATA8     mem;
+		int       off;
+		NBT_IterCompound(&iter, mem = item->tile);
+		while ((off = NBT_Iter(&iter)) >= 0)
+		{
+			if (FindInList("id,Slot,Count,Damage", iter.name, 0) >= 0)
+				/* these one already are */
+				continue;
+
+			NBT_Add(ret, TAG_Raw_Data, NBT_HdrSize(mem+off), mem + off, TAG_End);
+		}
+	}
+	NBT_Add(ret, TAG_Compound_End);
+}
+
 /* convert a list of <items> into an NBT stream */
 Bool inventorySerializeItems(ChunkData cd, int offset, STRPTR listName, Item items, int itemCount, NBTFile ret)
 {
@@ -986,14 +1033,7 @@ Bool inventorySerializeItems(ChunkData cd, int offset, STRPTR listName, Item ite
 	if (cd)
 	{
 		Chunk c = cd->chunk;
-		DATA8 tile;
-		int   XYZ[3];
-
-		XYZ[0] = offset & 15; offset >>= 4;
-		XYZ[2] = offset & 15; offset >>= 4;
-		XYZ[1] = offset + cd->Y;
-
-		tile = chunkGetTileEntity(c, XYZ);
+		DATA8 tile = chunkGetTileEntity(cd, offset);
 
 		if (tile)
 		{
@@ -1011,9 +1051,9 @@ Bool inventorySerializeItems(ChunkData cd, int offset, STRPTR listName, Item ite
 			/* not yet created: add required fields */
 			NBT_Add(ret,
 				TAG_String, "id", itemGetTechName(ID(cd->blockIds[offset], 0), itemId, sizeof itemId, False),
-				TAG_Int,    "x",  XYZ[0] + c->X,
-				TAG_Int,    "y",  XYZ[1],
-				TAG_Int,    "z",  XYZ[2] + c->Z,
+				TAG_Int,    "x",  (offset & 15) + c->X,
+				TAG_Int,    "y",  (offset >> 8) + cd->Y,
+				TAG_Int,    "z",  ((offset >> 4) & 15) + c->Z,
 				TAG_End
 			);
 		}
@@ -1029,54 +1069,176 @@ Bool inventorySerializeItems(ChunkData cd, int offset, STRPTR listName, Item ite
 
 	for (i = 0; i < itemCount; i ++, items ++)
 	{
-		if (items->id == 0) continue;
-		ItemID_t id = items->id;
-		uint16_t data;
-		/* data (or damage) is only to get a specific inventory model: not needed in NBT */
-		if (isBlockId(id))
-		{
-			Block b = &blockIds[id>>4];
-			data = id & 15;
-			if (b->invState == data)
-				data = 0;
-			else if (b->special == BLOCK_TALLFLOWER)
-				data -= 10;
-		}
-		else data = ITEMMETA(id);
-
-		NBT_Add(ret,
-			TAG_String, "id",     itemGetTechName(id, itemId, sizeof itemId, False),
-			TAG_Byte,   "Slot",   i,
-			TAG_Short,  "Damage", itemMaxDurability(items->id) > 0 ? items->uses : data,
-			TAG_Byte,   "Count",  items->count,
-			TAG_End
-		);
-		if (items->extra)
-		{
-			/* merge entries we didn't care about */
-			NBTIter_t iter;
-			DATA8     mem;
-			int       off;
-			NBT_IterCompound(&iter, mem = items->extra);
-			while ((off = NBT_Iter(&iter)) >= 0)
-			{
-				if (FindInList("id,Slot,Count,Damage", iter.name, 0) >= 0)
-					/* these one already are */
-					continue;
-
-				NBT_Add(ret, TAG_Raw_Data, NBT_HdrSize(mem+off), mem + off, TAG_End);
-			}
-		}
-		NBT_Add(ret, TAG_Compound_End);
+		if (items->id > 0)
+			inventoryItemToNBT(ret, items, i);
 	}
 	if (cd)
-		NBT_Add(ret, TAG_Compound_End);
+		NBT_Add(ret, TAG_List_End, TAG_Compound_End);
 
 	return True;
 }
 
-/* try to grab one item from <itemList> and stroe it in inventory pointed by <cd,offset> (ie: hopper logic) */
-Bool inventoryPushItem(ChunkData cd, int offset, DATA8 nbtInvStart, Item itemList, int count)
+enum
 {
-	return False;
+	ACT_NOCHANGES,
+	ACT_ADDITEM,
+	ACT_DELITEM,
+	ACT_CHGCOUNT
+};
+
+/* rewrite NBT record with minimal modification of the raw NBT stream */
+static void inventoryUpdate(BlockIter iter, Item items, int count, int action, DATA8 listtile, Item item)
+{
+	NBTFile_t nbt;
+
+	Chunk c = iter->cd->chunk;
+	DATA8 tile = chunkUpdateTileEntity(iter->cd, iter->offset);
+
+	if (tile && ! (c->nbt.mem <= tile && tile <= c->nbt.mem + c->nbt.usage))
+	{
+		/* modify existing tile directly */
+		nbt.mem = tile;
+		nbt.page = 511;
+		nbt.alloc = 0;
+		nbt.usage = NBT_Size(tile) + 4;
+		nbt.max = (nbt.usage + 511) & ~511;
+		switch (action) {
+		case ACT_ADDITEM:
+			{
+				fprintf(stderr, "adding item\n");
+				struct NBTFile_t sub = {.page = 127};
+				inventoryItemToNBT(&sub, item, item - items);
+				NBT_Insert(&nbt, "Items", TAG_InsertAtEnd, &sub);
+				NBT_Free(&sub);
+			}
+			break;
+		case ACT_DELITEM:
+			fprintf(stderr, "del item\n");
+			NBT_Delete(&nbt, listtile - tile, item->x);
+			break;
+		case ACT_CHGCOUNT:
+			fprintf(stderr, "setting count to %d\n", item->count);
+			nbt.mem = item->tile;
+			NBT_SetInt(&nbt, NBT_FindNode(&nbt, 0, "Count"), item->count);
+			nbt.mem = tile;
+		}
+	}
+	else /* tile still points to raw NBT stream */
+	{
+		fprintf(stderr, "recreating inventory\n");
+		inventorySerializeItems(iter->cd, iter->offset, "Items", items, count, &nbt);
+	}
+	chunkAddTileEntity(iter->cd, iter->offset, nbt.mem);
+}
+
+
+DATA8 inventoryLocateItems(BlockIter iter)
+{
+	DATA8 tile = chunkGetTileEntity(iter->cd, iter->offset);
+
+	if (tile)
+	{
+		NBTFile_t nbt = {.mem = tile};
+		int offset = NBT_FindNode(&nbt, 0, "Items");
+		if (offset >= 0)
+			return tile + offset;
+	}
+	return NULL;
+}
+
+/* try to grab one item from <rc> and store it in <dst> (ie: hopper logic) */
+int inventoryPushItem(BlockIter src, BlockIter dst)
+{
+	DATA8 order, srcTile, dstTile;
+	int   srcSlot, dstSlot;
+	Item  srcInv,  dstInv, item, grab;
+	char  srcAction, dstAction;
+	int   i, j, total;
+
+	srcSlot = blockIds[src->blockIds[src->offset]].containerSize;
+	dstSlot = blockIds[dst->blockIds[dst->offset]].containerSize;
+
+	/* XXX need to filter out ender_chest and furnace */
+	if (srcSlot <= 0 || dstSlot <= 0)
+		return 0;
+
+	srcAction = dstAction = ACT_NOCHANGES;
+	srcInv    = alloca(srcSlot * sizeof *srcInv);
+	dstInv    = alloca(dstSlot * sizeof *dstInv);
+	order     = alloca(srcSlot);
+
+	inventoryDecodeItems(srcInv, srcSlot, (NBTHdr) (srcTile = inventoryLocateItems(src)));
+
+	/* is there an item in source inventory? */
+	for (i = 0, item = srcInv; i < srcSlot && item->id == 0; i ++, item ++);
+	if (i == srcSlot) return 0;
+
+	inventoryDecodeItems(dstInv, dstSlot, (NBTHdr) (dstTile = inventoryLocateItems(dst)));
+
+	/* make item grabbing somewhat random */
+	for (i = 0; i < srcSlot; order[i] = i, i ++);
+	for (i = total = 0, item = srcInv; i < srcSlot; i ++, item ++)
+	{
+		int k;
+		total += item->count;
+		j = rand() % srcSlot;
+		k = rand() % srcSlot;
+		if (j != k)
+			swap(order[j], order[k]);
+	}
+
+	for (j = 0; j < srcSlot; j ++)
+	{
+		/* try to push a random item */
+		grab = srcInv + order[j];
+		if (grab->id == 0) continue;
+		for (i = 0, item = dstInv; i < dstSlot; i ++, item ++)
+		{
+			ItemDesc desc;
+			if (item->id > 0 && item->count < ((desc = itemGetById(item->id)) ? desc->stack : 64))
+			{
+				if (grab->id == item->id)
+				{
+					dstAction = ACT_CHGCOUNT;
+					item->count ++;
+					grab->count --;
+					total --;
+					if (grab->count == 0)
+						grab->id = 0, srcAction = ACT_DELITEM;
+					else
+						srcAction = ACT_CHGCOUNT;
+					goto break_all;
+				}
+			}
+		}
+		/* can't increase the stack size: check for a free slot */
+		for (i = 0, item = dstInv; i < dstSlot; i ++, item ++)
+		{
+			if (item->id == 0)
+			{
+				dstAction = ACT_ADDITEM;
+				item[0] = grab[0];
+				item->count = 1;
+				grab->count --;
+				total --;
+				if (grab->count == 0)
+					grab->id = 0, srcAction = ACT_DELITEM;
+				else
+					srcAction = ACT_CHGCOUNT;
+				goto break_all;
+			}
+		}
+		/* no free slot for this item, check the next one then */
+	}
+
+	return 0;
+
+	/* one item was transferred: update NBT records */
+	break_all:
+
+	inventoryUpdate(src, srcInv, srcSlot, srcAction, srcTile, grab);
+	inventoryUpdate(dst, dstInv, dstSlot, dstAction, dstTile, item);
+
+	/* 1 means we need to continue generating tile ticks, 2 == we can stop */
+	return total == 0 ? 2 : 1;
 }

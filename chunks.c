@@ -148,17 +148,12 @@ static TileEntityHash chunkCreateTileEntityHash(Chunk c, int count)
 	return hash;
 }
 
-/*
- * pre-conditions:
- *    0 <= XYZ[VX] <= 15    &&
- *    0 <= XYZ[VY] <= 65535 &&
- *    0 <= XYZ[VZ] <= 15
- * ie: X, Z are relative to chunk <c>, Y is absolute coord
- */
-Bool chunkAddTileEntity(Chunk c, int XYZ[3], DATA8 mem)
+/* add a tile entity at given iterator "coordinates", will free()'ed the one that is already there, if any */
+Bool chunkAddTileEntity(ChunkData cd, int offset, DATA8 mem)
 {
 	struct TileEntityEntry_t entry = {.data = mem};
 
+	Chunk c = cd->chunk;
 	TileEntityHash hash = c->tileEntities;
 
 	if (hash == NULL)
@@ -168,7 +163,7 @@ Bool chunkAddTileEntity(Chunk c, int XYZ[3], DATA8 mem)
 	int count = hash->count + 1;
 
 	/* encode pos in 3 bytes */
-	entry.xzy = TILE_ENTITY_ID(XYZ);
+	entry.xzy = offset + (cd->Y << 8);
 
 	if (count == hash->max)
 	{
@@ -209,19 +204,20 @@ Bool chunkAddTileEntity(Chunk c, int XYZ[3], DATA8 mem)
 }
 
 /* update X, Y, Z field of tile NBT record */
-void chunkUpdateTilePosition(Chunk c, int XYZ[3], DATA8 tile)
+void chunkUpdateTilePosition(ChunkData cd, int offset, DATA8 tile)
 {
 	NBTFile_t nbt = {.mem = tile};
 	NBTIter_t iter;
 	uint8_t   flags = 0;
-	int       i;
+	int       XYZ[] = {cd->chunk->X + (offset & 15), cd->Y + (offset >> 8), cd->chunk->Z + ((offset >> 4) & 15)};
+	int       off;
 	NBT_IterCompound(&iter, tile);
-	while ((i = NBT_Iter(&iter)) >= 0 && flags != 7)
+	while ((off = NBT_Iter(&iter)) >= 0 && flags != 7)
 	{
 		switch (FindInList("X,Y,Z", iter.name, 0)) {
-		case 0: NBT_SetInt(&nbt, i, c->X + XYZ[0]); flags |= 1; break;
-		case 2: NBT_SetInt(&nbt, i, c->Z + XYZ[2]); flags |= 2; break;
-		case 1: NBT_SetInt(&nbt, i, XYZ[1]);        flags |= 4;
+		case 0: NBT_SetInt(&nbt, off, XYZ[VX]); flags |= 1; break;
+		case 2: NBT_SetInt(&nbt, off, XYZ[VZ]); flags |= 2; break;
+		case 1: NBT_SetInt(&nbt, off, XYZ[VY]); flags |= 4;
 		}
 	}
 }
@@ -262,10 +258,9 @@ static void chunkExpandTileEntities(Chunk c)
 			case 'Y': case 'y': XYZ[1] = NBT_GetInt(&nbt, off+i, 0); flag |= 4;
 			}
 		}
-		if (flag == 7)
+		if (flag == 7 && XYZ[1] < (c->maxy << 4) && (unsigned) XYZ[0] < 15 && (unsigned) XYZ[2] < 15)
 		{
-			/* earlier version of this engine often corrupted that Tag_List_Compound :-/ */
-			chunkAddTileEntity(c, XYZ, nbt.mem + off);
+			chunkAddTileEntity(c->layer[XYZ[1] >> 4], XYZ[0] | (XYZ[2] << 4) | ((XYZ[1] & 15) << 8), nbt.mem + off);
 		}
 	}
 }
@@ -287,12 +282,11 @@ void chunkExpandEntities(Chunk c)
 	}
 }
 
-static TileEntityEntry chunkGetTileEntry(Chunk c, int XYZ[3])
+static TileEntityEntry chunkGetTileEntry(ChunkData cd, int offset)
 {
-	if (! c->tileEntities) return NULL;
-	TileEntityHash  hash = c->tileEntities;
+	TileEntityHash  hash = cd->chunk->tileEntities; if (! hash) return NULL;
 	TileEntityEntry base = (TileEntityEntry) (hash + 1);
-	uint32_t        xzy  = TILE_ENTITY_ID(XYZ);
+	uint32_t        xzy  = offset + (cd->Y << 8);
 	TileEntityEntry ent  = base + xzy % hash->max;
 
 	if (ent->data == NULL) return NULL;
@@ -304,29 +298,33 @@ static TileEntityEntry chunkGetTileEntry(Chunk c, int XYZ[3])
 	return ent;
 }
 
-/* get tile entity data based on its coordinates within chunk (same as chunkAddTileEntity()) */
-DATA8 chunkGetTileEntity(Chunk c, int XYZ[3])
+/* get tile entity data based on its iterator "coordinates" */
+DATA8 chunkGetTileEntity(ChunkData cd, int offset)
 {
-	TileEntityEntry entry = chunkGetTileEntry(c, XYZ);
+	TileEntityEntry entry = chunkGetTileEntry(cd, offset);
 	return entry && entry->data != TILE_OBSERVED_DATA ? entry->data : NULL;
 }
 
-DATA8 chunkGetTileEntityFromOffset(Chunk c, int Y, int offset)
+/* tile data will be potentially realloc()'ed */
+DATA8 chunkUpdateTileEntity(ChunkData cd, int offset)
 {
-	int XYZ[3];
-	XYZ[0] = offset & 15; offset >>= 4;
-	XYZ[2] = offset & 15;
-	XYZ[1] = Y + (offset >> 4);
-	return chunkGetTileEntity(c, XYZ);
+	TileEntityEntry entry = chunkGetTileEntry(cd, offset);
+	if (entry && entry->data != TILE_OBSERVED_DATA)
+	{
+		DATA8 tile = entry->data;
+		/* will prevent free()'ing a realloc()'ed block */
+		entry->data = TILE_OBSERVED_DATA;
+		return tile;
+	}
+	return NULL;
 }
 
 /* tile entity has been deleted: remove ref from hash */
-DATA8 chunkDeleteTileEntity(Chunk c, int XYZ[3], Bool extract)
+DATA8 chunkDeleteTileEntity(ChunkData cd, int offset, Bool extract, DATA8 observed)
 {
-	if (! c->tileEntities) return False;
-	TileEntityHash  hash = c->tileEntities;
+	TileEntityHash  hash = cd->chunk->tileEntities; if (! hash) return NULL;
 	TileEntityEntry base = (TileEntityEntry) (hash + 1);
-	uint32_t        xzy  = TILE_ENTITY_ID(XYZ);
+	uint32_t        xzy  = offset + (cd->Y << 8);
 	TileEntityEntry ent  = base + xzy % hash->max;
 	DATA8           data = ent->data;
 
@@ -365,10 +363,12 @@ DATA8 chunkDeleteTileEntity(Chunk c, int XYZ[3], Bool extract)
 
 	// fprintf(stderr, "deleting tile entity at %d, %d, %d\n", c->X + XYZ[0], XYZ[1], c->Z + XYZ[2]);
 	/* mapUpdate() will need this information to check if there are observers who need to be notified */
-	XYZ[0] |= ent->xzy >> (TILE_OBSERVED_OFFSET-4);
+	if (observed)
+		observed[0] = ent->xzy >> (TILE_OBSERVED_OFFSET-4);
 
 	if (data > TILE_OBSERVED_DATA)
 	{
+		Chunk c = cd->chunk;
 		if (extract)
 		{
 			if (c->nbt.mem <= data && data < c->nbt.mem + c->nbt.usage)
@@ -425,13 +425,11 @@ static void chunkMakeObservable(ChunkData cd, int offset, int side)
 	struct BlockIter_t iter;
 	mapInitIterOffset(&iter, cd, offset);
 	mapIter(&iter, relx[side], rely[side], relz[side]);
-
-	int XYZ[] = {iter.x, iter.yabs, iter.z};
-	TileEntityEntry entry = chunkGetTileEntry(iter.ref, XYZ);
+	TileEntityEntry entry = chunkGetTileEntry(iter.cd, iter.offset);
 	if (entry == NULL)
 	{
-		chunkAddTileEntity(iter.ref, XYZ, TILE_OBSERVED_DATA);
-		entry = chunkGetTileEntry(iter.ref, XYZ);
+		chunkAddTileEntity(iter.cd, iter.offset, TILE_OBSERVED_DATA);
+		entry = chunkGetTileEntry(iter.cd, iter.offset);
 	}
 	/* the block can be observed on multiple side */
 	entry->xzy |= 1 << (opp[side] + TILE_OBSERVED_OFFSET);
@@ -442,14 +440,13 @@ void chunkUnobserve(ChunkData cd, int offset, int side)
 	struct BlockIter_t iter;
 	mapInitIterOffset(&iter, cd, offset);
 	mapIter(&iter, relx[side], rely[side], relz[side]);
-	int XYZ[] = {iter.x, iter.yabs, iter.z};
-	TileEntityEntry entry = chunkGetTileEntry(iter.ref, XYZ);
+	TileEntityEntry entry = chunkGetTileEntry(iter.cd, iter.offset);
 
 	if (entry)
 	{
 		entry->xzy &= ~(1 << (opp[side] + TILE_OBSERVED_OFFSET));
 		if ((entry->xzy & ~TILE_COORD) == 0 && entry->data == TILE_OBSERVED_DATA)
-			chunkDeleteTileEntity(iter.ref, XYZ, False);
+			chunkDeleteTileEntity(iter.cd, iter.offset, False, NULL);
 	}
 }
 
@@ -492,8 +489,6 @@ Bool chunkLoad(Chunk chunk, const char * path, int x, int z)
 			//chunk->biomeMap       = NBT_Payload(&nbt, NBT_FindNode(&nbt, 0, "Biomes"));
 			chunk->entityList     = ENTITY_END;
 
-			chunkExpandTileEntities(chunk);
-
 			int secOffset = NBT_FindNode(&nbt, 0, "Sections");
 			if (secOffset > 0)
 			{
@@ -508,6 +503,8 @@ Bool chunkLoad(Chunk chunk, const char * path, int x, int z)
 				}
 			}
 
+			chunkExpandTileEntities(chunk);
+
 			/* sections have to be parsed first */
 			updateParseNBT(chunk);
 			return True;
@@ -521,8 +518,6 @@ Bool chunkLoad(Chunk chunk, const char * path, int x, int z)
 /* will have to do some post-processing when saving this chunk */
 void chunkMarkForUpdate(Chunk c, int type)
 {
-	if (type == CHUNK_NBT_TILEENTITIES)
-		puts("here");
 	int done = type << 6;
 	if ((c->cflags & done) == 0)
 	{
@@ -543,18 +538,12 @@ void chunkMarkForUpdate(Chunk c, int type)
 }
 
 /* insert <nbt> fragment at the location of tile entity pointed by <blockOffset> (ie: coord of tile entity within chunk) */
-Bool chunkUpdateNBT(Chunk c, int blockOffset, NBTFile nbt)
+Bool chunkUpdateNBT(ChunkData cd, int offset, NBTFile nbt)
 {
-	DATA8 tile;
-	int   XYZ[3];
-
 	NBT_SetHdrSize(nbt, 0);
 
-	XYZ[0] = blockOffset & 15; blockOffset >>= 4;
-	XYZ[2] = blockOffset & 15; blockOffset >>= 4;
-	XYZ[1] = blockOffset;
-
-	tile = chunkGetTileEntity(c, XYZ);
+	Chunk c = cd->chunk;
+	DATA8 tile = chunkGetTileEntity(cd, offset);
 
 	/* small optimization: if size is same as what's currently stored, overwrite data */
 	if (tile && c->nbt.mem <= tile && tile < c->nbt.mem + c->nbt.usage)
@@ -575,7 +564,7 @@ Bool chunkUpdateNBT(Chunk c, int blockOffset, NBTFile nbt)
 	chunkMarkForUpdate(c, CHUNK_NBT_TILEENTITIES);
 
 	/* add or update pointer in hash */
-	return chunkAddTileEntity(c, XYZ, nbt->mem);
+	return chunkAddTileEntity(cd, offset, nbt->mem);
 }
 
 /*
@@ -1637,7 +1626,7 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 	DATA16   model;
 	DATA8    cnxBlock;
 	int      count, connect, x, y, z;
-	uint8_t  Y, dualside, hasLights;
+	uint8_t  dualside, hasLights;
 	uint16_t blockIds3x3[27];
 	uint8_t  skyBlock[27];
 	int      occlusion;
@@ -1645,7 +1634,6 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 	x = (pos & 15);
 	z = (pos >> 4) & 15;
 	y = (pos >> 8);
-	Y = neighbors[6]->Y >> 4;
 	hasLights = (neighbors[6]->cdFlags & CDFLAG_NOLIGHT) == 0;
 
 	{
@@ -1715,7 +1703,7 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 		break;
 	case BLOCK_POT:
 		/* flower pot: check if there is a plant in the pot */
-		cnxBlock = chunkGetTileEntityFromOffset(c, neighbors[6]->Y, pos);
+		cnxBlock = chunkGetTileEntity(neighbors[6], pos);
 		if (cnxBlock)
 		{
 			struct NBTFile_t nbt = {.mem = cnxBlock};
@@ -1741,7 +1729,7 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 		}
 		break;
 	case BLOCK_BED:
-		cnxBlock = chunkGetTileEntityFromOffset(c, neighbors[6]->Y, pos);
+		cnxBlock = chunkGetTileEntity(neighbors[6], pos);
 		if (cnxBlock)
 		{
 			struct NBTFile_t nbt = {.mem = cnxBlock};
@@ -1756,11 +1744,8 @@ static void chunkGenCust(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 		break;
 	default:
 		/* piston head with a tile entity: head will be rendered as an entity if it is moving */
-		if ((b->id >> 4) == RSPISTONHEAD)
-		{
-			if (chunkGetTileEntity(c, (int[3]){x, (Y << 4) + y, z}))
-				return;
-		}
+		if ((b->id >> 4) == RSPISTONHEAD && chunkGetTileEntity(neighbors[6], pos))
+			return;
 	}
 
 	if (model == NULL)

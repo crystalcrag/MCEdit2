@@ -1763,7 +1763,6 @@ Bool mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 	}
 
 	int oldId = iter.blockIds[iter.offset] << 4;
-	int XYZ[] = {iter.x, iter.yabs, iter.z};
 	DATA8 data = iter.blockIds + DATA_OFFSET + (iter.offset >> 1);
 	Block b = &blockIds[blockId >> 4];
 
@@ -1778,7 +1777,7 @@ Bool mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 	if (iter.offset & 1) oldId |= *data >> 4;
 	else                 oldId |= *data & 15;
 
-	if ((blockUpdate & UPDATE_FORCE) == 0 && oldId == blockId && tile == chunkGetTileEntity(iter.ref, XYZ))
+	if ((blockUpdate & UPDATE_FORCE) == 0 && oldId == blockId && tile == chunkGetTileEntity(iter.cd, iter.offset))
 		return False;
 
 	/* this needs to be done before tables are updated */
@@ -1857,11 +1856,11 @@ Bool mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 
 	if ((blockUpdate & UPDATE_DONTLOG) == 0)
 	{
-		DATA8 tileEntity = chunkGetTileEntity(iter.ref, XYZ);
+		DATA8 tileEntity = chunkGetTileEntity(iter.cd, iter.offset);
 		undoLog(blockUpdate & UPDATE_UNDOLINK ? LOG_BLOCK | UNDO_LINK : LOG_BLOCK, oldId, tileEntity, iter.cd, iter.offset);
 	}
 	/* block replaced: check if there is a tile entity to delete */
-	DATA8 oldTile = chunkDeleteTileEntity(iter.ref, XYZ, False);
+	DATA8 oldTile = chunkDeleteTileEntity(iter.cd, iter.offset, False, &iter.alloc);
 	/* <oldTile> points to freed memory, do not dereference! */
 
 	if (oldTile)
@@ -1877,24 +1876,26 @@ Bool mapUpdate(Map map, vec4 pos, int blockId, DATA8 tile, int blockUpdate)
 		/* observer deleted: remove tile */
 		chunkUnobserve(iter.cd, iter.offset, blockSides.piston[oldId & 7]);
 	}
-	/* somewhat hack: the XYZ position is monitored by one or more observers */
-	if (XYZ[0] > 15)
+	/* this position is monitored by one or more observers */
+	if (iter.alloc > 0)
 	{
-		mapUpdateObserver(&iter, XYZ[0] >> 4 /* SENWTB bitfield */);
-		XYZ[0] &= 15;
+		mapUpdateObserver(&iter, iter.alloc /* SENWTB bitfield */);
 	}
 
 	if (tile)
 	{
 		/* update position */
-		chunkUpdateTilePosition(iter.ref, XYZ, tile);
-		chunkAddTileEntity(iter.ref, XYZ, tile);
+		chunkUpdateTilePosition(iter.cd, iter.offset, tile);
+		chunkAddTileEntity(iter.cd, iter.offset, tile);
 		chunkMarkForUpdate(iter.ref, CHUNK_NBT_TILEENTITIES);
 	}
 
 	/* trigger a block update, it might call mapUpdate recursively */
 	if (blockUpdate & 1)
 	{
+		if (b->containerSize > 0)
+			mapUpdateContainerChanged(iter.cd, iter.offset);
+
 		/* update nearby block if needed */
 		mapUpdateBlock(map, iter, blockId, oldId, tile, blockUpdate & UPDATE_GRAVITY);
 		entityUpdateNearby(&iter, blockId);

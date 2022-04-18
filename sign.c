@@ -342,10 +342,10 @@ void signSetText(Chunk chunk, vec4 pos, DATA8 msg)
 
 			struct BlockIter_t iter = {.blockIds = cd->blockIds, .offset = CHUNK_BLOCK_POS(XYZ[0], XYZ[2], XYZ[1]&15)};
 			int blockId = getBlockId(&iter);
-			undoLog(LOG_BLOCK, blockId, chunkGetTileEntity(chunk, XYZ), cd, iter.offset);
+			undoLog(LOG_BLOCK, blockId, chunkGetTileEntity(cd, iter.offset), cd, iter.offset);
 			tile = blockCreateTileEntity(blockId, pos, text);
 			if (tile == NULL) break;
-			chunkAddTileEntity(chunk, XYZ, tile);
+			chunkAddTileEntity(cd, iter.offset, tile);
 			chunkMarkForUpdate(chunk, CHUNK_NBT_TILEENTITIES);
 			sign->tile = tile;
 			signParseEntity(sign);
@@ -366,7 +366,7 @@ int signAddToList(int blockId, ChunkData cd, int offset, int prev, uint8_t light
 	struct SignText_t sign = {.bank = -1, .light = light};
 	int i;
 
-	sign.tile = chunkGetTileEntityFromOffset(cd->chunk, cd->Y, offset);
+	sign.tile = chunkGetTileEntity(cd, offset);
 
 	if (sign.tile)
 	{

@@ -66,23 +66,25 @@ struct Block_t                   /* per id information */
 
 	int8_t   particle;           /* enum */
 	uint8_t  tall;               /* this block will need more than 1 voxel */
-	uint8_t  emitLight;          /* value of light emitted 0 ~ 15 */
-	uint8_t  opacSky;            /* reduction of skyLight */
+	uint8_t  emitLight;          /* value of light emitted [0-15] */
+	uint8_t  opacSky;            /* reduction of skyLight [0-15] */
 
-	uint8_t  opacLight;          /* reduction of blockLight */
-	uint8_t  orientHint;         /* auto-orient based on camera angle */
+	uint8_t  opacLight;          /* reduction of blockLight [0-15] */
+	uint8_t  orientHint;         /* auto-orient based on camera angle (ORIENT_*) */
 	uint8_t  tileEntity;         /* type of tile entity (TILE_*) */
 	uint8_t  special;            /* enum BLOCK_* */
 
 	uint8_t  rswire;             /* redstone wire can attach to this block */
-	uint8_t  rsupdate;           /* update state if redstone signal change around block */
+	uint8_t  rsupdate;           /* update state if redstone signal change around block (RSUPDATE_*) */
 	uint8_t  copyModel;          /* copy invmodel from this block id (init phase only) */
 	uint8_t  placement;          /* allowed blocks this one can be placed on (index in blocks.placements) */
 
 	uint8_t  gravity;            /* block affected by gravity */
-	uint8_t  pushable;           /* can be pushed by piston or /retracted by sticky piston */
+	uint8_t  pushable;           /* can be pushed by piston or retracted by sticky piston (PUSH_*) */
 	uint8_t  updateNearby;       /* 6 nearby blocks can be changed if block is placed/deleted (chunk meshing optimization if not) */
 	uint8_t  bboxIgnoreBit;      /* ignore some states for player bounding box (fence gate) */
+
+	uint8_t  containerSize;      /* number of items this container contains */
 
 	uint16_t emitInterval;       /* particles emitter interval in millisec */
 	uint16_t particleTTL;        /* minimum particle life time in millisec */
@@ -326,6 +328,7 @@ enum                             /* common redstone devices */
 	RSOBSERVER     = 218
 };
 
+#define HOPPER_COOLDOWN           4
 #define blockGetByIdData(id,data) (blockStates + blockStateIndex[((id) << 4) | (data)])
 #define blockGetById(id)          (blockStates + blockStateIndex[id])
 #define ID(id, data)              (((id) << 4) | (data))

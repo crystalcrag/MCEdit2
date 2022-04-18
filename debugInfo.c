@@ -52,8 +52,7 @@ void debugBlockVertex(vec4 pos, int side)
 		fprintf(stderr, "powered by signal: %s\n", strength[(i&15)-1]);
 	}
 
-	xyz[1] += iter.cd->Y;
-	DATA8 tile = chunkGetTileEntity(iter.ref, xyz);
+	DATA8 tile = chunkGetTileEntity(iter.cd, iter.offset);
 	if (tile)
 	{
 		fprintf(stderr, "TileEntity associated with block (%d bytes):\n", NBT_Size(tile));
@@ -61,7 +60,6 @@ void debugBlockVertex(vec4 pos, int side)
 		while ((i = NBT_Dump(&nbt, nbt.alloc, 3, stderr)) >= 0)
 			nbt.alloc += i;
 	}
-	xyz[1] -= iter.cd->Y;
 
 	/* get the sub buffer where the vertex data is located */
 	if (iter.cd->glBank == NULL) return;
@@ -589,7 +587,7 @@ void debugWorld(void)
 					nvgFillColorRGBA8(vg, debug.showLightValue ? "\xff\xff\x88\xff" : "\xff\xff\xff\xff");
 					nvgText(vg, x + xtxt, y + 3, skyTxt, skyTxt+2);
 				}
-				if (chunkGetTileEntity(iter.ref, (int[3]) {iter.x, iter.yabs, iter.z}))
+				if (chunkGetTileEntity(iter.cd, iter.offset))
 				{
 					/* this block has a tile entity */
 					nvgStrokeColorRGBA8(vg, "\xff\xff\x00\xff");

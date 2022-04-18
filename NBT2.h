@@ -104,6 +104,7 @@ struct NBTHdr_t
 #define TAG_Raw_Data         12   /* NBT_Add() only */
 #define TAG_Raw_Ptr          13   /* NBT_Add() only */
 #define TAG_Compound_End     14   /* NBT_Add() only */
+#define TAG_List_End         15   /* NBT_Add() only */
 #define TAG_InsertAtEnd      256  /* NBT_Add() only */
 #define	TAG_List_Byte        (TAG_List | (TAG_Byte << 4))
 #define	TAG_List_Short       (TAG_List | (TAG_Short << 4))
