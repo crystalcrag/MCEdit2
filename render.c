@@ -82,8 +82,6 @@ void GLAPIENTRY debugGLError(GLenum source, GLenum type, GLuint id, GLenum sever
 	fprintf(stderr, "src: %d, id: %d, type: %s, sev: %s, %s\n", source, id, str, sev, message);
 }
 
-int blockRotateY90(int);
-
 /* render what's being currently selected */
 static void renderSelection(void)
 {
@@ -167,9 +165,15 @@ static void renderSelection(void)
 		int blockId = blockAdjustOrient(id, &info, render.selection.extra.inter);
 		if (info.keepPos) offset = cubeNormals + 5; /* 0,0,0 */
 		if ((render.selection.blockId & ~15) == (blockId & ~15))
-			for (id = render.selection.rotationY90; id > 0; blockId = blockRotateY90(blockId), id --);
-		else
-			render.selection.rotationY90 = 0;
+		{
+			id = render.selection.rotate90 & 7;
+			switch (render.selection.rotate90 >> 4) {
+			case VX+1: while (id > 0) blockId = blockRotateX90(blockId), id --; break;
+			case VY+1: while (id > 0) blockId = blockRotateY90(blockId), id --; break;
+			case VZ+1: while (id > 0) blockId = blockRotateZ90(blockId), id --;
+			}
+		}
+		else render.selection.rotate90 = 0;
 
 		#if 0
 		static int oldBlock;
@@ -283,17 +287,53 @@ static void renderSelection(void)
 
 Bool renderRotatePreview(int dir)
 {
-	uint8_t r = render.selection.rotationY90 + dir;
-	if (r == 4)   r = 0; else
-	if (r == 255) r = 3;
-	render.selection.rotationY90 = r;
+	uint8_t axis = render.selection.rotate90 >> 4;
+	uint8_t r = (render.selection.rotate90 & 3) + dir;
+	uint8_t try = 0;
+	uint8_t facing = globals.direction & 1 ? 3 : 1;
+	int blockId = render.selection.blockId;
+	if (r == 4)  r = 0; else
+	if (r > 127) r = 3;
 
-	int blockId = blockRotateY90(render.selection.blockId);
-	if (blockId != render.selection.blockId)
+	for (try = 0; try < 2; try ++)
 	{
-		render.selection.blockVtx = blockGenModel(render.vboPreview, blockId);
-		render.selection.blockId  = blockId;
-		return True;
+		if (axis == 0)
+		{
+			/* try VY first */
+			blockId = blockRotateY90(blockId);
+			if (blockId != render.selection.blockId)
+			{
+				axis = 2;
+				goto accept;
+			}
+
+			/* try to rotate on X or Z axis */
+			axis = facing;
+		}
+		else if (axis != 2)
+		{
+			axis = facing;
+		}
+		switch (axis) {
+		case 1: blockId = blockRotateX90(blockId); break;
+		case 2: blockId = blockRotateY90(blockId); break;
+		case 3: blockId = blockRotateZ90(blockId); break;
+		}
+
+		if (blockId != render.selection.blockId)
+		{
+			accept:
+			render.selection.blockVtx = blockGenModel(render.vboPreview, blockId);
+			render.selection.blockId  = blockId;
+			render.selection.rotate90 = (axis << 4) | r;
+			return True;
+		}
+		else if (try == 0)
+		{
+			/* try another axis */
+			r = dir < 0 ? 3 : 1;
+			axis = 0;
+		}
 	}
 	return False;
 }

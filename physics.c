@@ -167,6 +167,8 @@ int physicsCheckCollision(Map map, vec4 start, vec4 end, ENTBBox bbox, float aut
 						ret |= INSIDE_LADDER;
 					if (block->special == BLOCK_PLATE)
 						ret |= INSIDE_PLATE;
+					if (curAxis == VY && block->id == RSHOPPER)
+						ret |= INSIDE_HOPPER;
 				}
 
 				skip_block:
@@ -532,7 +534,7 @@ Bool physicsMoveEntity(Map map, PhysicsEntity entity, float speed)
 	entity->dir[VZ] -= entity->friction[VZ] * speed; if (entity->dir[VZ] < 0) entity->dir[VZ] = 0;
 	entity->dir[VY] -= entity->friction[VY] * speed;
 
-	if (entity->VYblocked)
+	if (entity->physFlags & PHYSFLAG_VYBLOCKED)
 	{
 		/* increase friction if sliding on ground */
 		entity->friction[VX] += 0.0005f * speed;
@@ -543,11 +545,14 @@ Bool physicsMoveEntity(Map map, PhysicsEntity entity, float speed)
 	/* check collision */
 	int axis = physicsCheckCollision(map, oldLoc, entity->loc, entity->bbox, 0, NULL);
 
+	if ((axis & INSIDE_HOPPER) && (mapGetBlockId(map, (vec4) {entity->loc[VX], entity->loc[VY]+entity->bbox->pt1[VY]-0.1f, entity->loc[VZ]}, NULL) >> 4) == RSHOPPER)
+		entity->physFlags |= PHYSFLAG_OVERHOPPER;
+
 	if (axis & 2)
 	{
 		if (entity->rebound == 255)
 		{
-			entity->VYblocked = 1;
+			entity->physFlags |= PHYSFLAG_VYBLOCKED;
 			entity->rebound = 0;
 			entity->dir[VY] = 0;
 		}
@@ -563,9 +568,9 @@ Bool physicsMoveEntity(Map map, PhysicsEntity entity, float speed)
 			entity->friction[VZ] *= 2;
 			entity->friction[VY] *= 2;
 		}
-		else if (! entity->VYblocked)
+		else if ((entity->physFlags & PHYSFLAG_VYBLOCKED) == 0)
 		{
-			entity->VYblocked = 1;
+			entity->physFlags |= PHYSFLAG_VYBLOCKED;
 			if (DY > 0)
 			{
 				/* hit a ceiling */
@@ -584,7 +589,7 @@ Bool physicsMoveEntity(Map map, PhysicsEntity entity, float speed)
 			}
 		}
 	}
-	else entity->VYblocked = 0;
+	else entity->physFlags &= ~PHYSFLAG_VYBLOCKED;
 
 	return floorf(oldLoc[VX]) != floorf(entity->loc[VX]) ||
 	       floorf(oldLoc[VY]) != floorf(entity->loc[VY]) ||
@@ -700,10 +705,7 @@ void physicsEntityMoved(Map map, APTR self, vec4 start, vec4 end)
 			{
 				/* entity is on top of broad[]: not going to be pushed, but check if it needs to be affected by gravity */
 				if (entity->private == NULL && entity->pos[VY] - (entity->szy >> 1) * scale > broad[VY+3] - 0.0625f)
-				{
 					entityInitMove(entity, SIDE_BOTTOM, 1);
-					//fprintf(stderr, "need physics update\n");
-				}
 				continue;
 			}
 
@@ -714,6 +716,9 @@ void physicsEntityMoved(Map map, APTR self, vec4 start, vec4 end)
 			};
 			float oldPos[3];
 			memcpy(oldPos, entity->pos, 12);
+
+			if (entity->private == NULL)
+				entityInitMove(entity, UPDATE_BY_PHYSICS, 1);
 
 			if (physicsPushEntity(broad, entity->pos, bbox, dir, entity->private))
 			{

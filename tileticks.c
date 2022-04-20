@@ -179,7 +179,7 @@ void updateRemove(ChunkData cd, int offset, Bool clearSorted)
 Bool updateScheduled(ChunkData cd, int offset)
 {
 	if (updates.max == 0)
-		return 0;
+		return False;
 
 	TileTick entry;
 	int      index = TOHASH(cd, offset) % updates.max;

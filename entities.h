@@ -368,6 +368,7 @@ void   worldItemDelete(Entity);
 void   worldItemCreateGeneric(NBTFile nbt, Entity entity, STRPTR name);
 void   worldItemCreateBlock(Entity, Bool fallingEntity);
 void   worldItemPlaceOrCreate(Entity);
+void   worldItemToItem_t(DATA8 tile, Item buf);
 
 void   mobEntityInit(void);
 void   mobEntityProcessTex(DATA8 * data, int * width, int * height, int bpp);

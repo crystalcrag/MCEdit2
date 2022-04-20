@@ -565,14 +565,18 @@ int mapUpdateGate(BlockIter iterator, int id, Bool init)
 	{
 		if (i == 6 || init) return id;
 		/* gate closed, but has a power source nearby */
-		if (init) return id;
-		else mapUpdateTable(iterator, (id | flag) & 15, DATA_OFFSET);
+		mapUpdateTable(iterator, (id | flag) & 15, DATA_OFFSET);
 	}
 	else if (i == 6)
 	{
 		/* gate powered/opened, without power source */
-		if (init) return id; /* cut power and close gate */
-		else mapUpdateTable(iterator, (id & ~flag) & 15, DATA_OFFSET);
+		if (! init)
+		{
+			/* cut power and close gate */
+			mapUpdateTable(iterator, (id & ~flag) & 15, DATA_OFFSET);
+			if ((id >> 4) == RSHOPPER)
+				mapUpdateHopper(iterator->cd, iterator->offset);
+		}
 	}
 	return id;
 }
@@ -986,6 +990,7 @@ int mapUpdatePot(int blockId, ItemID_t itemId, DATA8 * tile)
 	return 1;
 }
 
+/* XXX should be done in tileticks.c directy */
 static void mapUpdateHopperTick(Map map, BlockIter iter)
 {
 	mapUpdateHopper(iter->cd, iter->offset);
@@ -997,33 +1002,36 @@ void mapUpdateHopper(ChunkData cd, int pos)
 	struct BlockIter_t iter;
 	mapInitIterOffset(&iter, cd, pos);
 	int blockId = getBlockId(&iter);
-	printCoord(&iter);
-	if ((blockId & 8) == 0)
+	if ((blockId & 8) == 0 && ! updateScheduled(cd, pos))
 	{
 		/* unlocked hopper: check first if we can transmit block */
 		struct BlockIter_t neighbor = iter;
 		int dir = blockSides.piston[blockId & 7];
 		mapIter(&neighbor, relx[dir], rely[dir], relz[dir]);
 
-		switch (inventoryPushItem(&iter, &neighbor)) {
-		case 1: /* an item was pushed in the container: more are inside hopper */
-		case 2: /* an item was pushed, hopper is empty now */
-			fprintf(stderr, "pushed into container\n");
-			updateAddTickCallback(&iter, HOPPER_COOLDOWN, mapUpdateHopperTick);
-			return;
-		/* else nothing was grabbed, check if we can pull */
-		}
-
-		neighbor = iter;
-		mapIter(&neighbor, 0, 1, 0);
-		if (inventoryPushItem(&neighbor, &iter) > 0)
+		if (! inventoryPushItem(&iter, &neighbor))
 		{
+			/* nothing was grabbed, check if we can pull */
+			neighbor = iter;
+			mapIter(&neighbor, 0, 1, 0);
+			if (! inventoryPushItem(&neighbor, &iter))
+				return;
+
 			/* an item was pulled from the container <neighbor>: more are inside */
-			fprintf(stderr, "pulled from container\n");
 			updateAddTickCallback(&iter, HOPPER_COOLDOWN, mapUpdateHopperTick);
 			mapUpdateContainerChanged(neighbor.cd, neighbor.offset);
 		}
+		else updateAddTickCallback(&iter, HOPPER_COOLDOWN, mapUpdateHopperTick);
 	}
+}
+
+Bool mapUpdateHopperGrabItem(BlockIter iter, Item item)
+{
+	if ((getBlockId(iter) & 8) == 0 && ! updateScheduled(iter->cd, iter->offset))
+	{
+		return inventoryPushWorldItem(iter, item);
+	}
+	return False;
 }
 
 /* container changed at given location, check if nearby hopper might need to be updated */
@@ -1189,7 +1197,7 @@ int blockRotateY90(int blockId)
 }
 
 /* used by "roll" function */
-int blockRotateX90(BlockIter iter)
+int blockRotateX90(int blockId)
 {
 	/* careful: these tables are not intuitive */
 	static uint8_t rotateXLog[]   = {8, 4, 0, 12};
@@ -1198,7 +1206,6 @@ int blockRotateX90(BlockIter iter)
 	static uint8_t rotateXLever[] = {3, 1, 2, 6, 0, 4, 4, 3};
 	static uint8_t rotateXTrapD[] = {12, 4, 2, 3, 8, 0, 6, 7, 13, 5, 10, 11, 9, 1, 14, 15};
 
-	int blockId = getBlockId(iter);
 	Block b = &blockIds[blockId>>4];
 	switch (b->orientHint) {
 	case ORIENT_LOG:    return (blockId & ~12) | rotateXLog[(blockId & 12) >> 2];
@@ -1215,7 +1222,7 @@ int blockRotateX90(BlockIter iter)
 }
 
 /* used by "roll" function */
-int blockRotateZ90(BlockIter iter)
+int blockRotateZ90(int blockId)
 {
 	/* careful: these tables are not intuitive */
 	static uint8_t rotateZLog[]   = {4, 0, 8, 12};
@@ -1224,7 +1231,6 @@ int blockRotateZ90(BlockIter iter)
 	static uint8_t rotateZLever[] = {1, 6, 0, 3, 4, 2, 2, 1};
 	static uint8_t rotateZTrapD[] = {0, 1, 14, 6, 4, 5, 10, 2, 8, 9, 15, 7, 12, 13, 11, 3};
 
-	int blockId = getBlockId(iter);
 	Block b = &blockIds[blockId>>4];
 	switch (b->orientHint) {
 	case ORIENT_LOG:    return (blockId & ~12) | rotateZLog[(blockId & 12) >> 2];

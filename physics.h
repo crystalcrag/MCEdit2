@@ -29,18 +29,26 @@ struct PhysicsEntity_t
 	float   dir[3];            /* current movement direcion */
 	float   loc[4];            /* current position */
 	float   friction[3];       /* how dir[] will change over time */
-	uint8_t VYblocked;         /* hit the ground */
-	uint8_t light;             /* blocklight (bit0~3) skylight (bit4~7) */
+	uint8_t physFlags;         /* PHYSFLAG_* */
+	uint8_t light;             /* blocklight (bit0~3) skylight (bit4~7) (mostly used by particles) */
 	uint8_t negXZ;             /* &1: dir[VX] is negative, &2: dir[Vz] is negative */
-	uint8_t rebound;           /* rebound when hitting the ground */
+	uint8_t rebound;           /* rebound when hitting the ground XXX need more robust logic than this */
 	ENTBBox bbox;              /* bounding box of entity */
+};
+
+
+enum
+{
+	PHYSFLAG_VYBLOCKED  = 1,   /* hit the ground */
+	PHYSFLAG_OVERHOPPER = 2,   /* over a hopper, should be grabbed */
 };
 
 enum                           /* special bit field returned by physicsCheckCollision() */
 {
 	INSIDE_LADDER = 8,
 	INSIDE_PLATE  = 16,
-	SOFT_COLLISON = 32,        /* do not reset velocity, target might get out of the way */
+	INSIDE_HOPPER = 32,
+	SOFT_COLLISON = 64,        /* do not reset velocity, target might get out of the way */
 };
 
 #endif

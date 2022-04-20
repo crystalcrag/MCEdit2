@@ -26,6 +26,7 @@ void mapUpdatePressurePlate(BlockIter iter, float entityBBox[6]);
 void mapUpdateObserver(BlockIter iter, int from);
 int  mapUpdatePot(int blockId, ItemID_t itemId, DATA8 * tile);
 void mapUpdateHopper(ChunkData, int pos);
+Bool mapUpdateHopperGrabItem(BlockIter iter, Item item);
 void mapUpdateContainerChanged(ChunkData, int pos);
 void mapUpdateTable(BlockIter, int val, int table);
 Bool mapActivate(Map, vec4 pos);

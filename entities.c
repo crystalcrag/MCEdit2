@@ -846,7 +846,7 @@ Entity entityParse(Chunk chunk, NBTFile nbt, int offset, Entity prev)
 		}
 	}
 
-	if (id && !(pos[3] == 0 && pos[4] == 0 && pos[6] == 0))
+	if (id && !(pos[3] == 0 && pos[4] == 0 && pos[5] == 0))
 	{
 		uint16_t next;
 		//if (pos[3] < c->X || pos[3] >= c->X+16 || pos[5] < c->Z || pos[5] >= c->Z+16)
@@ -1504,6 +1504,23 @@ void entityAnimate(void)
 			memcpy(oldPos, entity->pos, 12);
 			physicsMoveEntity(globals.level, physics, (time - anim->prevTime) / 50.f);
 
+			if ((physics->physFlags & PHYSFLAG_OVERHOPPER) /*&& (entity->blockId & ENTITY_ITEM)*/)
+			{
+				struct BlockIter_t iter;
+				Item_t item;
+				worldItemToItem_t(entity->tile, &item);
+				vec pos = physics->loc;
+				mapInitIter(globals.level, &iter, (vec4) {pos[VX], pos[VY]+physics->bbox->pt1[VY] - 0.1f, pos[VZ]}, False);
+				if (mapUpdateHopperGrabItem(&iter, &item) && item.count == 0)
+				{
+					entityFreePhysics(entity);
+					entityDelete(entity->chunkRef, entity->tile);
+					memmove(anim, anim + 1, ANIM_REMAIN(anim));
+					entities.animCount --;
+					continue;
+				}
+			}
+
 			memcpy(entity->pos, physics->loc, 12);
 			entityUpdateInfo(entity, oldPos);
 			anim->prevTime = time;
@@ -1738,6 +1755,7 @@ void entityInitMove(Entity entity, int side, float factor)
 	PhysicsEntity physics;
 	entityAllocPhysics(entity);
 	physics = entity->private;
+	physicsInitEntity(physics, entity->blockId & ~ENTITY_ITEM);
 
 //	fprintf(stderr, "init move for %s [*(Entity)0x%p] dir %c\n", entity->name, entity, "SENWTB"[side]);
 	int mode = UPDATE_BY_PHYSICS;

@@ -1146,26 +1146,66 @@ DATA8 inventoryLocateItems(BlockIter iter)
 	return NULL;
 }
 
+int inventoryTryTransfer(Item inventory, Item grab, int max)
+{
+	Item item;
+	int  i;
+	for (i = 0, item = inventory; i < max; i ++, item ++)
+	{
+		ItemDesc desc;
+		if (item->id > 0 && item->count < ((desc = itemGetById(item->id)) ? desc->stack : 64))
+		{
+			if (grab->id == item->id)
+			{
+				item->count ++;
+				grab->count --;
+				if (grab->count == 0)
+				{
+					grab->id = 0;
+					return ACT_DELITEM | (ACT_CHGCOUNT << 12) | (i << 4);
+				}
+				else return ACT_CHGCOUNT | (ACT_CHGCOUNT << 12) | (i << 4);
+			}
+		}
+	}
+	/* can't increase the stack size: check for a free slot */
+	for (i = 0, item = inventory; i < max; i ++, item ++)
+	{
+		if (item->id == 0)
+		{
+			item[0] = grab[0];
+			item->count = 1;
+			grab->count --;
+			if (grab->count == 0)
+			{
+				grab->id = 0;
+				return ACT_DELITEM | (ACT_ADDITEM << 12) | (i << 4);
+			}
+			else return ACT_CHGCOUNT | (ACT_ADDITEM << 12) | (i << 4);
+		}
+	}
+	return ACT_NOCHANGES;
+}
+
 /* try to grab one item from <rc> and store it in <dst> (ie: hopper logic) */
-int inventoryPushItem(BlockIter src, BlockIter dst)
+Bool inventoryPushItem(BlockIter src, BlockIter dst)
 {
 	DATA8 order, srcTile, dstTile;
 	int   srcSlot, dstSlot;
 	Item  srcInv,  dstInv, item, grab;
-	char  srcAction, dstAction;
-	int   i, j, total;
+	int   i, j, total, action;
 
 	srcSlot = blockIds[src->blockIds[src->offset]].containerSize;
 	dstSlot = blockIds[dst->blockIds[dst->offset]].containerSize;
 
 	/* XXX need to filter out ender_chest and furnace */
 	if (srcSlot <= 0 || dstSlot <= 0)
-		return 0;
+		return False;
 
-	srcAction = dstAction = ACT_NOCHANGES;
-	srcInv    = alloca(srcSlot * sizeof *srcInv);
-	dstInv    = alloca(dstSlot * sizeof *dstInv);
-	order     = alloca(srcSlot);
+	action = ACT_NOCHANGES;
+	srcInv = alloca(srcSlot * sizeof *srcInv);
+	dstInv = alloca(dstSlot * sizeof *dstInv);
+	order  = alloca(srcSlot);
 
 	inventoryDecodeItems(srcInv, srcSlot, (NBTHdr) (srcTile = inventoryLocateItems(src)));
 
@@ -1191,44 +1231,13 @@ int inventoryPushItem(BlockIter src, BlockIter dst)
 	{
 		/* try to push a random item */
 		grab = srcInv + order[j];
-		if (grab->id == 0) continue;
-		for (i = 0, item = dstInv; i < dstSlot; i ++, item ++)
+		if (grab->id > 0)
 		{
-			ItemDesc desc;
-			if (item->id > 0 && item->count < ((desc = itemGetById(item->id)) ? desc->stack : 64))
-			{
-				if (grab->id == item->id)
-				{
-					dstAction = ACT_CHGCOUNT;
-					item->count ++;
-					grab->count --;
-					total --;
-					if (grab->count == 0)
-						grab->id = 0, srcAction = ACT_DELITEM;
-					else
-						srcAction = ACT_CHGCOUNT;
-					goto break_all;
-				}
-			}
-		}
-		/* can't increase the stack size: check for a free slot */
-		for (i = 0, item = dstInv; i < dstSlot; i ++, item ++)
-		{
-			if (item->id == 0)
-			{
-				dstAction = ACT_ADDITEM;
-				item[0] = grab[0];
-				item->count = 1;
-				grab->count --;
-				total --;
-				if (grab->count == 0)
-					grab->id = 0, srcAction = ACT_DELITEM;
-				else
-					srcAction = ACT_CHGCOUNT;
+			action = inventoryTryTransfer(dstInv, grab, dstSlot);
+			/* no free slot for this item, check the next one then */
+			if (action != ACT_NOCHANGES)
 				goto break_all;
-			}
 		}
-		/* no free slot for this item, check the next one then */
 	}
 
 	return 0;
@@ -1236,9 +1245,26 @@ int inventoryPushItem(BlockIter src, BlockIter dst)
 	/* one item was transferred: update NBT records */
 	break_all:
 
-	inventoryUpdate(src, srcInv, srcSlot, srcAction, srcTile, grab);
-	inventoryUpdate(dst, dstInv, dstSlot, dstAction, dstTile, item);
+	inventoryUpdate(src, srcInv, srcSlot, action & 15,  srcTile, grab);
+	inventoryUpdate(dst, dstInv, dstSlot, action >> 12, dstTile, dstInv + ((action >> 4) & 255));
 
-	/* 1 means we need to continue generating tile ticks, 2 == we can stop */
-	return total == 0 ? 2 : 1;
+	return True;
+}
+
+/* <dst> points to a hopper: used by logic to grab world item */
+Bool inventoryPushWorldItem(BlockIter dst, Item item)
+{
+	Item_t inventory[5];
+	DATA8  tile;
+
+	inventoryDecodeItems(inventory, DIM(inventory), (NBTHdr) (tile = inventoryLocateItems(dst)));
+
+	int action = inventoryTryTransfer(inventory, item, DIM(inventory));
+
+	if (action > 0)
+	{
+		inventoryUpdate(dst, inventory, DIM(inventory), action >> 12, tile, inventory + ((action >> 4) & 255));
+		return True;
+	}
+	return False;
 }

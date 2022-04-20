@@ -1351,7 +1351,7 @@ static void selectionBrushRoll(void)
 				{
 					int z2 = dy - y + 1;
 					int y2 = z;
-					int blockId = blockRotateX90(&src);
+					int blockId = blockRotateX90(getBlockId(&src));
 					mapIter(&dst, 0, y2 - oy, z2 - oz);
 					oy = y2; oz = z2;
 					dst.blockIds[dst.offset] = blockId >> 4;
@@ -1382,7 +1382,7 @@ static void selectionBrushRoll(void)
 				{
 					int x2 = dy - y + 1;
 					int y2 = x;
-					int blockId = blockRotateZ90(&src);
+					int blockId = blockRotateZ90(getBlockId(&src));
 					mapIter(&dst, x2 - ox, y2 - oy, 0);
 					oy = y2; ox = x2;
 					dst.blockIds[dst.offset] = blockId >> 4;

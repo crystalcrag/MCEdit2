@@ -9,9 +9,9 @@
 
 #include "maps.h"
 
-int blockRotateX90(BlockIter);
+int blockRotateX90(int blockId);
 int blockRotateY90(int blockId);
-int blockRotateZ90(BlockIter);
+int blockRotateZ90(int blockId);
 int blockMirrorX(BlockIter);
 int blockMirrorY(BlockIter);
 int blockMirrorZ(BlockIter);

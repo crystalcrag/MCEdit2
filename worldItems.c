@@ -143,6 +143,31 @@ static int worldItemParseItem(NBTFile nbt, Entity entity, STRPTR unused)
 	return 0;
 }
 
+/* convert a entity into an Item_t */
+void worldItemToItem_t(DATA8 tile, Item buf)
+{
+	NBTFile_t nbt = {.mem = tile};
+	int offset = NBT_FindNode(&nbt, 0, "Item");
+	memset(buf, 0, sizeof *buf);
+	if (offset >= 0)
+	{
+		NBTIter_t iter;
+		NBT_InitIter(&nbt, offset, &iter);
+		buf->count = 1;
+		while ((offset = NBT_Iter(&iter)) >= 0)
+		{
+			if (buf->tile == NULL)
+				buf->tile = tile + offset;
+			switch (FindInList("id,Damage,Count", iter.name, 0)) {
+			case 0: buf->id = itemGetByName(NBT_Payload(&nbt, offset), True); break;
+			case 1: buf->id |= NBT_GetInt(&nbt, offset, 0); break;
+			case 2: buf->count = NBT_GetInt(&nbt, offset, 1); break;
+			default: buf->extraF = 1;
+			}
+		}
+	}
+}
+
 void worldItemInit(void)
 {
 	/* will be called from entities.c */
@@ -688,6 +713,7 @@ void worldItemPreview(vec4 camera, vec4 pos, ItemID_t itemId)
 		preview->rotation[0] = normAngle(angle);
 		preview->enflags = ENFLAG_ITEM;
 		preview->VBObank = entityAddModel(preview->blockId = itemId, 0, NULL, &preview->szx, MODEL_DONT_SWAP);
+		preview->blockId |= ENTITY_ITEM;
 
 		worldItem.previewOffVY = preview->szy * preview->rotation[3] * (0.5f/BASEVTX);
 		preview->pos[VY] += worldItem.previewOffVY;
@@ -724,7 +750,7 @@ void worldItemUpdatePreviewPos(vec4 camera, vec4 pos)
 		memcpy(preview->pos, pos, 12);
 		preview->pos[VY] += worldItem.previewOffVY;
 		float angle = 2*M_PIf - atan2f(pos[VX] - camera[VX], pos[VZ] - camera[VZ]);
-		ItemID_t itemId = preview->blockId;
+		ItemID_t itemId = preview->blockId & ~ENTITY_ITEM;
 		if (isBlockId(itemId) && blockIds[itemId>>4].special == BLOCK_STAIRS)
 			/* viewed from front instead of side */
 			angle += M_PI_2f;
@@ -762,7 +788,7 @@ void worldItemAdd(Map map)
 			TEXT itemName[64];
 			NBTFile_t nbt = {.page = 511};
 
-			itemGetTechName(preview->blockId, itemName, sizeof itemName, False);
+			itemGetTechName(preview->blockId & ~ENTITY_ITEM, itemName, sizeof itemName, False);
 			worldItemCreateGeneric(&nbt, preview, "item");
 			NBT_Add(&nbt,
 				TAG_Compound, "Item",
