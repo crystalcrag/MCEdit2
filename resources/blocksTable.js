@@ -1429,7 +1429,7 @@
 	{id: 105, name: "Melon stem", type: QUAD, placement: "farmland", pushable: DROPITEM, density: PLANTS},
 		{state: 0, tex: [15, 6], quad: [CROSS]},
 
-	{id: 106, name: "Vines", type: QUAD, inv: ITEM2D, invState: 0, cat: DECO, orient: VINES, special: NOSIDE, tech: "vine",
+	{id: 106, name: "Vines", type: QUAD, inv: ITEM2D, invState: 0, cat: DECO, orient: VINES, tech: "vine",
 		density: PLANTS, placement: "wall", pushable: DESTROY},
 		{state: 0, name: "-",     tex: [15, 8], quad: [SOUTH]},
 		{state: 1, name: "+S",    tex: [15, 8], quad: [SOUTH]},

@@ -1,3 +1,13 @@
+=========== Week 16 ===========
+Wed Apr 20:
+	* entity logic cleanup for armor stand.
+
+Tue Apr 19:
+	* added armor stand model.
+
+Mon Apr 18:
+	* hopper item grab logic done.
+
 =========== Week 15 ===========
 Sun Apr 17:
 	* changed tile entity API from XYZ to ChunkData+offset (what you get from iterator).

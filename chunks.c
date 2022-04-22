@@ -1333,7 +1333,7 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer)
 				for (i = c->maxy-1; i >= 0; i --)
 				{
 					cur = c->layer[i];
-					if (cur && (cur->cdFlags & (CDFLAG_CHUNKAIR|CDFLAG_PENDINGMESH)) == CDFLAG_CHUNKAIR)
+					if (cur == NULL || (cur->cdFlags & (CDFLAG_CHUNKAIR|CDFLAG_PENDINGMESH)) == CDFLAG_CHUNKAIR)
 					{
 						/* empty chunk with no pending update: it can be deleted now */
 						c->layer[i] = NULL;
@@ -1365,7 +1365,6 @@ static void chunkGenQuad(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 	DATA8   tex   = &b->nzU;
 	DATA8   sides = &b->pxU;
 	Chunk   chunk = neighbors[6]->chunk;
-	int     dual  = b->special == BLOCK_NOSIDE || b->pxU <= QUAD_SQUARE ? FLAG_DUAL_SIDE : 0;
 	int     seed  = neighbors[6]->Y ^ chunk->X ^ chunk->Z;
 	uint8_t x, y, z, light;
 
@@ -1431,7 +1430,7 @@ static void chunkGenQuad(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 		out[4] = RELDZ(coord[2] + z) | (U << 14) | (V << 23);
 
 		/* tex size, norm and ocs: none */
-		out[5] = (((texCoord[j+4] + tex[0]) * 16 + 128 - U) << 16) | dual |
+		out[5] = (((texCoord[j+4] + tex[0]) * 16 + 128 - U) << 16) | FLAG_DUAL_SIDE |
 		         (((texCoord[j+5] + tex[1]) * 16 + 128 - V) << 24) | (norm << 9);
 
 		if (texCoord[j] == texCoord[j + 6]) out[5] |= FLAG_TEX_KEEPX;
@@ -2244,7 +2243,7 @@ int chunkGenQuadModel(BlockState b, DATA16 out)
 	DATA16  p     = out;
 	DATA8   tex   = &b->nzU;
 	DATA8   sides = &b->pxU;
-	int     vtx   = b->special == BLOCK_NOSIDE || b->pxU == QUAD_CROSS ? BYTES_PER_VERTEX*12 : BYTES_PER_VERTEX*6;
+	int     vtx   = BYTES_PER_VERTEX*12;
 	int     side, i, j, texOrient;
 
 	if (out == NULL)

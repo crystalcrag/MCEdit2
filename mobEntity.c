@@ -58,6 +58,27 @@ static struct
 
 static int mobEntityCreate(NBTFile nbt, Entity entity, STRPTR id)
 {
+	if (nbt == NULL)
+	{
+		/* initial creation actually */
+		CustModel src = (CustModel) entity;
+		CustModel cust;
+		switch (ITEMNUM((int)id)) {
+		default: return 0;
+		case ENTITY_SHEEPWOOL: cust = &mobModels.sheep; break;
+		case ENTITY_SLIME:     cust = &mobModels.slime; break;
+		case ENTITY_LLAMA:     cust = &mobModels.llama; break;
+		case ENTITY_HORSE:     cust = &mobModels.horse; break;
+		case ENTITY_VILLAGER:  cust = &mobModels.villager; break;
+		}
+
+		cust->model = malloc(sizeof (float) * src->vertex);
+		cust->vertex = src->vertex;
+		cust->texId = 1;
+		memcpy(cust->model, src->model, sizeof (float) * src->vertex);
+		return 0;
+	}
+
 	entity->enflags |= ENFLAG_TEXENTITES;
 	entity->entype = ENTYPE_MOB;
 
@@ -175,24 +196,6 @@ void mobEntityInit(void)
 		if (*next) *next++ = 0;
 		entityRegisterType(mob, mobEntityCreate, entityId);
 	}
-}
-
-void mobEntityProcess(int entityId, float * model, int count)
-{
-	CustModel cust;
-	switch (ITEMNUM(entityId)) {
-	default: return;
-	case ENTITY_SHEEPWOOL: cust = &mobModels.sheep; break;
-	case ENTITY_SLIME:     cust = &mobModels.slime; break;
-	case ENTITY_LLAMA:     cust = &mobModels.llama; break;
-	case ENTITY_HORSE:     cust = &mobModels.horse; break;
-	case ENTITY_VILLAGER:  cust = &mobModels.villager; break;
-	}
-
-	cust->model = malloc(sizeof *model * count);
-	cust->vertex = count;
-	cust->texId = 1;
-	memcpy(cust->model, model, sizeof *model * count);
 }
 
 void mobEntityProcessTex(DATA8 * data, int * width, int * height, int bpp)

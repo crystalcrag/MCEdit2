@@ -388,6 +388,7 @@ int blockCountModelVertex(float * vert, int count)
 		switch (arg & 0xff) {
 		case BHDR_FACES:
 			faces = vert[i+1];
+		case BHDR_DUALSIDE:
 			vertex += popcount(faces & 63) * 6;
 			// no break;
 		default:
@@ -437,18 +438,19 @@ DATA16 blockParseModel(float * values, int count, DATA16 buffer, int forceRot90)
 		float   trans[6];
 		vec     angles;
 		int     idx;
-		uint8_t nbRot, inv, detail, resetRC, center;
+		uint8_t nbRot, inv, detail, resetRC, center, dualside;
 		mat4    rotation, rot90, tmp;
 
 		if (vert[0] != BHDR_FACES) break;
-		faces   = vert[1];
-		vert   += 2;
-		inv     = 0;
-		center  = 1;
-		nbRot   = 0;
-		resetRC = 0;
-		angles  = NULL;
-		detail  = BHDR_CUBEMAP;
+		faces    = vert[1];
+		vert    += 2;
+		inv      = 0;
+		center   = 1;
+		nbRot    = 0;
+		resetRC  = 0;
+		angles   = NULL;
+		detail   = BHDR_CUBEMAP;
+		dualside = 0;
 		matIdent(rotation);
 		matIdent(rot90);
 		trans[VX] = trans[VY] = trans[VZ] = -0.5f;
@@ -457,12 +459,13 @@ DATA16 blockParseModel(float * values, int count, DATA16 buffer, int forceRot90)
 		while (vert < eof && vert[0] != BHDR_FACES)
 		{
 			switch ((int) vert[0] & 0xff) {
-			case BHDR_CUBEMAP: detail = BHDR_CUBEMAP; break;
-			case BHDR_DETAIL:  detail = BHDR_DETAIL; break;
-			case BHDR_INHERIT: detail = BHDR_INHERIT; break;
-			case BHDR_INCFACE: faceId += 1<<8; resetRC = 1; break;
-			case BHDR_INVERT:  inv = True; break;
-			case BHDR_ROT90:   if (forceRot90 < 0) rot90step = vert[1] / 90; break;
+			case BHDR_CUBEMAP:  detail = BHDR_CUBEMAP; break;
+			case BHDR_DETAIL:   detail = BHDR_DETAIL; break;
+			case BHDR_INHERIT:  detail = BHDR_INHERIT; break;
+			case BHDR_INCFACE:  faceId += 1<<8; resetRC = 1; break;
+			case BHDR_INVERT:   inv = True; break;
+			case BHDR_ROT90:    if (forceRot90 < 0) rot90step = vert[1] / 90; break;
+			case BHDR_DUALSIDE: dualside = 1; break;
 			case BHDR_TR:
 				trans[VX] = vert[1] / 16 - 0.5f;
 				trans[VY] = vert[2] / 16 - 0.5f;
@@ -614,6 +617,15 @@ DATA16 blockParseModel(float * values, int count, DATA16 buffer, int forceRot90)
 			memcpy(p,   p - 20, BYTES_PER_VERTEX);
 			memcpy(p+5, p - 10, BYTES_PER_VERTEX);
 			p += INT_PER_VERTEX*2;
+
+			if (dualside)
+			{
+				/* need to add other side to prevent quad from being culled by glEnable(GL_CULLFACE) */
+				memcpy(p, p-2*INT_PER_VERTEX, 2*BYTES_PER_VERTEX); p += 2*INT_PER_VERTEX;
+				memcpy(p, p-7*INT_PER_VERTEX,   BYTES_PER_VERTEX); p += INT_PER_VERTEX;
+				memcpy(p, p-6*INT_PER_VERTEX,   BYTES_PER_VERTEX); p += INT_PER_VERTEX;
+				memcpy(p, p-5*INT_PER_VERTEX, 2*BYTES_PER_VERTEX); p += 2*INT_PER_VERTEX;
+			}
 		}
 		/* marks the beginning of a new primitive (only needed by bounding box) */
 		if (start > out) start[4] |= NEW_BBOX;
@@ -858,7 +870,7 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 				STRPTR next = strchr(value, '|');
 				if (next) *next++ = 0;
 				int flag = FindInList(
-					"NORMAL,CHEST,DOOR,NOSIDE,HALF,STAIRS,GLASS,FENCE,FENCE2,"
+					"NORMAL,CHEST,DOOR,HALF,STAIRS,GLASS,FENCE,FENCE2,"
 					"WALL,RSWIRE,LEAVES,LIQUID,DOOR_TOP,TALLFLOWER,RAILS,TRAPDOOR,"
 					"SIGN,PLATE,SOLIDOUTER,JITTER,POT,NOCONNECT,CNXTEX,DUALSIDE", value, 0
 				);

@@ -17,6 +17,7 @@ typedef struct QuadTree_t * QuadTree;
 
 void   entityNukeAll(void);
 Entity entityParse(Chunk, NBTFile nbt, int offset, Entity prev);
+Entity entityLastFromChunk(Chunk);
 Bool   entityInitStatic(void);
 void   entityUnload(Chunk);
 void   entityAnimate(void);
@@ -125,9 +126,14 @@ enum /* entity id and models */
 	ENTITY_OCELOT         = 0x417,
 	ENTITY_HORSE          = 0x418,
 	ENTITY_VILLAGER       = 0x419,
-	ENTITY_WITCH          = 0x420,
+	ENTITY_WITCH          = 0x41a,
+	ENTITY_ARMORSTAND     = 0x41b,
+	ENTITY_HELMET         = 0x41c,
+	ENTITY_CHESTPLATE     = 0x41d,
+	ENTITY_LEGGINGS       = 0x41e,
+	ENTITY_BOOTS          = 0x41f,
 	ENTITY_CAVESPIDER,
-	ENTITY_PLAYER
+	ENTITY_PLAYER,
 };
 
 typedef struct Paintings_t         Paintings_t;
@@ -183,9 +189,9 @@ struct Entity_t
 	uint16_t mdaiSlot;             /* GL draw index in VBObank */
 
 	uint16_t VBObank;              /* model id: first 6bits: bank index, remain: model index */
-	uint16_t enflags;              /* entity with some special processing (see below) */
+	uint16_t enflags;              /* entity with some special processing (see above) */
 
-	uint8_t  entype;
+	uint8_t  entype;               /* ENTYPE_* */
 	uint16_t szx, szy, szz;        /* bbox of entity */
 
 	Chunk    chunkRef;             /* chunk where entity is (should match what's in <pos>) */
@@ -362,17 +368,15 @@ void quadTreeDeleteItem(Entity item);
 void quadTreeInsertItem(Entity item);
 void quadTreeChangePos(Entity item);
 
-Entity worldItemAddItemInFrame(Chunk chunk, Entity frame, int entityId);
-void   worldItemInit(void);
-void   worldItemDelete(Entity);
-void   worldItemCreateGeneric(NBTFile nbt, Entity entity, STRPTR name);
-void   worldItemCreateBlock(Entity, Bool fallingEntity);
-void   worldItemPlaceOrCreate(Entity);
-void   worldItemToItem_t(DATA8 tile, Item buf);
+void worldItemInit(void);
+void worldItemDelete(Entity);
+void worldItemCreateGeneric(NBTFile nbt, Entity entity, STRPTR name);
+void worldItemCreateBlock(Entity, Bool fallingEntity);
+void worldItemPlaceOrCreate(Entity);
+void worldItemToItem_t(DATA8 tile, Item buf);
 
-void   mobEntityInit(void);
-void   mobEntityProcessTex(DATA8 * data, int * width, int * height, int bpp);
-void   mobEntityProcess(int entityId, float * model, int count);
+void mobEntityInit(void);
+void mobEntityProcessTex(DATA8 * data, int * width, int * height, int bpp);
 
 #endif
 #endif

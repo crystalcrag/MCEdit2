@@ -855,8 +855,12 @@ Bool mapSetRenderDist(Map map, int maxDist)
 				for (k = dest->maxy-1; k >= 0; k --)
 				{
 					ChunkData cd = dest->layer[k];
-					cd->chunk = dest;
-					loaded += cd->glBank != NULL;
+					if (cd)
+					{
+						cd->chunk = dest;
+						loaded += cd->glBank != NULL;
+					}
+					else fprintf(stderr, "chunk %d, %d missing layer %d?\n", dest->X, dest->Z, k);
 				}
 			}
 		}

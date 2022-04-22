@@ -500,7 +500,8 @@ void undoOperation(int redo)
 					DATA8 stream = malloc(size);
 					NBTFile_t nbt = {.mem = stream};
 					undoGetMem(stream, size, log, offset - sizeof mem);
-					entityParse(chunk, &nbt, 0, NULL);
+					/* entity will take ownership of nbt.mem, do not free here */
+					entityParse(chunk, &nbt, 0, entityLastFromChunk(chunk));
 					renderCancelModif();
 				}
 			}

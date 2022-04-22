@@ -181,7 +181,6 @@ enum                             /* values for Block_t.special */
 	BLOCK_NORMAL,
 	BLOCK_CHEST,                 /* !ender: check for double chest */
 	BLOCK_DOOR,                  /* need to convert metadata */
-	BLOCK_NOSIDE,                /* render without cull face enabled (QUAD only) */
 	BLOCK_HALF,                  /* half slab */
 	BLOCK_STAIRS,                /* ... */
 	BLOCK_GLASS,                 /* pane */

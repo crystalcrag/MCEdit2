@@ -32,6 +32,9 @@ struct
 	uint16_t slot;
 	uint8_t  createSide;
 	float    previewOffVY;
+
+	struct CustModel_t helmet, chestplate, leggings, boots;
+
 }	worldItem;
 
 
@@ -51,11 +54,14 @@ static int worldItemSwapAxis(Entity entity)
 /*
  * callbacks to parse NBT records from chunk
  */
-static int worldItemParseFallingBlock(NBTFile nbt, Entity entity, STRPTR unused)
+static int worldItemParseFallingBlock(NBTFile nbt, Entity entity, STRPTR id)
 {
 	STRPTR block = NULL;
 	int    data  = 0;
 	int    off;
+
+	if (nbt == NULL)
+		return 0;
 
 	NBTIter_t prop;
 	//entity->pos[VY] += 0.5f;
@@ -76,8 +82,11 @@ static int worldItemParseFallingBlock(NBTFile nbt, Entity entity, STRPTR unused)
 	return 0;
 }
 
-static int worldItemParsePainting(NBTFile nbt, Entity entity, STRPTR unused)
+static int worldItemParsePainting(NBTFile nbt, Entity entity, STRPTR id)
 {
+	if (nbt == NULL)
+		return 0;
+
 	int off = NBT_FindNode(nbt, 0, "Motive");
 	if (off >= 0)
 	{
@@ -91,8 +100,12 @@ static int worldItemParsePainting(NBTFile nbt, Entity entity, STRPTR unused)
 	return 0;
 }
 
-static int worldItemParseItemFrame(NBTFile nbt, Entity entity, STRPTR unused)
+static Entity worldItemAddItemInFrame(Entity frame);
+static int worldItemParseItemFrame(NBTFile nbt, Entity entity, STRPTR id)
 {
+	if (nbt == NULL)
+		return 0;
+
 	int item = NBT_FindNode(nbt, 0, "Item");
 	entity->entype = ENTYPE_FRAME;
 	entity->enflags = ENFLAG_POPIFPUSHED;
@@ -116,19 +129,28 @@ static int worldItemParseItemFrame(NBTFile nbt, Entity entity, STRPTR unused)
 		}
 		else if (blockId > 0)
 		{
+			if (itemMaxDurability(blockId) < 0)
+				blockId |= data;
 			/* we will have to alloc another entity for the item in the frame */
 			entity->entype  = ENTYPE_FRAMEITEM;
 			entity->enflags = ENFLAG_POPIFPUSHED | ENFLAG_ITEM;
-			entity->blockId = blockId | data;
+			entity->blockId = blockId;
 		}
 	}
-	/* item in frame will be allocated later (worldItemAddItemInFrame) */
+	/* add item in frame */
+	if (entity->entype == ENTYPE_FILLEDMAP ||
+	    entity->entype == ENTYPE_FRAMEITEM)
+		worldItemAddItemInFrame(entity);
+
 	return entityAddModel(ITEMID(ENTITY_ITEMFRAME, 0), 0, NULL, &entity->szx, worldItemSwapAxis(entity));
 }
 
 /* item laying in the world */
-static int worldItemParseItem(NBTFile nbt, Entity entity, STRPTR unused)
+static int worldItemParseItem(NBTFile nbt, Entity entity, STRPTR id)
 {
+	if (nbt == NULL)
+		return 0;
+
 	int desc = NBT_FindNode(nbt, 0, "Item");
 //	int count = NBT_GetInt(nbt, NBT_FindNode(nbt, desc, "Count"), 1);
 	int data = NBT_GetInt(nbt, NBT_FindNode(nbt, desc, "Damage"), 0);
@@ -140,6 +162,104 @@ static int worldItemParseItem(NBTFile nbt, Entity entity, STRPTR unused)
 		entity->enflags |= ENFLAG_ITEM;
 		return entityAddModel(entity->blockId = blockId | data, 0, NULL, &entity->szx, MODEL_DONT_SWAP);
 	}
+	return 0;
+}
+
+static Entity worldItemCreateArmorPiece(Entity prev, STRPTR id)
+{
+	/* check first if the model exists */
+	Entity   armor;
+	STRPTR   piece;
+	uint8_t  data, part;
+	uint16_t entityId;
+	ItemID_t modelId;
+
+	if (strncmp(id, "minecraft:", 10) == 0) id += 10;
+	piece = strchr(id, '_');
+	if (! piece) return NULL;
+	data = FindInList("leather,iron,golden,diamond,chainmail", id, piece - id);
+	part = FindInList("helmet,chestplate,leggings,boots", piece+1, 0);
+	if (data > 4 || part > 3) return NULL;
+	modelId = ITEMID(part+ENTITY_HELMET, data);
+	if (entityGetModelBank(modelId) == 0)
+	{
+		/* nope: create on the fly then */
+		struct CustModel_t cust = (&worldItem.helmet)[part];
+		cust.U = 64 * data;
+		entityAddModel(modelId, 0, &cust, NULL, False);
+	}
+
+	armor = entityAlloc(&entityId);
+	prev->next = entityId;
+	armor->next = ENTITY_END;
+	armor->enflags |= ENFLAG_TEXENTITES;
+	armor->tile = prev->tile;
+	armor->chunkRef = prev->chunkRef;
+	memcpy(armor->motion, prev->motion, INFO_SIZE + 12);
+	armor->VBObank = entityAddModel(modelId, 0, NULL, &armor->szx, MODEL_DONT_SWAP);
+	entityAddToCommandList(armor);
+	return armor;
+}
+
+static int worldItemParseArmorStand(NBTFile nbt, Entity entity, STRPTR id)
+{
+	if (nbt == NULL)
+		return 0;
+
+	int vboBank = entityAddModel(ITEMID(ENTITY_ARMORSTAND, 0), 0, NULL, &entity->szx, MODEL_DONT_SWAP);
+	int items = NBT_FindNode(nbt, 0, "/ArmorItems");
+
+	if (items >= 0 && NBT_Hdr(nbt, items)->type == TAG_List_Compound)
+	{
+		/* offset relative to armor stand position where each slot are */
+		static float offsetY[] = {1/16., 5/16., 13/16., 24/16.};
+		NBTIter_t iter;
+		Entity    piece, prev;
+		int       off, num = 0;
+		NBT_InitIter(nbt, items, &iter);
+		prev = entity;
+		while ((off = NBT_Iter(&iter)) >= 0)
+		{
+			STRPTR armor = NBT_Payload(nbt, NBT_FindNode(nbt, off, "id"));
+			num ++;
+			if (armor)
+			{
+				piece = worldItemCreateArmorPiece(prev, armor);
+				if (! piece) continue;
+				piece->ref = entity;
+				piece->pos[VY] = entity->pos[VY] + offsetY[num-1] + piece->szy * (0.5f / BASEVTX) + 2*EPSILON;
+				prev->next = entityGetId(piece);
+				prev = piece;
+			}
+		}
+	}
+
+	/* position of entity in NBT is at feet level, position for display is at center */
+	entity->pos[VY] += entity->szy * (0.5f/BASEVTX) + EPSILON;
+	entity->enflags |= ENFLAG_TEXENTITES;
+
+	return vboBank;
+}
+
+/* initial creation of armor piece: only leather, the rest will be created on the fly */
+static int worldItemParseArmor(NBTFile nbt, Entity entity, STRPTR id)
+{
+	/* need to keep model for other types of armor */
+	if (nbt == NULL)
+	{
+		int piece = ITEMNUM((int)id) - ENTITY_HELMET;
+		CustModel src = (CustModel) entity;
+		CustModel cust = (&worldItem.helmet) + piece;
+
+		cust->model = malloc(sizeof (float) * src->vertex);
+		cust->vertex = src->vertex;
+		cust->faceId = 0xff;
+		cust->texId = 1;
+		memcpy(cust->model, src->model, sizeof (float) * src->vertex);
+		return 0;
+	}
+
+	/* these items only exist on armor stand, not as world item */
 	return 0;
 }
 
@@ -176,6 +296,11 @@ void worldItemInit(void)
 	entityRegisterType("item_frame",    worldItemParseItemFrame, ENTITY_ITEMFRAME);
 	entityRegisterType("item",          worldItemParseItem, ENTITY_ITEM);
 	entityRegisterType("minecart",      minecartParse, ENTITY_MINECART);
+	entityRegisterType("armor_stand",   worldItemParseArmorStand, ENTITY_ARMORSTAND);
+	entityRegisterType("helmet",        worldItemParseArmor, ENTITY_HELMET);
+	entityRegisterType("chestplate",    worldItemParseArmor, ENTITY_CHESTPLATE);
+	entityRegisterType("leggings",      worldItemParseArmor, ENTITY_LEGGINGS);
+	entityRegisterType("boots",         worldItemParseArmor, ENTITY_BOOTS);
 
 	itemRegisterUse("minecart", minecartTryUsing);
 }
@@ -387,7 +512,7 @@ static void worldItemGetFrameCoord(Entity entity, float vertex[12])
 }
 
 /* add the item within the frame in the list of entities to render */
-Entity worldItemAddItemInFrame(Chunk chunk, Entity frame, int entityId)
+static Entity worldItemAddItemInFrame(Entity frame)
 {
 	if (frame->entype == ENTYPE_FRAMEITEM)
 	{
@@ -399,7 +524,7 @@ Entity worldItemAddItemInFrame(Chunk chunk, Entity frame, int entityId)
 		item->next = ENTITY_END;
 		item->blockId = entityWantItem(frame->blockId);
 		item->tile = frame->tile;
-		item->chunkRef = chunk;
+		item->chunkRef = frame->chunkRef;
 		frame->blockId = 0;
 		memcpy(item->motion, frame->motion, INFO_SIZE + 12);
 		item->pos[VT] = 0; /* selection */
@@ -407,8 +532,8 @@ Entity worldItemAddItemInFrame(Chunk chunk, Entity frame, int entityId)
 		if (! isBlockId(item->blockId))
 		{
 			/* items are rendered in XZ plane, item frame are oriented in XY or ZY plane */
-			item->rotation[1] = normAngle(M_PI_2f - frame->rotation[1]);
-			item->rotation[0] += M_PIf;
+			//item->rotation[0] = normAngle(frame->rotation[0]);
+			item->rotation[1] = normAngle(frame->rotation[1] - M_PI_2f);
 		}
 		item->VBObank = entityGetModelId(item);
 		entityAddToCommandList(item);
@@ -426,7 +551,7 @@ Entity worldItemAddItemInFrame(Chunk chunk, Entity frame, int entityId)
 		}
 		worldItemGetFrameCoord(frame, coord);
 		/* 65536 possible maps ought to be enough(TM) */
-		cartoAddMap(entityId, coord, ITEMMETA(frame->blockId), frame->light);
+		cartoAddMap(entityGetId(frame)+1, coord, ITEMMETA(frame->blockId), frame->light);
 	}
 	return frame;
 }
@@ -557,7 +682,10 @@ static int worldItemCreateItemFrame(Map map, vec4 pos, int side)
 	dummy.enflags |= ENFLAG_FULLLIGHT;
 
 	/* check if there are other entities in this space */
-	size[VX] = ENTITY_SCALE(&dummy);
+	float scale = ENTITY_SCALE(&dummy);
+	size[VX] = dummy.szx * scale;
+	size[VY] = dummy.szy * scale;
+	size[VZ] = dummy.szz * scale;
 	memcpy(posAndRot+3, posAndRot, 12);
 	posAndRot[VX] -= size[VX];   posAndRot[VX+3] += size[VX];
 	posAndRot[VY] -= size[VY];   posAndRot[VY+3] += size[VY];
@@ -638,7 +766,7 @@ void worldItemUseItemOn(Map map, int entityId, ItemID_t itemId, vec4 pos)
 					TAG_String, "id",     buffer,
 					TAG_Byte,   "Count",  1,
 					TAG_Short,  "Damage", meta,
-					TAG_Compound_End
+				TAG_Compound_End
 			);
 			NBT_Add(&tile, TAG_Compound_End); /* end of whole entity */
 			undoLog(LOG_ENTITY_CHANGED, entity->pos, entity->tile, entityId-1);
@@ -648,7 +776,7 @@ void worldItemUseItemOn(Map map, int entityId, ItemID_t itemId, vec4 pos)
 			entity->blockId = itemId;
 			entity->entype = strcmp(buffer, "minecraft:filled_map") == 0 ? ENTYPE_FILLEDMAP : ENTYPE_FRAMEITEM;
 			uint16_t next = entity->next;
-			entity = worldItemAddItemInFrame(chunk, entity, entityId);
+			entity = worldItemAddItemInFrame(entity);
 			entity->next = next;
 			entityMarkListAsModified(map, chunk);
 			renderAddModif();

@@ -153,8 +153,10 @@ static Bool entityCreateModel(const char * file, STRPTR * keys, int lineNum)
 				return False;
 			}
 			modelId = ITEMID(entype->entityId, name ? atoi(name) : 0);
+
+			/* init model */
+			entype->cb(NULL, (Entity) &cust, (STRPTR) modelId);
 		}
-		mobEntityProcess(modelId, cust.model, cust.vertex);
 	}
 
 	entityAddModel(modelId, 0, &cust, NULL, MODEL_DONT_SWAP);
@@ -169,7 +171,7 @@ Bool entityInitStatic(void)
 	/* already add model for unknown entity */
 	entityAddModel(0, 0, NULL, NULL, MODEL_DONT_SWAP);
 
-	entities.type = calloc(sizeof *entities.type, entities.typeMax = 31);
+	entities.type = calloc(sizeof *entities.type, entities.typeMax = 59);
 	entities.typeCount = 0;
 	entities.texEntity = textureLoad(RESDIR, "entities.png", 1, mobEntityProcessTex);
 
@@ -234,7 +236,7 @@ EntityType entityFindType(STRPTR id)
 
 /*
  * some blocks (typically QUAD) need to be rendered as normal (when pushed by piston), but when
- * dropped as item world item, they need to rendered using itemGenMesh().
+ * dropped as world item, they need to rendered using itemGenMesh()
  */
 int entityWantItem(ItemID_t itemId)
 {
@@ -856,10 +858,8 @@ Entity entityParse(Chunk chunk, NBTFile nbt, int offset, Entity prev)
 
 		if (prev)
 			prev->next = next;
-		else if (chunk->entityList == ENTITY_END)
-			chunk->entityList = next;
 		else
-			entity->next = chunk->entityList, chunk->entityList = next;
+			chunk->entityList = next;
 		prev = entity;
 
 		/* set entity->pos as well */
@@ -884,9 +884,13 @@ Entity entityParse(Chunk chunk, NBTFile nbt, int offset, Entity prev)
 		entityAddToCommandList(entity);
 		quadTreeInsertItem(entity);
 
-		/* alloc an entity for the item in the frame */
-		if (entity->blockId > 0 || entity->entype == ENTYPE_FILLEDMAP)
-			prev = worldItemAddItemInFrame(chunk, entity, next+1);
+		/* entity that have multiple parts (item frame, armor stand) */
+		while (prev->next != ENTITY_END)
+		{
+			prev = entityGetById(prev->next);
+			memcpy(prev->light, entity->light, sizeof prev->light);
+			prev->pos[VT] = prev->enflags & ENFLAG_TEXENTITES ? 2 : 0;
+		}
 	}
 	return prev;
 }
@@ -899,6 +903,15 @@ Entity entityGetById(int id)
 	for (buffer = HEAD(entities.list); i > 0; i --, NEXT(buffer));
 
 	return buffer->entities + (id & (ENTITY_BATCH-1));
+}
+
+Entity entityLastFromChunk(Chunk chunk)
+{
+	Entity last = NULL;
+	uint8_t id;
+	for (id = chunk->entityList; id != ENTITY_END; id = last->next)
+		last = entityGetById(id);
+	return last;
 }
 
 /* converse of entityGetById() */
@@ -1417,15 +1430,16 @@ Bool entityDeleteById(Map map, int entityId)
 int entityCount(int start)
 {
 	int count, id;
-	for (count = 0, id = start; id != ENTITY_END; count ++)
+	for (count = 0, id = start; id != ENTITY_END; )
 	{
 		EntityBuffer buf;
 		Entity       entity;
 		int i = id >> ENTITY_SHIFT;
 		for (buf = HEAD(entities.list); i > 0; i --, NEXT(buf));
 		entity = &buf->entities[id & (ENTITY_BATCH-1)];
-		/* entity->ref == item in item frame, which will be saved with item frame */
-		if (entity->ref) count --;
+		/* entity->ref == entity that are part of a larger one (item frame, armor stand...) */
+		if (! entity->ref)
+			count ++;
 		id = entity->next;
 	}
 	return count;
@@ -1438,7 +1452,7 @@ Bool entityGetNBT(NBTFile nbt, int * id)
 	if (curID == ENTITY_END)
 		return False;
 	Entity entity = entityGetById(*id);
-	if (entity->ref)
+	while (entity && entity->ref)
 		entity = entityGetById(entity->next);
 
 	*id = entity->next;
