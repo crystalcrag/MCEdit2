@@ -70,10 +70,10 @@ void main(void)
 	{
 		// liquid: lower some of the edges depending on what's nearby XXX need a better approach than this :-/
 		uint lowerEdge = ocsmap >> 13;
-		if ((lowerEdge & 1) > 0) V1.y -= 0.2;
-		if ((lowerEdge & 2) > 0) V2.y -= 0.2;
-		if ((lowerEdge & 4) > 0) V3.y -= 0.2;
-		if ((lowerEdge & 8) > 0) V4.y -= 0.2;
+		if ((lowerEdge & 1) > 0) V1.y -= 0.1875;
+		if ((lowerEdge & 2) > 0) V2.y -= 0.1875;
+		if ((lowerEdge & 4) > 0) V3.y -= 0.1875;
+		if ((lowerEdge & 8) > 0) V4.y -= 0.1875;
 	}
 
 	/*

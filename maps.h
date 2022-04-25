@@ -17,13 +17,9 @@ typedef struct MapExtraData_t *    MapExtraData;
 typedef struct BlockIter_t *       BlockIter;
 typedef struct ChunkFake_t *       ChunkFake;
 
-#define MAP_MIN       7            /* nb chunks active around player (need odd numer) */
-#define MAP_HALF      (MAP_MIN/2)
-#define MAP_AREA      (MAP_MIN+4)  /* 1 for lazy chunks, 1 for purgatory */
 #define MAX_PATHLEN   256
 #define MAX_PICKUP    24           /* max reach in blocks */
 
-#define MAP_SIZE      (MAP_AREA * MAP_AREA)
 #define CPOS(pos)     ((int) floorf(pos) >> 4)
 #define CREM(pos)     ((int) floorf(pos) & 15)
 
@@ -48,6 +44,7 @@ struct Map_t
 	ListHead  genList;             /* chunks to process (Chunk) */
 	ListHead  players;             /* list of player on this map (Player) */
 	Chunk     genLast;
+	Mutex     genListLock;
 	DATAS16   chunkOffsets;        /* array 16*9: similar to chunkNeighbor[] */
 	char      path[MAX_PATHLEN];   /* path to level.dat */
 	ChunkData firstVisible;        /* list of visible chunks according to the MVP matrix */

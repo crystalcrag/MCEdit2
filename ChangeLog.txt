@@ -1,4 +1,15 @@
 =========== Week 16 ===========
+Sun Apr 24:
+	* added ChunkLoad in MCEdit-utils.
+
+Sat Apr 23:
+	* multi-thread chunk loading continued.
+	* integrated fog with entity shaders (at last!).
+
+Thu Apr 21:
+	* armor stand rendered with items in it.
+	* started multi-thread chunk loading/meshing.
+
 Wed Apr 20:
 	* entity logic cleanup for armor stand.
 
@@ -14,7 +25,7 @@ Sun Apr 17:
 	* hopper logic mostly done.
 
 Sat Apr 16:
-	* hooper logic continued.
+	* hopper logic continued.
 	* moved some code from maps.c to inventories.c.
 
 Fri Apr 15:

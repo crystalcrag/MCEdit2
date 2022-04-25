@@ -1524,7 +1524,13 @@ static int chunkGetLight(BlockIter iter, DATA16 blockIds3x3, DATA8 skyBlock, int
 		blockIds3x3[i] = block | (offset & 1 ? data >> 4 : data & 15);
 		BlockState nbor = blockGetById(block);
 
-		if (nbor->type == SOLID || (nbor->type == CUST && nbor->special == BLOCK_SOLIDOUTER))
+		if (nbor->type == CUST && blockIds[block>>4].opacSky == 15)
+		{
+			/* farmland mostly */
+			if (hasLights)
+				skyBlock[i] = chunkPatchLight(*iter);
+		}
+		else if (nbor->type == SOLID || (nbor->type == CUST && nbor->special == BLOCK_SOLIDOUTER))
 		{
 			if (nbor->special == BLOCK_HALF || nbor->special == BLOCK_STAIRS)
 			{
@@ -1568,7 +1574,7 @@ static uint32_t chunkFillCustLight(DATA16 model, DATA8 skyBlock, DATA32 ocs, int
 			int XYZ[] = {
 				model[0] - ORIGINVTX + BASEVTX + (dxyz & 3) - 1,
 				model[1] - ORIGINVTX + BASEVTX + ((dxyz & 12) >> 2) - 1,
-				model[2] - ORIGINVTX + BASEVTX + ((dxyz & 48) >> 2) - 1
+				model[2] - ORIGINVTX + BASEVTX + ((dxyz & 48) >> 4) - 1
 			};
 			dxyz = offset[1];
 			char DXYZ[] = {(dxyz & 3) - 1, ((dxyz & 12) >> 2) - 1, ((dxyz & 48) >> 4) - 1};
@@ -1870,7 +1876,7 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 	DATA8    tex;
 	DATA8    blocks = neighbors[6]->blockIds;
 	int      side, sides, occlusion, slab, rotate;
-	int      i, j, k, n, dual;
+	int      i, j, k, n;
 	uint8_t  x, y, z, data, hasLights, liquid;
 
 	x = (pos & 15);
@@ -1878,7 +1884,6 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 	y = (pos >> 8);
 	hasLights = (neighbors[6]->cdFlags & CDFLAG_NOLIGHT) == 0;
 	sides = xsides[x] | ysides[y] | zsides[z];
-	dual = b->special == BLOCK_LIQUID && buffer->alpha ? FLAG_DUAL_SIDE : 0;
 	liquid = 0;
 
 	/* outer loop: iterate over each faces (6) */
@@ -1926,8 +1931,7 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 				}
 				break;
 			case TRANS:
-				if (b->special == BLOCK_LIQUID && nbor->special != BLOCK_LIQUID) break;
-				if (b->type == TRANS) continue;
+				if (b->id == nbor->id) continue;
 			}
 		}
 
@@ -2013,7 +2017,7 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 			coord  = cubeVertex + cubeIndices[i+2];
 			out[3] = RELDX(coord[0]+x) | (RELDY(coord[1]+y) << 14);
 			out[4] = RELDZ(coord[2]+z) | (texU << 14) | (texV << 23);
-			out[5] = (((texCoord[j+4] + tex[0]) * 16 + 128 - texU) << 16) | dual |
+			out[5] = (((texCoord[j+4] + tex[0]) * 16 + 128 - texU) << 16) |
 			         (((texCoord[j+5] + tex[1]) * 16 + 128 - texV) << 24) | (i << 7);
 			out[6] = 0;
 
@@ -2061,7 +2065,7 @@ static void chunkGenCube(ChunkData neighbors[], WriteBuffer buffer, BlockState b
 				case SIDE_NORTH: edges = ((liquid&1)<<1) | ((liquid&2)>>1); break;
 				case SIDE_EAST:  edges = (liquid&1) | ((liquid & 4) >> 1); break;
 				case SIDE_WEST:  edges = (liquid&2) | ((liquid & 8) >> 3); break;
-				case SIDE_TOP:   edges = liquid;
+				case SIDE_TOP:   edges = liquid; out[5] |= FLAG_DUAL_SIDE;
 				}
 				if (edges)
 				{

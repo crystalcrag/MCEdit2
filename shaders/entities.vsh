@@ -15,6 +15,7 @@ layout (location=5) in uvec3 lightWTB;
 #include "uniformBlock.glsl"
 
 flat out uint  flags;
+     out float fogFactor;
      out vec2  texcoord;
      out float skyLight;
      out float blockLight;
@@ -115,6 +116,13 @@ void main(void)
 		if (sky < 0) sky = 0; /* night time */
 		shadeSky *= sqrt(sky);
 	}
+
+	if (FOG_DISTANCE > 0)
+	{
+		float fogStrength = clamp(distance(camera.xz, pos.xz + offsets.xz) / FOG_DISTANCE, 0.0, 1.0);
+		fogFactor = 1 - fogStrength * fogStrength;
+	}
+	else fogFactor = 1; // disabled
 
 	shadeBlock = shading[normal.x < 0 ? 3 : 1].x * absNorm.x +
 	             shading[normal.z < 0 ? 2 : 0].x * absNorm.z +

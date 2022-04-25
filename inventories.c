@@ -1105,7 +1105,6 @@ static void inventoryUpdate(BlockIter iter, Item items, int count, int action, D
 		switch (action) {
 		case ACT_ADDITEM:
 			{
-				fprintf(stderr, "adding item\n");
 				struct NBTFile_t sub = {.page = 127};
 				inventoryItemToNBT(&sub, item, item - items);
 				NBT_Insert(&nbt, "Items", TAG_InsertAtEnd, &sub);
@@ -1113,11 +1112,9 @@ static void inventoryUpdate(BlockIter iter, Item items, int count, int action, D
 			}
 			break;
 		case ACT_DELITEM:
-			fprintf(stderr, "del item\n");
 			NBT_Delete(&nbt, listtile - tile, item->x);
 			break;
 		case ACT_CHGCOUNT:
-			fprintf(stderr, "setting count to %d\n", item->count);
 			nbt.mem = item->tile;
 			NBT_SetInt(&nbt, NBT_FindNode(&nbt, 0, "Count"), item->count);
 			nbt.mem = tile;
@@ -1125,7 +1122,6 @@ static void inventoryUpdate(BlockIter iter, Item items, int count, int action, D
 	}
 	else /* tile still points to raw NBT stream */
 	{
-		fprintf(stderr, "recreating inventory\n");
 		inventorySerializeItems(iter->cd, iter->offset, "Items", items, count, &nbt);
 	}
 	chunkAddTileEntity(iter->cd, iter->offset, nbt.mem);

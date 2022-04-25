@@ -480,38 +480,6 @@ Bool mapPointToObject(Map map, vec4 camera, vec4 dir, vec4 ret, MapExtraData dat
 	return data->entity > 0;
 }
 
-/* DEBUG */
-#if 0
-static void mapShowChunks(Map map)
-{
-	Chunk c;
-	int   i, size;
-	fprintf(stderr, "=== map chunk loaded ===\n");
-	for (i = 0, c = map->chunks, size = map->mapArea * map->mapArea; i < size; i ++, c ++)
-	{
-		uint8_t flags = c->cflags;
-		uint8_t bank = 0;
-		if (flags & CFLAG_HASMESH)
-		{
-			int j;
-			for (j = 0; j < c->maxy; j ++)
-			{
-				ChunkData cd = c->layer[j];
-				if (cd && cd->glBank) bank = 1;
-			}
-		}
-		fprintf(stderr, "%c",
-			c == map->center ? '#' :
-			(flags & (CFLAG_HASMESH|CFLAG_GOTDATA)) == (CFLAG_HASMESH|CFLAG_GOTDATA) ? (bank ? 'A' : '!') :
-			flags & CFLAG_HASMESH ? 'C' :
-			flags & CFLAG_GOTDATA ? 'L' : ' '
-		);
-		if (i % map->mapArea == map->mapArea-1) fputs("|\n", stderr);
-	}
-}
-#else
-#define mapShowChunks(x)
-#endif
 
 /*
  * dynamic chunk loading depending on player position
@@ -536,12 +504,13 @@ static void mapRedoGenList(Map map)
 			c->Z = ZC + (spiral[1] << 4);
 			ListAddTail(&map->genList, &c->next);
 		}
-		/* push entities into active list */
+		#if 0
+		/* push entities into active list XXX why here? */
 		else if ((c->cflags & CFLAG_HASENTITY) == 0)
 		{
-			//fprintf(stderr, "loading entities from %d, %d\n", c->X, c->Z);
 			chunkExpandEntities(c);
 		}
+		#endif
 	}
 }
 
@@ -578,10 +547,10 @@ Bool mapMoveCenter(Map map, vec4 old, vec4 pos)
 	{
 		if (dx >= area || dz >= area)
 		{
-			/* tp to a completely different location: clear everything */
+			/* teleport to a completely different location: clear everything */
 			Chunk chunk;
 			int   i;
-			for (chunk = map->chunks, i = MAP_SIZE; i > 0; chunk ++, i --)
+			for (chunk = map->chunks, i = map->mapArea * map->mapArea; i > 0; chunk ++, i --)
 			{
 				map->GPUchunk -= chunkFree(chunk, True);
 			}
@@ -627,7 +596,6 @@ Bool mapMoveCenter(Map map, vec4 old, vec4 pos)
 		mapMarkLazyChunk(map);
 		#ifdef DEBUG
 		//fprintf(stderr, "new map center: %d, %d (%d,%d)\n", map->mapX, map->mapZ, (int) pos[VX], (int) pos[VZ]);
-		//mapShowChunks(map);
 		#endif
 		return True;
 	}
@@ -902,13 +870,7 @@ Bool mapSetRenderDist(Map map, int maxDist)
 		map->chunks   = chunks;
 		map->GPUchunk = loaded;
 		map->center   = map->chunks + map->mapX + map->mapZ * area;
-		if (oldArea < area || map->genList.lh_Head)
-		{
-			mapRedoGenList(map);
-			for (chunks = HEAD(map->genList); chunks; NEXT(chunks));
-		}
-		//if (map->genList.lh_Head == NULL)
-		//	mapShowChunks(map);
+		mapRedoGenList(map);
 		return True;
 	}
 
@@ -936,6 +898,7 @@ Map mapInitFromPath(STRPTR path, int renderDist)
 		air->cdFlags = CDFLAG_CHUNKAIR;
 		/* fully lit */
 		memset(air->blockIds + SKYLIGHT_OFFSET, 255, 2048);
+		map->genListLock = MutexCreate();
 
 		map->chunks = mapAllocArea(map->mapArea);
 		map->center = map->chunks + (map->mapX + map->mapZ * map->mapArea);
@@ -975,18 +938,7 @@ Map mapInitFromPath(STRPTR path, int renderDist)
 		AddPart(map->path, "region", MAX_PATHLEN);
 
 		/* init genList already */
-		Chunk    c;
-		int8_t * spiral;
-		int      XC = CPOS(map->cx) << 4;
-		int      ZC = CPOS(map->cz) << 4;
-		int      n;
-		for (spiral = frustum.spiral, n = map->maxDist * map->maxDist; n > 0; n --, spiral += 2)
-		{
-			c = &map->chunks[map->mapX + spiral[0] + (map->mapZ + spiral[1]) * map->mapArea];
-			c->X = XC + (spiral[0] << 4);
-			c->Z = ZC + (spiral[1] << 4);
-			ListAddTail(&map->genList, &c->next);
-		}
+		mapRedoGenList(map);
 
 		#ifdef DEBUG
 		fprintf(stderr, "center = %d, %d\n", map->center->X, map->center->Z);
@@ -1322,24 +1274,13 @@ static ChunkData mapAddToVisibleList(Map map, Chunk from, int direction, int lay
 		{
 			if ((outFlagsFrom[edges[0]] ^ outFlagsFrom[edges[1]]) & 4)
 			{
-				#if 0
-				if (Y > 0 && (c->outflags[Y-1] & VISIBLE))
-				{
-					fprintf(stderr, "not allocating fake chunk because lower one is visible\n");
-					/* lower chunk is visible */
-					c->outflags[Y] |= VISIBLE;
-					return NULL;
-				}
-				#endif
 				cd = mapAllocFakeChunk(map);
 				cd->Y = Y << 4;
 				cd->chunk = c;
 				cd->frame = frame;
 				c->layer[Y] = cd;
-/*				if (map->fakeMax == 1)
-					puts("==========================");
-				fprintf(stderr, "allocating fake chunk at %d, %d, %d: %d\n", c->X, cd->Y, c->Z, cd->slot);
-*/				goto break_all;
+				//fprintf(stderr, "allocating fake chunk at %d, %d, %d: %d\n", c->X, cd->Y, c->Z, cd->slot);
+				goto break_all;
 			}
 			edges += 2;
 		}
@@ -1564,12 +1505,10 @@ void mapViewFrustum(Map map, vec4 camera)
 		center[1] = cur->Y >> 4;
 		neighbors = mapGetOutFlags(map, cur, outflags);
 
-		#ifdef FRUSTUM_DEBUG
+		#if 0
 		fprintf(stderr, "chunk %d, %d, %d: outflags = %d,%d,%d,%d,%d,%d,%d,%d\n", chunk->X, chunk->Z, cur->Y,
 			outflags[0], outflags[1], outflags[2], outflags[3], outflags[4], outflags[5], outflags[6], outflags[7]);
 		#endif
-		//if (chunk->X == 224 && chunk->Z == 976)
-		//	puts("here");
 
 		/* up to 26 neighbor chunks can be added for the 8 corners */
 		for (i = 1; neighbors; i ++, neighbors >>= 1)
@@ -1628,7 +1567,6 @@ void mapViewFrustum(Map map, vec4 camera)
 					if (cd)
 					{
 						mapCullCave(cd, camera);
-						//cd->comingFrom = 1;
 						/* fake chunks (slot > 0) must not be culled (yet) */
 						if (cd->comingFrom > 0 || cd->slot > 0)
 						{
@@ -1671,7 +1609,7 @@ void mapViewFrustum(Map map, vec4 camera)
 		}
 	}
 
-	/* cannot check this in the previous loop: beed all the information first */
+	/* cannot check this in the previous loop: need all the information first */
 	for (cur = checkFog; cur; cur = cur->visible)
 	{
 		int i;

@@ -740,15 +740,19 @@
 		{state: 6, name: "-7",       tex: [14, 5], quad: [SQUARE]},
 		{state: 7, name: "-8",       tex: [15, 5], quad: [SQUARE]},
 
-	{id: 60, name: "Farmland", type: TRANS, inv: CUBE, invState: 0, cat: BUILD},
-		{state: 0, name: "-",    tex: [2, 0, 2, 0, 2, 0, 2, 0, 7, 5, 2, 0]}, /* TODO */
-		{state: 1, name: "-",    tex: [2, 0, 2, 0, 2, 0, 2, 0, 7, 5, 2, 0]},
-		{state: 2, name: "-",    tex: [2, 0, 2, 0, 2, 0, 2, 0, 7, 5, 2, 0]},
-		{state: 3, name: "-",    tex: [2, 0, 2, 0, 2, 0, 2, 0, 7, 5, 2, 0]},
-		{state: 4, name: "-",    tex: [2, 0, 2, 0, 2, 0, 2, 0, 7, 5, 2, 0]},
-		{state: 5, name: "-",    tex: [2, 0, 2, 0, 2, 0, 2, 0, 7, 5, 2, 0]},
-		{state: 6, name: "-",    tex: [2, 0, 2, 0, 2, 0, 2, 0, 7, 5, 2, 0]},
-		{state: 7, name: "+wet", tex: [2, 0, 2, 0, 2, 0, 2, 0, 7, 5, 2, 0]},
+	{id: 60, name: "Farmland", type: CUST, inv: CUBE, bbox: FULL, opacSky: 15, opacLight: 15, invState: 0, cat: BUILD},
+		{state: 0, name: "-",    tex: [2, 0, 2, 0, 2, 0, 2, 0, 7, 5, 2, 0], model: [
+			FACES,63,TEX_CUBEMAP,SIZE,16,14,16,TEX,32,8240,8256,48,32,8240,8256,48,32,8240,8256,48,32,8240,8256,48,41152,49360,49376,41168,32,8240,8256,48,
+		]},
+		{state: 1, name: "-",    tex: [2, 0, 2, 0, 2, 0, 2, 0, 7, 5, 2, 0], model: [SAME_AS, ID(60, 0)]},
+		{state: 2, name: "-",    tex: [2, 0, 2, 0, 2, 0, 2, 0, 7, 5, 2, 0], model: [SAME_AS, ID(60, 0)]},
+		{state: 3, name: "-",    tex: [2, 0, 2, 0, 2, 0, 2, 0, 7, 5, 2, 0], model: [SAME_AS, ID(60, 0)]},
+		{state: 4, name: "-",    tex: [2, 0, 2, 0, 2, 0, 2, 0, 7, 5, 2, 0], model: [SAME_AS, ID(60, 0)]},
+		{state: 5, name: "-",    tex: [2, 0, 2, 0, 2, 0, 2, 0, 7, 5, 2, 0], model: [SAME_AS, ID(60, 0)]},
+		{state: 6, name: "-",    tex: [2, 0, 2, 0, 2, 0, 2, 0, 7, 5, 2, 0], model: [SAME_AS, ID(60, 0)]},
+		{state: 7, name: "+wet", tex: [2, 0, 2, 0, 2, 0, 2, 0, 6, 5, 2, 0], model: [
+			FACES,63,TEX_CUBEMAP,SIZE,16,14,16,TEX,32,8240,8256,48,32,8240,8256,48,32,8240,8256,48,32,8240,8256,48,41136,49344,49360,41152,32,8240,8256,48,
+		]},
 
 	{id: 61, name: "Furnace", type: SOLID, inv: CUBE, invState: 3, cat: DECO, orient: NSWE, tile: 1, pushable: NO},
 		{state: 0, name: "-",      tex: [12, 2,13, 2,13, 2,13, 2,14, 3,14, 3]},

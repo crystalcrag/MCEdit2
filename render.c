@@ -793,47 +793,6 @@ Bool renderInitStatic(void)
 	return signInitStatic(render.debugFont);
 }
 
-#if 0
-void renderDumpDepth(void)
-{
-	int width = globals.width;
-	int height = globals.height;
-	float * mem = calloc(width * height, 4);
-	float   min, max;
-	int     i;
-
-	for (i = width * height - 1; i >= 0; mem[i] = M_PI, i --);
-
-	glBindTexture(GL_TEXTURE_2D, render.texAlphaDepth);
-	glGetTexImage(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, GL_FLOAT, mem);
-
-	for (i = width * height - 1, min = 1e6, max = -1e6; i >= 0; i --)
-	{
-		float v = mem[i];
-		if (min > v) min = v;
-		if (max < v) max = v;
-	}
-
-	FILE * out = fopen("dump.pgm", "wb");
-	int    j;
-
-	fprintf(out, "P5\n# min: %f, max: %f\n%d %d 255\n", min, max, width, height);
-
-	for (j = width * height, i = 0, max -= min; i < j; i ++)
-	{
-		int v = (mem[i] - min) * 255 / max;
-		if (v > 255) v = 255;
-		if (v < 0) v = 0;
-		fputc(v, out);
-	}
-	fclose(out);
-
-	free(mem);
-
-	fprintf(stderr, "depth texture dumped in dump.pgm\n");
-}
-#endif
-
 void renderSetInventory(Inventory inventory)
 {
 	render.inventory = inventory;
@@ -2257,7 +2216,9 @@ void renderAllocCmdBuffer(Map map)
 	for (bank = HEAD(map->gpuBanks); bank; NEXT(bank))
 	{
 		/* avoid reallocating this buffer: it is used quite a lot (changed every frame) */
-		int count = map->GPUMaxChunk > 1024*1024 ? (bank->vtxSize + 1023) & ~1023 : bank->vtxSize;
+		int count = map->GPUMaxChunk > 1024*1024 ? (bank->vtxSize + 1023) & ~1023 :
+			/* else brush: no need to alloc more than what's in the brush */
+			bank->vtxSize;
 
 		if (bank->vboLocSize < count)
 		{
@@ -2288,17 +2249,6 @@ void renderFinishMesh(Map map, Bool updateVtxSize)
 	oldAlpha = cd->glAlpha;
 	total = size + alpha;
 	bank = cd->glBank;
-
-	#if 0
-	list = HEAD(meshBanks);
-	int i, j;
-	for (i = 0; i < total; i += VERTEX_DATA_SIZE)
-	{
-		for (j = 0; j < VERTEX_DATA_SIZE; j += 4)
-			fprintf(stderr, "0x%02x, ", list->buffer[i+j >> 2]);
-		fputc('\n', stderr);
-	}
-	#endif
 
 	if (bank)
 	{

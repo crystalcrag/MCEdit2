@@ -367,46 +367,6 @@ static void particlesDelChain(int16_t last)
 #define ZPOS(flags)     (((flags>>2)&3)-1)
 #define YPOS(flags)     ((flags>>4)-1)
 
-#if 0
-void emitterDebug(void)
-{
-	int i;
-	#if 0
-	int z, y;
-	fprintf(stderr, "emitter grid:\n");
-	for (y = -1, i = 0; y < 2; y ++)
-	{
-		fprintf(stderr, "%2d:", y);
-		for (z = -1; z < 2; z ++, i += 3)
-		{
-			int16_t * p = emitters.startIds + i;
-			if (z >= 0) fprintf(stderr, "   ");
-			fprintf(stderr, p[0] < 0 ? "   " : "%2d ", p[0]);
-			fprintf(stderr, p[1] < 0 ? "|    " : "| %2d ", p[1]);
-			fprintf(stderr, p[2] < 0 ? "|    \n" : "| %2d \n", p[2]);
-		}
-		fprintf(stderr, "   ---+----+---\n");
-	}
-	#endif
-
-	int count[PARTICLE_MAX] = {0};
-	for (i = 0; i < emitters.count; i ++)
-	{
-		uint16_t cur  = emitters.active[i];
-		Emitter  emit = emitters.buffer + cur;
-		count[emit->type] ++;
-		ChunkData cd = emit->cd;
-		fprintf(stderr, "- emitter at %d, %d, %d: %d spots, area: %08x\n", cd->chunk->X, cd->Y + emit->Y, cd->chunk->Z, emit->count, emit->area);
-	}
-
-	for (i = 1; i < PARTICLE_MAX; i ++)
-	{
-		static STRPTR names[] = {NULL, "BITS", "SMOKE", "DUST", "DRIP"};
-		fprintf(stderr, "- %s: %d\n", names[i], count[i]);
-	}
-}
-#endif
-
 /* activate particle emitters from the 27 ChunkData surrounding the player */
 static void particleMakeActive(Map map)
 {
