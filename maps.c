@@ -11,7 +11,7 @@
 #include <string.h>
 #include <malloc.h>
 #include <math.h>
-#include "maps.h"
+#include "meshBanks.h"
 #include "render.h"
 #include "blocks.h"
 #include "NBT2.h"
@@ -480,56 +480,114 @@ Bool mapPointToObject(Map map, vec4 camera, vec4 dir, vec4 ret, MapExtraData dat
 	return data->entity > 0;
 }
 
-
 /*
  * dynamic chunk loading depending on player position
  */
 
-static void mapRedoGenList(Map map)
+void mapShowChunks(Map map)
+{
+	Chunk c;
+	int   i, size;
+	fprintf(stderr, "=== map chunk loaded ===\n");
+	for (i = 0, c = map->chunks, size = map->mapArea * map->mapArea; i < size; i ++, c ++)
+	{
+		uint8_t flags = c->cflags;
+		uint8_t bank = 0;
+		//uint8_t holes = 0;
+		if (flags & CFLAG_HASMESH)
+		{
+			int j;
+			for (j = 0; j < c->maxy; j ++)
+			{
+				ChunkData cd = c->layer[j];
+				if (cd && cd->glBank)
+				{
+					bank = 1;
+					//if (cd->frame == map->frame)
+					//	holes = (cd->cdFlags >> 5) & 15;
+				}
+			}
+		}
+		fputc(
+			c == map->center ? '#' :
+			c->chunkFrame != map->frame ? ' ' :
+			(flags & (CFLAG_HASMESH|CFLAG_GOTDATA)) == (CFLAG_HASMESH|CFLAG_GOTDATA) ? (bank ? 'F' : '!') :
+			flags & CFLAG_GOTDATA ? 'L' : ' ',
+			stderr
+		);
+		//fputc(" 123456789abcdef"[holes], stderr);
+
+		if (i % map->mapArea == map->mapArea-1) fputs("|\n", stderr);
+	}
+}
+
+static int mapRedoGenList(Map map)
 {
 	int8_t * spiral;
 	int      XC   = CPOS(map->cx) << 4;
 	int      ZC   = CPOS(map->cz) << 4;
 	int      n    = map->maxDist * map->maxDist;
 	int      area = map->mapArea;
+	int      ret  = 0;
 
+	meshStopThreads(map, THREAD_EXIT_LOOP);
 	ListNew(&map->genList);
 
 	for (spiral = frustum.spiral; n > 0; n --, spiral += 2)
 	{
 		Chunk c = &map->chunks[(map->mapX + spiral[0] + area) % area + (map->mapZ + spiral[1] + area) % area * area];
+		int X = XC + (spiral[0] << 4);
+		int Z = ZC + (spiral[1] << 4);
+		if (c->X != X || c->Z != Z)
+		{
+			chunkFree(c, False);
+		}
+
+		if ((c->cflags & CFLAG_GOTDATA) == 0)
+			c->entityList = ENTITY_END;
 		if ((c->cflags & CFLAG_HASMESH) == 0)
 		{
 			c->X = XC + (spiral[0] << 4);
 			c->Z = ZC + (spiral[1] << 4);
 			ListAddTail(&map->genList, &c->next);
+			ret ++;
 		}
-		#if 0
-		/* push entities into active list XXX why here? */
-		else if ((c->cflags & CFLAG_HASENTITY) == 0)
-		{
-			chunkExpandEntities(c);
-		}
-		#endif
 	}
+	return ret;
 }
 
-/* unload entities from lazy chunk */
+/* unload entities from lazy chunk (not MT safe!) */
 static void mapMarkLazyChunk(Map map)
 {
 	int8_t * ptr;
-	int      i, area = map->mapArea;
+	int8_t * end;
+	int      area = map->mapArea;
 
-	for (i = frustum.lazyCount, ptr = frustum.lazy; i > 0; ptr += 2, i --)
+	for (ptr = frustum.lazy, end = ptr + frustum.lazyCount; ptr < end; ptr += 3)
 	{
-		Chunk c = &map->chunks[(map->mapX + ptr[0] + area) % area + (map->mapZ + ptr[1] + area) % area * area];
+		uint8_t dir = ptr[2];
+		Chunk chunk = &map->chunks[(map->mapX + ptr[0] + area) % area + (map->mapZ + ptr[1] + area) % area * area];
+		if (chunk->maxy == 0) continue;
 
-		if (c->cflags & CFLAG_HASENTITY)
+		if (chunk->cflags & CFLAG_HASENTITY)
 		{
-			if (c->entityList != ENTITY_END)
-				entityUnload(c);
-			c->cflags &= ~CFLAG_HASENTITY;
+			if (chunk->entityList != ENTITY_END)
+				entityUnload(chunk);
+			chunk->cflags &= ~CFLAG_HASENTITY;
 		}
+
+		/* also free lazy chunks that are not at their place */
+		Chunk neighbor = chunk + map->chunkOffsets[chunk->neighbor + dir];
+
+		int X = chunk->X;
+		int Z = chunk->Z;
+		if (dir & 1) Z += 16;
+		if (dir & 2) X += 16;
+		if (dir & 4) Z -= 16;
+		if (dir & 8) X -= 16;
+
+		if (X != neighbor->X || Z != neighbor->Z)
+			chunkFree(chunk, True);
 	}
 }
 
@@ -547,151 +605,23 @@ Bool mapMoveCenter(Map map, vec4 old, vec4 pos)
 	{
 		if (dx >= area || dz >= area)
 		{
-			/* teleport to a completely different location: clear everything */
-			Chunk chunk;
-			int   i;
-			for (chunk = map->chunks, i = map->mapArea * map->mapArea; i > 0; chunk ++, i --)
-			{
-				map->GPUchunk -= chunkFree(chunk, True);
-			}
 			/* reset map center */
 			map->mapX = map->mapZ = area / 2;
 		}
 		else /* some chunks will still be useful */
 		{
-			int mapX = (map->mapX + dx + area) % area;
-			int mapZ = (map->mapZ + dz + area) % area;
-
-			if (dx)
-			{
-				int s = dx < 0 ? -1 : 1;
-				int x = map->mapX - s * (area/2), i;
-				for (; dx; dx -= s, x += s)
-				{
-					Chunk row = map->chunks + (x + area) % area;
-					for (i = 0; i < area; i ++, row += area)
-					{
-						map->GPUchunk -= chunkFree(row, True);
-					}
-				}
-			}
-			if (dz)
-			{
-				int s = dz < 0 ? -1 : 1;
-				int z = map->mapZ - s * (area/2), i;
-				for (; dz; dz -= s, z += s)
-				{
-					Chunk row = map->chunks + ((z + area) % area) * area;
-					for (i = 0; i < area; i ++, row ++)
-					{
-						map->GPUchunk -= chunkFree(row, True);
-					}
-				}
-			}
-			map->mapX = mapX;
-			map->mapZ = mapZ;
+			map->mapX = (map->mapX + dx + area) % area;
+			map->mapZ = (map->mapZ + dz + area) % area;
 		}
-		mapRedoGenList(map);
+		int count = mapRedoGenList(map);
 		map->center = map->chunks + (map->mapX + map->mapZ * area);
 		mapMarkLazyChunk(map);
-		#ifdef DEBUG
+		meshAddToProcess(map, count);
+
 		//fprintf(stderr, "new map center: %d, %d (%d,%d)\n", map->mapX, map->mapZ, (int) pos[VX], (int) pos[VZ]);
-		#endif
 		return True;
 	}
 	return False;
-}
-
-void dumpTileEntities(Chunk list);
-
-/* load and convert chunk to mesh */
-void mapGenerateMesh(Map map)
-{
-	#ifndef SLOW_CHUNK_LOAD
-	ULONG start = TimeMS();
-	#else
-	/* artifially slow down chunk loading */
-	static int delay;
-	delay ++;
-	if (delay > 1)
-	{
-		/* 50 frames == 1 second */
-		if (delay > 50) delay = 0;
-		return;
-	}
-	#endif
-
-	while (map->genList.lh_Head)
-	{
-		static uint8_t directions[] = {12, 4, 6, 8, 0, 2, 9, 1, 3};
-		int i, j, X, Z;
-
-		Chunk list = (Chunk) ListRemHead(&map->genList);
-		memset(&list->next, 0, sizeof list->next);
-
-		if (list->cflags & CFLAG_HASMESH)
-			continue;
-
-		/* load 8 surrounding chunks too (mesh generation will need this) */
-		for (i = 0, X = list->X, Z = list->Z; i < DIM(directions); i ++)
-		{
-			int   dir  = directions[i];
-			Chunk load = list + map->chunkOffsets[list->neighbor + dir];
-
-			/* already loaded ? */
-			if ((load->cflags & CFLAG_GOTDATA) == 0)
-			{
-				if (chunkLoad(load, map->path, X + (dir & 8 ? -16 : dir & 2 ? 16 : 0),
-						Z + (dir & 4 ? -16 : dir & 1 ? 16 : 0)))
-					load->cflags |= CFLAG_GOTDATA;
-			}
-		}
-		if ((list->cflags & CFLAG_GOTDATA) == 0)
-		{
-			#ifndef SLOW_CHUNK_LOAD
-			if (TimeMS() - start > 15)
-				break;
-			#endif
-			/* no chunk at this location */
-			continue;
-		}
-
-		//if (list == map->center)
-		//	NBT_Dump(&list->nbt, 0, 0, 0);
-
-		/* second: push data to the GPU (only the first chunk) */
-		for (i = 0, j = list->maxy; j > 0; j --, i ++)
-		{
-			ChunkData cd = list->layer[i];
-			if (cd)
-			{
-				/* this is the function that will convert chunk into triangles */
-				chunkUpdate(list, chunkAir, map->chunkOffsets, i);
-				renderFinishMesh(map, False);
-				particlesChunkUpdate(map, cd);
-				if (cd->cdFlags == CDFLAG_PENDINGDEL)
-				{
-					/* link within chunk has already been removed in chunkUpdate() */
-					free(cd);
-				}
-				else if (cd->glBank)
-				{
-					map->GPUchunk ++;
-				}
-			}
-		}
-		if (map->genLast == list)
-			map->genLast = NULL;
-		list->cflags = (list->cflags | CFLAG_HASMESH) & ~CFLAG_PRIORITIZE;
-		if ((list->cflags & CFLAG_HASENTITY) == 0)
-			chunkExpandEntities(list);
-
-		/* we are in the main rendering loop: don't hog the CPU for too long */
-		#ifndef SLOW_CHUNK_LOAD
-		if (TimeMS() - start > 15)
-		#endif
-			break;
-	}
 }
 
 static int sortByDist(const void * item1, const void * item2)
@@ -706,12 +636,12 @@ Chunk mapAllocArea(int area)
 {
 	Chunk chunks = calloc(sizeof *chunks, area * area);
 	Chunk c;
-	int   i, j, n, dist = area - 4;
+	int   i, j, n, dist = area - 3;
 
 	if (chunks)
 	{
 		/* should be property of a map... */
-		int8_t * ptr = realloc(frustum.spiral, dist * dist * 2 + (dist * 4 + 4) * 2);
+		int8_t * ptr = realloc(frustum.spiral, dist * dist * 2 + (dist * 4 + 4) * 3);
 
 		if (ptr)
 		{
@@ -737,19 +667,34 @@ Chunk mapAllocArea(int area)
 			frustum.lazy = frustum.spiral + i * 2;
 
 			/* to quickly enumerate all lazy chunks (need when map center has changed) */
-			for (ptr = frustum.lazy, j = 0, dist += 2, i = dist >> 1; j < dist; j ++, ptr += 4)
+			for (ptr = frustum.lazy, j = 0, dist += 2, i = dist >> 1; j < dist; j ++, ptr += 6)
 			{
-				ptr[0] = ptr[2] = j - i;
+				/* note: 3rd value is direction of the nearest chunk within render distance (from lazy chunk POV) */
+				ptr[0] = ptr[3] = j - i;
+				ptr[2] = 1 << SIDE_SOUTH;
 				ptr[1] = - i;
-				ptr[3] =   i;
+				ptr[4] =   i;
+				ptr[5] = 1 << SIDE_NORTH;
 			}
-			for (j = 0, dist -= 2; j < dist; j ++, ptr += 4)
+
+			/* corner */
+			ptr[-1] |= 1 << SIDE_WEST;
+			ptr[-4] |= 1 << SIDE_WEST;
+
+			for (j = 0, dist -= 2; j < dist; j ++, ptr += 6)
 			{
-				ptr[1] = ptr[3] = j - (dist >> 1);
+				ptr[1] = ptr[4] = j - (dist >> 1);
 				ptr[0] = - i;
-				ptr[2] =   i;
+				ptr[3] =   i;
+				ptr[2] = 1 << SIDE_EAST;
+				ptr[5] = 1 << SIDE_WEST;
 			}
-			frustum.lazyCount = (ptr - frustum.lazy) >> 1;
+
+			/* corner */
+			frustum.lazy[2] |= 1 << SIDE_EAST;
+			frustum.lazy[5] |= 1 << SIDE_EAST;
+
+			frustum.lazyCount = ptr - frustum.lazy;
 
 			/* reset chunkNeighbor table: it depends on map size */
 			static uint8_t wrap[] = {0, 12, 4, 6, 8, 2, 9, 1, 3}; /* bitfield: &1:+Z, &2:+X, &4:-Z, &8:-X, ie: SENW */
@@ -780,10 +725,10 @@ Chunk mapAllocArea(int area)
 /* change render distance dynamicly */
 Bool mapSetRenderDist(Map map, int maxDist)
 {
-	int area = (maxDist * 2) + 5;
+	int area = (maxDist * 2) + 4;
 
 	if (area == map->mapArea) return True;
-	if (area < 7 || area > 63) return False; /* too small/too big */
+	if (maxDist < 2 || maxDist > 31) return False;
 
 	Chunk chunks = mapAllocArea(area);
 
@@ -792,15 +737,22 @@ Bool mapSetRenderDist(Map map, int maxDist)
 	if (chunks)
 	{
 		/* we have all the memory we need: can't fail from this point */
-		int oldArea = map->mapArea;
-		int size    = ((oldArea < area ? oldArea : area) - 2) >> 1;
-		int XZmid   = area >> 1;
-		int loaded  = 0;
+		int oldArea  = map->mapArea;
+		int size     = ((oldArea < area ? oldArea : area) - 2) >> 1;
+		int XZmid    = (area >> 1) - 1;
+		int freeMesh = 0;
+		int loaded   = 0;
 		int i, j, k;
+
+		meshStopThreads(map, THREAD_EXIT_LOOP);
+		maxDist ++;
 
 		/* copy chunk information (including lazy chunks) */
 		for (j = -size; j <= size; j ++)
 		{
+			if (abs(j) == maxDist) freeMesh |= 1;
+			else freeMesh &= ~1;
+
 			for (i = -size; i <= size; i ++)
 			{
 				int XC = map->mapX + i;
@@ -816,8 +768,9 @@ Bool mapSetRenderDist(Map map, int maxDist)
 				char  nbor   = dest->neighbor;
 				memcpy(&dest->save, &source->save, sizeof *dest - offsetp(Chunk, save));
 				source->cflags = 0;
-				dest->cflags &= ~CFLAG_PRIORITIZE;
 				dest->neighbor = nbor;
+				if (abs(i) == maxDist) freeMesh |= 2;
+				else freeMesh &= ~2;
 
 				/* ChunkData ref needs to be readjusted */
 				for (k = dest->maxy-1; k >= 0; k --)
@@ -826,6 +779,11 @@ Bool mapSetRenderDist(Map map, int maxDist)
 					if (cd)
 					{
 						cd->chunk = dest;
+						if (freeMesh && cd->glSlot)
+						{
+							dest->cflags &= ~CFLAG_HASMESH;
+							meshFreeGPU(cd);
+						}
 						loaded += cd->glBank != NULL;
 					}
 					else fprintf(stderr, "chunk %d, %d missing layer %d?\n", dest->X, dest->Z, k);
@@ -848,7 +806,6 @@ Bool mapSetRenderDist(Map map, int maxDist)
 		Chunk   list;
 		i = map->center->X;
 		j = map->center->Z;
-		maxDist += 2;
 		for (list = map->needSave, prev = &map->needSave; list; list = list->save)
 		{
 			int DX = (list->X - i) >> 4;
@@ -863,14 +820,14 @@ Bool mapSetRenderDist(Map map, int maxDist)
 		*prev = NULL;
 
 		free(map->chunks);
-		map->maxDist  = area - 4;
+		map->maxDist  = area - 3;
 		map->mapArea  = area;
 		map->mapZ     = map->mapX = XZmid;
 		map->genLast  = NULL;
 		map->chunks   = chunks;
 		map->GPUchunk = loaded;
 		map->center   = map->chunks + map->mapX + map->mapZ * area;
-		mapRedoGenList(map);
+		meshAddToProcess(map, mapRedoGenList(map));
 		return True;
 	}
 
@@ -890,15 +847,14 @@ Map mapInitFromPath(STRPTR path, int renderDist)
 	{
 		ChunkData air = chunkAir = (ChunkData) (map + 1);
 		map->maxDist = renderDist * 2 + 1;
-		map->mapArea = renderDist * 2 + 5;
-		map->mapZ    = map->mapX = renderDist + 2;
+		map->mapArea = renderDist * 2 + 4;
+		map->mapZ    = map->mapX = renderDist + 1;
 
 		/* all tables but skyLight will be 0 */
 		air->blockIds = (DATA8) (air+1);
 		air->cdFlags = CDFLAG_CHUNKAIR;
 		/* fully lit */
 		memset(air->blockIds + SKYLIGHT_OFFSET, 255, 2048);
-		map->genListLock = MutexCreate();
 
 		map->chunks = mapAllocArea(map->mapArea);
 		map->center = map->chunks + (map->mapX + map->mapZ * map->mapArea);
@@ -938,7 +894,15 @@ Map mapInitFromPath(STRPTR path, int renderDist)
 		AddPart(map->path, "region", MAX_PATHLEN);
 
 		/* init genList already */
+
+		#if NUM_THREADS > 0
+		map->genLock = MutexCreate();
+		map->genCount = SemInit(0);
+		meshAddToProcess(map, mapRedoGenList(map));
+		meshInitThreads(map);
+		#else
 		mapRedoGenList(map);
+		#endif
 
 		#ifdef DEBUG
 		fprintf(stderr, "center = %d, %d\n", map->center->X, map->center->Z);
@@ -964,6 +928,8 @@ void mapFreeAll(Map map)
 	for (fake = map->cdPool; fake; next = fake->next, free(fake), fake = next);
 
 	NBT_Free(&map->levelDat);
+	MutexDestroy(map->genLock);
+	SemClose(map->genCount);
 	free(map->chunks);
 	free(map);
 	chunkAir = NULL;
@@ -1245,6 +1211,7 @@ static ChunkData mapAddToVisibleList(Map map, Chunk from, int direction, int lay
 	}
 	if ((c->cflags & CFLAG_HASMESH) == 0)
 	{
+		#if 0
 		/* move to front of list of chunks needed to be generated */
 		if (c->next.ln_Prev && (c->cflags & CFLAG_PRIORITIZE) == 0)
 		{
@@ -1253,6 +1220,7 @@ static ChunkData mapAddToVisibleList(Map map, Chunk from, int direction, int lay
 			ListInsert(&map->genList, &c->next, &map->genLast->next);
 			map->genLast = c;
 		}
+		#endif
 		return NULL;
 	}
 
@@ -1286,6 +1254,8 @@ static ChunkData mapAddToVisibleList(Map map, Chunk from, int direction, int lay
 		}
 		return NULL;
 	}
+	if (! cd->glBank)
+		return NULL;
 
 	break_all:
 	if (cd && c->outflags[Y] < VISIBLE)
@@ -1389,7 +1359,7 @@ void mapViewFrustum(Map map, vec4 camera)
 
 	map->firstVisible = NULL;
 	map->fakeMax = 0;
-	renderClearBank(map);
+	meshClearBank(map);
 
 	#if 0
 	/*
@@ -1407,12 +1377,12 @@ void mapViewFrustum(Map map, vec4 camera)
 			for (i = 0; i < c->maxy; i ++)
 			{
 				ChunkData cd = c->layer[i];
-				if (cd) *prev = cd, prev = &cd->visible, renderAddToBank(cd);
+				if (cd) *prev = cd, prev = &cd->visible, meshAddToBank(cd);
 			}
 		}
 	}
 	*prev = NULL;
-	renderAllocCmdBuffer(map);
+	meshAllocCmdBuffer(map);
 	return;
 	#endif
 
@@ -1592,7 +1562,7 @@ void mapViewFrustum(Map map, vec4 camera)
 		}
 		else
 		{
-			renderAddToBank(cur);
+			meshWillBeRendered(cur);
 //			fprintf(stderr, "adding chunk %d, %d, %d from %d to visible list\n",
 //				chunk->X, cur->Y, chunk->Z, cur->comingFrom);
 			prev = &cur->visible;
@@ -1622,5 +1592,5 @@ void mapViewFrustum(Map map, vec4 camera)
 				cur->cdFlags |= CDFLAG_EDGESOUTH << i;
 		}
 	}
-	renderAllocCmdBuffer(map);
+	meshAllocCmdBuffer(map);
 }

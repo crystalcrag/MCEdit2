@@ -1952,9 +1952,10 @@ would required about 400 Mb of data. While even a GPU from 2010 can easily handl
 reducing the amount of data means we could push the render distance way farther than this.
 
 <p>This engine manages to compress each quad down to 28 bytes (stored as 7 32bit unsigned integer),
-that means viewing a world on a far render distance (16 chunks) usually requires about 100Mb of memory
-on the GPU side: that's actually not very much. The vertex data is processed as <tt>GL_POINTS</tt>,
-and split into <tt>GL_TRIANGLE_STRIP</tt> in a geometry shader.
+that means viewing a world on a far render distance (16 chunks) usually requires about 50Mb of memory
+on the GPU side (just for the vertex buffers, textures and FBO will add a lot to the total): that's
+actually not very much. The vertex data is processed as <tt>GL_POINTS</tt>, and split into
+<tt>GL_TRIANGLE_STRIP</tt> in a geometry shader.
 
 <p>The format of each quad is as follows (stored in VBO as 7 <tt class="t">uint32_t</tt>):
 

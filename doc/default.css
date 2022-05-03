@@ -116,13 +116,13 @@ table td.XXX	{ background: linear-gradient(to bottom right, transparent, transpa
 				  linear-gradient(to bottom left, transparent, transparent 50%, red 50%, red 51%, transparent 51%); }
 table.hspace td	{ min-width: 1.5em; text-align: center }
 
-.c   { color:#2222AA }
+.c,c { color:#2222AA }
 .i   { color:#54AAAA }
 .d   { color:#A600F7 }
 v,.o { color:#FF00FF }
 .s   { color:#7700FF }
 t,.t { color:#146A31; font-weight:bold }
-.k   { color:#A62828; font-weight:bold }
+.k,k { color:#A62828; font-weight:bold }
 .e   { color:#FFFFFF; background-color:#FF3333 }
 .n   { color:black;   background-color:#FFFF00 }
 .h   { font-weight: bold }

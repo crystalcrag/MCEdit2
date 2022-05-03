@@ -31,7 +31,8 @@ flat out uint  rswire;
 flat out uint  ocsmap;
 flat out uint  normal;
 
-uniform uint underWater;
+uniform uint underWater;    // player is underwater: denser fog
+uniform uint renderAlpha;   // generating alpha depth
 
 void main(void)
 {
@@ -47,10 +48,15 @@ void main(void)
 	if (Vsz < 0) Vsz = -Vsz;
 	if (isCaveFog[0] > 0)
 	{
-		/* cave fog quad: only generate them at map border */
+		// cave fog quad: only generate them at map border
 		if ((chunkInfo[0] & (1 << normal)) == 0)
 			// discard primitive
 			return;
+	}
+	if (renderAlpha == 0 && (normFlags[0] & (1 << 6)) == 0)
+	{
+		// only care about water
+		return;
 	}
 
 	rswire = normal == 7 ? (skyBlockLight[0] & 15) + 1 : 0;

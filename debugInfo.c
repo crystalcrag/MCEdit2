@@ -15,6 +15,7 @@
 #include "redstone.h"
 #include "nanovg.h"
 #include "globals.h"
+#include "meshBanks.h"
 #include "SIT.h"
 
 extern struct RenderWorld_t render;
@@ -356,6 +357,7 @@ static void nvgMultiLineText(NVGcontext * vg, float x, float y, STRPTR start, ST
 
 void debugCoord(APTR vg, vec4 camera, int total)
 {
+	#if 1
 	TEXT message[256];
 	int  len = sprintf(message, "XYZ: %.2f, %.2f, %.2f (feet)\n", (double) camera[0], (double)(camera[1] - PLAYER_HEIGHT), (double) camera[2]);
 	int  vis;
@@ -365,7 +367,7 @@ void debugCoord(APTR vg, vec4 camera, int total)
 
 	len += sprintf(message + len, "Chunk: %d, %d, %d (cnxGraph: %x)\n", CPOS(camera[0]) << 4, CPOS(camera[1]) << 4, CPOS(camera[2]) << 4,
 		cd ? cd->cnxGraph : 0);
-	len += sprintf(message + len, "Triangles: %d\n", total);
+	len += sprintf(message + len, "Quads: %d\n", total);
 	for (bank = HEAD(globals.level->gpuBanks), vis = 0; bank; vis += bank->vtxSize, NEXT(bank));
 	len += sprintf(message + len, "Chunks: %d/%d (culled: %d, fakeAlloc: %d)\n", vis, globals.level->GPUchunk, globals.level->chunkCulled,
 		globals.level->fakeMax);
@@ -377,6 +379,73 @@ void debugCoord(APTR vg, vec4 camera, int total)
 	nvgMultiLineText(vg, 12, 12, message, message+len);
 	nvgFillColorRGBA8(vg, "\xff\xff\xff\xff");
 	nvgMultiLineText(vg, 10, 10, message, message+len);
+	#else
+	Map map = globals.level;
+	int max = map->mapArea;
+	int layer = CPOS(render.camera[VY]-2);
+
+	nvgBeginPath(vg);
+	nvgFontSize(vg, 15);
+	nvgFillColorRGBA8(vg, "\0\0\0\x7f");
+	nvgRect(vg, 0, 0, globals.width, globals.height);
+	nvgFill(vg);
+
+	nvgStrokeColorRGBA8(vg, "\x20\xaa\x20\xff");
+	int cellSz = (globals.height - 140) / max;
+	float y = ((globals.height - cellSz * max) >> 1) + 0.5f;
+	float x = ((globals.width - cellSz * max) >> 1) + 0.5f;
+	float x2 = x + cellSz * max;
+	float y2 = y + cellSz * max;
+
+	nvgBeginPath(vg);
+	int i, j;
+	for (j = 0; j <= max; j ++)
+	{
+		float xc = x + cellSz * j;
+		float yc = y + cellSz * j;
+		nvgMoveTo(vg, x, yc); nvgLineTo(vg, x2, yc);
+		nvgMoveTo(vg, xc, y); nvgLineTo(vg, xc, y2);
+	}
+	nvgStroke(vg);
+
+	Chunk chunk;
+	nvgStrokeColorRGBA8(vg, "\xff\x20\x20\xff");
+	nvgFillColorRGBA8(vg, "\x40\xff\x40\xff");
+	for (j = 0, chunk = map->chunks; j < max; j ++)
+	{
+		for (i = 0; i < max; i ++, chunk ++)
+		{
+			float xc = x + i * cellSz;
+			float yc = y + j * cellSz;
+
+			ChunkData cd = chunk->layer[layer];
+			if (cd && cd->frame == map->frame)
+			{
+				nvgBeginPath(vg);
+				nvgMoveTo(vg, xc + 10, yc + 10);
+				nvgLineTo(vg, xc + cellSz - 10, yc + cellSz - 10);
+				nvgMoveTo(vg, xc + cellSz - 10, yc + 10);
+				nvgLineTo(vg, xc + 10, yc + cellSz - 10);
+				nvgStroke(vg);
+
+				nvgBeginPath(vg);
+				if (cd->cdFlags & CDFLAG_EDGESOUTH)
+					nvgMoveTo(vg, xc, yc + cellSz), nvgLineTo(vg, xc + cellSz, yc + cellSz);
+				if (cd->cdFlags & CDFLAG_EDGEEAST)
+					nvgMoveTo(vg, xc + cellSz, yc), nvgLineTo(vg, xc + cellSz, yc + cellSz);
+				if (cd->cdFlags & CDFLAG_EDGENORTH)
+					nvgMoveTo(vg, xc, yc), nvgLineTo(vg, xc + cellSz, yc);
+				if (cd->cdFlags & CDFLAG_EDGEWEST)
+					nvgMoveTo(vg, xc, yc), nvgLineTo(vg, xc, yc + cellSz);
+				nvgStroke(vg);
+
+				TEXT coord[32];
+				sprintf(coord, "%d, %d", chunk->X, chunk->Z);
+				nvgText(vg, xc, yc, coord, NULL);
+			}
+		}
+	}
+	#endif
 }
 
 /*

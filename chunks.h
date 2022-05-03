@@ -19,14 +19,13 @@
 typedef struct Chunk_t *               Chunk;
 typedef struct ChunkData_t             ChunkData_t;
 typedef struct ChunkData_t *           ChunkData;
-typedef struct WriteBuffer_t *         WriteBuffer;
 
-typedef void (*ChunkFlushCb_t)(WriteBuffer);
+typedef Bool (*MeshInitializer)(ChunkData, APTR, APTR);
 
 void      chunkInitStatic(void);
 Bool      chunkLoad(Chunk, const char * path, int x, int z);
 Bool      chunkSave(Chunk, const char * path);
-void      chunkUpdate(Chunk update, ChunkData air, DATAS16 chunkOffsets, int layer);
+void      chunkUpdate(Chunk update, ChunkData air, DATAS16 chunkOffsets, int layer, MeshInitializer);
 int       chunkFree(Chunk, Bool clear);
 ChunkData chunkCreateEmpty(Chunk, int layer);
 DATA8     chunkGetTileEntity(ChunkData cd, int offset);
@@ -45,7 +44,7 @@ struct ChunkData_t                     /* one sub-chunk of 16x16x16 blocks */
 {
 	ChunkData visible;                 /* frustum culling list */
 	Chunk     chunk;                   /* bidirectional link */
-	uint16_t  Y;                       /* vertical pos in blocks */
+	uint16_t  Y;                       /* vertical pos (in blocks) */
 	uint16_t  cnxGraph;                /* face graph connection (cave culling) */
 
 	uint16_t  cdFlags;                 /* CDFLAG_* */
@@ -57,7 +56,7 @@ struct ChunkData_t                     /* one sub-chunk of 16x16x16 blocks */
 	DATA16    emitters;                /* pos (12bits) + type (4bits) for particles emitters */
 
 	/* VERTEX_ARRAY_BUFFER location */
-	void *    glBank;                  /* GPUBank (filled by renderStoreArray()) */
+	void *    glBank;                  /* GPUBank (filled by meshAllocGPU()) */
 	int       glSlot;
 	int       glSize;                  /* size in bytes */
 	int       glAlpha;                 /* alpha triangles, need separate pass */
@@ -94,11 +93,11 @@ extern ChunkData chunkAir;             /* chunk entirely made of air, skylight =
 enum /* flags for Chunk.cflags */
 {
 	CFLAG_GOTDATA    = 0x0001,         /* data has been retrieved */
-	CFLAG_HASMESH    = 0x0002,         /* mesh generated and pushed to GPU */
-	CFLAG_NEEDSAVE   = 0x0004,         /* modifications need to be saved on disk */
-	CFLAG_HASENTITY  = 0x0008,         /* entity transfered in active list */
-	CFLAG_ETTLIGHT   = 0x0010,         /* update entity light for this chunk */
-	CFLAG_PRIORITIZE = 0x0020,         /* already moved in front of map->genList */
+	CFLAG_STAGING    = 0x0002,         /* in staging area, waiting to be pushed to GPU */
+	CFLAG_HASMESH    = 0x0004,         /* mesh generated and pushed to GPU */
+	CFLAG_NEEDSAVE   = 0x0008,         /* modifications need to be saved on disk */
+	CFLAG_HASENTITY  = 0x0010,         /* entity transfered in active list */
+	CFLAG_ETTLIGHT   = 0x0020,         /* update entity light for this chunk */
 	CFLAG_REBUILDSEC = 0x0040,         /* Sections list in NBT needs to be rebuilt */
 	CFLAG_REBUILDTE  = 0x0080,         /* mark TileEntity list as needing to be rebuilt (the NBT part) */
 	CFLAG_REBUILDENT = 0x0100,         /* mark Entity list for rebuilt when saved */
@@ -154,6 +153,7 @@ enum /* NBT update tag (type parameter of chunkMarkForUpdate) */
 #define FLAG_TEX_KEEPX                 (1 << 12)
 #define FLAG_DUAL_SIDE                 (1 << 13)
 #define FLAG_TRIANGLE                  (1 << 14)
+#define FLAG_DEPTHFOG                  (1 << 15)
 
 #ifdef CHUNK_IMPL                      /* private stuff below */
 

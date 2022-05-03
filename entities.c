@@ -676,6 +676,12 @@ int entityGetModelId(Entity entity)
 
 	if (strncmp(id, "minecraft:", 10) == 0)
 		id += 10;
+	if ('A' <= id[0] && id[0] <= 'Z')
+	{
+		/* very old map: entity names were capitalized */
+		id = STRDUPA(id);
+		id[0] += 'a' - 'A';
+	}
 
 	/* check for a registered type */
 	EntityType entype = entityFindType(id);

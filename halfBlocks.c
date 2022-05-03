@@ -9,6 +9,7 @@
 #include <malloc.h>
 #include "maps.h"
 #include "blocks.h"
+#include "meshBanks.h"
 
 #define BITS(bit1, bit2, bit3, bit4, bit5, bit6, bit7, bit8) \
 	(bit1 | (bit2<<1) | (bit3<<2) | (bit4<<3) | (bit5<<4) | (bit6<<5) | (bit7<<6) | (bit8<<7))
@@ -334,7 +335,7 @@ static Bool isVisible(DATA16 neighborBlockIds, ModelCache models, DATA8 pos, int
  * Main function to convert a detail block metadata into a triangle mesh:
  * contrary to chunk meshing, we try harder to make triangles as big as possible.
  */
-void halfBlockGenMesh(WriteBuffer write, DATA8 model, int size /* 2 or 8 */, DATA8 xyz, BlockState b, DATA16 neighborBlockIds, DATA8 skyBlock, int genSides)
+void meshHalfBlock(MeshWriter write, DATA8 model, int size /* 2 or 8 */, DATA8 xyz, BlockState b, DATA16 neighborBlockIds, DATA8 skyBlock, int genSides)
 {
 	static uint8_t xsides[] = { 2, 8};
 	static uint8_t ysides[] = {16,32};

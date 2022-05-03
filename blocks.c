@@ -15,6 +15,7 @@
 #include "zlib.h"
 #include "blocks.h"
 #include "items.h"
+#include "meshBanks.h"
 #include "NBT2.h"
 #include "nanovg.h"   /* need stbi_load() for items.png */
 #include "SIT.h"
@@ -963,6 +964,10 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 		if (value)
 			block.gravity = atoi(value);
 
+		value = jsonValue(keys, "depthFog");
+		if (value)
+			block.depthFog = atoi(value);
+
 		/* can this block be affected by piston */
 		value = jsonValue(keys, "pushable");
 		/* default value */
@@ -1121,7 +1126,7 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 			if (FindInList(
 				"id,name,type,inv,invstate,cat,special,tech,bbox,orient,keepModel,particle,rsupdate,density,"
 				"emitLight,opacSky,opacLight,tile,invmodel,rswire,placement,bboxPlayer,gravity,pushable,"
-				"bboxPlayerIgnoreBit,groundFriction,viscosity", *keys, 0) < 0)
+				"bboxPlayerIgnoreBit,groundFriction,viscosity,depthFog", *keys, 0) < 0)
 			{
 				SIT_Log(SIT_ERROR, "%s: unknown property \"%s\" on line %d\n", file, *keys, line);
 				return False;
@@ -2822,13 +2827,13 @@ int blockModelStairs(DATA16 buffer, int blockId)
 	uint16_t blockIds3x3[27];
 	uint8_t  pos[] = {0, 0, 0};
 
-	struct WriteBuffer_t write = {
+	struct MeshWriter_t write = {
 		.start = temp, .cur = temp, .end = EOT(temp)
 	};
 	BlockState b = blockGetById(blockId);
 	memset(blockIds3x3, 0, sizeof blockIds3x3);
 	blockIds3x3[13] = blockId;
-	halfBlockGenMesh(&write, halfBlockGetModel(b, 2, blockIds3x3), 2, pos, b, blockIds3x3, (DATA8) blockIds3x3, 63);
+	meshHalfBlock(&write, halfBlockGetModel(b, 2, blockIds3x3), 2, pos, b, blockIds3x3, (DATA8) blockIds3x3, 63);
 
 	return blockConvertVertex(temp, write.cur, buffer, 300);
 }

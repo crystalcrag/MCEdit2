@@ -1,3 +1,14 @@
+=========== Week 18 ===========
+Mon May 5:
+	* multi-threaded chunk loading mostly working.
+
+=========== Week 17 ===========
+Thu Apr 28:
+	* multi-thread chunk loading/meshing implemented in test environment, started porting to engine.
+
+Mon Apr 25:
+	* chunk allocation using GPUMem seems FUBAR. Only 2 years to notice :-/
+
 =========== Week 16 ===========
 Sun Apr 24:
 	* added ChunkLoad in MCEdit-utils.

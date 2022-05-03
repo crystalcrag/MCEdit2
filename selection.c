@@ -19,6 +19,7 @@
 #include "player.h"
 #include "render.h"
 #include "entities.h"
+#include "meshBanks.h"
 #include "keybindings.h"
 #include "globals.h"
 #include "SIT.h"
@@ -740,7 +741,7 @@ void selectionFreeBrush(Map brush)
 	Chunk chunk;
 	int   count;
 	if (! brush->sharedBanks)
-		renderFreeMesh(brush, False);
+		meshFreeAll(brush, False);
 	/* clear tile entites per chunk */
 	for (chunk = brush->chunks, count = ((brush->size[VX] + 15) >> 4) * ((brush->size[VZ] + 15) >> 4); count > 0; count --, chunk ++)
 		if (chunk->tileEntities) chunkFreeHash(chunk->tileEntities, NULL, NULL);
@@ -1042,13 +1043,13 @@ Map selectionClone(vec4 pos, int side, Bool genMesh)
 				{
 					for (y = 0; y < chunk->maxy; y ++)
 					{
-						chunkUpdate(chunk, chunkAir, brush->chunkOffsets, y);
+						chunkUpdate(chunk, chunkAir, brush->chunkOffsets, y, meshInitST);
 						/* transfer chunk to the GPU */
-						renderFinishMesh(brush, True);
+						meshFinishST(brush);
 					}
 				}
 			}
-			renderAllocCmdBuffer(brush);
+			meshAllocCmdBuffer(brush);
 		}
 	}
 	if (pos)
@@ -1139,12 +1140,12 @@ void selectionUseBrush(Map lib, Bool dup)
 						chunkAddTileEntity(iter.cd, iter.offset, NBT_Copy(tile));
 					}
 				}
-				chunkUpdate(dstChunk, chunkAir, brush->chunkOffsets, y);
-				renderFinishMesh(brush, True);
+				chunkUpdate(dstChunk, chunkAir, brush->chunkOffsets, y, meshInitST);
+				meshFinishST(brush);
 			}
 		}
 	}
-	renderAllocCmdBuffer(brush);
+	meshAllocCmdBuffer(brush);
 
 	/* cancel previous brush if any */
 	selectionCancel();
@@ -1292,13 +1293,13 @@ static void selectionBrushRotate(void)
 
 			for (dy = 0; dy < c->maxy; dy ++)
 			{
-				chunkUpdate(c, chunkAir, brush->chunkOffsets, dy);
+				chunkUpdate(c, chunkAir, brush->chunkOffsets, dy, meshInitST);
 				/* transfer chunk to the GPU */
-				renderFinishMesh(brush, True);
+				meshFinishST(brush);
 			}
 		}
 	}
-	renderAllocCmdBuffer(brush);
+	meshAllocCmdBuffer(brush);
 
 	/* swap sizes for X and Z axis */
 	vec   sz  = selection.cloneSize;
@@ -1415,13 +1416,13 @@ static void selectionBrushRoll(void)
 		{
 			for (y = 0; y < chunk->maxy; y ++)
 			{
-				chunkUpdate(chunk, chunkAir, roll->chunkOffsets, y);
+				chunkUpdate(chunk, chunkAir, roll->chunkOffsets, y, meshInitST);
 				/* transfer chunk to the GPU */
-				renderFinishMesh(roll, True);
+				meshFinishST(roll);
 			}
 		}
 	}
-	renderAllocCmdBuffer(roll);
+	meshAllocCmdBuffer(roll);
 
 	selectionSetRect(SEL_POINT_CLONE);
 	selectionSetClonePt(NULL, -1);
@@ -1495,13 +1496,13 @@ static void selectionBrushFlip(void)
 		{
 			for (y = 0, dy = c->maxy; y < dy; y ++)
 			{
-				chunkUpdate(c, chunkAir, brush->chunkOffsets, y);
+				chunkUpdate(c, chunkAir, brush->chunkOffsets, y, meshInitST);
 				/* transfer chunk to the GPU */
-				renderFinishMesh(brush, True);
+				meshFinishST(brush);
 			}
 		}
 	}
-	renderAllocCmdBuffer(brush);
+	meshAllocCmdBuffer(brush);
 }
 
 /* mirror brush on X or Z axis */
@@ -1585,13 +1586,13 @@ static void selectionBrushMirror(void)
 		{
 			for (y = 0, dy = c->maxy; y < dy; y ++)
 			{
-				chunkUpdate(c, chunkAir, brush->chunkOffsets, y);
+				chunkUpdate(c, chunkAir, brush->chunkOffsets, y, meshInitST);
 				/* transfer chunk to the GPU */
-				renderFinishMesh(brush, True);
+				meshFinishST(brush);
 			}
 		}
 	}
-	renderAllocCmdBuffer(brush);
+	meshAllocCmdBuffer(brush);
 }
 
 /*

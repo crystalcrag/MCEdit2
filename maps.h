@@ -44,7 +44,8 @@ struct Map_t
 	ListHead  genList;             /* chunks to process (Chunk) */
 	ListHead  players;             /* list of player on this map (Player) */
 	Chunk     genLast;
-	Mutex     genListLock;
+	Semaphore genCount;
+	Mutex     genLock;
 	DATAS16   chunkOffsets;        /* array 16*9: similar to chunkNeighbor[] */
 	char      path[MAX_PATHLEN];   /* path to level.dat */
 	ChunkData firstVisible;        /* list of visible chunks according to the MVP matrix */
@@ -58,9 +59,9 @@ struct Frustum_t                   /* frustum culling static tables (see doc/int
 {
 	uint32_t  neighbors[8];        /* 8 corners having 8 neighbors: bitfield encode 27 neighbors */
 	uint8_t   chunkOffsets[27];    /* bitfield of where each chunks are (S, E, N, W, T, B) */
+	uint16_t  lazyCount;
 	int8_t *  spiral;
 	int8_t *  lazy;
-	uint16_t  lazyCount;
 };
 
 struct MapExtraData_t              /* extra info returned from mapPointToObject() and mapGetBlockId() */

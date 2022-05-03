@@ -19,7 +19,6 @@
 Bool renderInitStatic(void);
 Map  renderInitWorld(STRPTR path, int renderDist);
 void renderCloseWorld(void);
-void renderFreeMesh(Map map, Bool clear);
 void renderWorld();
 void renderSetViewMat(vec4 pos, vec4 lookat, float * yawPitch);
 void renderToggleDebug(int what);
@@ -83,16 +82,6 @@ enum /* possible flags for paramter <what> of debugToggleInfo() (side view) and 
 	DEBUG_SHOWITEM  = 16           /* show entity preview and info */
 };
 
-/* chunk transfer to GPU */
-void renderInitBuffer(ChunkData cd, WriteBuffer, WriteBuffer);
-void renderFinishMesh(Map map, Bool updateVtxSize);
-void renderFreeArray(ChunkData);
-
-/* house keeping */
-void renderClearBank(Map map);
-void renderAddToBank(ChunkData);
-void renderAllocCmdBuffer(Map map);
-
 void renderItems(Item items, int count, float scale);
 
 #define UBO_BUFFER_INDEX           2 /* must match what's declared in uniformBlock.glsl */
@@ -106,10 +95,8 @@ void renderItems(Item items, int count, float scale);
 
 #ifdef RENDER_IMPL /* private */
 #include "maps.h"
-#include "models.h"
 
 
-typedef struct MeshBuffer_t *      MeshBuffer;
 typedef struct SelBlock_t          SelBlock_t;
 typedef struct MapExtraData_t      Extra_t;
 typedef struct Message_t           Message_t;
@@ -200,14 +187,6 @@ struct RenderWorld_t
 	Message_t  freeze;             /* warn that RENDER_FRAME_ADVANCE is active */
 };
 
-struct MeshBuffer_t                /* temporary buffer used to collect data from chunkUpdate() */
-{
-	ListNode   node;
-	ChunkData  chunk;
-	uint16_t   usage;
-	uint32_t   buffer[0];          /* 64Kb: not declared here because gdb doesn't like big table */
-};
-
 enum                               /* possible values for render.previewItem */
 {
 	PREVIEW_NOTHING = 0,
@@ -233,47 +212,5 @@ void debugPoint(vec4 pos);
 void debugLine(vec4 p1, vec4 p2);
 void debugRender(void);
 
-
-/*
- * store mesh of chunks into banks so that they can be rendered with very little OpenGL draw calls.
- */
-
-#define MEMITEM                    512
-
-/* private definition */
-typedef struct GPUBank_t *         GPUBank;
-typedef struct GPUMem_t *          GPUMem;
-
-struct GPUMem_t                    /* one allocation with GPUBank */
-{
-	union
-	{
-		ChunkData cd;              /* chunk at this location (if size>0) */
-		int       next;            /* next free block (if size<0) */
-	}	block;
-	int size;                      /* in bytes (<0 = free) */
-	int offset;                    /* avoid scanning the whole list */
-};
-
-struct GPUBank_t                   /* one chunk of memory */
-{
-	ListNode  node;
-	int       memAvail;            /* in bytes */
-	int       memUsed;             /* in bytes */
-	GPUMem    usedList;            /* array of memory range in use */
-	int       maxItems;            /* max items available in usedList */
-	int       nbItem;              /* number of items in usedList */
-	int       vaoTerrain;          /* VERTEX_ARRAY_OBJECT */
-	int       vboTerrain;          /* VERTEX_BUFFER_ARRAY */
-	int       vboLocation;         /* VERTEX_BUFFER_ARRAY (divisor 1) */
-	int       vboMDAI;             /* glMultiDrawArrayIndirect buffer for solid/quad voxels */
-	int       vtxSize;             /* chunk to render in this bank according to frustum */
-	int       vboLocSize;          /* current size allocated for vboLocation */
-	int       firstFree;           /* item id with first free index */
-	MDAICmd   cmdBuffer;           /* mapped GL buffer */
-	float *   locBuffer;
-	int       cmdTotal;
-	int       cmdAlpha;
-};
 #endif
 #endif

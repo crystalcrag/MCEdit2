@@ -19,6 +19,7 @@
 #include "particles.h"
 #include "redstone.h"
 #include "entities.h"
+#include "meshBanks.h"
 #include "tileticks.h"
 #include "undoredo.h"
 #include "NBT2.h"
@@ -1374,55 +1375,6 @@ void mapUpdateCheckGravity(struct BlockIter_t iter, int side)
 	}
 }
 
-/*
- * flood-fill for getting face connection, used by cave culling.
- * should belongs to chunks.c, but we need the resizable ring-buffer for this.
- */
-int mapUpdateGetCnxGraph(ChunkData cd, int start, DATA8 visited)
-{
-	extern uint16_t faceCnx[]; /* from chunks.c */
-
-	mapUpdateInitTrack(track);
-	trackAdd(start & 15, start >> 8, (start >> 4) & 15);
-	DATA8 blocks = cd->blockIds;
-	int init = slotsXZ[start&0xff] | slotsY[start>>8];
-	int cnx = faceCnx[init];
-
-	while (track.usage > 0)
-	{
-		int8_t XYZ[3];
-		uint8_t i, x, y, z;
-
-		memcpy(XYZ, track.coord + track.pos, 3);
-		track.pos += 3;
-		track.usage -= 3;
-		if (track.pos == track.max) track.pos = 0;
-
-		for (i = 0; i < 6; i ++)
-		{
-			x = XYZ[0] + relx[i];
-			y = XYZ[1] + rely[i];
-			z = XYZ[2] + relz[i];
-
-			/* clipping (not 100% portable, but who cares?) */
-			if (x >= 16 || y >= 16 || z >= 16) continue;
-			int   pos = CHUNK_BLOCK_POS(x, z, y);
-			Block b = blockIds + blocks[pos];
-			/* only fully opaque blocks will stop flood: we could be more precise, but not worth the time spent */
-			if (! blockIsFullySolid(b) &&
-				(visited[pos>>3] & mask8bit[pos&7]) == 0)
-			{
-				trackAdd(x, y, z);
-				visited[pos>>3] |= mask8bit[pos&7];
-				init |= slotsXZ[pos&0xff] | slotsY[pos>>8];
-				cnx |= faceCnx[init];
-			}
-		}
-	}
-
-	return cnx;
-}
-
 /* extended selection: select all similar blocks within a 32x32x32 area */
 void mapUpdateFloodFill(Map map, vec4 pos, uint8_t visited[4096], int8_t minMax[8])
 {
@@ -1559,8 +1511,8 @@ void mapUpdateMesh(Map map)
 		cd->cdFlags &= ~CDFLAG_ISINUPDATE;
 		cd->slot = 0;
 		cd->comingFrom = 0;
-		chunkUpdate(cd->chunk, chunkAir, map->chunkOffsets, cd->Y >> 4);
-		renderFinishMesh(map, True);
+		chunkUpdate(cd->chunk, chunkAir, map->chunkOffsets, cd->Y >> 4, meshInitST);
+		meshFinishST(map);
 		particlesChunkUpdate(map, cd);
 		if (cd->cdFlags == CDFLAG_PENDINGDEL)
 			/* link within chunk has already been removed in chunkUpdate() */

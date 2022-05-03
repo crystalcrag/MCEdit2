@@ -116,11 +116,11 @@ void main(void)
 	{
 		if (fogFactor < 1)
 		{
-			float factor = clamp(float(underWater >> 8) / 255.0, 0.5, 1);
+			float factor = clamp(float(underWater >> 8) / 255.0, 0.5, 1.0);
 			color = mix(vec4(0.094 * factor, 0.141 * factor, 0.5 * factor, 1), color, fogFactor);
 		}
 	}
-	else if (fogFactor < 1 && (renderAlpha == 2 || gl_FragCoord.z < texelFetch(alphaDepth, ivec2(int(gl_FragCoord.x), int(gl_FragCoord.y)), 0).r))
+	else if (fogFactor < 1 && (/*renderAlpha == 2 ||*/ gl_FragCoord.z < texelFetch(alphaDepth, ivec2(int(gl_FragCoord.x), int(gl_FragCoord.y)), 0).r+0.0001))
 	{
 		vec4 skyColor = (skyLight > 0 ? texelFetch(skyTex, ivec2(int(gl_FragCoord.x / SCR_WIDTH*255), int(gl_FragCoord.y / SCR_HEIGHT*255)), 0) : vec4(0.1,0.1,0.1,1));
 		skyColor.a = 1;

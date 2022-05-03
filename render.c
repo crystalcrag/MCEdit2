@@ -22,6 +22,7 @@
 #include "cartograph.h"
 #include "waypoints.h"
 #include "blockUpdate.h"
+#include "meshBanks.h"
 #include "tileticks.h"
 #include "keybindings.h"
 #include "undoredo.h"
@@ -31,8 +32,6 @@
 #include "globals.h"
 
 struct RenderWorld_t render;
-static ListHead      meshBanks;    /* MeshBuffer */
-static ListHead      alphaBanks;   /* MeshBuffer */
 
 /* fixed shading per face (somewhat copied from minecraft): S, E, N, W, T, B */
 static float shading[] = {
@@ -835,7 +834,7 @@ void mapUpdateDelAll(void);
 void renderCloseWorld(void)
 {
 	/* these first 2 calls will free 90% of memory usage */
-	renderFreeMesh(globals.level, False);
+	meshCloseAll(globals.level);
 	mapFreeAll(globals.level);
 	globals.level = NULL;
 
@@ -857,9 +856,6 @@ void renderCloseWorld(void)
 	SIT_ExtractDialog(render.blockInfo);
 	SIT_Nuke(SITV_NukeCtrl);
 
-	ListNode * node;
-	while ((node = ListRemHead(&meshBanks)))  free(node);
-	while ((node = ListRemHead(&alphaBanks))) free(node);
 	globals.modifCount = 0;
 	globals.selPoints = 0;
 	globals.inEditBox = 0;
@@ -1213,8 +1209,8 @@ static int compare(const void * item1, const void * item2)
 }
 
 /*
- * sort alpha transpareny vertices: while costly to do that on the CPU, this operation
- * is not done every frame
+ * sort alpha transpareny vertices: while costly to do that on the CPU, this operation should not be
+ * done every frame.
  */
 static inline void renderSortVertex(GPUBank bank, ChunkData cd)
 {
@@ -1341,57 +1337,53 @@ static void renderPrepVisibleChunks(Map map)
 			GPUMem mem   = bank->usedList + cd->glSlot;
 			int    size  = cd->glSize;
 			int    alpha = cd->glAlpha;
+			int    start = mem->offset / VERTEX_DATA_SIZE;
 
 			size -= alpha;
-			if (size > 0 || alpha > 0)
+			if (size > 0)
 			{
-				int start = mem->offset / VERTEX_DATA_SIZE;
+				cmd = bank->cmdBuffer + bank->cmdTotal;
+				cmd->count = size / VERTEX_DATA_SIZE;
+				cmd->instanceCount = 1;
+				cmd->first = start;
+				cmd->baseInstance = bank->cmdTotal; /* needed by glVertexAttribDivisor() */
+				render.debugTotalTri += cmd->count;
+				start += cmd->count;
 
-				if (size > 0)
+				loc = bank->locBuffer + bank->cmdTotal * (VERTEX_INSTANCE/4);
+				loc[0] = dx + chunk->X;
+				loc[1] = dy + cd->Y;
+				loc[2] = dz + chunk->Z;
+				loc[3] = cd->cdFlags >> 5;
+				bank->cmdTotal ++;
+			}
+			/* alpha chunks needs to be drawn from far to near */
+			if (alpha > 0)
+			{
+				bank->cmdAlpha ++;
+				cmd = bank->cmdBuffer + alphaIndex;
+				cmd->count = alpha / VERTEX_DATA_SIZE;
+				cmd->instanceCount = 1;
+				cmd->first = start;
+				cmd->baseInstance = alphaIndex; /* needed by glVertexAttribDivisor() */
+
+				loc = bank->locBuffer + alphaIndex * (VERTEX_INSTANCE/4);
+				loc[0] = dx + chunk->X;
+				loc[1] = dy + cd->Y;
+				loc[2] = dz + chunk->Z;
+				/* alpha don't have fog quads */
+				loc[3] = 0;
+				alphaIndex --;
+
+				/* check if we need to sort vertex: this is costly but should not be done very often */
+				if ((cd->cdFlags & CDFLAG_NOALPHASORT) == 0)
 				{
-					cmd = bank->cmdBuffer + bank->cmdTotal;
-					cmd->count = size / VERTEX_DATA_SIZE;
-					cmd->instanceCount = 1;
-					cmd->first = start;
-					cmd->baseInstance = bank->cmdTotal; /* needed by glVertexAttribDivisor() */
-					render.debugTotalTri += cmd->count;
-					start += cmd->count;
-
-					loc = bank->locBuffer + bank->cmdTotal * (VERTEX_INSTANCE/4);
-					loc[0] = dx + chunk->X;
-					loc[1] = dy + cd->Y;
-					loc[2] = dz + chunk->Z;
-					loc[3] = cd->cdFlags >> 5;
-					bank->cmdTotal ++;
-				}
-				/* alpha chunks needs to be drawn from far to near */
-				if (alpha > 0)
-				{
-					bank->cmdAlpha ++;
-					cmd = bank->cmdBuffer + alphaIndex;
-					cmd->count = alpha / VERTEX_DATA_SIZE;
-					cmd->instanceCount = 1;
-					cmd->first = start;
-					cmd->baseInstance = alphaIndex; /* needed by glVertexAttribDivisor() */
-
-					loc = bank->locBuffer + alphaIndex * (VERTEX_INSTANCE/4);
-					loc[0] = dx + chunk->X;
-					loc[1] = dy + cd->Y;
-					loc[2] = dz + chunk->Z;
-					/* alpha don't have fog quads */
-					loc[3] = 0;
-					alphaIndex --;
-
-					/* check if we need to sort vertex: this is costly but should not be done very often */
-					if ((cd->cdFlags & CDFLAG_NOALPHASORT) == 0)
+					if ((fabsf(render.yaw - cd->yaw) > M_PI_4f && fabsf(render.yaw - cd->yaw - 2*M_PIf) > M_PI_4f) ||
+						 fabsf(render.pitch - cd->pitch) > M_PI_4f ||
+						 (player == cd && renderHasPlayerMoved(map, cd)))
 					{
-						if ((fabsf(render.yaw - cd->yaw) > M_PI_4f && fabsf(render.yaw - cd->yaw - 2*M_PIf) > M_PI_4f) ||
-							 fabsf(render.pitch - cd->pitch) > M_PI_4f ||
-							 (player == cd && renderHasPlayerMoved(map, cd)))
-						{
-							//fprintf(stderr, "sorting chunk %d, %d, %d: %d quads\n", cd->chunk->X, cd->Y, cd->chunk->Z, cd->glAlpha / 28);
-							renderSortVertex(bank, cd);
-						}
+						//fprintf(stderr, "sorting chunk %d, %d, %d: %d quads\n", cd->chunk->X, cd->Y, cd->chunk->Z, cd->glAlpha / 28);
+						renderSortVertex(bank, cd);
 					}
 				}
 			}
@@ -1464,9 +1456,9 @@ void renderBlockInfo(SelBlock_t * sel)
 void renderWorld(void)
 {
 	/* generate mesh we didn't have time to do before */
-	if (globals.level->genList.lh_Head)
+	if (meshReady(globals.level))
 	{
-		mapGenerateMesh(globals.level);
+		meshGenerate(globals.level);
 		render.setFrustum = 1;
 	}
 
@@ -1719,7 +1711,7 @@ void renderWorld(void)
 	/* debug info */
 	if (render.debug & RENDER_DEBUG_CURCHUNK)
 	{
-		debugCoord(vg, render.camera, render.debugTotalTri/3);
+		debugCoord(vg, render.camera, render.debugTotalTri);
 		entityRenderBBox();
 		//quadTreeDebug(globals.nvgCtx);
 	}
@@ -1898,432 +1890,4 @@ void renderSetFOG(int fogEnabled)
 	shading[SHADING_FOGDIST] = fogEnabled ? globals.renderDist * 16 + 8 : 0;
 	glBindBuffer(GL_UNIFORM_BUFFER, globals.uboShader);
 	glBufferSubData(GL_UNIFORM_BUFFER, UBO_SHADING_OFFSET+SHADING_FOGDIST*4, sizeof (float), shading + SHADING_FOGDIST);
-}
-
-/*
- * this part is to manage vertex buffer on the GPU.
- *
- * store the mesh of one sub-chunk in mem before transfering to GPU
- */
-#define MAX_MESH_CHUNK         64*1024
-static MeshBuffer renderAllocMeshBuf(ListHead * head)
-{
-	MeshBuffer mesh = malloc(sizeof *mesh + MAX_MESH_CHUNK);
-	if (! mesh) return NULL;
-	memset(mesh, 0, sizeof *mesh);
-	ListAddTail(head, &mesh->node);
-	return mesh;
-}
-
-/* partial mesh data */
-static void renderFlush(WriteBuffer buffer)
-{
-	MeshBuffer list = buffer->mesh;
-
-	list->usage = (DATA8) buffer->cur - (DATA8) buffer->start;
-
-	if (buffer->alpha && buffer->isCOP)
-	{
-		/* check if all quads are coplanar */
-		DATA32 vertex, end;
-		for (vertex = buffer->start, end = buffer->cur; vertex < end; vertex += VERTEX_INT_SIZE)
-		{
-			/* get normal */
-			uint16_t coord, norm = (vertex[5] >> 9) & 7;
-			DATA16   cop = buffer->coplanar + norm;
-			switch (norm) {
-			case 0: case 2: coord = vertex[1]; break;
-			case 1: case 3: coord = vertex[0]; break;
-			default:        coord = vertex[0] >> 16;
-			}
-			if (cop[0] == 0)     { cop[0] = coord; } else
-			if (cop[0] != coord) { buffer->isCOP = 0; break; }
-		}
-	}
-
-	if (list->node.ln_Next)
-	{
-		NEXT(list);
-	}
-	else if (list->usage < MAX_MESH_CHUNK - VERTEX_DATA_SIZE)
-	{
-		/* still some room left, don't alloc a new block just yet */
-		return;
-	}
-	else list = renderAllocMeshBuf(buffer->alpha ? &alphaBanks : &meshBanks);
-
-	buffer->mesh = list;
-	buffer->cur = buffer->start = list->buffer;
-	buffer->end = list->buffer + (MAX_MESH_CHUNK / 4);
-}
-
-void renderInitBuffer(ChunkData cd, WriteBuffer opaque, WriteBuffer alpha)
-{
-	MeshBuffer mesh;
-	/* typical sub-chunk is usually below 64Kb of mesh data */
-	if (meshBanks.lh_Head == NULL)
-	{
-		mesh = renderAllocMeshBuf(&alphaBanks);
-		mesh = renderAllocMeshBuf(&meshBanks);
-	}
-	else mesh = HEAD(meshBanks);
-	mesh->chunk = cd;
-
-	for (mesh = HEAD(meshBanks);  mesh; mesh->usage = 0, NEXT(mesh));
-	for (mesh = HEAD(alphaBanks); mesh; mesh->usage = 0, NEXT(mesh));
-
-	mesh = HEAD(meshBanks);
-	mesh->chunk   = cd;
-	opaque->start = opaque->cur = mesh->buffer;
-	opaque->end   = mesh->buffer + (MAX_MESH_CHUNK / 4);
-	opaque->alpha = 0;
-	opaque->isCOP = 1;
-	opaque->mesh  = mesh;
-	opaque->flush = renderFlush;
-
-	mesh = HEAD(alphaBanks);
-	mesh->chunk  = cd;
-	alpha->start = alpha->cur = mesh->buffer;
-	alpha->end   = mesh->buffer + (MAX_MESH_CHUNK / 4);
-	alpha->alpha = 1;
-	alpha->isCOP = 1;
-	alpha->mesh  = mesh;
-	alpha->flush = renderFlush;
-	memset(alpha->coplanar, 0, sizeof alpha->coplanar);
-}
-
-/*
- * store a compressed mesh into the GPU mem and keep track of where it is, in ChunkData
- * this is basically a custom allocator:
- * - allocating in a bank where there is no free list is O(1)
- * - if there are free list, it is O(N), where N = number of free list.
- */
-static int renderStoreArrays(Map map, ChunkData cd, int size)
-{
-	GPUBank bank;
-	GPUMem  mem;
-
-	if (size == 0)
-	{
-		if (cd->glBank)
-		{
-			renderFreeArray(cd);
-			cd->glBank = NULL;
-		}
-		return -1;
-	}
-
-	for (bank = HEAD(map->gpuBanks); bank && bank->memAvail <= bank->memUsed + size /* bank is full */; NEXT(bank));
-
-	if (bank == NULL)
-	{
-		if (map->GPUMaxChunk < size)
-			map->GPUMaxChunk = (size * 2 + 16384) & ~16383;
-		bank = calloc(sizeof *bank, 1);
-		bank->memAvail = map->GPUMaxChunk;
-		bank->maxItems = MEMITEM;
-		bank->usedList = calloc(sizeof *mem, MEMITEM);
-		bank->firstFree = -1;
-
-		glGenVertexArrays(1, &bank->vaoTerrain);
-		/* will also init vboLocation and vboMDAI */
-		glGenBuffers(3, &bank->vboTerrain);
-
-		/* pre-configure terrain VAO: 5 bytes per vertex */
-		glBindVertexArray(bank->vaoTerrain);
-		glBindBuffer(GL_ARRAY_BUFFER, bank->vboTerrain);
-		/* this will allocate memory on the GPU: mem chunks of 20Mb */
-		glBufferData(GL_ARRAY_BUFFER, map->GPUMaxChunk, NULL, GL_STATIC_DRAW);
-		glVertexAttribIPointer(0, 4, GL_UNSIGNED_INT, VERTEX_DATA_SIZE, 0);
-		glEnableVertexAttribArray(0);
-		glVertexAttribIPointer(1, 3, GL_UNSIGNED_INT, VERTEX_DATA_SIZE, (void *) 16);
-		glEnableVertexAttribArray(1);
-		/* 16 bytes of per-instance data (3 float for loc and 1 uint for flags) */
-		glBindBuffer(GL_ARRAY_BUFFER, bank->vboLocation);
-		glVertexAttribPointer(2, 4, GL_FLOAT, 0, 0, 0);
-		glEnableVertexAttribArray(2);
-		glVertexAttribDivisor(2, 1);
-
-		checkOpenGLError("renderStoreArrays");
-		glBindBuffer(GL_ARRAY_BUFFER, 0);
-		ListAddTail(&map->gpuBanks, &bank->node);
-	}
-
-	/* check for free space in the bank */
-	int i, * prev;
-	for (i = bank->firstFree, prev = &bank->firstFree, mem = bank->usedList; i >= 0; )
-	{
-		GPUMem block = mem + i;
-		/* first place available */
-		if (size <= - block->size)
-		{
-			/* check if we can split memory block */
-			GPUMem next = block + 1;
-			if (i+1 < bank->nbItem && next->size == 0)
-			{
-				next->block.next = block->block.next;
-				next->size = block->size + size;
-				next->offset = block->offset + size;
-				*prev = next->size == 0 ? block->block.next : i+1;
-				block->size = size;
-			}
-			else /* use all memory from the block */
-			{
-				*prev = block->block.next;
-				block->size = -block->size;
-			}
-			mem = block;
-			goto found;
-		}
-		prev = &block->block.next;
-		i = *prev;
-	}
-	/* no free block big enough: alloc at the end */
-	if (bank->nbItem == bank->maxItems)
-	{
-		/* not enough items */
-		i = (bank->maxItems + MEMITEM) * sizeof *mem;
-		mem = realloc(mem, i);
-		if (mem)
-		{
-			memset(mem + bank->maxItems, 0, MEMITEM * sizeof *mem);
-			bank->maxItems += MEMITEM;
-			bank->usedList = mem;
-		}
-		else { fprintf(stderr, "alloc %d failed: aborting\n", i); return -1; }
-	}
-	i = bank->nbItem;
-	bank->nbItem ++;
-	mem += i;
-	mem->size = size;
-	mem->offset = bank->memUsed;
-	bank->memUsed += size;
-
-	found:
-	mem->block.cd = cd;
-	cd->glSlot = i;
-	cd->glSize = size;
-	cd->glBank = bank;
-
-//	fprintf(stderr, "mem used: %d (+%d)\n", bank->memUsed, size);
-
-	return mem->offset;
-}
-
-/* mark memory occupied by the vertex array as free */
-void renderFreeArray(ChunkData cd)
-{
-	int     pos  = cd->glSlot;
-	GPUBank bank = cd->glBank;
-	GPUMem  mem  = bank->usedList + pos;
-	int     item = bank->nbItem - 1;
-	GPUMem  todel;
-	int     nb;
-
-	cd->glBank = NULL;
-
-	if (pos > 0 && mem[-1].size <= 0)
-	{
-		/* merge with previous slot */
-		GPUMem prev = mem - 1;
-		uint8_t merge = 0;
-		while (prev->size == 0) prev --;
-		if (prev->size > 0)
-		{
-			prev[1].offset = prev->offset + prev->size;
-			prev ++;
-			merge = 1;
-		}
-		prev->size -= mem->size;
-		mem->size   = 0;
-		nb = pos + 1;
-		/* check if we need to merge with next slot too */
-		if (nb <= item && bank->usedList[nb].size < 0)
-		{
-			mem ++;
-			prev->size += mem->size;
-			prev->block.next = mem->block.next;
-			mem->size = 0;
-			while (nb <= item && mem->size == 0) mem ++, nb ++;
-		}
-		if (nb > item || merge)
-			/* need to collapse free list */
-			mem = prev, pos = prev - bank->usedList;
-		else
-			/* linked list already setup */
-			return;
-	}
-	else if (pos < item && mem[1].size < 0)
-	{
-		/* merge with next slot */
-		GPUMem next = mem + 1;
-		mem->size = next->size - mem->size;
-		mem->block.next = next->block.next;
-		next->size = 0;
-	}
-	else mem->size = -mem->size;
-
-	for (todel = mem + 1, nb = pos + 1; nb <= item && todel->size == 0; todel ++, nb ++);
-	if (nb <= item) nb = todel - mem, todel = NULL;
-	else nb = todel - mem, bank->memUsed += mem->size;
-
-	if (bank->firstFree >= 0)
-	{
-		GPUMem link;
-		int    next, i;
-		int *  prev;
-		for (i = bank->firstFree, prev = &bank->firstFree; i >= 0; i = next)
-		{
-			link = bank->usedList + i;
-			next = link->block.next;
-			if (i >= pos) break;
-			prev = &link->block.next;
-			if (next > pos || next < 0) break;
-		}
-		if (todel)
-			bank->nbItem -= nb, pos = -1;
-		else if (pos > (i = *prev) || i >= pos+nb)
-			mem->block.next = i;
-		*prev = pos;
-	}
-	else if (todel)
-	{
-		/* last item being deleted: discard all GPUMem block */
-		bank->nbItem -= nb;
-	}
-	else bank->firstFree = pos, mem->block.next = -1;
-}
-
-/* about to build command list for glMultiDrawArraysIndirect() */
-void renderClearBank(Map map)
-{
-	GPUBank bank;
-	for (bank = HEAD(map->gpuBanks); bank; bank->vtxSize = 0, bank->cmdTotal = 0, NEXT(bank));
-}
-
-/* number of sub-chunk we will have to render: will define the size of the command list */
-void renderAddToBank(ChunkData cd)
-{
-	GPUBank bank = cd->glBank;
-	if (cd->glSize - cd->glAlpha > 0) bank->vtxSize ++;
-	if (cd->glAlpha > 0) bank->vtxSize ++;
-}
-
-/* alloc command list buffer on the GPU */
-void renderAllocCmdBuffer(Map map)
-{
-	GPUBank bank;
-	for (bank = HEAD(map->gpuBanks); bank; NEXT(bank))
-	{
-		/* avoid reallocating this buffer: it is used quite a lot (changed every frame) */
-		int count = map->GPUMaxChunk > 1024*1024 ? (bank->vtxSize + 1023) & ~1023 :
-			/* else brush: no need to alloc more than what's in the brush */
-			bank->vtxSize;
-
-		if (bank->vboLocSize < count)
-		{
-			/* be sure we have enough mem on GPU for command buffer */
-			bank->vboLocSize = count;
-			glBindBuffer(GL_ARRAY_BUFFER, bank->vboLocation);
-			glBufferData(GL_ARRAY_BUFFER, count * VERTEX_INSTANCE, NULL, GL_STATIC_DRAW);
-			glBindBuffer(GL_DRAW_INDIRECT_BUFFER, bank->vboMDAI);
-			glBufferData(GL_DRAW_INDIRECT_BUFFER, count * sizeof (MDAICmd_t), NULL, GL_STATIC_DRAW);
-		}
-	}
-}
-
-/* transfer mesh to GPU */
-void renderFinishMesh(Map map, Bool updateVtxSize)
-{
-	MeshBuffer list;
-	int        size, alpha;
-	int        total, offset;
-	int        oldSize, oldAlpha;
-	ChunkData  cd;
-	GPUBank    bank;
-
-	for (list = HEAD(meshBanks), cd = list->chunk, size = 0; list; size += list->usage, NEXT(list));
-	for (list = HEAD(alphaBanks), alpha = 0; list; alpha += list->usage, NEXT(list));
-
-	oldSize = cd->glSize;
-	oldAlpha = cd->glAlpha;
-	total = size + alpha;
-	bank = cd->glBank;
-
-	if (bank)
-	{
-		GPUMem mem = bank->usedList + cd->glSlot;
-		if (total > mem->size)
-		{
-			/* not enough space: need to "free" previous mesh before */
-			renderFreeArray(cd);
-			offset = renderStoreArrays(map, cd, total);
-		}
-		else offset = mem->offset, cd->glSize = total; /* reuse mem segment */
-	}
-	else offset = renderStoreArrays(map, cd, total);
-
-//	fprintf(stderr, "allocating %d bytes at %d for chunk %d, %d / %d\n", total, offset, cd->chunk->X, cd->chunk->Z, cd->Y);
-
-	if (offset >= 0)
-	{
-		bank = cd->glBank;
-		cd->glAlpha = alpha;
-		/* and finally copy the data to the GPU */
-		glBindBuffer(GL_ARRAY_BUFFER, bank->vboTerrain);
-
-		/* first: opaque */
-		for (list = HEAD(meshBanks); list; offset += list->usage, NEXT(list))
-			glBufferSubData(GL_ARRAY_BUFFER, offset, list->usage, list->buffer);
-
-		/* then alpha: will be rendered in a separate pass */
-		for (list = HEAD(alphaBanks); list; offset += list->usage, NEXT(list))
-			glBufferSubData(GL_ARRAY_BUFFER, offset, list->usage, list->buffer);
-
-		glBindBuffer(GL_ARRAY_BUFFER, 0);
-	}
-	if (updateVtxSize)
-	{
-		if ((oldSize > 0) != (cd->glSize > 0))
-			bank->vtxSize += oldSize ? -1 : 1;
-		if ((oldAlpha > 0) != (cd->glAlpha > 0))
-			bank->vtxSize += oldAlpha ? -1 : 1;
-	}
-}
-
-/* free all VBO allocated for map */
-void renderFreeMesh(Map map, Bool clear)
-{
-	GPUBank bank, next;
-	for (bank = next = HEAD(map->gpuBanks); bank; bank = next)
-	{
-		NEXT(next);
-		glDeleteVertexArrays(1, &bank->vaoTerrain);
-		glDeleteBuffers(3, &bank->vboTerrain);
-		free(bank->usedList);
-		free(bank);
-	}
-	if (clear)
-	{
-		ChunkData cd;
-		for (cd = map->firstVisible; cd; cd->glBank = NULL, cd->glSize = 0, cd->glAlpha = 0, cd = cd->visible);
-		ListNew(&map->gpuBanks);
-	}
-}
-
-void renderDebugBank(Map map)
-{
-	GPUBank bank;
-
-	for (bank = HEAD(map->gpuBanks); bank; NEXT(bank))
-	{
-		GPUMem mem;
-		int    i, total;
-
-		for (mem = bank->usedList, i = bank->nbItem, total = 0; i > 0; i --, mem ++)
-			if (mem->size > 0) total += mem->size;
-
-		fprintf(stderr, "bank: mem = %d/%dK, items: %d/%d, vtxSize: %d\nmem: %d bytes bytes, avg = %d bytes\n", bank->memUsed>>10, bank->memAvail>>10,
-			bank->nbItem, bank->maxItems, bank->vtxSize, total, total / bank->nbItem);
-	}
 }

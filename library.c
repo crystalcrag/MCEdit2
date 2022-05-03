@@ -18,6 +18,7 @@
 #include "library.h"
 #include "MCEdit.h"
 #include "globals.h"
+#include "meshBanks.h"
 #include "NBT2.h"
 #include "extra.h"
 #include "FSView.c"
@@ -158,7 +159,7 @@ static void libraryGenThumb(LibBrush lib)
 
 	/* not needed anyore */
 	if (! brush->sharedBanks)
-		renderFreeMesh(brush, True);
+		meshFreeAll(brush, True);
 	else
 		ListNew(&brush->gpuBanks);
 }
@@ -388,13 +389,13 @@ static void libraryGenMesh(LibBrush lib)
 		{
 			for (y = 0; y < chunk->maxy; y ++)
 			{
-				chunkUpdate(chunk, chunkAir, brush->chunkOffsets, y);
+				chunkUpdate(chunk, chunkAir, brush->chunkOffsets, y, meshInitST);
 				/* transfer chunk to the GPU */
-				renderFinishMesh(brush, True);
+				meshFinishST(brush);
 			}
 		}
 	}
-	renderAllocCmdBuffer(brush);
+	meshAllocCmdBuffer(brush);
 }
 
 static Bool GetTilePosition(int * XYZ, DATA8 tile)

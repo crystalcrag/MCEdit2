@@ -41,7 +41,7 @@ static void HSV_to_RGB(DATA16 hsv, DATA8 rgb)
 	n = v * (100 - (hsv[1] * f >> 8)) * 255 / 10000;
 	v = v * 255 / 100;
 	switch (i) {
-	case 6:
+	default:
 	case 0: rgb[0] = v; rgb[1] = n; rgb[2] = m; break;
 	case 1: rgb[0] = n; rgb[1] = v; rgb[2] = m; break;
 	case 2: rgb[0] = m; rgb[1] = v; rgb[2] = n; break;

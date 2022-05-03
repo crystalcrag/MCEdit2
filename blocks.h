@@ -13,7 +13,6 @@ typedef struct Block_t *       Block;
 typedef struct BlockState_t *  BlockState;
 typedef struct VTXBBox_t *     VTXBBox;
 typedef struct ENTBBox_t *     ENTBBox;
-typedef struct WriteBuffer_t * WriteBuffer;
 typedef struct BlockOrient_t * BlockOrient;
 typedef uint32_t               ItemID_t;
 
@@ -48,7 +47,7 @@ int     blockInvCopyFromModel(DATA16 ret, DATA16 model, int faceId);
 int     blockAdjustInventory(int blockId);
 Bool    blockGetAlphaTex(DATA8 bitmap, int U, int V);
 
-void    halfBlockGenMesh(WriteBuffer, DATA8 model, int size /* 2 or 8 */, DATA8 xyz, BlockState, DATA16 blockIds, DATA8 skyBlock, int genSides);
+//void    halfBlockGenMesh(WriteBuffer, DATA8 model, int size /* 2 or 8 */, DATA8 xyz, BlockState, DATA16 blockIds, DATA8 skyBlock, int genSides);
 DATA8   halfBlockGetModel(BlockState, int size /* 1, 2 or 8 */, DATA16 blockIds);
 void    halfBlockGetBBox(DATA16 blockIds, VTXBBox array, int max);
 void    halfBlockInit(void);
@@ -84,7 +83,8 @@ struct Block_t                   /* per id information */
 	uint8_t  updateNearby;       /* 6 nearby blocks can be changed if block is placed/deleted (chunk meshing optimization if not) */
 	uint8_t  bboxIgnoreBit;      /* ignore some states for player bounding box (fence gate) */
 
-	uint8_t  containerSize;      /* number of items this container contains */
+	uint8_t  containerSize;      /* number of items this container can contains */
+	uint8_t  depthFog;           /* will contribute to alpha depth for cave/water/lava fog */
 
 	uint16_t emitInterval;       /* particles emitter interval in millisec */
 	uint16_t particleTTL;        /* minimum particle life time in millisec */
@@ -154,17 +154,6 @@ struct ENTBBox_t                 /* entity/player bbox: use float and are always
 	float    pt1[3];
 	float    pt2[3];
 	int      push;
-};
-
-struct WriteBuffer_t
-{
-	DATA32   start, end;
-	DATA32   cur;                /* running pointer */
-	APTR     mesh;               /* private datatype used by render.c */
-	uint16_t coplanar[6];        /* check if quads are all coplanar for a given axis (S, E, N, W, T, B: used by alpha) */
-	uint8_t  isCOP;              /* 1 if coplanar, 0 if no */
-	uint8_t  alpha;              /* 1 if buffer is for alpha quads */
-	void (*flush)(WriteBuffer);
 };
 
 enum                             /* values for Block.type */

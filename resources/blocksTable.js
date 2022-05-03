@@ -53,7 +53,7 @@
 	{id: 7, name: "Bedrock", type: SOLID, inv: CUBE, cat: BUILD, pushable: NO, density: 30},
 		{state: 0, name: "Bedrock",  tex: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]},
 
-	{id: 8, name: "Water", type: TRANS, special: LIQUID, tech: "flowing_water", opacLight: 3, opacSky: 3, viscosity: 0.075, pushable: DESTROY,
+	{id: 8, name: "Water", type: TRANS, special: LIQUID, tech: "flowing_water", opacLight: 3, opacSky: 3, depthFog: 1, viscosity: 0.075, pushable: DESTROY,
 		density: WATER, particle: DRIP},
 		{state: 0, name: "+flowing", tex: [13,12,13,12,13,12,13,12,13,12,13,12]},
 		{state: 1, name: "-"},
@@ -72,7 +72,7 @@
 		{state:14, name: "-"},
 		{state:15, name: "-"},
 
-	{id: 9, name: "Water", type: TRANS, special: LIQUID, opacLight: 3, opacSky: 3, cat: FILLBY, inv: CUBE, invState: 0, viscosity: 0.075,
+	{id: 9, name: "Water", type: TRANS, special: LIQUID, opacLight: 3, opacSky: 3, cat: FILLBY, inv: CUBE, depthFog: 1, invState: 0, viscosity: 0.075,
 		pushable: DESTROY, density: WATER, particle: DRIP},
 		{state: 0, name: "+still", tex: [13,12,13,12,13,12,13,12,13,12,13,12]},
 		{state: 1, name: "-"},
@@ -1075,7 +1075,7 @@
 				41088,41072,32864,32880,41088,41072,32864,32864,41072,41088,32880,
 		]},
 
-	{id: 79, name: "Ice", type: TRANS, inv: CUBE, cat: BUILD, opacLight: 3, opacSky: 3, groundFriction: 0.5, density: ICE},
+	{id: 79, name: "Ice", type: TRANS, inv: CUBE, cat: BUILD, opacLight: 3, opacSky: 3, depthFog: 1, groundFriction: 0.5, density: ICE},
 		{state: 0, tex: [19,16,19,16,19,16,19,16,19,16,19,16]},
 
 	{id: 80, name: "Snow block", type: SOLID, inv: CUBE, cat: DECO, tech: "snow", density: ICE},
