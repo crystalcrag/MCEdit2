@@ -139,7 +139,6 @@ struct RenderWorld_t
 	GLuint     shaderBlocks;       /* compiled shaders */
 	GLuint     shaderItems;
 	GLuint     uniformTime;
-	GLuint     uniformAlpha;
 	GLuint     uniformOverlay;
 	GLuint     vaoInventory;       /* vao to draw inventory object */
 	GLuint     vaoBBox;
@@ -156,8 +155,6 @@ struct RenderWorld_t
 	GLuint     vboPreviewLoc;
 	GLuint     vboInventory;       /* block model for rendering inventory */
 	GLuint     fboSky;
-	GLuint     fboAlphaDepth;
-	GLuint     texAlphaDepth;
 	int        compass;            /* image id from nanovg */
 	float      compassOffset;      /* pixel offset from right border to start drawing compass */
 	float      yaw, pitch;

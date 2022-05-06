@@ -12,25 +12,22 @@ in  vec2  ocspos;
 in  float skyLight;
 in  float blockLight;
 flat in float fogFactor;
-flat in vec2  baseTex;
 flat in uint  rswire;
 flat in uint  ocsmap;
 flat in uint  normal;
+flat in uint  waterFog;
 
 layout (binding=0) uniform sampler2D blockTex; // Main texture for blocks
 
 // current sky texture as rendered by skydone.fsh
 layout (binding=6) uniform sampler2D skyTex;
-layout (binding=7) uniform sampler2D alphaDepth;
 
 uniform vec3 biomeColor;
 uniform uint underWater;
-uniform uint renderAlpha;      // cannot use alphaDepth
+uniform uint timeMS;
 
 void main(void)
 {
-	if (renderAlpha == 0)
-		return;
 	color = texture(blockTex, tc);
 	// prevent writing to the depth buffer: easy way to handle opacity for transparent block
 	if (color.a < 0.004)
@@ -112,7 +109,7 @@ void main(void)
 	color *= vec4(sky, sky, sky, 1) + vec4(1.5 * block, 1.2 * block, 1 * block, 0);
 
 	// compute fog contribution
-	if (underWater > 0)
+	if (underWater > 0 && waterFog > 0)
 	{
 		if (fogFactor < 1)
 		{
@@ -120,9 +117,10 @@ void main(void)
 			color = mix(vec4(0.094 * factor, 0.141 * factor, 0.5 * factor, 1), color, fogFactor);
 		}
 	}
-	else if (fogFactor < 1 && (/*renderAlpha == 2 ||*/ gl_FragCoord.z < texelFetch(alphaDepth, ivec2(int(gl_FragCoord.x), int(gl_FragCoord.y)), 0).r+0.0001))
+	else if (fogFactor < 1) // && gl_FragCoord.z < texelFetch(alphaDepth, ivec2(int(gl_FragCoord.x), int(gl_FragCoord.y)), 0).r+0.00001)
 	{
-		vec4 skyColor = (skyLight > 0 ? texelFetch(skyTex, ivec2(int(gl_FragCoord.x / SCR_WIDTH*255), int(gl_FragCoord.y / SCR_HEIGHT*255)), 0) : vec4(0.1,0.1,0.1,1));
+//		vec4 skyColor = (skyLight > 0 ? texelFetch(skyTex, ivec2(int(gl_FragCoord.x / SCR_WIDTH*255), int(gl_FragCoord.y / SCR_HEIGHT*255)), 0) : vec4(0.1,0.1,0.1,1));
+		vec4 skyColor = texelFetch(skyTex, ivec2(int(gl_FragCoord.x / SCR_WIDTH*255), int(gl_FragCoord.y / SCR_HEIGHT*255)), 0);
 		skyColor.a = 1;
 		color = mix(skyColor, color, fogFactor);
 	}

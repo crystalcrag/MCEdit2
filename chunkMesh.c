@@ -1020,7 +1020,6 @@ static void chunkGenCube(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 	int      side, sides, occlusion, slab, rotate;
 	int      i, j, k, n;
 	uint8_t  x, y, z, data, hasLights, liquid;
-	uint32_t extra;
 
 	x = (pos & 15);
 	z = (pos >> 4) & 15;
@@ -1028,7 +1027,6 @@ static void chunkGenCube(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 	hasLights = (neighbors[6]->cdFlags & CDFLAG_NOLIGHT) == 0;
 	sides = xsides[x] | ysides[y] | zsides[z];
 	liquid = 0;
-	extra = blockIds[b->id>>4].depthFog ? FLAG_DEPTHFOG : 0;
 
 	/* outer loop: iterate over each faces (6) */
 	for (i = 0, side = 1, occlusion = -1, tex = &b->nzU, rotate = b->rotate, j = (rotate&3) * 8, slab = 0; i < DIM(cubeIndices);
@@ -1162,12 +1160,17 @@ static void chunkGenCube(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 			coord  = cubeVertex + cubeIndices[i+2];
 			out[3] = RELDX(coord[0]+x) | (RELDY(coord[1]+y) << 14);
 			out[4] = RELDZ(coord[2]+z) | (texU << 14) | (texV << 23);
-			out[5] = (((texCoord[j+4] + tex[0]) * 16 + 128 - texU) << 16) | extra |
+			out[5] = (((texCoord[j+4] + tex[0]) * 16 + 128 - texU) << 16) |
 			         (((texCoord[j+5] + tex[1]) * 16 + 128 - texV) << 24) | (i << 7);
 			out[6] = 0;
 
 			/* flip tex */
 			if (texCoord[j] == texCoord[j + 6]) out[5] |= FLAG_TEX_KEEPX;
+
+			static uint8_t oppSideBlock[] = {16, 14, 10, 12, 22, 4};
+			if (blockIds[blockIds3x3[oppSideBlock[i>>2]] >> 4].special == BLOCK_LIQUID)
+				/* use water fog instead of atmospheric one */
+				out[5] |= FLAG_UNDERWATER;
 
 			/* sky/block light values: 2*4bits per vertex = 4 bytes needed, ambient occlusion: 2bits per vertex = 1 byte needed */
 			for (k = 0; k < 4; k ++)
@@ -1210,13 +1213,14 @@ static void chunkGenCube(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 				case SIDE_NORTH: edges = ((liquid&1)<<1) | ((liquid&2)>>1); break;
 				case SIDE_EAST:  edges = (liquid&1) | ((liquid & 4) >> 1); break;
 				case SIDE_WEST:  edges = (liquid&2) | ((liquid & 8) >> 3); break;
-				case SIDE_TOP:   edges = liquid; out[5] |= FLAG_DUAL_SIDE;
+				case SIDE_TOP:   edges = liquid;
 				}
 				if (edges)
 				{
-					out[5] |= FLAG_TRIANGLE;
+					out[5] |= FLAG_TRIANGLE | FLAG_UNDERWATER | FLAG_DUAL_SIDE;
 					out[2] |= edges << 28;
 				}
+				else out[5] |= FLAG_UNDERWATER | FLAG_DUAL_SIDE;
 			}
 		}
 		buffer->cur = out + VERTEX_INT_SIZE;
@@ -1285,7 +1289,6 @@ static void chunkGenFOG(ChunkData cur, MeshWriter buffer, DATA16 holesSENW)
 	uint8_t side;
 	uint8_t XYZ[4], w, h;
 
-	/* block type is air */
 	for (side = 0; side < 4; side ++, holesSENW += 33)
 	{
 		uint16_t holes, avoid;
@@ -1371,14 +1374,14 @@ static void chunkGenFOG(ChunkData cur, MeshWriter buffer, DATA16 holesSENW)
 				}
 			}
 			for (; i < 16 && p[0] == 0; i ++, p ++);
-			XYZ[VY] = i;
+			XYZ[VY] = h = i;
 			if (i >= 16) break;
 			holes = p[0];
 			avoid = p[16];
 		}
 		if (holes)
 		{
-			h = 16;
+			h = 15;
 			goto flush_holes;
 		}
 	}

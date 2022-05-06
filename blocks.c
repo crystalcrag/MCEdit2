@@ -964,10 +964,6 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 		if (value)
 			block.gravity = atoi(value);
 
-		value = jsonValue(keys, "depthFog");
-		if (value)
-			block.depthFog = atoi(value);
-
 		/* can this block be affected by piston */
 		value = jsonValue(keys, "pushable");
 		/* default value */
@@ -1126,7 +1122,7 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 			if (FindInList(
 				"id,name,type,inv,invstate,cat,special,tech,bbox,orient,keepModel,particle,rsupdate,density,"
 				"emitLight,opacSky,opacLight,tile,invmodel,rswire,placement,bboxPlayer,gravity,pushable,"
-				"bboxPlayerIgnoreBit,groundFriction,viscosity,depthFog", *keys, 0) < 0)
+				"bboxPlayerIgnoreBit,groundFriction,viscosity", *keys, 0) < 0)
 			{
 				SIT_Log(SIT_ERROR, "%s: unknown property \"%s\" on line %d\n", file, *keys, line);
 				return False;

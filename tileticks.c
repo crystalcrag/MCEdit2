@@ -247,7 +247,7 @@ static void updateTileTick(Map map, BlockIter iter)
 /* read tile ticks from NBT records */
 void updateParseNBT(Chunk c)
 {
-	int offset = NBT_FindNode(&c->nbt, 0, "TileTicks");
+	int offset = NBT_FindNode(&c->nbt, 0, "/Level/TileTicks");
 
 	if (NBT_Tag(&c->nbt, offset) != TAG_List_Compound)
 		return;

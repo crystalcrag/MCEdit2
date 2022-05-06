@@ -1,5 +1,11 @@
 =========== Week 18 ===========
-Mon May 5:
+Thu May 5:
+	* underwater fog redone again: somewhat ok now.
+
+Wed May 4:
+	* underwater rendering refined: removed depth test (was buggy anyway).
+
+Mon May 2:
 	* multi-threaded chunk loading mostly working.
 
 =========== Week 17 ===========

@@ -44,6 +44,8 @@ void debugBlockVertex(vec4 pos, int side)
 		(int) pos[VX], (int) pos[VY], (int) pos[VZ],
 		iter.offset, xyz[0], xyz[1], xyz[2], iter.ref->X, iter.cd->Y, iter.ref->Z
 	);
+	fprintf(stderr, "quads: %d + %d = %d\n", (iter.cd->glSize - iter.cd->glAlpha) / VERTEX_DATA_SIZE, iter.cd->glAlpha / VERTEX_DATA_SIZE,
+		iter.cd->glSize / VERTEX_DATA_SIZE);
 	fprintf(stderr, "intersection at %g,%g,%g, mouse at %d,%d\n", (double) render.selection.extra.inter[0],
 		(double) render.selection.extra.inter[1], (double) render.selection.extra.inter[2], render.mouseX, render.mouseY);
 	i = redstoneIsPowered(iter, RSSAMEBLOCK, POW_NONE);
@@ -150,7 +152,7 @@ static struct
 /* show limits of the chunk where the player is currently */
 void debugInit(void)
 {
-	/* debug chunk data: will use terrain.vsh */
+	/* debug chunk data: will use items.vsh */
 	glGenBuffers(3, &debugChunk.vbo);
 	glGenVertexArrays(1, &debugChunk.vao);
 	glBindVertexArray(debugChunk.vao);
@@ -194,7 +196,7 @@ void debugInit(void)
 			p[4] = (6<<3) | (0xff << 8);
 			p += INT_PER_VERTEX;
 			memcpy(p, p - INT_PER_VERTEX, BYTES_PER_VERTEX);
-			p[1] = VERTEX(16);
+			p[1] = VERTEX(16) + 200;
 			p += INT_PER_VERTEX;
 		}
 		/* 16 horizontal lines */
@@ -359,7 +361,7 @@ void debugCoord(APTR vg, vec4 camera, int total)
 {
 	#if 1
 	TEXT message[256];
-	int  len = sprintf(message, "XYZ: %.2f, %.2f, %.2f (feet)\n", (double) camera[0], (double)(camera[1] - PLAYER_HEIGHT), (double) camera[2]);
+	int  len = sprintf(message, "XYZ: %.2f, %.2f (eye), %.2f (feet: %.2f)\n", PRINT_COORD(camera), (double) (camera[VY] - PLAYER_HEIGHT));
 	int  vis;
 
 	GPUBank bank;

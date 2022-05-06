@@ -153,7 +153,7 @@ enum /* NBT update tag (type parameter of chunkMarkForUpdate) */
 #define FLAG_TEX_KEEPX                 (1 << 12)
 #define FLAG_DUAL_SIDE                 (1 << 13)
 #define FLAG_TRIANGLE                  (1 << 14)
-#define FLAG_DEPTHFOG                  (1 << 15)
+#define FLAG_UNDERWATER                (1 << 15)
 
 #ifdef CHUNK_IMPL                      /* private stuff below */
 

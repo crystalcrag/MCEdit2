@@ -69,6 +69,7 @@ static void meshGenAsync(void * arg)
 			int   dir  = directions[i];
 			Chunk load = list + map->chunkOffsets[list->neighbor + dir];
 
+			if (load->cflags & CFLAG_GOTDATA) continue;
 			MutexEnter(map->genLock);
 			if (load->processing)
 			{
@@ -109,8 +110,15 @@ static void meshGenAsync(void * arg)
 		{
 			list->cdIndex = thread - threads;
 			list->save = map->chunks;
+			ChunkData cd = list->layer[i];
 			chunkUpdate(list, chunkAir, map->chunkOffsets, i, meshInitMT);
 			list->cdIndex = 0;
+			if (cd->cdFlags == CDFLAG_PENDINGDEL)
+			{
+				/* empty ChunkData: link within chunk has already been removed in chunkUpdate() */
+				free(cd);
+				continue;
+			}
 			if (! list->save && threadStop)
 				goto bail;
 		}
@@ -311,7 +319,7 @@ Bool meshInitST(ChunkData cd, APTR opaque, APTR alpha)
 /*
  * multi-threaded context mem allocation
  */
-static DATA32 meshAllocMT(struct Thread_t * thread, int first)
+static DATA32 meshAllocMT(struct Thread_t * thread, int first, int start)
 {
 	thread->state = THREAD_WAIT_BUFFER;
 	SemWait(staging.capa);
@@ -329,6 +337,9 @@ static DATA32 meshAllocMT(struct Thread_t * thread, int first)
 	staging.total ++;
 	if (first)
 		staging.start[staging.chunkData++] = index;
+
+	mem[0] = start; /* chunk position */
+	mem[1] = 0;     /* next link / memory used */
 
 	MutexLeave(staging.alloc);
 
@@ -357,7 +368,7 @@ static void meshFlushMT(MeshWriter buffer)
 		return;
 	}
 
-	DATA32 mem = meshAllocMT(&threads[cd->chunk->cdIndex], False);
+	DATA32 mem = meshAllocMT(&threads[cd->chunk->cdIndex], False, 0);
 	if (mem == NULL)
 	{
 		/* cancel mesh generation */
@@ -365,7 +376,6 @@ static void meshFlushMT(MeshWriter buffer)
 		return;
 	}
 
-	mem[0] = mem[1] = 0;
 	buffer->start[-1] = (size << 10) | (((mem - staging.mem) >> 10) + 1);
 	buffer->cur = buffer->start = mem + 2;
 	buffer->end = mem + 1024;
@@ -376,11 +386,12 @@ Bool meshInitMT(ChunkData cd, APTR opaque, APTR alpha)
 {
 	/* typical sub-chunk is usually below 64Kb of mesh data */
 	Chunk  chunk    = cd->chunk;
-	DATA32 memSOLID = meshAllocMT(threads + chunk->cdIndex, True);
+	int    start    = (chunk - chunk->save) | (cd->Y << 12);
+	DATA32 memSOLID = meshAllocMT(threads + chunk->cdIndex, True, start);
 
 	if (memSOLID)
 	{
-		DATA32 memALPHA = meshAllocMT(threads + chunk->cdIndex, False);
+		DATA32 memALPHA = meshAllocMT(threads + chunk->cdIndex, False, start);
 
 		if (memALPHA)
 		{
@@ -391,8 +402,6 @@ Bool meshInitMT(ChunkData cd, APTR opaque, APTR alpha)
 			writer->isCOP = 1;
 			writer->mesh  = cd;
 			writer->flush = meshFlushMT;
-			memSOLID[0]   = memALPHA[0] = (chunk - chunk->save) | (cd->Y << 12);
-			memSOLID[1]   = memALPHA[1] = 0;
 
 			writer = alpha;
 			writer->start = writer->cur = memALPHA + 2;
@@ -476,10 +485,11 @@ static int meshAllocGPU(Map map, ChunkData cd, int size)
 		if (size <= free->size)
 		{
 			/* no need to keep track of such a small quantity (typical chunk mesh is around 10Kb) */
-			if (size + 2*4096 >= free->size)
-				size = free->size;
+			int used = size;
+			if (used + 2*4096 >= free->size)
+				used = free->size;
 			off = free->offset;
-			if (free->size == size)
+			if (free->size == used)
 			{
 				/* freed slot entirely reused */
 				bank->freeItem --;
@@ -537,6 +547,8 @@ void meshFreeGPU(ChunkData cd)
 	int     end   = start + size;
 
 	cd->glBank = NULL;
+	cd->glAlpha = 0;
+	cd->glSize = 0;
 //	fprintf(stderr, "freeing chunk %d at %d\n", cd->chunk->color, cd->glSlot);
 
 	if (mem < eof)
@@ -690,7 +702,7 @@ void meshFinishST(Map map)
 	}
 	else offset = meshAllocGPU(map, cd, total);
 
-//	fprintf(stderr, "allocating %d bytes at %d for chunk %d, %d / %d\n", total, offset, cd->chunk->X, cd->chunk->Z, cd->Y);
+//	fprintf(stderr, "allocating %d bytes at %d for chunk %d, %d / %d\n", cd->glSize, offset, cd->chunk->X, cd->chunk->Z, cd->Y);
 
 	if (offset >= 0)
 	{
@@ -876,7 +888,20 @@ void meshGenerateMT(Map map)
 
 	DATA8 index, eof;
 	int   freed;
-	fprintf(stderr, "staging chunks = %d, mem = %d\n", staging.chunkData, staging.total);
+
+	#if 0
+	fprintf(stderr, "parsing staging area: %d\n", staging.chunkData);
+	for (index = staging.start, eof = index + staging.chunkData; index < eof; index ++)
+	{
+		DATA32 src = staging.mem + index[0] * 1024;
+		Chunk chunk = map->chunks + (src[0] & 0xffff);
+		ChunkData cd = chunk->layer[src[0] >> 16];
+
+		fprintf(stderr, "%d: %d, %d, %d: %s (%p)\n", index[0], chunk->X, chunk->Z, cd->Y,
+			chunk->cflags & CFLAG_STAGING ? "ready" : "not ready", cd->glBank);
+	}
+	#endif
+
 	for (index = staging.start, freed = 0, eof = index + staging.chunkData; index < eof; )
 	{
 		/* is the chunk ready ? */
@@ -884,7 +909,7 @@ void meshGenerateMT(Map map)
 		Chunk chunk = map->chunks + (src[0] & 0xffff);
 		ChunkData cd = chunk->layer[src[0] >> 16];
 
-		if (chunk->cflags & CFLAG_STAGING)
+		if (cd && (chunk->cflags & CFLAG_STAGING))
 		{
 			/* yes, move all chunks into GPU and free staging area */
 			GPUBank bank;
@@ -905,8 +930,7 @@ void meshGenerateMT(Map map)
 				/* only air blocks (usually needed for block light propagation) */
 				slot = index[0]; staging.usage[slot >> 5] ^= 1 << (slot & 31);
 				slot = alpha-1;  staging.usage[slot >> 5] ^= 1 << (slot & 31);
-				staging.total -= 2;
-				SemAdd(staging.capa, 2);
+				freed += 2;
 			}
 			else
 			{
@@ -940,6 +964,7 @@ void meshGenerateMT(Map map)
 					count = src[1] >> 10;
 					slot  = src[1] & 0x3ff;
 
+					/* copy mesh data to GPU */
 					memcpy(dst, src + 2, count);
 					dst += count;
 					if (slot == 0)
@@ -961,9 +986,9 @@ void meshGenerateMT(Map map)
 					updateParseNBT(chunk);
 				}
 			}
-			memmove(index, index + 1, eof - index - 1);
-			staging.chunkData --;
 			eof --;
+			memmove(index, index + 1, eof - index);
+			staging.chunkData --;
 			chunk->cflags |= CFLAG_HASMESH;
 
 			/* note: no need to modify "bank->vtxSize" like meshFinishST(), this function is only used for initial chunk loading */

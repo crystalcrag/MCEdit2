@@ -493,7 +493,7 @@ void mapShowChunks(Map map)
 	{
 		uint8_t flags = c->cflags;
 		uint8_t bank = 0;
-		//uint8_t holes = 0;
+		int     slot = -1;
 		if (flags & CFLAG_HASMESH)
 		{
 			int j;
@@ -502,20 +502,25 @@ void mapShowChunks(Map map)
 				ChunkData cd = c->layer[j];
 				if (cd && cd->glBank)
 				{
+					slot = cd->glSlot;
 					bank = 1;
-					//if (cd->frame == map->frame)
-					//	holes = (cd->cdFlags >> 5) & 15;
 				}
 			}
 		}
-		fputc(
+		if (i % map->mapArea == 0)
+			fprintf(stderr, "%2d:", i / map->mapArea);
+		bank =
 			c == map->center ? '#' :
-			c->chunkFrame != map->frame ? ' ' :
-			(flags & (CFLAG_HASMESH|CFLAG_GOTDATA)) == (CFLAG_HASMESH|CFLAG_GOTDATA) ? (bank ? 'F' : '!') :
-			flags & CFLAG_GOTDATA ? 'L' : ' ',
-			stderr
-		);
-		//fputc(" 123456789abcdef"[holes], stderr);
+			(flags & (CFLAG_HASMESH|CFLAG_GOTDATA)) == (CFLAG_HASMESH|CFLAG_GOTDATA) ? (bank ? 'M' : '!') :
+			flags & CFLAG_GOTDATA ? 'L' : ' ';
+		if (c->chunkFrame != map->frame && 'A' <= bank && bank <= 'Z')
+			bank += 'a'-'A';
+
+		fputc(bank, stderr);
+		if (slot >= 0)
+			fprintf(stderr, ":%3d", slot);
+		else
+			fprintf(stderr, "____");
 
 		if (i % map->mapArea == map->mapArea-1) fputs("|\n", stderr);
 	}
@@ -536,15 +541,17 @@ static int mapRedoGenList(Map map)
 	for (spiral = frustum.spiral; n > 0; n --, spiral += 2)
 	{
 		Chunk c = &map->chunks[(map->mapX + spiral[0] + area) % area + (map->mapZ + spiral[1] + area) % area * area];
-		int X = XC + (spiral[0] << 4);
-		int Z = ZC + (spiral[1] << 4);
-		if (c->X != X || c->Z != Z)
+		if (c->cflags & CFLAG_GOTDATA)
 		{
-			chunkFree(c, False);
+			int X = XC + (spiral[0] << 4);
+			int Z = ZC + (spiral[1] << 4);
+			if (c->X != X || c->Z != Z)
+			{
+				chunkFree(c, True);
+			}
 		}
+		else c->entityList = ENTITY_END;
 
-		if ((c->cflags & CFLAG_GOTDATA) == 0)
-			c->entityList = ENTITY_END;
 		if ((c->cflags & CFLAG_HASMESH) == 0)
 		{
 			c->X = XC + (spiral[0] << 4);
@@ -617,6 +624,7 @@ Bool mapMoveCenter(Map map, vec4 old, vec4 pos)
 		map->center = map->chunks + (map->mapX + map->mapZ * area);
 		mapMarkLazyChunk(map);
 		meshAddToProcess(map, count);
+		//mapShowChunks(map);
 
 		//fprintf(stderr, "new map center: %d, %d (%d,%d)\n", map->mapX, map->mapZ, (int) pos[VX], (int) pos[VZ]);
 		return True;

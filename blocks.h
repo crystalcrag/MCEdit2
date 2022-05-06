@@ -84,7 +84,6 @@ struct Block_t                   /* per id information */
 	uint8_t  bboxIgnoreBit;      /* ignore some states for player bounding box (fence gate) */
 
 	uint8_t  containerSize;      /* number of items this container can contains */
-	uint8_t  depthFog;           /* will contribute to alpha depth for cave/water/lava fog */
 
 	uint16_t emitInterval;       /* particles emitter interval in millisec */
 	uint16_t particleTTL;        /* minimum particle life time in millisec */
@@ -397,6 +396,8 @@ enum                       /* special values for Block_t.rswire */
 #define PAINTINGS_TILE_H   9
 #define PAINTINGS_TILE_X   16
 #define PAINTINGS_TILE_Y   (32+14)
+#define UNDERWATER_TILE_X  14
+#define UNDERWATER_TILE_Y  14
 
 /*
  * mostly private stuff below that point

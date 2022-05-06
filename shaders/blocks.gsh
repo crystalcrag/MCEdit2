@@ -26,13 +26,12 @@ out vec2  ocspos;
 out float skyLight;
 out float blockLight;
 flat out float fogFactor;
-flat out vec2  baseTex;
 flat out uint  rswire;
 flat out uint  ocsmap;
 flat out uint  normal;
+flat out uint  waterFog;
 
 uniform uint underWater;    // player is underwater: denser fog
-uniform uint renderAlpha;   // generating alpha depth
 
 void main(void)
 {
@@ -40,6 +39,7 @@ void main(void)
 	bool keepX = (normFlags[0] & (1 << 3)) > 0;
 
 	normal = normFlags[0] & 7;
+	waterFog = normFlags[0] & (1 << 6);
 
 	// shading per face (OCS is done in fragment shader)
 	float Usz = (texCoord[0].y - texCoord[0].x) * 32;
@@ -50,13 +50,9 @@ void main(void)
 	{
 		// cave fog quad: only generate them at map border
 		if ((chunkInfo[0] & (1 << normal)) == 0)
-			// discard primitive
 			return;
-	}
-	if (renderAlpha == 0 && (normFlags[0] & (1 << 6)) == 0)
-	{
-		// only care about water
-		return;
+
+		waterFog = 1;
 	}
 
 	rswire = normal == 7 ? (skyBlockLight[0] & 15) + 1 : 0;
@@ -66,15 +62,16 @@ void main(void)
 	vec3 V2 = vertex2[0];
 	vec3 V3 = vertex3[0];
 	vec3 V4 = vertex3[0] + (vertex2[0] - vertex1[0]);
+	// dualside quad
 	if ((normFlags[0] & (1 << 4)) > 0 && dot(vertex1[0] - camera.xyz, cross(V3-V1, V2-V1)) < 0)
 	{
 		// this face must not be culled by back-face culling, but using current vertex emit order, it will
 		V2 = V1; V1 = vertex2[0];
 		V3 = V4; V4 = vertex3[0];
 	}
+	// liquid: lower some of the edges depending on what's nearby XXX need a better approach than this :-/
 	if ((normFlags[0] & (1 << 5)) > 0)
 	{
-		// liquid: lower some of the edges depending on what's nearby XXX need a better approach than this :-/
 		uint lowerEdge = ocsmap >> 13;
 		if ((lowerEdge & 1) > 0) V1.y -= 0.1875;
 		if ((lowerEdge & 2) > 0) V2.y -= 0.1875;
@@ -97,7 +94,7 @@ void main(void)
 	}
 	else dotProd = dot(normals[normal < 6 ? normal : 4].xyz, sunDir.xyz);
 
-	// only darken face by a factor of 0.7 at most is negative: 0.6 is too dark
+	// only darken face by a factor of 0.7 at most if negative: 0.6 is too dark
 	shadeSky = (dotProd < 0 ? 0.1 : 0.2) * dotProd + 0.8;
 
 	// lower skylight contribution if we are at dawn/dusk
@@ -115,16 +112,19 @@ void main(void)
 	// fogStrength == how much fragment will blend with sky, 0 = normal fragment color, 1 = fragment will use sky color
 	if (FOG_DISTANCE > 0)
 	{
-		float fogStrength = clamp(distance(camera.xz, (V1.xz+V4.xz) * 0.5) / FOG_DISTANCE, 0.0, 1.0);
-		if (underWater == 0)
+		float fogStrength;
+		if (underWater == 0 || waterFog == 0)
+		{
+			fogStrength = clamp(distance(camera.xz, (V1.xz+V4.xz) * 0.5) / FOG_DISTANCE, 0.0, 1.0);
 			fogFactor = 1 - fogStrength * fogStrength;
+		}
 		else
+		{
+			fogStrength = clamp(distance(camera.xz, (V1.xz+V4.xz) * 0.5) / (FOG_DISTANCE * 0.5), 0.0, 1.0);
 			fogFactor = 1 - fogStrength;
+		}
 	}
 	else fogFactor = 1; // disabled
-
-	// needed for animated tex
-	baseTex = vec2(texCoord[0].x, texCoord[0].z);
 
 	// first vertex
 	gl_Position = MVP * vec4(V1, 1);
@@ -140,7 +140,7 @@ void main(void)
 	skyLight    = float(bitfieldExtract(skyBlockLight[0], 4, 4)) * shadeSky;
 	blockLight  = float(bitfieldExtract(skyBlockLight[0], 0, 4)) * shadeBlock;
 	ocspos      = vec2(0, 0);
-	tc          = baseTex;
+	tc          = vec2(texCoord[0].x, texCoord[0].z);
 	EmitVertex();
 			
 	// third vertex

@@ -782,4 +782,5 @@ void particlesRender(void)
 	glBindVertexArray(particles.vao);
 	glDrawArrays(GL_POINTS, 0, count);
 	glDepthMask(GL_TRUE);
+	glBindVertexArray(0);
 }

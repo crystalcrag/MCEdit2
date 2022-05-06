@@ -170,7 +170,6 @@ Bool chunkAddTileEntity(ChunkData cd, int offset, DATA8 mem)
 
 		count = roundToUpperPrime(hash->count);
 		reloc = calloc(chunkHashSize(count), 1);
-		//fprintf(stderr, "enlarging hash table from %d to %d at %d, %d\n", hash->count, count, c->X, c->Z);
 		if (! reloc) return False;
 		c->tileEntities = reloc;
 
@@ -263,7 +262,7 @@ static void chunkExpandTileEntities(Chunk c)
 
 void chunkExpandEntities(Chunk c)
 {
-	int off = NBT_FindNode(&c->nbt, 0, "Entities");
+	int off = NBT_FindNode(&c->nbt, 0, "/Level/Entities");
 	c->cflags |= CFLAG_HASENTITY;
 	if (off > 0)
 	{
@@ -945,6 +944,7 @@ void chunkFreeHash(TileEntityHash hash, DATA8 min, DATA8 max)
 int chunkFree(Chunk c, Bool clear)
 {
 	int i, max, ret;
+
 	for (i = ret = 0, max = c->maxy; max > 0; max --, i ++)
 	{
 		ChunkData cd = c->layer[i];
@@ -964,11 +964,12 @@ int chunkFree(Chunk c, Bool clear)
 	{
 		if (c->cflags & CFLAG_HASENTITY)
 			entityUnload(c);
+		NBT_Free(&c->nbt);
 		memset(c->layer, 0, c->maxy * sizeof c->layer[0]);
 		memset(&c->nbt, 0, sizeof c->nbt);
 		c->cflags = 0;
 		c->maxy = 0;
 	}
-	NBT_Free(&c->nbt);
+	else NBT_Free(&c->nbt);
 	return ret;
 }

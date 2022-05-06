@@ -568,6 +568,11 @@ void meshHalfBlock(MeshWriter write, DATA8 model, int size /* 2 or 8 */, DATA8 x
 				base = (rotate & 3) * 8;
 				if (texCoord[base] == texCoord[base + 6]) out[5] |= FLAG_TEX_KEEPX;
 
+				static uint8_t oppSideBlock[] = {16, 14, 10, 12, 22, 4};
+				if (blockIds[neighborBlockIds[oppSideBlock[j]] >> 4].special == BLOCK_LIQUID)
+					/* use water fog instead of atmospheric one */
+					out[5] |= FLAG_UNDERWATER;
+
 				/* skylight, blocklight */
 				for (k = 0, face2 = skyBlockOffset + j * 16; k < 4; k ++)
 				{

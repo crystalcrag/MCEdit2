@@ -594,7 +594,7 @@ int renderInitUBO(void)
 	skydomeGetSunPos(sunDir);
 
 	/* these should rarely change */
-	shading[SHADING_FOGDIST] = globals.renderDist * 16 + 8;
+	shading[SHADING_FOGDIST] = globals.distanceFOG ? globals.renderDist * 16 + 8 : 0;
 	glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof (mat4), render.matPerspective);
 	glBufferSubData(GL_UNIFORM_BUFFER, UBO_NORMALS, sizeof normals, normals);
 	glBufferSubData(GL_UNIFORM_BUFFER, UBO_SHADING_OFFSET, sizeof shading, shading);
@@ -649,9 +649,7 @@ Bool renderInitStatic(void)
 	if (! entityInitStatic())
 		return False;
 
-	// XXX not needed right now
-	// render.uniformTime = glGetUniformLocation(render.shaderBlocks, "timeMS");
-	render.uniformAlpha = glGetUniformLocation(render.shaderBlocks, "renderAlpha");
+	render.uniformTime = glGetUniformLocation(render.shaderBlocks, "timeMS");
 	render.uniformOverlay = glGetUniformLocation(render.shaderBlocks, "underWater");
 
 	/* load main texture file (note: will require some tables from earlier static init functions) */
@@ -765,25 +763,6 @@ Bool renderInitStatic(void)
 
 	static float biomeColor[] = {0.411765, 0.768627, 0.294118};
 	setShaderValue(render.shaderBlocks, "biomeColor", 3, biomeColor);
-
-	/* render alpha in a off-screen buffer, to get access to depth buffer (needed by fog) */
-	glGenFramebuffers(1, &render.fboAlphaDepth);
-	glGenTextures(1, &render.texAlphaDepth);
-	glBindTexture(GL_TEXTURE_2D, render.texAlphaDepth);
-	/* only depth buffer is needed */
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, globals.width, globals.height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, 0);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-	glBindFramebuffer(GL_FRAMEBUFFER, render.fboAlphaDepth);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, render.texAlphaDepth, 0);
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	glBindTexture(GL_TEXTURE_2D, 0);
-
-	glActiveTexture(GL_TEXTURE7); glBindTexture(GL_TEXTURE_2D, render.texAlphaDepth);
-	glActiveTexture(GL_TEXTURE0);
 
 	/* don't need it yet */
 	SIT_ExtractDialog(render.blockInfo);
@@ -1366,6 +1345,7 @@ static void renderPrepVisibleChunks(Map map)
 				cmd->instanceCount = 1;
 				cmd->first = start;
 				cmd->baseInstance = alphaIndex; /* needed by glVertexAttribDivisor() */
+				render.debugTotalTri += cmd->count;
 
 				loc = bank->locBuffer + alphaIndex * (VERTEX_INSTANCE/4);
 				loc[0] = dx + chunk->X;
@@ -1466,12 +1446,11 @@ void renderWorld(void)
 	{
 		/* do it as late as possible */
 		mapViewFrustum(globals.level, render.nearPlane);
-		render.underWater = mapIsPositionInLiquid(globals.level, render.nearPlane);
+		render.underWater = mapIsPositionInLiquid(globals.level, render.camera);
 		render.setFrustum = 0;
 	}
 
-	// not needed right now...
-	// glProgramUniform1ui(render.shaderBlocks, render.uniformTime, globals.curTime);
+	glProgramUniform1ui(render.shaderBlocks, render.uniformTime, globals.curTime);
 
 	/* must be done before glViewport */
 	signPrepare(render.camera);
@@ -1513,32 +1492,10 @@ void renderWorld(void)
 		textureAnimate();
 	}
 
-	/*
-	 * render alpha in a separate FBO (we'll need depth texture for opaque)
-	 * uniformAlpha == 0 => don't generate color information (only depth).
-	 * uniformAlpha == 1 => check depth texture if fog needs to be applied.
-	 * uniformAlpha == 2 => ignore depth texture and use fog from geometry shader as is.
-	 */
-	glProgramUniform1ui(render.shaderBlocks, render.uniformAlpha, 0);
-	glProgramUniform1ui(render.shaderBlocks, render.uniformOverlay, render.underWater);
-	glBindFramebuffer(GL_FRAMEBUFFER, render.fboAlphaDepth);
-	glClear(GL_DEPTH_BUFFER_BIT);
-	glEnable(GL_DEPTH_TEST);
 	GPUBank bank;
-	for (bank = HEAD(globals.level->gpuBanks); bank; NEXT(bank))
-	{
-		if (bank->cmdAlpha > 0)
-		{
-			/* we have something to render from this bank */
-			glBindVertexArray(bank->vaoTerrain);
-			glBindBuffer(GL_DRAW_INDIRECT_BUFFER, bank->vboMDAI);
-			glMultiDrawArraysIndirect(GL_POINTS, (void*)(bank->cmdTotal*16), bank->cmdAlpha, 0);
-		}
-	}
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glProgramUniform1ui(render.shaderBlocks, render.uniformOverlay, render.underWater);
 
-	/* next: opaque main terrain */
-	glProgramUniform1ui(render.shaderBlocks, render.uniformAlpha, 1);
+	/* draw opaque main terrain */
 	for (bank = HEAD(globals.level->gpuBanks); bank; NEXT(bank))
 	{
 		if (bank->cmdTotal > 0)
@@ -1553,18 +1510,12 @@ void renderWorld(void)
 	/* text signs and map in item frame */
 	signRender();
 	cartoRender();
-	/* next: entities */
+	/* entities */
 	glBindTexture(GL_TEXTURE_2D, render.texBlock);
 	entityRender();
 
-	/* third pass: translucent terrain again, but with color and depth this time */
+	/* translucent terrain again, but with color and depth this time */
 	glUseProgram(render.shaderBlocks);
-	glProgramUniform1ui(render.shaderBlocks, render.uniformAlpha, 2);
-
-	/*
-	 * note: we cannot render alpha in an off-screen FBO in the first pass and apply the texture on
-	 * quad, because some alpha fragments will be hidden by opaque ones.
-	 */
 	for (bank = HEAD(globals.level->gpuBanks); bank; NEXT(bank))
 	{
 		if (bank->cmdAlpha > 0)
@@ -1601,6 +1552,7 @@ void renderWorld(void)
 		glBindBuffer(GL_UNIFORM_BUFFER, globals.uboShader);
 		selectionRender();
 	}
+	glBindVertexArray(0);
 
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
@@ -1609,6 +1561,16 @@ void renderWorld(void)
 	nvgFontFaceId(vg, render.debugFont);
 	nvgFontSize(vg, FONTSIZE);
 	nvgTextAlign(vg, NVG_ALIGN_TOP);
+
+	if (render.underWater)
+	{
+		/* draw underwater overlay */
+		nvgBeginPath(vg);
+		nvgRect(vg, 0, 0, globals.width, globals.height);
+		nvgFillPaint(vg, nvgImagePattern(vg, - UNDERWATER_TILE_X * globals.width, - UNDERWATER_TILE_X * globals.height,
+			globals.width * 32, globals.height * 64, 0, render.nvgTerrain, 0.5));
+		nvgFill(vg);
+	}
 
 	if ((render.debug & RENDER_DEBUG_NOHUD) == 0)
 	{
