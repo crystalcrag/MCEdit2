@@ -116,7 +116,7 @@ void main(void)
 		if (underWater == 0 || waterFog == 0)
 		{
 			fogStrength = clamp(distance(camera.xz, (V1.xz+V4.xz) * 0.5) / FOG_DISTANCE, 0.0, 1.0);
-			fogFactor = 1 - fogStrength * fogStrength;
+			fogFactor = 1 - fogStrength * fogStrength * fogStrength;
 		}
 		else
 		{

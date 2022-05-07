@@ -198,7 +198,7 @@ void mobEntityInit(void)
 	}
 }
 
-void mobEntityProcessTex(DATA8 * data, int * width, int * height, int bpp)
+APTR mobEntityProcessTex(DATA8 * data, int * width, int * height, int bpp)
 {
 	#if 0
 	int size[2], level, texId;
@@ -234,4 +234,5 @@ void mobEntityProcessTex(DATA8 * data, int * width, int * height, int bpp)
 			}
 		}
 	}
+	return NULL;
 }

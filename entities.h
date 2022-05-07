@@ -376,7 +376,7 @@ void worldItemPlaceOrCreate(Entity);
 void worldItemToItem_t(DATA8 tile, Item buf);
 
 void mobEntityInit(void);
-void mobEntityProcessTex(DATA8 * data, int * width, int * height, int bpp);
+APTR mobEntityProcessTex(DATA8 * data, int * width, int * height, int bpp);
 
 #endif
 #endif

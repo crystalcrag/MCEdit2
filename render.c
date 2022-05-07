@@ -603,6 +603,27 @@ int renderInitUBO(void)
 	return buffer;
 }
 
+/* extract under water tile: need a separate image to have repeat flag on texture */
+static APTR renderGetUnderWater(DATA8 * data, int * width, int * height, int bpp)
+{
+	int   tileSz     = *width / 32;
+	int   tileStride = tileSz * bpp;
+	int   imgStride  = *width * bpp;
+	DATA8 source     = *data;
+	DATA8 waterTile  = malloc(tileStride * tileSz);
+	DATA8 dest;
+
+	int i;
+	for (source += UNDERWATER_TILE_X * tileStride + UNDERWATER_TILE_Y * tileSz * imgStride, dest = waterTile, i = tileSz;
+	     i > 0; memcpy(dest, source, tileStride), i --, dest += tileStride, source += imgStride);
+
+	render.nvgWater = nvgCreateImageRGBA(globals.nvgCtx, tileSz, tileSz, NVG_IMAGE_REPEATX | NVG_IMAGE_REPEATY | NVG_IMAGE_NEAREST, waterTile);
+	free(waterTile);
+
+	return blockPostProcessTexture;
+}
+
+
 /* init static tables and objects */
 Bool renderInitStatic(void)
 {
@@ -653,7 +674,7 @@ Bool renderInitStatic(void)
 	render.uniformOverlay = glGetUniformLocation(render.shaderBlocks, "underWater");
 
 	/* load main texture file (note: will require some tables from earlier static init functions) */
-	render.texBlock = textureLoad(RESDIR, "terrain.png", 1, blockPostProcessTexture);
+	render.texBlock = textureLoad(RESDIR, "terrain.png", 1, renderGetUnderWater);
 
 	/* texture used by fog */
 	glGenTextures(1, &render.texSky);
@@ -924,6 +945,7 @@ void renderSetViewMat(vec4 pos, vec4 lookat, float * yawPitch)
 	render.setFrustum = 1;
 	render.yaw = yawPitch[0];
 	render.pitch = yawPitch[1];
+	render.yawFull = yawPitch[2]; /* needed by underwater overlay */
 	globals.direction = 1; /* east */
 	if (M_PI_4f       <= render.yaw && render.yaw <= M_PI_4f+M_PI_2f) globals.direction = 0; else /* south:  45 ~ 135 */
 	if (M_PIf+M_PI_4f <= render.yaw && render.yaw <= 2*M_PIf-M_PI_4f) globals.direction = 2; else /* north: 225 ~ 315 */
@@ -1565,10 +1587,10 @@ void renderWorld(void)
 	if (render.underWater)
 	{
 		/* draw underwater overlay */
+		float size = MAX(globals.width, globals.height) * 0.5f;
 		nvgBeginPath(vg);
 		nvgRect(vg, 0, 0, globals.width, globals.height);
-		nvgFillPaint(vg, nvgImagePattern(vg, - UNDERWATER_TILE_X * globals.width, - UNDERWATER_TILE_X * globals.height,
-			globals.width * 32, globals.height * 64, 0, render.nvgTerrain, 0.5));
+		nvgFillPaint(vg, nvgImagePattern(vg, render.yawFull * globals.width * -0.2f, render.pitch * globals.height * 0.2f, size, size, 0, render.nvgWater, 0.6));
 		nvgFill(vg);
 	}
 

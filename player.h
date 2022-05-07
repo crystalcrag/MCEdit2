@@ -91,6 +91,7 @@ struct Player_t
 	vec4     pos;              /* position of feet */
 	vec4     lookat;           /* position looking at (to be used as param to matLookAt()) */
 	float    angleh, anglev;   /* yaw, pitch (in radians) */
+	float    yawNoClamp;
 	float    velocity[3];      /* movement change per tick */
 	float    dir[3];           /* target diection */
 	float    targetY;          /* smooth clibing */

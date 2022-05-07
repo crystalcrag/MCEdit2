@@ -61,19 +61,16 @@ Bool skydomeInit(void)
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, model->index * 2, model->indices, GL_STATIC_DRAW);
 	modelFree(model);
 
-	skydome.texTint    = textureLoad(RESDIR SKYDIR, "tint.png",    1, NULL);
-	skydome.texTint2   = textureLoad(RESDIR SKYDIR, "tint2.png",   1, NULL);
-	skydome.texSun     = textureLoad(RESDIR SKYDIR, "sun.png",     1, NULL);
-	skydome.texClouds  = textureLoad(RESDIR SKYDIR, "clouds1.png", 0, NULL);
+	skydome.texTint  = textureLoad(RESDIR SKYDIR, "tint.png",    1, NULL);
+	skydome.texTint2 = textureLoad(RESDIR SKYDIR, "tint2.png",   1, NULL);
+	skydome.texSun   = textureLoad(RESDIR SKYDIR, "sun.png",     1, NULL);
 
 	glActiveTexture(GL_TEXTURE2); glBindTexture(GL_TEXTURE_2D, skydome.texTint);
 	glActiveTexture(GL_TEXTURE3); glBindTexture(GL_TEXTURE_2D, skydome.texTint2);
 	glActiveTexture(GL_TEXTURE4); glBindTexture(GL_TEXTURE_2D, skydome.texSun);
-	glActiveTexture(GL_TEXTURE5); glBindTexture(GL_TEXTURE_2D, skydome.texClouds);
 	glActiveTexture(GL_TEXTURE0);
 
-	float arg = 1;
-	setShaderValue(skydome.shader, "weather",   1, &arg); arg = 0;
+	float arg = 0;
 	setShaderValue(skydome.shader, "time",      1, &arg);
 	setShaderValue(skydome.shader, "sun_angle", 1, &skydome.sunAngle);
 
@@ -100,7 +97,7 @@ void skydomeRender(int fboSky, int underWater)
 	glBindVertexArray(skydome.vao);
 	glUseProgram(skydome.shader);
 
-	float time = globals.curTime * 0.000005;
+	float time = globals.curTime * 0.0002;
 	glProgramUniform1fv(skydome.shader, skydome.uniformTime,    1, &time); time = 1;
 	glProgramUniform1fv(skydome.shader, skydome.uniformTexOnly, 1, &time); time = 0;
 

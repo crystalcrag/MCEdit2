@@ -14,27 +14,50 @@ in vec3 star_pos;
 layout (binding=2) uniform sampler2D tint;    // the color of the sky on the half-sphere where the sun is. (time x height)
 layout (binding=3) uniform sampler2D tint2;   // the color of the sky on the opposite half-sphere. (time x height)
 layout (binding=4) uniform sampler2D sun;
-layout (binding=5) uniform sampler2D clouds1; // light clouds texture (spherical UV projection)
 
-uniform float weather; // mixing factor (0.5 to 1.0)
+out vec4 fragcol;
+
+uniform float weather = 1.0; // mixing factor (0.5 to 1.0)
 uniform float time;
 uniform float skyTexOnly;
 
-out vec4 fragcol;
+uniform float cirrus = 0.5;
+uniform float cumulus = 0.5;
 
 //---------NOISE GENERATION------------
 //Noise generation based on a simple hash, to ensure that if a given point on the dome
 //(after taking into account the rotation of the sky) is a star, it remains a star all night long
-float Hash(float n)
+float hash(float n)
 {
-	return fract((1.0 + sin(n)) * 415.92653);
+	return fract(sin(n) * 43758.5453123);
 }
-float Noise3d(vec3 x)
+float noise3d(vec3 x)
 {
-	float xhash = Hash(round(400*x.x) * 37.0);
-	float yhash = Hash(round(400*x.y) * 57.0);
-	float zhash = Hash(round(400*x.z) * 67.0);
+	float xhash = hash(round(400*x.x) * 37.0);
+	float yhash = hash(round(400*x.y) * 57.0);
+	float zhash = hash(round(400*x.z) * 67.0);
 	return fract(xhash + yhash + zhash);
+}
+float noise(vec3 x)
+{
+	vec3 f = fract(x);
+	float n = dot(floor(x), vec3(1.0, 157.0, 113.0));
+	return mix(mix(mix(hash(n +   0.0), hash(n +   1.0), f.x),
+	               mix(hash(n + 157.0), hash(n + 158.0), f.x), f.y),
+	           mix(mix(hash(n + 113.0), hash(n + 114.0), f.x),
+	               mix(hash(n + 270.0), hash(n + 271.0), f.x), f.y), f.z);
+}
+
+const mat3 m = mat3(0.0, 1.60,  1.20, -1.6, 0.72, -0.96, -1.2, -0.96, 1.28);
+float fbm(vec3 p)
+{
+	float f = 0.0;
+	f += noise(p) / 2; p = m * p * 1.1;
+	f += noise(p) / 4; p = m * p * 1.2;
+	f += noise(p) / 6; p = m * p * 1.3;
+	f += noise(p) / 12; p = m * p * 1.4;
+	f += noise(p) / 24;
+	return f;
 }
 
 #define SUNRADIUS   0.15
@@ -59,21 +82,35 @@ void main()
 		float u = 0.5 + atan(pos_norm.z, pos_norm.x) / (2 * M_PI);
 		float v = -0.5 + asin(pos_norm.y) / M_PI;
 
+
+
 		// Cloud color
 		// color depending on the weather (shade of grey) *  (day or night)
-		vec3 cloud_color = vec3(min(weather*3.0/2.0,1.0)) * (sun_norm.y > 0 ? 0.95 : 0.95 + sun_norm.y * 1.8);
+		vec3 cloud_color = clamp(vec3(min(weather*3.0/2.0,1.0)) + color.xyz * 0.5, 0, 1) * clamp(sun_norm.y > 0.05 ? 0.95 : 0.95 + (sun_norm.y-0.05) * 1.8, 0.075, 1);
+		float transparency;
 
+		#if 0
 		// Reading from the clouds maps
 		// mixing according to the weather (1.0 -> clouds1 (sunny), 0.5 -> clouds2 (rainy))
 		// + time translation along the u-axis (horizontal) for the clouds movement
-		float transparency = texture(clouds1, vec2(u+time,v)).r;
+		transparency = texture(clouds1, vec2(u+time,v)).r;
+		#else
+		if (pos_norm.y > 0)
+		{
+			transparency = smoothstep(1.0 - cirrus, 1.0, fbm(pos_norm.xyz / pos_norm.y * 2.0 + time * 0.3)) +
+			               smoothstep(1.0 - cumulus, 1.0, fbm(0.7  * pos_norm.xyz / pos_norm.y + time * 0.3));
+
+			transparency *= clamp((1 / 0.15) * pos_norm.y, 0.0, 1.0);
+		}
+		else transparency = 0;
+		#endif
 
 		// Stars
 		if (sun_norm.y < 0.1) // night or dawn
 		{
 			float threshold = 0.99;
 			// we generate a random value between 0 and 1
-			float star_intensity = Noise3d(normalize(star_pos));
+			float star_intensity = noise3d(normalize(star_pos));
 			// and we apply a threshold to keep only the brightest areas
 			if (star_intensity >= threshold)
 			{

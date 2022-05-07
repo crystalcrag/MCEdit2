@@ -2967,7 +2967,7 @@ static void texset(DATA8 dest, DATA8 px, int size)
 }
 
 /* post-process main texture terrain.png: generate connected texture for glass */
-void blockPostProcessTexture(DATA8 * data, int * width, int * height, int bpp)
+APTR blockPostProcessTexture(DATA8 * data, int * width, int * height, int bpp)
 {
 	int   w   = *width;
 	int   h   = *height;
@@ -2975,7 +2975,7 @@ void blockPostProcessTexture(DATA8 * data, int * width, int * height, int bpp)
 	DATA8 s, d;
 	int   i, j, k, sz = w / 32, stride = w * bpp;
 
-	if (dst == NULL) return;
+	if (dst == NULL) return NULL;
 
 	blockTexResol = sz;
 
@@ -3146,6 +3146,7 @@ void blockPostProcessTexture(DATA8 * data, int * width, int * height, int bpp)
 	blocks.duraColors = malloc(sz);
 	blocks.duraMax    = sz >> 2;
 	memcpy(blocks.duraColors, dst + 31 * sz + 3 * sz * *width, sz);
+	return NULL;
 }
 
 /* extract texture alpha for U, V coord from <terrain.png> */

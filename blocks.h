@@ -20,7 +20,7 @@ Bool    blockCreate(const char * file, STRPTR * keys, int lineNum);
 void    blockParseConnectedTexture(void);
 void    blockParseBoundingBox(void);
 void    blockParseInventory(int vbo);
-void    blockPostProcessTexture(DATA8 * data, int * w, int * h, int bpp);
+APTR    blockPostProcessTexture(DATA8 * data, int * w, int * h, int bpp);
 void    blockCenterModel(DATA16 vertex, int count, int U, int V, int faceId, Bool shiftY, DATA16 sizes);
 int     blockGetConnect(BlockState, DATA16 neighbors);
 VTXBBox blockGetBBox(BlockState);

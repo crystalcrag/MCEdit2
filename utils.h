@@ -183,7 +183,7 @@ void slideAverage(SlideAvg slide, DATAS16 dx, DATAS16 dy);
 /* dynamic array */
 #define vectorNth    vector_nth
 
-typedef void (*PostProcess_t)(DATA8 * data, int * w, int * h, int bpp);
+typedef APTR (*PostProcess_t)(DATA8 * data, int * w, int * h, int bpp);
 
 /* texture load */
 int  textureLoad(const char * dir, const char * name, int clamp, PostProcess_t);

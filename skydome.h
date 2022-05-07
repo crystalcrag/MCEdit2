@@ -27,7 +27,6 @@ struct SkyDome_t
 	int   vbo, vboIndices;
 	int   vertex, indices;
 	int   texTint, texTint2;
-	int   texClouds, texClouds2;
 	int   texMoon, texSun;
 	int   uniformTime, uniformTexOnly;
 };

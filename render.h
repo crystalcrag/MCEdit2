@@ -157,7 +157,7 @@ struct RenderWorld_t
 	GLuint     fboSky;
 	int        compass;            /* image id from nanovg */
 	float      compassOffset;      /* pixel offset from right border to start drawing compass */
-	float      yaw, pitch;
+	float      yaw, pitch, yawFull;
 	float      scale;
 	uint8_t    debug;              /* 1 if debug info is displayed (chunk boundaries) */
 	uint8_t    debugInfo;          /* tooltip over block highligted (DEBUG_*) */
@@ -170,6 +170,7 @@ struct RenderWorld_t
 	SelBlock_t selection;          /* extra information about block highlighted */
 	Inventory  inventory;          /* player inventory (to render inventory bar) */
 	int        nvgTerrain;         /* texture for blocks as a NVG image */
+	int        nvgWater;           /* nvg image id for under water overlay */
 	int        invCache;
 	int        invCount;
 	int        invExt;

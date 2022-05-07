@@ -58,6 +58,7 @@ void playerInit(Player p)
 	p->angleh = fmodf((rotation[0] + 90) * DEG_TO_RAD, 2*M_PIf);
 	p->anglev = - rotation[1] * DEG_TO_RAD;
 	if (p->angleh < 0) p->angleh += 2*M_PIf;
+	p->yawNoClamp = p->angleh;
 
 	float cv = cosf(p->anglev);
 	p->lookat[VX] = p->pos[VX] + cosf(p->angleh) * cv;
@@ -227,6 +228,7 @@ void playerLookAt(Player p, int dx, int dy)
 	/* keep yaw between 0 and 2 * pi */
 	float yaw = p->angleh + dx * sensitivity * globals.mouseSpeed;
 	float pitch = p->anglev - dy * sensitivity * globals.mouseSpeed;
+	p->yawNoClamp += dx * sensitivity * globals.mouseSpeed;
 	if (yaw < 0) yaw += 2*M_PIf;
 	if (yaw > 2*M_PIf) yaw -= 2*M_PIf;
 	/* and pitch between -pi and pi */

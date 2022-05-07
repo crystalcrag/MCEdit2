@@ -1,4 +1,7 @@
 =========== Week 18 ===========
+Fri May 6:
+	* replace cloud texture with fbm (finally!).
+
 Thu May 5:
 	* underwater fog redone again: somewhat ok now.
 
