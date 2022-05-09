@@ -40,8 +40,15 @@ static void chunkFillData(Chunk chunk, int y, int offset)
 	memset(cd->blockIds + DATA_OFFSET, 0, 2048);
 	memset(cd->blockIds + SKYLIGHT_OFFSET, 255, 2048);
 	memset(cd->blockIds + BLOCKLIGHT_OFFSET, 0, 2048);
-	cd->blockIds[8+8*16+256*8] = 1;
-	cd->blockIds[DATA_OFFSET + ((8+8*16+256*8) >> 1)] = 1;
+
+	 #if 0
+	memset(cd->blockIds+7+7*16+256*8, 1, 3);
+	memset(cd->blockIds+7+8*16+256*8, 1, 3);
+	memset(cd->blockIds+7+9*16+256*8, 1, 3);
+	cd->blockIds[8+8*16+256*9] = 1;
+	 #else
+	memset(cd->blockIds+256*8, 1, 256);
+	 #endif
 	#endif
 
 	if (chunk->maxy <= y)
@@ -262,7 +269,7 @@ static void chunkExpandTileEntities(Chunk c)
 
 void chunkExpandEntities(Chunk c)
 {
-	int off = NBT_FindNode(&c->nbt, 0, "/Level/Entities");
+	int off = NBT_FindNode(&c->nbt, 0, "/Level.Entities");
 	c->cflags |= CFLAG_HASENTITY;
 	if (off > 0)
 	{

@@ -71,6 +71,9 @@ void meshHalfBlock(MeshWriter write, DATA8 model, int size, DATA8 xyz, BlockStat
 
 typedef struct GPUBank_t *         GPUBank;
 typedef struct GPUMem_t *          GPUMem;
+typedef struct HashQuadEntry_t *   HashQuadEntry;
+typedef struct HashQuadMerge_t *   HashQuadMerge;
+
 
 struct GPUMem_t                    /* one allocation with GPUBank */
 {
@@ -108,26 +111,46 @@ struct MeshBuffer_t                /* temporary buffer used to collect data from
 	uint32_t   buffer[0];          /* 64Kb: not declared here because gdb doesn't like big table */
 };
 
+struct HashQuadEntry_t
+{
+	uint16_t nextChain;
+	uint16_t nextAdded;
+	uint32_t crc;
+	DATA32   quad;
+};
+
+struct HashQuadMerge_t
+{
+	int capa, usage;
+	uint16_t lastAdded;
+	uint16_t firstAdded;
+	HashQuadEntry entries;
+};
+
+#define QUADHASH     struct HashQuadMerge_t
 struct MeshWriter_t
 {
-	DATA32   start, end;           /* do not write past these points */
-	DATA32   cur;                  /* running pointer */
-	APTR     mesh;                 /* private datatype */
-	uint16_t coplanar[6];          /* check if quads are all coplanar for a given axis (S, E, N, W, T, B: used by alpha) */
-	uint8_t  isCOP;                /* 1 if coplanar, 0 if no */
-	uint8_t  alpha;                /* 1 if buffer is for alpha quads */
-	void   (*flush)(MeshWriter);
+	DATA32     start, end;           /* do not write past these points */
+	DATA32     cur;                  /* running pointer */
+	APTR       mesh;                 /* private datatype */
+	QUADHASH * merge;                /* hash table to merge quad */
+	uint16_t   coplanar[6];          /* check if quads are all coplanar for a given axis (S, E, N, W, T, B: used by alpha) */
+	uint8_t    isCOP;                /* 1 if coplanar, 0 if no */
+	uint8_t    alpha;                /* 1 if buffer is for alpha quads */
+	void     (*flush)(MeshWriter);
 };
 
 struct Thread_t
 {
-	Mutex wait;
-	Map   map;
-	int   state;
+	Mutex    wait;
+	Map      map;
+	int      state;
+	QUADHASH hash;
 };
 
 /* cannot be more than 1Mb becase of staging.start[], need to change to uint16_t if more than that */
 #define STAGING_AREA       (1024*1024)
+#undef  QUADHASH
 
 struct Staging_t
 {
@@ -147,6 +170,15 @@ enum /* possible values for Thread_t.state */
 	THREAD_WAIT_BUFFER,
 	THREAD_RUNNING
 };
+
+/*
+ * quad merge API
+ */
+void meshQuadMergeReset(HashQuadMerge hash);
+void meshQuadMergeInit(HashQuadMerge hash);
+void meshQuadMergeAdd(HashQuadMerge hash, DATA32 quad);
+int  meshQuadMergeGet(HashQuadMerge hash, DATA32 quad);
+
 
 extern struct Staging_t staging;
 

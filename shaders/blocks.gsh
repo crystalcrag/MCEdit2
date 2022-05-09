@@ -32,6 +32,7 @@ flat out uint  normal;
 flat out uint  waterFog;
 
 uniform uint underWater;    // player is underwater: denser fog
+uniform uint timeMS;
 
 void main(void)
 {
@@ -118,7 +119,7 @@ void main(void)
 			fogStrength = clamp(distance(camera.xz, (V1.xz+V4.xz) * 0.5) / FOG_DISTANCE, 0.0, 1.0);
 			fogFactor = 1 - fogStrength * fogStrength * fogStrength;
 		}
-		else
+		else // quad AND player are underwater: use a different fog for these
 		{
 			fogStrength = clamp(distance(camera.xz, (V1.xz+V4.xz) * 0.5) / (FOG_DISTANCE * 0.5), 0.0, 1.0);
 			fogFactor = 1 - fogStrength;

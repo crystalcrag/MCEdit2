@@ -262,8 +262,6 @@ static int NBT_ParseFile(NBTFile nbt, ZStream in, int flags)
 	case TAG_List:
 		type = gzGetC(in);
 		len  = hdr->count = UINT32(in);
-		if (len == 0xff08)
-			puts("here");
 		hdr->type |= type << 4;
 		switch (type) {
 		case TAG_Byte:
@@ -742,6 +740,7 @@ int NBT_FindNode(NBTFile root, int offset, STRPTR name)
 	hdr = HDR(root, offset);
 	old = hdr->type;
 	if (old == 0) return -1;
+	if (name[0] == '/') recursive = 0, name ++;
 	for (next = name; *next && *next != '.'; next ++);
 	if (*next)
 	{
@@ -755,12 +754,11 @@ int NBT_FindNode(NBTFile root, int offset, STRPTR name)
 			if (offset < 0) return -1;
 			name = next;
 			if (name == NULL) break;
-			next = strchr(next, '.');
+			next = strchr(name, '.');
 			if (next) *next++ = 0;
 		}
 		return offset;
 	}
-	if (name[0] == '/') recursive = 0, name ++;
 	if (strcasecmp(hdr->name, name) == 0) return offset;
 	if (old == TAG_Compound || old == TAG_List_Compound)
 	{
@@ -778,6 +776,7 @@ int NBT_FindNode(NBTFile root, int offset, STRPTR name)
 		{
 			if (sub->type == TAG_List_Compound || sub->type == TAG_Compound)
 			{
+				if (sub->count >= NBT_NODE_CHANGED) continue;
 				i = NBT_FindNode(root, offset, name);
 				if (i > 0) return i;
 			}

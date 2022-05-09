@@ -11,6 +11,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include "zlib.h" /* crc32 */
 #include "meshBanks.h"
 #include "particles.h"
 #include "tileticks.h"
@@ -108,10 +109,13 @@ static void meshGenAsync(void * arg)
 		/* process chunk */
 		for (i = 0; i < list->maxy; i ++)
 		{
+			ChunkData cd = list->layer[i];
+			/* World1 has a chunk at -208, -1408 where a section is missing :-/ */
+			if (cd == NULL) continue;
 			list->cdIndex = thread - threads;
 			list->save = map->chunks;
-			ChunkData cd = list->layer[i];
 			chunkUpdate(list, chunkAir, map->chunkOffsets, i, meshInitMT);
+			meshQuadMergeReset(&thread->hash);
 			list->cdIndex = 0;
 			if (cd->cdFlags == CDFLAG_PENDINGDEL)
 			{
@@ -142,16 +146,20 @@ void meshInitThreads(Map map)
 	staging.mem = malloc(STAGING_AREA);
 	staging.capa = SemInit(STAGING_AREA/4096);
 	staging.alloc = MutexCreate();
-	for (nb = 0; nb < NUM_THREADS; nb ++)
-	{
-		threads[nb].wait = MutexCreate();
-		threads[nb].map  = map;
-		ThreadCreate(meshGenAsync, threads + nb);
-	}
 
 	/* already load center chunk */
 	Chunk center = map->center;
 	chunkLoad(center, map->path, center->X, center->Z);
+	center->cflags |= CFLAG_GOTDATA;
+//	NBT_Dump(&center->nbt, 0, 0, 0);
+
+	for (nb = 0; nb < NUM_THREADS; nb ++)
+	{
+		threads[nb].wait = MutexCreate();
+		threads[nb].map  = map;
+		meshQuadMergeInit(&threads[nb].hash);
+		ThreadCreate(meshGenAsync, threads + nb);
+	}
 }
 #endif
 
@@ -178,6 +186,7 @@ void meshStopThreads(Map map, int exit)
 		case THREAD_WAIT_BUFFER:
 			/* waiting for mem block, will jump to sleep right after */
 			SemAdd(staging.capa, 1);
+			staging.total --;
 		}
 		/* need to wait for thread to stop though */
 		double tick = FrameGetTime();
@@ -205,6 +214,7 @@ void meshStopThreads(Map map, int exit)
 		{
 			while (threads[i].state >= 0);
 			MutexDestroy(threads[i].wait);
+			free(threads[i].hash.entries);
 		}
 		memset(threads, 0, sizeof threads);
 	}
@@ -301,6 +311,7 @@ Bool meshInitST(ChunkData cd, APTR opaque, APTR alpha)
 	writer->alpha = 0;
 	writer->isCOP = 1;
 	writer->mesh  = mesh;
+	writer->merge = NULL;
 	writer->flush = meshFlushST;
 
 	writer = alpha;
@@ -311,6 +322,7 @@ Bool meshInitST(ChunkData cd, APTR opaque, APTR alpha)
 	writer->alpha = 1;
 	writer->isCOP = 1;
 	writer->mesh  = mesh;
+	writer->merge = NULL;
 	writer->flush = meshFlushST;
 	memset(writer->coplanar, 0, sizeof writer->coplanar);
 	return True;
@@ -325,7 +337,11 @@ static DATA32 meshAllocMT(struct Thread_t * thread, int first, int start)
 	SemWait(staging.capa);
 
 	/* it might have passed a long time since */
-	if (threadStop) return NULL;
+	if (threadStop)
+	{
+		SemAdd(staging.capa, 1);
+		return NULL;
+	}
 
 	MutexEnter(staging.alloc);
 
@@ -402,6 +418,7 @@ Bool meshInitMT(ChunkData cd, APTR opaque, APTR alpha)
 			writer->isCOP = 1;
 			writer->mesh  = cd;
 			writer->flush = meshFlushMT;
+			writer->merge = NULL; //&threads[chunk->cdIndex].hash;
 
 			writer = alpha;
 			writer->start = writer->cur = memALPHA + 2;
@@ -410,6 +427,7 @@ Bool meshInitMT(ChunkData cd, APTR opaque, APTR alpha)
 			writer->isCOP = 1;
 			writer->mesh  = cd;
 			writer->flush = meshFlushMT;
+			writer->merge = NULL; //((MeshWriter)opaque)->merge;
 			cd->glAlpha   = ((memALPHA - staging.mem) >> 10) + 1;
 			memset(writer->coplanar, 0, sizeof writer->coplanar);
 			return True;
@@ -828,9 +846,6 @@ void meshGenerateST(Map map)
 			continue;
 		}
 
-		//if (list == map->center)
-		//	NBT_Dump(&list->nbt, 0, 0, 0);
-
 		/* second: push data to the GPU (only the first chunk) */
 		for (i = 0, j = list->maxy; j > 0; j --, i ++)
 		{
@@ -918,8 +933,6 @@ void meshGenerateMT(Map map)
 
 			/* count bytes needed to store this chunk on GPU */
 			alpha = cd->glAlpha;
-			if (cd->glBank)
-				puts("here");
 			cd->glAlpha = meshStagingSize((alpha - 1) * 1024);
 			cd->glSize  = meshStagingSize(index[0] * 1024) + cd->glAlpha;
 			count = cd->glSize;
@@ -1001,8 +1014,120 @@ void meshGenerateMT(Map map)
 	SemAdd(staging.capa, freed);
 }
 
+/*
+ * quad merging hash table: this hash table is used to merge SOLID quad from meshing phase.
+ */
+#define ENTRY_EOF     0xffff
+
+void meshQuadMergeReset(HashQuadMerge hash)
+{
+	hash->usage = 0;
+	hash->lastAdded = hash->firstAdded = ENTRY_EOF;
+	HashQuadEntry entry, eof;
+	for (entry = hash->entries, eof = entry + hash->capa; entry < eof; entry ++)
+	{
+		entry->nextChain = entry->nextAdded = ENTRY_EOF;
+		entry->crc = 0;
+		entry->quad = NULL;
+	}
+}
+
+void meshQuadMergeInit(HashQuadMerge hash)
+{
+	hash->capa = roundToUpperPrime(6400);
+	hash->entries = malloc(hash->capa * sizeof *hash->entries);
+
+	meshQuadMergeReset(hash);
+}
+
+// XXX above a certain point it is pointless to enlarge: too many rejects, simply use single quads
+static void meshQuadEnlarge(HashQuadMerge hash)
+{
+	uint16_t first = hash->firstAdded;
+	HashQuadEntry old = hash->entries;
+
+	fprintf(stderr, "enlarging table from %d to ", hash->capa);
+
+	hash->capa = roundToUpperPrime(hash->capa+1);
+	hash->entries = malloc(hash->capa * sizeof *old);
+
+	fprintf(stderr, "%d\n", hash->capa);
+
+	meshQuadMergeReset(hash);
+
+	/* re-add entries in the same order they were first inserted */
+	while (first != ENTRY_EOF)
+	{
+		meshQuadMergeAdd(hash, old[first].quad);
+		first = old[first].nextAdded;
+	}
+	free(old);
+}
+
+void meshQuadMergeAdd(HashQuadMerge hash, DATA32 quad)
+{
+	if (hash->usage == hash->capa)
+		meshQuadEnlarge(hash);
+
+	/* need to take into account: V1, norm, UV, ocs, light (don't care about V2 and V3) */
+	uint32_t ref[] = {quad[0], quad[1] & 0xc000ffff, quad[4] & ~0x3fff, quad[5], quad[6]};
+	uint32_t crc   = crc32(0, (DATA8) ref, sizeof ref);
+
+
+	HashQuadEntry entry = hash->entries + crc % hash->capa;
+
+//	if (entry->quad && entry->crc == crc)
+//		puts("here");
+
+	if (entry->quad)
+	{
+		HashQuadEntry eof = hash->entries + hash->capa;
+		HashQuadEntry slot;
+		/* already something here: find a new spot */
+		for (slot = entry; slot < eof && slot->quad; slot ++);
+		if (slot == eof)
+			for (slot = hash->entries; slot < entry; slot ++);
+
+		slot->nextChain = entry->nextChain;
+		entry->nextChain = slot - hash->entries;
+		entry = slot;
+	}
+	int index = entry - hash->entries;
+	if (hash->firstAdded == ENTRY_EOF)
+		hash->firstAdded = index;
+
+	if (hash->lastAdded != ENTRY_EOF)
+		hash->entries[hash->lastAdded].nextAdded = index;
+
+	entry->crc = crc;
+	entry->quad = quad;
+	hash->lastAdded = index;
+	hash->usage ++;
+}
+
+int meshQuadMergeGet(HashQuadMerge hash, DATA32 quad)
+{
+	uint32_t ref[] = {quad[0], quad[1] & 0xc000ffff, quad[4] & ~0x3fff, quad[5], quad[6]};
+	uint32_t crc   = crc32(0, (DATA8) ref, sizeof ref);
+
+	HashQuadEntry entry = hash->entries + crc % hash->capa;
+	while (entry->crc != crc)
+	{
+		if (entry->nextChain == ENTRY_EOF)
+			return -1;
+		entry = hash->entries + entry->nextChain;
+	}
+	if (entry->quad)
+		return entry - hash->entries;
+	else
+		return -1;
+}
+
+
+
 void meshDebugBank(Map map)
 {
+	#ifdef DEBUG
 	GPUBank bank;
 
 	for (bank = HEAD(map->gpuBanks); bank; NEXT(bank))
@@ -1019,4 +1144,5 @@ void meshDebugBank(Map map)
 		fprintf(stderr, "bank: mem = %d/%dK, items: %d/%d, vtxSize: %d\nmem: %d bytes, avg = %d bytes, max = %d\n", bank->memUsed>>10, bank->memAvail>>10,
 			bank->nbItem, bank->maxItems, bank->vtxSize, total, total / bank->nbItem, max);
 	}
+	#endif
 }

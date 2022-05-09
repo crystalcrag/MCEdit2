@@ -369,7 +369,8 @@ void debugCoord(APTR vg, vec4 camera, int total)
 
 	len += sprintf(message + len, "Chunk: %d, %d, %d (cnxGraph: %x)\n", CPOS(camera[0]) << 4, CPOS(camera[1]) << 4, CPOS(camera[2]) << 4,
 		cd ? cd->cnxGraph : 0);
-	len += sprintf(message + len, "Quads: %d\n", total);
+	for (vis = 0; cd; vis += cd->glMerge, cd = cd->visible);
+	len += sprintf(message + len, "Quads: %d (merged: %d, ratio: %.2f%%)\n", total, vis, 100.0 - 100.0 * (total - vis) / total);
 	for (bank = HEAD(globals.level->gpuBanks), vis = 0; bank; vis += bank->vtxSize, NEXT(bank));
 	len += sprintf(message + len, "Chunks: %d/%d (culled: %d, fakeAlloc: %d)\n", vis, globals.level->GPUchunk, globals.level->chunkCulled,
 		globals.level->fakeMax);

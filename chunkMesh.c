@@ -340,7 +340,10 @@ static void chunkGenCust(ChunkData neighbors[], MeshWriter writer, BlockState b,
 static void chunkGenCube(ChunkData neighbors[], MeshWriter writer, BlockState b, DATAS16 chunkOffsets, int pos);
 static void chunkGenFOG(ChunkData cur, MeshWriter writer, DATA16 holesSENW);
 static void chunkFillCaveHoles(ChunkData cur, BlockState, int pos, DATA16 holes);
+static void chunkMergeQuads(ChunkData, HashQuadMerge);
+
 void chunkMakeObservable(ChunkData cd, int offset, int side);
+
 
 #include "globals.h" /* only needed for .breakPoint */
 
@@ -494,6 +497,9 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer, Mesh
 		opaque.flush(&opaque);
 	if (alpha.cur  > alpha.start)  alpha.flush(&alpha);
 	if (alpha.isCOP) cur->cdFlags |= CDFLAG_NOALPHASORT;
+
+	if (opaque.merge)
+		chunkMergeQuads(cur, opaque.merge);
 }
 
 #define BUF_LESS_THAN(buffer,min)   (((DATA8)buffer->end - (DATA8)buffer->cur) < min)
@@ -1222,6 +1228,8 @@ static void chunkGenCube(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 				}
 				else out[5] |= FLAG_UNDERWATER | FLAG_DUAL_SIDE;
 			}
+			if (buffer->merge)
+				meshQuadMergeAdd(buffer->merge, out);
 		}
 		buffer->cur = out + VERTEX_INT_SIZE;
 	}
@@ -1387,9 +1395,150 @@ static void chunkGenFOG(ChunkData cur, MeshWriter buffer, DATA16 holesSENW)
 	}
 }
 
+/*
+ * scan all quads from SOLID blocks and check if they can be merged.
+ * sadly, we need all quad data first :-/
+ */
+static uint8_t quadDirections[] = { /* SENWTB */
+	VY, 1, VX, 1,
+	VY, 1, VZ, 0,
+	VY, 1, VX, 0,
+	VY, 1, VZ, 1,
+	VZ, 0, VX, 1,
+	VZ, 1, VX, 1,
+};
+
+static void chunkMergeQuads(ChunkData cd, HashQuadMerge hash)
+{
+	int index, merged = 0;
+	for (index = hash->firstAdded; index != 0xffff; )
+	{
+		HashQuadEntry entry = hash->entries + index;
+		DATA32 quad = entry->quad;
+		/* check if already processed */
+		if (quad == NULL) goto next;
+		entry->quad = NULL;
+
+		/* ocs will constraint the directions we can go */
+		uint8_t ocs1 = quad[5] & 3;
+		uint8_t ocs2 = (quad[5] >> 2) & 3;
+		uint8_t ocs3 = (quad[5] >> 4) & 3;
+		uint8_t ocs4 = (quad[5] >> 6) & 3;
+		uint8_t dir;
+
+		if (ocs1 == ocs2 && ocs1 == ocs3 && ocs1 == ocs4)
+		{
+			dir = 3;
+		}
+		else if (ocs1 == ocs2 && ocs3 == ocs4)
+		{
+			dir = 1;
+		}
+		else if (ocs1 == ocs4 && ocs2 == ocs3)
+		{
+			dir = 2;
+		}
+		else goto next;
+
+		uint32_t ref[VERTEX_INT_SIZE];
+		uint8_t  min, max, axis;
+		DATA8    directions = quadDirections + (((quad[5] >> 9) & 7) << 2);
+
+		if ((dir & 1) == 0) directions += 2, dir >>= 1;
+		memcpy(ref, quad, VERTEX_DATA_SIZE);
+		axis = directions[0];
+		switch (axis) {
+		case VX: max = ((quad[0] & 0xffff) - ORIGINVTX) >> 11; break;
+		case VY: max = ((quad[0] >> 16) - ORIGINVTX) >> 11; break;
+		case VZ: max = ((quad[1] & 0xffff) - ORIGINVTX) >> 11;
+		}
+		min = max -= directions[1];
+		while (max < 16)
+		{
+			max ++;
+			switch (axis) {
+			case VX: ref[0] += BASEVTX; break;
+			case VY: ref[0] += BASEVTX<<16; break;
+			case VZ: ref[1] += BASEVTX;
+			}
+			index = meshQuadMergeGet(hash, ref);
+			if (index < 0) { max --; break; }
+
+			/* yes, can be merged: mark next one as processed */
+			hash->entries[index].quad = NULL;
+			merged ++;
+		}
+		#if 0
+		// XXX this branch should be useless
+		/* go to the opposite direction */
+		memcpy(ref, quad, 2 * sizeof *ref);
+		while (min > 0)
+		{
+			min --;
+			switch (axis) {
+			case VX: ref[0] -= BASEVTX; break;
+			case VY: ref[0] -= BASEVTX << 16; break;
+			case VZ: ref[1] -= BASEVTX;
+			}
+			index = meshQuadMergeGet(hash, ref);
+			if (index < 0) { min ++; break; }
+
+			/* yes, can be merged: mark next one as processed */
+			hash->entries[index].quad = NULL;
+			merged ++;
+		}
+		#endif
+
+		if (dir > 1)
+		{
+			/* check if we can expand this even further in 2nd direction */
+			uint8_t max2, axis2;
+			axis2 = directions[2];
+			memcpy(ref, quad, VERTEX_DATA_SIZE);
+			switch (axis2) {
+			case VX: max2 = ((quad[0] & 0xffff) - ORIGINVTX) >> 11; break;
+			case VY: max2 = ((quad[0] >> 16) - ORIGINVTX) >> 11; break;
+			case VZ: max2 = ((quad[1] & 0xffff) - ORIGINVTX) >> 11;
+			}
+			max2 -= directions[3];
+			max ++;
+			while (max2 < 16)
+			{
+				uint16_t indices[16];
+				uint32_t start[2];
+				DATA16   p, eof;
+				max2 ++;
+				switch (axis2) {
+				case VX: ref[0] += BASEVTX; break;
+				case VY: ref[0] += BASEVTX<<16; break;
+				case VZ: ref[1] += BASEVTX;
+				}
+				memcpy(start, ref, sizeof start);
+				for (p = indices, eof = p + (max - min); p < eof; p ++)
+				{
+					p[0] = meshQuadMergeGet(hash, ref);
+					if (p[0] == 0xffff) goto next;
+					switch (axis) {
+					case VX: ref[0] += BASEVTX; break;
+					case VY: ref[0] += BASEVTX<<16; break;
+					case VZ: ref[1] += BASEVTX;
+					}
+				}
+				/* mark quads as processed */
+				for (p = indices, merged += max - min; p < eof; p ++)
+					hash->entries[p[0]].quad = NULL;
+				memcpy(ref, start, sizeof start);
+			}
+		}
+
+		next:
+		index = entry->nextAdded;
+	}
+	cd->glMerge = merged;
+}
 
 /*
- * This function is similar to chunkGenQuad, but vertex data will use model format instead of terrain.
+ * This function is similar to chunkGenQuad, but vertex data will use inventory model format instead of terrain.
  * Needed for entities, but all the LUT are here.
  */
 extern uint8_t texCoordRevU[];

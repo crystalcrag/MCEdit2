@@ -5,7 +5,7 @@
  */
 
 #define PNGWRITE_IMPL
-#define STBIW_CRC32(x, y)    crc32(0, x, y);
+#define STBIW_CRC32(x, y)    crc32(0, x, y)
 #include <glad.h>
 #include <stdio.h>
 #include <malloc.h>

@@ -1,4 +1,11 @@
 =========== Week 18 ===========
+Sun May 8:
+	* quad merging first phase seems to be done.
+
+Sat May 7:
+	* added wavy effect when underwater: meh, disabled for now.
+	* started quad merging.
+
 Fri May 6:
 	* replace cloud texture with fbm (finally!).
 
