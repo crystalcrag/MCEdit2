@@ -86,7 +86,7 @@ void main()
 
 		// Cloud color
 		// color depending on the weather (shade of grey) *  (day or night)
-		vec3 cloud_color = clamp(vec3(min(weather*3.0/2.0,1.0)) + color.xyz * 0.5, 0, 1) * clamp(sun_norm.y > 0.05 ? 0.95 : 0.95 + (sun_norm.y-0.05) * 1.8, 0.075, 1);
+		vec3 cloud_color = clamp(vec3(min(weather*3.0/2.0,1.0)) + color.xyz * 0.5, 0, 1) * clamp(sun_norm.y > 0.05 ? 0.95 : 0.95 + (sun_norm.y-0.05) * 1.8, 0.075, 1.0);
 		float transparency;
 
 		#if 0
@@ -137,7 +137,7 @@ void main()
 		if (radius < CORONA)
 		{
 			float addcol = 1 - radius / CORONA;
-			color += addcol * addcol * 0.5 * clamp(sun_norm.y+0.5, 0, 1);
+			color += addcol * addcol * 0.5 * clamp(sun_norm.y+0.5, 0.0, 1.0);
 		}
 
 		#if 0
@@ -164,7 +164,7 @@ void main()
 
 		// final mix
 		// mixing with the cloud color allows us to hide things behind clouds (sun, stars, moon)
-		color = mix(color, cloud_color, clamp((2-weather)*transparency,0,1));
+		color = mix(color, cloud_color, clamp((2-weather)*transparency,0.0,1.0));
 	}
 
 	// horizon tweak

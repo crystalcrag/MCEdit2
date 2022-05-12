@@ -1344,7 +1344,7 @@ static void renderPrepVisibleChunks(Map map)
 			if (size > 0)
 			{
 				cmd = bank->cmdBuffer + bank->cmdTotal;
-				cmd->count = size / VERTEX_DATA_SIZE;
+				cmd->count = (cd->cdFlags & CDFLAG_DISCARDABLE ? size - cd->glDiscard : size) / VERTEX_DATA_SIZE;
 				cmd->instanceCount = 1;
 				cmd->first = start;
 				cmd->baseInstance = bank->cmdTotal; /* needed by glVertexAttribDivisor() */

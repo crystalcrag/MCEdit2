@@ -42,7 +42,6 @@ void main(void)
 	normal = normFlags[0] & 7;
 	waterFog = normFlags[0] & (1 << 6);
 
-	// shading per face (OCS is done in fragment shader)
 	float Usz = (texCoord[0].y - texCoord[0].x) * 32;
 	float Vsz = (texCoord[0].w - texCoord[0].z) * 64;
 	if (Usz < 0) Usz = -Usz;
@@ -53,6 +52,7 @@ void main(void)
 		if ((chunkInfo[0] & (1 << normal)) == 0)
 			return;
 
+		// XXX needs to be setup in the vertex data
 		waterFog = 1;
 	}
 

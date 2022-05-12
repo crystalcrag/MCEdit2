@@ -48,6 +48,7 @@ static void chunkFillData(Chunk chunk, int y, int offset)
 	cd->blockIds[8+8*16+256*9] = 1;
 	 #else
 	memset(cd->blockIds+256*8, 1, 256);
+	cd->blockIds[8+8*16+256*9] = 1;
 	 #endif
 	#endif
 

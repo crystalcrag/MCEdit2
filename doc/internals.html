@@ -29,6 +29,11 @@
     <a class="sub3" href="#cavecullv2"><span>Second attempt</span></a>
   <a class="sub2" href="#altimpl"><span>Alternate implementation<span></a>
 
+<a class="sub1" href="#loading"><span>Chunk loading</span></a>
+  <a class="sub2" href="#single"><span>Single thread</span></a>
+  <a class="sub2" href="#multi"><span>Multi thread</span></a>
+
+
 <a class="sub1" href="#blocks"><span>Block API</span></a>
   <a class="sub2" href="#blockdesc"><span>Block description</span></a>
   <a class="sub2" href="#statedesc"><span>State description</span></a>
@@ -664,6 +669,111 @@ This utility is actually <b>the reference implementation when something has to b
 frustum culling algorithm, be it due to bug fix or trying to improve the function.
 
 
+<h2 id="loading">Chunk loading</h2>
+
+<p>This engine supports 2 strategies for loading chunks: <b>single-thread and multi-thread</b>. Single thread
+is pretty straightforward, multi-thread is way more challenging to follow. This section will contain
+some high-level view on how both works.
+
+<h3 id="single"><span>Single thread chunk loading</span></h3>
+
+<p>To understand multi-threaded chunk loading, you first have to understand how single-thread works.
+It is actually pretty straightforward. Chunks are stored into a 2 dimentionnal array. The size of this
+array is <tt>render_distance*2+4</tt>, where <tt>render_distance</tt> can go from 1 to 16. I.e: on 16
+chunks render distance, the array is 36x36 chunks (1296 chunks). Here's how they are split:
+<ul>
+  <li>The chunk <b>where the player is</b>, forms a map with a render distance of 0.
+  <li>For each increment of the render distance, we add a square ring around this center chunk.
+  With a render distance of 16, that would be a 33x33 grid of chunks. These are the chunks that will
+  be scanned by the frustum culling functions, they are known as "<b>visible</b>" chunks.
+  <li>But we will need more than this: to generate the mesh of a chunk, we need the 8 surrounding
+  chunks to be also loaded. That means, we need an extra ring around the farthest visible ring of
+  chunks. These chunks are known as "<b>lazy chunks</b>": only the bare minimum of these chunks are loaded:
+  block data. With a 16 render distance, we would need a 35x35 area now.
+  <li>A single column and a single row of chunks is added for <b>leaway</b>. Making the grid 36x36 on
+  a 16 chunks render distance. The reason for this leaway is when the player moves back and forth between
+  the boundary of 2 chunks: without that leaway huge amount of data would have to be deleted/recreated
+  each time the boundary is crossed.
+</ul>
+
+<p>For example, this is how chunks are split with a render distance of 1:
+<div class="photo">
+  <img src="images/chunkGrid.png">
+</div>
+
+<p><tt>2</tt> is where the player is. We add one ring of chunks around, because the render distance
+is only 1, making the visible grid 3x3. Then another ring for lazy chunks in order to generate the
+mesh of the visible chunks. Finally, one row and one column of chunks for leaway.
+
+<p>The grid is obviously a <b>2 dimentionnal ring buffer</b>. For example, this is what will happen
+to the grid, when the player has moved 4 chunks in the south/east direction (the center chunk is now
+at position 0,0 on the grid, i.e: number 44):
+
+<div class="photo">
+  <img src="images/chunkGridMoved.png">
+</div>
+
+<p>In single threaded mode, whenever the map center is moved (or upon initial loading), all chunks
+will be scanned to see if a mesh needs to be generated for them. The chunks that are not loaded, will
+be stored in a linked list (<tt>genList</tt> field of <tt>struct Map_t</tt>), <b>sorted by their
+distance</b> from the center.
+
+<p><b>Frustum culling</b> can reorder that list a little bit. This is to give higher priority to the
+chunk that are immediately visible: if frustum culling grab a chunk that have no mesh yet and is
+scheduled to be processed, it is simply moved in front of the list.
+
+<p>Then in the <b>main rendering loop</b>, we check if this list contain some chunks waiting to be
+processed. If yes, we run the loading/meshing function, until some time has passed (around 15ms).
+After that we give the control back to the rendering loop. This is obviously to avoid slowing the
+framerate too much.
+
+<p>And that's pretty much all there is to it. It works rather well, but you can clearly feel the
+framerate dropping upon initially loading, and still feel some lag on render distance above 10 or so
+(if you move diagonnally, you will have to load <tt>4*render_distance+3</tt> chunks, each time the
+player move onto another chunk).
+
+<p>Sadly, to avoid that lag, there is no other way but to have a <b>multi-threaded chunk loading system</b>.
+
+<h3 id="#multi"><span>Multi thread chunk loading</span></h3>
+
+<p>Multi-thread and OpenGL usually don't mix very well. This engine uses a paranoid approach to multi-thread
+chunk loading: threads that handle loading/meshing <b>must not change anything to the OpenGL context</b>.
+All OpenGL interactions must be done by the main thread, no exception whatsoever.
+
+<p>Easier said than done though, especially since the C programming language is not really helping in
+this area. To its defense, this is not a trivial subject.
+
+<p>On a <b>high level view</b>, this is how the system works:
+<ul>
+  <li>A <b>pool of threads</b> is created when a map is loaded. This pool is rather small: default
+  compilation will set this to 2.
+
+  <li>Each threads will <b>wait for chunks to be processed</b> (using a semaphore). This is the exact same
+  list that is built in single thread context, but is now guarded by a semaphore to keep track of
+  how many chunks needs to be processed.
+
+  <li>When a thread grab a chunk to be processed, it starts <b>loading the 8 surrounding chunks</b>.
+  Overlaps with other threads is extremely likely to occur at this point. Arbitration needs to be in
+  place to avoid loading a chunk twice (which will cause lots of memory leaks).
+
+  <li>Once all is loaded. The mesh of the chunk is generated in a <b>staging memory buffer</b> (not owned by
+  the GPU).
+
+  <li>Since threads are completely independant from the main thread, the <b>staging buffer is fixed in size</b>.
+  If the main thread is stuck doing something else (ie: not monitoring the chunks ready to be uploaded to the
+  GPU), they could potentially generate tens of megabytes of mesh data waiting to be uploaded. Which
+  is mostly useless. That's why the staging buffer is limited to 1Mb. This value was callibrated for
+  2 threads. More threads would probably require a bigger buffer.
+
+  <li>Chunks that are completed are stored in a dedicated list, that is scanned from the main rendering
+  loop. The only thing left to do at this point, is to copy data from the staging area to a VBO of
+  the GPU (ie: it is just a bunch of <tt>memcpy()</tt> call). Which is <b>very</b> cheap: 99.9% of
+  the processing time is spent loading (disk read), unpacking (zlib inflate), and meshing the content
+  of each chunks.
+</ul>
+
+<p>Sadly, all of this steps require very <b>careful synchronization</b> in order to not shoot your feet.
+
 
 <h2 id="blocks">Block API</h2>
 
@@ -1005,7 +1115,7 @@ by grouping multiple boxes, you get a model.
 <p>Each lines usually represent a primitive (ie: box), with tags describing what the following numbers
 means. A line ends where the next one starts (or when there are no more numbers to process). The starting
 tag will always be <tt>FACES</tt>. All the other tags can be specified in any order. Here are all the
-tags recognized, their and the expected arguments:
+tags recognized, and their expected arguments:
 
 <table class="listview">
 <thead><tr><td>TAGS<td>argument<td>Description</thead>

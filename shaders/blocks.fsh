@@ -117,10 +117,10 @@ void main(void)
 			color = mix(vec4(0.094 * factor, 0.141 * factor, 0.5 * factor, 1), color, fogFactor);
 		}
 	}
-	else if (fogFactor < 1) // && gl_FragCoord.z < texelFetch(alphaDepth, ivec2(int(gl_FragCoord.x), int(gl_FragCoord.y)), 0).r+0.00001)
+	else if (fogFactor < 1)
 	{
-//		vec4 skyColor = (skyLight > 0 ? texelFetch(skyTex, ivec2(int(gl_FragCoord.x / SCR_WIDTH*255), int(gl_FragCoord.y / SCR_HEIGHT*255)), 0) : vec4(0.1,0.1,0.1,1));
-		vec4 skyColor = texelFetch(skyTex, ivec2(int(gl_FragCoord.x / SCR_WIDTH*255), int(gl_FragCoord.y / SCR_HEIGHT*255)), 0);
+		vec4 skyColor = (skyLight > 0 || waterFog > 0 ? texelFetch(skyTex, ivec2(int(gl_FragCoord.x / SCR_WIDTH*255), int(gl_FragCoord.y / SCR_HEIGHT*255)), 0) : vec4(0.1,0.1,0.1,1));
+//		vec4 skyColor = texelFetch(skyTex, ivec2(int(gl_FragCoord.x / SCR_WIDTH*255), int(gl_FragCoord.y / SCR_HEIGHT*255)), 0);
 		skyColor.a = 1;
 		color = mix(skyColor, color, fogFactor);
 	}

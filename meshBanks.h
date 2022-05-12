@@ -14,7 +14,7 @@
  * avoid more than 2 threads, because the staging area might not have enough space to hold temporary
  * mesh buffer and cause a thread inter-lock. Disable multi-thread by setting this value to 0.
  */
-#define NUM_THREADS                2
+#define NUM_THREADS                0
 #define MEMITEM                    512
 
 typedef struct MeshWriter_t        MeshWriter_t;
@@ -108,6 +108,7 @@ struct MeshBuffer_t                /* temporary buffer used to collect data from
 	ListNode   node;
 	ChunkData  chunk;
 	uint16_t   usage;
+	uint16_t   discard;
 	uint32_t   buffer[0];          /* 64Kb: not declared here because gdb doesn't like big table */
 };
 
@@ -131,7 +132,7 @@ struct HashQuadMerge_t
 struct MeshWriter_t
 {
 	DATA32     start, end;           /* do not write past these points */
-	DATA32     cur;                  /* running pointer */
+	DATA32     cur, discard;         /* running pointer */
 	APTR       mesh;                 /* private datatype */
 	QUADHASH * merge;                /* hash table to merge quad */
 	uint16_t   coplanar[6];          /* check if quads are all coplanar for a given axis (S, E, N, W, T, B: used by alpha) */
@@ -150,6 +151,7 @@ struct Thread_t
 
 /* cannot be more than 1Mb becase of staging.start[], need to change to uint16_t if more than that */
 #define STAGING_AREA       (1024*1024)
+#define MESH_MAX_QUADS     (4088 / VERTEX_DATA_SIZE)
 #undef  QUADHASH
 
 struct Staging_t

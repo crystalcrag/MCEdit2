@@ -502,7 +502,7 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer, Mesh
 		chunkMergeQuads(cur, opaque.merge);
 }
 
-#define BUF_LESS_THAN(buffer,min)   (((DATA8)buffer->end - (DATA8)buffer->cur) < min)
+#define BUF_LESS_THAN(buffer,min)   (((DATA8)buffer->discard - (DATA8)buffer->cur) < min)
 #define META(cd,off)                ((cd)->blockIds[DATA_OFFSET + (off)])
 #define LIGHT(cd,off)               ((cd)->blockIds[BLOCKLIGHT_OFFSET + (off)])
 #define SKYLIT(cd,off)              ((cd)->blockIds[SKYLIGHT_OFFSET + (off)])
@@ -1025,7 +1025,7 @@ static void chunkGenCube(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 	DATA8    blocks = neighbors[6]->blockIds;
 	int      side, sides, occlusion, slab, rotate;
 	int      i, j, k, n;
-	uint8_t  x, y, z, data, hasLights, liquid;
+	uint8_t  x, y, z, data, hasLights, liquid, discard;
 
 	x = (pos & 15);
 	z = (pos >> 4) & 15;
@@ -1040,48 +1040,51 @@ static void chunkGenCube(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 	{
 		BlockState nbor;
 		n = pos;
+		discard = 0;
 
 		/* face hidden by another opaque block: 75% of SOLID blocks will be culled by this test */
-		if (b->special != BLOCK_LEAVES)
+		if ((sides&side) == 0)
 		{
-			/* check if neighbor is opaque: discard face if yes */
-			if ((sides&side) == 0)
-			{
-				/* neighbor is not in the same chunk */
-				ChunkData cd = neighbors[i>>2];
-				if (cd == NULL) continue;
-				n += blockOffset[side];
-				data = META(cd, n>>1);
-				nbor = blockGetByIdData(cd->blockIds[n], n & 1 ? data >> 4 : data & 0xf);
-			}
-			else
-			{
-				static int offsets[] = {
-					/* neighbors: S, E, N, W, T, B */
-					16, 1, -16, -1, 256, -256
-				};
-				n += offsets[i>>2];
-				data = blocks[DATA_OFFSET + (n >> 1)];
-				nbor = blockGetByIdData(blocks[n], n & 1 ? data >> 4 : data & 0xf);
-			}
+			/* neighbor is not in the same chunk */
+			ChunkData cd = neighbors[i>>2];
+			if (cd == NULL) continue;
+			n += blockOffset[side];
+			data = META(cd, n>>1);
+			nbor = blockGetByIdData(cd->blockIds[n], n & 1 ? data >> 4 : data & 0xf);
+		}
+		else
+		{
+			static int offsets[] = {
+				/* neighbors: S, E, N, W, T, B */
+				16, 1, -16, -1, 256, -256
+			};
+			n += offsets[i>>2];
+			data = blocks[DATA_OFFSET + (n >> 1)];
+			nbor = blockGetByIdData(blocks[n], n & 1 ? data >> 4 : data & 0xf);
+		}
 
-			switch (nbor->type) {
-			case SOLID:
-				if (b->special == BLOCK_LIQUID && i == SIDE_TOP * 4)
-					/* top of liquid: slightly lower than a full block */
-					break;
-				switch (nbor->special) {
-				case BLOCK_HALF:
-				case BLOCK_STAIRS:
-					if (oppositeMask[*halfBlockGetModel(nbor, 0, NULL)] & side) continue;
-					break;
-				default: continue;
-				}
+		switch (nbor->type) {
+		case SOLID:
+			if (b->special == BLOCK_LIQUID && i == SIDE_TOP * 4)
+				/* top of liquid: slightly lower than a full block */
 				break;
-			case TRANS:
-				if (b->id == nbor->id) continue;
-				if (b->special == BLOCK_LIQUID && nbor->id == ID(79,0)) continue;
+			switch (nbor->special) {
+			case BLOCK_HALF:
+			case BLOCK_STAIRS:
+				if (oppositeMask[*halfBlockGetModel(nbor, 0, NULL)] & side) continue;
+				break;
+			default: continue;
 			}
+			break;
+		case TRANS:
+			if (b->id == nbor->id)
+			{
+				if (b->special != BLOCK_LEAVES)
+					continue;
+				else
+					discard = 1; /* this quad can be discarded if too far */
+			}
+			if (b->special == BLOCK_LIQUID && nbor->id == ID(79,0)) continue;
 		}
 
 		/* ambient occlusion neighbor: look after 26 surrounding blocks (only 20 needed by AO) */
@@ -1143,9 +1146,20 @@ static void chunkGenCube(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 			}
 		}
 
-		if (BUF_LESS_THAN(buffer, VERTEX_DATA_SIZE))
-			buffer->flush(buffer);
-
+		if (discard)
+		{
+			/* store these in discardable segment */
+			if (buffer->discard == buffer->cur)
+				buffer->flush(buffer);
+			out = buffer->discard -= VERTEX_INT_SIZE;
+		}
+		else
+		{
+			if (BUF_LESS_THAN(buffer, VERTEX_DATA_SIZE))
+				buffer->flush(buffer);
+			out = buffer->cur;
+			buffer->cur = out + VERTEX_INT_SIZE;
+		}
 		/* generate one quad (see internals.html for format) */
 		{
 			DATA8    coord = cubeVertex + cubeIndices[i+3];
@@ -1156,7 +1170,6 @@ static void chunkGenCube(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 			X1 = VERTEX(coord[0]+x);
 			Y1 = VERTEX(coord[1]+y);
 			Z1 = VERTEX(coord[2]+z);
-			out = buffer->cur;
 
 			/* write one quad */
 			coord  = cubeVertex + cubeIndices[i];
@@ -1169,6 +1182,7 @@ static void chunkGenCube(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 			out[5] = (((texCoord[j+4] + tex[0]) * 16 + 128 - texU) << 16) |
 			         (((texCoord[j+5] + tex[1]) * 16 + 128 - texV) << 24) | (i << 7);
 			out[6] = 0;
+			//if (discard) out[4] += 256 << 14;
 
 			/* flip tex */
 			if (texCoord[j] == texCoord[j + 6]) out[5] |= FLAG_TEX_KEEPX;
@@ -1231,7 +1245,6 @@ static void chunkGenCube(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 			if (buffer->merge)
 				meshQuadMergeAdd(buffer->merge, out);
 		}
-		buffer->cur = out + VERTEX_INT_SIZE;
 	}
 }
 

@@ -58,8 +58,9 @@ struct ChunkData_t                     /* one sub-chunk of 16x16x16 blocks */
 	/* VERTEX_ARRAY_BUFFER location */
 	void *    glBank;                  /* GPUBank (filled by meshAllocGPU()) */
 	int       glSlot;
-	int       glSize;                  /* size in bytes */
-	int       glAlpha;                 /* alpha triangles, need separate pass */
+	int       glSize;                  /* size in quads */
+	int       glAlpha;                 /* alpha quads, need separate pass */
+	int       glDiscard;               /* discardable quads if too far away */
 	int       glMerge;                 // DEBUG
 	float     yaw, pitch;              /* heuristic to limit amount of sorting for alpha transparency */
 };
@@ -137,6 +138,8 @@ enum /* flags for ChunkData.cdFlags */
 	CDFLAG_TOPHOLE      = 0x2000,
 	CDFLAG_BOTTOMHOLE   = 0x4000,
 	CDFLAG_HOLE         = 0x7e00,
+
+	CDFLAG_DISCARDABLE  = 0x8000       /* discard "discardable" quads (set by frustum culling) */
 };
 
 /* alias */

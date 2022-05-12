@@ -1,4 +1,15 @@
-=========== Week 18 ===========
+=========== Week 19 (2022) ===========
+Wed May 11:
+	* discardable quads.
+
+Tue May 10:
+	* attempt to discard leaves quad on vertex/geometry shader was a failure: very little performance gain :-/
+	  performance of GPU seems directly proportionnal to number of initial quads.
+
+Mon May 9:
+	* performance tuning (try to reduce quads from mesh)
+
+=========== Week 18 (2022) ===========
 Sun May 8:
 	* quad merging first phase seems to be done.
 
@@ -18,14 +29,14 @@ Wed May 4:
 Mon May 2:
 	* multi-threaded chunk loading mostly working.
 
-=========== Week 17 ===========
+=========== Week 17 (2022) ===========
 Thu Apr 28:
 	* multi-thread chunk loading/meshing implemented in test environment, started porting to engine.
 
 Mon Apr 25:
 	* chunk allocation using GPUMem seems FUBAR. Only 2 years to notice :-/
 
-=========== Week 16 ===========
+=========== Week 16 (2022) ===========
 Sun Apr 24:
 	* added ChunkLoad in MCEdit-utils.
 
@@ -46,7 +57,7 @@ Tue Apr 19:
 Mon Apr 18:
 	* hopper item grab logic done.
 
-=========== Week 15 ===========
+=========== Week 15 (2022) ===========
 Sun Apr 17:
 	* changed tile entity API from XYZ to ChunkData+offset (what you get from iterator).
 	* hopper logic mostly done.
@@ -73,7 +84,7 @@ Mon Apr 11:
 	* bug fixes for listbox cell editing (waypoint editor).
 	* forget diagonal matrix for cave culling.
 
-=========== Week 14 ===========
+=========== Week 14 (2022) ===========
 Sun Apr 10:
 	* almost all overworld mob models added to entities list.
 
@@ -93,7 +104,7 @@ Tue Apr 5:
 Mon Apr 4:
 	* added colored sheeps, chicken and squid models.
 
-=========== Week 13 ===========
+=========== Week 13 (2022) ===========
 Sun Apr 3:
 	* moar entity models and more fixes for TileFinder.
 	* frustum culling backport to 3d space.
@@ -119,7 +130,7 @@ Tue Mar 29:
 Mon Mar 28:
 	* nasty bug fixed when adding a TAG_List_Compound to a NBT stream.
 
-=========== Week 12 ===========
+=========== Week 12 (2022) ===========
 Sun Mar 27:
 	* tile ticks read/write (finally!).
 	* saving chunk logic for TAG_List_Compound reworked.
@@ -142,7 +153,7 @@ Tue Mar 22:
 Mon Mar 21:
 	* TileFinder: started block animation support.
 
-=========== Week 11 ===========
+=========== Week 11 (2022) ===========
 Sun Mar 20:
 	* model refactoring mostly done for TileFinder.
 
@@ -166,7 +177,7 @@ Tue Mar 15:
 Mon Mar 14:
 	* cave fog continued.
 
-=========== Week 10 ===========
+=========== Week 10 (2022) ===========
 Sat Mar 13:
 	* animated texture for water/lava (still has a few pixels bleeding at tex boundary).
 	* started better cave fog (special quads to cover "holes" in terrain).
@@ -189,7 +200,7 @@ Tue Mar 8:
 Mon Mar 7:
 	* entity bbox cleanup.
 
-=========== Week 9 ===========
+=========== Week 9 (2022) ===========
 Sun Mar 6:
 	* X/Y rotation matrix changed again (use trigo orient). Sigh.
 	* minecart can follow track path (finally!).
@@ -215,7 +226,7 @@ Tue Mar 1:
 Mon Feb 28:
 	* CUST lighting vastly improved (as good as SOLID), AO slightly improved.
 
-=========== Week 8 ===========
+=========== Week 8 (2022) ===========
 Sun Feb 27:
 	* started refactoring of CUST lighting/AO.
 
@@ -236,7 +247,7 @@ Tue Feb 22:
 Mon Feb 21:
 	* redstone block update redone: piston can update even with their head facing each other.
 
-=========== Week 7 ===========
+=========== Week 7 (2022) ===========
 Sun Feb 20:
 	* 37th rewrite of nearby chunk update.
 
@@ -255,7 +266,7 @@ Tue Feb 15:
 Mon Feb 14:
 	* SITGL geometry refactoring continued.
 
-=========== Week 6 ===========
+=========== Week 6 (2022) ===========
 Sun Feb 13:
 	* SITGL geometry refactoring: -400 LOC.
 
@@ -279,7 +290,7 @@ Mon Feb 7:
 	* lock mouse mode mostly done.
 	* fixed bug reports from Dr Memory.
 
-=========== Week 5 ===========
+=========== Week 5 (2022) ===========
 Sun Feb 6:
 	* world select integrated (finally!).
 
@@ -300,7 +311,7 @@ Mon Jan 31:
 	* attempted to generate volumetric voxel clouds: too much code for not that much gain :-/
 	  (seriously will need: custom meshing, custom frustum culling, custom shaders: meh)
 
-=========== Week 4 ===========
+=========== Week 4 (2022) ===========
 Sun Jan 30:
 	* key bindings editor.
 
@@ -326,7 +337,7 @@ Tue Jan 25:
 Mon Jan 24:
 	* config editor.
 
-=========== Week 3 ===========
+=========== Week 3 (2022) ===========
 Sun Jan 23:
 	* day/night skylight tweaks: make blocklight not directionnal (also added to entity and particles).
 	* implemented first version of fog.
@@ -350,7 +361,7 @@ Tue Jan 18:
 Mon Jan 17:
 	* skydome textures regenerated using bezier curves; still need integration, but results look ok.
 
-=========== Week 2 ===========
+=========== Week 2 (2022) ===========
 Sun Jan 16:
 	* standing sign placement was broken (again).
 	* world items react to world change (piston, blocks placed/removed).
@@ -376,7 +387,7 @@ Mon Jan 10:
 	* sign edit was broken (again).
 	* final test with undo and redo implemented.
 
-=========== Week 1 ===========
+=========== Week 1 (2022) ===========
 Sun Jan 9:
 	* undo/redo entities changed/deleted/added.
 
@@ -404,7 +415,7 @@ Mon Jan 3:
 #
 
 
-=========== Week 52 ===========
+=========== Week 52 (2021) ===========
 Sun Jan 2:
 	* added dust particles type.
 	* added water/lava hack to render seamless transition between different height.
@@ -425,7 +436,7 @@ Wed Dec 29:
 Tue Dec 28:
 	* minecart movement follows rails and direction.
 
-=========== Week 51 ===========
+=========== Week 51 (2021) ===========
 Sat Dec 25:
 	* added animated fire texture and particles.
 
@@ -444,7 +455,7 @@ Tue Dec 21:
 Mon Dec 20:
 	* minecart movements based on rails beneath started.
 
-=========== Week 50 ===========
+=========== Week 50 (2021) ===========
 Sat Dec 18:
 	* dual-side quads are now handled in geometry shader instead of CPU (a bit less of CPU, GPU and memory usage).
 	* started minecart logic.
@@ -465,7 +476,7 @@ Tue Dec 14:
 Mon Dec 13:
 	* entity collision in physics AABB.
 
-=========== Week 49 ===========
+=========== Week 49 (2021) ===========
 Sun Dec 12:
 	* quadtree integration mostly done.
 	* painting placement improved: look for place without overlapping entities or clipping walls.
@@ -488,7 +499,7 @@ Tue Dec 7:
 Mon Dec 6:
 	* entity collision cleanup.
 
-=========== Week 48 ===========
+=========== Week 48 (2021) ===========
 Sun Dec 5:
 	* entity-entity collision early implementation (piston can push entity).
 
@@ -511,7 +522,7 @@ Tue Nov 30:
 Mon Nov 29:
 	* selectively delete entities (command 8 in toolbar wasn't working).
 
-=========== Week 47 ===========
+=========== Week 47 (2021) ===========
 Sun Nov 28:
 	* preview item can be picked up or dropped in the world.
 
@@ -532,7 +543,7 @@ Tue Nov 23:
 Mon Nov 22:
 	* bug fixing screen resize continued.
 
-=========== Week 46 ===========
+=========== Week 46 (2021) ===========
 Sun Nov 21:
 	* pixel art was FUBAR since last item ID refactoring.
 	* replaced stb_image_write.h with zlib.dll.
@@ -558,7 +569,7 @@ Tue Nov 16:
 Mon Nov 15:
 	* entites lighting debug: not in sync since last AO refactoring.
 
-=========== Week 45 ===========
+=========== Week 45 (2021) ===========
 Sun Nov 14:
 	* started entity-entity collision.
 
@@ -582,7 +593,7 @@ Tue Nov 9:
 Mon Nov 8:
 	* waypoints refined: better highlighting feedback and raypicking.
 
-=========== Week 44 ===========
+=========== Week 44 (2021) ===========
 Sun Nov 7:
 	* added raypicking for in-game waypoints.
 
@@ -607,7 +618,7 @@ Tue Nov 2:
 Mon Nov 1:
 	* cave culling bugs fixed and hooked to frustum culling (finally).
 
-=========== Week 43 ===========
+=========== Week 43 (2021) ===========
 Sun Oct 31:
 	* update single property of NBT (relocating if necessary).
 	* bug fix in the way async update are processed: modify sorted list as soon as possible.
@@ -639,7 +650,7 @@ Mon Oct 25:
 	  incorrect, tile entities linked list didn't update prev node (missing sign text on some chunks).
 	* lava block state for data 1 ~ 15 were missing.
 
-=========== Week 42 ===========
+=========== Week 42 (2021) ===========
 Sun Oct 24:
 	* pixel art generation works with blocks.
 	* map pixel art can be spread over multiple maps.
@@ -666,7 +677,7 @@ Tue Oct 19:
 Mon Oct 18:
 	* pixel art editor continued (palette tool editor done).
 
-=========== Week 41 ===========
+=========== Week 41 (2021) ===========
 Sun Oct 17:
 	* particles forgot to update light values from last refactoring.
 	* started pixel art editor (interface mostly done).
@@ -688,7 +699,7 @@ Mon Oct 11:
 	* entity business logic continued.
 	* in-game maps logic mostly done.
 
-=========== Week 40 ===========
+=========== Week 40 (2021) ===========
 Sun Oct 10:
 	* nasty bug fix: entity.c was modifying global VTXBBox, which screwed collision detection :-/
 	* entity business logic continued.
@@ -712,7 +723,7 @@ Tue Oct 5:
 Mon Oct 4:
 	* keyboard driven inventories.
 
-=========== Week 39 ===========
+=========== Week 39 (2021) ===========
 Sun Oct 3:
 	* create entity (paintings and item frame so far).
 	* interface to select a painting.
@@ -735,7 +746,7 @@ Tue Sep 28:
 Mon Sep 27:
 	* started refactoring particles physics based on material density.
 
-=========== Week 38 ===========
+=========== Week 38 (2021) ===========
 Sun Sep 26:
 	* entity items rendered correctly and ray picking takes rotation into account.
 
@@ -759,7 +770,7 @@ Mon Sep 20:
 	* fixed lots of bug reports from Dr Memory.
 	* library schematics: added tile entities in file.
 
-=========== Week 37 ===========
+=========== Week 37 (2021) ===========
 Sun Sep 19:
 	* schematics library many bug fixes.
 	* final touches for schematic library.
@@ -776,7 +787,7 @@ Wed Sep 15:
 Mon Sep 13:
 	* brush library continued.
 
-=========== Week 36 ===========
+=========== Week 36 (2021) ===========
 Sun Sep 12:
 	* brush library continued: business logic mostly done.
 
@@ -798,7 +809,7 @@ Tue Sep 7:
 Mon Sep 6:
 	* started copy brush library.
 
-=========== Week 35 ===========
+=========== Week 35 (2021) ===========
 Sun Sep 5:
 	* half-block meshing didn't take tex rotation into account.
 	* roll brush seems working for now.
@@ -828,7 +839,7 @@ Mon Aug 30:
 	* brush is now rendered as a mini-map.
 	* brush can be copied in the world (including repeated); still need rotate, roll, ...
 
-=========== Week 34 ===========
+=========== Week 34 (2021) ===========
 Sun Aug 29:
 	* clone tool: added edit brush interface.
 
@@ -850,7 +861,7 @@ Tue Aug 24:
 Mon Aug 23:
 	* sphere brush based on distance from center of brush to center of voxel: better.
 
-=========== Week 33 ===========
+=========== Week 33 (2021) ===========
 Sun Aug 22:
 	* sphere brush first version: meh (based on volume coverage).
 
@@ -870,7 +881,7 @@ Tue Aug 17:
 Mon Aug 16:
 	* toolbar icons for extended selection.
 
-=========== Week 32 ===========
+=========== Week 32 (2021) ===========
 Sun Aug 15:
 	* replace selection command mostly done: multi-threaded, progress indicator and cancellable.
 
@@ -895,7 +906,7 @@ Tue Aug 10:
 Mon Aug 9:
 	* extended selection refined: can be activated with mouse.
 
-=========== Week 31 ===========
+=========== Week 31 (2021) ===========
 Sun Aug 8:
 	* SITGL custom cursor shape: not worth it, but it's done :-/
 	* ability to nudge selection (at last).
@@ -919,7 +930,7 @@ Tue Aug 3:
 Mon Aug 2:
 	* extended selection continued.
 
-=========== Week 30 ===========
+=========== Week 30 (2021) ===========
 Sun Aug 1:
 	* standing sign editing was FUBAR.
 	* extended selection continued.
@@ -944,7 +955,7 @@ Mon July 26:
 	* skylight was not updated when blocked.
 	* slight AO fixes.
 
-=========== Week 29 ===========
+=========== Week 29 (2021) ===========
 Sun July 25:
 	* unified half-block and full-block AO, seems ok for now.
 
@@ -954,7 +965,7 @@ Sat July 24 ~ Tue 20:
 Mon July 19:
 	* occlusion for half-slab partially handled in shaders: seems better, but need some fixes.
 
-=========== Week 28 ===========
+=========== Week 28 (2021) ===========
 Sun July 18:
 	* AO for half-slab still not good: trying a baked texture approach :-/
 
@@ -973,7 +984,7 @@ Tue July 13:
 Mon July 12:
 	* rail auto-orient bug fixes.
 
-=========== Week 27 ===========
+=========== Week 27 (2021) ===========
 Sun July 11:
 	* slight chunk meshing optimization (don't update nearby chunks if block doesn't have connected models).
 	* rail rsupdate started.
@@ -993,7 +1004,7 @@ Wed July 7:
 Mon July 5:
 	* cave culling continued.
 
-=========== Week 26 ===========
+=========== Week 26 (2021) ===========
 Fri July 2:
 	* cave culling continued.
 
@@ -1011,7 +1022,7 @@ Tue June 29:
 Mon June 28:
 	* 134th rewrite of entity movement using angular momentum.
 
-=========== Week 25 ===========
+=========== Week 25 (2021) ===========
 Sun June 27:
 	* entity movement redone.
 
@@ -1028,7 +1039,7 @@ Mon June 21:
 	* added auto-climb.
 	* started stairs bbox (about time :-/).
 
-=========== Week 24 ===========
+=========== Week 24 (2021) ===========
 Sun June 20:
 	* reimplemented collision detection/correction using swept AABB sliding algorithm.
 
@@ -1050,7 +1061,7 @@ Mon June 14:
 	* stairs preview model fixed: convert terrain vertex to inv model vertex :-/
 	* slight bug in hidden face culling fixed.
 
-=========== Week 23 ===========
+=========== Week 23 (2021) ===========
 Sun June 13:
 	* CUST mostly working, patching remaining broken features.
 
@@ -1069,7 +1080,7 @@ Tue June 8:
 Mon June 7:
 	* vertex data refactoring continued.
 
-=========== Week 22 ===========
+=========== Week 22 (2021) ===========
 Sun June 6:
 	* started vertex data refactoring (again): uses a geometry shader this time.
 
@@ -1096,7 +1107,7 @@ Tue June 1:
 Mon May 31:
 	* area heuristic not good enough, distance does not work either, tried quadrant again: did not work.
 
-=========== Week 21 ===========
+=========== Week 21 (2021) ===========
 Sun May 30:
 	* collision correction seems working with multiple bbox on XZ planes, needs check for Y still.
 	* SITGL VTerm v2 almost done: uses ring buffer, variable spaces and indent on soft line breaks.
@@ -1120,7 +1131,7 @@ Tue May 25:
 Mon May 24:
 	* bounding box collision seems working (only single VTXBBox though).
 
-=========== Week 20 ===========
+=========== Week 20 (2021) ===========
 Sat May 23:
 	* first version of collision somewhat working, still needs lots of fine tuning :-/
 
@@ -1145,7 +1156,7 @@ Tue May 18:
 Mon May 17:
 	* entity lighting redone: use 27 surrounding block/sky light values: not good enough :-/
 
-=========== Week 19 ===========
+=========== Week 19 (2021) ===========
 Sun May 16:
 	* render bug when removing an alpha chunk from a bank in mapUpdate() (vtxSize was not up to date).
 	* piston block pushing glitches: blocks could collide (missing block 36 on destination).
@@ -1177,7 +1188,7 @@ Mon May 10:
 	* entity uses skylight/blocklight.
 	* slight adjust in AO for blocks.
 
-=========== Week 18 ===========
+=========== Week 18 (2021) ===========
 Sun May 9:
 	* alpha transparency using CPU sorted triangles: meh, but it works.
 	* model for cauldron was mess-up.
@@ -1202,7 +1213,7 @@ Tue May 4:
 Mon May 3:
 	* piston extends/retracts according to redstone update, animation looks fine.
 
-=========== Week 17 ===========
+=========== Week 17 (2021) ===========
 Sun May 2:
 	* first version of piston extension: still lots of details to fix :-/
 
@@ -1227,7 +1238,7 @@ Tue Apr 27:
 Mon Apr 26:
 	* started support for paintings.
 
-=========== Week 16 ===========
+=========== Week 16 (2021) ===========
 Sun Apr 25:
 	* refactoring of entities mostly working.
 
@@ -1247,7 +1258,7 @@ Wed Apr 21:
 Tue Apr 20:
 	* added raycasting pickup for entities.
 
-=========== Week 15 ===========
+=========== Week 15 (2021) ===========
 Sun Apr 18:
 	* rendering entities as unknown tile.
 	* SITGL SIT_PROGRESS fixes, doc continued (added css used for each control).
@@ -1273,7 +1284,7 @@ Tue Apr 13:
 Mon Apr 12:
 	* RSNOR latch works. Door almost done.
 
-=========== Week 14 ===========
+=========== Week 14 (2021) ===========
 Sun Apr 11:
 	* added powered rails, fence gate and trapdoor update.
 
@@ -1297,7 +1308,7 @@ Tue Apr 6:
 Mon Apr 5:
 	* redstone update continued.
 
-=========== Week 13 ===========
+=========== Week 13 (2021) ===========
 Sun Apr 4:
 	* redstone update continued.
 
@@ -1321,7 +1332,7 @@ Mon Mar 29:
 	* SITGL listbox continued (kbd pgup/down, search).
 	* redstone block update continued.
 
-=========== Week 12 ===========
+=========== Week 12 (2021) ===========
 Sun Mar 28:
 	* redstone block update continued.
 
@@ -1341,7 +1352,7 @@ Mon Mar 22:
 	* redstone async block update continued.
 	* SITGL listbox bug fixes.
 
-=========== Week 11 ===========
+=========== Week 11 (2021) ===========
 Sun Mar 21:
 	* redstone async block update continued.
 	* SITGL listbox delete row.
@@ -1361,7 +1372,7 @@ Tue Mar 16:
 Mon Mar 15:
 	* particle emitter uses global list: not good, too many.
 
-=========== Week 10 ===========
+=========== Week 10 (2021) ===========
 Sun Mar 14:
 	* moar particle emitters refactoring.
 
@@ -1383,7 +1394,7 @@ Tue Mar 9:
 Mon Mar 8:
 	* started new smoke particles.
 
-=========== Week 9 ===========
+=========== Week 9 (2021) ===========
 Sun Mar 7:
 	* bug fixes when placing blocks.
 	* bug due to bad frustum culling seems to be fixed.
@@ -1406,7 +1417,7 @@ Mon Mar 1:
 	* redstone delete signal somewhat working.
 	* SITGL combobox working without too much glitches.
 
-=========== Week 8 ===========
+=========== Week 8 (2021) ===========
 Sun Feb 28:
 	* redstone signal uses texture for intensity.
 
@@ -1428,7 +1439,7 @@ Tue Feb 23:
 Mon Feb 22:
 	* redstone update continued.
 
-=========== Week 7 ===========
+=========== Week 7 (2021) ===========
 Sun Feb 21:
 	* started redstone update.
 
@@ -1441,7 +1452,7 @@ Fri Feb 19:
 Feb 15 ~ 18:
 	* tried to implement sorted fragment from opengl ninth edition (a.k.a OIT).
 
-=========== Week 6 ===========
+=========== Week 6 (2021) ===========
 Fri Feb 12:
 	* SITGL bug fix: border-image.
 
@@ -1451,7 +1462,7 @@ Tue Feb 9:
 Mon Feb 8:
 	* minor tweaks to skydome shader.
 
-=========== Week 5 ===========
+=========== Week 5 (2021) ===========
 Sun Feb 7:
 	* fixed a few nasty bugs in fragment shader of skydome.
 	* OpenGL ninth edition received.
@@ -1474,7 +1485,7 @@ Tue Feb 2:
 Mon Feb 1:
 	* check for better sky dome rendering.
 
-=========== Week 4 ===========
+=========== Week 4 (2021) ===========
 Sun Jan 31:
 	* started implementing proper handling of blocks translucency (depth peeling).
 
@@ -1493,7 +1504,7 @@ Tue Jan 26:
 Mon Jan 25:
 	* even moar interface fine tuning for sign editing.
 
-=========== Week 3 ===========
+=========== Week 3 (2021) ===========
 Sun Jan 24:
 	* more sign editing boilerplate: interface mostly working now.
 
@@ -1513,7 +1524,7 @@ Tue Jan 19:
 Mon Jan 18:
 	* sign boilerplate mostly complete, using 8bpp texture for now.
 
-=========== Week 2 ===========
+=========== Week 2 (2021) ===========
 Sun Jan 17:
 	* sign problem: FBO rendering with nanovg doesn't seem to work :-/
 
@@ -1537,7 +1548,7 @@ Mon Jan 11:
 	* more robust fake chunk allocation (need perf analysis).
 	* render.direction had inverted east/west.
 
-=========== Week 1 ===========
+=========== Week 1 (2021) ===========
 Sun Jan 10:
 	* bug not fixed: frustum culling cut short the visible list, missing chunk in rendering, bug is random :-/
 

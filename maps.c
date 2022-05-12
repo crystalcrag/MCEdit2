@@ -1262,8 +1262,8 @@ static ChunkData mapAddToVisibleList(Map map, Chunk from, int direction, int lay
 		}
 		return NULL;
 	}
-	if (! cd->glBank)
-		return NULL;
+//	if (! cd->glBank)
+//		return NULL;
 
 	break_all:
 	if (cd && c->outflags[Y] < VISIBLE)
@@ -1355,7 +1355,7 @@ void mapViewFrustum(Map map, vec4 camera)
 	ChunkData * prev;
 	ChunkData   cur, last, checkFog;
 	Chunk       chunk;
-	float       renderDist;
+	//float       renderDist;
 	int         frame;
 	int         center[3];
 
@@ -1470,7 +1470,7 @@ void mapViewFrustum(Map map, vec4 camera)
 	frame = ++ map->frame;
 	chunk->chunkFrame = frame;
 	/* limit cave fog check */
-	renderDist = ((map->maxDist >> 1) - 1) * ((map->maxDist >> 1) - 1) * 256;
+	//renderDist = ((map->maxDist >> 1) - 1) * ((map->maxDist >> 1) - 1) * 256;
 	checkFog = NULL;
 
 	for (last = cur; cur; cur = *prev)
@@ -1574,19 +1574,20 @@ void mapViewFrustum(Map map, vec4 camera)
 //			fprintf(stderr, "adding chunk %d, %d, %d from %d to visible list\n",
 //				chunk->X, cur->Y, chunk->Z, cur->comingFrom);
 			prev = &cur->visible;
-			cur->cdFlags &= ~ CDFLAG_EDGESENW;
+			cur->cdFlags &= ~ (CDFLAG_DISCARDABLE | CDFLAG_EDGESENW);
 			/* setup cave fog flags */
-			if (! checkFog)
+			if (cur->glDiscard > 0)
 			{
 				float dx = camera[VX] - chunk->X;
 				float dz = camera[VZ] - chunk->Z;
 				/* 90% of chunks don't need this information */
-				if (dx * dx + dz * dz >= renderDist)
-					checkFog = cur;
+				if (dx * dx + dz * dz >= 90 * 90)
+					cur->cdFlags |= CDFLAG_DISCARDABLE;
 			}
 		}
 	}
 
+	#if 0
 	/* cannot check this in the previous loop: need all the information first */
 	for (cur = checkFog; cur; cur = cur->visible)
 	{
@@ -1600,5 +1601,6 @@ void mapViewFrustum(Map map, vec4 camera)
 				cur->cdFlags |= CDFLAG_EDGESOUTH << i;
 		}
 	}
+	#endif
 	meshAllocCmdBuffer(map);
 }
