@@ -17,7 +17,6 @@ layout (std140, binding = 2) uniform param
 
 #define ORIGINVTX      15360
 #define BASEVTX        0.00048828125
-#define MIDVTX         4
 #define SCR_WIDTH      shading[0].y     // width of wnd/screen in px
 #define SCR_HEIGHT     shading[0].z     // height
 #define INVENTORY_ITEM shading[0].w > 0 // see invShading[] in render.c

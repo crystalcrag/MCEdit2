@@ -52,10 +52,9 @@ void main(void)
 		float pt2 = intensity[bitfieldExtract(ocsmap, 2, 2)] * ocsval;
 		float pt3 = intensity[bitfieldExtract(ocsmap, 4, 2)] * ocsval;
 		float pt4 = intensity[bitfieldExtract(ocsmap, 6, 2)] * ocsval;
-		uint extend = ocsmap >> 9;
+		uint extend = ocsmap >> 8;
 
-		// XXX should probably replace this with SSAO: https://learnopengl.com/Advanced-Lighting/SSAO
-		if ((ocsmap & 256) > 0)
+		if ((ocsmap & 65536) > 0)
 		{
 			// half-block ocs: a bit more expensive to process: need to compute contribution from 4 sides
 			#define CORNERSET(pt1, pt2)         (ocsset & ((1 << (pt1*2-2)) | (1 << (pt2*2-2)))) == ((1 << (pt1*2-2)) | (1 << (pt2*2-2)))
@@ -94,14 +93,6 @@ void main(void)
 			// diminish slightly ambient occlusion if there is blockLight overpowering skyLight
 			shadeLight = (blockLight - skyLight) * shade * 0.8;
 		}
-	}
-
-	// last tex line: first 16 tex are biome dependant
-	if (tc.y >= 0.96875 && color.x == color.y && color.y == color.z)
-	{
-		color.x *= biomeColor.x;
-		color.y *= biomeColor.y;
-		color.z *= biomeColor.z;
 	}
 
 	float sky = 0.9 * skyLight * skyLight + 0.1 - shade; if (sky < 0) sky = 0;

@@ -332,8 +332,7 @@ static Bool isVisible(DATA16 neighborBlockIds, ModelCache models, DATA8 pos, int
 }
 
 /*
- * Main function to convert a detail block metadata into a triangle mesh:
- * contrary to chunk meshing, we try harder to make triangles as big as possible.
+ * main function to convert a detail block metadata into a triangle mesh
  */
 void meshHalfBlock(MeshWriter write, DATA8 model, int size /* 2 or 8 */, DATA8 xyz, BlockState b, DATA16 neighborBlockIds, DATA8 skyBlock, int genSides)
 {
@@ -436,8 +435,9 @@ void meshHalfBlock(MeshWriter write, DATA8 model, int size /* 2 or 8 */, DATA8 x
 				occlusion |= halfBlockGetOCS(neighborBlockIds, ocs + 4 + (k<<2), cur, j, k+1, &models);
 			}
 
-			uint16_t ocsval = 0;
-			uint8_t  ocsext = 0;
+			uint32_t ext = 0;
+			uint8_t ocsval = 0;
+			uint8_t ocsext = 0;
 			if (ocs[4] < 16 && ocs[8] < 16 && ocs[12] < 16)
 			{
 				/* 2x2: use a detailed ocs map */
@@ -448,7 +448,7 @@ void meshHalfBlock(MeshWriter write, DATA8 model, int size /* 2 or 8 */, DATA8 x
 				};
 				DATA8 p;
 				face2 = merge + rev * 4;
-				for (ocsval = 256, k = 0, p = face2 + 4; k < 8; k += 2, p += 2, occlusion >>= 3)
+				for (ext = FLAG_EXTOCS, k = 0, p = face2 + 4; k < 8; k += 2, p += 2, occlusion >>= 3)
 				{
 					ocsval |= ocs[face2[k>>1]] << k;
 					uint8_t allTall = (occlusion & 7) > 0 && ((occlusion >> 12) & 7) == (occlusion & 7);
@@ -517,7 +517,7 @@ void meshHalfBlock(MeshWriter write, DATA8 model, int size /* 2 or 8 */, DATA8 x
 			{
 				static uint8_t coordU[] = {0, 2, 0, 2, 0, 0};
 				static uint8_t coordV[] = {1, 1, 1, 1, 2, 2};
-				uint16_t X1, Y1, Z1, U, V, Usz, Vsz, base;
+				uint16_t U, V, Usz, Vsz, base;
 				#define vtx      (ocs+4)
 				#define texSz    3
 
@@ -527,10 +527,6 @@ void meshHalfBlock(MeshWriter write, DATA8 model, int size /* 2 or 8 */, DATA8 x
 				vtx[0] = pos[0] + idx[0] * rect[0];
 				vtx[1] = pos[1] + idx[1] * rect[1];
 				vtx[2] = pos[2] + idx[2] * rect[2];
-				X1 = VERTEX(vtx[0] + xyz[0]);
-				Y1 = VERTEX(vtx[1] + xyz[1]);
-				Z1 = VERTEX(vtx[2] + xyz[2]);
-				out[0] = X1 | (Y1 << 16);
 
 				/* second vertex */
 				idx = cubeVertex + face2[0];
@@ -556,17 +552,16 @@ void meshHalfBlock(MeshWriter write, DATA8 model, int size /* 2 or 8 */, DATA8 x
 				case 3: swap(U, Usz); break;
 				case 2: swap(U, Usz); swap(V, Vsz); break;
 				}
-				out[1] = Z1 | (RELDX(vtx[4] + xyz[0]) << 16) | ((V & 512) << 21);
-				out[2] = RELDY(vtx[5] + xyz[1]) | (RELDZ(vtx[6] + xyz[2]) << 14) | ((ocsext & 0xf0) << 24);
-
-				out[3] = RELDX(vtx[8]  + xyz[0]) | (RELDY(vtx[9] + xyz[1]) << 14) | (ocsext << 28);
-				out[4] = RELDZ(vtx[10] + xyz[2]) | (U << 14) | (V << 23);
-
-				out[5] = ((Usz + 128 - U) << 16) | ((Vsz + 128 - V) << 24) | (j << 9) | ocsval;
-				out[6] = 0;
+				out[0] = VERTEX(vtx[0] + xyz[0]) | (VERTEX(vtx[1] + xyz[1]) << 16);
+				out[1] = VERTEX(vtx[2] + xyz[2]) | (VERTEX(vtx[4] + xyz[0]) << 16);
+				out[2] = VERTEX(vtx[5] + xyz[1]) | (VERTEX(vtx[6] + xyz[2]) << 16);
+				out[3] = VERTEX(vtx[8] + xyz[0]) | (VERTEX(vtx[9] + xyz[1]) << 16);
+				out[4] = (ocsext << 8) | ocsval  | (VERTEX(vtx[10] + xyz[2]) << 16);
+				out[5] = U | (V << 9) | (j << 19) | ext | (texCoord[base] == texCoord[base+6] ? FLAG_TEX_KEEPX : 0);
+				out[6] = Usz | (Vsz << 9);
+				out[7] = 0;
 
 				base = (rotate & 3) * 8;
-				if (texCoord[base] == texCoord[base + 6]) out[5] |= FLAG_TEX_KEEPX;
 
 				static uint8_t oppSideBlock[] = {16, 14, 10, 12, 22, 4};
 				if (blockIds[neighborBlockIds[oppSideBlock[j]] >> 4].special == BLOCK_LIQUID)
@@ -589,7 +584,7 @@ void meshHalfBlock(MeshWriter write, DATA8 model, int size /* 2 or 8 */, DATA8 x
 						/* minimum if != 0 */
 						if (skyvtx > 0 && (skyval > skyvtx || skyval == 0)) skyval = skyvtx;
 					}
-					out[6] |= (skyval | max) << (k << 3);
+					out[7] |= (skyval | max) << (k << 3);
 				}
 			}
 			out += VERTEX_INT_SIZE;

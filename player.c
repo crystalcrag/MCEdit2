@@ -623,7 +623,7 @@ Bool playerAddInventory(Player p, Item add)
 		/* check if it is already in inventory */
 		slot = -1;
 		do {
-			for (item = p->inventory.items, slot ++; slot < PLAYER_MAX_ITEMS && !(item->id == itemId && item->tile == NULL); slot ++, item ++);
+			for (item = p->inventory.items, slot ++; slot < PLAYER_MAX_ITEMS && !(item->id == itemId && item->extraF == 0); slot ++, item ++);
 
 			if (slot < PLAYER_MAX_ITEMS)
 			{

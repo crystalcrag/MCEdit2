@@ -1491,7 +1491,7 @@ void entityGetItem(int entityId, Item ret)
 		if (ret->count < 0)
 			ret->count = 1;
 		if (entity->blockId > 0)
-			ret->id = entity->blockId;
+			ret->id = entity->blockId & ~ENTITY_ITEM;
 		else
 			ret->id = itemGetByName(entity->name, True);
 	}

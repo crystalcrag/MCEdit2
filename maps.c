@@ -492,35 +492,32 @@ void mapShowChunks(Map map)
 	for (i = 0, c = map->chunks, size = map->mapArea * map->mapArea; i < size; i ++, c ++)
 	{
 		uint8_t flags = c->cflags;
-		uint8_t bank = 0;
-		int     slot = -1;
+		int     discard = 0;
+		int     hasflags = 0;
 		if (flags & CFLAG_HASMESH)
 		{
 			int j;
 			for (j = 0; j < c->maxy; j ++)
 			{
 				ChunkData cd = c->layer[j];
-				if (cd && cd->glBank)
+				if (cd && cd->glBank && cd->frame == map->frame && cd->glDiscard > 0)
 				{
-					slot = cd->glSlot;
-					bank = 1;
+					discard ++;
+					if (cd->cdFlags & CDFLAG_DISCARDABLE) hasflags ++;
 				}
 			}
 		}
 		if (i % map->mapArea == 0)
 			fprintf(stderr, "%2d:", i / map->mapArea);
-		bank =
+		uint8_t bank =
 			c == map->center ? '#' :
 			(flags & (CFLAG_HASMESH|CFLAG_GOTDATA)) == (CFLAG_HASMESH|CFLAG_GOTDATA) ? (bank ? 'M' : '!') :
 			flags & CFLAG_GOTDATA ? 'L' : ' ';
-		if (c->chunkFrame != map->frame && 'A' <= bank && bank <= 'Z')
-			bank += 'a'-'A';
+		if (c->chunkFrame != map->frame)
+			bank = '.';
 
 		fputc(bank, stderr);
-		if (slot >= 0)
-			fprintf(stderr, ":%3d", slot);
-		else
-			fprintf(stderr, "____");
+		fputc(hasflags && discard != hasflags ? 'X' : (hasflags ? 'D' : ' '), stderr);
 
 		if (i % map->mapArea == map->mapArea-1) fputs("|\n", stderr);
 	}
@@ -1353,9 +1350,8 @@ static void mapCullCave(ChunkData cur, vec4 camera)
 void mapViewFrustum(Map map, vec4 camera)
 {
 	ChunkData * prev;
-	ChunkData   cur, last, checkFog;
+	ChunkData   cur, last;
 	Chunk       chunk;
-	//float       renderDist;
 	int         frame;
 	int         center[3];
 
@@ -1469,9 +1465,6 @@ void mapViewFrustum(Map map, vec4 camera)
 	chunk->outflags[cur->Y>>4] |= VISIBLE;
 	frame = ++ map->frame;
 	chunk->chunkFrame = frame;
-	/* limit cave fog check */
-	//renderDist = ((map->maxDist >> 1) - 1) * ((map->maxDist >> 1) - 1) * 256;
-	checkFog = NULL;
 
 	for (last = cur; cur; cur = *prev)
 	{
@@ -1575,32 +1568,14 @@ void mapViewFrustum(Map map, vec4 camera)
 //				chunk->X, cur->Y, chunk->Z, cur->comingFrom);
 			prev = &cur->visible;
 			cur->cdFlags &= ~ (CDFLAG_DISCARDABLE | CDFLAG_EDGESENW);
-			/* setup cave fog flags */
 			if (cur->glDiscard > 0)
 			{
 				float dx = camera[VX] - chunk->X;
 				float dz = camera[VZ] - chunk->Z;
-				/* 90% of chunks don't need this information */
 				if (dx * dx + dz * dz >= 90 * 90)
 					cur->cdFlags |= CDFLAG_DISCARDABLE;
 			}
 		}
 	}
-
-	#if 0
-	/* cannot check this in the previous loop: need all the information first */
-	for (cur = checkFog; cur; cur = cur->visible)
-	{
-		int i;
-		chunk = cur->chunk;
-		for (i = 0; i < 4; i ++)
-		{
-			Chunk neighbor = chunk + map->chunkOffsets[chunk->neighbor + (1 << i)];
-			ChunkData cd = neighbor->layer[cur->Y >> 4];
-			if (cd == NULL || cd->frame != frame)
-				cur->cdFlags |= CDFLAG_EDGESOUTH << i;
-		}
-	}
-	#endif
 	meshAllocCmdBuffer(map);
 }

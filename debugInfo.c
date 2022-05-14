@@ -44,7 +44,7 @@ void debugBlockVertex(vec4 pos, int side)
 		(int) pos[VX], (int) pos[VY], (int) pos[VZ],
 		iter.offset, xyz[0], xyz[1], xyz[2], iter.ref->X, iter.cd->Y, iter.ref->Z
 	);
-	fprintf(stderr, "quads: %d + %d = %d\n", (iter.cd->glSize - iter.cd->glAlpha) / VERTEX_DATA_SIZE, iter.cd->glAlpha / VERTEX_DATA_SIZE,
+	fprintf(stderr, "quads opaque + alpha: %d + %d = %d\n", (iter.cd->glSize - iter.cd->glAlpha) / VERTEX_DATA_SIZE, iter.cd->glAlpha / VERTEX_DATA_SIZE,
 		iter.cd->glSize / VERTEX_DATA_SIZE);
 	fprintf(stderr, "intersection at %g,%g,%g, mouse at %d,%d\n", (double) render.selection.extra.inter[0],
 		(double) render.selection.extra.inter[1], (double) render.selection.extra.inter[2], render.mouseX, render.mouseY);
@@ -85,18 +85,17 @@ void debugBlockVertex(vec4 pos, int side)
 		{
 			#define INTVERTEX(x)       (((x) - ORIGINVTX) >> 10)
 			/* need to decode vertex buffer */
-			uint16_t V1[] = {p[0], p[0] >> 16, p[1]};
 			uint16_t V2[] = {
-				INTVERTEX(V1[0] + bitfieldExtract(p[1], 16, 14) - MIDVTX),
-				INTVERTEX(V1[1] + bitfieldExtract(p[2],  0, 14) - MIDVTX),
-				INTVERTEX(V1[2] + bitfieldExtract(p[2], 14, 14) - MIDVTX)
+				INTVERTEX(bitfieldExtract(p[1], 16, 16)),
+				INTVERTEX(bitfieldExtract(p[2],  0, 16)),
+				INTVERTEX(bitfieldExtract(p[2], 16, 16))
 			};
 			uint16_t V3[] = {
-				INTVERTEX(V1[0] + bitfieldExtract(p[3],  0, 14) - MIDVTX),
-				INTVERTEX(V1[1] + bitfieldExtract(p[3], 14, 14) - MIDVTX),
-				INTVERTEX(V1[2] + bitfieldExtract(p[4],  0, 14) - MIDVTX)
+				INTVERTEX(bitfieldExtract(p[3],  0, 16)),
+				INTVERTEX(bitfieldExtract(p[3], 16, 16)),
+				INTVERTEX(bitfieldExtract(p[4], 16, 16))
 			};
-			uint8_t normal = bitfieldExtract(p[5], 9, 3);
+			uint8_t normal = bitfieldExtract(p[5], 19, 3);
 
 			/* only the side being pointed at */
 			if (normal != side) continue; /* too verbose otherwise */
@@ -108,28 +107,20 @@ void debugBlockVertex(vec4 pos, int side)
 				xyz[1]*2 <= V2[1] && V3[1] <= xyz[1]*2+2 &&
 				xyz[2]*2 <= V2[2] && V3[2] <= xyz[2]*2+2)
 			{
-				uint16_t U = bitfieldExtract(p[4], 14, 9);
-				uint16_t V = bitfieldExtract(p[4], 23, 9) | (bitfieldExtract(p[1], 30, 1) << 9);
-				uint16_t Usz = U + bitfieldExtract(p[5], 16, 8) - 128;
-				uint16_t Vsz = V + bitfieldExtract(p[5], 24, 8) - 128;
-				uint32_t ocsmap = bitfieldExtract(p[5], 0, 9) | (bitfieldExtract(p[3], 28, 4) << 9) | (bitfieldExtract(p[2], 28, 4) << 13);
+				uint16_t U = bitfieldExtract(p[5], 0, 9);
+				uint16_t V = bitfieldExtract(p[5], 9, 10);
+				uint16_t Usz = bitfieldExtract(p[6], 0, 9);
+				uint16_t Vsz = bitfieldExtract(p[6], 9, 10);
+				uint32_t ocsmap = bitfieldExtract(p[4], 0, 8);
 				fprintf(stderr, "VERTEX2: %g %g %g - NORM: %d (%c) - uv: %d,%d / %d,%d%s - OCS: %d/%d/%d/%d\n",
 					V2[0]*0.5, V2[1]*0.5, V2[2]*0.5, normal, "SENWTB"[normal], U, V, Usz, Vsz, p[5] & FLAG_TEX_KEEPX ? "X": "",
-					p[5]&3, (p[5]>>2)&3, (p[5]>>4)&3, (p[5]>>6)&3
+					ocsmap&3, (ocsmap>>2)&3, (ocsmap>>4)&3, (ocsmap>>6)&3
 				);
 				fprintf(stderr, "VERTEX3: %g %g %g - LIGHT: %d/%d/%d/%d, SKY: %d/%d/%d/%d",
 					V3[0]*0.5, V3[1]*0.5, V3[2]*0.5,
-					bitfieldExtract(p[6], 0, 4), bitfieldExtract(p[6],  8, 4), bitfieldExtract(p[6], 16, 4), bitfieldExtract(p[6], 24, 4),
-					bitfieldExtract(p[6], 4, 4), bitfieldExtract(p[6], 12, 4), bitfieldExtract(p[6], 20, 4), bitfieldExtract(p[6], 28, 4)
+					bitfieldExtract(p[7], 0, 4), bitfieldExtract(p[7],  8, 4), bitfieldExtract(p[7], 16, 4), bitfieldExtract(p[7], 24, 4),
+					bitfieldExtract(p[7], 4, 4), bitfieldExtract(p[7], 12, 4), bitfieldExtract(p[7], 20, 4), bitfieldExtract(p[7], 28, 4)
 				);
-				if (p[5] & 256)
-				{
-					uint8_t ocsext = ocsmap >> 9;
-					uint8_t j;
-					fprintf(stderr, ", EXT: ");
-					for (j = 0; j < 8; j ++, ocsext <<= 1)
-						fputc(ocsext & 128 ? '1' : '0', stderr);
-				}
 				fputc('\n', stderr);
 			}
 		}

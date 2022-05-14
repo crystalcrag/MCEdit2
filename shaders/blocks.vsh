@@ -6,7 +6,7 @@
 #version 430 core
 
 layout (location=0) in uvec4 position;
-layout (location=1) in uvec3 info;
+layout (location=1) in uvec4 info;
 layout (location=2) in vec4  offsets;
 layout (binding=0) uniform sampler2D blockTex;
 
@@ -24,19 +24,14 @@ out uint skyBlockLight;
 out uint ocsField;
 out uint normFlags;
 out uint chunkInfo;
-out uint isCaveFog;
 
 void main(void)
 {
 	// simply extract value from vertex buffers, and let geometry shader output real value for fsh
-	uint Usz = bitfieldExtract(info.y, 16, 8);
-	uint Vsz = bitfieldExtract(info.y, 24, 8);
-	uint U   = bitfieldExtract(info.x, 14, 9);
-	uint V   = bitfieldExtract(info.x, 23, 9) | (bitfieldExtract(position.y, 30, 1) << 9);
-
-	// only 10 and 9 bits of precision, ideally we woud need 11 and 10, but that trick does the job nicely
-	if (V+Vsz-128 == 1023) Vsz ++;
-	if (U+Usz-128 == 511)  Usz ++;
+	texCoord = vec4(
+		float(bitfieldExtract(info.y, 0, 9))  * TEX_COORD_X, float(bitfieldExtract(info.z, 0, 9))  * TEX_COORD_X,
+		float(bitfieldExtract(info.y, 9, 10)) * TEX_COORD_Y, float(bitfieldExtract(info.z, 9, 10)) * TEX_COORD_Y
+	);
 
 	vertex1 = vec3(
 		(float(bitfieldExtract(position.x,  0, 16)) - ORIGINVTX) * BASEVTX + offsets.x,
@@ -44,48 +39,27 @@ void main(void)
 		(float(bitfieldExtract(position.y,  0, 16)) - ORIGINVTX) * BASEVTX + offsets.z
 	);
 
-	if (Usz > 0)
+	vertex2 = vec3(
+		(float(bitfieldExtract(position.y, 16, 16)) - ORIGINVTX) * BASEVTX + offsets.x,
+		(float(bitfieldExtract(position.z,  0, 16)) - ORIGINVTX) * BASEVTX + offsets.y,
+		(float(bitfieldExtract(position.z, 16, 16)) - ORIGINVTX) * BASEVTX + offsets.z
+	);
+	vertex3 = vec3(
+		(float(bitfieldExtract(position.w,  0, 16)) - ORIGINVTX) * BASEVTX + offsets.x,
+		(float(bitfieldExtract(position.w, 16, 16)) - ORIGINVTX) * BASEVTX + offsets.y,
+		(float(bitfieldExtract(info.x,     16, 16)) - ORIGINVTX) * BASEVTX + offsets.z
+	);
+
+	// last tex line: first 16 tex are biome dependant
+	if (texCoord.z >= 0.96875)
 	{
-		isCaveFog = 0;
-		texCoord = vec4(
-			float(U) * TEX_COORD_X, float(U + Usz - 128) * TEX_COORD_X,
-			float(V) * TEX_COORD_Y, float(V + Vsz - 128) * TEX_COORD_Y
-		);
-		// 2nd and 3rd vertex are relative to 1st (saves 2 bits per coord, 6 in total)
-		vertex2 = vec3(
-			float(bitfieldExtract(position.y, 16, 14)) * BASEVTX - MIDVTX + vertex1.x,
-			float(bitfieldExtract(position.z,  0, 14)) * BASEVTX - MIDVTX + vertex1.y,
-			float(bitfieldExtract(position.z, 14, 14)) * BASEVTX - MIDVTX + vertex1.z
-		);
-		vertex3 = vec3(
-			float(bitfieldExtract(position.w,  0, 14)) * BASEVTX - MIDVTX + vertex1.x,
-			float(bitfieldExtract(position.w, 14, 14)) * BASEVTX - MIDVTX + vertex1.y,
-			float(bitfieldExtract(info.x,      0, 14)) * BASEVTX - MIDVTX + vertex1.z
-		);
-	}
-	else // cave fog quad: V2 and V3 use slightly different vertex data
-	{
-		// we need range values in [1, 16] for X, Y, Z, not just [-4, 4]
-		isCaveFog = 1;
-		vertex2 = vec3(
-			float(bitfieldExtract(position.y, 16, 14)) - 16 + vertex1.x,
-			float(bitfieldExtract(position.z,  0, 14)) - 16 + vertex1.y,
-			float(bitfieldExtract(position.z, 14, 14)) - 16 + vertex1.z
-		);
-		vertex3 = vec3(
-			float(bitfieldExtract(position.w,  0, 14)) - 16 + vertex1.x,
-			float(bitfieldExtract(position.w, 14, 14)) - 16 + vertex1.y,
-			float(bitfieldExtract(info.x,      0, 14)) - 16 + vertex1.z
-		);
-		// texture does not really matter, 99% of the color will come from fog
-		texCoord = vec4(
-			 (0+16) * TEX_COORD_X,  (1*16) * TEX_COORD_X,
-			(23*16) * TEX_COORD_Y, (24*16) * TEX_COORD_Y
-		);
+		// ignore biome color for now
+		texCoord.z += 0.015625;
+		texCoord.w += 0.015625;
 	}
 
-	skyBlockLight = info.z;
-	ocsField = bitfieldExtract(info.y, 0, 9) | (bitfieldExtract(position.w, 28, 4) << 9) | (bitfieldExtract(position.z, 28, 4) << 13);
-	normFlags = bitfieldExtract(info.y, 9, 7);
+	skyBlockLight = info.w;
+	ocsField = bitfieldExtract(info.x, 0, 16);
+	normFlags = bitfieldExtract(info.y, 19, 13);
 	chunkInfo = uint(offsets.w);
 }

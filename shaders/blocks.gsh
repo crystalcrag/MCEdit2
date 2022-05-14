@@ -18,7 +18,6 @@ in uint skyBlockLight[];
 in uint ocsField[];
 in uint normFlags[];
 in uint chunkInfo[];
-in uint isCaveFog[];
 in vec3 offsets[];
 
 out vec2  tc;
@@ -34,50 +33,47 @@ flat out uint  waterFog;
 uniform uint underWater;    // player is underwater: denser fog
 uniform uint timeMS;
 
+// from chunks.h
+#define FLAG_TEX_KEEPX                 (normFlags[0] & (1 << 3)) > 0
+#define FLAG_DUAL_SIDE                 (normFlags[0] & (1 << 4)) > 0
+#define FLAG_LIQUID                    (normFlags[0] & (1 << 5)) > 0
+#define FLAG_UNDERWATER                (normFlags[0] & (1 << 6))
+#define FLAG_EXTOCS                    (normFlags[0] & (1 << 7)) > 0
+
 void main(void)
 {
 	mat4 MVP   = projMatrix * mvMatrix;
-	bool keepX = (normFlags[0] & (1 << 3)) > 0;
+	bool keepX = FLAG_TEX_KEEPX;
 
 	normal = normFlags[0] & 7;
-	waterFog = normFlags[0] & (1 << 6);
+	waterFog = FLAG_UNDERWATER;
 
 	float Usz = (texCoord[0].y - texCoord[0].x) * 32;
 	float Vsz = (texCoord[0].w - texCoord[0].z) * 64;
 	if (Usz < 0) Usz = -Usz;
 	if (Vsz < 0) Vsz = -Vsz;
-	if (isCaveFog[0] > 0)
-	{
-		// cave fog quad: only generate them at map border
-		if ((chunkInfo[0] & (1 << normal)) == 0)
-			return;
-
-		// XXX needs to be setup in the vertex data
-		waterFog = 1;
-	}
 
 	rswire = normal == 7 ? (skyBlockLight[0] & 15) + 1 : 0;
-	ocsmap = ocsField[0];
+	ocsmap = ocsField[0] | (FLAG_EXTOCS ? 65536 : 0);
 
 	vec3 V1 = vertex1[0];
 	vec3 V2 = vertex2[0];
 	vec3 V3 = vertex3[0];
 	vec3 V4 = vertex3[0] + (vertex2[0] - vertex1[0]);
 	// dualside quad
-	if ((normFlags[0] & (1 << 4)) > 0 && dot(vertex1[0] - camera.xyz, cross(V3-V1, V2-V1)) < 0)
+	if (FLAG_DUAL_SIDE && dot(vertex1[0] - camera.xyz, cross(V3-V1, V2-V1)) < 0)
 	{
 		// this face must not be culled by back-face culling, but using current vertex emit order, it will
 		V2 = V1; V1 = vertex2[0];
 		V3 = V4; V4 = vertex3[0];
 	}
 	// liquid: lower some of the edges depending on what's nearby XXX need a better approach than this :-/
-	if ((normFlags[0] & (1 << 5)) > 0)
+	if (FLAG_LIQUID)
 	{
-		uint lowerEdge = ocsmap >> 13;
-		if ((lowerEdge & 1) > 0) V1.y -= 0.1875;
-		if ((lowerEdge & 2) > 0) V2.y -= 0.1875;
-		if ((lowerEdge & 4) > 0) V3.y -= 0.1875;
-		if ((lowerEdge & 8) > 0) V4.y -= 0.1875;
+		if ((normFlags[0] & 0x0200) > 0) V1.y -= 0.1875;
+		if ((normFlags[0] & 0x0400) > 0) V2.y -= 0.1875;
+		if ((normFlags[0] & 0x0800) > 0) V3.y -= 0.1875;
+		if ((normFlags[0] & 0x1000) > 0) V4.y -= 0.1875;
 	}
 
 	/*

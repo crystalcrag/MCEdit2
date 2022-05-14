@@ -171,10 +171,6 @@ uint16_t hasCnx[] = {
 };
 
 uint8_t mask8bit[] = {0x80, 0x40, 0x20, 0x10, 0x08, 0x04, 0x02, 0x01};
-static uint16_t mask16bit[] = {
-	0x0001, 0x0002, 0x0004, 0x0008, 0x0010, 0x0020, 0x0040, 0x0080,
-	0x0100, 0x0200, 0x0400, 0x0800, 0x1000, 0x2000, 0x4000, 0x8000,
-};
 
 /* used to compute light for CUST model */
 #define DXYZ(dx,dy,dz)       (dx+1) | ((dy+1)<<2) | ((dz+1)<<4)
@@ -338,16 +334,12 @@ static int chunkGetCnxGraph(ChunkData cd, int start, DATA8 visited)
 static void chunkGenQuad(ChunkData neighbors[], MeshWriter writer, BlockState b, int pos);
 static void chunkGenCust(ChunkData neighbors[], MeshWriter writer, BlockState b, DATAS16 chunkOffsets, int pos);
 static void chunkGenCube(ChunkData neighbors[], MeshWriter writer, BlockState b, DATAS16 chunkOffsets, int pos);
-static void chunkGenFOG(ChunkData cur, MeshWriter writer, DATA16 holesSENW);
-static void chunkFillCaveHoles(ChunkData cur, BlockState, int pos, DATA16 holes);
 static void chunkMergeQuads(ChunkData, HashQuadMerge);
 
 void chunkMakeObservable(ChunkData cd, int offset, int side);
 
 
 #include "globals.h" /* only needed for .breakPoint */
-
-#define CAVE_FOG_BITMAP        (DATA16) (visited+512+400)
 
 /*
  * transform chunk data into something useful for the vertex shader (blocks.vsh)
@@ -356,15 +348,15 @@ void chunkMakeObservable(ChunkData cd, int offset, int side);
  */
 void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer, MeshInitializer meshinit)
 {
-	MeshWriter_t alpha, opaque;
-	uint8_t      visited[400 + 512 + 264];
-	ChunkData    neighbors[7];    /* S, E, N, W, T, B, current */
-	ChunkData    cur;
-	int          i, pos, air;
-	uint16_t     emitters[PARTICLE_MAX];
-	uint8_t      Y, hasLights;
+	ChunkData neighbors[7];    /* S, E, N, W, T, B, current */
+	ChunkData cur;
+	uint8_t   visited[400 + 512];
+	int       i, pos, air;
+	uint16_t  emitters[PARTICLE_MAX];
+	uint8_t   Y, hasLights;
 
 	/* single-thread and multi-thread have completely different allocation strategies */
+	MeshWriter_t alpha, opaque;
 	if (! meshinit(neighbors[6] = cur = c->layer[layer], &opaque, &alpha))
 		/* MT can cancel allocation */
 		return;
@@ -417,10 +409,6 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer, Mesh
 			{
 				if ((visited[pos>>3] & mask8bit[pos&7]) == 0)
 					cur->cnxGraph |= chunkGetCnxGraph(cur, pos, visited);
-				/* cave fog quad */
-				if (hasLights && slotsXZ[pos & 0xff])
-					chunkFillCaveHoles(cur, state, pos, CAVE_FOG_BITMAP);
-				cur->cdFlags |= (slotsXZ[pos & 0xff] | slotsY[pos >> 8]) << 9;
 			}
 
 			if (hasLights)
@@ -491,7 +479,6 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer, Mesh
 			else cur->cdFlags |= CDFLAG_CHUNKAIR;
 		}
 	}
-	chunkGenFOG(neighbors[6], &opaque, CAVE_FOG_BITMAP);
 
 	if (opaque.cur > opaque.start)
 		opaque.flush(&opaque);
@@ -545,63 +532,58 @@ static void chunkGenQuad(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 	}
 
 	do {
-		uint16_t U, V, X1, Y1, Z1;
-		uint8_t  side, norm, j;
-		DATA32   out;
-		DATA8    coord;
+		int     U, V, DX, DY, DZ;
+		uint8_t side, norm, j;
+		DATA8   coord1, coord2;
+		DATA32  out;
 
 		if (BUF_LESS_THAN(buffer, VERTEX_DATA_SIZE))
 			buffer->flush(buffer);
 
-		out   = buffer->cur;
-		side  = *sides;
-		norm  = quadSides[side];
-
-		coord = cubeVertex + quadIndices[side*4+3];
-
-		/* first vertex */
-		X1 = VERTEX(coord[0] + x);
-		Y1 = VERTEX(coord[1] + y);
-		Z1 = VERTEX(coord[2] + z);
-
-		j = (b->rotate&3) * 8;
-		U = (texCoord[j]   + tex[0]) << 4;
-		V = (texCoord[j+1] + tex[1]) << 4;
-
-		/* second and third vertex */
-		coord  = cubeVertex + quadIndices[side*4];
-		out[0] = X1 | (Y1 << 16);
-		out[1] = Z1 | (RELDX(coord[0] + x) << 16) | ((V & 512) << 21);
-		out[2] = RELDY(coord[1] + y) | (RELDZ(coord[2] + z) << 14);
-		coord  = cubeVertex + quadIndices[side*4+2];
-		out[3] = RELDX(coord[0] + x) | (RELDY(coord[1] + y) << 14);
-		out[4] = RELDZ(coord[2] + z) | (U << 14) | (V << 23);
-
-		/* tex size, norm and ocs: none */
-		out[5] = (((texCoord[j+4] + tex[0]) * 16 + 128 - U) << 16) | FLAG_DUAL_SIDE |
-		         (((texCoord[j+5] + tex[1]) * 16 + 128 - V) << 24) | (norm << 9);
-
-		if (texCoord[j] == texCoord[j + 6]) out[5] |= FLAG_TEX_KEEPX;
-		/* skylight/blocklight: uniform on all vertices */
-		out[6] = light | (light << 8) | (light << 16) | (light << 24);
+		out    = buffer->cur;
+		side   = *sides;
+		norm   = quadSides[side];
+		coord1 = cubeVertex + quadIndices[side*4+3];
+		coord2 = cubeVertex + quadIndices[side*4];
+		DX = DY = DZ = 0;
 
 		if (b->special == BLOCK_JITTER)
 		{
 			/* add some jitter to X,Z coord for QUAD_CROSS */
 			uint8_t jitter = seed ^ (x ^ y ^ z);
-			if (jitter & 1) out[0] += BASEVTX/16;
-			if (jitter & 2) out[1] += BASEVTX/16;
-			if (jitter & 4) out[0] -= (BASEVTX/16) << 16;
-			if (jitter & 8) out[0] -= (BASEVTX/32) << 16;
+			if (jitter & 1) DX = BASEVTX/16;
+			if (jitter & 2) DZ = BASEVTX/16;
+			if (jitter & 4) DY = (BASEVTX/16) << 16;
+			if (jitter & 8) DY -= (BASEVTX/32) << 16;
 		}
 		else if (norm < 6)
 		{
 			/* offset 1/16 of a block in the direction of their normal */
 			int8_t * normal = cubeNormals + norm * 4;
 			int      base   = side <= QUAD_SQUARE4 ? BASEVTX/4 : BASEVTX/16;
-			out[0] += normal[0] * base + (normal[1] * base << 16);
-			out[1] += normal[2] * base;
+			DX = normal[0] * base;
+			DY = normal[1] * base;
+			DZ = normal[2] * base;
 		}
+
+		/* first vertex */
+		j = (b->rotate&3) * 8;
+		U = (texCoord[j]   + tex[0]) << 4;
+		V = (texCoord[j+1] + tex[1]) << 4;
+
+		/* second and third vertex */
+		#define VERTEX_OFF(v, off)      (VERTEX(v)+off)
+		out[0] = VERTEX_OFF(coord1[0] + x, DX) | (VERTEX_OFF(coord1[1] + y, DY) << 16);
+		out[1] = VERTEX_OFF(coord1[2] + z, DZ) | (VERTEX_OFF(coord2[0] + x, DX) << 16);
+		out[2] = VERTEX_OFF(coord2[1] + y, DY) | (VERTEX_OFF(coord2[2] + z, DZ) << 16);
+		coord1 = cubeVertex + quadIndices[side*4+2];
+		out[3] = VERTEX_OFF(coord1[0] + x, DX) | (VERTEX_OFF(coord1[1] + y, DY) << 16);
+		out[4] = VERTEX_OFF(coord1[2] + z, DZ) << 16;
+		out[5] = U | (V << 9) | (norm << 19) | (texCoord[j] == texCoord[j + 6] ? FLAG_TEX_KEEPX|FLAG_DUAL_SIDE : FLAG_DUAL_SIDE);
+		out[6] = ((texCoord[j+4] + tex[0]) << 4) | ((texCoord[j+5] + tex[1]) << 13);
+		/* skylight/blocklight: uniform on all vertices */
+		out[7] = light | (light << 8) | (light << 16) | (light << 24);
+
 		sides ++;
 		buffer->cur = out + VERTEX_INT_SIZE;
 	} while (*sides);
@@ -778,8 +760,8 @@ static void chunkGenCust(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 	DATA32   out;
 	DATA16   model;
 	DATA8    cnxBlock;
-	int      count, connect, x, y, z;
-	uint8_t  dualside, hasLights;
+	int      count, connect, x, y, z, hasLights;
+	uint32_t dualside;
 	uint16_t blockIds3x3[27];
 	uint8_t  skyBlock[27];
 	int      occlusion;
@@ -896,7 +878,7 @@ static void chunkGenCust(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 			c->signList = signAddToList(b->id, neighbors[6], pos, c->signList, skyBlock[13]);
 		break;
 	default:
-		/* piston head with a tile entity: head will be rendered as an entity if it is moving */
+		/* piston head with a tile entity: head will be rendered as an entity when it is moving */
 		if ((b->id >> 4) == RSPISTONHEAD && chunkGetTileEntity(neighbors[6], pos))
 			return;
 	}
@@ -917,7 +899,7 @@ static void chunkGenCust(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 	x *= BASEVTX;
 	y *= BASEVTX;
 	z *= BASEVTX;
-	dualside = blockIds[b->id >> 4].special & BLOCK_DUALSIDE;
+	dualside = blockIds[b->id >> 4].special & BLOCK_DUALSIDE ? FLAG_DUAL_SIDE : 0; /* fire */
 
 	/* vertex and light info still need to be adjusted */
 	for (count = model[-1]; count > 0; count -= 6, model += 6 * INT_PER_VERTEX)
@@ -950,32 +932,20 @@ static void chunkGenCust(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 			buffer->flush(buffer);
 
 		out = buffer->cur;
-		DATA16 coord = model + INT_PER_VERTEX * 3;
-		uint16_t X1 = coord[0] + x;
-		uint16_t Y1 = coord[1] + y;
-		uint16_t Z1 = coord[2] + z;
-		uint16_t U  = GET_UCOORD(model);
-		uint16_t V  = GET_VCOORD(model);
+		DATA16 coord1 = model + INT_PER_VERTEX * 3;
+		DATA16 coord2 = model;
+		int U = GET_UCOORD(model);
+		int V = GET_VCOORD(model);
 
-		#define RELX(x)     ((x) + MIDVTX - X1)
-		#define RELY(x)     ((x) + MIDVTX - Y1)
-		#define RELZ(x)     ((x) + MIDVTX - Z1)
-
-		coord  = model;
-		out[0] = X1 | (Y1 << 16);
-		out[1] = Z1 | (RELX(coord[0]+x) << 16) | ((V & 512) << 21);
-		out[2] = RELY(coord[1]+y) | (RELZ(coord[2]+z) << 14);
-		coord  = model + INT_PER_VERTEX * 2;
-		out[3] = RELX(coord[0]+x) | (RELY(coord[1]+y) << 14);
-		out[4] = RELZ(coord[2]+z) | (U << 14) | (V << 23);
-		out[5] = ((GET_UCOORD(coord) + 128 - U) << 16) |
-		         ((GET_VCOORD(coord) + 128 - V) << 24) | (GET_NORMAL(model) << 9);
-		out[6] = chunkFillCustLight(model, skyBlock, out + 5, occlusion);
-		coord  = model + INT_PER_VERTEX * 3;
-		if (dualside) out[5] |= FLAG_DUAL_SIDE;
-
-		/* flip tex */
-		if (U == GET_UCOORD(coord)) out[5] |= FLAG_TEX_KEEPX;
+		out[0] = (coord1[0] + x) | ((coord1[1] + y) << 16);
+		out[1] = (coord1[2] + z) | ((coord2[0] + x) << 16);
+		out[2] = (coord2[1] + y) | ((coord2[2] + z) << 16);
+		coord2 = model + INT_PER_VERTEX * 2;
+		out[3] = (coord2[0] + x) | ((coord2[1] + y) << 16);
+		out[4] = (coord2[2] + z) << 16;
+		out[5] = U | (V << 9) | (GET_NORMAL(model) << 19) | dualside | (U == GET_UCOORD(coord1) ? FLAG_TEX_KEEPX : 0);
+		out[6] = GET_UCOORD(coord2) | (GET_VCOORD(coord2) << 9);
+		out[7] = chunkFillCustLight(model, skyBlock, out + 5, occlusion);
 
 		if (STATEFLAG(b, CNXTEX))
 		{
@@ -996,7 +966,8 @@ static void chunkGenCust(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 					flag &= ((GET_NORMAL(model)+1) & 3) == face ? ~2 : ~8;
 				}
 
-				out[4] += flag << 18;
+				out[5] += flag << 4;
+				out[6] += flag << 4;
 			}
 			else if (13 <= faceId && faceId <= 16)
 			{
@@ -1008,7 +979,8 @@ static void chunkGenCust(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 				if ((connect & (1<<16)) == 0) flag |= 1;
 				if ((connect & (1<<17)) == 0) flag |= 4;
 
-				out[4] += flag << 18;
+				out[5] += flag << 4;
+				out[6] += flag << 4;
 			}
 		}
 		buffer->cur = out + VERTEX_INT_SIZE;
@@ -1162,30 +1134,22 @@ static void chunkGenCube(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 		}
 		/* generate one quad (see internals.html for format) */
 		{
-			DATA8    coord = cubeVertex + cubeIndices[i+3];
-			uint16_t texU  = (texCoord[j]   + tex[0]) << 4;
-			uint16_t texV  = (texCoord[j+1] + tex[1]) << 4;
-			uint16_t X1, Y1, Z1;
-
-			X1 = VERTEX(coord[0]+x);
-			Y1 = VERTEX(coord[1]+y);
-			Z1 = VERTEX(coord[2]+z);
+			DATA8    coord1 = cubeVertex + cubeIndices[i+3];
+			DATA8    coord2 = cubeVertex + cubeIndices[i];
+			uint16_t texU   = (texCoord[j]   + tex[0]) << 4;
+			uint16_t texV   = (texCoord[j+1] + tex[1]) << 4;
 
 			/* write one quad */
-			coord  = cubeVertex + cubeIndices[i];
-			out[0] = X1 | (Y1 << 16);
-			out[1] = Z1 | (RELDX(coord[0]+x) << 16) | ((texV & 512) << 21);
-			out[2] = RELDY(coord[1]+y) | (RELDZ(coord[2]+z) << 14);
-			coord  = cubeVertex + cubeIndices[i+2];
-			out[3] = RELDX(coord[0]+x) | (RELDY(coord[1]+y) << 14);
-			out[4] = RELDZ(coord[2]+z) | (texU << 14) | (texV << 23);
-			out[5] = (((texCoord[j+4] + tex[0]) * 16 + 128 - texU) << 16) |
-			         (((texCoord[j+5] + tex[1]) * 16 + 128 - texV) << 24) | (i << 7);
-			out[6] = 0;
-			//if (discard) out[4] += 256 << 14;
-
-			/* flip tex */
-			if (texCoord[j] == texCoord[j + 6]) out[5] |= FLAG_TEX_KEEPX;
+			out[0] = VERTEX(coord1[0]+x) | (VERTEX(coord1[1]+y) << 16);
+			out[1] = VERTEX(coord1[2]+z) | (VERTEX(coord2[0]+x) << 16);
+			out[2] = VERTEX(coord2[1]+y) | (VERTEX(coord2[2]+z) << 16);
+			coord1 = cubeVertex + cubeIndices[i+2];
+			out[3] = VERTEX(coord1[0]+x) | (VERTEX(coord1[1]+y) << 16);
+			out[4] = VERTEX(coord1[2]+z) << 16;
+			out[5] = texU | (texV << 9) | (i << 17) | (texCoord[j] == texCoord[j + 6] ? FLAG_TEX_KEEPX : 0);
+			out[6] = ((texCoord[j+4] + tex[0]) << 4) |
+			         ((texCoord[j+5] + tex[1]) << 13);
+			out[7] = 0;
 
 			static uint8_t oppSideBlock[] = {16, 14, 10, 12, 22, 4};
 			if (blockIds[blockIds3x3[oppSideBlock[i>>2]] >> 4].special == BLOCK_LIQUID)
@@ -1214,7 +1178,7 @@ static void chunkGenCube(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 					/* minimum if != 0 */
 					if (skyvtx > 0 && (skyval > skyvtx || skyval == 0)) skyval = skyvtx;
 				}
-				out[6] |= (skyval | blockval) << (k << 3);
+				out[7] |= (skyval | blockval) << (k << 3);
 
 				if (b->special == BLOCK_LIQUID && i == SIDE_TOP * 4)
 				{
@@ -1222,7 +1186,7 @@ static void chunkGenCube(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 					static uint8_t lessAmbient[] = {0, 1, 1, 1};
 					ocs = lessAmbient[ocs];
 				}
-				out[5] |= ocs << k*2;
+				out[4] |= ocs << k*2;
 			}
 			if (b->special == BLOCK_LIQUID)
 			{
@@ -1236,174 +1200,12 @@ static void chunkGenCube(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 				case SIDE_TOP:   edges = liquid;
 				}
 				if (edges)
-				{
-					out[5] |= FLAG_TRIANGLE | FLAG_UNDERWATER | FLAG_DUAL_SIDE;
-					out[2] |= edges << 28;
-				}
-				else out[5] |= FLAG_UNDERWATER | FLAG_DUAL_SIDE;
+					out[5] |= FLAG_LIQUID | FLAG_UNDERWATER | FLAG_DUAL_SIDE | (edges << 28);
+				else
+					out[5] |= FLAG_UNDERWATER | FLAG_DUAL_SIDE;
 			}
 			if (buffer->merge)
 				meshQuadMergeAdd(buffer->merge, out);
-		}
-	}
-}
-
-/*
- * generate some dummy quads to cover holes in caves (only in the S, E, N, W planes). Minecraft does
- * fake this by changing the entire sky color if you get below a certain Y coord: meh.
- */
-static void chunkFillCaveHoles(ChunkData cur, BlockState state, int pos, DATA16 holes)
-{
-	uint8_t sides = slotsXZ[pos & 0xff];
-	uint8_t y = pos >> 8;
-	uint8_t x = pos & 15;
-	uint8_t z = (pos >> 4) & 15;
-	uint8_t sky;
-
-	/* sky value need to be 0 for the hole to be covered */
-	if (state->special == BLOCK_STAIRS || state->special == BLOCK_HALF)
-	{
-		/* half-slab/stairs always have a skylight of 0, but will need patching if a sky light is around */
-		struct BlockIter_t iter;
-		mapInitIterOffset(&iter, cur, pos);
-		if (chunkPatchLight(iter) >> 4 > 0)
-			holes += 16;
-	}
-	else if (state->special != BLOCK_LIQUID)
-	{
-		sky = cur->blockIds[SKYLIGHT_OFFSET + (pos >> 1)];
-
-		if (pos & 1) sky >>= 4;
-		else         sky &= 15;
-
-		if (sky > 0) holes += 16;
-	}
-	else /* "cave" fog will also be applied to ocean (to cover "holes" at the edge of the render distance) */
-	{
-		sky = 0;
-		if (y >= 15)
-		{
-			uint8_t layer = (cur->Y >> 4) + 1;
-			if (layer < cur->chunk->maxy && (cur = cur->chunk->layer[layer]))
-				sky = cur->blockIds[pos & 255];
-		}
-		else sky = cur->blockIds[pos+256];
-		if (blockIds[sky].special != BLOCK_LIQUID)
-		{
-			if (sides & 1) holes[32]  |= 1 << y;
-			if (sides & 2) holes[65]  |= 1 << y;
-			if (sides & 4) holes[98]  |= 1 << y;
-			if (sides & 8) holes[131] |= 1 << y;
-		}
-	}
-
-	/* S, E, N, W sides */
-	if (sides & 1) holes[   y] |= mask16bit[x];
-	if (sides & 2) holes[33+y] |= mask16bit[z];
-	if (sides & 4) holes[66+y] |= mask16bit[x];
-	if (sides & 8) holes[99+y] |= mask16bit[z];
-}
-
-/* generate actual quads, but we need holes data first (result from previous function) */
-static void chunkGenFOG(ChunkData cur, MeshWriter buffer, DATA16 holesSENW)
-{
-	uint8_t side;
-	uint8_t XYZ[4], w, h;
-
-	for (side = 0; side < 4; side ++, holesSENW += 33)
-	{
-		uint16_t holes, avoid;
-		DATA16   p;
-		uint8_t  i, axis;
-
-		axis = 2 - axisCheck[side];
-		XYZ[2 - axis] = side < 2 ? 16 : 0;
-
-		/* check first if we can get away with only one quad */
-		for (i = 0, p = holesSENW, holes = avoid = 0; i < 16 && (p[0] == 0 || p[16] == 0xffff); p ++, i ++);
-
-		/* surface chunks usually don't have any cave holes */
-		if (i == 16) continue;
-
-		int8_t * normal = cubeNormals + side * 4;
-
-		for (XYZ[VY] = i, h = i, p = holesSENW + i, holes = p[0], avoid = p[16], p ++, i ++; i < 16; i ++, p ++)
-		{
-			if (((holes | p[0]) & (avoid | p[16])) == 0)
-			{
-				holes |= p[0];
-				avoid |= p[16];
-				if (p[0] > 0) h = i;
-				continue;
-			}
-			/* can't expand further: flush current hole accumulation */
-			flush_holes:
-			for (XYZ[axis] = ZEROBITS(holes), holes >>= XYZ[axis], h ++; holes; )
-			{
-				if (holes & 1)
-				{
-					static uint8_t startV13[] = {3, 2, 0, 3};
-					static uint8_t startV2[]  = {0, 3, 3, 2};
-					for (w = 1, holes >>= 1; holes & 1; w ++, holes >>= 1);
-
-					if (BUF_LESS_THAN(buffer, VERTEX_DATA_SIZE))
-						buffer->flush(buffer);
-
-					XYZ[3] = XYZ[axis] + w;
-
-					DATA32 out = buffer->cur;
-					uint8_t XYZ2[8];
-					uint16_t mask;
-					memcpy(XYZ2,   XYZ, 4);
-					memcpy(XYZ2+4, XYZ, 4);
-					XYZ2[axis]   = XYZ[startV13[side]];
-					XYZ2[4+axis] = XYZ[startV2[side]];
-
-					/* reduce vertical span of quad if we can */
-					for (XYZ2[VY+4] = h, mask = ((1 << w) - 1) << XYZ[axis]; (holesSENW[XYZ2[VY+4]-1] & mask) == 0; XYZ2[VY+4] --);
-					for (XYZ2[VY] = XYZ[VY]; (holesSENW[XYZ2[VY]] & mask) == 0; XYZ2[VY] ++);
-
-					out[0] = (VERTEX(XYZ2[VX]) + normal[VX]) | (VERTEX(XYZ2[VY+4]) << 16);
-					out[1] = (VERTEX(XYZ2[VZ]) + normal[VZ]) | (16 << 16);
-					out[2] = (16 << 14) | (XYZ2[VY] + 16 - XYZ2[VY+4]);
-					out[3] = (16 << 14) | (XYZ2[VX+4] + 16 - XYZ2[VX]);
-					out[4] = (XYZ2[VZ+4] + 16 - XYZ2[VZ]);
-					out[5] = side << 9;
-
-					/* liquid blocks are lowered by 0.2 unit in geometry shader, need to also be applied on fog quad :-/ */
-					if (holesSENW[32] & (1 << (XYZ2[VY+4]-1)))
-					{
-						/* lower vertex V1 and V3 */
-						out[5] |= FLAG_TRIANGLE;
-						out[2] |= 5 << 28;
-					}
-
-					/*
-					 * cave fog does not really work with anything but block light == 0
-					 * need to investigate for a better method :-/
-					 */
-					out[6] = 0; //getFogLight(cur, XYZ2);
-					buffer->cur = out + VERTEX_INT_SIZE;
-					XYZ[axis] += w;
-					globals.level->fogCount ++;
-				}
-				else
-				{
-					w = ZEROBITS(holes);
-					holes >>= w;
-					XYZ[axis] += w;
-				}
-			}
-			for (; i < 16 && p[0] == 0; i ++, p ++);
-			XYZ[VY] = h = i;
-			if (i >= 16) break;
-			holes = p[0];
-			avoid = p[16];
-		}
-		if (holes)
-		{
-			h = 15;
-			goto flush_holes;
 		}
 	}
 }

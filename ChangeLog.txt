@@ -1,4 +1,8 @@
 =========== Week 19 (2022) ===========
+Thu May 12:
+	* started terrain vertex refactoring (again, sigh): switch to 32bytes per vertex.
+	* disable cave fog for now :-/ need a different approach anyway.
+
 Wed May 11:
 	* discardable quads.
 

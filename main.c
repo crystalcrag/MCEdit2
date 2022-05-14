@@ -874,8 +874,8 @@ void mceditWorld(void)
 					break;
 				case SDLK_F7:
 					globals.breakPoint = ! globals.breakPoint;
-					//mapShowChunks(globals.level);
-					meshDebugBank(globals.level);
+					mapShowChunks(globals.level);
+					//meshDebugBank(globals.level);
 					//FramePauseUnpause(globals.breakPoint);
 					break;
 				#endif

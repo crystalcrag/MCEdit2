@@ -261,7 +261,7 @@ static void chunkExpandTileEntities(Chunk c)
 			case 'Y': case 'y': XYZ[1] = NBT_GetInt(&nbt, off+i, 0); flag |= 4;
 			}
 		}
-		if (flag == 7 && XYZ[1] < (c->maxy << 4) && (unsigned) XYZ[0] < 15 && (unsigned) XYZ[2] < 15)
+		if (flag == 7 && XYZ[1] < (c->maxy << 4) && (unsigned) XYZ[0] < 16 && (unsigned) XYZ[2] < 16)
 		{
 			chunkAddTileEntity(c->layer[XYZ[1] >> 4], XYZ[0] | (XYZ[2] << 4) | ((XYZ[1] & 15) << 8), nbt.mem + off);
 		}

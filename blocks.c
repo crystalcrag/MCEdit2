@@ -1079,18 +1079,6 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 		/* chunk meshing optization: mark block that will *automatically* update nearby blocks */
 		switch (block.type) {
 		case CUST:
-			switch (block.special&31) {
-			case BLOCK_CHEST:
-			case BLOCK_GLASS:
-			case BLOCK_FENCE:
-			case BLOCK_FENCE2:
-			case BLOCK_WALL:
-			case BLOCK_RSWIRE:
-			case BLOCK_LIQUID:
-			case BLOCK_SOLIDOUTER:
-				block.updateNearby = 1;
-			}
-			break;
 		case SOLID: /* will produce AO/shadow on nearby blocks */
 		case TRANS:
 			block.updateNearby = 1;

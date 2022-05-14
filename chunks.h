@@ -154,10 +154,11 @@ enum /* NBT update tag (type parameter of chunkMarkForUpdate) */
 };
 
 /* chunk vertex data (see doc/internals.html#vtxdata) */
-#define FLAG_TEX_KEEPX                 (1 << 12)
-#define FLAG_DUAL_SIDE                 (1 << 13)
-#define FLAG_TRIANGLE                  (1 << 14)
-#define FLAG_UNDERWATER                (1 << 15)
+#define FLAG_TEX_KEEPX                 (1 << 22)
+#define FLAG_DUAL_SIDE                 (1 << 23)
+#define FLAG_LIQUID                    (1 << 24)
+#define FLAG_UNDERWATER                (1 << 25)
+#define FLAG_EXTOCS                    (1 << 26)
 
 #ifdef CHUNK_IMPL                      /* private stuff below */
 

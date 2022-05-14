@@ -1235,19 +1235,15 @@ static inline void renderSortVertex(GPUBank bank, ChunkData cd)
 	for (vtx = vertex, src2 = dist, i = 0; i < count; i ++, src2 += 2, vtx += VERTEX_INT_SIZE)
 	{
 		#define VTX(x)     ((x) - ORIGINVTX) * (1./BASEVTX)
-		uint16_t X1 = vtx[0];
-		uint16_t Y1 = vtx[0] >> 16;
-		uint16_t Z1 = vtx[1];
-
-		float dx = VTX((X1 + bitfieldExtract(vtx[1], 16, 14) - MIDVTX +
-		                X1 + bitfieldExtract(vtx[3],  0, 14) - MIDVTX) >> 1);
-		float dy = VTX((Y1 + bitfieldExtract(vtx[2],  0, 14) - MIDVTX +
-		                Y1 + bitfieldExtract(vtx[3], 14, 14) - MIDVTX) >> 1);
-		float dz = VTX((Z1 + bitfieldExtract(vtx[2], 14, 14) - MIDVTX +
-		                Z1 + bitfieldExtract(vtx[4],  0, 14) - MIDVTX) >> 1);
+		float dx = VTX((bitfieldExtract(vtx[1], 16, 16) +
+		                bitfieldExtract(vtx[3],  0, 16)) >> 1);
+		float dy = VTX((bitfieldExtract(vtx[2],  0, 16) +
+		                bitfieldExtract(vtx[3], 16, 16)) >> 1);
+		float dz = VTX((bitfieldExtract(vtx[2], 16, 16) +
+		                bitfieldExtract(vtx[4], 16, 16)) >> 1);
 
 		dx += X; dy += Y; dz += Z;
-		/* qosrt() doesn't want float return value, so convert to fixed point */
+		/* qsort() doesn't want float return value, so convert to fixed point */
 		src2[0] = (dx*dx + dy*dy + dz*dz) * 1024;
 		src2[1] = i;
 		#undef VTX
@@ -1349,7 +1345,7 @@ static void renderPrepVisibleChunks(Map map)
 				cmd->first = start;
 				cmd->baseInstance = bank->cmdTotal; /* needed by glVertexAttribDivisor() */
 				render.debugTotalTri += cmd->count;
-				start += cmd->count;
+				start += size / VERTEX_DATA_SIZE;
 
 				loc = bank->locBuffer + bank->cmdTotal * (VERTEX_INSTANCE/4);
 				loc[0] = dx + chunk->X;

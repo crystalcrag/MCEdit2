@@ -486,7 +486,7 @@ static int meshAllocGPU(Map map, ChunkData cd, int size)
 		glBufferData(GL_ARRAY_BUFFER, map->GPUMaxChunk, NULL, GL_STATIC_DRAW);
 		glVertexAttribIPointer(0, 4, GL_UNSIGNED_INT, VERTEX_DATA_SIZE, 0);
 		glEnableVertexAttribArray(0);
-		glVertexAttribIPointer(1, 3, GL_UNSIGNED_INT, VERTEX_DATA_SIZE, (void *) 16);
+		glVertexAttribIPointer(1, 4, GL_UNSIGNED_INT, VERTEX_DATA_SIZE, (void *) 16);
 		glEnableVertexAttribArray(1);
 		/* 16 bytes of per-instance data (3 float for loc and 1 uint for flags) */
 		glBindBuffer(GL_ARRAY_BUFFER, bank->vboLocation);
@@ -682,9 +682,9 @@ void meshAllocCmdBuffer(Map map)
 			/* be sure we have enough mem on GPU for command buffer */
 			bank->vboLocSize = count;
 			glBindBuffer(GL_ARRAY_BUFFER, bank->vboLocation);
-			glBufferData(GL_ARRAY_BUFFER, count * VERTEX_INSTANCE, NULL, GL_STATIC_DRAW);
+			glBufferData(GL_ARRAY_BUFFER, count * VERTEX_INSTANCE, NULL, GL_DYNAMIC_DRAW);
 			glBindBuffer(GL_DRAW_INDIRECT_BUFFER, bank->vboMDAI);
-			glBufferData(GL_DRAW_INDIRECT_BUFFER, count * sizeof (MDAICmd_t), NULL, GL_STATIC_DRAW);
+			glBufferData(GL_DRAW_INDIRECT_BUFFER, count * sizeof (MDAICmd_t), NULL, GL_DYNAMIC_DRAW);
 		}
 	}
 }
@@ -865,6 +865,8 @@ void meshGenerateST(Map map)
 			/* no chunk at this location */
 			continue;
 		}
+		//if (list == map->center)
+		//	NBT_Dump(&list->nbt, 0, 0, 0);
 
 		/* second: push data to the GPU (only the first chunk) */
 		for (i = 0, j = list->maxy; j > 0; j --, i ++)

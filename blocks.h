@@ -369,9 +369,9 @@ enum                       /* special values for Block_t.rswire */
 };
 
 /* terrain vertex */
-#define VERTEX_DATA_SIZE   28        /* 7 * uint32_t */
+#define VERTEX_DATA_SIZE   32        /* 8 * uint32_t */
 #define VERTEX_INSTANCE    16        /* per instance size: 3 floats + 1 uint */
-#define VERTEX_INT_SIZE    7
+#define VERTEX_INT_SIZE    8
 
 /* everything else vertex */
 #define BYTES_PER_VERTEX   10
@@ -380,9 +380,6 @@ enum                       /* special values for Block_t.rswire */
 #define ORIGINVTX          15360
 #define MIDVTX             (1 << 13)
 #define TOVERTEXint(x)     ((x) >> 11)
-#define RELDX(x)           (VERTEX(x) + MIDVTX - X1)
-#define RELDY(x)           (VERTEX(x) + MIDVTX - Y1)
-#define RELDZ(x)           (VERTEX(x) + MIDVTX - Z1)
 #define VERTEX(x)          ((x) * BASEVTX + ORIGINVTX)
 #define FROMVERTEX(x)      ((((float)(x)) - ORIGINVTX) * (1.f/BASEVTX))
 #define STATEFLAG(b,x)     ((b)->rotate & x)
