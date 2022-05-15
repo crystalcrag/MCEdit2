@@ -107,8 +107,8 @@ struct MeshBuffer_t                /* temporary buffer used to collect data from
 {
 	ListNode   node;
 	ChunkData  chunk;
-	uint16_t   usage;
-	uint16_t   discard;
+	int        usage;
+	int        discard;
 	uint32_t   buffer[0];          /* 64Kb: not declared here because gdb doesn't like big table */
 };
 
@@ -152,7 +152,6 @@ struct Thread_t
 /* cannot be more than 1Mb becase of staging.start[], need to change to uint16_t if more than that */
 #define STAGING_AREA       (1024*1024)
 #define MESH_MAX_QUADS     (4088 / VERTEX_DATA_SIZE)
-#undef  QUADHASH
 
 struct Staging_t
 {

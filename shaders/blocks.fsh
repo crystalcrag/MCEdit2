@@ -16,6 +16,7 @@ flat in uint  rswire;
 flat in uint  ocsmap;
 flat in uint  normal;
 flat in uint  waterFog;
+flat in vec2  texStart;
 
 layout (binding=0) uniform sampler2D blockTex; // Main texture for blocks
 
@@ -26,13 +27,20 @@ uniform vec3 biomeColor;
 uniform uint underWater;
 uniform uint timeMS;
 
+const float intensity[] = float[4](0, 0.2, 0.35, 0.5);
+
 void main(void)
 {
-	color = texture(blockTex, tc);
+	if (texStart.x >= 0)
+	{
+		// greedy meshing
+		color = texture(blockTex, vec2(texStart.x + mod(tc.x, 16/512.), texStart.y + mod(tc.y, 16/1024.)));
+	}
+	else color = texture(blockTex, tc);
 	// prevent writing to the depth buffer: easy way to handle opacity for transparent block
 	if (color.a < 0.004)
 		discard;
-	if (rswire >= 1) /* rswire: [1-15] == signal strength */
+	if (rswire > 0) /* rswire: [1-15] == signal strength */
 	{
 		// use color from terrain to shade wire: coord are located at tile 31x3.5 to 32x3.5
 		color *= texture(blockTex, vec2(0.96875 + float(rswire-1) * 0.001953125, 0.0556640625));
@@ -44,7 +52,6 @@ void main(void)
 	if (ocsmap > 0)
 	{
 		// ambient occlusion for normal blocks
-		const float intensity[] = float[4](0, 0.2, 0.35, 0.5);
 		float dx = ocspos.x; /* [0 ~ 1] */
 		float dy = ocspos.y;
 		float ocsval = (normal == 4 ? 1.3 : 1) * (skyLight * 0.8 + 0.2);

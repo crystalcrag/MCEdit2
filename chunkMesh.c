@@ -380,8 +380,7 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer, Mesh
 
 	memset(visited, 0, sizeof visited);
 	hasLights = (cur->cdFlags & CDFLAG_NOLIGHT) == 0;
-
-//	if (c->X == 32 && cur->Y == 64 && c->Z == -16)
+//	if (c->X == -16 && cur->Y == 48 && c->Z == -544)
 //		globals.breakPoint = 1;
 
 	for (Y = 0, pos = air = 0; Y < 16; Y ++)
@@ -401,7 +400,7 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer, Mesh
 			block = cur->blockIds[pos];
 			state = blockGetById(ID(block, data));
 
-//			if (globals.breakPoint && pos == 722)
+//			if (globals.breakPoint && pos == 4035)
 //				globals.breakPoint = 2;
 
 			/* 3d flood fill for cave culling */
@@ -553,8 +552,8 @@ static void chunkGenQuad(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 			uint8_t jitter = seed ^ (x ^ y ^ z);
 			if (jitter & 1) DX = BASEVTX/16;
 			if (jitter & 2) DZ = BASEVTX/16;
-			if (jitter & 4) DY = (BASEVTX/16) << 16;
-			if (jitter & 8) DY -= (BASEVTX/32) << 16;
+			if (jitter & 4) DY = (BASEVTX/16);
+			if (jitter & 8) DY -= (BASEVTX/32);
 		}
 		else if (norm < 6)
 		{
@@ -1211,34 +1210,35 @@ static void chunkGenCube(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 }
 
 /*
- * scan all quads from SOLID blocks and check if they can be merged.
+ * scan all quads from SOLID blocks and check if they can be merged (a.k.a greedy meshing).
  * sadly, we need all quad data first :-/
  */
 static uint8_t quadDirections[] = { /* SENWTB */
-	VY, 1, VX, 1,
-	VY, 1, VZ, 0,
-	VY, 1, VX, 0,
-	VY, 1, VZ, 1,
-	VZ, 0, VX, 1,
-	VZ, 1, VX, 1,
+	VX, 1, VY, 1,
+	VZ, 0, VY, 1,
+	VX, 0, VY, 1,
+	VZ, 1, VY, 1,
+	VX, 1, VZ, 0,
+	VX, 1, VZ, 1,
 };
 
 static void chunkMergeQuads(ChunkData cd, HashQuadMerge hash)
 {
-	int index, merged = 0;
-	for (index = hash->firstAdded; index != 0xffff; )
+	HashQuadEntry entry;
+	int index;
+	for (index = hash->firstAdded; index != 0xffff; index = entry->nextAdded)
 	{
-		HashQuadEntry entry = hash->entries + index;
+		entry = hash->entries + index;
 		DATA32 quad = entry->quad;
 		/* check if already processed */
-		if (quad == NULL) goto next;
+		if (quad == NULL) continue;
 		entry->quad = NULL;
 
 		/* ocs will constraint the directions we can go */
-		uint8_t ocs1 = quad[5] & 3;
-		uint8_t ocs2 = (quad[5] >> 2) & 3;
-		uint8_t ocs3 = (quad[5] >> 4) & 3;
-		uint8_t ocs4 = (quad[5] >> 6) & 3;
+		uint8_t ocs1 = quad[4] & 3;
+		uint8_t ocs2 = (quad[4] >> 2) & 3;
+		uint8_t ocs3 = (quad[4] >> 4) & 3;
+		uint8_t ocs4 = (quad[4] >> 6) & 3;
 		uint8_t dir;
 
 		if (ocs1 == ocs2 && ocs1 == ocs3 && ocs1 == ocs4)
@@ -1247,76 +1247,59 @@ static void chunkMergeQuads(ChunkData cd, HashQuadMerge hash)
 		}
 		else if (ocs1 == ocs2 && ocs3 == ocs4)
 		{
-			dir = 1;
+			dir = 2;
 		}
 		else if (ocs1 == ocs4 && ocs2 == ocs3)
 		{
-			dir = 2;
+			dir = 1;
 		}
-		else goto next;
+		else continue;
 
 		uint32_t ref[VERTEX_INT_SIZE];
 		uint8_t  min, max, axis;
-		DATA8    directions = quadDirections + (((quad[5] >> 9) & 7) << 2);
+		uint8_t  min2, max2, axis2;
+		DATA8    directions = quadDirections + (((quad[5] >> 19) & 7) << 2);
 
-		if ((dir & 1) == 0) directions += 2, dir >>= 1;
-		memcpy(ref, quad, VERTEX_DATA_SIZE);
-		axis = directions[0];
-		switch (axis) {
-		case VX: max = ((quad[0] & 0xffff) - ORIGINVTX) >> 11; break;
-		case VY: max = ((quad[0] >> 16) - ORIGINVTX) >> 11; break;
-		case VZ: max = ((quad[1] & 0xffff) - ORIGINVTX) >> 11;
-		}
-		min = max -= directions[1];
-		while (max < 16)
+		if (dir & 1)
 		{
-			max ++;
+			memcpy(ref, quad, VERTEX_DATA_SIZE);
+			axis = directions[0];
 			switch (axis) {
-			case VX: ref[0] += BASEVTX; break;
-			case VY: ref[0] += BASEVTX<<16; break;
-			case VZ: ref[1] += BASEVTX;
+			case VX: max = ((quad[0] & 0xffff) - ORIGINVTX) >> 11; break;
+			case VY: max = ((quad[0] >> 16) - ORIGINVTX) >> 11; break;
+			case VZ: max = ((quad[1] & 0xffff) - ORIGINVTX) >> 11;
 			}
-			index = meshQuadMergeGet(hash, ref);
-			if (index < 0) { max --; break; }
+			min = max -= directions[1];
+			while (max < 16)
+			{
+				max ++;
+				switch (axis) {
+				case VX: ref[0] += BASEVTX; break;
+				case VY: ref[0] += BASEVTX<<16; break;
+				case VZ: ref[1] += BASEVTX;
+				}
+				index = meshQuadMergeGet(hash, ref);
+				if (index < 0) break;
 
-			/* yes, can be merged: mark next one as processed */
-			hash->entries[index].quad = NULL;
-			merged ++;
-		}
-		#if 0
-		// XXX this branch should be useless
-		/* go to the opposite direction */
-		memcpy(ref, quad, 2 * sizeof *ref);
-		while (min > 0)
-		{
-			min --;
-			switch (axis) {
-			case VX: ref[0] -= BASEVTX; break;
-			case VY: ref[0] -= BASEVTX << 16; break;
-			case VZ: ref[1] -= BASEVTX;
+				/* yes, can be merged: mark next one as processed */
+				HashQuadEntry merged = &hash->entries[index];
+				merged->quad[0] = 0;
+				merged->quad = NULL;
 			}
-			index = meshQuadMergeGet(hash, ref);
-			if (index < 0) { min ++; break; }
-
-			/* yes, can be merged: mark next one as processed */
-			hash->entries[index].quad = NULL;
-			merged ++;
 		}
-		#endif
+		else min = 0, max = 1, axis = 3;
 
 		if (dir > 1)
 		{
 			/* check if we can expand this even further in 2nd direction */
-			uint8_t max2, axis2;
 			axis2 = directions[2];
 			memcpy(ref, quad, VERTEX_DATA_SIZE);
 			switch (axis2) {
 			case VX: max2 = ((quad[0] & 0xffff) - ORIGINVTX) >> 11; break;
-			case VY: max2 = ((quad[0] >> 16) - ORIGINVTX) >> 11; break;
+			case VY: max2 = ((quad[0] >> 16)    - ORIGINVTX) >> 11; break;
 			case VZ: max2 = ((quad[1] & 0xffff) - ORIGINVTX) >> 11;
 			}
-			max2 -= directions[3];
-			max ++;
+			min2 = max2 -= directions[3];
 			while (max2 < 16)
 			{
 				uint16_t indices[16];
@@ -1332,7 +1315,7 @@ static void chunkMergeQuads(ChunkData cd, HashQuadMerge hash)
 				for (p = indices, eof = p + (max - min); p < eof; p ++)
 				{
 					p[0] = meshQuadMergeGet(hash, ref);
-					if (p[0] == 0xffff) goto next;
+					if (p[0] == 0xffff) { max2--; goto done; }
 					switch (axis) {
 					case VX: ref[0] += BASEVTX; break;
 					case VY: ref[0] += BASEVTX<<16; break;
@@ -1340,16 +1323,80 @@ static void chunkMergeQuads(ChunkData cd, HashQuadMerge hash)
 					}
 				}
 				/* mark quads as processed */
-				for (p = indices, merged += max - min; p < eof; p ++)
-					hash->entries[p[0]].quad = NULL;
+				for (p = indices; p < eof; p ++)
+				{
+					HashQuadEntry merged = &hash->entries[p[0]];
+					merged->quad[0] = 0;
+					merged->quad = NULL;
+				}
 				memcpy(ref, start, sizeof start);
 			}
+			max2 --;
 		}
+		else min2 = max2 = 0;
 
-		next:
-		index = entry->nextAdded;
+		done:
+		max --;
+
+		if (min < max || min2 < max2)
+		{
+			/* more than 1 quad to merge */
+			uint16_t incAxis1 = (max  - min)  * BASEVTX;
+			uint16_t incAxis2 = (max2 - min2) * BASEVTX;
+			switch ((quad[5] >> 19) & 7) {
+			default:
+				quad[0] += incAxis1 | (incAxis2 << 16);
+				quad[2] += incAxis2;
+				quad[3] += incAxis1;
+				break;
+			case SIDE_EAST:
+				quad[0] += incAxis2 << 16;
+				quad[2] += incAxis2 | (incAxis1 << 16);
+				break;
+			case SIDE_NORTH:
+				quad[0] += incAxis2 << 16;
+				quad[1] += incAxis1 << 16;
+				quad[2] += incAxis2;
+				break;
+			case SIDE_WEST:
+				quad[0] += incAxis2 << 16;
+				quad[1] += incAxis1;
+				quad[2] += incAxis2;
+				quad[4] += incAxis1 << 16;
+				break;
+			case SIDE_TOP:
+				quad[0] += incAxis1;
+				quad[3] += incAxis1;
+				quad[4] += incAxis2 << 16;
+				break;
+			case SIDE_BOTTOM:
+				quad[0] += incAxis1;
+				quad[1] += incAxis2;
+				quad[2] += incAxis2 << 16;
+				quad[3] += incAxis1;
+			}
+			/* need to increase texture size too */
+			int U1 = (quad[5] & 0x1ff);
+			int V1 = (quad[5] >> 9) & 0x3ff;
+			int U2 = (quad[6] & 0x1ff);
+			int V2 = (quad[6] >> 9) & 0x3ff;
+
+			int minU = MIN(U1, U2);
+			int minV = MIN(V1, V2);
+			int maxU = minU + (max - min + 1) * 16;
+			int maxV = minV + (max2 - min2 + 1) * 16;
+
+			if (U1 == minU)
+				quad[6] = (quad[6] & ~0x1ff) | maxU;
+			else
+				quad[5] = (quad[5] & ~0x1ff) | maxU;
+			if (V1 == minV)
+				quad[6] = (quad[6] & ~(0x3ff<<9)) | (maxV << 9);
+			else
+				quad[5] = (quad[5] & ~(0x3ff<<9)) | (maxV << 9);
+			quad[5] |= FLAG_REPEAT;
+		}
 	}
-	cd->glMerge = merged;
 }
 
 /*

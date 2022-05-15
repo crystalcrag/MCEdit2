@@ -1,4 +1,13 @@
 =========== Week 19 (2022) ===========
+Sun May 15:
+	* greedy meshing seems to work: -20% of quads on average on a typical minecraft maps.
+
+Sat May 14:
+	* starting greeding meshing.
+
+Fri May 13:
+	* vertex data refactoring mostly done.
+
 Thu May 12:
 	* started terrain vertex refactoring (again, sigh): switch to 32bytes per vertex.
 	* disable cave fog for now :-/ need a different approach anyway.

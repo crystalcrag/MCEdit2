@@ -146,7 +146,7 @@ static int worldItemParseItemFrame(NBTFile nbt, Entity entity, STRPTR id)
 }
 
 /* item laying in the world */
-static int worldItemParseItem(NBTFile nbt, Entity entity, STRPTR id)
+static int worldItemParseItem(NBTFile nbt, Entity entity, STRPTR itemId)
 {
 	if (nbt == NULL)
 		return 0;
@@ -154,13 +154,23 @@ static int worldItemParseItem(NBTFile nbt, Entity entity, STRPTR id)
 	int desc = NBT_FindNode(nbt, 0, "Item");
 //	int count = NBT_GetInt(nbt, NBT_FindNode(nbt, desc, "Count"), 1);
 	int data = NBT_GetInt(nbt, NBT_FindNode(nbt, desc, "Damage"), 0);
-	ItemID_t blockId = itemGetByName(NBT_Payload(nbt, NBT_FindNode(nbt, desc, "id")), False);
-
-	if (blockId > 0)
+	int id = NBT_FindNode(nbt, desc, "id");
+	if (id > 0)
 	{
-		entity->rotation[3] = 0.5; /* scale actually */
-		entity->enflags |= ENFLAG_ITEM;
-		return entityAddModel(entity->blockId = blockId | data, 0, NULL, &entity->szx, MODEL_DONT_SWAP);
+		NBTHdr hdr = NBT_Hdr(nbt, id);
+		ItemID_t blockId;
+		/* older version */
+		if (hdr->type != TAG_String)
+			blockId = NBT_GetInt(nbt, 0, 0);
+		else
+			blockId = itemGetByName(NBT_Payload(nbt, id), False);
+
+		if (blockId > 0)
+		{
+			entity->rotation[3] = 0.5; /* scale actually */
+			entity->enflags |= ENFLAG_ITEM;
+			return entityAddModel(entity->blockId = blockId | data, 0, NULL, &entity->szx, MODEL_DONT_SWAP);
+		}
 	}
 	return 0;
 }

@@ -29,6 +29,7 @@ flat out uint  rswire;
 flat out uint  ocsmap;
 flat out uint  normal;
 flat out uint  waterFog;
+flat out vec2  texStart;
 
 uniform uint underWater;    // player is underwater: denser fog
 uniform uint timeMS;
@@ -39,6 +40,7 @@ uniform uint timeMS;
 #define FLAG_LIQUID                    (normFlags[0] & (1 << 5)) > 0
 #define FLAG_UNDERWATER                (normFlags[0] & (1 << 6))
 #define FLAG_EXTOCS                    (normFlags[0] & (1 << 7)) > 0
+#define FLAG_REPEAT                    (normFlags[0] & (1 << 8)) > 0
 
 void main(void)
 {
@@ -55,6 +57,14 @@ void main(void)
 
 	rswire = normal == 7 ? (skyBlockLight[0] & 15) + 1 : 0;
 	ocsmap = ocsField[0] | (FLAG_EXTOCS ? 65536 : 0);
+
+	if (FLAG_REPEAT)
+	{
+		// greedy meshing: need to repeat tex from atlas (which is set to GL_CLAMP)
+		texStart.x = min(texCoord[0].x, texCoord[0].y);
+		texStart.y = min(texCoord[0].z, texCoord[0].w);
+	}
+	else texStart.x = -1;
 
 	vec3 V1 = vertex1[0];
 	vec3 V2 = vertex2[0];

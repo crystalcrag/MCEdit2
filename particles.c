@@ -559,6 +559,7 @@ Bool particleCanSpawn(ChunkData cd, int pos, int metadata, int particleType)
 		if (blockIsFullySolid(blockGetByIdData(block, 0)))
 		{
 			/* then must be an air block */
+			if (iter.yabs == 0) return False;
 			mapIter(&iter, 0, -1, 0);
 			return iter.blockIds && iter.blockIds[iter.offset] == 0;
 		}

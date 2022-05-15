@@ -1832,21 +1832,9 @@ by decreasing depth, combining them using pre-multiplied alpha and finally writi
 the framebuffer (ie: returning the final color from the fragment shader).
 </blockquote>
 
-<p>That technique works indeed fine, except for a few use cases where <b>performance can suffer
-massively</b>: a simple way to push this technique to its limit, is simply to have 2 quads, one
-behind the other, very close to the camera. In that case, this is what will happen (supposing a
-framebuffer of <tt>1920x1080px</tt>):
-<ul>
-  <li>Each pixel of the framebuffer will have to write 2 fragments in the linked list.
-  <li><tt>2</tt> fragments times <tt>1920px</tt> times <tt>1080px</tt> times <tt>16</tt> bytes (12 bytes
-  per fragment + 4 bytes for head of linked list) times <tt>60</tt> (frame per second) = a little bit
-  under 4 Gb / second. That is going to saturate the memory bandwidth of a lot of GPU (integrated and
-  mobile chip mostly, discrete GPU will probably be fine due to dedicated memory lines).
-  <li>To add insult to injury, if you were to sort those quads using the CPU, it would be just a few
-  hundreds <b>of bytes</b> to move around each second.
-</ul>
-
-<p>In conclusion: <b>for a voxel engine, it is not advised to rely on this technique alone</b>.
+<p>That technique works indeed fine, except that it requires <b>too much bandwidth</b> for integrated graphics
+(like just having 2 quads close to the camera will make the GPU lag quite a bit). Also, this techniques
+<b>requires advanced features</b> of OpenGL 4.3+: a bit overkill for something like this.
 
 <h4 id="depthpeel"><span>Depth peeling</span></h4>
 
@@ -2035,17 +2023,6 @@ filled from end to start in this buffer (because frustum culling sort them from 
 <tt>vtxSize</tt> is incorrect, <tt>baseInstance</tt> will be off, and translucent fragment will not
 appear where they should.
 
-<p>The geometry shader has a few more tricks:
-<ul>
-  <li>Terrain is obviously rendered with back face culling activated. Except that some quads need to be
-  always rendered as front face, no matter what the vertex orientation tells. A first version of this
-  engine generated 2 quads for these: one for the back face and one for the front face. But the geometry
-  shader can trivially reorder the vertex to be always front facing.
-
-  <li>The geometry shader also allows finer control over how ambient occlusion is applied (compared to
-  just doing a per vertex shading).
-</ul>
-
 <h4 id="vtxdata">Vertex data</h4>
 
 <p>This section will describe how vertex data are stored on the GPU. Being the central piece of any
@@ -2054,38 +2031,68 @@ voxel engine, this part had a decent amount of thoughts put into it (and quite a
 <p>Terrain meshes <b>only need quads to be rendered</b> (not necessarily axis aligned), and since there
 are a lot of them you might want to store them efficiently: a typical <prod>Minecraft</prod> world with
 16 chunks loaded surrounding the player (that is an area of 32x32 chunks) usually contains around 2,000,000
-quads (not all of them will be rendered at once), or 8M vertices (12M using newer OpenGL API, because
-<tt>GL_QUAD</tt> was deprecated).
+quads (not all of them will be rendered at once), or 8M vertices.
 
-<p>If you were to store the vertex data (coordinates, texture UV and some meta data) as floats, that
-would required about 400 Mb of data. While even a GPU from 2010 can easily handle this kind of load,
-reducing the amount of data means we could push the render distance way farther than this.
+<p>This engine compress each quad down to 32 bytes (stored as 8 32bit unsigned integer), that means
+viewing a world on a far render distance (16 chunks) usually requires about 50 to 100Mb of memory on
+the GPU side (just for the vertex buffers, textures and FBO will add a lot to the total). The vertex
+data is processed as <tt>GL_POINTS</tt>, and split into <tt>GL_TRIANGLE_STRIP</tt> in a geometry shader.
 
-<p>This engine manages to compress each quad down to 28 bytes (stored as 7 32bit unsigned integer),
-that means viewing a world on a far render distance (16 chunks) usually requires about 50Mb of memory
-on the GPU side (just for the vertex buffers, textures and FBO will add a lot to the total): that's
-actually not very much. The vertex data is processed as <tt>GL_POINTS</tt>, and split into
-<tt>GL_TRIANGLE_STRIP</tt> in a geometry shader.
+<p>The geometry shader allows another trick: bypass back-face culling. Otherwise, you'll need to double
+some quads just to always have a front and back face. Having done quite a few performance tests, the
+framerate of a voxel engine is more or less directly proportionnal to the number of quads to process.
+You want to keep that number of quads as low as possible.
 
-<p>The format of each quad is as follows (stored in VBO as 7 <tt class="t">uint32_t</tt>):
+<p>In case you are curious, this are the tests that have been done:
+<ul>
+  <li><b>Not using a geometry shader</b>: very little, if any, performance gain.
+
+  <li><b>Discarding quads in the geometry shader</b>: if done late, very little, if any, performance gain.
+  There was an attempt at discarding leaves blocks if they were far away and behind another leave quad,
+  because mipmaps would turn translucent texture into a fully opaque one, if the quad becomes small enough.
+  you could only do this at the end, where 90% of computation were already done by this point.
+
+  <p>Discarding them early helps a bit, but not as much as not sending them to the GPU.
+
+  <li><b>Methods for feeding vertices to the GPU don't matter that much</b>, as long as buffers are big enough: using
+  indexed rendering, unoptimized data storage (not compacting vertex data, ie: using floats for everything),
+  using all kinds of hack with texture to transmit per model information (instead of attribute divisor):
+  all of these have very little impact on performance.
+</ul>
+
+<p>In all the testing, it boils down to:
+<ul>
+  <li><b>Number of vertices/quads</b> the GPU has to process.
+  <li><b>Complexity of shaders</b>: using expensive computation and/or too many variables (which limits
+  the number of instance of the shader on the GPU) can have big impact of performance.
+</ul>
+
+<p>For integrated graphics, <b>bandwidth can be a serious limition</b>. Integrated graphics have a
+few Gb/s of budget, whereas chips with dedicated memory are closer to 100Gb/s (20 to 50 times more).
+But for a voxel engine, even a few Gb/s should be enough for most use cases.
+
+<p>The format of each quad is as follows (stored in VBO as 8 <tt class="t">uint32_t</tt>):
 
 <bits>
   <brow><hdr>0: </hdr><bitpart class="sz16" bit="32">16: <em>Y1</em></bitpart><bitpart class="sz16" bit="16">16: <em>X1</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
 
-  <brow><hdr>1: </hdr><bitpart class="sz2" bit="32"><em>Vhi</em></bitpart><bitpart class="sz14" bit="30">14: <em>DX2</em></bitpart><bitpart class="sz16" bit="16">16: <em>Z1</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
+  <brow><hdr>1: </hdr><bitpart class="sz16" bit="32">16: <em>X2</em></bitpart><bitpart class="sz16" bit="16">16: <em>Z1</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
 
-  <brow><hdr>2: </hdr><bitpart class="sz4" bit="32">4: <em>ext</em></bitpart><bitpart class="sz14" bit="28">14: <em>DZ2</em></bitpart><bitpart class="sz14" bit="14">14: <em>DY2</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
+  <brow><hdr>2: </hdr><bitpart class="sz16" bit="32">16: <em>Z2</em></bitpart><bitpart class="sz16" bit="16">16: <em>Y2</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
 
-  <brow><hdr>3: </hdr><bitpart class="sz4" bit="32">4:  <em>ext</em></bitpart><bitpart class="sz14" bit="28">14: <em>DY3</em></bitpart><bitpart class="sz14" bit="14">14: <em>DX3</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
+  <brow><hdr>3: </hdr><bitpart class="sz16" bit="32">16: <em>Y3</em></bitpart><bitpart class="sz16" bit="16">16: <em>X3</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
 
-  <brow><hdr>4: </hdr><bitpart class="sz9" bit="32">9: <em>Vlo</em></bitpart><bitpart class="sz9" bit="23">9: <em>U</em></bitpart><bitpart class="sz14" bit="14">14: <em>DZ3</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
+  <brow><hdr>4: </hdr><bitpart class="sz16" bit="32">16: <em>Z3</em></bitpart><bitpart class="sz8" bit="16">8: <em>extocs</em></bitpart><bitpart class="sz8" bit="8">8: <em>OCS</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
 
-  <brow><hdr>5: </hdr><bitpart class="sz8" bit="32">8: <em>Vsz</em></bitpart><bitpart class="sz8" bit="24">8: <em>Usz</em></bitpart><bitpart class="sz1" bit="16"><em>A</em></bitpart><bitpart class="sz1"><em>L</em></bitpart><bitpart class="sz1"><em>D</em></bitpart><bitpart class="sz1"><em>X</em></bitpart><bitpart class="sz3" bit="12">3: <em>N</em></bitpart><bitpart class="sz9" bit="9">9: <em>OCS</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
+  <brow><hdr>5: </hdr><bitpart class="sz4" bit="32"><em>edges</em></bitpart><bitpart class="sz1"><em>R</em></bitpart><bitpart class="sz1"><em>E</em></bitpart><bitpart class="sz1"><em>W</em></bitpart><bitpart class="sz1"><em>L</em></bitpart><bitpart class="sz1"><em>D</em></bitpart><bitpart class="sz1"><em>X</em></bitpart><bitpart class="sz3" bit="22">3: <em>N</em></bitpart><bitpart class="sz10" bit="19">10: <em>V</em> (V2)</bitpart><bitpart class="sz9" bit="9">9: <em>U</em> (V2)</bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
 
-  <brow><hdr>6: </hdr><bitpart class="sz8" bit="32">8: <em>Sky/Block</em></bitpart><bitpart class="sz8" bit="24">8: <em>Sky/Block</em></bitpart><bitpart class="sz8" bit="16">8: <em>Sky/Block</em></bitpart><bitpart class="sz8" bit="8">8: <em>Sky/Block</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
+  <brow><hdr>6: </hdr><bitpart class="sz13" bit="32"><em>&nbsp;</em></bitpart><bitpart class="sz10" bit="19">10: <em>V</em> (V3)</bitpart><bitpart class="sz9" bit="9">9: <em>U</em> (V3)</bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
+
+  <brow><hdr>7: </hdr><bitpart class="sz8" bit="32">8: <em>Sky/Block</em></bitpart><bitpart class="sz8" bit="24">8: <em>Sky/Block</em></bitpart><bitpart class="sz8" bit="16">8: <em>Sky/Block</em></bitpart><bitpart class="sz8" bit="8">8: <em>Sky/Block</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
+
 </bits>
 
-<p>Each field has the following meaning:
+<p>As of writing this, 13bits are unused. Each field has the following meaning:
 
 <ul>
   <li><tt>X<sub>i</sub></tt>, <tt>Y<sub>i</sub></tt>, <tt>Z<sub>i</sub></tt>: to represent a <tt>QUAD</tt>, you need
@@ -2100,42 +2107,39 @@ actually not very much. The vertex data is processed as <tt>GL_POINTS</tt>, and 
   to accomodate all the models that are not a full block from <prod>Minecraft</prod> 1.12. To convert
   from fixed to floating point, the formula is: <pre>vec3 position = (fixed - 16384) * (1 / 2048.)</pre>
 
-  <p>Sadly, there is not enough space to store the 3 needed coordinates as 16bits fixed point. That's
-  why the 2<sup>nd</sup> and 3<sup>rd</sup> points are stored as relative to the first vertex. Since
-  models (for terrain) should never exceed a voxel unit, you know that each coordinates are at most at
-  +/- 2048 units apart on each axis, which is 12 bits (including sign). We add 2 more bits of precision
-  for a bit of safety, and that's why the last 2 points uses 14bits of precision per axis.
-
-  <li><tt>U</tt>, <tt>V</tt>: coordinates of the <b>top left corner</b> of the texture to use for this <tt>QUAD</tt>
-  (vertex V2, see below). <tt>V</tt> coordinate is split into 2 because there wasn't enough space left on
-  the 4<sup>th</sup> word.
-
-  <li><tt>Usz</tt>, <tt>Vsz</tt>: 2nd coordinate. These numbers are relative to <tt>U</tt> and <tt>V</tt>
-  respectively, minus 128. This correspond to the texture coordinate for vertex V3 (see below). ie:
-  <pre>vec2 texV3 = vec2(U + Usz - 128, V + Vsz - 128);</pre>
-
-  <li><tt>X</tt>: knowing the texture coordinate of 2 vertices is not enough to fully find all the
-  coordinates of the 2 remaining vertices. At this point there are 2 possibilities: keep U or V coordinate
-  for V2 and V1. This is the purpose of this bit: if set to one, keep X for V1.
-
-  <li><tt>D</tt>: dual-sided quad: this quad must not be culled by the back-face culling test of OpenGL.
-  Vertex data will be rearranged in the geometry shader to make the test pass, without the need of
-  extra vertices.
-
-  <li><tt>L</tt>: not-so-pretty hack for very crude handling of liquid. XXX needs to be removed.
-
-  <li><tt>A</tt>: texture will be animated (lava/water animation).
-
   <li><tt>OCS</tt>: ambient occlusion value for 4 vertices, each value being encoded on 2bits.
 
-  <li><tt>ext</tt>: 8bits of extra data split into 2 due to lack of space (it was added very late).
-  This and the <tt>OCS</tt> fields are way too complicated to be explained here. They will be described
-  in the mesh generation chapter.
+  <li><tt>extocs</tt>: 8bits of extra data for applying OCS. This and the <tt>OCS</tt> fields are way too
+  complicated to be explained here. They will be described in the mesh generation chapter.
 
-  <li><tt>N</tt>: normal of the face, encoded as <tt>0</tt>: south, <tt>1</tt>: east, <tt>2</tt>: north,
+  <li><tt>U</tt>, <tt>V</tt>: coordinates of the <b>top left corner</b> of the texture to use for this <tt>QUAD</tt>
+  (vertex V2, see below) and <b>bottom right corner</b> (vertex V3).
+
+  <li><tt>N</tt>: <b>normal of the face</b>, encoded as <tt>0</tt>: south, <tt>1</tt>: east, <tt>2</tt>: north,
   <tt>3</tt>: west, <tt>4</tt>:top, <tt>5</tt>: bottom, <tt>6</tt>: recompute from vertices. The vast
   majority of quads are axis-aligned, and therefore unnecessary to recompute the normal. Those that are
   not will have their normal recomputed and shading per face adjusted accordingly.
+
+  <li><tt>X</tt>: knowing the texture coordinates of 2 vertices is not enough to fully find all the
+  coordinates of the 2 remaining vertices. At this point there are 2 possibilities: keep U or V coordinate
+  for V2 and V1. This is the purpose of this bit: if set to one, <b>keep X for V1</b>.
+
+  <li><tt>D</tt>: <b>dual-sided quad</b>: this quad must not be culled by the back-face culling test
+  of OpenGL. Vertex data will be rearranged in the geometry shader to make the test pass, without the
+  need of extra vertices (this is achieved by swapping V1 and V2, V3 and V4).
+
+  <li><tt>L</tt>: not-so-pretty hack for very crude handling of liquid. XXX needs to be removed.
+
+  <li><tt>W</tt>: this <b>quad is underwater</b>: it will affect how fog is applied when the player
+  is underwater (otherwise it is ignored): these quads will have a blue tint, instead of using the
+  atmospheric texture.
+
+  <li><tt>E</tt>: <b>extended OCS has been filled</b> (<tt>extocs</tt>). In the fragment shader, these have
+  a dedicated (and scary) code path.
+
+  <li><tt>R</tt>: <b>repeat texture</b>. The texture coordinates when quads are merged with greedy
+  meshing are much bigger to allow OpenGL to perform texture mapping with perspective projection. The
+  fragment shader will have to use a modulo operation to bring the texture back to its intended range.
 
   <li><tt>Sky</tt> / <tt>Block</tt>: a direct dump of the NBT tables <tt>Skylight</tt> and <tt>BlockLight</tt>.
   Obviously used for lighting purpose: 1 value per vertex, same order as OCS/texure U, V.
@@ -2360,15 +2364,7 @@ and sadly, it means <b>lots of look-up tables</b>.
 a <tt>SOLID</tt> voxel: they completely block sky light and block light no matter what their orientation
 is. If you attempt to get block or sky light at their coordinate, you'll get 0.
 
-<p>The way half-blocks are meshed is a bit different from full voxel though. In case it wasn't clear up
-until now, the chunk meshing for full voxel does not attempt to merge adjacent quads that share the same
-properties (note: it should though).
-
-<p>For half-slab though, the engine tries way harder. This is the gist of the meshing phase: whenever
-a sub-face (ie: 0.5 x 0.5 in size) is detected as being visible, we check in the 2 directions perpendicular
-to the normal if the size can be extended, and generate a quad of this size instead. This is done in
-the function <tt>halfBlockGenMesh()</tt> in <tt>halfBlocks.c</tt>.
-
+<p>/* ... */
 
 <h4 id="ocs"><span>Ambient occlusion</span></h4>
 

@@ -1172,6 +1172,7 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 					state.rotate = atoi(value);
 
 				/* relocate tex that have biome dependant color */
+				#if 0
 				for (tex = &state.nzU, i &= ~1; i > 0; i -= 2, tex += 2)
 				{
 					/* color will be adjusted in the fragment shader: texColor * biomeColor */
@@ -1182,6 +1183,7 @@ Bool blockCreate(const char * file, STRPTR * keys, int line)
 							/* it will save 1 bit in vertex shader */
 							tex[0] = j, tex[1] = 62;
 				}
+				#endif
 			}
 			else
 			{
@@ -3031,20 +3033,15 @@ APTR blockPostProcessTexture(DATA8 * data, int * width, int * height, int bpp)
 	}
 
 	/* copy biome dependent tex to bottom of texture map */
-	for (s = biomeDepend, d = dst + stride * 62 * sz / bpp; s < EOT(biomeDepend); s += 2, d += sz)
+	for (s = biomeDepend; s < EOT(biomeDepend); s += 2)
 	{
-		/* this will free 1 (ONE) bit for the vertex shader */
 		DATA8 s2 = dst + s[0] * sz + s[1] * stride * sz / bpp;
-		DATA8 d2 = d;
-		/* but given how packed information is, this is worth it */
-		for (i = 0; i < sz; i += bpp, memcpy(d2, s2, sz), d2 += stride, s2 += stride);
 
 		/* copy texture using a default biome color just below (for inventory textures) */
-		for (i = 0, s2 -= sz * w; i < sz; i += bpp, d2 += stride, s2 += stride)
+		for (i = 0; i < sz; i += bpp, s2 += stride)
 		{
-			memcpy(d2, s2, sz);
 			DATA8 col;
-			for (col = d2, j = sz; j > 0; j -= bpp, col += bpp)
+			for (col = s2, j = sz; j > 0; j -= bpp, col += bpp)
 			{
 				if (col[0] == col[1] && col[1] == col[2])
 				{

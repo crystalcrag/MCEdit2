@@ -464,7 +464,7 @@ enum /* special tags in model definition */
 #define SAME_AS                  -100
 #define COPY_MODEL               1e6f
 
-/* these are for the 10 bytes per vertex model, NOT the 28 bytes per quad */
+/* these are for the 10 bytes per vertex model, NOT the 32 bytes per quad */
 #define GET_UCOORD(vertex)       ((vertex)[3] & 511)
 #define GET_VCOORD(vertex)       ((((vertex)[3] & (127<<9)) >> 6) | ((vertex)[4] & 7))
 #define GET_NORMAL(vertex)       (((vertex)[4] >> 3) & 7)

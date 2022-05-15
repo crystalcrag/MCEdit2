@@ -20,11 +20,13 @@
 static ListHead  meshBanks;             /* MeshBuffer (ST context) */
 static ListHead  alphaBanks;            /* MeshBuffer (ST context) */
 static Thread_t  threads[NUM_THREADS];
+static QUADHASH  quadMerge;             /* single thread greedy meshing */
 static int       threadStop;            /* THREAD_EXIT_* */
 
 
 #define MAX_MESH_CHUNK     ((64*1024/VERTEX_DATA_SIZE)*VERTEX_DATA_SIZE)
 #define processing         nbt.page
+#define QUAD_MERGE                      /* comment to disable quad merging (debug) */
 
 
 /*
@@ -300,6 +302,13 @@ Bool meshInitST(ChunkData cd, APTR opaque, APTR alpha)
 		mesh = meshAllocST(&meshBanks);
 	}
 	else mesh = HEAD(meshBanks);
+	#ifdef QUAD_MERGE
+	if (quadMerge.capa == 0)
+		meshQuadMergeInit(&quadMerge);
+	else
+		meshQuadMergeReset(&quadMerge);
+	#endif
+
 	mesh->chunk = cd;
 
 	for (mesh = HEAD(meshBanks);  mesh; mesh->usage = 0, mesh->discard = 0, NEXT(mesh));
@@ -313,7 +322,11 @@ Bool meshInitST(ChunkData cd, APTR opaque, APTR alpha)
 	writer->alpha = 0;
 	writer->isCOP = 1;
 	writer->mesh  = mesh;
+	#ifdef QUAD_MERGE
+	writer->merge = &quadMerge;
+	#else
 	writer->merge = NULL;
+	#endif
 	writer->flush = meshFlushST;
 
 	writer = alpha;
@@ -324,7 +337,7 @@ Bool meshInitST(ChunkData cd, APTR opaque, APTR alpha)
 	writer->alpha = 1;
 	writer->isCOP = 1;
 	writer->mesh  = mesh;
-	writer->merge = NULL;
+	writer->merge = ((MeshWriter)opaque)->merge;
 	writer->flush = meshFlushST;
 	memset(writer->coplanar, 0, sizeof writer->coplanar);
 	return True;
@@ -689,6 +702,27 @@ void meshAllocCmdBuffer(Map map)
 	}
 }
 
+/* need to take care of merged quads :-/ */
+static int meshBufferSize(APTR buffer, int bytes)
+{
+	DATA32 quad, eof;
+	int    ret;
+	for (quad = buffer, eof = buffer + bytes, ret = 0; quad < eof; quad += VERTEX_INT_SIZE)
+		if (quad[0] > 0) ret += VERTEX_DATA_SIZE;
+	return ret;
+}
+
+static DATA8 meshCopyBuffer(DATA8 dest, APTR buffer, int bytes)
+{
+	DATA32 quad, eof;
+	for (quad = buffer, eof = buffer + bytes; quad < eof; quad += VERTEX_INT_SIZE)
+	{
+		if (quad[0] > 0)
+			memcpy(dest, quad, VERTEX_DATA_SIZE), dest += VERTEX_DATA_SIZE;
+	}
+	return dest;
+}
+
 /* transfer single ChunkData mesh to GPU (meshing init with meshInitST) */
 void meshFinishST(Map map)
 {
@@ -699,8 +733,12 @@ void meshFinishST(Map map)
 	ChunkData  cd;
 	GPUBank    bank;
 
-	for (list = HEAD(meshBanks), cd = list->chunk, size = discard = 0; list; size += list->usage, discard += list->discard, NEXT(list));
-	for (list = HEAD(alphaBanks), alpha = 0; list; alpha += list->usage, NEXT(list));
+	for (list = HEAD(meshBanks), cd = list->chunk, size = discard = 0; list; NEXT(list))
+	{
+		size += meshBufferSize(list->buffer, list->usage);
+		discard += meshBufferSize((DATA8) list->buffer + MAX_MESH_CHUNK - list->discard, list->discard);
+	}
+	for (list = HEAD(alphaBanks), alpha = 0; list; alpha += meshBufferSize(list->buffer, list->usage), NEXT(list));
 
 	oldSize = cd->glSize;
 	oldAlpha = cd->glAlpha;
@@ -741,21 +779,18 @@ void meshFinishST(Map map)
 		DATA8 tmp = mem + size;
 
 		/* first: opaque */
-		for (list = HEAD(meshBanks); list; mem += list->usage, NEXT(list))
+		for (list = HEAD(meshBanks); list; NEXT(list))
 		{
-			memcpy(mem, list->buffer, list->usage);
+			mem = meshCopyBuffer(mem, list->buffer, list->usage);
 			/* place discardable quads just after normal ones: discarding them will then just be a matter of reducing quad count */
 			if (list->discard > 0)
-			{
-				memcpy(tmp, (DATA8) list->buffer + MAX_MESH_CHUNK - list->discard, list->discard);
-				tmp += list->discard;
-			}
+				tmp = meshCopyBuffer(tmp, (DATA8) list->buffer + MAX_MESH_CHUNK - list->discard, list->discard);
 		}
 
 		/* then alpha: will be rendered in a separate pass */
-		for (list = HEAD(alphaBanks), mem = tmp; list; mem += list->usage, NEXT(list))
+		for (list = HEAD(alphaBanks), mem = tmp; list; NEXT(list))
 		{
-			memcpy(mem, list->buffer, list->usage);
+			mem = meshCopyBuffer(mem, list->buffer, list->usage);
 		}
 
 		glUnmapBuffer(GL_ARRAY_BUFFER);
@@ -808,6 +843,9 @@ void meshCloseAll(Map map)
 	free(staging.mem);
 	MutexDestroy(staging.alloc);
 	SemClose(staging.capa);
+
+	free(quadMerge.entries);
+	memset(&quadMerge, 0, sizeof quadMerge);
 }
 
 //#define SLOW_CHUNK_LOAD
@@ -867,6 +905,7 @@ void meshGenerateST(Map map)
 		}
 		//if (list == map->center)
 		//	NBT_Dump(&list->nbt, 0, 0, 0);
+		//fprintf(stderr, "meshing chunk %d, %d\n", list->X, list->Z);
 
 		/* second: push data to the GPU (only the first chunk) */
 		for (i = 0, j = list->maxy; j > 0; j --, i ++)
@@ -1108,14 +1147,11 @@ void meshQuadMergeAdd(HashQuadMerge hash, DATA32 quad)
 		meshQuadEnlarge(hash);
 
 	/* need to take into account: V1, norm, UV, ocs, light (don't care about V2 and V3) */
-	uint32_t ref[] = {quad[0], quad[1] & 0xc000ffff, quad[4] & ~0x3fff, quad[5], quad[6]};
+	uint32_t ref[] = {quad[0], quad[1] & 0x0000ffff, quad[4] & 0xffff, quad[5], quad[6], quad[7]};
 	uint32_t crc   = crc32(0, (DATA8) ref, sizeof ref);
 
 
 	HashQuadEntry entry = hash->entries + crc % hash->capa;
-
-	if (entry->quad && entry->crc == crc)
-		puts("here");
 
 	if (entry->quad)
 	{
@@ -1147,7 +1183,7 @@ void meshQuadMergeAdd(HashQuadMerge hash, DATA32 quad)
 
 int meshQuadMergeGet(HashQuadMerge hash, DATA32 quad)
 {
-	uint32_t ref[] = {quad[0], quad[1] & 0xc000ffff, quad[4] & ~0x3fff, quad[5], quad[6]};
+	uint32_t ref[] = {quad[0], quad[1] & 0x0000ffff, quad[4] & 0xffff, quad[5], quad[6], quad[7]};
 	uint32_t crc   = crc32(0, (DATA8) ref, sizeof ref);
 
 	HashQuadEntry entry = hash->entries + crc % hash->capa;
