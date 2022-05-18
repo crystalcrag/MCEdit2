@@ -34,6 +34,10 @@ static void chunkFillData(Chunk chunk, int y, int offset)
 
 	chunk->layer[y] = cd;
 
+//	memset(cd->blockIds, 1, 4096);
+//	memset(cd->blockIds + DATA_OFFSET, 0,2048);
+//	memset(cd->blockIds + SKYLIGHT_OFFSET, 0xff, 2048);
+
 	#if 0
 	/* if vertex data generation is FUBAR, activate this block to limit amount of data to turn into a mesh */
 	memset(cd->blockIds, 0, 4096);

@@ -522,11 +522,8 @@ static int meshAllocGPU(Map map, ChunkData cd, int size)
 		if (size <= free->size)
 		{
 			/* no need to keep track of such a small quantity (typical chunk mesh is around 10Kb) */
-			int used = size;
-			if (used + 2*4096 >= free->size)
-				used = free->size;
 			off = free->offset;
-			if (free->size == used)
+			if (free->size == size)
 			{
 				/* freed slot entirely reused */
 				bank->freeItem --;
@@ -756,10 +753,8 @@ void meshFinishST(Map map)
 			 * this time reserve some space in case there are further modifications
 			 * the vast majority of chunks will never be modified, no need to do this everytime.
 			 */
+			offset = meshAllocGPU(map, cd, (total + 4095) & ~4095);
 			cd->glSize = total;
-			total = (total + 4095) & ~4095;
-			total -= total % VERTEX_DATA_SIZE;
-			offset = meshAllocGPU(map, cd, total);
 		}
 		else offset = mem->offset, cd->glSize = total; /* reuse mem segment */
 	}
@@ -797,7 +792,7 @@ void meshFinishST(Map map)
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
 	}
 	/* check if this chunk is visible: vtxSize must be the total number of MDAICmd_t sent to the GPU */
-	if (map->frame == cd->chunk->chunkFrame)
+	if (map->frame == cd->frame)
 	{
 		if ((oldSize > 0) != (cd->glSize > 0))
 			bank->vtxSize += oldSize ? -1 : 1;

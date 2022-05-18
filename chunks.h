@@ -161,6 +161,9 @@ enum /* NBT update tag (type parameter of chunkMarkForUpdate) */
 #define FLAG_EXTOCS                    (1 << 26)
 #define FLAG_REPEAT                    (1 << 27)
 
+/* used by quad merging (don't merge normal quad and discardable), not needed for vertex shader */
+#define FLAG_DISCARD                   (1 << 19)
+
 #ifdef CHUNK_IMPL                      /* private stuff below */
 
 #define STATIC_HASH(hash, min, max)    (min <= (DATA8) hash && (DATA8) hash < max)

@@ -68,11 +68,11 @@ struct UndoPrivate_t               /* global private */
 	int      regionRepeatId;       /* repeat this block id */
 	DATA16   regionRepeatLoc;      /* need to modify this location to UNDO_BLOCK_REPEAT if repeat */
 	uint16_t regionRepeat;         /* repeat this many times */
-	int      regionOffset;         /* offset within regionLoc and regionSize of last block added */
+	int      regionOffset;         /* offset within regionLoc and regionSize of last block added (XZY) */
 	int      regionLoc[3];         /* starting point of region */
-	int      regionSize[3];
+	int      regionSize[3];        /* size in blocks of the region */
 	int      regionBytes;          /* size in bytes of all the modifications done by region */
-	ListHead undoLog;              /* list of memory blocks to undo */
+	ListHead undoLog;              /* list of memory blocks to undo (UndoLogBuf) */
 	ListHead redoLog;              /* UndoLogBuf */
 };
 

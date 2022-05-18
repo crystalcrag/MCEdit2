@@ -471,6 +471,9 @@ void selectionRender(void)
 		glBindVertexArray(selection.vao);
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, selection.vboIndex);
 
+		/* when viewed from far away, it will prevent z-fighting */
+		glEnable(GL_POLYGON_OFFSET_FILL);
+		glPolygonOffset(-5.0, -5.0);
 		switch (globals.selPoints & 3) {
 		case 1: selectionDrawPoint(selection.firstPt,  0); break;
 		case 2: selectionDrawPoint(selection.secondPt, 1); break;
@@ -478,6 +481,7 @@ void selectionRender(void)
 		        selectionDrawPoint(selection.secondPt, 1);
 		        selectionDrawPoint(selection.regionPt, 2);
 		}
+		glDisable(GL_POLYGON_OFFSET_FILL);
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 		glEnable(GL_DEPTH_TEST);
 		glDepthMask(GL_TRUE);

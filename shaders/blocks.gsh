@@ -60,7 +60,7 @@ void main(void)
 
 	if (FLAG_REPEAT)
 	{
-		// greedy meshing: need to repeat tex from atlas (which is set to GL_CLAMP)
+		// greedy meshing: need to repeat tex from tex atlas (which is set to GL_CLAMP)
 		texStart.x = min(texCoord[0].x, texCoord[0].y);
 		texStart.y = min(texCoord[0].z, texCoord[0].w);
 	}

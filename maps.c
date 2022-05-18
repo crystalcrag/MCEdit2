@@ -1108,6 +1108,7 @@ int mapIsPositionInLiquid(Map map, vec4 pos)
 #define FAKE_CHUNK_SIZE     (offsetof(struct ChunkData_t, blockIds)) /* fields after blockIds are completely useless for frustum */
 #define UNVISITED           0x40
 #define VISIBLE             0x80
+#define UNCERTAIN           0x80
 //#define FRUSTUM_DEBUG
 
 static ChunkData mapAllocFakeChunk(Map map)
@@ -1129,7 +1130,7 @@ static ChunkData mapAllocFakeChunk(Map map)
 	slot = mapFirstFree(&cf->usage, 1);
 	cd = (ChunkData) (cf->buffer + FAKE_CHUNK_SIZE * slot);
 	memset(cd, 0, FAKE_CHUNK_SIZE);
-	cd->slot   = slot+1;
+	cd->slot = slot+1;
 	cf->usage |= 1<<slot;
 	cd->cnxGraph = 0xffff;
 	map->fakeMax ++;
@@ -1250,7 +1251,6 @@ static ChunkData mapAddToVisibleList(Map map, Chunk from, int direction, int lay
 				cd = mapAllocFakeChunk(map);
 				cd->Y = Y << 4;
 				cd->chunk = c;
-				cd->frame = frame;
 				c->layer[Y] = cd;
 				//fprintf(stderr, "allocating fake chunk at %d, %d, %d: %d\n", c->X, cd->Y, c->Z, cd->slot);
 				goto break_all;
@@ -1259,8 +1259,6 @@ static ChunkData mapAddToVisibleList(Map map, Chunk from, int direction, int lay
 		}
 		return NULL;
 	}
-//	if (! cd->glBank)
-//		return NULL;
 
 	break_all:
 	if (cd && c->outflags[Y] < VISIBLE)
@@ -1283,12 +1281,13 @@ static void mapCullCave(ChunkData cur, vec4 camera)
 	int     Z = chunk->Z;
 	int     frame = chunk->chunkFrame;
 
-//	if (chunk->X == 224 && chunk->Z == 976)
+//	if (chunk->X == -208 && cur->Y == 64 && chunk->Z == -1488)
 //		puts("here");
 
 	/* try to get back to a known location from <cur> */
 	for (i = 0; i < 3; i ++)
 	{
+		extern uint16_t hasCnx[]; /* from chunks.c */
 		static int8_t TB[] = {0, 0, 0, 0, -1, 1};
 		ChunkData neighbor;
 
@@ -1315,17 +1314,20 @@ static void mapCullCave(ChunkData cur, vec4 camera)
 		neighbor = chunk->layer[(cur->Y >> 4) + TB[oppSide]];
 		side     = 1 << opp[oppSide];
 
-		if (neighbor && chunk->chunkFrame != frame) continue;
 		if (neighbor == NULL || neighbor->slot > 0)
 		{
 			/* high column without neighbor: consider this chunk visible */
 			cur->comingFrom = side;
 			break;
 		}
-		if (neighbor->comingFrom > 0 /* can be visited */)
+		if (neighbor->frame != frame)
 		{
-			extern uint16_t hasCnx[]; /* from chunks.c */
-			if (neighbor->comingFrom == 255)
+			if (neighbor->cnxGraph & hasCnx[(1 << oppSide) | neighbor->comingFrom])
+				cur->comingFrom = UNCERTAIN | side;
+		}
+		else if (neighbor->comingFrom > 0 /* can be visited */)
+		{
+			if (neighbor->comingFrom == 127)
 			{
 				/* starting pos: multiple paths possible */
 				static int canGoTo[] = { /* S, E, N, W, T, B */
@@ -1392,7 +1394,6 @@ void mapViewFrustum(Map map, vec4 camera)
 
 	// fprintf(stderr, "frame = %d, start = %d, %d, %d\n", map->frame+1, chunk->X, center[1]<<4, chunk->Z);
 
-	frame = 255;
 	if (center[1] < 0)
 	{
 		/* don't care: you are not supposed to be here anyway */
@@ -1449,7 +1450,6 @@ void mapViewFrustum(Map map, vec4 camera)
 		cur->Y = center[1] * 16;
 		cur->chunk = chunk;
 		chunk->layer[center[1]] = cur;
-		frame = center[1];
 		// fprintf(stderr, "init fake chunk at %d, %d: %d\n", chunk->X, chunk->Z, center[1] << 4);
 	}
 	else cur = chunk->layer[center[1]];
@@ -1460,10 +1460,11 @@ void mapViewFrustum(Map map, vec4 camera)
 	map->chunkCulled = 0;
 	prev = &map->firstVisible;
 	cur->visible = NULL;
-	cur->comingFrom = 255;
+	cur->comingFrom = 127;
 	memset(chunk->outflags, UNVISITED, sizeof chunk->outflags);
 	chunk->outflags[cur->Y>>4] |= VISIBLE;
 	frame = ++ map->frame;
+	cur->frame = frame;
 	chunk->chunkFrame = frame;
 
 	for (last = cur; cur; cur = *prev)
@@ -1554,9 +1555,23 @@ void mapViewFrustum(Map map, vec4 camera)
 			}
 		}
 
+		if (cur->comingFrom & UNCERTAIN)
+		{
+			/* should not happend very often */
+			static int8_t TB[] = {0,1,-1};
+			int side = cur->comingFrom;
+			Chunk nbor = cur->chunk + chunkNeighbor[cur->chunk->neighbor + (side & 15)];
+			ChunkData neighbor = nbor->layer[(cur->Y >> 4) + TB[side >> 4]];
+			if (neighbor->frame == frame)
+				cur->comingFrom &= UNCERTAIN;
+			else
+				goto skip;
+		}
+
 		if (cur->slot > 0 || cur->glBank == NULL)
 		{
 			/* fake or empty chunk: remove from list */
+			skip:
 			*prev = cur->visible;
 			if (cur->slot > 0)
 				mapFreeFakeChunk(cur);

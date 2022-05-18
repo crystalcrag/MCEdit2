@@ -914,7 +914,7 @@ Entity entityGetById(int id)
 Entity entityLastFromChunk(Chunk chunk)
 {
 	Entity last = NULL;
-	uint8_t id;
+	uint16_t id;
 	for (id = chunk->entityList; id != ENTITY_END; id = last->next)
 		last = entityGetById(id);
 	return last;

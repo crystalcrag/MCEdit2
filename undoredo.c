@@ -209,7 +209,13 @@ void undoLog(int type, ...)
 				}
 				break;
 			}
-			else journal.regionRepeatId = blockId, journal.regionRepeat = 0;
+			else
+			{
+				if (journal.regionRepeat > 1)
+					undoFlushRepeat(head);
+				journal.regionRepeatId = blockId;
+				journal.regionRepeat = 0;
+			}
 			undoAddMem(head, &blockId, sizeof blockId);
 			journal.regionBytes += 2;
 		}
@@ -243,7 +249,7 @@ void undoLog(int type, ...)
 			journal.regionRepeatId = -1;
 			journal.regionRepeat = 0;
 			journal.inSelection = 1;
-			journal.regionOffset = -1;
+			journal.regionOffset = 0;
 			journal.regionBytes = 0;
 			memcpy(journal.regionLoc, va_arg(args, int *), 2 * sizeof journal.regionLoc);
 		}
@@ -251,12 +257,19 @@ void undoLog(int type, ...)
 	case LOG_REGION_END:
 		if (journal.inSelection == 1)
 		{
+			int * modif = va_arg(args, int *);
 			if (journal.regionRepeat > 1)
 				undoFlushRepeat(head);
-			struct UndoSelection_t mem;
-			memcpy(mem.start, journal.regionLoc, 2 * sizeof mem.start);
-			mem.typeSize = LOG_REGION_START | ((journal.regionBytes + sizeof mem) << 8);
-			undoAddMem(head, &mem, sizeof mem);
+			if (journal.regionBytes > 0)
+			{
+				struct UndoSelection_t mem;
+				memcpy(mem.start, journal.regionLoc, 2 * sizeof mem.start);
+				mem.typeSize = LOG_REGION_START | ((journal.regionBytes + sizeof mem) << 8);
+				undoAddMem(head, &mem, sizeof mem);
+				*modif = 1;
+			}
+			else *modif = 0;
+			/* else operation on selection did not modify anything */
 			journal.inSelection = 0;
 		}
 	}

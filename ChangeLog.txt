@@ -1,9 +1,18 @@
+=========== Week 20 (2022) ===========
+Tue May 17:
+	* cave culling seems to behave more predictably (for now :-/).
+	* more bug fixes (undoredo, don't merge discard and normal).
+
+Mon May 16:
+	* debug cave culling and bug fixes.
+
 =========== Week 19 (2022) ===========
 Sun May 15:
-	* greedy meshing seems to work: -20% of quads on average on a typical minecraft maps.
+	* greedy meshing seems to work: -20% of quads on average on a typical minecraft map.
+	* debug cave culling graph: still seems to have some problem :-/
 
 Sat May 14:
-	* starting greeding meshing.
+	* starting greedy meshing.
 
 Fri May 13:
 	* vertex data refactoring mostly done.

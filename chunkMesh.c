@@ -380,6 +380,7 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer, Mesh
 
 	memset(visited, 0, sizeof visited);
 	hasLights = (cur->cdFlags & CDFLAG_NOLIGHT) == 0;
+	cur->cnxGraph = 0;
 //	if (c->X == -16 && cur->Y == 48 && c->Z == -544)
 //		globals.breakPoint = 1;
 
@@ -944,7 +945,7 @@ static void chunkGenCust(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 		out[4] = (coord2[2] + z) << 16;
 		out[5] = U | (V << 9) | (GET_NORMAL(model) << 19) | dualside | (U == GET_UCOORD(coord1) ? FLAG_TEX_KEEPX : 0);
 		out[6] = GET_UCOORD(coord2) | (GET_VCOORD(coord2) << 9);
-		out[7] = chunkFillCustLight(model, skyBlock, out + 5, occlusion);
+		out[7] = chunkFillCustLight(model, skyBlock, out + 4, occlusion);
 
 		if (STATEFLAG(b, CNXTEX))
 		{
@@ -1048,12 +1049,14 @@ static void chunkGenCube(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 			}
 			break;
 		case TRANS:
-			if (b->id == nbor->id)
+			if (nbor->special == BLOCK_LEAVES)
 			{
-				if (b->special != BLOCK_LEAVES)
-					continue;
-				else
-					discard = 1; /* this quad can be discarded if too far */
+				/* this quad can be discarded if too far */
+				discard = b->special == BLOCK_LEAVES;
+			}
+			else if (b->id == nbor->id)
+			{
+				continue;
 			}
 			if (b->special == BLOCK_LIQUID && nbor->id == ID(79,0)) continue;
 		}
@@ -1149,6 +1152,8 @@ static void chunkGenCube(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 			out[6] = ((texCoord[j+4] + tex[0]) << 4) |
 			         ((texCoord[j+5] + tex[1]) << 13);
 			out[7] = 0;
+			/* prevent quad merging between discard and normal quads */
+			if (discard) out[6] |= FLAG_DISCARD;
 
 			static uint8_t oppSideBlock[] = {16, 14, 10, 12, 22, 4};
 			if (blockIds[blockIds3x3[oppSideBlock[i>>2]] >> 4].special == BLOCK_LIQUID)

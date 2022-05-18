@@ -20,6 +20,13 @@
 
 extern struct RenderWorld_t render;
 
+static struct
+{
+	int usage;
+	int shader, vao, vbo;
+}	cdGraph;
+
+
 #define FRUSTUM_DEBUG
 
 /* get info on block being pointed at (dumped on stderr though) */
@@ -44,7 +51,12 @@ void debugBlockVertex(vec4 pos, int side)
 		(int) pos[VX], (int) pos[VY], (int) pos[VZ],
 		iter.offset, xyz[0], xyz[1], xyz[2], iter.ref->X, iter.cd->Y, iter.ref->Z
 	);
-	fprintf(stderr, "quads opaque + alpha: %d + %d = %d\n", (iter.cd->glSize - iter.cd->glAlpha) / VERTEX_DATA_SIZE, iter.cd->glAlpha / VERTEX_DATA_SIZE,
+	if (iter.cd->cdFlags & CDFLAG_DISCARDABLE)
+	{
+		fprintf(stderr, "quads opaque - discard + alpha: %d - %d + %d = %d\n", (iter.cd->glSize - iter.cd->glAlpha - iter.cd->glDiscard) / VERTEX_DATA_SIZE,
+			iter.cd->glDiscard / VERTEX_DATA_SIZE, iter.cd->glAlpha / VERTEX_DATA_SIZE, iter.cd->glSize / VERTEX_DATA_SIZE);
+	}
+	else fprintf(stderr, "quads opaque + alpha: %d + %d = %d\n", (iter.cd->glSize - iter.cd->glAlpha) / VERTEX_DATA_SIZE, iter.cd->glAlpha / VERTEX_DATA_SIZE,
 		iter.cd->glSize / VERTEX_DATA_SIZE);
 	fprintf(stderr, "intersection at %g,%g,%g, mouse at %d,%d\n", (double) render.selection.extra.inter[0],
 		(double) render.selection.extra.inter[1], (double) render.selection.extra.inter[2], render.mouseX, render.mouseY);
@@ -300,7 +312,6 @@ void debugShowChunkBoundary(Chunk cur, int Y)
 		if (0 <= Y && Y < cur->maxy)
 		{
 			debugBuildCnxGraph(cur->layer[Y]->cnxGraph);
-			debugChunk.Y = Y;
 
 			if (debugChunk.graph > 0)
 			{
@@ -326,6 +337,8 @@ void debugShowChunkBoundary(Chunk cur, int Y)
 				glUnmapBuffer(GL_DRAW_INDIRECT_BUFFER);
 			}
 		}
+		else debugChunk.graph = 0;
+		debugChunk.Y = Y;
 	}
 
 	/* a bit overkill to use that draw call for debug */
@@ -348,6 +361,31 @@ static void nvgMultiLineText(NVGcontext * vg, float x, float y, STRPTR start, ST
 	}
 }
 
+void debugRenderCaveGraph(void)
+{
+	if (cdGraph.usage > 0)
+	{
+		glLineWidth(5);
+		glUseProgram(cdGraph.shader);
+		float value = 0;
+		setShaderValue(cdGraph.shader, "hidden", 1, &value);
+		glEnable(GL_DEPTH_TEST);
+		glDepthFunc(GL_LEQUAL);
+		glBindVertexArray(cdGraph.vao);
+		glDrawArrays(GL_LINES, 0, cdGraph.usage);
+
+		value = 1;
+		setShaderValue(cdGraph.shader, "hidden", 1, &value);
+		glDepthFunc(GL_GEQUAL);
+		glEnable(GL_DEPTH_TEST);
+		glDrawArrays(GL_LINES, 0, cdGraph.usage);
+
+		glDepthFunc(GL_LEQUAL);
+		glBindVertexArray(0);
+		glLineWidth(1);
+	}
+}
+
 void debugCoord(APTR vg, vec4 camera, int total)
 {
 	#if 1
@@ -360,12 +398,11 @@ void debugCoord(APTR vg, vec4 camera, int total)
 
 	len += sprintf(message + len, "Chunk: %d, %d, %d (cnxGraph: %x)\n", CPOS(camera[0]) << 4, CPOS(camera[1]) << 4, CPOS(camera[2]) << 4,
 		cd ? cd->cnxGraph : 0);
-	for (vis = 0; cd; vis += cd->glDiscard, cd = cd->visible);
-	len += sprintf(message + len, "Quads: %d (discard: %d)\n", total, vis / VERTEX_DATA_SIZE);
+	len += sprintf(message + len, "Quads: %d\n", total);
 	for (bank = HEAD(globals.level->gpuBanks), vis = 0; bank; vis += bank->vtxSize, NEXT(bank));
 	len += sprintf(message + len, "Chunks: %d/%d (culled: %d, fakeAlloc: %d)\n", vis, globals.level->GPUchunk, globals.level->chunkCulled,
 		globals.level->fakeMax);
-	len += sprintf(message + len, "FPS: %.1f\nFOG: %d", FrameGetFPS(), globals.level->fogCount);
+	len += sprintf(message + len, "FPS: %.1f", FrameGetFPS());
 
 	nvgFontSize(vg, FONTSIZE);
 	nvgTextAlign(vg, NVG_ALIGN_TOP);
@@ -441,6 +478,128 @@ void debugCoord(APTR vg, vec4 camera, int total)
 	}
 	#endif
 }
+
+static void cnxGraphCoord(int X, int Y, int Z, int side)
+{
+	float coord[3];
+	switch (side) {
+	case 1:  X += 8; Z += 16; Y += 8; break; /* south */
+	case 2:  X += 16; Z += 8; Y += 8; break; /* east */
+	case 4:  X += 8; Y += 8; break; /* north */
+	case 8:  Z += 8; Y += 8; break; /* west */
+	case 16: X += 8; Y += 16; Z += 8; break; /* top */
+	case 32: X += 8; Z += 8; break; /* bottom */
+	default: X += 8; Y += 8; Z += 8;
+	}
+	coord[0] = X;
+	coord[1] = Y;
+	coord[2] = Z;
+
+	glBufferSubData(GL_ARRAY_BUFFER, cdGraph.usage * 12, sizeof coord, coord);
+	cdGraph.usage ++;
+}
+
+static Bool debugCheckCnx(Map map, ChunkData cur, int side)
+{
+	static int8_t TB[] = {0, 0, 0, 0, 1, -1};
+	ChunkData neighbor;
+	Chunk chunk;
+	int dir;
+
+	switch (side) {
+	case 1: dir = 0; break;
+	case 2: dir = 1; break;
+	case 4: dir = 2; break;
+	case 8: dir = 3; break;
+	case 16: dir = 4; break;
+	case 32: dir = 5;
+	}
+
+	chunk    = cur->chunk + chunkNeighbor[cur->chunk->neighbor + (side & 15)];
+	neighbor = chunk->layer[(cur->Y >> 4) + TB[dir]];
+
+	if (neighbor && neighbor->frame == map->frame)
+	{
+		int X = cur->chunk->X;
+		int Z = cur->chunk->Z;
+
+		cnxGraphCoord(X, cur->Y, Z, 255);
+		cnxGraphCoord(X, cur->Y, Z, side);
+
+		X = chunk->X;
+		Z = chunk->Z;
+
+		cnxGraphCoord(X, neighbor->Y, Z, 255);
+		cnxGraphCoord(X, neighbor->Y, Z, 1 << opp[dir]);
+
+//		fprintf(stderr, "%d, %d, %d to %d, %d, %d (%d -> %d)\n", (int) coord[VX], (int) coord[VY], (int) coord[VZ],
+//			(int) coord[VX+4], (int) coord[VY+4], (int) coord[VZ+4], side, neighbor->comingFrom);
+
+		return True;
+	}
+	return False;
+}
+
+/* take a snapshot of the cave graph */
+void debugCaveGraph(Map map)
+{
+	ChunkData cur;
+
+	if (cdGraph.shader == 0)
+	{
+		cdGraph.shader = createGLSLProgram("debug.vsh", "debug.fsh", NULL);
+		glGenBuffers(1, &cdGraph.vbo);
+		glGenVertexArrays(1, &cdGraph.vao);
+		glBindVertexArray(cdGraph.vao);
+		glBindBuffer(GL_ARRAY_BUFFER, cdGraph.vbo);
+		glBufferData(GL_ARRAY_BUFFER, 1024 * 12, NULL, GL_STATIC_DRAW);
+		glVertexAttribPointer(0, 3, GL_FLOAT, 0, 0, 0);
+		glEnableVertexAttribArray(0);
+		glBindVertexArray(0);
+	}
+
+	glBindBuffer(GL_ARRAY_BUFFER, cdGraph.vbo);
+	cdGraph.usage = 0;
+	for (cur = map->firstVisible, cdGraph.usage = 0; cur; cur = cur->visible)
+	{
+		if (cur->comingFrom == 127)
+			continue;
+
+		#if 0
+		int i, X, Z, side;
+
+		for (i = 0; i < 3; i ++)
+		{
+			X = cur->chunk->X;
+			Z = cur->chunk->Z;
+
+			/* check which face is visible based on dot product between face normal and camera */
+			switch (i) {
+			case 0: /* N/S */
+				if (Z + 16 - render.camera[VZ] < 0) side = SIDE_SOUTH;
+				else if (render.camera[VZ] - Z < 0) side = SIDE_NORTH;
+				else continue;
+				break;
+			case 1: /* E/W */
+				if (X + 16 - render.camera[VX] < 0) side = SIDE_EAST;
+				else if (render.camera[VX] - X < 0) side = SIDE_WEST;
+				else continue;
+				break;
+			case 2: /* T/B */
+				if (cur->Y + 16 - render.camera[VY] < 0) side = SIDE_TOP;
+				else if (render.camera[VY] - cur->Y < 0) side = SIDE_BOTTOM;
+				else continue;
+			}
+			debugCheckCnx(map, cur, 1 << side);
+		}
+		#else
+		//fprintf(stderr, "comingFrom = %d\n", cur->comingFrom);
+		debugCheckCnx(map, cur, cur->comingFrom);
+		#endif
+	}
+	fprintf(stderr, "graph captured: %d connections found\n", cdGraph.usage >> 4);
+}
+
 
 /*
  * side-view functions: mostly used to debug SkyLight, BlockLight and HeightMap values

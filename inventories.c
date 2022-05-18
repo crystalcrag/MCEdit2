@@ -380,7 +380,8 @@ static int inventoryMouse(SIT_Widget w, APTR cd, APTR ud)
 			inv->curY = celly;
 			if (inventories.selCount == 0)
 			{
-				inventoryRefreshTooltip(inv);
+				if (inventories.drag.id == 0)
+					inventoryRefreshTooltip(inv);
 				SIT_ForceRefresh();
 			}
 			else inventorySplitItems(inv->items + inv->top + cellx + celly * inv->invCol);
@@ -476,7 +477,7 @@ static int inventoryMouse(SIT_Widget w, APTR cd, APTR ud)
 			}
 			else if (msg->flags & SITK_FlagShift)
 			{
-				if (inventories.transfer)
+				if (inventories.transfer && (inv->movable & INV_TRANSFER))
 				{
 					/* transfer item to other inventory usually */
 					if (inventories.transfer(w, inv, (APTR) cellx))
@@ -814,10 +815,12 @@ static int inventoryTransfer(SIT_Widget w, APTR cd, APTR ud)
 	MCInventory target;
 	Item        source = inv->items + (int) ud;
 	Item        dest, dump;
+	int         canMove = (inv->movable & INV_PICK_ONLY) == 0;
 	int         id = inv->groupId;
 	int         i, slot, max;
 
 	for (i = 0; i < inventories.groupCount && inventories.groups[i]->groupId == id; i ++);
+	next_target:
 	target = inventories.groups[i];
 
 	/* first: dump items from <source> into stack of same item id of <target> inventory */
@@ -827,7 +830,7 @@ static int inventoryTransfer(SIT_Widget w, APTR cd, APTR ud)
 		if (dump == NULL && dest->id == 0)
 			dump = dest;
 
-		if (dest->id == source->id)
+		if (dest->id == source->id && canMove)
 		{
 			source->count = itemAddCount(dest, source->count);
 
@@ -840,11 +843,26 @@ static int inventoryTransfer(SIT_Widget w, APTR cd, APTR ud)
 		}
 	}
 
+	if (dump == NULL && i < inventories.groupCount)
+	{
+		/* check if there is another inventory we can dump this into */
+		for (i ++; i < inventories.groupCount; i ++)
+		{
+			if (inventories.groups[i]->groupId != id)
+			{
+				int enabled = 1;
+				SIT_GetValues(inventories.groups[i]->canvas, SIT_Enabled, &enabled, NULL);
+				if (enabled) goto next_target;
+			}
+		}
+	}
+
 	if (source->count > 0 && dump)
 	{
 		/* free slot available: transfer all what's remaining here */
 		dump[0] = source[0];
-		memset(source, 0, sizeof *source);
+		if (canMove)
+			memset(source, 0, sizeof *source);
 	}
 
 	return 1;

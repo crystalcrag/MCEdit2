@@ -27,6 +27,10 @@
   <a class="sub2" href="#cavecull"><span>Cave culling</span></a>
     <a class="sub3" href="#cavecullv1"><span>First attempt</span></a>
     <a class="sub3" href="#cavecullv2"><span>Second attempt</span></a>
+    <a class="sub3" href="#cnxgraph"><span>Computing visibility graph</span></a>
+    <a class="sub3" href="#cnxgraph"><span>Graph traversal</span></a>
+    <a class="sub3" href="#startchunk"><span>Starting chunk<span></a>
+    <a class="sub3" href="#uncertain"><span>Uncertain chunk<span></a>
   <a class="sub2" href="#altimpl"><span>Alternate implementation<span></a>
 
 <a class="sub1" href="#loading"><span>Chunk loading</span></a>
@@ -517,7 +521,7 @@ for Minecraft MCPE.
 huge branches of chunks and thus avoid checking if a vertex is within the frustum, which, as a reminder,
 requires a 4x4 matrix multiplication for each vertex.
 
-<h4 id="cavecullv1"><span>First attempt</span></h3>
+<h4 id="cavecullv1"><span>First attempt</span></h4>
 
 <p>In the linked blog post, it was mentioned that they first tried to remove chunks that are completely
 surrounded by opaque chunks (ie: where the outer face is completely made up of opaque quad). Unsurprisingly,
@@ -536,7 +540,7 @@ rare in practice.
 
 <p>This section is just a reminder to not waste any time with any of these techniques.
 
-<h4 id="cavecullv2"><span>Second attempt</span></h3>
+<h4 id="cavecullv2"><span>Second attempt</span></h4>
 
 <p>Second attempt was based on the algorithm described in the link above: compute visibility graph of
 connected chunks, and traverse that graph while attempting to mimic a raycasting traversal of that graph.
@@ -544,7 +548,7 @@ The traversal was changed quite a bit though: the one used in <prod>Minecraft</p
 and tend to discard chunks that are clearly visible (as of v1.17 the results are a lot better since it
 was introduced in 1.8).
 
-<h5 id="cnxgraph"><span>Computing visibility graph</span></h3>
+<h4 id="cnxgraph"><span>Computing visibility graph</span></h4>
 
 <p>Computing the visibility graph is not that hard: in this engine it is implemented in
 <tt>mapUpdate.c</tt>: <tt>mapUpdateGetCnxGraph()</tt>. It uses a 3D flood fill (as described in the blog
@@ -582,7 +586,7 @@ and looking through that hole, there won't be any connection and therefore the c
 right there, which is obviously not good. Those extra 6bits are actually stored in a separate field
 (<tt>cdFlags</tt>).
 
-<h5 id="cnxgraph"><span>Graph traversal</span></h3>
+<h4 id="cnxgraph"><span>Graph traversal</span></h4>
 
 <p>This is the part that differs significantly from the blog post: it uses a more conservative approach,
 which results in more chunks being drawn, but should not leave any unfilled hole in the world.
@@ -620,6 +624,8 @@ the dot product between the face normal and the vector from camera to one point 
 </ul>
 </div>
 
+<h4 id="startchunk"><span>Edge case: starting chunk<span></h4>
+
 <p>Knowing this, you'll notice that the first chunk in the list is a bit special: there are no particular
 faces where we entered this chunk. Since we don't know where we came from in this very first chunk, we
 simply assume all directions are valid: this is what is encoded in the table <tt>canGoTo[]</tt>: For each
@@ -651,9 +657,18 @@ south face, that is either 1, 2, 3, 4 or 5. Since connection graph is encoded as
 <p>The <tt>cdFlags</tt> test is needed in case the <tt>cnxFlags</tt> is empty (ie: no connections to
 any faces at all), but the chunk has holes at the edge of a face.
 
+<h4 id="uncertain"><span>Edge case: uncertain chunk<span></h4>
+
+<p>When gathering all the chunks surrounding a given <tt>ChunkData</tt> (§2.3: <a href="#neighbors">Enumerating
+neighbors</a>), graph traversal might depend on chunks outside of this 3x3x3 region. If that's the case
+we mark the graph traversal as uncertain. When time comes to process this chunk marked as such, we will
+check if this neighbor has been included in the frustum. If not, it will also be discarded. This case
+is pretty rare though: less than 5% of <tt>ChunkData</tt>.
+
+
 <p>This method is not as aggressive as the current version of <prod>Minecraft</prod>: it is far from
 simulating a raycasting traversal, but can still easily cull 50% of chunks when above ground, and nearly
-90% when underground. Still, way better than the first version.
+70% when underground. Still, way better than the first version.
 
 
 <h3 id="altimpl"><span>Alternate implementation</span></h2>
@@ -685,14 +700,14 @@ chunks render distance, the array is 36x36 chunks (1296 chunks). Here's how they
   <li>The chunk <b>where the player is</b>, forms a map with a render distance of 0.
   <li>For each increment of the render distance, we add a square ring around this center chunk.
   With a render distance of 16, that would be a 33x33 grid of chunks. These are the chunks that will
-  be scanned by the frustum culling functions, they are known as "<b>visible</b>" chunks.
+  be scanned by the frustum culling, they are known as "<b>visible</b>" chunks.
   <li>But we will need more than this: to generate the mesh of a chunk, we need the 8 surrounding
   chunks to be also loaded. That means, we need an extra ring around the farthest visible ring of
   chunks. These chunks are known as "<b>lazy chunks</b>": only the bare minimum of these chunks are loaded:
   block data. With a 16 render distance, we would need a 35x35 area now.
   <li>A single column and a single row of chunks is added for <b>leaway</b>. Making the grid 36x36 on
   a 16 chunks render distance. The reason for this leaway is when the player moves back and forth between
-  the boundary of 2 chunks: without that leaway huge amount of data would have to be deleted/recreated
+  the boundary of 2 chunks: without that leaway, huge amount of data would have to be deleted/recreated
   each time the boundary is crossed.
 </ul>
 
@@ -722,7 +737,7 @@ distance</b> from the center.
 chunk that are immediately visible: if frustum culling grab a chunk that have no mesh yet and is
 scheduled to be processed, it is simply moved in front of the list.
 
-<p>Then in the <b>main rendering loop</b>, we check if this list contain some chunks waiting to be
+<p>Then, in the <b>main rendering loop</b>, we check if this list contain some chunks waiting to be
 processed. If yes, we run the loading/meshing function, until some time has passed (around 15ms).
 After that we give the control back to the rendering loop. This is obviously to avoid slowing the
 framerate too much.
@@ -762,17 +777,18 @@ this area. To its defense, this is not a trivial subject.
   <li>Since threads are completely independant from the main thread, the <b>staging buffer is fixed in size</b>.
   If the main thread is stuck doing something else (ie: not monitoring the chunks ready to be uploaded to the
   GPU), they could potentially generate tens of megabytes of mesh data waiting to be uploaded. Which
-  is mostly useless. That's why the staging buffer is limited to 1Mb. This value was callibrated for
+  is mostly useless. That's why the staging buffer is limited to 2Mb. This value was callibrated for
   2 threads. More threads would probably require a bigger buffer.
 
-  <li>Chunks that are completed are stored in a dedicated list, that is scanned from the main rendering
+  <li>Chunks that are completed, are stored in a dedicated list, that is scanned from the main rendering
   loop. The only thing left to do at this point, is to copy data from the staging area to a VBO of
   the GPU (ie: it is just a bunch of <tt>memcpy()</tt> call). Which is <b>very</b> cheap: 99.9% of
   the processing time is spent loading (disk read), unpacking (zlib inflate), and meshing the content
   of each chunks.
 </ul>
 
-<p>Sadly, all of this steps require very <b>careful synchronization</b> in order to not shoot your feet.
+<p>Sadly, all of this steps require very <b>careful synchronization</b> in order to not shoot into your
+feet.
 
 
 <h2 id="blocks">Block API</h2>

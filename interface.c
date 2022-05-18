@@ -17,6 +17,7 @@
 #include <glad.h>
 #include <malloc.h>
 #include <string.h>
+#include <stdlib.h>
 #include <math.h>
 #include <stdio.h>
 #include "nanovg.h"
@@ -1193,9 +1194,11 @@ static int mcuiFillCheckProgress(SIT_Widget w, APTR cd, APTR ud)
 	if (mcuiRepWnd.processTotal == mcuiRepWnd.processCurrent)
 	{
 		/* done */
+		int modif;
 		mapUpdateEnd(globals.level);
 		mcuiRepWnd.asyncCheck = NULL;
-		undoLog(LOG_REGION_END);
+		undoLog(LOG_REGION_END, &modif);
+		if (modif) renderAddModif();
 		SIT_Exit(EXIT_LOOP);
 		/* will cancel the timer */
 		return -1;
@@ -1246,8 +1249,6 @@ static int mcuiFillBlocks(SIT_Widget w, APTR cd, APTR ud)
 
 	/* this function will monitor the thread progress */
 	mcuiRepWnd.asyncCheck = SIT_ActionAdd(w, mcuiRepWnd.processStart = globals.curTimeUI, globals.curTimeUI + 1e9, mcuiFillCheckProgress, NULL);
-
-	renderAddModif();
 
 	return 1;
 }
@@ -1321,12 +1322,14 @@ static int mcuiFillStop(SIT_Widget w, APTR cd, APTR ud)
 		SIT_Exit(EXIT_LOOP);
 	if (mcuiRepWnd.asyncCheck)
 	{
+		int modif;
 		selectionCancelOperation();
 		SIT_ActionReschedule(mcuiRepWnd.asyncCheck, -1, -1);
 		mcuiRepWnd.asyncCheck = NULL;
 		/* show what's been modified */
 		mapUpdateEnd(globals.level);
-		undoLog(LOG_REGION_END);
+		undoLog(LOG_REGION_END, &modif);
+		if (modif) renderAddModif();
 	}
 	return 1;
 }
@@ -1358,7 +1361,7 @@ void mcuiReplaceFillItems(SIT_Widget diag, MCInventory inv)
 
 void mcuiFillOrReplace(Bool fillWithBrush)
 {
-	static struct MCInventory_t mcinv   = {.invRow = 6, .invCol = MAXCOLINV, .movable = INV_PICK_ONLY};
+	static struct MCInventory_t mcinv   = {.invRow = 6, .invCol = MAXCOLINV, .movable = INV_PICK_ONLY|INV_TRANSFER};
 	static struct MCInventory_t fillinv = {.invRow = 1, .invCol = 1, .groupId = 1, .itemsNb = 1, .movable = INV_SINGLE_DROP};
 	static struct MCInventory_t replace = {.invRow = 1, .invCol = 1, .groupId = 2, .itemsNb = 1, .movable = INV_SINGLE_DROP};
 	static struct Item_t fillReplace[2];
@@ -1532,9 +1535,11 @@ static int mcuiDeleteProgress(SIT_Widget w, APTR cd, APTR ud)
 	if (mcuiRepWnd.processTotal == mcuiRepWnd.processCurrent)
 	{
 		/* done */
+		int modif;
 		mapUpdateEnd(globals.level);
 		mcuiRepWnd.asyncCheck = NULL;
-		undoLog(LOG_REGION_END);
+		undoLog(LOG_REGION_END, &modif);
+		if (modif) renderAddModif();
 		SIT_Exit(EXIT_LOOP);
 		/* will cancel the timer */
 		return -1;

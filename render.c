@@ -65,7 +65,7 @@ void GLAPIENTRY debugGLError(GLenum source, GLenum type, GLuint id, GLenum sever
 	TEXT   typeUnknown[64];
 	switch (type) {
 	case GL_DEBUG_TYPE_ERROR:               str = "ERROR"; break;
-	case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR: str = "DEPRECATED_BEHAVIOR"; break;
+	case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR: return; //str = "DEPRECATED_BEHAVIOR"; break;
 	case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:  str = "UNDEFINED_BEHAVIOR"; break;
 	case GL_DEBUG_TYPE_PORTABILITY:         str = "PORTABILITY"; break;
 	case GL_DEBUG_TYPE_PERFORMANCE:         str = "PERFORMANCE"; break;
@@ -984,8 +984,6 @@ void renderShowBlockInfo(Bool show, int what)
 			}
 			return;
 		}
-		if (what & DEBUG_BLOCK)
-			SIT_SetValues(render.blockInfo, SIT_Visible, True, SIT_DisplayTime, SITV_ResetTime, NULL);
 	}
 	else
 	{
@@ -1444,7 +1442,12 @@ void renderBlockInfo(SelBlock_t * sel)
 		case SIDE_WAYPOINT: wayPointInfo(sel->extra.entity, msg, sizeof msg); break;
 		}
 
-		SIT_SetValues(render.blockInfo, SIT_Title, msg, SIT_DisplayTime, SITV_ResetTime, NULL);
+		SIT_SetValues(render.blockInfo,
+			SIT_Title,       msg,
+			SIT_Visible,     True,
+			SIT_DisplayTime, SITV_ResetTime,
+			NULL
+		);
 	}
 }
 
@@ -1573,6 +1576,8 @@ void renderWorld(void)
 	glBindVertexArray(0);
 
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
+	debugRenderCaveGraph();
 
 	NVGcontext * vg = globals.nvgCtx;
 	nvgBeginFrame(vg, globals.width, globals.height, 1);
@@ -1719,6 +1724,8 @@ void renderWorld(void)
 		if (render.selection.extra.entity > 0 || (render.selection.selFlags & SEL_POINTTO))
 			/* tooltip about block being pointed at */
 			renderBlockInfo(&render.selection);
+		else
+			SIT_SetValues(render.blockInfo, SIT_Visible, False, NULL);
 	}
 }
 
@@ -1816,10 +1823,11 @@ int renderGetTerrain(int size[2], int * texId)
 void renderResetFrustum(void)
 {
 	static int oldDist;
-	int dist = globals.renderDist * 16 + 8;
+	int dist = globals.distanceFOG ? globals.renderDist * 16 + 8 : 0;
 	if (oldDist != dist)
 	{
 		shading[SHADING_FOGDIST] = dist;
+		oldDist = 0;
 		glBindBuffer(GL_UNIFORM_BUFFER, globals.uboShader);
 		glBufferSubData(GL_UNIFORM_BUFFER, UBO_SHADING_OFFSET+SHADING_FOGDIST*4, sizeof (float), shading + SHADING_FOGDIST);
 	}

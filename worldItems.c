@@ -23,6 +23,7 @@
 #include "render.h"
 #include "minecarts.h"
 #include "undoredo.h"
+#include "inventories.h"
 #include "physics.h"
 #include "globals.h"
 
@@ -157,13 +158,8 @@ static int worldItemParseItem(NBTFile nbt, Entity entity, STRPTR itemId)
 	int id = NBT_FindNode(nbt, desc, "id");
 	if (id > 0)
 	{
-		NBTHdr hdr = NBT_Hdr(nbt, id);
-		ItemID_t blockId;
-		/* older version */
-		if (hdr->type != TAG_String)
-			blockId = NBT_GetInt(nbt, 0, 0);
-		else
-			blockId = itemGetByName(NBT_Payload(nbt, id), False);
+		TEXT itemIdBuf[16];
+		ItemID_t blockId = itemGetByName(inventoryItemName(nbt, id, itemIdBuf), False);
 
 		if (blockId > 0)
 		{
