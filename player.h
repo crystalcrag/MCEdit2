@@ -105,7 +105,7 @@ struct Player_t
 	uint8_t  plate;            /* >0: pressure plate activated */
 	uint16_t keyvec;           /* bitfield of PLAYER_* */
 
-	uint32_t tick;             /* time diff between update */
+	double   tick;             /* time diff between update */
 	NBTFile  levelDat;         /* complete NBT decoding of level.dat */
 	InvBuf   inventory;
 	vec4     pushedTo;         /* player pushed by another entities */

@@ -24,7 +24,6 @@ static QUADHASH  quadMerge;             /* single thread greedy meshing */
 static int       threadStop;            /* THREAD_EXIT_* */
 
 
-#define MAX_MESH_CHUNK     ((64*1024/VERTEX_DATA_SIZE)*VERTEX_DATA_SIZE)
 #define processing         nbt.page
 #define QUAD_MERGE                      /* comment to disable quad merging (debug) */
 
@@ -58,8 +57,10 @@ static void meshGenAsync(void * arg)
 
 		MutexEnter(map->genLock);
 		Chunk list = (Chunk) ListRemHead(&map->genList);
+		/* needs to be set before exiting mutex */
+		if (list) list->cflags |= CFLAG_PROCESSING;
 		MutexLeave(map->genLock);
-		if (! list || (list->cflags & CFLAG_HASMESH))
+		if (! list || (list->cflags & (CFLAG_HASMESH|CFLAG_STAGING)))
 			goto bail;
 
 		static uint8_t directions[] = {12, 4, 6, 8, 0, 2, 9, 1, 3};
@@ -108,7 +109,7 @@ static void meshGenAsync(void * arg)
 			if (threadStop) goto bail;
 		}
 
-		/* process chunk */
+		/* transform chunk into mesh */
 		for (i = 0; i < list->maxy; i ++)
 		{
 			ChunkData cd = list->layer[i];
@@ -147,7 +148,7 @@ void meshInitThreads(Map map)
 {
 	int nb;
 	staging.mem = malloc(STAGING_AREA);
-	staging.capa = SemInit(STAGING_AREA/4096);
+	staging.capa = SemInit(STAGING_SLOT);
 	staging.alloc = MutexCreate();
 
 	/* already load center chunk */
@@ -160,7 +161,9 @@ void meshInitThreads(Map map)
 	{
 		threads[nb].wait = MutexCreate();
 		threads[nb].map  = map;
+		#ifdef QUAD_MERGE
 		meshQuadMergeInit(&threads[nb].hash);
+		#endif
 		ThreadCreate(meshGenAsync, threads + nb);
 	}
 }
@@ -346,7 +349,7 @@ Bool meshInitST(ChunkData cd, APTR opaque, APTR alpha)
 /*
  * multi-threaded context mem allocation
  */
-static DATA32 meshAllocMT(struct Thread_t * thread, int first, int start)
+static DATA32 meshAllocMT(struct Thread_t * thread, int first, int start, int * index_ret)
 {
 	thread->state = THREAD_WAIT_BUFFER;
 	SemWait(staging.capa);
@@ -362,9 +365,8 @@ static DATA32 meshAllocMT(struct Thread_t * thread, int first, int start)
 
 //	fprintf(stderr, "alloc mem for thread %d: first = %d\n", thread - threads, first);
 
-	/* alloc in chunk of 4Kb */
-	int index = mapFirstFree(staging.usage, DIM(staging.usage));
-	DATA32 mem = staging.mem + (index << 10);
+	int index = *index_ret = mapFirstFree(staging.usage, DIM(staging.usage));
+	DATA32 mem = staging.mem + (index * STAGING_BLOCK);
 	staging.total ++;
 	if (first)
 		staging.start[staging.chunkData++] = index;
@@ -392,16 +394,17 @@ static void meshFlushMT(MeshWriter buffer)
 	if (buffer->alpha && buffer->isCOP)
 		buffer->isCOP = meshCheckCoplanar(buffer);
 
-//	fprintf(stderr, "flush mem for thread %d: size = %d\n", cd->chunk->cdIndex, size);
+	//fprintf(stderr, "flush mem for thread %d: size = %d\n", cd->chunk->cdIndex, size);
 
 	if (size + discard < MESH_MAX_QUADS)
 	{
 		/* still some room left, don't alloc a new block just yet */
-		buffer->start[-1] = (discard << 18) | (size << 10);
+		buffer->start[-1] = (discard << 24) | (size << 16);
 		return;
 	}
 
-	DATA32 mem = meshAllocMT(&threads[cd->chunk->cdIndex], False, 0);
+	int index;
+	DATA32 mem = meshAllocMT(&threads[cd->chunk->cdIndex], False, 0, &index);
 	if (mem == NULL)
 	{
 		/* cancel mesh generation */
@@ -410,44 +413,51 @@ static void meshFlushMT(MeshWriter buffer)
 		return;
 	}
 
-	buffer->start[-1] = (discard << 18) | (size << 10) | (((mem - staging.mem) >> 10) + 1);
-	buffer->cur = buffer->start = mem + 2;
-	buffer->end = buffer->discard = mem + 1024;
+	buffer->start[-1] = (discard << 24) | (size << 16) | (index + 1);
+	buffer->cur = buffer->start = mem + MESH_HDR;
+	buffer->end = buffer->discard = mem + STAGING_BLOCK;
 }
 
 /* this function is called in a MT context */
 Bool meshInitMT(ChunkData cd, APTR opaque, APTR alpha)
 {
-	/* typical sub-chunk is usually below 64Kb of mesh data */
+	int    indexALPHA;
 	Chunk  chunk    = cd->chunk;
 	int    start    = (chunk - chunk->save) | (cd->Y << 12);
-	DATA32 memSOLID = meshAllocMT(threads + chunk->cdIndex, True, start);
+	DATA32 memSOLID = meshAllocMT(threads + chunk->cdIndex, True, start, &indexALPHA);
 
 	if (memSOLID)
 	{
-		DATA32 memALPHA = meshAllocMT(threads + chunk->cdIndex, False, start);
+		DATA32 memALPHA = meshAllocMT(threads + chunk->cdIndex, False, start, &indexALPHA);
 
 		if (memALPHA)
 		{
 			MeshWriter writer = opaque;
-			writer->start = writer->cur = memSOLID + 2;
-			writer->end   = memSOLID + 1024;
+			writer->start = writer->cur = memSOLID + MESH_HDR;
+			writer->end   = writer->discard = memSOLID + STAGING_BLOCK;
 			writer->alpha = 0;
 			writer->isCOP = 1;
 			writer->mesh  = cd;
 			writer->flush = meshFlushMT;
+			#ifdef QUAD_MERGE
 			writer->merge = &threads[chunk->cdIndex].hash;
+			#else
+			writer->merge = NULL;
+			#endif
 			cd->glSize    = memSOLID - staging.mem;
 
 			writer = alpha;
-			writer->start = writer->cur = memALPHA + 2;
-			writer->end   = memALPHA + 1024;
+			writer->start = writer->cur = memALPHA + MESH_HDR;
+			writer->end   = writer->discard = memALPHA + STAGING_BLOCK;
 			writer->alpha = 1;
 			writer->isCOP = 1;
 			writer->mesh  = cd;
 			writer->flush = meshFlushMT;
 			writer->merge = ((MeshWriter)opaque)->merge;
-			cd->glAlpha   = ((memALPHA - staging.mem) >> 10) + 1;
+			/* alpha and opaque will be split in 2, main thread will only have a ref on opaque, not on alpha */
+			cd->glAlpha   = indexALPHA + 1;
+			if (cd->glAlpha == 0)
+				puts("here");
 			memset(writer->coplanar, 0, sizeof writer->coplanar);
 			return True;
 		}
@@ -902,7 +912,7 @@ void meshGenerateST(Map map)
 		//	NBT_Dump(&list->nbt, 0, 0, 0);
 		//fprintf(stderr, "meshing chunk %d, %d\n", list->X, list->Z);
 
-		/* second: push data to the GPU (only the first chunk) */
+		/* convert to mesh */
 		for (i = 0, j = list->maxy; j > 0; j --, i ++)
 		{
 			ChunkData cd = list->layer[i];
@@ -938,17 +948,26 @@ void meshGenerateST(Map map)
 	}
 }
 
-static int meshStagingSize(int offset)
+static int meshStagingSize(int offset, int * discard_ret)
 {
 	DATA32 ptr = staging.mem + offset;
-	int size = 0, slot;
+	int size = 0, slot, discard = 0;
 	for (;;)
 	{
-		size += ptr[1] >> 10;
-		slot = ptr[1] & 0x3ff;
+		/* some quads will have to be discarded */
+		size += meshBufferSize(ptr + 2, ((ptr[1] >> 16) & 0xff) * VERTEX_DATA_SIZE);
+		slot = ptr[1] >> 24;
+		if (slot > 0)
+		{
+			int total = meshBufferSize(ptr + STAGING_BLOCK - slot * VERTEX_INT_SIZE, slot * VERTEX_DATA_SIZE);
+			size += total;
+			discard += total;
+		}
+		slot = ptr[1] & 0xffff;
 		if (slot == 0) break;
-		ptr = staging.mem + (slot - 1) * 1024;
+		ptr = staging.mem + (slot - 1) * STAGING_BLOCK;
 	}
+	*discard_ret = discard;
 	return size;
 }
 
@@ -959,7 +978,7 @@ void meshDebugStaging(Map map)
 	DATA8 index, eof;
 	for (index = staging.start, eof = index + staging.chunkData; index < eof; index ++)
 	{
-		DATA32 src = staging.mem + index[0] * 1024;
+		DATA32 src = staging.mem + index[0] * STAGING_BLOCK;
 		Chunk chunk = map->chunks + (src[0] & 0xffff);
 		ChunkData cd = chunk->layer[src[0] >> 16];
 
@@ -980,7 +999,7 @@ void meshGenerateMT(Map map)
 	for (index = staging.start, freed = 0, eof = index + staging.chunkData; index < eof; )
 	{
 		/* is the chunk ready ? */
-		DATA32 src = staging.mem + index[0] * 1024;
+		DATA32 src = staging.mem + index[0] * STAGING_BLOCK;
 		Chunk chunk = map->chunks + (src[0] & 0xffff);
 		ChunkData cd = chunk->layer[src[0] >> 16];
 
@@ -991,27 +1010,26 @@ void meshGenerateMT(Map map)
 			{
 				staging.usage[slot >> 5] ^= 1 << (slot & 31);
 				freed ++;
-				slot = src[1] & 0x3ff;
+				slot = src[1] & 0xffff;
 				if (slot == 0) break;
 				slot --;
-				src = staging.mem + slot * 1024;
+				src = staging.mem + slot * STAGING_BLOCK;
 			}
 		}
 		else if (chunk->cflags & CFLAG_STAGING)
 		{
 			/* yes, move all chunks into GPU and free staging area */
-			GPUBank bank;
-			DATA8   dst;
-			int     count, offset, alpha;
+			int bytes, offset, alpha;
 
 			/* count bytes needed to store this chunk on GPU */
 			alpha = cd->glAlpha;
-			cd->glAlpha = meshStagingSize((alpha - 1) * 1024);
-			cd->glSize  = meshStagingSize(index[0] * 1024) + cd->glAlpha;
-			count = cd->glSize;
-			bank = cd->glBank;
+			cd->glAlpha = meshStagingSize((alpha - 1) * STAGING_BLOCK, &offset);
+			cd->glSize  = meshStagingSize(index[0] * STAGING_BLOCK, &cd->glDiscard) + cd->glAlpha;
+			bytes = cd->glSize;
+			if (cd->glBank)
+				puts("no good: this interface is only for loading chunk, not modification");
 
-			if (count == 0)
+			if (bytes == 0)
 			{
 				/* only air blocks (usually needed for block light propagation) */
 				slot = index[0]; staging.usage[slot >> 5] ^= 1 << (slot & 31);
@@ -1021,50 +1039,39 @@ void meshGenerateMT(Map map)
 			else
 			{
 				//fprintf(stderr, "mesh ready: chunk %d, %d [%d]: %d + %d\n", chunk->X, chunk->Z, cd->Y, cd->glSize, cd->glAlpha);
+				offset = meshAllocGPU(map, cd, bytes);
 
-				if (bank)
-				{
-					GPUMem mem = bank->usedList + cd->glSlot;
-					if (count > mem->size)
-					{
-						/* not enough space: need to "free" previous mesh before */
-						meshFreeGPU(cd);
-						/*
-						 * this time reserve some space in case there are further modifications
-						 * the vast majority of chunks will never be modified, no need to do this everytime.
-						 */
-						offset = meshAllocGPU(map, cd, (count + 4095) & ~4095);
-					}
-					else offset = mem->offset; /* reuse mem segment */
-				}
-				else offset = meshAllocGPU(map, cd, count);
-
-				bank = cd->glBank;
+				GPUBank bank = cd->glBank;
 				glBindBuffer(GL_ARRAY_BUFFER, bank->vboTerrain);
-				dst = glMapBufferRange(GL_ARRAY_BUFFER, offset, count, GL_MAP_WRITE_BIT);
+				DATA8 dst = glMapBufferRange(GL_ARRAY_BUFFER, offset, bytes, GL_MAP_WRITE_BIT);
+				DATA8 tmp = dst + bytes - cd->glDiscard - cd->glAlpha;
 
 				for (slot = index[0]; ; )
 				{
 					staging.usage[slot >> 5] ^= 1 << (slot & 31);
 					freed ++;
-					count = src[1] >> 10;
-					slot  = src[1] & 0x3ff;
 
 					/* copy mesh data to GPU */
-					memcpy(dst, src + 2, count);
-					dst += count;
+					dst = meshCopyBuffer(dst, src + MESH_HDR, ((src[1] >> 16) & 255) * VERTEX_DATA_SIZE);
+					bytes = (src[1] >> 24) * VERTEX_DATA_SIZE;
+					slot  = src[1] & 0xffff;
+					if (bytes > 0)
+						tmp = meshCopyBuffer(tmp, (DATA8) (src + STAGING_BLOCK) - bytes, bytes);
+
+					/* get next slot */
 					if (slot == 0)
 					{
 						if (alpha > 0)
-							slot = alpha, alpha = 0;
+							slot = alpha, alpha = 0, dst = tmp;
 						else
 							break;
 					}
 					slot --;
-					src = staging.mem + slot * 1024;
+					src = staging.mem + slot * STAGING_BLOCK;
 				}
 				glUnmapBuffer(GL_ARRAY_BUFFER);
 				glBindBuffer(GL_ARRAY_BUFFER, 0);
+				map->GPUchunk ++;
 
 				if ((chunk->cflags & CFLAG_HASENTITY) == 0)
 				{
@@ -1073,7 +1080,7 @@ void meshGenerateMT(Map map)
 				}
 			}
 			/* note: no need to modify "bank->vtxSize" like meshFinishST(), this function is only used for initial chunk loading */
-			chunk->cflags |= CFLAG_HASMESH;
+			chunk->cflags = (chunk->cflags | CFLAG_HASMESH) & ~CFLAG_PROCESSING;
 		}
 		/* wait for next frame */
 		else { index ++; continue; }

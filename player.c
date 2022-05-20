@@ -339,11 +339,13 @@ void playerMove(Player p)
 	{
 		if (keyvec & (PLAYER_UP|PLAYER_DOWN))
 		{
+			/* fly mode */
 			playerAdjustVelocityY(p, diff);
 			p->pos[VY] += p->velocity[VY];
 		}
 		if (keyvec & (PLAYER_STRAFE_LEFT|PLAYER_STRAFE_RIGHT|PLAYER_MOVE_FORWARD|PLAYER_MOVE_BACK|PLAYER_STOPPING))
 		{
+			/* horizontal movement */
 			playerAdjustVelocity(p, diff);
 			p->pos[VX] += p->velocity[VX] * diff;
 			p->pos[VZ] += p->velocity[VZ] * diff;
@@ -354,7 +356,8 @@ void playerMove(Player p)
 			float dy;
 			if (p->ladder == 0)
 			{
-				dy = p->velocity[VY] += diff * p->viscosity;
+				/* hmm, jump strength was calibrated for 40fps, make it FPS independant with "diff * 40" */
+				dy = (p->velocity[VY] += diff * p->viscosity) * diff * 40;
 				if (p->velocity[VY] > MAX_FALL * p->viscosity)
 					p->velocity[VY] = MAX_FALL * p->viscosity;
 			}
@@ -363,7 +366,7 @@ void playerMove(Player p)
 		}
 		if (keyvec & PLAYER_CLIMB)
 		{
-			/* smooth vertical transition */
+			/* player moving to a higher elevation: smooth vertical transition */
 			p->velocity[VY] += 2*diff;
 			p->pos[VY] += p->velocity[VY];
 			if (p->pos[VY] > p->targetY)
@@ -381,8 +384,8 @@ void playerMove(Player p)
 		int climb = -1;
 
 //		fprintf(stderr, "moved to %.2f x %.2f\n", (double) p->pos[VX] - 0.3, (double) p->pos[VX] + 0.3);
-//		fprintf(stderr, "velocityY %.2f, pos = %.2f => %.2f [%g - %d], dirY: %g\n", p->velocity[VY], orig_pos[VY], p->pos[VY], p->targetY, collision,
-//			p->dir[VY]);
+//		fprintf(stderr, "velocityY %.2f, pos = %.2f => %.2f [%g - %d], diff: %g,\n", p->velocity[VY], orig_pos[VY], p->pos[VY], p->targetY, collision,
+//			diff);
 
 		if ((collision & INSIDE_PLATE) || p->plate)
 		{

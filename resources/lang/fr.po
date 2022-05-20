@@ -322,6 +322,9 @@ msgstr "Chercher"
 msgid "Player inventory"
 msgstr "Inventaire personnel"
 
+msgid "Exchange row with toolbar"
+msgstr "Échanger cette rangée avec la barre d'outil"
+
 msgid "Clear inventory"
 msgstr "Effacer l'inventaire"
 

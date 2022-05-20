@@ -290,6 +290,10 @@ VTXBBox mapGetBBox(BlockIter iterator, int * count, int * cnxFlags)
 			return bboxes;
 		}
 		break;
+	case BLOCK_WALL:
+		/* don't care about center piece for bbox */
+		*cnxFlags = mapGetConnect(iterator->cd, iterator->offset, blockGetById(id)) & 15;
+		break;
 	case BLOCK_FENCE:
 	case BLOCK_FENCE2:
 	case BLOCK_GLASS:
@@ -544,7 +548,7 @@ static int mapRedoGenList(Map map)
 			int Z = ZC + (spiral[1] << 4);
 			if (c->X != X || c->Z != Z)
 			{
-				chunkFree(c, True);
+				map->GPUchunk -= chunkFree(c, True);
 			}
 		}
 		else c->entityList = ENTITY_END;
@@ -591,7 +595,7 @@ static void mapMarkLazyChunk(Map map)
 		if (dir & 8) X -= 16;
 
 		if (X != neighbor->X || Z != neighbor->Z)
-			chunkFree(chunk, True);
+			map->GPUchunk -= chunkFree(chunk, True);
 	}
 }
 
@@ -803,7 +807,7 @@ Bool mapSetRenderDist(Map map, int maxDist)
 			for (i = 0, j = oldArea * oldArea, old = map->chunks; i < j; old ++, i ++)
 			{
 				if (old->cflags & (CFLAG_HASMESH|CFLAG_GOTDATA))
-					chunkFree(old, True);
+					map->GPUchunk -= chunkFree(old, True);
 			}
 		}
 		/* need to point to the new chunk array, otherwise it will point to some free()'ed memory */
@@ -1217,16 +1221,18 @@ static ChunkData mapAddToVisibleList(Map map, Chunk from, int direction, int lay
 	}
 	if ((c->cflags & CFLAG_HASMESH) == 0)
 	{
-		#if 0
-		/* move to front of list of chunks needed to be generated */
-		if (c->next.ln_Prev && (c->cflags & CFLAG_PRIORITIZE) == 0)
+		/* move to front of list of chunks waiting to be generated */
+		if ((Chunk) c->next.ln_Prev != map->genLast && map->genLast != c)
 		{
-			c->cflags |= CFLAG_PRIORITIZE;
-			ListRemove(&map->genList, &c->next);
-			ListInsert(&map->genList, &c->next, &map->genLast->next);
-			map->genLast = c;
+			if ((c->cflags & CFLAG_PROCESSING) == 0)
+			{
+				MutexEnter(map->genLock);
+				ListRemove(&map->genList, &c->next);
+				ListInsert(&map->genList, &c->next, &map->genLast->next);
+				map->genLast = c;
+				MutexLeave(map->genLock);
+			}
 		}
-		#endif
 		return NULL;
 	}
 
@@ -1457,15 +1463,16 @@ void mapViewFrustum(Map map, vec4 camera)
 	if (! cur) return;
 	found_start:
 	map->firstVisible = cur;
-	map->chunkCulled = 0;
-	prev = &map->firstVisible;
-	cur->visible = NULL;
-	cur->comingFrom = 127;
+	map->chunkCulled  = 0;
+	prev              = &map->firstVisible;
+	cur->visible      = NULL;
+	cur->comingFrom   = 127;
+	frame             = ++ map->frame;
+	chunk->chunkFrame = cur->frame = frame;
+	map->genLast      = NULL;
+
 	memset(chunk->outflags, UNVISITED, sizeof chunk->outflags);
 	chunk->outflags[cur->Y>>4] |= VISIBLE;
-	frame = ++ map->frame;
-	cur->frame = frame;
-	chunk->chunkFrame = frame;
 
 	for (last = cur; cur; cur = *prev)
 	{
@@ -1562,7 +1569,7 @@ void mapViewFrustum(Map map, vec4 camera)
 			int side = cur->comingFrom;
 			Chunk nbor = cur->chunk + chunkNeighbor[cur->chunk->neighbor + (side & 15)];
 			ChunkData neighbor = nbor->layer[(cur->Y >> 4) + TB[side >> 4]];
-			if (neighbor->frame == frame)
+			if (neighbor && neighbor->frame == frame)
 				cur->comingFrom &= UNCERTAIN;
 			else
 				goto skip;
@@ -1582,12 +1589,12 @@ void mapViewFrustum(Map map, vec4 camera)
 //			fprintf(stderr, "adding chunk %d, %d, %d from %d to visible list\n",
 //				chunk->X, cur->Y, chunk->Z, cur->comingFrom);
 			prev = &cur->visible;
-			cur->cdFlags &= ~ (CDFLAG_DISCARDABLE | CDFLAG_EDGESENW);
+			cur->cdFlags &= ~ CDFLAG_DISCARDABLE;
 			if (cur->glDiscard > 0)
 			{
 				float dx = camera[VX] - chunk->X;
 				float dz = camera[VZ] - chunk->Z;
-				if (dx * dx + dz * dz >= 90 * 90)
+				if (dx * dx + dz * dz >= 100 * 100)
 					cur->cdFlags |= CDFLAG_DISCARDABLE;
 			}
 		}

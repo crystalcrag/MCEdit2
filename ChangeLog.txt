@@ -1,4 +1,10 @@
 =========== Week 20 (2022) ===========
+Thu May 19:
+	* started raycasting rendering (distant horizon).
+
+Wed May 18:
+	* multi-thread chunk loading converted to new vertex data format.
+
 Tue May 17:
 	* cave culling seems to behave more predictably (for now :-/).
 	* more bug fixes (undoredo, don't merge discard and normal).

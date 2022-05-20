@@ -674,7 +674,7 @@ static int worldItemCreateItemFrame(Map map, vec4 pos, int side)
 	size[VY] = 1;
 	size[VZ] = 1/16.;
 
-	worldItemFillPos(posAndRot, pos, side, side == SIDE_TOP ? -90 : side == SIDE_BOTTOM ? 90 : 0, size);
+	worldItemFillPos(posAndRot, pos, side, side == SIDE_TOP ? 90 : side == SIDE_BOTTOM ? -90 : 0, size);
 	c = mapGetChunk(map, posAndRot);
 	if (c == NULL) return 0; /* outside map? */
 

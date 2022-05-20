@@ -12,9 +12,10 @@
 
 /*
  * avoid more than 2 threads, because the staging area might not have enough space to hold temporary
- * mesh buffer and cause a thread inter-lock. Disable multi-thread by setting this value to 0.
+ * mesh buffer and cause a thread inter-lock, performance gain above 2 is negligible anyway.
+ * you can disable multi-thread by setting this value to 0.
  */
-#define NUM_THREADS                0
+#define NUM_THREADS                1
 #define MEMITEM                    512
 
 typedef struct MeshWriter_t        MeshWriter_t;
@@ -149,9 +150,12 @@ struct Thread_t
 	QUADHASH hash;
 };
 
-/* cannot be more than 1Mb becase of staging.start[], need to change to uint16_t if more than that */
-#define STAGING_AREA       (1024*1024)
-#define MESH_MAX_QUADS     (4088 / VERTEX_DATA_SIZE)
+#define STAGING_SLOT       256
+#define MESH_MAX_QUADS     255
+#define MESH_HDR           2
+#define STAGING_BLOCK      (MESH_MAX_QUADS * VERTEX_DATA_SIZE/4 + MESH_HDR)
+#define STAGING_AREA       (STAGING_BLOCK * STAGING_SLOT * 4)
+#define MAX_MESH_CHUNK     ((64*1024/VERTEX_DATA_SIZE)*VERTEX_DATA_SIZE)
 
 struct Staging_t
 {
@@ -160,8 +164,8 @@ struct Staging_t
 	DATA32    mem;
 	int       total;
 	int       chunkData;
-	uint32_t  usage[STAGING_AREA/4096/32];
-	uint8_t   start[STAGING_AREA/4096];
+	uint32_t  usage[STAGING_SLOT/32];
+	uint8_t   start[STAGING_SLOT];
 };
 
 enum /* possible values for Thread_t.state */

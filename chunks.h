@@ -61,7 +61,6 @@ struct ChunkData_t                     /* one sub-chunk of 16x16x16 blocks */
 	int       glSize;                  /* size in quads */
 	int       glAlpha;                 /* alpha quads, need separate pass */
 	int       glDiscard;               /* discardable quads if too far away */
-	int       glMerge;                 // DEBUG
 	float     yaw, pitch;              /* heuristic to limit amount of sorting for alpha transparency */
 };
 
@@ -104,11 +103,12 @@ enum /* flags for Chunk.cflags */
 	CFLAG_REBUILDTE  = 0x0080,         /* mark TileEntity list as needing to be rebuilt (the NBT part) */
 	CFLAG_REBUILDENT = 0x0100,         /* mark Entity list for rebuilt when saved */
 	CFLAG_REBUILDTT  = 0x0200,         /* TileTicks */
+	CFLAG_PROCESSING = 0x0400,
 
-	CFLAG_HAS_SEC    = 0x0400,         /* flag set if corresponding NBT record is present */
-	CFLAG_HAS_TE     = 0x0800,
-	CFLAG_HAS_ENT    = 0x1000,         /* note: not exactly the same than CFLAG_HASENTITY (see below) */
-	CFLAG_HAS_TT     = 0x2000,
+	CFLAG_HAS_SEC    = 0x0800,         /* flag set if corresponding NBT record is present */
+	CFLAG_HAS_TE     = 0x1000,
+	CFLAG_HAS_ENT    = 0x2000,         /* note: not exactly the same than CFLAG_HASENTITY (see below) */
+	CFLAG_HAS_TT     = 0x4000,
 };
 
 /*
@@ -124,12 +124,7 @@ enum /* flags for ChunkData.cdFlags */
 	CDFLAG_PENDINGMESH  = 0x0004,      /* chunk will be processed by chunkUpdate() at some point */
 	CDFLAG_NOALPHASORT  = 0x0008,      /* sorting of alpha quads not necessary */
 	CDFLAG_NOLIGHT      = 0x0010,      /* cd->blockIds only contains block and data table (brush) */
-
-	CDFLAG_EDGESOUTH    = 0x0020,      /* south face of ChunkData is at edge of map => apply cave fog quad */
-	CDFLAG_EDGEEAST     = 0x0040,
-	CDFLAG_EDGENORTH    = 0x0080,
-	CDFLAG_EDGEWEST     = 0x0100,
-	CDFLAG_EDGESENW     = 0x01e0,
+	CDFLAG_DISCARDABLE  = 0x0020,      /* discard "discardable" quads (set by frustum culling) */
 
 	CDFLAG_SOUTHHOLE    = 0x0200,      /* needed by the cave culling for the initial ChunkData */
 	CDFLAG_EASTHOLE     = 0x0400,
@@ -138,8 +133,6 @@ enum /* flags for ChunkData.cdFlags */
 	CDFLAG_TOPHOLE      = 0x2000,
 	CDFLAG_BOTTOMHOLE   = 0x4000,
 	CDFLAG_HOLE         = 0x7e00,
-
-	CDFLAG_DISCARDABLE  = 0x8000       /* discard "discardable" quads (set by frustum culling) */
 };
 
 /* alias */

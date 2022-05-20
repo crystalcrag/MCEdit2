@@ -28,18 +28,13 @@ static void chunkFillData(Chunk chunk, int y, int offset)
 	ChunkData cd = calloc(sizeof *cd, 1);
 
 	cd->blockIds = NBT_Payload(&chunk->nbt, NBT_FindNode(&chunk->nbt, offset, "Blocks"));
-//	cd->addId    = NBT_Payload(&chunk->nbt, NBT_FindNode(&chunk->nbt, offset, "Add"));
 	cd->chunk    = chunk;
 	cd->Y        = y * 16;
 
 	chunk->layer[y] = cd;
 
-//	memset(cd->blockIds, 1, 4096);
-//	memset(cd->blockIds + DATA_OFFSET, 0,2048);
-//	memset(cd->blockIds + SKYLIGHT_OFFSET, 0xff, 2048);
-
 	#if 0
-	/* if vertex data generation is FUBAR, activate this block to limit amount of data to turn into a mesh */
+	/* if vertex data generation is FUBAR, activate this block to limit the amount of data to turn into a mesh */
 	memset(cd->blockIds, 0, 4096);
 	memset(cd->blockIds + DATA_OFFSET, 0, 2048);
 	memset(cd->blockIds + SKYLIGHT_OFFSET, 255, 2048);

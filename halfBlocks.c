@@ -552,6 +552,7 @@ void meshHalfBlock(MeshWriter write, DATA8 model, int size /* 2 or 8 */, DATA8 x
 				case 3: swap(U, Usz); break;
 				case 2: swap(U, Usz); swap(V, Vsz); break;
 				}
+				base = (rotate & 3) * 8;
 				out[0] = VERTEX(vtx[0] + xyz[0]) | (VERTEX(vtx[1] + xyz[1]) << 16);
 				out[1] = VERTEX(vtx[2] + xyz[2]) | (VERTEX(vtx[4] + xyz[0]) << 16);
 				out[2] = VERTEX(vtx[5] + xyz[1]) | (VERTEX(vtx[6] + xyz[2]) << 16);
@@ -560,8 +561,6 @@ void meshHalfBlock(MeshWriter write, DATA8 model, int size /* 2 or 8 */, DATA8 x
 				out[5] = U | (V << 9) | (j << 19) | ext | (texCoord[base] == texCoord[base+6] ? FLAG_TEX_KEEPX : 0);
 				out[6] = Usz | (Vsz << 9);
 				out[7] = 0;
-
-				base = (rotate & 3) * 8;
 
 				static uint8_t oppSideBlock[] = {16, 14, 10, 12, 22, 4};
 				if (blockIds[neighborBlockIds[oppSideBlock[j]] >> 4].special == BLOCK_LIQUID)

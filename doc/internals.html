@@ -2059,12 +2059,12 @@ some quads just to always have a front and back face. Having done quite a few pe
 framerate of a voxel engine is more or less directly proportionnal to the number of quads to process.
 You want to keep that number of quads as low as possible.
 
-<p>In case you are curious, this are the tests that have been done:
+<p>In case you are curious, these are the tests that have been done:
 <ul>
   <li><b>Not using a geometry shader</b>: very little, if any, performance gain.
 
   <li><b>Discarding quads in the geometry shader</b>: if done late, very little, if any, performance gain.
-  There was an attempt at discarding leaves blocks if they were far away and behind another leave quad,
+  There was an attempt at discarding leaf blocks if they were far away and behind another leave quad,
   because mipmaps would turn translucent texture into a fully opaque one, if the quad becomes small enough.
   you could only do this at the end, where 90% of computation were already done by this point.
 

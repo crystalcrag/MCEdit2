@@ -308,7 +308,7 @@ static int mcuiFilterItems(SIT_Widget w, APTR cd, APTR ud)
 
 void mcuiCreateInventory(Inventory player)
 {
-	static TEXT tip[] = "Exchange row with toolbar";
+	static TEXT tip[] = DLANG("Exchange row with toolbar");
 
 	SIT_Widget diag = SIT_CreateWidget("inventory", SIT_DIALOG + SIT_EXTRA(itemGetInventoryByCat(NULL, 0) * sizeof (struct Item_t)), globals.app,
 		SIT_DialogStyles, SITV_Plain | SITV_Modal,
@@ -323,9 +323,9 @@ void mcuiCreateInventory(Inventory player)
 		" <label name=msg title=", LANG("Player inventory:"), "top=WIDGET,inv,0.3em>"
 		" <canvas composited=1 name=player.inv top=WIDGET,msg,0.3em  nextCtrl=LAST/>"
 		" <canvas composited=1 name=tb.inv left=FORM top=WIDGET,player,0.5em  nextCtrl=LAST/>"
-		" <button name=exch1.exch nextCtrl=NONE top=OPPOSITE,player right=FORM tooltip=", tip, "maxWidth=scroll>"
-		" <button name=exch2.exch nextCtrl=NONE top=WIDGET,exch1 right=FORM tooltip=", tip, "maxWidth=exch1>"
-		" <button name=exch3.exch nextCtrl=NONE top=WIDGET,exch2 right=FORM tooltip=", tip, "maxWidth=exch2>"
+		" <button name=exch1.exch nextCtrl=NONE top=OPPOSITE,player right=FORM tooltip=", LANG(tip), "maxWidth=scroll>"
+		" <button name=exch2.exch nextCtrl=NONE top=WIDGET,exch1 right=FORM tooltip=", LANG(tip), "maxWidth=exch1>"
+		" <button name=exch3.exch nextCtrl=NONE top=WIDGET,exch2 right=FORM tooltip=", LANG(tip), "maxWidth=exch2>"
 		" <button name=del.exch   nextCtrl=NONE top=OPPOSITE,tb title='X' right=FORM tooltip=", LANG("Clear inventory"), "maxWidth=exch3>"
 		"</tab>"
 		"<tooltip name=info delayTime=", SITV_TooltipManualTrigger, " displayTime=10000 toolTipAnchor=", SITV_TooltipFollowMouse, ">"

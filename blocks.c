@@ -1533,7 +1533,7 @@ void blockParseConnectedTexture(void)
 /*
  * generate models for blocks/item that will be displayed in inventory: they are
  * somewhat similar to normal block models, but all models will be rendered
- * using an othogonal projection.
+ * using an orthogonal projection.
  */
 int blockInvModelCube(DATA16 ret, BlockState b, DATA8 textureCoord)
 {
@@ -2765,32 +2765,31 @@ static int blockConvertVertex(DATA32 source, DATA32 end, DATA16 dest, int max)
 			return 0;
 
 		/* yep, tedious busy work :-/ */
-		uint16_t U2  = bitfieldExtract(source[5], 16, 8);
-		uint16_t V2  = bitfieldExtract(source[5], 24, 8);
-		uint16_t U1  = bitfieldExtract(source[4], 14, 9);
-		uint16_t V1  = bitfieldExtract(source[4], 23, 9) | (bitfieldExtract(source[1], 30, 1) << 9);
-		uint8_t  Xeq = bitfieldExtract(source[5], 12, 1);
-		uint16_t rem = bitfieldExtract(source[5],  9, 3) << 3;
+		uint16_t U2  = bitfieldExtract(source[6], 0,  9);
+		uint16_t V2  = bitfieldExtract(source[6], 9, 10);
+		uint16_t U1  = bitfieldExtract(source[5], 0,  9);
+		uint16_t V1  = bitfieldExtract(source[5], 9, 10);
+		uint8_t  Xeq = source[5] & FLAG_TEX_KEEPX;
+		uint16_t rem = bitfieldExtract(source[5], 19, 3) << 3;
 
 		rem |= 0xf000; /* sky/block light */
-		U2 = U1 + U2 - 128;
-		V2 = V1 + V2 - 128;
 		dest[0] = source[0];
 		dest[1] = source[0] >> 16;
 		dest[2] = source[1];
+		/* will set dest[3] and dest[4] */
 		if (Xeq) SET_UVCOORD(dest, U1, V2);
 		else     SET_UVCOORD(dest, U2, V1);
 		dest[4] |= rem;
 
-		dest[5] = dest[0] + bitfieldExtract(source[1], 16, 14) - MIDVTX;
-		dest[6] = dest[1] + bitfieldExtract(source[2],  0, 14) - MIDVTX;
-		dest[7] = dest[2] + bitfieldExtract(source[2], 14, 14) - MIDVTX;
+		dest[5] = source[1] >> 16;
+		dest[6] = source[2];
+		dest[7] = source[2] >> 16;
 		SET_UVCOORD(dest+5, U1, V1);
 		dest[9] |= rem;
 
-		dest[10] = dest[0] + bitfieldExtract(source[3],  0, 14) - MIDVTX;
-		dest[11] = dest[1] + bitfieldExtract(source[3], 14, 14) - MIDVTX;
-		dest[12] = dest[2] + bitfieldExtract(source[4],  0, 14) - MIDVTX;
+		dest[10] = source[3];
+		dest[11] = source[3] >> 16;
+		dest[12] = source[4] >> 16;
 		SET_UVCOORD(dest+10, U2, V2);
 		dest[14] |= rem;
 
