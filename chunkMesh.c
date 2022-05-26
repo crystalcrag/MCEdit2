@@ -93,6 +93,8 @@ uint8_t  axisCheck[] = {2, 0, 2, 0, 1, 1};
 uint16_t axisAlign[] = {VTX_1, VTX_1, VTX_0, VTX_0, VTX_1, VTX_0};
 #undef VTX_0
 #undef VTX_1
+static uint8_t norm2axis1[] = {2, 0, 2, 0, 0, 0};
+static uint8_t norm2axis2[] = {1, 1, 1, 1, 2, 2};
 
 static int8_t  subChunkOff[64];
 static uint8_t oppositeMask[64];
@@ -685,8 +687,6 @@ static uint32_t chunkFillCustLight(DATA16 model, DATA8 skyBlock, DATA32 ocs, int
 	uint8_t norm = GET_NORMAL(model);
 	if (norm < 6)
 	{
-		static uint8_t norm2axis1[] = {2, 0, 2, 0, 0, 0};
-		static uint8_t norm2axis2[] = {1, 1, 1, 1, 2, 2};
 		uint32_t out = 0;
 		DATA8    offset;
 		uint8_t  i, axis1, axis2, hasOCS;
@@ -983,6 +983,18 @@ static void chunkGenCust(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 				out[6] += flag << 4;
 			}
 		}
+		if (buffer->merge)
+		{
+			/* only merge full block */
+			uint8_t axis1 = norm2axis1[norm];
+			uint8_t axis2 = norm2axis2[norm];
+			if (model[INT_PER_VERTEX*2+axis1] - model[axis1] == BASEVTX &&
+			    model[INT_PER_VERTEX*2+axis2] - model[axis2] == BASEVTX)
+			{
+				meshQuadMergeAdd(buffer->merge, out);
+			}
+		}
+
 		buffer->cur = out + VERTEX_INT_SIZE;
 	}
 }
@@ -1101,6 +1113,10 @@ static void chunkGenCube(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 				liquid ^= 15;
 			}
 		}
+
+		/* if there is a snow layer on top, use snowed grass block */
+		if (b->id == ID(2,0) && blockIds[blockIds3x3[22]>>4].orientHint == ORIENT_SNOW)
+			tex = &b[1].nzU + (tex - &b->nzU), b ++;
 
 		if (b->special == BLOCK_HALF || b->special == BLOCK_STAIRS)
 		{

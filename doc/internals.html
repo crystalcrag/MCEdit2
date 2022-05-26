@@ -74,6 +74,7 @@
     <a class="sub3" href="#ocs"><span>Occlusion</span></a>
   <a class="sub2" href="#meshcust"><span><tt>CUST</tt> voxel</span></a>
     <a class="sub3" href="#cnxmodels"><span>Connected models</span></a>
+  <a class="sub2" href="#greedymesh"><span>Greedy meshing</span></a>
 
 <a class="sub1" href="#entities"><span>Entities</span></a>
   <a class="sub2" href="#structure"><span>Data structure</span></a>
@@ -2066,7 +2067,7 @@ You want to keep that number of quads as low as possible.
   <li><b>Discarding quads in the geometry shader</b>: if done late, very little, if any, performance gain.
   There was an attempt at discarding leaf blocks if they were far away and behind another leave quad,
   because mipmaps would turn translucent texture into a fully opaque one, if the quad becomes small enough.
-  you could only do this at the end, where 90% of computation were already done by this point.
+  you could only do this at the end, where 90% of computations were already done by this point.
 
   <p>Discarding them early helps a bit, but not as much as not sending them to the GPU.
 
@@ -2432,6 +2433,41 @@ means that the face will always be included (like the central piece of a fence).
 
 
 <p>/* ... */
+
+<h3 id="greedymesh"><span>Greedy meshing</span></h3>
+
+<p>Greedy meshing refers to a technique used to <b>merge quads</b>, in order to reduce the amount of vertex
+data the GPU will have to process. In a typical voxel engine, GPU performance is more or less proportionnal
+to the number of vertices, so the lower the quad count, the better the performance.
+
+<p>In the initial phase for all voxel type (<tt>SOLID</tt>, <tt>CUST</tt> or <tt>QUAD</tt>), <b>no merging
+is attempted</b>. The mesh of a chunk is generated entirely with quads that fit within a voxel.
+
+<p>Then a second phase will try to merge them. Implementing this in 2 phases, make the implementation
+<b>quite simple</b>: you only need a hash table of the quad you can potentially merge (some quads cannot:
+they need to be axis-aligned and cover the full side of a voxel). The other advantage of having 2 passes
+is that merging can be easily disabled, just to be sure it is not the cause of some weird graphical glitch.
+
+<p>Then in the merging phase, you scan the entirety of that table. For each quad, you try to expand
+in the 2 directions perpendicular to their normal and expand them as much as possible. Merged quads
+will be marked as deleted, and will be removed right before sending them to the GPU. The process is
+really as simple as that.
+
+<p>Expansion needs to take into account quite a few parameters though: texture coordinates, ambient
+occlusion values, skylight and blocklight values. Which means the merging is not as good as you might
+think. Still, better than doing nothing. With a typical minecraft map, this technique can reduce the
+number of quads by 20% to 30%.
+
+<p>Caves are particularly bad when it comes to merging: too many weird shapes, which generates different
+occlusion values for almost every quads. This is where cave culling helps a lot more.
+
+<p>In the <b>fragment shader</b>, you need to a bit more work though: you cannot rely on <tt>GL_REPEAT</tt>,
+since the textures of all the blocks are stored in an atlas (which is set to GL_CLAMP anyway). Merged
+quads will have their texture coordinates expanded to let OpenGL perform the perspective interpolation.
+The fragment shader will also be provided with the texture origin. Then the only thing left to do is
+to mod the texture coord provided to the fragment shader by 1/512 in U and 1/1024 in V and add this
+to the texture origin (which is, by the way, the reason why only full quads are merged).
+
 
 <h2 id="entities">Entities</h2>
 

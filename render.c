@@ -1449,6 +1449,7 @@ void renderBlockInfo(SelBlock_t * sel)
 			NULL
 		);
 	}
+	else SIT_SetValues(render.blockInfo, SIT_Visible, True, NULL);
 }
 
 /*
@@ -1577,7 +1578,7 @@ void renderWorld(void)
 
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
-	debugRenderCaveGraph();
+//	debugRenderCaveGraph();
 
 	NVGcontext * vg = globals.nvgCtx;
 	nvgBeginFrame(vg, globals.width, globals.height, 1);

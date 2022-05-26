@@ -2955,6 +2955,8 @@ static void texset(DATA8 dest, DATA8 px, int size)
 	for (d = (DATA32) dest, s = * (DATA32) px; size > 0; size -= 4, *d++ = s);
 }
 
+#include "raycasting.h"
+
 /* post-process main texture terrain.png: generate connected texture for glass */
 APTR blockPostProcessTexture(DATA8 * data, int * width, int * height, int bpp)
 {
@@ -3130,7 +3132,9 @@ APTR blockPostProcessTexture(DATA8 * data, int * width, int * height, int bpp)
 	blocks.duraColors = malloc(sz);
 	blocks.duraMax    = sz >> 2;
 	memcpy(blocks.duraColors, dst + 31 * sz + 3 * sz * *width, sz);
-	return NULL;
+
+	/* need to be called after this */
+	return raycastConvertToCMap;
 }
 
 /* extract texture alpha for U, V coord from <terrain.png> */

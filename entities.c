@@ -1096,8 +1096,6 @@ static Bool pointIsInRect(vec points, vec4 pos)
 	       0 < AMdotAD && AMdotAD <= vecDotProduct(AD, AD);
 }
 
-int intersectRayPlane(vec4 P0, vec4 u, vec4 V0, vec norm, vec4 I);
-
 static Bool entityInFrustum(vec4 pos)
 {
 	vec4 point;

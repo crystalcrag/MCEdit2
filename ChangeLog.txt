@@ -1,4 +1,17 @@
+=========== Week 21 (2022) ===========
+Wed May 25:
+	* raycasting integrated, using CPU only for now.
+
+Tue May 24:
+	* redone max volume detection: better space partionning and simpler algorithm overall.
+
+Mon May 23:
+	* raycasting boilerplate still continued: max volume method is crap.
+
 =========== Week 20 (2022) ===========
+Fri May 20:
+	* raycaster continued.
+
 Thu May 19:
 	* started raycasting rendering (distant horizon).
 

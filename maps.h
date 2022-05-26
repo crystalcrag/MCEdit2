@@ -115,6 +115,8 @@ int     getBlockId(BlockIter iter);
 uint8_t mapGetSkyBlockLight(BlockIter iter);
 void    mapAddToSaveList(Map map, Chunk chunk);
 void    printCoord(BlockIter);
+int     intersectRayPlane(vec4 P0, vec4 u, vec4 V0, vec norm, vec4 I);
+
 
 /*
  * block iterator over map

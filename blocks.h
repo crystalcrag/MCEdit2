@@ -155,7 +155,7 @@ struct ENTBBox_t                 /* entity/player bbox: use float and are always
 	int      push;
 };
 
-enum                             /* values for Block.type */
+enum                             /* values for Block.type and BlockState.type */
 {
 	INVIS,                       /* nothing to render (air, block 36...) */
 	SOLID,                       /* competely opaque: can hide inner blocks */

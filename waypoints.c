@@ -472,6 +472,31 @@ static int wayPointsDisplayed(SIT_Widget w, APTR cd, APTR ud)
 	return 1;
 }
 
+/* Ctrl+V from dialog (not edit box): try to parse the clipboard as a coordinate */
+static int wayPointsPaste(SIT_Widget w, APTR cd, APTR ud)
+{
+	SIT_OnKey * msg = cd;
+
+	if (msg->utf8[0] == 'v' - 'a' + 1)
+	{
+		STRPTR clip = SIT_GetFromClipboard(NULL);
+
+		if (clip)
+		{
+			if (sscanf(clip, "%f,%f,%f", waypoints.curPos, waypoints.curPos+1, waypoints.curPos+2) != 3)
+				sscanf(clip, "%f %f %f", waypoints.curPos, waypoints.curPos+1, waypoints.curPos+2);
+
+			SIT_SetValues(waypoints.coords[0], SIT_Title, NULL, NULL);
+			SIT_SetValues(waypoints.coords[1], SIT_Title, NULL, NULL);
+			SIT_SetValues(waypoints.coords[2], SIT_Title, NULL, NULL);
+
+			free(clip);
+		}
+		return 1;
+	}
+	return 0;
+}
+
 extern int mcuiExitWnd(SIT_Widget w, APTR cd, APTR ud);
 
 /* waypoints editing/goto location interface */
@@ -481,6 +506,7 @@ void wayPointsEdit(vec4 pos, float rotation[2])
 		SIT_DialogStyles, SITV_Plain | SITV_Movable,
 		NULL
 	);
+	SIT_AddCallback(diag, SITE_OnVanillaKey, wayPointsPaste, NULL);
 	memcpy(waypoints.curPos, pos, 12);
 	memcpy(waypoints.rotation, rotation, 8);
 	waypoints.playerPos = pos;
@@ -594,8 +620,6 @@ static void wayPointSetAlpha(int nth, int alpha)
 	glBufferSubData(GL_ARRAY_BUFFER, wp->glIndex * WAYPOINTS_VBO_SIZE + 12, 4, wp->color);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
-
-int intersectRayPlane(vec4 P0, vec4 u, vec4 V0, vec norm, vec4 I);
 
 /* find the waypoint hovered using position <camera> and direction vector <dir> */
 int wayPointRaypick(vec4 dir, vec4 camera, vec4 cur, vec4 ret_pos)

@@ -1,6 +1,6 @@
 /*
- * worldItem.c : handle item that can be added as entity in the world (dropped items, block entity,
- *               falling entities, ...)
+ * worldItems.c : handle item that can be added as entity in the world (dropped items, block entity,
+ *                falling entities, ...)
  *
  * note: this module should only be accessed through entities.c
  *

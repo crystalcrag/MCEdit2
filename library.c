@@ -314,10 +314,11 @@ int libraryImport(SIT_Widget w, APTR cd, APTR ud)
 		else
 		{
 			TEXT msg[256];
-			sprintf("<b>%s</b> %s<br><br>", LANG("Clipboard does not appear to contain a schematics."),
+			int len = snprintf(msg, sizeof msg, "<b>%s</b> %s<br><br>", LANG("Clipboard does not appear to contain a schematics."),
 				LANG("It starts with:"));
-			escapeHTML(msg, 128, text);
-			sprintf(strchr(msg, 0), "<br><br><note>%s</note>: %s \"# MCEdit Schematics\".", LANG("Note"),
+			escapeHTML(msg + len, sizeof msg - len, text);
+			STRPTR eof = strchr(msg, 0);
+			snprintf(eof, EOT(msg) - eof, "<br><br><b>%s</b>: %s \"# MCEdit Schematics\".", LANG("Note"),
 				LANG("it should starts with"));
 			FSYesNo(w, msg, NULL, False, NULL);
 			free(text);

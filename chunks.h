@@ -54,6 +54,7 @@ struct ChunkData_t                     /* one sub-chunk of 16x16x16 blocks */
 
 	DATA8     blockIds;                /* 16*16*16 = XZY ordered, note: point directly to NBT struct (4096 bytes) */
 	DATA16    emitters;                /* pos (12bits) + type (4bits) for particles emitters */
+	DATA8     rgbaTex;                 /* raycasting -- debug only */
 
 	/* VERTEX_ARRAY_BUFFER location */
 	void *    glBank;                  /* GPUBank (filled by meshAllocGPU()) */
