@@ -880,6 +880,8 @@ void mceditWorld(void)
 					//meshDebugBank(globals.level);
 					//FramePauseUnpause(globals.breakPoint);
 					break;
+				case SDLK_UP: debugLayer(1); break;
+				case SDLK_DOWN: debugLayer(-1); break;
 				#endif
 				case SDLK_DELETE:
 					if ((globals.selPoints & 8) == 0)

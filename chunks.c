@@ -941,7 +941,7 @@ void chunkFreeHash(TileEntityHash hash, DATA8 min, DATA8 max)
 	for (i = hash->max; i > 0; i --, ent ++)
 	{
 		DATA8 mem = ent->data;
-		if (mem && ! (min <= mem && mem < max))
+		if (mem > TILE_OBSERVED_DATA && ! (min <= mem && mem < max))
 			free(mem);
 	}
 	if (! STATIC_HASH(hash, min, max))

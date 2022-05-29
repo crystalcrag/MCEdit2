@@ -127,8 +127,11 @@ static void meshGenAsync(void * arg)
 				free(cd);
 				continue;
 			}
-			if (! list->save && threadStop)
+			if (threadStop)
+			{
+				list->save = NULL;
 				goto bail;
+			}
 		}
 		//fprintf(stderr, "chunk %d, %d (%d) done mem: %d/256\n", list->X, list->Z, list->maxy, staging.total);
 		/* mark the chunk as ready to be pushed to the GPU mem */

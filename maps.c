@@ -552,6 +552,7 @@ static int mapRedoGenList(Map map)
 			}
 		}
 		else c->entityList = ENTITY_END;
+		c->cflags &= ~(CFLAG_STAGING | CFLAG_PROCESSING);
 
 		if ((c->cflags & CFLAG_HASMESH) == 0)
 		{

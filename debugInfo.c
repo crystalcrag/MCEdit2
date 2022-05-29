@@ -24,6 +24,7 @@ static struct
 {
 	int usage;
 	int shader, vao, vbo;
+	int lastY;
 }	cdGraph;
 
 
@@ -386,8 +387,22 @@ void debugRenderCaveGraph(void)
 	}
 }
 
+void chunkConvertToRGBA(ChunkData cd);
+
+static void fillRect(DATA8 filled, int x1, int z1, int x2, int z2)
+{
+	filled += z1 * 16 + x1;
+	while (z1 < z2)
+	{
+		memset(filled, 1, x2 - x1);
+		filled += 16;
+		z1 ++;
+	}
+}
+
 void debugCoord(APTR vg, vec4 camera, int total)
 {
+	#if 1
 	TEXT message[256];
 	int  len = sprintf(message, "XYZ: %.2f, %.2f (eye), %.2f (feet: %.2f)\n", PRINT_COORD(camera), (double) (camera[VY] - PLAYER_HEIGHT));
 	int  vis;
@@ -409,6 +424,94 @@ void debugCoord(APTR vg, vec4 camera, int total)
 	nvgMultiLineText(vg, 12, 12, message, message+len);
 	nvgFillColorRGBA8(vg, "\xff\xff\xff\xff");
 	nvgMultiLineText(vg, 10, 10, message, message+len);
+	#else
+
+	ChunkData cd = globals.level->firstVisible;
+
+	if (cd->rgbaTex == NULL)
+		chunkConvertToRGBA(cd), cdGraph.lastY = camera[VY] - cd->Y;
+
+	float scale;
+
+	if (globals.height > globals.width)
+		scale = roundf((globals.width - 40) / 16.0f);
+	else
+		scale = roundf((globals.height - 40) / 16.0f);
+
+	float dx = roundf(globals.width  - 16 * scale) / 2;
+	float dz = roundf(globals.height - 16 * scale) / 2;
+
+	uint8_t filled[256];
+	int i, j;
+
+	nvgBeginPath(vg);
+	nvgFillColorRGBA8(vg, "\0\0\0\x7f");
+	nvgRect(vg, 0, 0, globals.width, globals.height);
+	nvgFill(vg);
+
+	nvgFillColorRGBA8(vg, "\x20\xcc\x20\xff");
+	nvgStrokeColorRGBA8(vg, "\x20\xcc\x20\xff");
+
+	sprintf(filled, "Y = %g", (double) cdGraph.lastY);
+	nvgText(vg, 0, 0, filled, NULL);
+
+	nvgBeginPath(vg);
+	nvgRect(vg, dx, dz, 16 * scale, 16 * scale);
+	nvgStroke(vg);
+
+	sprintf(filled, "%dx%d", cd->chunk->X, cd->chunk->Z);
+	nvgText(vg, dx + 7, dz + 7, filled, NULL);
+
+	DATA8 tex = cd->rgbaTex + (cdGraph.lastY << 10);
+
+	memset(filled, 0, sizeof filled);
+
+	for (i = 0; i < 256; i ++, tex += 4)
+	{
+		if (filled[i] || (tex[3] & 0x80) == 0) continue;
+
+		/* show volume */
+		float x1 = tex[0] & 15;
+		float z1 = tex[0] >> 4;
+		float y1 = tex[1] & 15;
+		float x2 = x1 + (tex[2] & 15) + 1;
+		float z2 = z1 + (tex[2] >> 4) + 1;
+		float y2 = y1 + (tex[1] >> 4) + 1;
+		TEXT  box[20];
+		fillRect(filled, x1, z1, x2, z2);
+		sprintf(box, "%dx%dx%d", (int) (x2-x1), (int) (y2-y1), (int) (z2-z1));
+		/* render this volume */
+		if (x1 == 0) x1 += 0.1f;
+		if (z1 == 0) z1 += 0.1f;
+		if (x2 == 16) x2 -= 0.1f;
+		if (z2 == 16) z2 -= 0.1f;
+		nvgBeginPath(vg);
+		nvgRect(vg, dx + x1 * scale, dz + z1 * scale, (x2 - x1) * scale, (z2 - z1) * scale);
+		nvgStroke(vg);
+
+		float len = nvgTextBounds(vg, 0, 0, box, NULL, NULL);
+		nvgText(vg, dx + (x2 + x1) * scale * 0.5f - len * 0.5f, dz + (z2 + z1) * scale * 0.5f - 10, box, NULL);
+	}
+
+	/* show empty area */
+	nvgBeginPath(vg);
+	for (j = 0, tex = filled; j < 16; j ++)
+	{
+		for (i = 0; i < 16; i ++, tex ++)
+		{
+			if (*tex == 0)
+				nvgRect(vg, dx + i * scale, dz + j * scale, scale, scale);
+		}
+	}
+	nvgFill(vg);
+	#endif
+}
+
+void debugLayer(int dir)
+{
+	cdGraph.lastY += dir;
+	if (cdGraph.lastY < 0)  cdGraph.lastY = 0;
+	if (cdGraph.lastY > 15) cdGraph.lastY = 15;
 }
 
 static void cnxGraphCoord(int X, int Y, int Z, int side)

@@ -72,9 +72,10 @@ static void maxAreaHistogram(DATA8 histogram, DATA8 res)
 }
 
 #ifdef DEBUG
-void printLayer(DATA8 rgba)
+void printLayer(DATA8 rgba, int y)
 {
 	int i, j;
+	fprintf(stderr, "layer %d:\n", y);
 	for (j = 0; j < 16; j ++)
 	{
 		for (i = 0; i < 16; i ++, rgba += 4)
@@ -98,7 +99,7 @@ static void maxAreaMatrix(DATA8 rgba, DATA8 res, DATA8 maxRegion)
 	maxX = maxRegion[0] == 0 ? 16 : maxRegion[0];
 	maxZ = maxRegion[1] == 0 ? 16 : maxRegion[1];
 	memset(histogram, 0, sizeof histogram);
-	rgba += maxRegion[3] * 16 + 3;
+	rgba += maxRegion[3] * 16 * 4 + 3;
 	for (j = maxRegion[3]; j < maxZ; j ++, rgba += 16*4)
 	{
 		for (i = maxRegion[2]; i < maxX; i ++)
@@ -121,7 +122,7 @@ static void maxAreaMatrix(DATA8 rgba, DATA8 res, DATA8 maxRegion)
 	res[1] += res[3];
 }
 
-static void chunkConvertToRGBA(ChunkData cd)
+void chunkConvertToRGBA(ChunkData cd)
 {
 	uint8_t layerArea[16*4];
 	DATA8   rgba = calloc(4096, 4);
@@ -135,11 +136,17 @@ static void chunkConvertToRGBA(ChunkData cd)
 			static uint8_t air[] = {0,0,0,0};
 			iter.offset = y;
 			BlockState state = blockGetById(getBlockId(&iter));
+			DATA8 tex = &state->pyU;
+			if (tex[0] == 30 && tex[1] == 0)
+				/* undefined tex */
+				tex = &state->nzU;
 
 			/* only cares about texture of top face */
 			memcpy(rgba + (y << 2),
 				state == blockGetById(0) || state->type == QUAD ? air :
-					raycast.palette + state->pyV * raycast.paletteStride + (state->pyU << 2), 4);
+					raycast.palette + tex[1] * raycast.paletteStride + (tex[0] << 2), 4);
+//			if ((y & 255) == 255)
+//				printLayer(rgba + (y - 255) * 4, y >> 8);
 		}
 	}
 
@@ -156,7 +163,7 @@ static void chunkConvertToRGBA(ChunkData cd)
 				else continue;
 			}
 			/* find maximum volume of air in this chunk */
-			// printLayer(rgba + (y << 10))
+			// printLayer(rgba + (y << 10), y)
 			maxAreaMatrix(rgba + (y << 10), area, curArea);
 			if (area[0] == 0)
 			{
@@ -230,12 +237,12 @@ static void chunkConvertToRGBA(ChunkData cd)
 static int iteration;
 
 static float faceNormals[] = { /* S, E, N, W, T, B */
-	 0,  0,  1, 1,
-	 1,  0,  0, 1,
-	 0,  0, -1, 1,
-	-1,  0,  0, 1,
-	 0,  1,  0, 1,
-	 0, -1,  0, 1,
+	 0,  0,  0.5, 1,
+	 0.5,  0,  0, 1,
+	 0,  0, -0.5, 1,
+	-0.5,  0,  0, 1,
+	 0,  0.5,  0, 1,
+	 0, -0.5,  0, 1,
 };
 
 
@@ -334,17 +341,31 @@ static Bool mapPointToVoxel(Map map, vec4 camera, vec4 dir, DATA8 color)
 				if (intersectRayPlane(pos, u, V0, norm, inter) == 1)
 				{
 					/* need to check that intersection point remains within box */
-					if (norm[0] == 0 && ! (V0[0] <= inter[0] && inter[0] < V1[0])) continue;
-					if (norm[1] == 0 && ! (V0[1] <= inter[1] && inter[1] < V1[1])) continue;
-					if (norm[2] == 0 && ! (V0[2] <= inter[2] && inter[2] < V1[2])) continue;
+					if (norm[0] == 0 && ! (V0[0] <= inter[0] && inter[0] <= V1[0])) continue;
+					if (norm[1] == 0 && ! (V0[1] <= inter[1] && inter[1] <= V1[1])) continue;
+					if (norm[2] == 0 && ! (V0[2] <= inter[2] && inter[2] <= V1[2])) continue;
 
 					/* we have an intersection: move to block */
-					//addPt(inter);
-					//refresh();
-					memcpy(pos, inter, sizeof pos);
-					plane[0] = norm[0] == 0 ? inter[0] : inter[0] + norm[0] * 0.5f;
-					plane[1] = norm[1] == 0 ? inter[1] : inter[1] + norm[1] * 0.5f;
-					plane[2] = norm[2] == 0 ? inter[2] : inter[2] + norm[2] * 0.5f;
+					memcpy(pos, inter, 12);
+					memcpy(plane, inter, 12);
+					if (norm[0] == 0)
+					{
+						if (inter[VX] == V0[VX] || inter[VX] == V1[VX])
+							plane[VX] += u[VX];
+					}
+					else plane[VX] += norm[0];
+					if (norm[1] == 0)
+					{
+						if (inter[VY] == V0[VY] || inter[VY] == V1[VY])
+							plane[VY] += u[VY];
+					}
+					else plane[VY] += norm[1];
+					if (norm[2] == 0)
+					{
+						if (inter[VZ] == V0[VZ] || inter[VZ] == V1[VZ])
+							plane[VZ] += u[VZ];
+					}
+					else plane[VZ] += norm[2];
 
 					tex = voxelFindClosest(map, plane);
 					side = opp[i];
@@ -369,7 +390,7 @@ void raycastWorld(Map map, mat4 invMVP, vec4 pos)
 	bitmap = malloc(SCR_WIDTH * SCR_HEIGHT * 3);
 	player[VX] = pos[VX];
 	player[VZ] = pos[VZ];
-	player[VY] = pos[VY] +  1.6f;
+	player[VY] = pos[VY] + 1.6f;
 	player[VT] = 1;
 	iteration = 0;
 
