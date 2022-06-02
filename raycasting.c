@@ -4,6 +4,7 @@
  * written by T.Pierron, may 2022.
  */
 
+#include <glad.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -12,6 +13,7 @@
 #include "maps.h"
 #include "NBT2.h"
 #include "raycasting.h"
+#include "globals.h"
 
 static struct RaycastPrivate_t raycast = {
 	.shading = {230, 204, 230, 204, 255, 179}
@@ -20,6 +22,45 @@ static struct RaycastPrivate_t raycast = {
 #define SCR_WIDTH         400
 #define SCR_HEIGHT        400
 
+/* init opengl objects to do raycasting on GPU */
+Bool raycastInitStatic(void)
+{
+	raycast.shader = createGLSLProgram("raycaster.vsh", "raycaster.fsh", NULL);
+
+	if (! raycast.shader)
+		return False;
+
+	/* coordinates must be normalized between -1 and 1 for XY and [0 - 1] for Z */
+	#define ZVAL  1
+	static float vertices[] = {
+		1.0,  1.0, ZVAL,  -1.0, 1.0, ZVAL,   1.0, -1.0, ZVAL,
+		1.0, -1.0, ZVAL,  -1.0, 1.0, ZVAL,  -1.0, -1.0, ZVAL
+	};
+	#undef ZVAL
+
+	glGenBuffers(1, &raycast.vbo);
+	glGenVertexArrays(1, &raycast.vao);
+	glBindVertexArray(raycast.vao);
+	glBindBuffer(GL_ARRAY_BUFFER, raycast.vbo);
+	glBufferData(GL_ARRAY_BUFFER, 6 * 12, vertices, GL_STATIC_DRAW);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(0);
+
+	glBindVertexArray(0);
+//	raycast.texRadius = globals.extraDist;
+//	raycast.texHole   = map->maxDist;
+	return True;
+}
+
+void raycastRender(void)
+{
+	glDepthMask(GL_FALSE);
+	glUseProgram(raycast.shader);
+	glBindVertexArray(raycast.vao);
+	glDrawArrays(GL_TRIANGLES, 0, 6);
+	glBindVertexArray(0);
+	glDepthMask(GL_TRUE);
+}
 
 /* taken from https://algotree.org/algorithms/stack_based/largest_rectangle_in_histogram */
 static void maxAreaHistogram(DATA8 histogram, DATA8 res)
@@ -263,14 +304,28 @@ static void voxelGetBoundsForFace(DATA8 texture, int face, vec4 V0, vec4 V1, vec
 	uint8_t z = dir[2];
 	uint8_t t = z;
 
-	float pt[6] = {
-		(CPOS(posOffset[VX]) << 4)  + (texture[0] & 15),
-		((int) posOffset[VY] & ~15) + (texture[1] & 15),
-		(CPOS(posOffset[VZ]) << 4)  + (texture[0] >> 4)
-	};
-	pt[3] = pt[0] + (texture[2] & 15) + 1;
-	pt[4] = pt[1] + (texture[1] >> 4) + 1;
-	pt[5] = pt[2] + (texture[2] >> 4) + 1;
+	float pt[6];
+
+	if (texture[3] == 0x80)
+	{
+		/* void space inside a ChunkData */
+		pt[0] = (CPOS(posOffset[VX]) << 4)  + (texture[0] & 15);
+		pt[1] = ((int) posOffset[VY] & ~15) + (texture[1] & 15);
+		pt[2] = (CPOS(posOffset[VZ]) << 4)  + (texture[0] >> 4);
+
+		pt[3] = pt[0] + (texture[2] & 15) + 1;
+		pt[4] = pt[1] + (texture[1] >> 4) + 1;
+		pt[5] = pt[2] + (texture[2] >> 4) + 1;
+	}
+	else /* void space inside Chunk */
+	{
+		pt[0] = CPOS(posOffset[VX]) << 4;
+		pt[2] = CPOS(posOffset[VZ]) << 4;
+		pt[1] = texture[0] << 4;
+		pt[4] = texture[1] << 4;
+		pt[3] = pt[0] + 16;
+		pt[5] = pt[2] + 16;
+	}
 
 	if (dir[3]) t += 3;
 	V0[x] = pt[x];
@@ -288,15 +343,38 @@ static DATA8 voxelFindClosest(Map map, vec4 pos)
 	Chunk c = mapGetChunk(map, pos);
 	int absY = CPOS(pos[1]);
 
-	if (c && (unsigned) absY < c->maxy && (cd = c->layer[absY]))
+	if (c)
 	{
-		if (! cd->rgbaTex)
-			chunkConvertToRGBA(cd);
-		int index =
-			((int) floorf(pos[0]) & 15) +
-			((int) floorf(pos[2]) & 15) * 16 +
-			((int) floorf(pos[1]) & 15) * 256;
-		return cd->rgbaTex + 4 * index;
+		static uint8_t tex[4];
+		if ((unsigned) absY < c->maxy)
+		{
+			if ((cd = c->layer[absY]))
+			{
+				if (! cd->rgbaTex)
+					chunkConvertToRGBA(cd);
+				int index =
+					((int) floorf(pos[0]) & 15) +
+					((int) floorf(pos[2]) & 15) * 16 +
+					((int) floorf(pos[1]) & 15) * 256;
+				return cd->rgbaTex + 4 * index;
+			}
+			else /* missing ChunkData: assume empty then :-/ */
+			{
+				tex[0] = 0;
+				tex[1] = 0xf0;
+				tex[2] = 0xff;
+				tex[3] = 0x80;
+				return tex;
+			}
+		}
+		else if ((unsigned) absY < map->maxHeight)
+		{
+			tex[0] = c->maxy;
+			tex[1] = map->maxHeight;
+			tex[2] = 0;
+			tex[3] = 0x81;
+			return tex;
+		}
 	}
 	return NULL;
 }

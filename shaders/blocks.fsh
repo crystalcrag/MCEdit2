@@ -7,11 +7,11 @@
 
 out vec4 color;
 
-in  vec2  tc;
-in  vec2  ocspos;
-in  float skyLight;
-in  float blockLight;
-flat in float fogFactor;
+in vec2  tc;
+in vec2  ocspos;
+in float skyLight;
+in float blockLight;
+in float fogFactor;
 flat in uint  rswire;
 flat in uint  ocsmap;
 flat in uint  normal;

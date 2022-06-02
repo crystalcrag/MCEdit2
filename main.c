@@ -73,8 +73,8 @@ KeyBindings_t keyBindings = {
 
 	/* debug */
 	{DLANG("Show debug info"),      "DebugInfo",        SITK_F3},
-	{DLANG("Back in time"),         "DebugAdvanceTime", SITK_FlagUp + SITK_F5},
-	{DLANG("Advance time"),         "DebugBackInTime",  SITK_FlagUp + SITK_F6},
+	{DLANG("Advance time"),         "DebugAdvanceTime", SITK_FlagUp + SITK_F5},
+	{DLANG("Back in time"),         "DebugBackInTime",  SITK_FlagUp + SITK_F6},
 	{DLANG("Switch player mode"),   "DebugSwitchMode",  SITK_F8},
 	{DLANG("Save location"),        "DebugSaveLoc",     SITK_F10},
 	{DLANG("Frame advance"),        "DebugFrame",       0},
@@ -224,14 +224,15 @@ static void prefsInit(void)
 {
 	INIFile ini = ParseINI(PREFS_PATH);
 
-	globals.renderDist    = GetINIValueInt(ini, "RenderDist",    4);
+	globals.renderDist    = GetINIValueInt(ini, "RenderDist",    16);
+	globals.extraDist     = GetINIValueInt(ini, "ExtraDist",     0);
 	globals.redstoneTick  = GetINIValueInt(ini, "RedstoneTick",  100);
 	globals.compassSize   = GetINIValueInt(ini, "CompassSize",   100) * 0.01f;
 	globals.fieldOfVision = GetINIValueInt(ini, "FieldOfVision", 80);
 	globals.guiScale      = GetINIValueInt(ini, "GuiScale",      100);
 	globals.mouseSpeed    = GetINIValueInt(ini, "MouseSpeed",    100) * 0.01f;
 	globals.brightness    = GetINIValueInt(ini, "Brightness",    0);
-	globals.targetFPS     = GetINIValueInt(ini, "TargetFPS",     40);
+	globals.targetFPS     = GetINIValueInt(ini, "TargetFPS",     60);
 	globals.distanceFOG   = GetINIValueInt(ini, "UseFOG",        0);
 	globals.showPreview   = GetINIValueInt(ini, "UsePreview",    1);
 	globals.lockMouse     = GetINIValueInt(ini, "LockMouse",     0);
@@ -880,8 +881,6 @@ void mceditWorld(void)
 					//meshDebugBank(globals.level);
 					//FramePauseUnpause(globals.breakPoint);
 					break;
-				case SDLK_UP: debugLayer(1); break;
-				case SDLK_DOWN: debugLayer(-1); break;
 				#endif
 				case SDLK_DELETE:
 					if ((globals.selPoints & 8) == 0)

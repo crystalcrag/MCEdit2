@@ -535,6 +535,7 @@ static int mapRedoGenList(Map map)
 	int      n    = map->maxDist * map->maxDist;
 	int      area = map->mapArea;
 	int      ret  = 0;
+	int      max  = 0;
 
 	meshStopThreads(map, THREAD_EXIT_LOOP);
 	ListNew(&map->genList);
@@ -553,6 +554,8 @@ static int mapRedoGenList(Map map)
 		}
 		else c->entityList = ENTITY_END;
 		c->cflags &= ~(CFLAG_STAGING | CFLAG_PROCESSING);
+		if (max < c->maxy)
+			max = c->maxy;
 
 		if ((c->cflags & CFLAG_HASMESH) == 0)
 		{
@@ -562,6 +565,8 @@ static int mapRedoGenList(Map map)
 			ret ++;
 		}
 	}
+	map->maxHeight = max;
+	/* return number of chunk needed to be read/meshed/trandfered to GPU */
 	return ret;
 }
 
@@ -1212,7 +1217,7 @@ static ChunkData mapAddToVisibleList(Map map, Chunk from, int direction, int lay
 	int half = (map->maxDist >> 1) << 4;
 
 	/* outside of render distance */
-	if (X < -half || X > half || Z < -half || Z > half || Y < 0)
+	if (X < -half || X > half || Z < -half || Z > half || Y < 0 || Y >= CHUNK_LIMIT)
 		return NULL;
 
 	if (c->chunkFrame != frame)

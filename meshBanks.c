@@ -1082,6 +1082,9 @@ void meshGenerateMT(Map map)
 					updateParseNBT(chunk);
 				}
 			}
+			if (map->maxHeight < chunk->maxy)
+				map->maxHeight = chunk->maxy;
+
 			/* note: no need to modify "bank->vtxSize" like meshFinishST(), this function is only used for initial chunk loading */
 			chunk->cflags = (chunk->cflags | CFLAG_HASMESH) & ~CFLAG_PROCESSING;
 		}

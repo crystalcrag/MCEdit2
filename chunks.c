@@ -189,7 +189,7 @@ Bool chunkAddTileEntity(ChunkData cd, int offset, DATA8 mem)
 			if (ent->data && chunkInsertTileEntity(reloc, ent))
 				reloc->count --; /* hmm, duplicate tile entity in NBT: not good */
 		}
-		if (! STATIC_HASH(hash, c->nbt.mem, c->nbt.mem + c->nbt.usage))
+		if (! STATIC_HASH(hash, c->nbt.mem, c->nbt.mem + c->nbt.max))
 			free(hash);
 		hash = reloc;
 	}
@@ -197,7 +197,7 @@ Bool chunkAddTileEntity(ChunkData cd, int offset, DATA8 mem)
 	if (mem > TILE_OBSERVED_DATA)
 	{
 		/* tile entity was replaced instead of added */
-		if (! (c->nbt.mem <= mem && mem < c->nbt.mem + c->nbt.usage))
+		if (! (c->nbt.mem <= mem && mem < c->nbt.mem + c->nbt.max))
 			free(mem);
 	}
 	else hash->count ++;
@@ -373,10 +373,10 @@ DATA8 chunkDeleteTileEntity(ChunkData cd, int offset, Bool extract, DATA8 observ
 		Chunk c = cd->chunk;
 		if (extract)
 		{
-			if (c->nbt.mem <= data && data < c->nbt.mem + c->nbt.usage)
+			if (c->nbt.mem <= data && data < c->nbt.mem + c->nbt.max)
 				data = NBT_Copy(data);
 		}
-		else if (! (c->nbt.mem <= data && data < c->nbt.mem + c->nbt.usage))
+		else if (! (c->nbt.mem <= data && data < c->nbt.mem + c->nbt.max))
 			free(data);
 		return data;
 	}
@@ -386,7 +386,7 @@ DATA8 chunkDeleteTileEntity(ChunkData cd, int offset, Bool extract, DATA8 observ
 /* only free memory related to tile/entity */
 void chunkDeleteTile(Chunk c, DATA8 tile)
 {
-	if (! (c->nbt.mem <= tile && tile < c->nbt.mem + c->nbt.usage))
+	if (! (c->nbt.mem <= tile && tile < c->nbt.mem + c->nbt.max))
 		free(tile);
 }
 
@@ -547,7 +547,7 @@ Bool chunkUpdateNBT(ChunkData cd, int offset, NBTFile nbt)
 	DATA8 tile = chunkGetTileEntity(cd, offset);
 
 	/* small optimization: if size is same as what's currently stored, overwrite data */
-	if (tile && c->nbt.mem <= tile && tile < c->nbt.mem + c->nbt.usage)
+	if (tile && c->nbt.mem <= tile && tile < c->nbt.mem + c->nbt.max)
 	{
 		NBTIter_t iter;
 		NBT_IterCompound(&iter, tile);

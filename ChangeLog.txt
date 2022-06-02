@@ -1,6 +1,19 @@
+=========== Week 22 (2022) ===========
+Wed June 1:
+	* FOG somewhat better interpolated over merged quads.
+
+Tue May 31:
+	* starting integration of raycasting with GPU.
+
+Mon May 30:
+	* SITGL bug fixed.
+
 =========== Week 21 (2022) ===========
+Sun May 29:
+	* bug fixed: invalid free in chunks.c (static hash), and stupid mem leak fixed in quadtree.c
+
 Sat May 28:
-	* minor bug fixes: raycasting infinite loop, MT chunk loading, invalid free argument.
+	* minor bug fixes: raycasting infinite loop, MT chunk loading, invalid free argument in chunks.c.
 
 Wed May 25:
 	* raycasting integrated, using CPU only for now.

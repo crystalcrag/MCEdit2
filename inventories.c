@@ -1112,7 +1112,7 @@ static void inventoryUpdate(BlockIter iter, Item items, int count, int action, D
 	Chunk c = iter->cd->chunk;
 	DATA8 tile = chunkUpdateTileEntity(iter->cd, iter->offset);
 
-	if (tile && ! (c->nbt.mem <= tile && tile <= c->nbt.mem + c->nbt.usage))
+	if (tile && ! (c->nbt.mem <= tile && tile <= c->nbt.mem + c->nbt.max))
 	{
 		/* modify existing tile directly */
 		nbt.mem = tile;

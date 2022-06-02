@@ -1076,7 +1076,7 @@
 		]},
 
 	{id: 79, name: "Ice", type: TRANS, inv: CUBE, cat: BUILD, opacLight: 3, opacSky: 3, groundFriction: 0.5, density: ICE},
-		{state: 0, tex: [19,16,19,16,19,16,19,16,19,16,19,16]},
+		{state: 0, tex: [15,14,15,14,15,14,15,14,15,14,15,14]},
 
 	{id: 80, name: "Snow block", type: SOLID, inv: CUBE, cat: DECO, tech: "snow", density: ICE},
 		{state: 0, tex: [2, 4, 2, 4, 2, 4, 2, 4, 2, 4, 2, 4]},

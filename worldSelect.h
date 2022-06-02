@@ -21,10 +21,10 @@ struct WorldSelect_t
 	SIT_Widget curKey, capture;
 	SIT_Widget fileSelect, dirSelect;
 	SIT_Widget worldList;
-	int        sensitivity;
+	int        sensitivity, autoEdit;
 	int        guiScale, lockMouse;
 	int        curKeySym, curKeyMod;
-	int        renderDist, autoEdit;
+	int        renderDist, extraDist;
 	int        fov, fps, fog;
 	int        brightness, fullScreen;
 	int        compassSize, showPreview;

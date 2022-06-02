@@ -26,6 +26,7 @@
 #include "tileticks.h"
 #include "keybindings.h"
 #include "undoredo.h"
+#include "raycasting.h"
 #include "nanovg.h"
 #include "SIT.h"
 #include "zlib.h" /* crc32 */
@@ -558,7 +559,7 @@ static int renderGetSize(SIT_Widget w, APTR cd, APTR ud)
 	/* aspect ratio (needed by particle.gsh and waypoints) */
 	shading[SHADING_VPWIDTH]  = globals.width;
 	shading[SHADING_VPHEIGHT] = globals.height;
-	matPerspective(render.matPerspective, globals.fieldOfVision, globals.width / (float) globals.height, NEAR_PLANE, 1000);
+	matPerspective(render.matPerspective, globals.fieldOfVision, globals.width / (float) globals.height, NEAR_PLANE, FAR_PLANE);
 	glViewport(0, 0, globals.width, globals.height);
 
 	glBindBuffer(GL_UNIFORM_BUFFER, globals.uboShader);
@@ -641,6 +642,9 @@ Bool renderInitStatic(void)
 		return False;
 
 	if (! wayPointsInitStatic())
+		return False;
+
+	if (! raycastInitStatic())
 		return False;
 
 	/* init VBO for vboInventoryLoc, vboPreview, vboPreviewLoc, vboInventory */
@@ -761,7 +765,7 @@ Bool renderInitStatic(void)
 	shading[SHADING_VPWIDTH]    = globals.width;
 	shading[SHADING_VPHEIGHT]   = globals.height;
 	shading[SHADING_BRIGHTNESS] = globals.brightness == 101 ? 1 : globals.brightness * 0.007f;
-	matPerspective(render.matPerspective, globals.fieldOfVision, globals.width / (float) globals.height, NEAR_PLANE, 1000);
+	matPerspective(render.matPerspective, globals.fieldOfVision, globals.width / (float) globals.height, NEAR_PLANE, FAR_PLANE);
 
 	globals.uboShader = renderInitUBO();
 	glBindBufferBase(GL_UNIFORM_BUFFER, UBO_BUFFER_INDEX, globals.uboShader);
@@ -1536,7 +1540,11 @@ void renderWorld(void)
 	glBindTexture(GL_TEXTURE_2D, render.texBlock);
 	entityRender();
 
-	/* translucent terrain again, but with color and depth this time */
+	/* raycasted chunks, between sky texture and current terrain */
+	if (globals.extraDist > 0)
+		raycastRender();
+
+	/* translucent terrain */
 	glUseProgram(render.shaderBlocks);
 	for (bank = HEAD(globals.level->gpuBanks); bank; NEXT(bank))
 	{
@@ -1862,7 +1870,7 @@ void renderSaveRestoreState(Bool save)
 /* will use the value from globals :-/ */
 void renderSetFOV(float fov)
 {
-	matPerspective(render.matPerspective, fov, globals.width / (float) globals.height, NEAR_PLANE, 1000);
+	matPerspective(render.matPerspective, fov, globals.width / (float) globals.height, NEAR_PLANE, FAR_PLANE);
 	/* must be same as the one used in the vertex shader */
 	matMult(globals.matMVP, render.matPerspective, render.matModel);
 	/* we will need that matrix sooner or later */

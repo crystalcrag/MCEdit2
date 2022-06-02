@@ -24,7 +24,7 @@ out vec2  tc;
 out vec2  ocspos;
 out float skyLight;
 out float blockLight;
-flat out float fogFactor;
+out float fogFactor;
 flat out uint  rswire;
 flat out uint  ocsmap;
 flat out uint  normal;
@@ -42,10 +42,26 @@ uniform uint timeMS;
 #define FLAG_EXTOCS                    (normFlags[0] & (1 << 7)) > 0
 #define FLAG_REPEAT                    (normFlags[0] & (1 << 8)) > 0
 
+float fogBlend(vec2 coord, bool water)
+{
+	float fogStrength;
+	if (! water)
+	{
+		fogStrength = clamp(distance(camera.xz, coord) / FOG_DISTANCE, 0.0, 1.0);
+		return 1 - fogStrength * fogStrength * fogStrength;
+	}
+	else // quad AND player are underwater: use a different fog for these
+	{
+		fogStrength = clamp(distance(camera.xz, coord) / (FOG_DISTANCE * 0.5), 0.0, 1.0);
+		return 1 - fogStrength;
+	}
+}
+
 void main(void)
 {
 	mat4 MVP   = projMatrix * mvMatrix;
 	bool keepX = FLAG_TEX_KEEPX;
+	bool lerpFOG = false;
 
 	normal = normFlags[0] & 7;
 	waterFog = FLAG_UNDERWATER;
@@ -63,6 +79,12 @@ void main(void)
 		// greedy meshing: need to repeat tex from tex atlas (which is set to GL_CLAMP)
 		texStart.x = min(texCoord[0].x, texCoord[0].y);
 		texStart.y = min(texCoord[0].z, texCoord[0].w);
+		if (FOG_DISTANCE > 0 && normal >= 4)
+		{
+			if (abs(texCoord[0].x - texCoord[0].y) > 0.125 ||
+			    abs(texCoord[0].z - texCoord[0].w) > 0.0625)
+				lerpFOG = true;
+		}
 	}
 	else texStart.x = -1;
 
@@ -117,19 +139,10 @@ void main(void)
 	shadeSky *= sky * clamp(1 + MIN_BRIGHTNESS * 0.1, 1.0, 1.07) / 15;
 
 	// fogStrength == how much fragment will blend with sky, 0 = normal fragment color, 1 = fragment will use sky color
+	bool water = underWater > 0 && waterFog > 0;
 	if (FOG_DISTANCE > 0)
 	{
-		float fogStrength;
-		if (underWater == 0 || waterFog == 0)
-		{
-			fogStrength = clamp(distance(camera.xz, (V1.xz+V4.xz) * 0.5) / FOG_DISTANCE, 0.0, 1.0);
-			fogFactor = 1 - fogStrength * fogStrength * fogStrength;
-		}
-		else // quad AND player are underwater: use a different fog for these
-		{
-			fogStrength = clamp(distance(camera.xz, (V1.xz+V4.xz) * 0.5) / (FOG_DISTANCE * 0.5), 0.0, 1.0);
-			fogFactor = 1 - fogStrength;
-		}
+		fogFactor = fogBlend(lerpFOG ? V1.xz : (V1.xz+V4.xz) * 0.5, water);
 	}
 	else fogFactor = 1; // disabled
 
@@ -143,6 +156,8 @@ void main(void)
 	EmitVertex();
 
 	// second vertex
+	if (lerpFOG)
+		fogFactor = fogBlend(V2.xz, water);
 	gl_Position = MVP * vec4(V2, 1);
 	skyLight    = float(bitfieldExtract(skyBlockLight[0], 4, 4)) * shadeSky;
 	blockLight  = float(bitfieldExtract(skyBlockLight[0], 0, 4)) * shadeBlock;
@@ -151,6 +166,8 @@ void main(void)
 	EmitVertex();
 			
 	// third vertex
+	if (lerpFOG)
+		fogFactor = fogBlend(V3.xz, water);
 	gl_Position = MVP * vec4(V3, 1);
 	skyLight    = float(bitfieldExtract(skyBlockLight[0], 20, 4)) * shadeSky;
 	blockLight  = float(bitfieldExtract(skyBlockLight[0], 16, 4)) * shadeBlock;
@@ -159,6 +176,8 @@ void main(void)
 	EmitVertex();
 
 	// fourth vertex
+	if (lerpFOG)
+		fogFactor = fogBlend(V4.xz, water);
 	gl_Position = MVP * vec4(V4, 1);
 	skyLight    = float(bitfieldExtract(skyBlockLight[0], 12, 4)) * shadeSky;
 	blockLight  = float(bitfieldExtract(skyBlockLight[0], 8,  4)) * shadeBlock;

@@ -22,9 +22,9 @@
 struct QuadBatch_t
 {
 	struct QuadBatch_t * next;
-	struct QuadTree_t batch[QUAD_BATCH];
 	uint32_t usage[QUAD_BATCH/32];
 	uint8_t count;
+	struct QuadTree_t batch[QUAD_BATCH];
 };
 
 struct QuadSelect_t
@@ -43,7 +43,7 @@ static QuadTree quadTreeAlloc(void)
 	QuadBatch * prev;
 	QuadBatch   mem;
 	/* alloc the node in batch, but we need to avoid relocating pointers (no realloc()) */
-	for (mem = &qmem, prev = NULL; mem && mem->count == QUAD_BATCH; prev = &qmem.next, mem = mem->next);
+	for (mem = &qmem, prev = NULL; mem && mem->count == QUAD_BATCH; prev = &mem->next, mem = mem->next);
 	if (mem == NULL)
 	{
 		mem = malloc(sizeof *mem);
@@ -103,12 +103,13 @@ void quadTreeInit(int x, int z, int size)
 /* start from scratch (will have to call quadTreeInit() first) */
 void quadTreeClear(void)
 {
-	QuadBatch mem;
-	for (mem = &qmem; mem; mem = mem->next)
+	QuadBatch mem, next;
+	for (mem = qmem.next; mem; mem = next)
 	{
-		mem->count = 0;
-		memset(mem->usage, 0, sizeof mem->usage);
+		next = mem->next;
+		free(mem);
 	}
+	memset(&qmem, 0, offsetp(QuadBatch, batch));
 	free(qselected.list);
 	memset(&qselected, 0, sizeof qselected);
 	qroot = NULL;
@@ -429,7 +430,7 @@ static void quadTreeRender(QuadTree root, APTR vg, float bbox[4])
 {
 	float x = (root->x - bbox[0]) * bbox[2] + MARGIN;
 	float z = (root->z - bbox[1]) * bbox[3] + MARGIN;
-	nvgStrokeColorRGBA8(vg, "\x20\x20\x20\xff");
+	nvgStrokeColorRGBA8(vg, "\x20\x88\x20\xff");
 	nvgBeginPath(vg);
 	nvgRect(vg, x, z, root->size * bbox[2], root->size * bbox[3]);
 	nvgStroke(vg);
@@ -476,6 +477,10 @@ void quadTreeDebug(APTR vg)
 		(globals.width - 2*MARGIN) / (float) qroot->size,
 		(globals.height - 2*MARGIN) / (float) qroot->size
 	};
+	nvgBeginPath(vg);
+	nvgFillColorRGBA8(vg, "\0\0\0\x7f");
+	nvgRect(vg, 0, 0, globals.width, globals.height);
+	nvgFill(vg);
 	quadTreeRender(qroot, vg, bbox);
 	if ((globals.selPoints&3) == 3)
 	{
