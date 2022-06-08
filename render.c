@@ -827,6 +827,8 @@ Map renderInitWorld(STRPTR path, int renderDist)
 			SIT_Y, globals.height >> 1,
 			NULL
 		);
+		if (globals.extraDist > 0)
+			raycastInitMap(ret);
 		return ret;
 	}
 	return NULL;
@@ -837,9 +839,10 @@ void mapUpdateDelAll(void);
 /* lots of stuff to free */
 void renderCloseWorld(void)
 {
-	/* these first 2 calls will free 90% of memory usage */
+	/* these first 3 calls will free 90% of memory usage */
 	meshCloseAll(globals.level);
 	mapFreeAll(globals.level);
+	raycastFreeAll();
 	globals.level = NULL;
 
 	/* these are small bits and pieces */

@@ -44,7 +44,8 @@ struct Map_t
 	ListHead  genList;             /* chunks to process (Chunk) */
 	ListHead  players;             /* list of player on this map (Player) */
 	Chunk     genLast;
-	Semaphore genCount;
+	Semaphore genCount;            /* for rasterization */
+	Semaphore waitChanges;         /* for raycasting */
 	Mutex     genLock;
 	DATAS16   chunkOffsets;        /* array 16*9: similar to chunkNeighbor[] */
 	char      path[MAX_PATHLEN];   /* path to level.dat */

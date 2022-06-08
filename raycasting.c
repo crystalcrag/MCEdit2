@@ -4,6 +4,7 @@
  * written by T.Pierron, may 2022.
  */
 
+#define RAYCASTING_IMPL
 #include <glad.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -47,9 +48,76 @@ Bool raycastInitStatic(void)
 	glEnableVertexAttribArray(0);
 
 	glBindVertexArray(0);
-//	raycast.texRadius = globals.extraDist;
-//	raycast.texHole   = map->maxDist;
+
+	glGenTextures(1, &raycast.texMapId);
+	glBindTexture(GL_TEXTURE_2D, raycast.texMapId);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+
 	return True;
+}
+
+/* map is being opened */
+void raycastInitMap(Map map)
+{
+	int maxDist = map->maxDist;
+	int distant = maxDist + globals.extraDist * 2;
+	raycast.distantChunks = distant;
+	raycast.rasterChunks  = maxDist;
+
+	raycast.map   = map;
+	raycast.Xmin  = map->center->X - (maxDist >> 1) * 16;
+	raycast.Zmin  = map->center->Z - (maxDist >> 1) * 16;
+	raycast.Xdist = map->center->X - (distant >> 1) * 16;
+	raycast.Zdist = map->center->Z - (distant >> 1) * 16;
+
+	int bitmap = (distant * distant + 7) >> 3;
+	int size = (distant * distant * CHUNK_LIMIT + (distant * distant - maxDist * maxDist)) * sizeof *raycast.texMap;
+
+	raycast.texMap      = malloc(size + bitmap);
+	raycast.priorityMap = raycast.texMap + distant * distant * CHUNK_LIMIT;
+	raycast.priorityMax = distant * distant - maxDist * maxDist;
+	raycast.bitmapMap   = (DATA8) raycast.texMap + size;
+	raycast.bitmapMax   = bitmap;
+
+	memset(raycast.texMap, 0xff, size);
+
+	/* texture for retrieving chunk location in main texture banks */
+	glActiveTexture(GL_TEXTURE7);
+	glBindTexture(GL_TEXTURE_2D, raycast.texMapId);
+	glTexImage2D(GL_TEXTURE_2D, 0,  GL_LUMINANCE_ALPHA, distant, distant * CHUNK_LIMIT, 0, GL_LUMINANCE_ALPHA, GL_UNSIGNED_BYTE, raycast.texMap);
+	glActiveTexture(GL_TEXTURE0);
+
+	memset(raycast.chunkVisible, 0, sizeof raycast.chunkVisible);
+
+	/* now raycasting thread can start its work */
+	fprintf(stderr, "start processing chunks from thread...\n");
+	SemAdd(map->waitChanges, 1);
+}
+
+/* map being closed */
+void raycastFreeAll(void)
+{
+	ChunkTexture tex, next;
+
+	for (tex = next = HEAD(raycast.texBanks); tex; tex = next)
+	{
+		NEXT(next);
+		glDeleteTextures(1, &tex->textureId);
+		free(tex);
+	}
+	ListNew(&raycast.texBanks);
+
+	if (raycast.texMapId)
+	{
+		glDeleteTextures(1, &raycast.texMapId);
+		raycast.texMapId = 0;
+	}
+	free(raycast.texMap);
+	raycast.texMap = NULL;
+	raycast.map = NULL;
 }
 
 void raycastRender(void)
@@ -60,6 +128,274 @@ void raycastRender(void)
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 	glBindVertexArray(0);
 	glDepthMask(GL_TRUE);
+}
+
+/* texture from a ChunkData has been processed: store it in the texture banks */
+void raycastFlushChunk(DATA8 rgbaTex, int XZ, int Y, int maxy)
+{
+	static int total;
+	ChunkTexture tex;
+	int slot = 0;
+	int addId;
+
+	/* find a free slot */
+	for (tex = HEAD(raycast.texBanks), addId = 0; tex; NEXT(tex), addId += TEXTURE_SLOTS)
+	{
+		if (tex->total < TEXTURE_SLOTS)
+		{
+			slot = mapFirstFree(tex->usage, DIM(tex->usage));
+			goto found;
+		}
+	}
+
+	/* alloc texture on the fly */
+	tex = calloc(sizeof *tex, 1);
+	ListAddTail(&raycast.texBanks, &tex->node);
+
+	glGenTextures(1, &tex->textureId);
+
+	/*
+	 * banks will be associated to TEXTURE8 to TEXTURE24
+	 * each texture can hold 1024 ChunkData. Worst case scenario = 65x65x16 render distance = 16384 ChunkData
+	 */
+//	glActiveTexture(GL_TEXTURE8 + addId);
+	glBindTexture(GL_TEXTURE_2D, tex->textureId);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+//	glActiveTexture(GL_TEXTURE0);
+
+
+	/* texture will be 4096x1024 "px": one ChunkData per scanline */
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 4096, TEXTURE_SLOTS, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+	slot = 0;
+
+	found:
+
+	glBindTexture(GL_TEXTURE_2D, tex->textureId);
+
+	/* each ChunkData will be stored in a single scanline of the texture */
+	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, slot, 4096, 1, GL_RGBA, GL_UNSIGNED_BYTE, rgbaTex);
+	tex->total ++;
+
+	/* will stop raycasting early for rays that point toward the sky */
+	if (raycast.chunkMaxHeight < maxy)
+		raycast.chunkMaxHeight = maxy;
+
+	/* texMap is what will link voxel space to texture banks */
+	int stride = raycast.distantChunks * raycast.distantChunks;
+	raycast.texMap[XZ + Y * stride] = slot + addId;
+
+	/* uneven column: store distance from nearest valid ChunkData */
+	for (slot = 0; maxy < CHUNK_LIMIT; slot ++, maxy ++)
+	{
+		raycast.texMap[XZ + maxy * stride] = 0xff00 + slot;
+	}
+
+	/* note: texMap texture will be updated after all staging chunks have been processed */
+
+	fprintf(stderr, "loaded = %d / %d\n", ++ total, raycast.chunkMaxHeight * raycast.priorityMax);
+}
+
+void raycastUpdateTexMap(void)
+{
+	/* push the entire texture */
+	glBindTexture(GL_TEXTURE_2D, raycast.texMapId);
+
+	int distant = raycast.distantChunks;
+	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, distant, distant * CHUNK_LIMIT, GL_LUMINANCE_ALPHA, GL_UNSIGNED_BYTE, raycast.texMap);
+}
+
+
+/*
+ * try hard to load chunks that are visible first, it is somewhat a "frustum culling" for raycasting,
+ * with some simplifications:
+ * - we operate at the chunk level (not ChunkData).
+ * - we don't have to check frustum visibility: the test has to be good enough, not perfect (because
+ *   all chunks from distant region will eventually be loaded).
+ */
+void raycastRebuiltPriority(Map map)
+{
+	/* check at the edge of the map which chunks are visible */
+	int dir  = raycast.rasterChunks >> 1;
+	int mapX = map->mapX - dir;
+	int mapZ = map->mapZ - dir;
+	int row;
+
+	dir = map->mapArea;
+	if (mapX < 0) mapX += dir;
+	if (mapZ < 0) mapZ += dir;
+	if (mapX >= dir) mapX -= dir;
+	if (mapZ >= dir) mapZ -= dir;
+
+	DATA16 priority = alloca((raycast.rasterChunks - 1) * 8), store;
+	Chunk  edges    = map->chunks + mapX + mapZ * dir;
+
+	mapX = mapZ = 0;
+	dir = (1 << SIDE_EAST) | (1 << (SIDE_SOUTH+4)) | (1 << (SIDE_WEST+8)) | (1 << (SIDE_NORTH+12));
+	memset(priority, 0xff, 4);
+
+	for (store = priority, row = map->maxDist - 1; dir > 0; )
+	{
+		if (edges->chunkFrame == map->frame)
+		{
+			/* chunk is visible */
+			*store ++ = mapX | (mapZ << 8);
+		}
+		Chunk next = edges + map->chunkOffsets[edges->neighbor + (dir & 15)];
+		mapX += (next->X - edges->X) >> 4;
+		mapZ += (next->Z - edges->Z) >> 4;
+		edges = next;
+		row --;
+		if (row == 0)
+		{
+			row = map->maxDist - 1;
+			if (dir < 15) row --;
+			dir >>= 4;
+		}
+	}
+
+	dir = store[store == priority ? 0 : -1];
+	/* highly likely it is the same as before */
+	if (raycast.chunkVisible[0] != priority[0] ||
+	    raycast.chunkVisible[1] != dir)
+	{
+		/* like xoff/zoff: but scan all 8 surrounding block instead of just 4 */
+		static int8_t xoff8[] = {0,  1, -1, -1, 2,  0, -2,  0};
+		static int8_t zoff8[] = {1, -1, -1,  1, 1, -2,  2, -2};
+		static uint8_t corner[] = {1, 2, 4, 8, 3<<4, 6<<4, 9<<4, 12<<4};
+
+		raycast.chunkVisible[0] = priority[0];
+		raycast.chunkVisible[1] = dir;
+		raycast.priorityIndex   = 0;
+
+		/* list has changed: first add chunks that are near the visible raster chunks */
+		if (store == priority)
+		{
+			/* no chunks visible at edge of map: use an arbitrary starting point */
+			store[0] = 0;
+			store ++;
+		}
+		memset(raycast.bitmapMap, 0, raycast.bitmapMax);
+
+		DATA16 src, dst, eof;
+		int    center = raycast.rasterChunks >> 1, i;
+		for (dst = raycast.priorityMap, src = priority, row = raycast.distantChunks; src < store; src ++)
+		{
+			uint8_t flags;
+			mapX = src[0] & 255;
+			mapZ = src[0] >> 8;
+			for (i = 0, flags = 0; i < DIM(xoff8); i ++)
+			{
+				mapX += xoff8[i];
+				mapZ += zoff8[i];
+
+				if (i >= 4 && flags != (corner[i] >> 4))
+					continue;
+
+				if (abs(mapX - center) > center || abs(mapZ - center) > center)
+				{
+					int coord = (mapX + globals.extraDist) + (mapZ + globals.extraDist) * row;
+					/* each chunk must only be added once */
+					if ((raycast.bitmapMap[coord>>3] & mask8bit[coord&7]) == 0)
+					{
+						raycast.bitmapMap[coord>>3] |= mask8bit[coord&7];
+						*dst++ = (mapX + globals.extraDist) | ((mapZ + globals.extraDist) << 8);
+					}
+					flags |= corner[i] & 15;
+				}
+			}
+		}
+
+		/* look-up table to check if chunk coord is within distant area (too annoying to do analytically) */
+		DATA8 valid = alloca(row);
+		memset(valid, 1, row);
+		memset(valid + globals.extraDist, 0, raycast.rasterChunks);
+
+		/* load the rest of the chunks by proximity */
+		for (src = raycast.priorityMap, eof = src + raycast.priorityMax; dst < eof; src ++)
+		{
+			mapX = src[0] & 255;
+			mapZ = src[0] >> 8;
+			for (i = 0; i < 4; i ++)
+			{
+				mapX += xoff[i];
+				mapZ += zoff[i];
+				if ((unsigned) mapX < row && (unsigned) mapZ < row && (valid[mapX] || valid[mapZ]))
+				{
+					int coord = mapX + mapZ * row;
+					/* each chunk must only be added once */
+					if ((raycast.bitmapMap[coord>>3] & mask8bit[coord&7]) == 0)
+					{
+						raycast.bitmapMap[coord>>3] |= mask8bit[coord&7];
+						*dst++ = mapX | (mapZ << 8);
+					}
+				}
+			}
+		}
+	}
+
+	/* debug priorityMap */
+	#if 0
+	TEXT line[80];
+	fprintf(stderr, "priority map (%d x %d)\n", raycast.distantChunks, raycast.distantChunks);
+	for (mapZ = 0; mapZ < raycast.distantChunks; mapZ ++)
+	{
+		int i;
+		memset(line, ' ', sizeof line);
+		for (i = 0; i < raycast.distantChunks; line[i*4+3] = '|', i ++);
+		for (i = 0; i < raycast.priorityMax; i ++)
+		{
+			int coord = raycast.priorityMap[i];
+			if ((coord >> 8) == mapZ)
+			{
+				TEXT order[16];
+				sprintf(order, "%3d|", i);
+				memcpy(line + (coord & 255) * 4, order, 4);
+			}
+		}
+		fwrite(line, raycast.distantChunks, 4, stderr);
+		fputc('\n', stderr);
+	}
+	#endif
+}
+
+/* find the first unprocessed chunk */
+Bool raycastNextChunk(int XZId[3])
+{
+	/* scan priority list, until we find something */
+	DATA16 priority, eof;
+	int    dist = raycast.distantChunks;
+	int    frame = raycast.map->frame;
+
+	/* mesh chunks have not started processing yet */
+	if (frame == 0)
+		frame = 1;
+
+	if (raycast.priorityFrame != frame)
+	{
+		fprintf(stderr, "rebuilt priority list: %d\n", frame);
+		raycastRebuiltPriority(raycast.map);
+		raycast.priorityFrame = frame;
+	}
+
+	for (priority = raycast.priorityMap + raycast.priorityIndex, eof = raycast.priorityMap + raycast.priorityMax; priority < eof; priority ++)
+	{
+		int X = priority[0] & 0xff;
+		int Z = priority[0] >> 8;
+
+		/* check if already processed */
+		if (raycast.texMap[X + Z * dist] == 0xffff)
+		{
+			XZId[0] = X * 16 + raycast.Xdist;
+			XZId[1] = Z * 16 + raycast.Zdist;
+			XZId[2] = X + Z * raycast.distantChunks;
+			raycast.priorityIndex = priority - raycast.priorityMap + 1;
+			return True;
+		}
+	}
+	return False;
 }
 
 /* taken from https://algotree.org/algorithms/stack_based/largest_rectangle_in_histogram */
@@ -163,10 +499,9 @@ static void maxAreaMatrix(DATA8 rgba, DATA8 res, DATA8 maxRegion)
 	res[1] += res[3];
 }
 
-void chunkConvertToRGBA(ChunkData cd)
+void chunkConvertToRGBA(ChunkData cd, DATA8 rgba)
 {
 	uint8_t layerArea[16*4];
-	DATA8   rgba = calloc(4096, 4);
 	int     y, boxes, layerDone;
 
 	/* pre-process blockIds first */
@@ -271,10 +606,13 @@ void chunkConvertToRGBA(ChunkData cd)
 		}
 		else break;
 	}
-
-	cd->rgbaTex = rgba;
 }
 
+/*
+ * the following functions mimic the raycasting done on the GPU, they are used mostly for debug, to
+ * have a reference implementation to fallback to, in case of problem.
+ */
+#ifdef DEBUG
 static int iteration;
 
 static float faceNormals[] = { /* S, E, N, W, T, B */
@@ -306,8 +644,8 @@ static void voxelGetBoundsForFace(DATA8 texture, int face, vec4 V0, vec4 V1, vec
 
 	float pt[6];
 
-	if (texture[3] == 0x80)
-	{
+	switch (texture[3]) {
+	case 0x80:
 		/* void space inside a ChunkData */
 		pt[0] = (CPOS(posOffset[VX]) << 4)  + (texture[0] & 15);
 		pt[1] = ((int) posOffset[VY] & ~15) + (texture[1] & 15);
@@ -316,15 +654,24 @@ static void voxelGetBoundsForFace(DATA8 texture, int face, vec4 V0, vec4 V1, vec
 		pt[3] = pt[0] + (texture[2] & 15) + 1;
 		pt[4] = pt[1] + (texture[1] >> 4) + 1;
 		pt[5] = pt[2] + (texture[2] >> 4) + 1;
-	}
-	else /* void space inside Chunk */
-	{
+		break;
+
+	case 0x81: /* void space inside Chunk */
 		pt[0] = CPOS(posOffset[VX]) << 4;
 		pt[2] = CPOS(posOffset[VZ]) << 4;
 		pt[1] = texture[0] << 4;
 		pt[4] = texture[1] << 4;
 		pt[3] = pt[0] + 16;
 		pt[5] = pt[2] + 16;
+		break;
+
+	case 0x82: /* raster chunks area */
+		pt[0] = raycast.Xmin;   pt[3] = pt[0] + raycast.rasterChunks * 16;
+		pt[1] = 0;              pt[4] = 256;
+		pt[2] = raycast.Zmin;   pt[5] = pt[2] + raycast.rasterChunks * 16;
+		break;
+
+	default: return;
 	}
 
 	if (dir[3]) t += 3;
@@ -339,50 +686,62 @@ static void voxelGetBoundsForFace(DATA8 texture, int face, vec4 V0, vec4 V1, vec
 
 static DATA8 voxelFindClosest(Map map, vec4 pos)
 {
-	ChunkData cd;
-	Chunk c = mapGetChunk(map, pos);
-	int absY = CPOS(pos[1]);
+	int X = (int) (pos[VX] - raycast.Xdist) >> 4;
+	int Z = (int) (pos[VZ] - raycast.Zdist) >> 4;
+	int Y = CPOS(pos[1]);
 
-	if (c)
+	if (X < 0 || Z < 0 || X >= raycast.distantChunks || Z >= raycast.distantChunks || Y >= raycast.chunkMaxHeight || Y < 0)
+		return NULL;
+
+	uint16_t texId = raycast.texMap[X + (Z + Y * raycast.distantChunks) * raycast.distantChunks];
+
+	static uint8_t tex[4];
+
+	if (texId == 0xffff)
 	{
-		static uint8_t tex[4];
-		if ((unsigned) absY < c->maxy)
-		{
-			if ((cd = c->layer[absY]))
-			{
-				if (! cd->rgbaTex)
-					chunkConvertToRGBA(cd);
-				int index =
-					((int) floorf(pos[0]) & 15) +
-					((int) floorf(pos[2]) & 15) * 16 +
-					((int) floorf(pos[1]) & 15) * 256;
-				return cd->rgbaTex + 4 * index;
-			}
-			else /* missing ChunkData: assume empty then :-/ */
-			{
-				tex[0] = 0;
-				tex[1] = 0xf0;
-				tex[2] = 0xff;
-				tex[3] = 0x80;
-				return tex;
-			}
-		}
-		else if ((unsigned) absY < map->maxHeight)
-		{
-			tex[0] = c->maxy;
-			tex[1] = map->maxHeight;
-			tex[2] = 0;
-			tex[3] = 0x81;
-			return tex;
-		}
+		/* missing ChunkData: assume empty then */
+		tex[0] = 0;
+		tex[1] = 0xf0;
+		tex[2] = 0xff;
+		tex[3] = 0x80;
+		return tex;
 	}
-	return NULL;
+
+	if (texId >= 0xff00)
+	{
+		/* empty space above chunk */
+		tex[0] = Y - (texId - 0xff00);
+		tex[1] = map->maxHeight;
+		tex[2] = 0;
+		tex[3] = 0x81;
+		return tex;
+	}
+
+	ChunkTexture bank;
+	for (bank = HEAD(raycast.texBanks); bank && texId >= TEXTURE_SLOTS; NEXT(bank), texId -= TEXTURE_SLOTS);
+
+	if (! bank->data)
+	{
+		/* need to retrieve the entire tex data :-/ */
+		bank->data = malloc(4096 * 1024 * 4); // 16 mb
+		if (bank->data == NULL)
+			return NULL;
+		glBindTexture(GL_TEXTURE_2D, bank->textureId);
+		glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, bank->data);
+	}
+
+	int index =
+		((int) floorf(pos[0]) & 15) +
+		((int) floorf(pos[2]) & 15) * 16 +
+		((int) floorf(pos[1]) & 15) * 256;
+
+	return bank->data + texId * (16*1024) + index * 4;
 }
 
 /* similar to mapPointToObject(), but only check voxel and consider them full */
 static Bool mapPointToVoxel(Map map, vec4 camera, vec4 dir, DATA8 color)
 {
-	vec4 pos, u;
+	vec4 pos, u, V0, V1;
 	memcpy(u, dir, sizeof u);
 	vec4 plane = {floorf(camera[0]), floorf(camera[1]), floorf(camera[2]), 1};
 	int  flags = (u[0] < 0 ? 8 : 2) | (u[1] < 0 ? 32 : 16) | (u[2] < 0 ? 4 : 1);
@@ -390,7 +749,7 @@ static Bool mapPointToVoxel(Map map, vec4 camera, vec4 dir, DATA8 color)
 
 	memcpy(pos, camera, sizeof pos);
 
-	DATA8 tex = voxelFindClosest(map, plane);
+	DATA8 tex = "\0\0\0\x82";
 
 	next: for (;;)
 	{
@@ -409,7 +768,7 @@ static Bool mapPointToVoxel(Map map, vec4 camera, vec4 dir, DATA8 color)
 			/* merged blank space */
 			for (i = 0, norm = faceNormals; i < 6; i ++, norm += 4)
 			{
-				vec4 inter, V0, V1;
+				vec4 inter;
 				/* we can already eliminate some planes based on the ray direction */
 				if ((flags & (1 << i)) == 0) continue;
 
@@ -496,6 +855,13 @@ void raycastWorld(Map map, mat4 invMVP, vec4 pos)
 		}
 	}
 
+	ChunkTexture bank;
+	for (bank = HEAD(raycast.texBanks); bank; NEXT(bank))
+	{
+		free(bank->data);
+		bank->data = NULL;
+	}
+
 	FILE * out = fopen("dump.ppm", "wb");
 
 	if (out)
@@ -508,8 +874,9 @@ void raycastWorld(Map map, mat4 invMVP, vec4 pos)
 	}
 	free(bitmap);
 }
+#endif
 
-
+/* textureLoad() callback to convert terrain.png into a color map */
 APTR raycastConvertToCMap(DATA8 * data, int * width, int * height, int bpp)
 {
 	int   h, i, j, k, stride, res;

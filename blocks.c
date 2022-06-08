@@ -1687,7 +1687,7 @@ void blockParseInventory(int vbo)
 	glBufferData(GL_ARRAY_BUFFER, total * BYTES_PER_VERTEX, NULL, GL_STATIC_DRAW);
 	vertex = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
 
-	fprintf(stderr, "custom model vertex = %d bytes\n", blocks.totalVtx);
+	// fprintf(stderr, "custom model vertex = %d bytes\n", blocks.totalVtx);
 	// total wasted = 4014 / 409600
 	// fprintf(stderr, "inventory = %d vertex, total = %d\n", total, blocks.totalInv);
 

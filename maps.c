@@ -913,6 +913,7 @@ Map mapInitFromPath(STRPTR path, int renderDist)
 		#if NUM_THREADS > 0
 		map->genLock = MutexCreate();
 		map->genCount = SemInit(0);
+		map->waitChanges = SemInit(0);
 		meshAddToProcess(map, mapRedoGenList(map));
 		meshInitThreads(map);
 		#else

@@ -1,4 +1,14 @@
+=========== Week 23 (2022) ===========
+Tue June 7:
+	* raycasting using GPU data mostly working.
+
 =========== Week 22 (2022) ===========
+Sat June 4:
+	* distant chunks multi-threaded generation mostly done.
+
+Thu June 2:
+	* raycasting GPU integration continued.
+
 Wed June 1:
 	* FOG somewhat better interpolated over merged quads.
 

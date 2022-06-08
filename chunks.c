@@ -25,7 +25,10 @@
  */
 static void chunkFillData(Chunk chunk, int y, int offset)
 {
-	ChunkData cd = calloc(sizeof *cd, 1);
+	ChunkData cd = chunk->layer[y];
+
+	if (cd == NULL)
+		cd = calloc(sizeof *cd, 1);
 
 	cd->blockIds = NBT_Payload(&chunk->nbt, NBT_FindNode(&chunk->nbt, offset, "Blocks"));
 	cd->chunk    = chunk;
@@ -225,7 +228,7 @@ void chunkUpdateTilePosition(ChunkData cd, int offset, DATA8 tile)
 }
 
 /* transfer NBT tile entites into a hash table for (way) faster access */
-static void chunkExpandTileEntities(Chunk c)
+void chunkExpandTileEntities(Chunk c)
 {
 	NBTFile_t nbt = c->nbt;
 	int       off = NBT_FindNode(&c->nbt, 0, "TileEntities");
@@ -501,7 +504,8 @@ Bool chunkLoad(Chunk chunk, const char * path, int x, int z)
 				while ((secOffset = NBT_Iter(&iter)) >= 0)
 				{
 					int y = NBT_GetInt(&nbt, NBT_FindNode(&nbt, secOffset, "Y"), 0);
-					if (y < CHUNK_LIMIT && chunk->layer[y] == NULL)
+					/* XXX why the check for NULL layer? */
+					if (y < CHUNK_LIMIT /*&& chunk->layer[y] == NULL*/)
 						chunkFillData(chunk, y, secOffset);
 				}
 			}

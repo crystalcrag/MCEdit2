@@ -39,6 +39,7 @@ void      chunkUnobserve(ChunkData, int offset, int side);
 void      chunkMarkForUpdate(Chunk, int type);
 void      chunkExpandEntities(Chunk);
 void      chunkDeleteTile(Chunk, DATA8 tile);
+void      chunkExpandTileEntities(Chunk);
 
 struct ChunkData_t                     /* one sub-chunk of 16x16x16 blocks */
 {
@@ -54,7 +55,9 @@ struct ChunkData_t                     /* one sub-chunk of 16x16x16 blocks */
 
 	DATA8     blockIds;                /* 16*16*16 = XZY ordered, note: point directly to NBT struct (4096 bytes) */
 	DATA16    emitters;                /* pos (12bits) + type (4bits) for particles emitters */
+	#ifdef DEBUG
 	DATA8     rgbaTex;                 /* raycasting -- debug only */
+	#endif
 
 	/* VERTEX_ARRAY_BUFFER location */
 	void *    glBank;                  /* GPUBank (filled by meshAllocGPU()) */
@@ -106,10 +109,10 @@ enum /* flags for Chunk.cflags */
 	CFLAG_REBUILDTT  = 0x0200,         /* TileTicks */
 	CFLAG_PROCESSING = 0x0400,
 
-	CFLAG_HAS_SEC    = 0x0800,         /* flag set if corresponding NBT record is present */
-	CFLAG_HAS_TE     = 0x1000,
-	CFLAG_HAS_ENT    = 0x2000,         /* note: not exactly the same than CFLAG_HASENTITY (see below) */
-	CFLAG_HAS_TT     = 0x4000,
+	CFLAG_HAS_SEC    = 0x1000,         /* flag set if corresponding NBT record is present */
+	CFLAG_HAS_TE     = 0x2000,
+	CFLAG_HAS_ENT    = 0x4000,         /* note: not exactly the same than CFLAG_HASENTITY (see below) */
+	CFLAG_HAS_TT     = 0x8000,
 };
 
 /*
