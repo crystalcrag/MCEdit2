@@ -19,5 +19,5 @@ void main(void)
 {
 	selType = int(info.w);
 	tex = texCoord;
-	gl_Position = projMatrix * mvMatrix * vec4(position.xyz + ((selType>>2) >= 4 ? location : info.xyz), 1);
+	gl_Position = MVP * vec4(position.xyz + ((selType>>2) >= 4 ? location : info.xyz), 1);
 }

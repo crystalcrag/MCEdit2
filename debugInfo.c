@@ -389,7 +389,6 @@ void debugRenderCaveGraph(void)
 
 void debugCoord(APTR vg, vec4 camera, int total)
 {
-	#if 1
 	TEXT message[256];
 	int  len = sprintf(message, "XYZ: %.2f, %.2f (eye), %.2f (feet: %.2f)\n", PRINT_COORD(camera), (double) (camera[VY] - PLAYER_HEIGHT));
 	int  vis;
@@ -411,7 +410,6 @@ void debugCoord(APTR vg, vec4 camera, int total)
 	nvgMultiLineText(vg, 12, 12, message, message+len);
 	nvgFillColorRGBA8(vg, "\xff\xff\xff\xff");
 	nvgMultiLineText(vg, 10, 10, message, message+len);
-	#endif
 }
 
 void debugLayer(int dir)
@@ -1048,7 +1046,7 @@ void debugRotateView(int dir)
 	debug.minXZ = base - max * 16;
 	debug.maxXZ = base + max * 16 + 16;
 
-	fprintf(stderr, "direction = %d, range = %d - %d\n", debug.sliceDir, debug.minXZ, debug.maxXZ);
+	//fprintf(stderr, "direction = %d, range = %d - %d\n", debug.sliceDir, debug.minXZ, debug.maxXZ);
 
 	SIT_ForceRefresh();
 }

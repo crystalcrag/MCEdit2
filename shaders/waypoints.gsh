@@ -23,7 +23,6 @@ void main(void)
 	vec3 perp = normalize(cross(lookAt.xyz, vec3(0, 1, 0))) * CIRCLE_RADIUS;
 	vec4 pt1  = gl_in[0].gl_Position;
 	vec4 pt2  = vec4(pt1.x, 256, pt1.z, 1);
-	mat4 MVP  = projMatrix * mvMatrix;
 
 	vtx_color  = unpackUnorm4x8(wp_Color[0]);
 	vtx_center = MVP * pt1;

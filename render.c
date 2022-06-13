@@ -580,8 +580,8 @@ int renderInitUBO(void)
 	/*
 	 * uniform buffer object: shared among all shaders (uniformBlock.glsl):
 	 * mat4 projMatrix;
-	 * mat4 mvMatrix;
-	 * vec4 lightPos;
+	 * mat4 MVP;
+	 * vec4 lookAt;
 	 * vec4 camera;
 	 * vec4 sunDir;
 	 * vec4 normals[6];
@@ -1489,7 +1489,7 @@ void renderWorld(void)
 
 	/* sky dome */
 	glBindBuffer(GL_UNIFORM_BUFFER, globals.uboShader);
-	glBufferSubData(GL_UNIFORM_BUFFER, UBO_MVMATRIX_OFFSET, sizeof (mat4), render.matModel);
+	glBufferSubData(GL_UNIFORM_BUFFER, UBO_MVMATRIX_OFFSET, sizeof (mat4), globals.matMVP);
 	skydomeRender(render.fboSky, render.underWater);
 
 	glViewport(0, 0, globals.width, globals.height);
@@ -1544,7 +1544,7 @@ void renderWorld(void)
 	entityRender();
 
 	/* raycasted chunks, between sky texture and current terrain */
-	if (globals.extraDist > 0)
+	if (globals.extraDist > 0 && globals.raycastEnabled)
 		raycastRender();
 
 	/* translucent terrain */

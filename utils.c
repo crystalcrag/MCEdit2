@@ -1265,8 +1265,6 @@ PFNGLBUFFERDATAPROC glad_glBufferData;
 PFNGLBINDVERTEXARRAYPROC glad_glBindVertexArray;
 PFNGLENABLEVERTEXATTRIBARRAYPROC glad_glEnableVertexAttribArray;
 PFNGLVERTEXATTRIBPOINTERPROC glad_glVertexAttribPointer;
-PFNGLUNIFORM1IPROC glad_glUniform1i;
-PFNGLUNIFORM2FVPROC glad_glUniform2fv;
 PFNGLDELETEBUFFERSPROC glad_glDeleteBuffers;
 PFNGLDELETEVERTEXARRAYSPROC glad_glDeleteVertexArrays;
 PFNGLMAPBUFFERRANGEPROC glad_glMapBufferRange;
@@ -1304,6 +1302,7 @@ PFNGLPROGRAMUNIFORM4FVPROC glad_glProgramUniform4fv;
 PFNGLPROGRAMUNIFORM3FVPROC glad_glProgramUniform3fv;
 PFNGLPROGRAMUNIFORM1FVPROC glad_glProgramUniform1fv;
 PFNGLPROGRAMUNIFORM1UIPROC glad_glProgramUniform1ui;
+PFNGLPROGRAMUNIFORM4IVPROC glad_glProgramUniform4iv;
 PFNGLDRAWELEMENTSPROC glad_glDrawElements;
 PFNGLPOLYGONMODEPROC glad_glPolygonMode;
 PFNGLBLENDFUNCPROC glad_glBlendFunc;
@@ -1320,6 +1319,7 @@ PFNGLDRAWARRAYSINSTANCEDPROC glad_glDrawArraysInstanced;
 PFNGLGENFRAMEBUFFERSPROC glad_glGenFramebuffers;
 PFNGLBINDFRAMEBUFFERPROC glad_glBindFramebuffer;
 PFNGLFRAMEBUFFERTEXTURE2DPROC glad_glFramebufferTexture2D;
+PFNGLPROGRAMUNIFORMMATRIX4FVPROC glProgramUniformMatrix4fv;
 
 typedef void* (APIENTRYP PFNGLXGETPROCADDRESSPROC_PRIVATE)(const char*);
 PFNGLXGETPROCADDRESSPROC_PRIVATE gladGetProcAddressPtr;
@@ -1367,8 +1367,6 @@ int gladLoadGL(void)
 		 && (glad_glBindBuffer         = load(name = "glBindBuffer"))
 		 && (glad_glBufferData         = load(name = "glBufferData"))
 		 && (glad_glBindVertexArray    = load(name = "glBindVertexArray"))
-		 && (glad_glUniform1i          = load(name = "glUniform1i"))
-		 && (glad_glUniform2fv         = load(name = "glUniform2fv"))
 		 && (glad_glDeleteBuffers      = load(name = "glDeleteBuffers"))
 		 && (glad_glDeleteVertexArrays = load(name = "glDeleteVertexArrays"))
 		 && (glad_glBindTexture        = load(name = "glBindTexture"))
@@ -1414,10 +1412,12 @@ int gladLoadGL(void)
 		 && (glad_glDebugMessageCallback     = load(name = "glDebugMessageCallback"))
 		 && (glad_glVertexAttribIPointer     = load(name = "glVertexAttribIPointer"))
 		 && (glad_glVertexAttribDivisor      = load(name = "glVertexAttribDivisor"))
+		 && (glad_glProgramUniformMatrix4fv  = load(name = "glProgramUniformMatrix4fv"))
 		 && (glad_glProgramUniform4fv        = load(name = "glProgramUniform4fv"))
 		 && (glad_glProgramUniform3fv        = load(name = "glProgramUniform3fv"))
 		 && (glad_glProgramUniform1fv        = load(name = "glProgramUniform1fv"))
 		 && (glad_glProgramUniform1ui        = load(name = "glProgramUniform1ui"))
+		 && (glad_glProgramUniform4iv        = load(name = "glProgramUniform4iv"))
 		 && (glad_glDrawArraysInstanced      = load(name = "glDrawArraysInstanced"))
 		 && (glad_glMultiDrawArraysIndirect  = load(name = "glMultiDrawArraysIndirect"))
 		 && (glad_glFramebufferTexture2D     = load(name = "glFramebufferTexture2D"))

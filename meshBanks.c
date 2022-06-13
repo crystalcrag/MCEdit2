@@ -507,7 +507,7 @@ static DATA8 raycastAllocMT(struct Thread_t * thread)
 	int index = mapFirstFree(rcMem.usage, RAYCAST_SLOT/32);
 	DATA8 mem = (DATA8) rcMem.mem + index * RAYCAST_BLOCK;
 	rcMem.total ++;
-	/* first 4 bytes will tell when this ChunkData is ready */
+	/* first 4 bytes will tell where this ChunkData is and when it is ready */
 	memset(mem, 0, 4);
 
 	MutexLeave(rcMem.alloc);

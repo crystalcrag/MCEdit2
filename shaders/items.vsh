@@ -51,13 +51,13 @@ void main(void)
 		{
 			/* cube: due to rotation, scale and offset need to be slightly adjusted */
 			scale *= 0.625;
-			pos = mvMatrix * ((pos - vec4(0.5, 0.5, 0.5, 0)) * vec4(scale,scale,scale,1)) + vec4(offsets.x + 0.85 * scale, offsets.y + 0.8 * scale, 25, 0);
+			pos = MVP * ((pos - vec4(0.5, 0.5, 0.5, 0)) * vec4(scale,scale,scale,1)) + vec4(offsets.x + 0.85 * scale, offsets.y + 0.8 * scale, 25, 0);
 		}
 		else pos = pos * vec4(scale,scale,1,1) + vec4(offsets.x, offsets.y, 20, 0); /* quad */
 		gl_Position = projMatrix * pos;
 	}
 	else /* preview block (show block before placing) */
 	{
-		gl_Position = projMatrix * mvMatrix * (pos + vec4(offsets, 0));
+		gl_Position = MVP * (pos + vec4(offsets, 0));
 	}
 }

@@ -20,9 +20,6 @@ static struct RaycastPrivate_t raycast = {
 	.shading = {230, 204, 230, 204, 255, 179}
 };
 
-#define SCR_WIDTH         400
-#define SCR_HEIGHT        400
-
 /* init opengl objects to do raycasting on GPU */
 Bool raycastInitStatic(void)
 {
@@ -56,6 +53,10 @@ Bool raycastInitStatic(void)
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 
+	raycast.uniformINVMVP = glGetUniformLocation(raycast.shader, "INVMVP");
+	raycast.uniformChunk  = glGetUniformLocation(raycast.shader, "chunk");
+	raycast.uniformSize   = glGetUniformLocation(raycast.shader, "size");
+
 	return True;
 }
 
@@ -73,21 +74,41 @@ void raycastInitMap(Map map)
 	raycast.Xdist = map->center->X - (distant >> 1) * 16;
 	raycast.Zdist = map->center->Z - (distant >> 1) * 16;
 
-	int bitmap = (distant * distant + 7) >> 3;
-	int size = (distant * distant * CHUNK_LIMIT + (distant * distant - maxDist * maxDist)) * sizeof *raycast.texMap;
+	/* intel cards DO NOT LIKE NPOT textures: only 2 days lost debugging that crap :-/ */
+	int width = distant;
+	width --;
+	width |= width >> 1;
+	width |= width >> 2;
+	width |= width >> 4;
+	width |= width >> 8;
+	width |= width >> 16;
+	width ++;
 
+	int bitmap = (distant * distant + 7) >> 3;
+	int size = (width * distant * CHUNK_LIMIT + (distant * distant - maxDist * maxDist)) * sizeof *raycast.texMap;
+
+	raycast.texMapWidth = width;
 	raycast.texMap      = malloc(size + bitmap);
-	raycast.priorityMap = raycast.texMap + distant * distant * CHUNK_LIMIT;
+	raycast.priorityMap = raycast.texMap + width * distant * CHUNK_LIMIT;
 	raycast.priorityMax = distant * distant - maxDist * maxDist;
 	raycast.bitmapMap   = (DATA8) raycast.texMap + size;
 	raycast.bitmapMax   = bitmap;
 
+	raycast.chunkLoc[0] = raycast.Xdist;
+	raycast.chunkLoc[1] = raycast.Zdist;
+	raycast.chunkLoc[2] = raycast.Xmin;
+	raycast.chunkLoc[3] = raycast.Zmin;
+
+	raycast.chunkSize[0] = raycast.distantChunks;
+	raycast.chunkSize[2] = raycast.rasterChunks;
+
 	memset(raycast.texMap, 0xff, size);
+
 
 	/* texture for retrieving chunk location in main texture banks */
 	glActiveTexture(GL_TEXTURE7);
 	glBindTexture(GL_TEXTURE_2D, raycast.texMapId);
-	glTexImage2D(GL_TEXTURE_2D, 0,  GL_LUMINANCE_ALPHA, distant, distant * CHUNK_LIMIT, 0, GL_LUMINANCE_ALPHA, GL_UNSIGNED_BYTE, raycast.texMap);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RG, width, distant * CHUNK_LIMIT, 0, GL_RG, GL_UNSIGNED_BYTE, raycast.texMap);
 	glActiveTexture(GL_TEXTURE0);
 
 	memset(raycast.chunkVisible, 0, sizeof raycast.chunkVisible);
@@ -124,6 +145,9 @@ void raycastRender(void)
 {
 	glDepthMask(GL_FALSE);
 	glUseProgram(raycast.shader);
+	glProgramUniformMatrix4fv(raycast.shader, raycast.uniformINVMVP, 1, GL_FALSE, globals.matInvMVP);
+	glProgramUniform4fv(raycast.shader, raycast.uniformChunk, 1, raycast.chunkLoc);
+	glProgramUniform4fv(raycast.shader, raycast.uniformSize,  1, raycast.chunkSize);
 	glBindVertexArray(raycast.vao);
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 	glBindVertexArray(0);
@@ -133,13 +157,12 @@ void raycastRender(void)
 /* texture from a ChunkData has been processed: store it in the texture banks */
 void raycastFlushChunk(DATA8 rgbaTex, int XZ, int Y, int maxy)
 {
-	static int total;
 	ChunkTexture tex;
 	int slot = 0;
 	int addId;
 
 	/* find a free slot */
-	for (tex = HEAD(raycast.texBanks), addId = 0; tex; NEXT(tex), addId += TEXTURE_SLOTS)
+	for (tex = HEAD(raycast.texBanks), addId = 0; tex; NEXT(tex), addId ++)
 	{
 		if (tex->total < TEXTURE_SLOTS)
 		{
@@ -158,53 +181,67 @@ void raycastFlushChunk(DATA8 rgbaTex, int XZ, int Y, int maxy)
 	 * banks will be associated to TEXTURE8 to TEXTURE24
 	 * each texture can hold 1024 ChunkData. Worst case scenario = 65x65x16 render distance = 16384 ChunkData
 	 */
-//	glActiveTexture(GL_TEXTURE8 + addId);
+	fprintf(stderr, "creating texture id %d\n", addId);
+	glActiveTexture(GL_TEXTURE8 + addId);
 	glBindTexture(GL_TEXTURE_2D, tex->textureId);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-//	glActiveTexture(GL_TEXTURE0);
-
 
 	/* texture will be 4096x1024 "px": one ChunkData per scanline */
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 4096, TEXTURE_SLOTS, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+
+	glActiveTexture(GL_TEXTURE0);
 	slot = 0;
 
 	found:
 
+	glActiveTexture(GL_TEXTURE8 + addId);
 	glBindTexture(GL_TEXTURE_2D, tex->textureId);
 
 	/* each ChunkData will be stored in a single scanline of the texture */
 	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, slot, 4096, 1, GL_RGBA, GL_UNSIGNED_BYTE, rgbaTex);
+	glActiveTexture(GL_TEXTURE0);
 	tex->total ++;
 
 	/* will stop raycasting early for rays that point toward the sky */
 	if (raycast.chunkMaxHeight < maxy)
-		raycast.chunkMaxHeight = maxy;
+		raycast.chunkMaxHeight = raycast.chunkSize[1] = maxy;
 
 	/* texMap is what will link voxel space to texture banks */
-	int stride = raycast.distantChunks * raycast.distantChunks;
-	raycast.texMap[XZ + Y * stride] = slot + addId;
+	int stride = raycast.texMapWidth * raycast.distantChunks;
+
+	/* shader will read the texture as individual unsigned bytes */
+	DATA8 texmap = (DATA8) (&raycast.texMap[XZ + Y * stride]);
+
+	slot += (addId << 10);
+	texmap[0] = slot >> 8;
+	texmap[1] = slot & 0xff;
+
+	if (raycast.maxSlot < slot)
+		raycast.maxSlot = slot;
+
+	texmap = (DATA8) (&raycast.texMap[XZ + maxy * stride]);
 
 	/* uneven column: store distance from nearest valid ChunkData */
-	for (slot = 0; maxy < CHUNK_LIMIT; slot ++, maxy ++)
+	for (slot = 0; maxy < CHUNK_LIMIT; slot ++, maxy ++, texmap += stride * 2)
 	{
-		raycast.texMap[XZ + maxy * stride] = 0xff00 + slot;
+		texmap[0] = 0xff;
+		texmap[1] = slot;
 	}
 
 	/* note: texMap texture will be updated after all staging chunks have been processed */
 
-	fprintf(stderr, "loaded = %d / %d\n", ++ total, raycast.chunkMaxHeight * raycast.priorityMax);
+	//static int total;
+	//fprintf(stderr, "loaded = %d / %d\n", ++ total, raycast.chunkMaxHeight * raycast.priorityMax);
 }
 
 void raycastUpdateTexMap(void)
 {
 	/* push the entire texture */
 	glBindTexture(GL_TEXTURE_2D, raycast.texMapId);
-
-	int distant = raycast.distantChunks;
-	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, distant, distant * CHUNK_LIMIT, GL_LUMINANCE_ALPHA, GL_UNSIGNED_BYTE, raycast.texMap);
+	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, raycast.texMapWidth, raycast.distantChunks * CHUNK_LIMIT, GL_RG, GL_UNSIGNED_BYTE, raycast.texMap);
 }
 
 
@@ -262,8 +299,8 @@ void raycastRebuiltPriority(Map map)
 	    raycast.chunkVisible[1] != dir)
 	{
 		/* like xoff/zoff: but scan all 8 surrounding block instead of just 4 */
-		static int8_t xoff8[] = {0,  1, -1, -1, 2,  0, -2,  0};
-		static int8_t zoff8[] = {1, -1, -1,  1, 1, -2,  2, -2};
+		static int8_t xoff8dir[] = {0,  1, -1, -1, 2,  0, -2,  0};
+		static int8_t zoff8dir[] = {1, -1, -1,  1, 1, -2,  2, -2};
 		static uint8_t corner[] = {1, 2, 4, 8, 3<<4, 6<<4, 9<<4, 12<<4};
 
 		raycast.chunkVisible[0] = priority[0];
@@ -286,10 +323,10 @@ void raycastRebuiltPriority(Map map)
 			uint8_t flags;
 			mapX = src[0] & 255;
 			mapZ = src[0] >> 8;
-			for (i = 0, flags = 0; i < DIM(xoff8); i ++)
+			for (i = 0, flags = 0; i < DIM(xoff8dir); i ++)
 			{
-				mapX += xoff8[i];
-				mapZ += zoff8[i];
+				mapX += xoff8dir[i];
+				mapZ += zoff8dir[i];
 
 				if (i >= 4 && flags != (corner[i] >> 4))
 					continue;
@@ -366,7 +403,7 @@ Bool raycastNextChunk(int XZId[3])
 {
 	/* scan priority list, until we find something */
 	DATA16 priority, eof;
-	int    dist = raycast.distantChunks;
+	int    dist = raycast.texMapWidth;
 	int    frame = raycast.map->frame;
 
 	/* mesh chunks have not started processing yet */
@@ -390,7 +427,7 @@ Bool raycastNextChunk(int XZId[3])
 		{
 			XZId[0] = X * 16 + raycast.Xdist;
 			XZId[1] = Z * 16 + raycast.Zdist;
-			XZId[2] = X + Z * raycast.distantChunks;
+			XZId[2] = X + Z * dist;
 			raycast.priorityIndex = priority - raycast.priorityMap + 1;
 			return True;
 		}
@@ -613,89 +650,132 @@ void chunkConvertToRGBA(ChunkData cd, DATA8 rgba)
  * have a reference implementation to fallback to, in case of problem.
  */
 #ifdef DEBUG
-static int iteration;
+static int     iteration;
+static uint8_t color[4];
+static vec4    camera;
+static int     chunk[4];
+static int     size[4];
 
-static float faceNormals[] = { /* S, E, N, W, T, B */
-	 0,  0,  0.5, 1,
-	 0.5,  0,  0, 1,
-	 0,  0, -0.5, 1,
-	-0.5,  0,  0, 1,
-	 0,  0.5,  0, 1,
-	 0, -0.5,  0, 1,
+static float normals[] = { /* S, E, N, W, T, B */
+	 0,  0,  1, 1,
+	 1,  0,  0, 1,
+	 0,  0, -1, 1,
+	-1,  0,  0, 1,
+	 0,  1,  0, 1,
+	 0, -1,  0, 1,
 };
 
-
-static void voxelGetBoundsForFace(DATA8 texture, int face, vec4 V0, vec4 V1, vec4 posOffset)
+void voxelGetBoundsForFace(DATA8 tex, int face, vec4 V0, vec4 V1, vec4 posOffset)
 {
-	static uint8_t offsets[] = { /* S, E, N, W, T, B */
-		0, 1, 2, 1,
-		1, 2, 0, 1,
-		0, 1, 2, 0,
-		1, 2, 0, 0,
-		0, 2, 1, 1,
-		0, 2, 1, 0
-	};
+	int pt[6];
 
-	DATA8 dir = offsets + face * 4;
-	uint8_t x = dir[0];
-	uint8_t y = dir[1];
-	uint8_t z = dir[2];
-	uint8_t t = z;
+	switch (tex[3]) {
+	case 0x80: // void space inside a ChunkData
+		// encoding is done in raycast.c:chunkConvertToRGBA()
+		pt[0] = ((int) floor(posOffset[VX]) & ~15) + (tex[0] & 15);
+		pt[1] = ((int) floor(posOffset[VY]) & ~15) + (tex[1] & 15);
+		pt[2] = ((int) floor(posOffset[VZ]) & ~15) + (tex[0] >> 4);
 
-	float pt[6];
-
-	switch (texture[3]) {
-	case 0x80:
-		/* void space inside a ChunkData */
-		pt[0] = (CPOS(posOffset[VX]) << 4)  + (texture[0] & 15);
-		pt[1] = ((int) posOffset[VY] & ~15) + (texture[1] & 15);
-		pt[2] = (CPOS(posOffset[VZ]) << 4)  + (texture[0] >> 4);
-
-		pt[3] = pt[0] + (texture[2] & 15) + 1;
-		pt[4] = pt[1] + (texture[1] >> 4) + 1;
-		pt[5] = pt[2] + (texture[2] >> 4) + 1;
+		pt[3] = pt[0] + (tex[2] & 15) + 1;
+		pt[4] = pt[1] + (tex[1] >> 4) + 1;
+		pt[5] = pt[2] + (tex[2] >> 4) + 1;
 		break;
 
-	case 0x81: /* void space inside Chunk */
-		pt[0] = CPOS(posOffset[VX]) << 4;
-		pt[2] = CPOS(posOffset[VZ]) << 4;
-		pt[1] = texture[0] << 4;
-		pt[4] = texture[1] << 4;
+	case 0x81: // void space inside Chunk
+		pt[0] = (int) floor(posOffset[VX]) & ~15;
+		pt[2] = (int) floor(posOffset[VZ]) & ~15;
+		pt[1] = tex[0] << 4;
+		pt[4] = tex[1] << 4;
 		pt[3] = pt[0] + 16;
 		pt[5] = pt[2] + 16;
 		break;
 
-	case 0x82: /* raster chunks area */
-		pt[0] = raycast.Xmin;   pt[3] = pt[0] + raycast.rasterChunks * 16;
-		pt[1] = 0;              pt[4] = 256;
-		pt[2] = raycast.Zmin;   pt[5] = pt[2] + raycast.rasterChunks * 16;
+	case 0x82: // raster chunks area
+		pt[0] = chunk[VZ];   pt[3] = pt[0] + size[VZ] * 16;
+		pt[1] = 0;           pt[4] = 256;
+		pt[2] = chunk[VT];   pt[5] = pt[2] + size[VZ] * 16;
 		break;
 
 	default: return;
 	}
 
-	if (dir[3]) t += 3;
-	V0[x] = pt[x];
-	V0[y] = pt[y];
-	V0[z] = pt[t];
-
-	V1[x] = pt[x+3];
-	V1[y] = pt[y+3];
-	V1[z] = pt[t];
+	#define vec4(dst, x,y,z,t)   dst[0]=x,dst[1]=y,dst[2]=z,dst[3]=t
+	switch (face) {
+	case 0: // south
+		vec4(V0, pt[0], pt[1], pt[5], 1);
+		vec4(V1, pt[3], pt[4], pt[5], 1);
+		break;
+	case 1: // east
+		vec4(V0, pt[3], pt[1], pt[2], 1);
+		vec4(V1, pt[3], pt[4], pt[5], 1);
+		break;
+	case 2: // north
+		vec4(V0, pt[0], pt[1], pt[2], 1);
+		vec4(V1, pt[3], pt[4], pt[2], 1);
+		break;
+	case 3: // west
+		vec4(V0, pt[0], pt[1], pt[2], 1);
+		vec4(V1, pt[0], pt[4], pt[5], 1);
+		break;
+	case 4: // top
+		vec4(V0, pt[0], pt[4], pt[2], 1);
+		vec4(V1, pt[3], pt[4], pt[5], 1);
+		break;
+	case 5: // bottom
+		vec4(V0, pt[0], pt[1], pt[2], 1);
+		vec4(V1, pt[3], pt[1], pt[5], 1);
+	}
+	#undef vec4
 }
 
-static DATA8 voxelFindClosest(Map map, vec4 pos)
+static void texelFetch(vec4 ret, int texId, int X, int Y, int lod)
 {
-	int X = (int) (pos[VX] - raycast.Xdist) >> 4;
-	int Z = (int) (pos[VZ] - raycast.Zdist) >> 4;
-	int Y = CPOS(pos[1]);
+	DATA8 src;
+	if (texId == 0)
+	{
+		src = (DATA8) (&raycast.texMap[X + Y * size[VX]]);
+		ret[0] = src[0] / 255.0f;
+		ret[1] = src[1] / 255.0f;
+		ret[2] = ret[3] = 1.0f;
+	}
+	else
+	{
+		ChunkTexture bank;
+		for (bank = HEAD(raycast.texBanks); bank && texId > 1; NEXT(bank), texId --);
 
-	if (X < 0 || Z < 0 || X >= raycast.distantChunks || Z >= raycast.distantChunks || Y >= raycast.chunkMaxHeight || Y < 0)
-		return NULL;
+		if (! bank->data)
+		{
+			/* need to retrieve the entire tex data :-/ */
+			bank->data = malloc(4096 * 1024 * 4); // 16 mb
+			if (bank->data == NULL)
+				return;
+			glBindTexture(GL_TEXTURE_2D, bank->textureId);
+			glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, bank->data);
+		}
+		src = bank->data + X * 4 + Y * 16*1024;
+		ret[0] = src[0] / 255.0f;
+		ret[1] = src[1] / 255.0f;
+		ret[2] = src[2] / 255.0f;
+		ret[3] = src[3] / 255.0f;
+	}
+}
 
-	uint16_t texId = raycast.texMap[X + (Z + Y * raycast.distantChunks) * raycast.distantChunks];
+// extract voxel color at position <pos>
+Bool voxelFindClosest(vec4 pos, DATA8 tex)
+{
+	int X = (int) (pos[VX] - chunk[VX]) >> 4;
+	int Z = (int) (pos[VZ] - chunk[VY]) >> 4;
+	int Y = (int) pos[VY] >> 4;
 
-	static uint8_t tex[4];
+	if (X < 0 || Z < 0 || X >= size[VX] || Z >= size[VX] || Y >= size[VY] || Y < 0)
+		return False;
+
+	vec4 texel;
+	texelFetch(texel, 0, X, Z + Y * size[VX], 0);
+	int texId = roundf(texel[0] * 65280.0f + texel[1] * 255.0f);
+
+	if (texId < 0xff00 && texId > raycast.maxSlot)
+		puts("here");
 
 	if (texId == 0xffff)
 	{
@@ -704,132 +784,140 @@ static DATA8 voxelFindClosest(Map map, vec4 pos)
 		tex[1] = 0xf0;
 		tex[2] = 0xff;
 		tex[3] = 0x80;
-		return tex;
+		return True;
 	}
 
 	if (texId >= 0xff00)
 	{
 		/* empty space above chunk */
 		tex[0] = Y - (texId - 0xff00);
-		tex[1] = map->maxHeight;
+		tex[1] = size[VY];
 		tex[2] = 0;
 		tex[3] = 0x81;
-		return tex;
+		return True;
 	}
 
-	ChunkTexture bank;
-	for (bank = HEAD(raycast.texBanks); bank && texId >= TEXTURE_SLOTS; NEXT(bank), texId -= TEXTURE_SLOTS);
+	int coord[2] = {
+		((int) floor(pos[VX]) & 15) +
+		((int) floor(pos[VZ]) & 15) * 16 +
+		((int) floor(pos[VY]) & 15) * 256, texId & 1023
+	};
 
-	if (! bank->data)
-	{
-		/* need to retrieve the entire tex data :-/ */
-		bank->data = malloc(4096 * 1024 * 4); // 16 mb
-		if (bank->data == NULL)
-			return NULL;
-		glBindTexture(GL_TEXTURE_2D, bank->textureId);
-		glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, bank->data);
+	// should consider using bindless texture one day (not supported on intel though :-/).
+	vec4 voxel;
+	switch (texId >> 10) {
+	// 4096 ChunkData is not much actually  :-/ should increase texture size...
+	case 0: texelFetch(voxel, 1, coord[0], coord[1], 0); break;
+	case 1: texelFetch(voxel, 2, coord[0], coord[1], 0); break;
+	case 2: texelFetch(voxel, 3, coord[0], coord[1], 0); break;
+	case 3: texelFetch(voxel, 4, coord[0], coord[1], 0); break;
+	default: return False;
 	}
 
-	int index =
-		((int) floorf(pos[0]) & 15) +
-		((int) floorf(pos[2]) & 15) * 16 +
-		((int) floorf(pos[1]) & 15) * 256;
+	tex[0] = voxel[0] * 255;
+	tex[1] = voxel[1] * 255;
+	tex[2] = voxel[2] * 255;
+	tex[3] = voxel[3] * 255;
 
-	return bank->data + texId * (16*1024) + index * 4;
+	return True;
 }
 
-/* similar to mapPointToObject(), but only check voxel and consider them full */
-static Bool mapPointToVoxel(Map map, vec4 camera, vec4 dir, DATA8 color)
+
+Bool mapPointToVoxel(vec4 dir)
 {
-	vec4 pos, u, V0, V1;
-	memcpy(u, dir, sizeof u);
-	vec4 plane = {floorf(camera[0]), floorf(camera[1]), floorf(camera[2]), 1};
-	int  flags = (u[0] < 0 ? 8 : 2) | (u[1] < 0 ? 32 : 16) | (u[2] < 0 ? 4 : 1);
+	vec4 pos, V0, V1;
+	vec4 plane = {floor(camera[VX]), floor(camera[VY]), floor(camera[VZ]), 1};
+	int  flags = (dir[VX] < 0 ? 8 : 2) | (dir[VY] < 0 ? 32 : 16) | (dir[VZ] < 0 ? 4 : 1);
 	int  side  = 4;
 
-	memcpy(pos, camera, sizeof pos);
+	memcpy(pos, camera, 16);
 
-	DATA8 tex = "\0\0\0\x82";
+	uint8_t tex[4] = {0, 0, 0, 0x82};
 
-	next: for (;;)
+	for (;;)
 	{
-		if (tex)
+		if (tex[3] < 0x80)
 		{
-			vec norm;
-			int i;
-			if ((tex[3] & 0x80) == 0)
-			{
-				color[0] = tex[0] * raycast.shading[side] >> 8;
-				color[1] = tex[1] * raycast.shading[side] >> 8;
-				color[2] = tex[2] * raycast.shading[side] >> 8;
-				return True;
-			}
+			color[0] = tex[0] * raycast.shading[side] >> 8;
+			color[1] = tex[1] * raycast.shading[side] >> 8;
+			color[2] = tex[2] * raycast.shading[side] >> 8;
 
-			/* merged blank space */
-			for (i = 0, norm = faceNormals; i < 6; i ++, norm += 4)
-			{
-				vec4 inter;
-				/* we can already eliminate some planes based on the ray direction */
-				if ((flags & (1 << i)) == 0) continue;
-
-				iteration ++;
-				voxelGetBoundsForFace(tex, i, V0, V1, plane);
-
-				if (intersectRayPlane(pos, u, V0, norm, inter) == 1)
-				{
-					/* need to check that intersection point remains within box */
-					if (norm[0] == 0 && ! (V0[0] <= inter[0] && inter[0] <= V1[0])) continue;
-					if (norm[1] == 0 && ! (V0[1] <= inter[1] && inter[1] <= V1[1])) continue;
-					if (norm[2] == 0 && ! (V0[2] <= inter[2] && inter[2] <= V1[2])) continue;
-
-					/* we have an intersection: move to block */
-					memcpy(pos, inter, 12);
-					memcpy(plane, inter, 12);
-					if (norm[0] == 0)
-					{
-						if (inter[VX] == V0[VX] || inter[VX] == V1[VX])
-							plane[VX] += u[VX];
-					}
-					else plane[VX] += norm[0];
-					if (norm[1] == 0)
-					{
-						if (inter[VY] == V0[VY] || inter[VY] == V1[VY])
-							plane[VY] += u[VY];
-					}
-					else plane[VY] += norm[1];
-					if (norm[2] == 0)
-					{
-						if (inter[VZ] == V0[VZ] || inter[VZ] == V1[VZ])
-							plane[VZ] += u[VZ];
-					}
-					else plane[VZ] += norm[2];
-
-					tex = voxelFindClosest(map, plane);
-					side = opp[i];
-					goto next;
-				}
-			}
-			if (i == 6)
-				return False;
+			//color = vec4(vec3(tex.xyz) / 255.0 * shading[side].r, 1);
+			return True;
 		}
-		else return False;
+
+		// empty space in voxel: skip this part as quickly as possible
+		int i;
+		for (i = 0; i < 6; i ++)
+		{
+			vec4 inter;
+			vec  norm;
+
+			if ((flags & (1 << i)) == 0) continue;
+
+			iteration ++;
+			voxelGetBoundsForFace(tex, i, V0, V1, plane);
+			norm = normals + i * 4;
+
+			if (intersectRayPlane(pos, dir, V0, norm, inter))
+			{
+				// need to check that intersection point remains within box
+				if (norm[VX] == 0 && ! (V0[VX] <= inter[VX] && inter[VX] <= V1[VX])) continue;
+				if (norm[VY] == 0 && ! (V0[VY] <= inter[VY] && inter[VY] <= V1[VY])) continue;
+				if (norm[VZ] == 0 && ! (V0[VZ] <= inter[VZ] && inter[VZ] <= V1[VZ])) continue;
+
+				memcpy(plane, inter, 12);
+				memcpy(pos, inter, 12);
+
+				if (norm[VX] == 0)
+				{
+					if (inter[VX] == V0[VX] || inter[VX] == V1[VX])
+						plane[VX] += dir[VX];
+				}
+				else plane[VX] += norm[VX] * 0.5f;
+				if (norm[VY] == 0)
+				{
+					if (inter[VY] == V0[VY] || inter[VY] == V1[VY])
+						plane[VY] += dir[VY];
+				}
+				else plane[VY] += norm[VY] * 0.5f;
+				if (norm[VZ] == 0)
+				{
+					if (inter[VZ] == V0[VZ] || inter[VZ] == V1[VZ])
+						plane[VZ] += dir[VZ];
+				}
+				else plane[VZ] += norm[VZ] * 0.5f;
+
+				if (! voxelFindClosest(plane, tex))
+					return False;
+				side = opp[i];
+				break;
+			}
+		}
+		if (i == 6)
+			return False;
 	}
 }
+
+#define SCR_WIDTH         400
+#define SCR_HEIGHT        400
 
 /* raycasting on CPU, mostly used for debugging */
 void raycastWorld(Map map, mat4 invMVP, vec4 pos)
 {
 	static uint8_t skyColor[] = {0x72, 0xae, 0xf1};
 	DATA8 bitmap, px;
-	vec4  player;
 	int   i, j;
 
 	bitmap = malloc(SCR_WIDTH * SCR_HEIGHT * 3);
-	player[VX] = pos[VX];
-	player[VZ] = pos[VZ];
-	player[VY] = pos[VY] + 1.6f;
-	player[VT] = 1;
+	camera[VX] = pos[VX];
+	camera[VZ] = pos[VZ];
+	camera[VY] = pos[VY] + 1.6f;
+	camera[VT] = 1;
 	iteration = 0;
+
+	memcpy(chunk, raycast.chunkLoc, sizeof chunk);
+	memcpy(size,  raycast.chunkSize, sizeof size);
 
 	for (j = 0, px = bitmap; j < SCR_HEIGHT; j ++)
 	{
@@ -841,11 +929,17 @@ void raycastWorld(Map map, mat4 invMVP, vec4 pos)
 			matMultByVec(dir, invMVP, clip);
 
 			/* ray direction according to position on screen and player's view vector */
-			dir[VX] = dir[VX] / dir[VT] - player[VX];
-			dir[VY] = dir[VY] / dir[VT] - player[VY];
-			dir[VZ] = dir[VZ] / dir[VT] - player[VZ];
+			dir[VX] = dir[VX] / dir[VT] - camera[VX];
+			dir[VY] = dir[VY] / dir[VT] - camera[VY];
+			dir[VZ] = dir[VZ] / dir[VT] - camera[VZ];
 
-			if (! mapPointToVoxel(map, player, dir, px))
+			if (mapPointToVoxel(dir))
+			{
+				px[0] = color[0];
+				px[1] = color[1];
+				px[2] = color[2];
+			}
+			else
 			{
 				/* no intersection with voxel terrain: use sky color then */
 				px[0] = skyColor[0];

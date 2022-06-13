@@ -7,7 +7,7 @@
 layout (std140, binding = 2) uniform param
 {
 	mat4 projMatrix;
-	mat4 mvMatrix;
+	mat4 MVP;
 	vec4 lookAt;
 	vec4 camera;
 	vec4 sunDir;

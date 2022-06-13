@@ -67,7 +67,7 @@ void main(void)
 	vec3 absNorm = abs(normal);
 	absNorm *= 1 / (absNorm.x + absNorm.y + absNorm.z);
 
-	gl_Position = projMatrix * mvMatrix * vec4(pos + offsets.xyz, 1);
+	gl_Position = MVP * vec4(pos + offsets.xyz, 1);
 	float U = float(info.x & 511);
 	float V = float(((info.x >> 6) & ~7) | (info.y & 7));
 	if (V == 1023) V = 1024;

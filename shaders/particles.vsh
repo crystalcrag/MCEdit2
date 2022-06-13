@@ -47,5 +47,5 @@ void main(void)
 		color = info.y;
 		light = 0xf0;
 	}
-	gl_Position = projMatrix * mvMatrix * vec4(position, 1);
+	gl_Position = MVP * vec4(position, 1);
 }

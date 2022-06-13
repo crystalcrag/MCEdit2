@@ -19,7 +19,7 @@ out vec3 sun_norm;
 
 void main()
 {
-	gl_Position = projMatrix * mvMatrix * (vec4(vpoint, 0) + vec4(camera.x, 64, camera.z, 1));
+	gl_Position = MVP * (vec4(vpoint, 0) + vec4(camera.x, 64, camera.z, 1));
 	pos = vpoint;
 
 	// sun pos being a constant vector, we can normalize it in the vshader

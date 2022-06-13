@@ -59,7 +59,6 @@ float fogBlend(vec2 coord, bool water)
 
 void main(void)
 {
-	mat4 MVP   = projMatrix * mvMatrix;
 	bool keepX = FLAG_TEX_KEEPX;
 	bool lerpFOG = false;
 

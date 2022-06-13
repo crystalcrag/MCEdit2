@@ -1,6 +1,21 @@
 =========== Week 23 (2022) ===========
+Sun June 12:
+	* GPU raycasting working better.
+
+Sat June 11:
+	* GPU raycasting: lots of stuff not working correctly :-/
+
+Fri June 10:
+	* SITGL bug fixes.
+
+Thu June 9:
+	* GLSL ported to CPU just for testing :-/
+
+Wed June 8:
+	* CPU code ported to GLSL: will need some serious testing though :-/
+
 Tue June 7:
-	* raycasting using GPU data mostly working.
+	* raycasting using GPU data mostly working (from CPU though).
 
 =========== Week 22 (2022) ===========
 Sat June 4:

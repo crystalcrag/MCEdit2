@@ -44,6 +44,7 @@ struct RaycastPrivate_t
 	uint8_t  shading[6];             /* CPU rendering */
 	int      distantChunks;          /* distance in chunks distant chunk extends */
 	int      rasterChunks;           /* distance in chunks for rasterizaed chunks */
+	int      texMapWidth;
 	DATA16   texMap;                 /* will contain in which <texBanks> distant chunks are */
 	DATA16   priorityMap;            /* to load chunk that are visible first */
 	int      priorityMax;
@@ -53,10 +54,16 @@ struct RaycastPrivate_t
 	int      bitmapMax;
 	int      shader;                 /* raycasting.vsh */
 	int      vao, vbo;
+	int      uniformINVMVP;          /* shader param */
+	int      uniformChunk;
+	int      uniformSize;
+	float    chunkLoc[4];            /* shader uniform */
+	float    chunkSize[4];
 	int      texMapId;               /* texture id, copy of texMap but on GPU */
 	Map      map;
 	int      Xmin, Zmin;             /* world coord of north-west corner of raster chunks */
 	int      Xdist, Zdist;           /* distant chunk coord (north-west) */
+	int      maxSlot;                // DEBUG
 	int      chunkMaxHeight;         /* max height (in chunks) of all chunks in distant region */
 	uint16_t chunkVisible[2];        /* to limit the work to be done by raycastRebuiltPriority() */
 };

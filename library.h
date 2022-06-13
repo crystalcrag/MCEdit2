@@ -25,6 +25,7 @@ void libraryFreeBrush(LibBrush);
 struct MCLibrary_t
 {
 	ListHead   brushes;         /* LibBrush */
+	mat4       matPerspective;
 	int        uboShader;
 	int        nbBrushes;
 	uint8_t    saveBrush;       /* action when select callback is triggered */

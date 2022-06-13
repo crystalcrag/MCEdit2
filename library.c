@@ -98,7 +98,7 @@ static int librarySelItem(SIT_Widget w, APTR cd, APTR ud)
 static void libraryGenThumb(LibBrush lib)
 {
 	Map  brush = lib->data;
-	mat4 view;
+	mat4 MVP;
 	vec4 center = {
 		brush->size[VX] * 0.5,
 		brush->size[VY] * 0.5,
@@ -131,17 +131,17 @@ static void libraryGenThumb(LibBrush lib)
 
 	if (library.uboShader == 0)
 	{
-		mat4 P;
 		library.uboShader = renderInitUBO();
 		glBindBuffer(GL_UNIFORM_BUFFER, library.uboShader);
-		matPerspective(P, globals.fieldOfVision, 1, NEAR_PLANE, FAR_PLANE);
-		glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof (mat4), P);
+		matPerspective(library.matPerspective, globals.fieldOfVision, 1, NEAR_PLANE, FAR_PLANE);
+		glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof (mat4), library.matPerspective);
 	}
 
-	matLookAt(view, camera, center, (float[3]){0, 1, 0}, NULL);
+	matLookAt(MVP, camera, center, (float[3]){0, 1, 0}, NULL);
+	matMult(MVP, library.matPerspective, MVP);
 	glBindBuffer(GL_UNIFORM_BUFFER, library.uboShader);
 	glBufferSubData(GL_UNIFORM_BUFFER, UBO_CAMERA_OFFSET, sizeof (vec4), camera);
-	glBufferSubData(GL_UNIFORM_BUFFER, UBO_MVMATRIX_OFFSET, sizeof (mat4), view);
+	glBufferSubData(GL_UNIFORM_BUFFER, UBO_MVMATRIX_OFFSET, sizeof (mat4), MVP);
 	glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
 	nvgluBindFramebuffer(lib->nvgFBO);

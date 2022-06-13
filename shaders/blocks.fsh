@@ -23,7 +23,6 @@ layout (binding=0) uniform sampler2D blockTex; // Main texture for blocks
 // current sky texture as rendered by skydone.fsh
 layout (binding=6) uniform sampler2D skyTex;
 
-uniform vec3 biomeColor;
 uniform uint underWater;
 uniform uint timeMS;
 

@@ -16,7 +16,7 @@ flat out uint  selected;
 
 void main(void)
 {
-	gl_Position = projMatrix * mvMatrix * vec4(position.xyz, 1);
+	gl_Position = MVP * vec4(position.xyz, 1);
 
 	/*
 	 * position.w encodes:

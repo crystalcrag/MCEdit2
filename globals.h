@@ -61,7 +61,7 @@ typedef struct MCGlobals_t
 	float   compassSize;      /* % over base value */
 	float   mouseSpeed;       /* % over base value */
 	int     redstoneTick;     /* in millisec */
-	int     targetFPS;        /* < 0 == uncapped */
+	int     targetFPS;        /* 0 == uncapped */
 	float   fieldOfVision;    /* in degrees */
 	uint8_t guiScale;         /* [50-200] % */
 	uint8_t brightness;       /* [0-101] => map [0-100] to ambient values [0.2 - 0.4], 101 means full brightness */
@@ -71,6 +71,7 @@ typedef struct MCGlobals_t
 	uint8_t showPreview;      /* 1 = show preview block, 0 = outline only */
 	uint8_t lockMouse;        /* 1 = mouse lock within window, 0 = free mouse */
 	uint8_t fullScreen;       /* 0 = window, 1 = full screen, 2 = auto full-screen */
+	uint8_t raycastEnabled;
 	int     fullScrWidth;     /* full screen resolution */
 	int     fullScrHeight;
 
