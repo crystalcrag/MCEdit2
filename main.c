@@ -876,7 +876,7 @@ void mceditWorld(void)
 				case SDLK_F7:
 					globals.breakPoint = ! globals.breakPoint;
 					globals.raycastEnabled = ! globals.raycastEnabled;
-					raycastWorld(globals.level, globals.matInvMVP, mcedit.player.pos);
+					//raycastWorld(globals.level, globals.matInvMVP, mcedit.player.pos);
 					//debugCaveGraph(globals.level);
 					//mapShowChunks(globals.level);
 					//meshDebugBank(globals.level);

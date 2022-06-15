@@ -14,6 +14,8 @@ uniform mat4 INVMVP;
 uniform vec4 chunk;   // .xy == world coord of distant region, .zw = coord of raster chunks
 uniform vec4 size;    // .x == size of distant region in chunks, .y = height of distant chunk, .z = size of raster region
 
+in vec3 worldPos;
+
 /*
  * where to find ChunkData in the banks: renderDist.x x renderDist.x x 16, GL_LUMINANCE_ALPHA pixels
  * texture contain 16 planes of renderDist.x x renderDist.x pixels
@@ -27,9 +29,6 @@ layout (binding=9)  uniform sampler2D bankTex2;
 layout (binding=10) uniform sampler2D bankTex3;
 layout (binding=11) uniform sampler2D bankTex4;
 
-/*
- * this part is more or less a 1-to-1 copy from raycast.c
- */
 const int opp[6] = int[6] (2,3,0,1,5,4);
 
 void voxelGetBoundsForFace(in ivec4 tex, in int face, out vec3 V0, out vec3 V1, in vec3 posOffset)
@@ -52,6 +51,12 @@ void voxelGetBoundsForFace(in ivec4 tex, in int face, out vec3 V0, out vec3 V1, 
 		pt1 = vec3(chunk.z, 0, chunk.w);
 		pt2 = pt1 + vec3(size.z * 16, 256, size.z * 16);
 		break;
+
+	case 0x83: // area above distant chunks
+		pt1 = vec3(chunk.x, 0, chunk.y);
+		pt2 = pt1 + size.xyx * 16;
+		break;
+
 	default: return;
 	}
 
@@ -83,14 +88,25 @@ void voxelGetBoundsForFace(in ivec4 tex, in int face, out vec3 V0, out vec3 V1, 
 }
 
 // extract voxel color at position <pos>
-bool voxelFindClosest(in vec3 pos, out ivec4 tex)
+bool voxelFindClosest(in vec3 pos, out ivec4 tex, float upward)
 {
 	int X = int(pos.x - chunk.x) >> 4;
 	int Z = int(pos.z - chunk.y) >> 4;
 	int Y = int(pos.y) >> 4;
 
-	if (X < 0 || Z < 0 || X >= size.x || Z >= size.x || Y >= size.y || Y < 0)
+	if (Y >= size.y)
+	{
+		// above raycasted chunks and going upward: no way we can reach a distant chunk
+		if (upward >= 0)
+			return false;
+			
+		// maybe we can
+		tex = ivec4(0, 0, 0, 0x83);
+	}
+	else if (X < 0 || Z < 0 || X >= size.x || Z >= size.x || Y < 0)
+	{
 		return false;
+	}
 
 	vec2 texel = texelFetch(texMap, ivec2(X, Z + Y * size.x), 0).rg;
 	int  texId = int(round(texel.x * 65280 + texel.y * 255));
@@ -182,6 +198,7 @@ bool mapPointToVoxel(in vec3 dir)
 
 				plane = pos = inter;
 
+				// <plane> needs to be offseted to reach next voxel
 				if (norm.x == 0)
 				{
 					if (inter.x == V0.x || inter.x == V1.x)
@@ -201,7 +218,7 @@ bool mapPointToVoxel(in vec3 dir)
 				}
 				else plane.z += norm.z * 0.5;
 
-				if (! voxelFindClosest(plane, tex))
+				if (! voxelFindClosest(plane, tex, dir.y))
 					return false;
 				side = opp[sides[i]];
 				break;
@@ -214,9 +231,6 @@ bool mapPointToVoxel(in vec3 dir)
 
 void main(void)
 {
-	vec4 dir = INVMVP * vec4(gl_FragCoord.x * 2 / SCR_WIDTH - 1, gl_FragCoord.y * 2 / SCR_HEIGHT - 1, 0, 1);
-	dir = dir / dir.w - camera;
-
-	if (! mapPointToVoxel(dir.xyz))
+	if (! mapPointToVoxel(normalize(worldPos - camera.xyz) * 0.01))
 		discard;
 }

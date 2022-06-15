@@ -1,0 +1,104 @@
+<html>
+<head>
+<style type="text/css">
+html			{ font-family: Georgia, serif; margin: 0; padding: 0 }
+body			{ counter-reset: tocH2 }
+a:hover span	{ text-decoration-style: solid; text-decoration: underline; color: #99ee28 }
+a				{ display: block; margin: 5px 0; color: white; text-decoration: none }
+a.sub1 span		{ text-decoration: underline; text-decoration-style: dotted }
+a.sub1			{ counter-reset: tocH3 }
+a.sub2			{ margin-left: 30px; counter-reset: tocH4 }
+a.sub3			{ margin-left: 60px; color: #ccc }
+a.sub4			{ margin-left: 90px; color: #ccc }
+a.sub1::before	{ counter-increment: tocH2; content: counter(tocH2) ". " }
+a.sub2::before	{ counter-increment: tocH3; content: counter(tocH2) "." counter(tocH3) ". "; text-align: right }
+a.sub3::before	{ counter-increment: tocH4; content: counter(tocH2) "." counter(tocH3) "." counter(tocH4) ". " }
+</style>
+</head>
+
+<body>
+<a class="sub1" target="_PARENT" href="internals.html#conventions"><span>Conventions</span></a>
+  <a class="sub2" target="_PARENT" href="internals.html#coord"><span>Coordinate system</span></a>
+  <a class="sub2" target="_PARENT" href="internals.html#rotation"><span>Angles</span></a>
+  <a class="sub2" target="_PARENT" href="internals.html#faceorder"><span>Face enumeration order</span></a>
+  <a class="sub2" target="_PARENT" href="internals.html#datatypes"><span>Datatypes</span></a>
+
+<a class="sub1" target="_PARENT" href="frustum.html"><span>Frustum culling</span></a>
+  <a class="sub2" target="_PARENT" href="frustum.html#firstvers"><span>First version</span></a>
+  <a class="sub2" target="_PARENT" href="frustum.html#impl"><span>Implementation</span></a>
+  <a class="sub2" target="_PARENT" href="frustum.html#neighbors"><span>Enumerating neighbors</span></a>
+  <a class="sub2" target="_PARENT" href="frustum.html#edgecase"><span>Edge cases</span></a>
+  <a class="sub2" target="_PARENT" href="frustum.html#crossplane"><span>Cross-plane faces</span></a>
+  <a class="sub2" target="_PARENT" href="frustum.html#caveats"><span>Caveats</span></a>
+  <a class="sub2" target="_PARENT" href="frustum.html#fakechunks"><span>Fake chunks</span></a>
+  <a class="sub2" target="_PARENT" href="frustum.html#outside"><span>Outside bounds</span></a>
+  <a class="sub2" target="_PARENT" href="frustum.html#cavecull"><span>Cave culling</span></a>
+    <a class="sub3" target="_PARENT" href="frustum.html#cavecullv1"><span>First attempt</span></a>
+    <a class="sub3" target="_PARENT" href="frustum.html#cavecullv2"><span>Second attempt</span></a>
+    <a class="sub3" target="_PARENT" href="frustum.html#cnxgraph"><span>Computing visibility graph</span></a>
+    <a class="sub3" target="_PARENT" href="frustum.html#cnxgraph"><span>Graph traversal</span></a>
+    <a class="sub3" target="_PARENT" href="frustum.html#startchunk"><span>Starting chunk<span></a>
+    <a class="sub3" target="_PARENT" href="frustum.html#uncertain"><span>Uncertain chunk<span></a>
+  <a class="sub2" target="_PARENT" href="frustum.html#altimpl"><span>Alternate implementation<span></a>
+
+<a class="sub1" target="_PARENT" href="chunkLoading.html"><span>Chunk loading</span></a>
+  <a class="sub2" target="_PARENT" href="chunkLoading.html#single"><span>Single thread</span></a>
+  <a class="sub2" target="_PARENT" href="chunkLoading.html#multi"><span>Multi thread</span></a>
+
+
+<a class="sub1" target="_PARENT" href="blockAPI.html"><span>Block API</span></a>
+  <a class="sub2" target="_PARENT" href="blockAPI.html#blockdesc"><span>Block description</span></a>
+  <a class="sub2" target="_PARENT" href="blockAPI.html#statedesc"><span>State description</span></a>
+  <a class="sub2" target="_PARENT" href="blockAPI.html#blockmodel"><span>Block models</span></a>
+
+<a class="sub1" target="_PARENT" href="NBT.html"><span>NBT API</span></a>
+  <a class="sub2" target="_PARENT" href="NBT.html#NBTspec"><span>NBT Structure</span></a>
+  <a class="sub2" target="_PARENT" href="NBT.html#NBTspecapi"><span>NBT Structure in API</span></a>
+  <a class="sub2" target="_PARENT" href="NBT.html#NBTpost"><span>NBT post processing</span></a>
+  <a class="sub2" target="_PARENT" href="NBT.html#NBTfunc"><span>NBT Function overview</span></a>
+	<a class="sub3" target="_PARENT" href="NBT.html#NBTread"><span>Reading files</span></a>
+	<a class="sub3" target="_PARENT" href="NBT.html#NBTfind"><span>Locate tags</span></a>
+	<a class="sub3" target="_PARENT" href="NBT.html#NBTiter"><span>Iterating properties</span></a>
+	<a class="sub3" target="_PARENT" href="NBT.html#NBTreadtag"><span>Reading tag value</span></a>
+	<a class="sub3" target="_PARENT" href="NBT.html#NBTchgtag"><span>Setting tag value</span></a>
+	<a class="sub3" target="_PARENT" href="NBT.html#NBTcreate"><span>Creating / modifying nbt</span></a>
+	<a class="sub3" target="_PARENT" href="NBT.html#NBTother"><span>Others</span></a>
+
+<a class="sub1" target="_PARENT" href="opengl.html"><span>Advanced OpenGL</a>
+  <a class="sub2" target="_PARENT" href="opengl.html#translucency"><span>Alpha transparency</span></a>
+    <a class="sub3" target="_PARENT" href="opengl.html#oit"><span>Sorting on GPU</span></a>
+    <a class="sub3" target="_PARENT" href="opengl.html#depthpeel"><span>Depth peeling</span></a>
+    <a class="sub3" target="_PARENT" href="opengl.html#cpusort"><span>Sorting on CPU</span></a>
+  <a class="sub2" target="_PARENT" href="opengl.html#gpubanks"><span>Managing chunks on the GPU</span></a>
+    <a class="sub3" target="_PARENT" href="opengl.html#vtxbuffers"><span>Vertex buffers</span></a>
+    <a class="sub3" target="_PARENT" href="opengl.html#vtxdata"><span>Vertex data</span></a>
+
+
+<a class="sub1" target="_PARENT" href="mesh.html"><span>Mesh generation</span></a>
+  <a class="sub2" target="_PARENT" href="mesh.html#meshsolid"><span><tt>SOLID</tt> voxel</span></a>
+    <a class="sub3" target="_PARENT" href="mesh.html#vtxtex"><span>Coordinates</span></a>
+    <a class="sub3" target="_PARENT" href="mesh.html#skyblock"><span>Lighting</span></a>
+    <a class="sub3" target="_PARENT" href="mesh.html#cnxtex"><span>Connected textures</span></h4>
+	<a class="sub3" target="_PARENT" href="mesh.html#meshhalf"><span>Half-block</span></a>
+    <a class="sub3" target="_PARENT" href="mesh.html#ocs"><span>Occlusion</span></a>
+  <a class="sub2" target="_PARENT" href="mesh.html#meshcust"><span><tt>CUST</tt> voxel</span></a>
+    <a class="sub3" target="_PARENT" href="mesh.html#cnxmodels"><span>Connected models</span></a>
+  <a class="sub2" target="_PARENT" href="mesh.html#greedymesh"><span>Greedy meshing</span></a>
+
+<a class="sub1" target="_PARENT" href="raycasting.html"><span>Raycasting</span></a>
+  <a class="sub2" target="_PARENT" href="raycasting.html#meshsolid"><span>Chunk formats</span></a>
+  <a class="sub2" target="_PARENT" href="raycasting.html#meshsolid"><span>Chunk generation</span></a>
+  <a class="sub2" target="_PARENT" href="raycasting.html#meshsolid"><span>Shaders</span></a>
+
+<a class="sub1" target="_PARENT" href="entities.html"><span>Entities</span></a>
+  <a class="sub2" target="_PARENT" href="entities.html#structure"><span>Data structure</span></a>
+  <a class="sub2" target="_PARENT" href="entities.html#collision"><span>Collision detection</span></a>
+  <a class="sub2" target="_PARENT" href="entities.html#partitioning"><span>Space partioning</span></a>
+
+<a class="sub1" target="_PARENT" href="emitters.hmtl"><span>Particle emitters</span></a>
+
+<br>
+<br>
+<br>
+</body>
+</html>

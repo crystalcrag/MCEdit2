@@ -53,7 +53,7 @@ struct RaycastPrivate_t
 	DATA8    bitmapMap;              /* to avoid adding twice the same chunk when building priorityMap */
 	int      bitmapMax;
 	int      shader;                 /* raycasting.vsh */
-	int      vao, vbo;
+	int      vao, vbo, vboCount;
 	int      uniformINVMVP;          /* shader param */
 	int      uniformChunk;
 	int      uniformSize;

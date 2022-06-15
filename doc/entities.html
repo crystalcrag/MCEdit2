@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+  <title>Internals - frustum culling</title>
+  <link rel="stylesheet" type="text/css" href="default.css">
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+</head>
+<body>
+
+<!-- poor's man include :-/ -->
+<iframe src="toc.html" id="toc"></iframe>
+
+<div id="content">
+
+<h1 style="counter-set: h2 8">9. Entities</h1>
+
+<div id="abstract"><u>Abstract:</u>
+<p>Entities refere to models that can move freely on the map, they are not constrainted to the voxel
+grid. Their shape have much more liberty than what voxel models allow, and can be animated with more
+freedom. On the other hand, this engine has been designed with the assumption that the number of
+entities is significantly lower than voxels, usually around a couple of thousands.
+</div>
+
+<h2>Entities</h2>
+
+<p>Entities in this engine refer to a model that is not aligned to the voxel grid: it can have arbitrary
+position and/or rotation, and are not necessarily included in a <tt>ChunkData</tt> (which means that
+frustum culling used by terrain <b>cannot</b> be applied to entities).
+
+<p>This part will describe <b>how entities</b> (mobs, block moved by piston, dropped items, paintings, ...)
+<b>are managed</b> within this engine. This part is not trivial just by looking at the source code, since
+there are a lot of moving parts, with lots of datatypes:
+
+<h3 id="structure"><span>Data structures</span></h3>
+
+<p>There are a lot of datatypes used to manage entities, here a brief overview of the purpose of each one:
+
+<ul>
+  <li><tt>struct Entity_t</tt> : represents an entity from within the world, as such, they have
+  a NBT record associated.
+
+  <li><tt>struct EntityBuffer_t</tt> : <tt>struct Entity_t</tt> are allocated in batch (<tt>ENTITY_BATCH</tt>
+  count, 256 by default). It is easier to handle entities if pointers are not reallocated, so that reference
+  can be held within datatypes. Allocating them in batch, will somewhat keep those entities close in memory.
+
+  <li><tt>struct EntityBank_t</tt> : hold model data that will be used to render entities: we'll use
+  one model per entity, so that they can be drawed in a single call to <tt>glMultiDrawArraysIndirect()</tt>.
+
+  <p>This API will need a command buffer (vboMDAI) and a per instance vertex data (vboLoc). This list will
+  be rebuild with minimal changes whenever a entity is added or removed, which means a few more boilerplate
+  tables to track usage (most notable one being <tt>mdaiUsage</tt>).
+
+  <p>Assumption is made that entities around the player is rather low (less than 1000). As such, we
+  don't care about frustum culling, we let the vertex shader do the work.
+
+  <p>Once added, an entity model will remain in the VBO (there are no ways to remove models). Models will
+  be reused as mush as possible: for example if a stone brick block is used in an item frame, is dropped
+  as an item in the world or is pushed by a piston, all at the same time: there will be only one model
+  allocated for all of these (but using different per instance information: rotation, scaling, lighting).
+
+  <p>Models will also be rendered on demand: there are way too many to generate them all at startup.
+
+  <p>Banks will hold a fixed number of vertices data: if that buffer is full or close to, a new bank
+  will be allocated. The number of objects drawed can be unlimited though: if there are 1000 stone brick
+  block dropped as an item around the player, it will use one model in the VBO and 1000 instance with
+  different location/lighting.
+
+  <li><tt>struct EntityModel_t</tt> : describe what's in all the VBOs: since VBO are only stream
+  of bytes. We also need to know the vertex location, size, and bounding box.
+
+  <li><tt>struct EntityEntry_t</tt> : given an entity, we want to know if its model is already available
+  in one bank. Each models id (<tt>VBObank</tt>) are stored in a hash table that can give the model id
+  (<tt>VBObank</tt>) given an item ID (<tt>ItemID_t</tt>).
+</ul>
+
+<p>The schema below shows how all these datatypes are interconnected. If you ever venture in <tt>entities.c</tt>,
+keep that schema on hand, otherwise, you'll get lost:
+
+<div class="photo">
+  <img src="images/entities.png" style="width: 100%">
+</div>
+
+<p>It is not as complicated as it looks. First some legends:
+<ul>
+  <li>A <b>closed box</b> represent a fixed chunk of memory.
+  <li>An <b>opened box</b> on the left side means that the block can be reallocated if more space is needed.
+  That means there should be no pointers that holds a reference within those blocks, because its base
+  address can change at any time.
+  <li>An <b>arrow</b> means that within the datatype, there is a reference to the pointed datatype.
+  Note that this reference is not necessarily a pointer (it is often just an integer, more on this below).
+</ul>
+
+<p>The "root" datatype is <tt>EntityPrivate_t</tt> (on the far left): this is a static global variable
+that contains all the buffers/linked list for managing entities. Whenever an entity is found in the NBT
+of a chunk, it is added to a list (in the first free slot). To avoid doing one allocation per entity,
+they are allocated in batch of 256, those batches being stored in a linked list. An <tt>entityId</tt>
+is <b>an integer</b> that can uniquely identify one entity: the first 8bits encode the index in the batch,
+the remaining is the buffer number (ie: <tt>entityId&gt;&gt;8</tt><sup>th</sup> item in the linked list).
+
+
+<p>But we don't want to allocate one model (vertex data for the GPU) per entity. In any given world, it
+is extremely likely that only a couple of entity models will be used: a few hundreds usually, whereas
+the number of entities can be in the thousands.
+
+
+<p>That's the purpose of the <tt>EntityBank_t</tt> datatype: keep track of where a given model (vertex
+data) is and the metadata necessary for each instance (one per entity). One entire bank can then be rendered
+using a single OpenGL draw call, using <tt>glMultiDrawArraysIndirect()</tt>.
+
+<p>Banks therefore have to manage 2 groups of arrays: model vertex data (<tt>vboModel</tt> and <tt>models</tt>)
+and per instance information (<tt>vboLoc</tt> and <tt>vboMDAI</tt>):
+<ul>
+  <li><tt>vboModel</tt> is an OpenGL array buffer that can hold at most 64K <a href="#vtx10bytes">vertex</a>
+  data (each vertex being 10 bytes). Once it is full, a new bank will be allocated. Also, once a model
+  has been added, it cannot be removed.
+
+  <p>To keep track of what's inside this <tt>VBO</tt>, we need a new array: <tt>struct EntityModel_t * models</tt>.
+  This array will contain where the model is located in <tt>vboModel</tt> (vertex index and vertex count).
+  And while we are here, the model structure will also contain to the model bounding box (derived from
+  vertex data). This bounding box assumes that no rotations and no scaling are applied to the model.
+
+  <li><tt>vboLoc</tt> is a per instance array buffer (<tt>glVertexAttribDivisor()</tt> set to 1). There
+  is one instance slot per entity. All entities that use a model from the bank will be rendered in the
+  same draw call, no matter how many entities references this model.
+
+  <p>Therefore <tt>vboLoc</tt> and <tt>vboMDAI</tt> can be resized at some point.
+</ul>
+
+<p>The link between an <tt>Entity_t</tt> and and its model is stored in the <tt>VBObank</tt> field: it
+encodes both the bank and the model id within an integer: the first 6bits encodes the bank number, the
+remaining encodes the index in the <tt>models</tt> array.
+
+<p>Bounding boxes are stored within the <tt>struct EntityModel_t</tt> datatype. In theory, they can be
+extracted from <tt>BlockState_t</tt>, but it is way too much work. Bounding box for entities are always
+assumed to be AABB, ie: no rotation taken into account when checking collision (but scaling will be).
+Raypicking (ie: pointing an entity with mouse) will take rotation into account though.
+
+<h3 id="collision"><span>Collision detection/correction</span></h3>
+
+<p>Collision detection is implemented using a swept AABB algorithm and correction is done through sliding
+adjustment and was strongly inspired by <a href="https://www.gamedev.net/tutorials/programming/general-and-gameplay-programming/swept-aabb-collision-detection-and-response-r3084/">this article</a>.
+
+<p>This algorithm works extremely well in all use case, but it has one major limitation: it tends to
+break down when bounding box are already intersecting.
+
+<h3 id="partitioning"><span>Space partioning</span></h3>
+
+<p>One aspect related to collision detection, is <b>entities enumeration</b>. Since entities are spread all
+over the world and don't rely on the voxel grid, enumerating them without scanning the majority of
+them, each time a collision detection need to be performed is somewhat challenging.
+
+<p>Scanning the entire entity list is of course not a viable solution, since entities in a voxel engine
+tend to move a lot (that's the main interest of entities: moving freely, unlike voxels). Therefore,
+knowing which entities intersect an AABB, will be a very frequent query, and it better be optimized
+to not fall into that dreaded O(N<sup>2</sup>) complexity.
+
+<p>The solution used in this engine is to use a dynamic self-balancing quadtree. First, you might wonder
+<b>why just a quadtree and not an octree</b>? The main reason for using a quadtree is that entities are
+primarily spread on the XZ plane and very little on the Y axis: adding another dimension to the tree
+would add very little performance gain, but lots of uneeded complexity and extra memory usage. An
+octree would have made more sense it were used for other purposes, like frustum culling or raypicking.
+
+<h4>Block map or quad tree?</h4>
+
+<p>Another question worth answering is: <b>is it cheaper to use a block map instead of a quadtree?</b>
+
+<p>One may be tempted to use the chunk itself as a crude block map for space partioning. In practice, it
+is not that good of an idea, since a 16x16 area is quite big, even bigger if you consider that entities are
+referenced through their center and therefore can overlap a nearby chunk depending on their size. In
+practice, it means you'll have to scan more than one chunk each time you want to do a collision check
+on a given entity.
+
+<p>What if we use a finer block map grid? This can be interesting since an entity can be uniquely
+identified using a 16bit integer (no need for a full pointer address).
+
+<p>The resolution of the quadtree is "limited" to a 1x1 grid at the finest level (which is quite small
+actually). Using a block map of this size is too expensive though: 512 bytes per chunk, which in pratice
+would have to be allocated for almost every chunk, since entities are almost everywhere in a typical
+<prod>Minecraft</prod> map.
+
+<p>Therefore, there are only 2 choices left: a 2x2 or 4x4 grid (8x8 and 16x16 being too coarse). Which
+adds respectively 128 and 32bytes per chunk. On a far render distance (32x32 grid of chunk loaded),
+as far as memory usage goes, that would be 128K and 32K of memory needed, which is still far more than
+a quadtree need (around 10K), and the quadtree will give you way more precision than a 4x4 grid.
+
+<p>Conclusion: a quadtree is more efficient as far as memory is concerned, but will require a bit more
+CPU usage. Just a reminder to not waste any time implementing this.
+
+<h4>Auto-resize quad tree</h4>
+
+<p>The problem with using a quadtree in a voxel world is that its size must <b>accomodate the player
+movements</b>. If the player moves a lot in the XZ plane, at some point the quadtree will hold reference
+to objects that are completely outside render distance, which is a waste of memory usage and CPU to
+reach the leaf nodes of the tree.
+
+<p>The way it is handled in this implementation, is by <b>auto-resizing the quad tree</b>: when adding
+an item in the tree, if its initial position is outside of the current bounding box of the quadtree,
+as many top layers as necessary will be added, until the object position is included in the bounding
+box.
+
+<p>When an object is deleted, this implementation will try extra hard to prune empty branches and/or
+relocate leaf node to higher level layers. These operations are not that expensive, otherwise as the
+player moves, top layers will kept being added to cover the increasing distance between the spawn area
+and the current position. At some point, the tree will have so many layers, that it will be necessary
+to perform as many bounding box checks as a 16x16 block map (which is what the quadtree was supposed
+to avoid).
+
+
+
+
+
+<h2 id="emitters">Particle emitters</h2>
+
+<p>Here is the way particle emitters are handled in this engine:
+
+<ol>
+  <li>While a chunk is turned into a mesh of quads (<tt>chunkUpdate()</tt> in <tt>chunks.c</tt>),
+  each voxel is checked for a type of particle they can emit. If the conditions are met, a list of
+  potential emitters is stored at the <tt>ChunkData</tt> level. The emitters are not immediately
+  made active, only those close to player position will. This list store emitters as 4 16bit
+  integers. They are not accessed through a <tt>struct</tt>, because it involves bitfield and the
+  struct is not necessarily aligned (also this "struct" is used in only 3 different functions in the
+  entire engine).
+
+  <li><b>Emitters cover an area</b>. A first implementation allocated one emitter per block. In practice,
+  this was not a very good idea, because some blocks are very common and can allocate lots of emitters,
+  like lava or powered redstone dust. Instead, an emitter cover an XZY area of 16x16x2 (ie: 2 vertical
+  layers of a chunk). That means for a particular type of particle emitted, at most 8 emitters will
+  be created (for a given chunk).
+
+  <li>When a particle has to be created, the emitter will search through its area where the block
+  is or are located. Since the area covers 512 voxels, a 32bit bitfield is used to narrow the search:
+  each bit indicate in which Z row to look for a block. That means at most 16 blocks have to scanned
+  per row, which is pretty cheap, because it is a contiguous memory buffer.
+
+  <li>The emitter also holds how many blocks there are in the area that can spawn particles. Therefore
+  the search will continue until all emitters are found.
+
+  <li>Emitters are grouped by type and interval: since all blocks are scanned at the same time, if
+  timing interval is different it has to be done in a different emitter.
+
+</ol>
+
+<p>This schema shows how the information is stored at the <tt>ChunkData</tt> level (in <tt>emitters</tt>
+field):
+<bits>
+  <brow><hdr>0: </hdr><bitpart class="sz8" bit="16">8: <em>count</em></bitpart><bitpart class="sz5" bit="8">5: <em>type</em></bitpart><bitpart class="sz3" bit="3">3: <em>Y</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
+
+  <brow><hdr>1: </hdr><bitpart class="sz16" bit="16">16: <em>interval</em> (ms)</bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
+
+  <brow><hdr>2: </hdr><bitpart class="sz16" bit="16">16: <em>area LO</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
+
+  <brow><hdr>3: </hdr><bitpart class="sz16" bit="16">16: <em>area HI</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
+</bits>
+
+<p><b>Note</b>: <tt>count</tt> is only 8bits instead of 9. In practice having more than 256 block
+emitters in a 16x16x2 region is extremely rare (lava lakes can easily reach that number though, but
+not more than 256). Also note that numbering in this field starts at 0. 0 means there is 1 block that
+can emit particles.
+
+<p>Once player location is known, emitters from all 27 <tt>ChunkData</tt> surrounding the player are
+made active. As the player moves, this list will be adjusted by removing the emitters that are too far
+away, and making active the one that got within 1 chunk distance away from the player. The emitters
+that are still within range must not be changed, otherwise their timing will be reset.
+
+</div>
+</body>
+</html>
+

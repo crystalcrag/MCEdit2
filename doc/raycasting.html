@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+  <title>Internals - frustum culling</title>
+  <link rel="stylesheet" type="text/css" href="default.css">
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+</head>
+<body>
+
+<!-- poor's man include :-/ -->
+<iframe src="toc.html" id="toc"></iframe>
+
+<div id="content">
+
+<h1 style="counter-set: h2 7">8. Raycasting</h1>
+
+<div id="abstract"><u>Abstract:</u>
+<p>This engine implements two different but complementary techniques. The previous <a href="#mesh.html">chapter</a>
+focussed on the first one: rasterization. This chapter is about the second one: raycasting.
+</div>
+
+
+<h2 id="raycasting">Raycasting</h2>
+
+<p>Raycasting is a technique that cast rays in straight lines from the camera position to some distant
+world coordinates and see what kind of voxel it intersects. In some ways, it ressembles raytracing
+or path tracing, except there are no reflections, refraction or scattering effect taken into account.
+
+<p>The reason for having a completely different rendering path is that rasterization of meshes works
+very well close to the camera, but starts to have some diminishing return on distant geometry: at some
+point the amount of triangles needed, becomes way too large to be pratical. This is where raycasting
+is interesting: at long distance, you can pretty much consider all voxel types to be full and only
+perform intersection check as if everything is made of <tt>SOLID</tt> voxels, which is much cheaper
+than doing precise bounding box check at close range.
+
+<p>/* ... */
+
+
+</div>
+</body>
+</html>

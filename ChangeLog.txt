@@ -1,6 +1,13 @@
+=========== Week 24 (2022) ===========
+Tue June 14:
+	* split doc into individual chapters: document was becoming too large.
+
+Mon June 13:
+	* raycasting using a much cheaper way to compute direction vector.
+
 =========== Week 23 (2022) ===========
 Sun June 12:
-	* GPU raycasting working better.
+	* GPU raycasting first version working: perf on intel is not so good, but card is very old.
 
 Sat June 11:
 	* GPU raycasting: lots of stuff not working correctly :-/

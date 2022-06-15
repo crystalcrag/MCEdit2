@@ -29,18 +29,11 @@ Bool raycastInitStatic(void)
 		return False;
 
 	/* coordinates must be normalized between -1 and 1 for XY and [0 - 1] for Z */
-	#define ZVAL  1
-	static float vertices[] = {
-		1.0,  1.0, ZVAL,  -1.0, 1.0, ZVAL,   1.0, -1.0, ZVAL,
-		1.0, -1.0, ZVAL,  -1.0, 1.0, ZVAL,  -1.0, -1.0, ZVAL
-	};
-	#undef ZVAL
-
 	glGenBuffers(1, &raycast.vbo);
 	glGenVertexArrays(1, &raycast.vao);
 	glBindVertexArray(raycast.vao);
 	glBindBuffer(GL_ARRAY_BUFFER, raycast.vbo);
-	glBufferData(GL_ARRAY_BUFFER, 6 * 12, vertices, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, 6 * 12 * 8, NULL, GL_STATIC_DRAW);
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
 	glEnableVertexAttribArray(0);
 
@@ -58,6 +51,76 @@ Bool raycastInitStatic(void)
 	raycast.uniformSize   = glGetUniformLocation(raycast.shader, "size");
 
 	return True;
+}
+
+static vec raycastGenQuad(vec buffer, int side, vec cube)
+{
+	uint8_t indices[6];
+	DATA8   index = cubeIndices + side * 4;
+
+	if (side < SIDE_TOP)
+	{
+		/* order them backward */
+		indices[0] = index[3];
+		indices[1] = index[2];
+		indices[2] = index[1];
+		indices[3] = index[0];
+		indices[4] = index[3];
+		indices[5] = index[1];
+	}
+	else
+	{
+		memcpy(indices, index, 4);
+		indices[4] = index[0];
+		indices[5] = index[2];
+	}
+
+	int i;
+	for (i = 0; i < 6; i ++, buffer += 3)
+	{
+		index = cubeVertex + indices[i];
+		buffer[VX] = index[VX] ? cube[VX+3] : cube[VX];
+		buffer[VY] = index[VY] ? cube[VY+3] : cube[VY];
+		buffer[VZ] = index[VZ] ? cube[VZ+3] : cube[VZ];
+	}
+	return buffer;
+}
+
+
+/* generate the geometry that will be the bounding of distant chunks */
+static void raycastGenVertex(void)
+{
+	glBindBuffer(GL_ARRAY_BUFFER, raycast.vbo);
+	vec buffer = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
+
+	float cubeRaster[6] = {
+		raycast.chunkLoc[2], 0,
+		raycast.chunkLoc[3],
+		raycast.chunkLoc[2] + raycast.rasterChunks * 16,
+		raycast.chunkMaxHeight * 16,
+		raycast.chunkLoc[3] + raycast.rasterChunks * 16,
+	};
+
+	/* vertical wall */
+	buffer = raycastGenQuad(buffer, SIDE_SOUTH, cubeRaster);
+	buffer = raycastGenQuad(buffer, SIDE_EAST,  cubeRaster);
+	buffer = raycastGenQuad(buffer, SIDE_NORTH, cubeRaster);
+	buffer = raycastGenQuad(buffer, SIDE_WEST,  cubeRaster);
+
+	/* top cover */
+	#define Ymax     cubeRaster[VY+3]
+	#define Zmax     cubeRaster[VZ+3]
+	float Xdist = raycast.chunkLoc[0] + raycast.distantChunks * 16;
+	float Zdist = raycast.chunkLoc[1] + raycast.distantChunks * 16;
+	buffer = raycastGenQuad(buffer, SIDE_TOP, (float [6]) {raycast.chunkLoc[0], 0, raycast.chunkLoc[1], Xdist, Ymax, raycast.chunkLoc[3]});
+	buffer = raycastGenQuad(buffer, SIDE_TOP, (float [6]) {cubeRaster[VX+3], 0, raycast.chunkLoc[3], Xdist, Ymax, Zmax});
+	buffer = raycastGenQuad(buffer, SIDE_TOP, (float [6]) {raycast.chunkLoc[0], 0, Zmax, Xdist, Ymax, Zdist});
+	buffer = raycastGenQuad(buffer, SIDE_TOP, (float [6]) {raycast.chunkLoc[0], 0, raycast.chunkLoc[3], raycast.chunkLoc[2], Ymax, Zmax});
+	#undef Ymax
+	#undef Zmax
+	raycast.vboCount = 6 * 8;
+
+	glUnmapBuffer(GL_ARRAY_BUFFER);
 }
 
 /* map is being opened */
@@ -143,15 +206,20 @@ void raycastFreeAll(void)
 
 void raycastRender(void)
 {
-	glDepthMask(GL_FALSE);
-	glUseProgram(raycast.shader);
-	glProgramUniformMatrix4fv(raycast.shader, raycast.uniformINVMVP, 1, GL_FALSE, globals.matInvMVP);
-	glProgramUniform4fv(raycast.shader, raycast.uniformChunk, 1, raycast.chunkLoc);
-	glProgramUniform4fv(raycast.shader, raycast.uniformSize,  1, raycast.chunkSize);
-	glBindVertexArray(raycast.vao);
-	glDrawArrays(GL_TRIANGLES, 0, 6);
-	glBindVertexArray(0);
-	glDepthMask(GL_TRUE);
+	if (raycast.vboCount > 0)
+	{
+		glDepthMask(GL_FALSE);
+		glUseProgram(raycast.shader);
+		glProgramUniformMatrix4fv(raycast.shader, raycast.uniformINVMVP, 1, GL_FALSE, globals.matInvMVP);
+		glProgramUniform4fv(raycast.shader, raycast.uniformChunk, 1, raycast.chunkLoc);
+		glProgramUniform4fv(raycast.shader, raycast.uniformSize,  1, raycast.chunkSize);
+		glBindVertexArray(raycast.vao);
+//		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+		glDrawArrays(GL_TRIANGLES, 0, raycast.vboCount);
+		glBindVertexArray(0);
+		glDepthMask(GL_TRUE);
+//		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+	}
 }
 
 /* texture from a ChunkData has been processed: store it in the texture banks */
@@ -207,7 +275,10 @@ void raycastFlushChunk(DATA8 rgbaTex, int XZ, int Y, int maxy)
 
 	/* will stop raycasting early for rays that point toward the sky */
 	if (raycast.chunkMaxHeight < maxy)
+	{
 		raycast.chunkMaxHeight = raycast.chunkSize[1] = maxy;
+		raycastGenVertex();
+	}
 
 	/* texMap is what will link voxel space to texture banks */
 	int stride = raycast.texMapWidth * raycast.distantChunks;
@@ -653,8 +724,8 @@ void chunkConvertToRGBA(ChunkData cd, DATA8 rgba)
 static int     iteration;
 static uint8_t color[4];
 static vec4    camera;
-static int     chunk[4];
-static int     size[4];
+static float   chunk[4];
+static float   size[4];
 
 static float normals[] = { /* S, E, N, W, T, B */
 	 0,  0,  1, 1,
@@ -667,63 +738,71 @@ static float normals[] = { /* S, E, N, W, T, B */
 
 void voxelGetBoundsForFace(DATA8 tex, int face, vec4 V0, vec4 V1, vec4 posOffset)
 {
-	int pt[6];
+	vec4 pt1, pt2;
 
+	#define vec3(dst, x,y,z)   dst[0]=x,dst[1]=y,dst[2]=z
 	switch (tex[3]) {
 	case 0x80: // void space inside a ChunkData
 		// encoding is done in raycast.c:chunkConvertToRGBA()
-		pt[0] = ((int) floor(posOffset[VX]) & ~15) + (tex[0] & 15);
-		pt[1] = ((int) floor(posOffset[VY]) & ~15) + (tex[1] & 15);
-		pt[2] = ((int) floor(posOffset[VZ]) & ~15) + (tex[0] >> 4);
+		vec3(pt1,
+			floor(posOffset[VX] * 0.0625f) * 16 + (tex[0] & 15),
+			floor(posOffset[VY] * 0.0625f) * 16 + (tex[1] & 15),
+			floor(posOffset[VZ] * 0.0625f) * 16 + (tex[0] >> 4)
+		);
 
-		pt[3] = pt[0] + (tex[2] & 15) + 1;
-		pt[4] = pt[1] + (tex[1] >> 4) + 1;
-		pt[5] = pt[2] + (tex[2] >> 4) + 1;
+		vec3(pt2,
+			pt1[0] + (tex[2] & 15) + 1,
+			pt1[1] + (tex[1] >> 4) + 1,
+			pt1[2] + (tex[2] >> 4) + 1
+		);
 		break;
 
 	case 0x81: // void space inside Chunk
-		pt[0] = (int) floor(posOffset[VX]) & ~15;
-		pt[2] = (int) floor(posOffset[VZ]) & ~15;
-		pt[1] = tex[0] << 4;
-		pt[4] = tex[1] << 4;
-		pt[3] = pt[0] + 16;
-		pt[5] = pt[2] + 16;
+		vec3(pt1,
+			floor(posOffset[VX] * 0.0625f) * 16,
+			tex[0] << 4,
+			floor(posOffset[VZ] * 0.0625f) * 16
+		);
+		vec3(pt2, pt1[0] + 16, tex[1] << 4, pt1[2] + 16);
 		break;
 
 	case 0x82: // raster chunks area
-		pt[0] = chunk[VZ];   pt[3] = pt[0] + size[VZ] * 16;
-		pt[1] = 0;           pt[4] = 256;
-		pt[2] = chunk[VT];   pt[5] = pt[2] + size[VZ] * 16;
+		vec3(pt1, chunk[VZ], 0, chunk[VT]);
+		vec3(pt2, pt1[0] + size[VZ] * 16, 256, pt1[2] + size[VZ] * 16);
+		break;
+
+	case 0x83: // area above distant chunks
+		vec3(pt1, chunk[VX], 0, chunk[VY]);
+		vec3(pt2, pt1[VX] + size[VX] * 16, pt1[VY] + size[VY] * 16, pt1[VZ] + size[VX] * 16);
 		break;
 
 	default: return;
 	}
 
-	#define vec4(dst, x,y,z,t)   dst[0]=x,dst[1]=y,dst[2]=z,dst[3]=t
 	switch (face) {
 	case 0: // south
-		vec4(V0, pt[0], pt[1], pt[5], 1);
-		vec4(V1, pt[3], pt[4], pt[5], 1);
+		vec3(V0, pt1[VX], pt1[VY], pt2[VZ]);
+		memcpy(V1, pt2, 12);
 		break;
 	case 1: // east
-		vec4(V0, pt[3], pt[1], pt[2], 1);
-		vec4(V1, pt[3], pt[4], pt[5], 1);
+		vec3(V0, pt2[VX], pt1[VY], pt1[VZ]);
+		memcpy(V1, pt2, 12);
 		break;
 	case 2: // north
-		vec4(V0, pt[0], pt[1], pt[2], 1);
-		vec4(V1, pt[3], pt[4], pt[2], 1);
+		memcpy(V0, pt1, 12);
+		vec3(V1, pt2[VX], pt2[VY], pt1[VZ]);
 		break;
 	case 3: // west
-		vec4(V0, pt[0], pt[1], pt[2], 1);
-		vec4(V1, pt[0], pt[4], pt[5], 1);
+		memcpy(V0, pt1, 12);
+		vec3(V1, pt1[VX], pt2[VY], pt2[VZ]);
 		break;
 	case 4: // top
-		vec4(V0, pt[0], pt[4], pt[2], 1);
-		vec4(V1, pt[3], pt[4], pt[5], 1);
+		vec3(V0, pt1[VX], pt2[VY], pt1[VZ]);
+		memcpy(V1, pt2, 12);
 		break;
 	case 5: // bottom
-		vec4(V0, pt[0], pt[1], pt[2], 1);
-		vec4(V1, pt[3], pt[1], pt[5], 1);
+		memcpy(V0, pt1, 12);
+		vec3(V1, pt2[VX], pt1[VY], pt2[VZ]);
 	}
 	#undef vec4
 }
@@ -733,7 +812,7 @@ static void texelFetch(vec4 ret, int texId, int X, int Y, int lod)
 	DATA8 src;
 	if (texId == 0)
 	{
-		src = (DATA8) (&raycast.texMap[X + Y * size[VX]]);
+		src = (DATA8) (&raycast.texMap[X + Y * (int) size[VX]]);
 		ret[0] = src[0] / 255.0f;
 		ret[1] = src[1] / 255.0f;
 		ret[2] = ret[3] = 1.0f;
@@ -761,14 +840,25 @@ static void texelFetch(vec4 ret, int texId, int X, int Y, int lod)
 }
 
 // extract voxel color at position <pos>
-Bool voxelFindClosest(vec4 pos, DATA8 tex)
+Bool voxelFindClosest(vec4 pos, DATA8 tex, float upward)
 {
 	int X = (int) (pos[VX] - chunk[VX]) >> 4;
 	int Z = (int) (pos[VZ] - chunk[VY]) >> 4;
 	int Y = (int) pos[VY] >> 4;
 
-	if (X < 0 || Z < 0 || X >= size[VX] || Z >= size[VX] || Y >= size[VY] || Y < 0)
+	if (Y >= size[VY])
+	{
+		// above raycasted chunks and going upward: no way we can reach a distant chunk
+		if (upward >= 0)
+			return False;
+
+		// maybe we can
+		memcpy(tex, "\0\0\0\x83", 4);
+	}
+	else if (X < 0 || Z < 0 || X >= size[VX] || Z >= size[VX] || Y < 0)
+	{
 		return False;
+	}
 
 	vec4 texel;
 	texelFetch(texel, 0, X, Z + Y * size[VX], 0);
@@ -780,10 +870,7 @@ Bool voxelFindClosest(vec4 pos, DATA8 tex)
 	if (texId == 0xffff)
 	{
 		/* missing ChunkData: assume empty then */
-		tex[0] = 0;
-		tex[1] = 0xf0;
-		tex[2] = 0xff;
-		tex[3] = 0x80;
+		memcpy(tex, "\0\xf0\ff\x80", 4);
 		return True;
 	}
 
@@ -841,8 +928,6 @@ Bool mapPointToVoxel(vec4 dir)
 			color[0] = tex[0] * raycast.shading[side] >> 8;
 			color[1] = tex[1] * raycast.shading[side] >> 8;
 			color[2] = tex[2] * raycast.shading[side] >> 8;
-
-			//color = vec4(vec3(tex.xyz) / 255.0 * shading[side].r, 1);
 			return True;
 		}
 
@@ -888,7 +973,7 @@ Bool mapPointToVoxel(vec4 dir)
 				}
 				else plane[VZ] += norm[VZ] * 0.5f;
 
-				if (! voxelFindClosest(plane, tex))
+				if (! voxelFindClosest(plane, tex, dir[VY]))
 					return False;
 				side = opp[i];
 				break;

@@ -3,11 +3,14 @@
  */
 #version 430 core
 
-// input vertices will be a flat quad over the entire screen
+#include "uniformBlock.glsl"
+
 layout (location=0) in vec3 point;
+
+out vec3 worldPos;
 
 void main()
 {
-	// yep, that's it
-	gl_Position = vec4(point, 1);
+	worldPos = point;
+	gl_Position = MVP * vec4(point, 1);
 }

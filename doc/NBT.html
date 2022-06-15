@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+  <title>Internals - frustum culling</title>
+  <link rel="stylesheet" type="text/css" href="default.css">
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+</head>
+<body>
+
+<!-- poor's man include :-/ -->
+<iframe src="toc.html" id="toc"></iframe>
+
+<div id="content">
+
+<h1 style="counter-set: h2 4">5. NBT API</h1>
+
+<div id="abstract"><u>Abstract:</u>
+<p>The API used to manipulate NBT file is not what you would expect from a typical library (like
+<a href="https://github.com/chmod222/cNBT">this</a>, for example). This library <b>very strongly</b>
+favors read access over write, the reason being that the vast majority of a map will rarely change.
+
+<p><b>Pre-requisite</b>: C programming language.
+</div>
+
+<h2><span>NBT API</span></h2>
+
+<p>This module is used to read, write and modify NBT (<tt>Named Binary Tag</tt>) file format from disk
+and/or memory. NBT is used to store arbitrary data types in a tree-like structure (ie: nested up to
+any depth). In some ways, it can be seen as a binary JSON. NBT file are often being compressed using
+either gzip or zlib compression, this module handle decompression by the use of the <tt>zlib</tt> library
+(this module does not roll its own decompression algorithm).
+
+<p>NBT API in this engine does not exactly follow a traditional API you might expect for manipulating
+a tree of arbitrary data types. The main problem that this API was trying to solve is to keep 
+everything related to an NBT tree as close as possible in memory, to benefit from cache locality.
+
+<p>This is actually the main focus of this API: it <b>strongly</b> favors read over write access. The
+rationale for this choice being that most chunks in a map will never be modified at all, and for those
+that will, most of the time it is simply a matter of overwriting some tables (<tt>BlockLight</tt>,
+<tt>Blocks</tt>, <tt>Data</tt>, ...).
+
+<p>There are a few lists (<tt>TileEntities</tt>, <tt>Entities</tt>, <tt>TileTicks</tt>, ...) where the
+content can change significantly, and this is where this API will be a bit more tedious to use than other
+APIs.
+
+<p>The gist of how this API works is to serialize the content of a NBT file into a <b>single memory
+block</b>. This block will be reallocated if the first allocation was not enough, but <b>everything</b>
+will be kept into a contiguous block of memory. Therefore the binary representation of the NBT structure
+in memory will actually be <b>very close</b> to how it is stored on disk (if it were uncompressed): save
+a few memory alignment constraints and byte ordering, and you could write the buffer almost directly
+to disk.
+
+<p>Sadly, that also means, in order to use this API, you'll need to have a pretty good understanding
+on how NBT is structured on disk, because that API is a very shallow abstraction over that. A refresher
+will be available in the next section.
+
+
+
+
+<h3 id="NBTspec"><span>NBT Structure</span></h2>
+
+<p>This section is a quick refresher on how NBT is structured (uncompressed). This format can store
+arbitrary data types, in a tree-like format with branch nested as deep as you want.
+
+<p>NBT supports <b>3 major families of types</b>:
+<ol>
+  <li><b>Scalar</b>: designate an immediate value, which can be an integer (1, 2, 4 or 8 bytes), a
+  floating point number (32 or 64bits) or a string.
+  <li><b>List</b>: contains a finite number of scalar and/or compound (all of the same type).
+  <li><b>Compound</b>: an arbitrary number of scalar, list or even nested compound, one after the other:
+  a field terminator is used to mark the end of the block.
+</ol>
+
+<p>Usually an NBT object/file always starts with a <b>Compound</b> or <b>List</b>, otherwise it will
+be limited to a single scalar value, which is not very useful. Each type is stored using a header and
+a payload. The header follows the same structure for every type, the payload is obviously specific to
+each type.
+
+<p>Also, integers bigger than 1 byte and floatting point types are stored in <b>big endian</b> format.
+
+<h4>Header</h4>
+
+<p>Here is the structure of the header:
+<ul>
+  <li><b>1 byte</b>: the first byte encode the type of the record. Here are the possible values:
+  <table>
+  <thead><tr><td>Num<td>Define<td>Description
+  <tbody>
+    <tr><th>0<td><tt>TAG_End</tt><td>This type is used to mark the end of a compound.
+	<p><span class="n">Note</span>: a <tt>TAG_End</tt> does not have any payload beyond this single byte.
+    <tr><th>1<td><tt>TAG_Byte</tt><td>Used to store an <tt class="t">uint8_t</tt>.
+
+    <tr><th>2<td><tt>TAG_Short</tt><td>Store an <tt class="t">uint16_t</tt>.
+    <tr><th>3<td><tt>TAG_Int</tt><td>Store an <tt class="t">uint32_t</tt>.
+    <tr><th>4<td><tt>TAG_Long</tt><td>Store an <tt class="t">uint64_t</tt>.
+    <tr><th>5<td><tt>TAG_Float</tt><td>Store an <tt class="t">float</tt>.
+    <tr><th>6<td><tt>TAG_Double</tt><td>Store an <tt class="t">double</tt>.
+    <tr><th>7<td><tt>TAG_Byte_Array</tt><td>Store an <tt class="t">uint8_t</tt> array.
+    <tr><th>8<td><tt>TAG_String</tt><td>Store an <tt class="t">uint8_t</tt> array
+	<p>The main difference between <tt>TAG_ByteArray</tt> is the maximal length of the array.
+	<tr><th>9<td><tt>TAG_List</tt><td>Store an arbitrary number of a given object (which can be scalar or compound).
+	<p><span class="n">Note</span>: a <tt>TAG_List</tt> of <tt>TAG_End</tt> is permitted
+	if the number of items is 0.
+
+	<tr><th>10<td><tt>TAG_Compound</tt><td>Store an arbitrary number of scalar/compound, not necessarily
+	of the same types.
+	<p>The last item of a compound, must be a <tt>TAG_End</tt>.
+    <tr><th>11<td><tt>TAG_Int_Array</tt><td>Store an <tt class="t">uint32_t</tt> array.
+
+	<p>Why is it not stored as a <tt>TAG_List</tt> of <tt>TAG_Int</tt>, you might ask ? Well, I guess someone forgot this
+	type existed...
+	<p>This type is used by the <tt>HeightMap</tt> entry of a chunk to store the highest
+	value where sky light is at max level.
+  </ul>
+  </table>
+
+  <li><b>2 bytes</b>: all types, except <tt>TAG_End</tt>, are followed by 2 bytes, which encodes a length
+  <p><span class="n">Note</span>: keep in mind, that this length is stored as a big endian number.
+  <li><b>[length] bytes</b>: will contain a string that is the name of this tag (not the value itself).
+  <li><b><em>remaining</em></b>: payload section.
+</ul>
+
+<h4>Payload</h4>
+
+<p>Finally, here are the structure of the different payload sections, according to each tag:
+<table>
+<thead><tr><td>Num<td>Define<td>Description
+<tbody>
+  <tr><th>1<td><tt>TAG_Byte</tt><td>Followed by 1 byte: the integer value.
+  <tr><th>2<td><tt>TAG_Short</tt><td>Followed by 2 bytes: the integer value in big endian format.
+  <tr><th>3<td><tt>TAG_Int</tt><td>Followed by 4 bytes.
+  <tr><th>4<td><tt>TAG_Long</tt><td>Followed by 8 bytes.
+  <tr><th>5<td><tt>TAG_Float</tt><td>Followed by 4 bytes, encoding a floating point in big endian using the IEEE 754 format).
+  <tr><th>6<td><tt>TAG_Double</tt><td>Followed by 8 bytes.
+  <tr><th>7<td><tt>TAG_Byte_Array</tt><td>followed by:
+    <ul>
+	  <li><b>4 bytes</b>: encodes a length.
+	  <li><b>[length] bytes</b>: content of the array.
+	</ul>
+  <tr><th>8<td><tt>TAG_String</tt><td>Followed by:
+    <ul>
+	  <li><b>2 bytes</b>: encodes a length.
+	  <li><b>[length] bytes</b>: content of the string (usually UTF-8 encoded, not 0-terminated).
+	</ul>
+  <tr><th>9<td><tt>TAG_List</tt><td>Followed by:
+    <ul>
+	  <li><b>1 byte</b>: object type stored in this list (any types except <tt>TAG_List</tt>).
+	  <li><b>4 bytes</b>: number of items in the list.
+	  <li><b>...</b>: N objects of given type. In case of scalar, it will N times the size of given scalar.
+	  For compound list the size can be completely arbitrary.
+	</ul>
+	<p class="cont"><span class="n">Note</span>: <tt>TAG_List</tt> of <tt>TAG_Compound</tt> are a bit special though:
+	<ul>
+	  <li>Compounds in a list don't have name. Therefore a compound entry in a list is simply a list
+	  of scalar values until a <tt>TAG_End</tt> is found.
+	  <li>The list ends when [N] compounds have been read (the list itself is not terminated by a <tt>TAG_End</tt>).
+	</ul>
+  <tr><th>10<td><tt>TAG_Compound</tt><td>Immediately followed by NBT tags (including nested compounds),
+  one after the other, until a <tt>TAG_End</tt> is found.
+  <tr><th>11<td><tt>TAG_Int_Array</tt><td>Followed by:
+    <ul>
+	  <li><b>4 bytes</b>: length of the array.
+	  <li><b>[length] <tt>TAG_Int</tt></b>: content of the array.
+	</ul>
+	<p>Thanks to this type, 1 (ONE) byte is saved in the uncompressed stream over using a <tt>TAG_List</tt>.
+</table>
+
+<p>Knowing all of this is kind of important, because, when an NBT is read into memory, <b>it will mimic
+this structure very closely</b> (save a few alignment adjustment and endianess conversion). Also, when you'll
+have to build a NBT fragment, you'll have to match this structure: this API has <b>very little</b>
+consistency checks in that regard.
+
+<h4>Example</h4>
+
+<p>Let's look at a small example:
+<pre><t>static uint8_t</t> nbt_stream[] = {
+	<v>0x0A</v>, <v>0x00</v>, <v>0x00</v>, <v>0x02</v>, <v>0x00</v>, <v>0x03</v>, <v>0x6D</v>, <v>0x61</v>, <v>0x70</v>, <v>0x00</v>, <v>0x0C</v>, <v>0x00</v>
+};
+</pre>
+
+<ol>
+  <li>First byte is 10, which indicates the start of a compound.
+  <li>Next 2 bytes are 0, 0: this is the length of the compound name. Since it is zero, the first 3
+  bytes marks are the entirety of the compound header. Immediately following, will be a list of
+  NBT tags, until <tt>TAG_End</tt> is found.
+  <li>Next byte is 2, which is a <tt>TAG_Short</tt>.
+  <li>Next 2 bytes are 0, 3, which means this entry has a name of 3 characters.
+  <li>Next 3 bytes are 'm', 'a', 'p': this is the name of this tag (not its value).
+  <li>Next 2 bytes (payload of a <tt>TAG_Short</tt>) is 0, 12, therefore the value associated to this
+  entry is 12.
+  <li>Finally 0 marks the end of the compound, and therefore end of the file.
+</ol>
+
+<p><span class="n">Note</span>: this is the structure of the file <tt>World/data/idcounts.dat</tt>.
+
+
+
+<h3 id="NBTspecapi"><span>NBT Structure in API</span></h3>
+
+<p>This section will explain how this API process NBT files at a high level: some of the techniques induce
+a few caveats that you need to be aware before being able to understand this API.
+
+
+<p>Like said in the previous sections, once read into memory, a NBT file is just <b>a contiguous memory
+buffer</b>. If you look at the main type definition for a NBT file, that's all you'll find:
+<pre><t>struct</t> NBTFile_t
+{
+	<t>int</t>   usage, max;
+	<t>int</t>   alloc, page;
+	DATA8 mem;
+};
+</pre>
+
+<p><tt>mem</tt> contains the NBT tags, <tt>usage</tt> is how many bytes are stored, <tt>max</tt> is how
+many bytes have been allocated. <tt>alloc</tt> and <tt>page</tt> are only needed when reading the file
+(and can be ignored/repurposed after that). This has a few <b>advantages</b>:
+<ul>
+  <li>All the information related to a NBT file is guaranteed to be <b>close in memory</b>: this is interesting
+  to benefit from the CPU cache.
+  <li>Since there is just a single buffer, the only thing to do to <b>free the memory</b> is to call <tt>free()</tt>
+  on the <tt>mem</tt> field: no need to recursively scan all the entries of the file.
+  <li>More often than not, you can get away by just <b>keeping the <tt>mem</tt> field</b> (ie: just a single
+  pointer). Indeed, if you look at the API, some functions only accept a <tt>DATA8</tt> as for the NBT
+  file. This buffer contains enough information to find everything (including end of buffer).
+  <li>Likewise, if the only thing you have is a raw pointer to a NBT stream, a <tt>NBTFile_t</tt> can
+  be trivially constructed by just assigning the <tt>mem</tt> field to that buffer. If the only thing
+  you care is reading (and not modifying), the other fields don't matter.
+</ul>
+
+<p>Obviously, there are <b>drawbacks</b> to this approach:
+<ul>
+  <li>The abstraction provided by the API is kind of shallow: you have to be sure to replicate exactly
+  the specification of a NBT file. For example, if you create a compound, you'll have to add the
+  <tt>TAG_End</tt> manually, this API won't help you. This is harder than it seems, especially when
+  compounds are nested, it is kind of easy to forget a <tt>TAG_End</tt> in the stream.
+  <li>Adding/removing tags can be expensive. This API has ways to greatly mitigate that cost, but it
+  will involve quite a bit of work.
+</ul>
+
+<p>Since the buffer <tt>mem</tt> can be reallocated, the API relies <b>heavily</b> on byte offset to
+get a reference of a tag or a branch. Indeed, if you look at the API, almost all the functions have an
+offset parameter in their list of arguments or return an integer as their result (<v>0</v> will always
+be the beginning of the file and <v>-1</v> will signal an error). <b>This is the gist of this API</b>:
+you first locate what you want to read/modify/delete, and <b>get an offset to the start of the tag</b>,
+then you can do whatever operation you want on that tag.
+
+<h4>Structure</h4>
+
+<p>This part is technically not required to use this API, but for the sake of completeness,
+it is still described. This part will described <b>how the NBT file is stored in memory</b>.
+
+<p>All NBT tags start with the following header (using native endianess for integer more than 1 byte long):
+
+<bits>
+  <brow><hdr>0: </hdr><bitpart class="sz16" bit="32">16: <em>count</em></bitpart><bitpart class="sz8" bit="16">8: <em>minNameSz</em></bitpart><bitpart class="sz4" bit="8"><em>subtype</em></bitpart><bitpart class="sz4" bit="4"><em>type</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
+  <brow><hdr>1: </hdr><bitpart class="sz32" bit="32">32: <em>size</em> (in bytes)</bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
+  <brow><hdr>2: </hdr><bitpart class="sz32" bit="32">32: <em>name</em> (0-terminated)</bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
+  <brow><hdr>... </hdr><bitpart class="sz32" bit="32">optional: more 32bit words follow to store the name</bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
+</bits>
+
+<p>Or visualized as a C struct:
+
+<pre style="font-size: 0.9em">
+<t>struct</t> NBTHdr_t
+{
+   <t>uint8_t</t>  type;        <span class="c">/* TAG_* */</span>
+   <t>uint8_t</t>  minNameSz;   <span class="c">/* min name len: if 255 need to scan up to 0 byte */</span>
+   <t>uint16_t</t> count;       <span class="c">/* number of entries after this node (TAG_List only) */</span>
+   <t>uint32_t</t> size;        <span class="c">/* size of entire hierarchy under this node (including header + name) */</span>
+   <t>uint8_t</t>  name[<v>4</v>];     <span class="c">/* name of node (4-byte alignment) */</span>
+};
+</pre>
+
+<p>Each field has the following purpose:
+<ul class="space">
+  <li><tt>type</tt>: the <b>lower 4bits</b> store the main type of the tag stored at this location.
+  If the type is <tt>TAG_List</tt>, the <b>upper 4bits</b> store the type of tags stored in the list
+  itself. A very common sub-type is <tt>TAG_Compound</tt>, therefore a dedicated define exists for
+  these: <tt>TAG_List_Compound</tt>.
+
+  <li><tt>minNameSz</tt>: encodes the <b>length of the <tt>name</tt> field</b> (<b>not</b> including
+  padding bytes, and <b>not</b> including final <v>0</v>). This field is used internally to quickly
+  have access to the payload section of the tag. This field being 8bits, it means that the maximal
+  length of a tag name must be below 255 bytes. In practice, all tag names have less 64 characters.
+
+
+  <li><tt>count</tt>: if the type of the tag is a <tt>TAG_List</tt>, this field will <b>store the number
+  of items</b> in the list. You might see a limitation here: in the NBT structure, this field is 4 bytes,
+  whereas here it is only 2. Indeed, in theory this might cause problem, in practice however, having
+  more than 65535 items in a list has yet to be seen (and if it happens, it is probably due to a bug).<br>
+  <br>
+  If this is causing problem in the future, some "bits" could be borrowed from the next field (<tt>size</tt>)
+  to increase the precision of this one.
+
+  <li><tt>size</tt>: this field stores the <b>size in bytes of entire tag</b>. This size is always a multiple
+  of 4 bytes. The size is the size of the payload and the header. The idea is, if you have an offset
+  from the start of a tag, adding the size field will bring you to the next NBT tag.<br>
+  <br>
+
+  This field is particularly critical to quickly find tags, without needing to scan entire hierarchies
+  of tags. Tags are searched in breadth-first method: first, all the tag names of a given level are
+  scanned, then if nothing is found, it will recursively scan sub-level.
+
+  <li><tt>name</tt>: <b>name of the tag</b>: it is a direct dump from NBT stream. This string will always be
+  NUL-terminated and padded so that the header size is always a multiple of 4 bytes. I.e: if the name
+  of a tag is 4 characters, the <tt>name</tt> will have enough space to store 8.
+</ul>
+
+<p>The structure is therefore always at the start of every NBT you'll get from this API. Therefore, the
+size of the file can also be retrieved in the first <tt>size</tt> field.
+
+<p>All tags uses this header with the exception of <tt>TAG_End</tt>: this tag is actually encoded as
+4 <v>NUL</v> bytes.
+
+<h4>Payload section</h4>
+
+<p><b>Payload immediately follows the structure header</b>. It will be padded to be a multiple of 4
+bytes (so that next tag will start on a 4-bytes alignment). All scalar and list of scalars will be
+converted to <b>native endianess</b>. This is somewhat useful for list, because you can ask for a raw
+pointer to the start of the list, avoiding the need of extra copy/allocation. However, if the list is
+short (most of them are), you will be better off asking the payload to be formatted in a certain way.
+
+<p><b>For exemple</b>: some list (especially position of objects within 3d space) can be encoded as 3 <tt>TAG_Int</tt>,
+3 <tt>TAG_Float</tt> or 3 <tt>TAG_Double</tt>. If you ask for a raw pointer, you'll have to check the
+type and manually do the conversion. This API has functions to copy the content of a list to a specific
+format.
+
+<h4>Chunk optimization</h4>
+
+<p>A little trick was used to speed-up accessing the various tables from a chunk: block IDs, data
+values, skylight and blocklight values. All those tables will be loaded at fixed offsets from the start
+of the compound where they are contained. When saved on disk, the order is not necessarily the same,
+but this module will make sure it is once the sections are read back.
+
+<p>That means, if you have a pointer to the start of the block IDs, you can access all the other tables
+just by adding a certain offset. It simplify chunk updates considerably, since you only need a single
+pointer, which is very easy to carry around.
+
+<p>Last but not least, these tables are accessed very frequently (especially the ones near the player),
+having them close to each other will somewhat benefit from the CPU cache.
+
+
+<h3 id="NBTpost"><span>NBT post processing</span></h3>
+
+
+<p>This API works rather well when all you want to do is read some data from a NBT file. Even modifying
+arrays by directly overwriting payload section of said array is perfectly fine and efficient. However,
+this API is not so efficient when you have to modify potentially big list of compounds: adding, removing
+and modifying such a list could potentially be very expensive, since the only way to do that is to relocate
+huge chunk of memory to make room for a particular NBT fragment. While the computing power available on
+a modern CPU can easily handle that kind of load, there are more efficient ways to do this.
+
+<p>The way it is handled in this API, is the ability to marks a <tt>TAG_List_Compound</tt> as being
+modified, but not changing anything to the decompressed NBT stream. When time comes to save the changes,
+a callback will be triggered and ask to provide an updated version of that list (one compound at a time).
+
+<p>A single NBT file can have multiple lists though: a typical chunk in a <prod>Minecraft</prod> map has
+at least 4: <tt>Sections</tt>, <tt>Entities</tt>, <tt>TileEntities</tt> and <tt>TileTicks</tt>. Each
+of them could be modified at the same time. When the callback is triggered, it needs to be informed
+about which list to rebuild.
+
+<p>The rationale behind this approach is that when you create a new entity, block with a tile entity or
+tile ticks, you'll have to allocate some memory and store them in some kind of list. Therefore, you'll
+already have all items of a list somewhere, you just have to format them a bit before saving them on disk.
+
+<p>To do this, you first have to mark a particular NBT tag in the file as being modified, using the
+following function:
+<pre><t>void</t>  <b>NBT_MarkForUpdate</b>(NBTFile, <t>int</t> offset, <t>int</t> tag);</pre>
+
+<p>Only the first 8bits of <tt>tag</tt> will be taken into account. That means at most 8 different lists
+can be modified at once in a NBT stream. You <b>cannot</b> use an enumeration value, and have to use a
+bitfield flag. The reason for this, is to handle the special case where the <tt>TAG_List_Compound</tt>
+itself is missing from the stream. In that case, you'll have to mark the parent node as modified, and it
+will be extremely likely that all lists remain in the same parent node.
+
+<p>Then you can provide a callback when it is time to save the NBT stream, using one of this 2 functions:
+
+<pre>DATA8 <b>NBT_Compress</b>(NBTFile, <t>int</t> * size, <t>int</t> page, NBT_WriteCb_t cb, <t>void</t> * cbparam);
+<t>int</t>   <b>NBT_Save</b>(NBTFile, <t>STRPTR</t> path, NBT_WriteCb_t cb, <t>void</t> * cbparam);</pre>
+
+<p>The first function stores the stream in memory, the second one stores it directly on disk. The
+interesting part will happen in the callback <tt>cb</tt>. It must have the following prototype:
+<pre><t>int</t> write_callback(<t>int</t> tag, <t>void</t> * cbparams, NBTFile nbt);</pre>
+
+<p>If an NBT tag is mark for modification, your callback will be first called with the <tt>nbt</tt>
+param set to <tt class="o">NULL</tt>. The expected return value is the number of items your
+<tt>TAG_List_Compound</tt> will contain.
+
+<p>Then your callback will be called again with a valid <tt>nbt</tt> parameter. You'll have to fill
+the <tt>mem</tt> <b>and</b> <tt>usage</tt> member of that struct so that it contains a valid NBT fragment
+<b>for one item</b> (not the entire list). <span class="n">Note</span>: <tt class="o">NUL</tt> terminator
+(ie: <tt>TAG_End</tt>) is optional: if it is missing, it will be added automatically.
+
+<p><b>No memory will be initially allocated</b>. The rationale for this, is that you'll have to allocate
+an NBT fragment anyway when the object (Entity, TileEntity) is created. Therefore, you just have to
+assign the <tt>mem</tt> and <tt>usage</tt> field to that fragment. You can also create the fragment
+on the fly (like it is done for <tt>TileTicks</tt> is this engine): in that case it is perfectly
+acceptable to use a static table for this.
+
+<p>The return value should be <tt class="o">1</tt> is a fragment has been assigned to <tt>nbt-&gt;mem</tt>,
+or <tt class="o">0</tt> if the previous call was the last one. Providing less compounds than what was
+returned initially by the callback will cause problems when reading the file back.
+
+
+<p>To handle the special case when the <b>NBT entry for the list itself is missing</b>, it will involve
+a bit more work. For this, when your callback is triggered with a valid <tt>nbt</tt>, instead of returning
+the first entry of the <tt>TAG_List_Compound</tt>, what you can do, is returning the <b>start of</b>
+a <tt>TAG_List_Compound</tt>, <b>pre-marked</b> as being modified. For example:
+
+<pre>
+<t>struct</t> SaveParams_t
+{
+	<t>int</t> topTagMissing;
+	<t>int</t> curObject;
+	<t>int</t> totalObjects;
+}
+<c>/* NBT save callback */</c>
+<t>static int</t> saveNBT(<t>int</t> tag, <t>void</t> * params, NBTFile nbt)
+{
+	<k>if</k> (tag == <v>1</v>) <c>/* better use a symbol here instead of a magic number */</c>
+	{
+		<c>/* this structure needs to be set before saving the stream, obviously */</c>
+		<t>struct</t> SaveParams_t * save = params;
+
+		<k>if</k> (nbt == <v>NULL</v>)
+			<k>return</k> save->totalObjects;
+
+		<k>if</k> (save->topTagMissing)
+		{
+			<t>static uint8_t</t> content[<v>64</v>];
+
+			nbt->mem = content;
+			nbt->max = <k>sizeof</k> content;
+			nbt->usage = <v>0</v>;
+
+			NBT_Add(nbt,
+				TAG_List_Compound, <v>"TileTicks"</v>, <v>0</v>,
+				TAG_Compound_End
+			);
+			<c>/* this is the trick to call this callback again */</c>
+			NBT_MarkForUpdate(nbt, <v>0</v>, tag);
+			<c>/* obviously, only do that once */</c>
+			save->topTagMissing = <v>0</v>;
+			<k>return</k> <v>1</v>;
+		}
+
+		save->curObject ++;
+		<k>return</k> getNthObject(nbt, save->curObject);
+	}
+	<k>return</k> <v>0</v>;
+}
+</pre>
+
+<p>There we go: with little overhead, you can perform any modifications you want to a list of compounds.
+Even better, since the original NBT stream is never modified, you can keep pointer within that file
+and be guaranteed that it will never point to freed memory.
+
+<h3 id="NBTfunc"><span>NBT function overview</span></h3>
+
+<p>This part will show a quick overview of what the most important functions do.
+
+<h4 id="NBTread">Reading files</h4>
+
+<pre><t>int</t> <b>NBT_Parse</b>(NBTFile file, <t>STRPTR</t> path);
+<t>int</t> <b>NBT_ParseIO</b>(NBTFile file, <t>FILE</t> *, <t>int</t> offset);
+<t>int</t> <b>NBT_ParseZlib</b>(NBTFile file, DATA8 stream, <t>int</t> bytes);
+</pre>
+
+<p>These functions will read various type of files:
+<ul>
+  <li><tt>NBT_Parse</tt>: try to read a gzip-compressed or plain uncompressed file.
+  <li><tt>NBT_ParseIO</tt>: parse a portion of file at given offset: typically to uncompress chunk within region file.
+  <li><tt>NBT_ParseZlib</tt>: read a zlib-compressed file (not used by <prod>Minecraft</prod> though).
+</ul>
+
+<p>The return value for all these function will be <v>1</v> if the file was sucessfully read, <v>0</v>
+if something went wrong.
+
+<p>The <tt>file</tt> parameter will also be ovewritten to contain the content of the
+decoded NBT stream. the stream will be malloc()'ed and will have to be free()'ed by the caller at
+some point when not needed anymore.
+
+
+
+<h4 id="NBTfind">Locate tags</h4>
+
+<p>One you have an NBT file decoded, you can start looking at what's inside using these functions:
+
+<pre><t>int</t> <b>NBT_FindNode</b>(NBTFile file, <t>int</t> offset, <t>STRPTR</t> name);
+<t>int</t> <b>NBT_FindNodeFromStream</b>(DATA8 nbt, <t>int</t> offset, <t>STRPTR</t> name);
+</pre>
+
+<p>Use these functions to find a particular tag within the file. The tag will be searched using a breadth-first
+search, scanning recursively the structure of the NBT file until something is found.
+
+<p><tt>offset</tt> is the byte offset where the search should start. <v>0</v> is the beginning of the
+file. If a negative number is given, the search will be aborted and <v>-1</v> returned.
+
+<p>The <tt>name</tt> parameter can actually be a bit more than just a tag name, it can be a path,
+where tags to search are separated by a period, for example:
+<pre><t>int</t> offset = NBT_FindNode(&amp;levelDat, <v>0</v>, <v>"Player.EnderItems"</v>);</pre>
+<p>will first search for a tag <tt class="o">"Player"</tt>, then if it has been found and is a
+<tt>TAG_Compound</tt> or <tt>TAG_List_Compound</tt>, will search for a tag <tt class="o">"EnderItems"</tt>
+in this branch only.
+
+<p>If you want to be sure that a tag is only searched in a given branch and not recursively in
+all the compounds and list, you can prefix the name with <tt class="o">"/"</tt>, like this:
+
+<pre><t>int</t> offset = NBT_FindNode(&amp;levelDat, <v>0</v>, <v>"Data"</v>);
+offset = NBT_FindNode(&amp;levelDat, offset, <v>"/Player"</v>));</pre>
+
+<p>This will first recursively search for a <tt class="o">"Data"</tt> tag. Then, check if there is a
+<tt class="o">"Player"</tt> tag in this branch of the file only (and not recursively scan all the
+possible branches).
+
+<p>The return value is the index where the tag was located. This index will be required by almost all
+NBT function. <v>-1</v> will be returned if nothing was found.
+
+
+
+
+<h4 id="NBTiter">Iterating properties</h4>
+
+<p>When you know you have a <tt>TAG_Compound</tt>, you might want to iterate over all of its properties.
+Here are the following functions for this:
+<pre><t>void</t>  NBT_InitIter(NBTFile, <t>int</t> offset, NBTIter);
+<t>void</t>  NBT_IterCompound(NBTIter, DATA8 mem);
+<t>int</t>   NBT_Iter(NBTIter iter);</pre>
+
+<p>To iterate over properties, you first need to initialize an iterator: <tt>NBTIter_t</tt>. There are
+2 ways to do so: either you have an NBTFile_t or simply a raw pointer.
+
+<p>Then, you need to repeatedly call <tt>NBT_Iter</tt> this way:
+<pre>
+NBTIter_t iter;
+<t>int</t> offset;
+
+NBT_InitIter(&amp;nbt, NBT_FindNode(&amp;nbt, <v>"..."</v>), &amp;iter);
+<span class="k">while</span> ((i = NBT_Iter(&amp;iter)) &gt;= <v>0</v>)
+{
+	<span class="c">/* iter.name will contain the name of the current tag, &lt;i&gt; is the offset of the tag */</span>
+	...
+}</pre>
+
+<p>If the tag was a <tt>TAG_Compound</tt>, the iterator will iterate over all of its immediate
+properties: if there is a nested compound, its content will be skipped. You'll have to initialize
+another iterator by yourself. If the tag was a <tt>TAG_List_Compound</tt>, the iterator will give the
+starting offset of each compound in the list. You'll have to initialize another iterator to scan the
+properties of each compound.
+
+
+
+<h4 id="NBTreadtag">Reading tag value</h4>
+
+<p>These functions can format values to a certain type, even if the NBT type is entirely different:
+
+<pre><t>Bool</t> NBT_GetFloat(NBTFile, <t>int</t> offset, <t>float</t> * array, <t>int</t> nb);</pre>
+
+<p>Try to read <tt>n</tt> floating point values from the tag. If tag is an integer, it will be converted
+to float. If it is a string, the function <tt>strtod</tt> will be applied on it. If the tag is not a
+scalar or a list of scalar, <tt class="o">False</tt> will be returned. If the tag have less items
+than requested, the function will also fail.
+
+<pre><t>Bool</t> NBT_GetString(NBTFile root, <t>int</t> offset, <t>STRPTR</t> buffer, <t>int</t> max);
+<t>int</t>  NBT_GetInt(NBTFile, <t>int</t> offset, <t>int</t> def);</pre>
+
+<p>Convert tag to string or integer. The tag needs to be a scalar for this to work.
+
+<h4 id="NBTchgtag">Setting tag value</h4>
+
+<pre>
+<t>Bool</t> NBT_SetFloat(NBTFile, <t>int</t> offset, <t>float</t> * array, <t>int</t> nb);
+<t>Bool</t> NBT_SetInt(NBTFile, <t>int</t> offset, <t>int64_t</t> val);</pre>
+
+<p>Similar to <tt>NBT_Get*</tt>, these function will modify the tag value, <b>keeping the original tag
+type</b>. These functions <b>will not</b> change the tag of the NBT stream.
+
+
+
+<h4 id="NBTcreate">Creating / modifying nbt</h4>
+
+<p>These function can be used to <b>create NBT fragment and/or modify existing NBT file</b> (the changes will
+only be done in memory). The modifications are potentially expensive, since bytes will have to be
+relocated if a tag is inserted/modified/deleted in the middle of the stream, plus some metadata will
+have to be updated. But if performance is not that critical, or if its just for a few properties, using
+these functions will be fine.
+
+<p>For extensive modification of a <tt>TAG_List_Compound</tt>, you should check the <a href="#NBTpost">NBT
+post processing</a> section: this mechanism is designed to handle arbitrary modifications to such type
+of tags quite efficiently.
+
+<pre>
+<t>Bool</t>  NBT_Add(NBTFile nbt, ...);
+<t>Bool</t>  NBT_Delete(NBTFile nbt, <t>int</t> offset, <t>int</t> nth);
+<t>int</t>   NBT_Insert(NBTFile, <t>STRPTR</t> loc, <t>int</t> type, NBTFile fragment);
+<t>int</t>   NBT_AddOrUpdateKey(NBTFile, <t>STRPTR</t> key, <t>int</t> type, <t>void</t> * value, <t>int</t> offsetTagList);
+<t>DATA8</t> NBT_Copy(<t>DATA8</t> mem);</pre>
+
+<p><tt>NBT_Add</tt> is used to build fragments. This is where you need to be careful to match the
+NBT specification: this API isn't going to provide a lot of checks and balance in that regard.
+
+<p>The vararg part of this function expect a triplet of parameters until a <tt>TAG_End</tt> or
+<tt>TAG_Compound_End</tt>. The first item in the triplet has to be the tag type (ie: <tt>TAG_*</tt>),
+the tag name as a string, and finally the payload of the tag. For example to create a string fragment:
+
+<pre><t>struct</t> NBTFile_t nbt = {<v>0</v>};
+NBT_Add(&amp;nbt, TAG_String, <v>"doDayNightCycle"</v>, <v>"false"</v>, TAG_Compound_End);
+</pre>
+
+<p>The difference between <tt>TAG_End</tt> and <tt>TAG_Compound_End</tt> is whether or not you want
+the terminator to be included in the stream. <tt>TAG_End</tt> will add a terminator (and stop processing
+arguments, if any), while <tt>TAG_Compound_End</tt> will stop right there (without adding anything more
+to the stream).
+
+<p>The <b>payload for array is a bit different</b> though: instead of the actual data, you need to provide
+the number of items (not bytes), the array will contain. This is for <tt>TAG_List</tt> (any sub-type)
+and <tt>TAG_Int_Array</tt>. You can <tt>or</tt> the length of the array with the special constant
+<tt>NBT_WithInit</tt>, and provide an additional parameter: a pointer to a buffer that will be used to
+initialize the array. Otherwise, the array will be set to all zeros. For example:
+
+<pre><t>struct</t> NBTFile_t nbt = {<v>0</v>};
+vec4 pos = ...
+NBT_Add(&amp;nbt, TAG_List_Float, <v>"Coordinates"</v>, <v>3</v> | NBT_WithInit, pos, TAG_Compound_End);
+</pre>
+
+<p>Note: you have to make sure the initializer is of the same type <b>and same size</b> than what you
+requested in the <tt>NBT_Add</tt> parameters. No automatic conversion will be done you (there isn't
+enough information for this function to do anything more anyway).
+
+
+
+<h4 id="NBTother">Others</h4>
+
+<pre>
+<t>int</t>    NBT_Size(DATA8 fragment);
+<t>void</t> * NBT_Payload(NBTFile, <t>int</t> offset);
+<t>void</t> * NBT_ArrayStart(NBTFile root, int offset, int * size);
+<t>void</t> * NBT_PayloadFromStream(DATA8 stream, <t>int</t> offset, <t>STRPTR</t> name);
+</pre>
+
+
+</div>
+</body>
+</html>

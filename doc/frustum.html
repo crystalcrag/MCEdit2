@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+  <title>Internals - frustum culling</title>
+  <link rel="stylesheet" type="text/css" href="default.css">
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+</head>
+<body>
+
+<!-- poor's man include :-/ -->
+<iframe src="toc.html" id="toc"></iframe>
+
+<div id="content">
+
+<h1 style="counter-set: h2 1">2. Frustum culling</h1>
+
+<div id="abstract"><u>Abstract:</u>
+<p>Frustum culling refer to the algorithm that can enumerate all the objects that are visible within
+the model-view-projection matrix. It is usually a compromise between precision of object's bounding
+box and computational power required to test those bounding boxes: we cannot spent too much time on
+the CPU checking for object's visibility (because in the meantime the graphics card could have probably
+already rendered this object) and on the other hand, including out-of-view objects, will requires useless
+work for both the CPU and the GPU.
+
+<p><b>Pre-requisite</b>: basic 3D math.
+</div>
+
+<h2 id="culling">Frustum culling: overview</h2>
+
+<p>The techniques used in this engine are not particularly revolutionary, but there are <b>a lot of edge
+cases</b> to take care, that makes the overall algorithm not so trivial and quite extensive.
+
+<p>A <prod>Minecraft</prod> terrain is composed of a grid of chunks: axis-aligned boxes of 16x16x16 voxels.
+A typical terrain with a render distance of 16 chunks, contains about 4,000 of these sub-chunks. A frustum
+with a field of view of 80&deg; will cross about 1,000 of them: that's a decent amount of information
+culled and therefore worth doing.
+
+<p>Since chunks are aligned in a grid, it means they share a lot of vertices: if we know that one corner
+of a chunk fits within the frustum, we can automatically add the 7 others chunks that share this vertex.
+
+<p>In other words by testing only one vertex, we can potentially add up to 8 chunks to the list of visible
+objects. Which means  on average, we will have to <b>test one point per chunk</b>. <em>That is reasonably 
+cheap</em>.
+
+<p>Testing if a vertex is part of a frustum is actually very easy: we can use the MVP matrix (the exact
+same one that will be used in the vertex shader), by simply multiplying that matrix with the coordinates
+of our vertex (using 1 as the fourth vector component). That is:
+<pre>V<sub>p</sub> = MVP * V</pre>
+<p>Then to test if a vertex is inside the frustum, we can simply use the properties of homogeneous coordinates:
+<pre>Vp is in frustum if:
+	-V<sub>pw</sub> &lt;= V<sub>px</sub> and V<sub>px</sub> &lt;= V<sub>pw</sub> and
+	-V<sub>pw</sub> &lt;= V<sub>py</sub> and V<sub>py</sub> &lt;= V<sub>pw</sub> and 
+	-V<sub>pw</sub> &lt;= V<sub>pz</sub> and V<sub>pz</sub> &lt;= V<sub>pw</sub>
+</pre>
+
+<p><tt>V<sub>pw</sub></tt> is the fourth component of our projected point. More precisely, each of
+these inequalities check if the coordinate is outside one of the 6 planes that defines the frustum.
+We'll need that information later.
+
+<p>In this engine, a <tt>struct Chunk_t</tt> (or <tt>Chunk</tt> if you just want a pointer) is a datatype
+that reference an entire column of 16x16 blocks of terrain. A <tt>struct ChunkData_t</tt> (or <tt>ChunkData</tt>
+as a pointer type) contain all the data (block IDs, sky light, block light, meta-data, ...) for one
+16x16x16 blocks of terrain. Keep those datatypes in mind, they will be used throughout this section.
+
+<h3 id="firstvers"><span>First version (pseudo-code)</span></h3>
+
+<p>So, a first version for this algorithm would be:
+<div class="pre">
+<ul>
+  <li>Start with a empty list of visible chunk.
+  <li>Add the chunk where the player in that list.
+  <li>For each chunk in that list:
+    <ul>
+	  <li>For each of the 8 corners of the chunk:
+	    <ul>
+		  <li>Check if corner is in frustum.
+		  <li>If yes, add 8 connected chunks to the end of the list (if the chunk has not already been added yet).
+		</ul>
+	</ul>
+</ul>
+</div>
+
+<p>That algorithm seems pretty simple, but lacks <b>a lot</b> of house-keeping required to achieve our
+goal of one vertex checked per chunk.
+
+<p>As simple as this version is, it already has a few interesting properties:
+<ul>
+  <li>There was no particular constraints on the MVP matrix, and indeed this algorithm will work for <b>any projection</b> (orthogonal,
+  perspective) <b>any FOV</b> and any <b>render distance</b> (near and far plane).
+  <li>The list of chunks will mostly be sorted from front to back. It is not perfect, but good enough to trigger some early depth culling
+  from the GPU.
+</ul>
+
+<h3 id="impl"><span>Implementation (C code)</span></h3>
+
+<p>Sadly, the implementation is a lot more complex than this though. Most of the complexity is to deal
+with edge cases though. If you look at the datatype needed for generating the visible list, you can
+see there are a few static tables:
+<pre style="font-size: 1vw"><t>struct</t> Frustum_t
+{
+   <t>int32_t</t> neighbors[<v>8</v>];       <span class="c">/* 8 corners having 8 neighbors: bitfield encode 27 neighbors */</span>
+   <t>uint8_t</t> chunkOffsets[<v>27</v>];   <span class="c">/* bitfield of where each chunks are (S, E, N, W, T, B) */</span>
+   <t>uint8_t</t> faces[<v>6</v>*<v>4</v>];         <span class="c">/* cross-plane faces */</span>
+   <t>uint8_t</t> faceDir[<v>6</v>];         <span class="c">/* direction to go to find chunk connected to face */</span>
+   <t>uint8_t</t> firstFree[<v>256</v>];     <span class="c">/* fake chunk allocator */</span>
+   <t>float</t> * mvp;                <span class="c">/* model-view-projection matrix (4x4) */</span>
+};
+</pre>
+
+<p>To achieve what's described in the first algorithm, we only need the first 2 tables: <tt>neighbors</tT> and <tt>chunkOffsets</tt>.
+
+<div class="photo" id="vtxorder" style="float: right; width: 25%; margin: 0 0 0 20px">
+  <img src="images/cube.svg" width="100%">
+  <cap>Vertex order of a chunk</cap>
+</div>
+
+<p>The order of each corner of a chunk is illustrated with the figure on the right. Each of these
+corners can potentially add 8 chunks, if that corner is contained within the frustum. By overlapping
+all those connected chunks you get a 3x3 cube of chunks. Therefore, the maximum number of connected
+chunks you can have from those 8 corners is 27.
+
+<p>This is what encodes the <tt>neighbors</tt> table: each of these 27 chunks are given a number
+between 0 and 26, and therefore can be encoded as a bitfield in a 32bit integer. The order is shown below
+(axis is the same as the figure on the right):
+
+<table class="skewed" id="cube3x3">
+<tr><td>25<td>15<td>23
+<tr><td>17<td>5<td>12
+<tr><td>21<td>9<td>19
+</table>
+
+<table class="skewed">
+<tr><td>14<td>3<td>11
+<tr><td>4<td><v>0</v><td>2
+<tr><td>8<td>1<td>7
+</table>
+
+<table class="skewed">
+<tr><td>26<td>16<td>24
+<tr><td>18<td>6<td>13
+<tr><td>22<td>10<td>20
+</table>
+
+<p><tt>0</tt> is the chunk we are currently in. The numbers are ordered by scanning each number (starting
+from 0 in the center) and looking in the <tt>S, E, N, W, T, B</tt> directions if the chunk has been
+assigned to something. If not, it will be assigned to the next free number. The process continues until
+all 27 slots have been set.
+
+<p>The purpose of this order is to be able to scan surrounding chunks by their distance from the center
+chunk: number 0 is the center, 1 to 6 are chunks one step away from center, 7 to 18 are two steps away
+and 19 to 26 are 3 steps away (the steps being a <tt>S, E, N, W, T, B</tt> step). This order will
+be required by the cave culling algorithm.
+
+<p>For example, if we checked that vertex <tt>0</tt> of a chunk is within the frustum, we know we can
+also add chunks <tt>3</tt>, <tt>4</tt>, <tt>6</tt>, <tt>14</tt>, <tt>16</tt>, <tt>18</tt> and <tt>26</tt>.
+Chunk 0 is not included, because at this point we already know that the center chunk is part of the frustum.
+Encoded as bitfield, with the n<sup>th</sup> bit set if chunk number <tt>n</tt> is in the frustum, the
+7 chunks to add for vertex 0 can be encoded as <tt>2<sup>3-1</sup> + 2<sup>4-1</sup> + 2<sup>6-1</sup> +
+2<sup>14-1</sup> + 2<sup>16-1</sup> + 2<sup>18-1</sup> + 2<sup>26-1</sup> = 0x0202a02c</tt>, and so on
+for the other 7 corners: that's what is stored in the <tt>neighbors</tt> table.
+
+
+<h3 id="neighbors"><span>Enumerating neighbors</span></h3>
+
+<p>To enumerate all the connected chunks, we'll check if each corner of a chunk is within the frustum
+and accumulate those neighbor bitfields into a 32bit integer. Then, we can just use the <tt>chunkOffsets</tt>
+table to locate the n<sup>th</sup> chunk (with <tt>n</tt> varying from 0 to 26). Therefore this table
+will have 27 elements. Each element is a bitfield with the following meaning:
+<ul>
+  <li>bit 1 set: move to the <b>south</b> (+Z).
+  <li>bit 2 set: move to the <b>east</b> (+X).
+  <li>bit 3 set: move to the <b>north</b> (-Z).
+  <li>bit 4 set: move to the <b>west</b> (-X).
+  <li>bit 5 set: move to the <b>top</b> (+Y).
+  <li>bit 6 set: move to the <b>bottom</b> (+Y).
+</ul>
+
+<p>If the chunk is tagged by the bitfield, it is then added at the end of the visible list, to be
+scanned later to see if we can reach new chunks from here. We continue then until the entire list
+has been scanned.
+
+<h3 id="edgecase" style="clear: both"><span>Edge cases</span></h3>
+
+<p>This first version easily <b>covers around 90% to 99%</b> of the chunks we need to enumerate, but
+it can miss some especially around the corners of frustum. This version also breaks down when the FOV
+gets too small. Consider the following frustum:
+
+<div class="image">
+  <img src="images/fov10deg.png">
+  <cap>Frustum with a 10&deg; FOV</cap>
+</div>
+
+<p>Technically, a frustum should be more of a trapezoidal shape, but the parameters used for the near and far plane in
+<prod>MCEdit 2.0</prod> are respectively 0.1 and 1000, which gives almost a triangular shape.
+
+<p>You can see here that none of the vertex from the corners of every chunks fit within the frustum. Yet, the frustum does indeed
+cross some chunks. How do we enumerate these?
+
+<p>For these, we can use the properties of homogeneous coordinates, when checking if a point is in the frustum: 
+
+<pre>Vp is in frustum if:
+	-V<sub>pw</sub> &lt;= V<sub>px</sub> and V<sub>px</sub> &lt;= V<sub>pw</sub> and
+	-V<sub>pw</sub> &lt;= V<sub>py</sub> and V<sub>py</sub> &lt;= V<sub>pw</sub> and 
+	-V<sub>pw</sub> &lt;= V<sub>pz</sub> and V<sub>pz</sub> &lt;= V<sub>pw</sub>
+</pre>
+
+<p>Each of these inequalities tells us on which side of each plane the point is. For example if <tt>V<sub>pz</sub> &lt; -V<sub>pw</sub></tt>
+is true, that means the point is behind the near plane. Similarly, if <tt>V<sub>pz</sub> &gt; V<sub>pw</sub></tt> is true, the point is beyond the
+far plane, and so on...
+
+<h3 id="crossplane"><span>Cross-plane faces</span></h3>
+
+<p>We can then keep track of which plane the point is outside of, using a bitfield. Since there are
+6 planes, a single byte will be enough. That is the purpose of the <tt>outflags</tt> table in the
+<tt><t>struct</t> Chunk_t</tt> type: keep track of which planes the origin corner
+of each sub-chunk (16x16x16 area, <tt><t>struct</t> ChunkData_t</tt> in the
+code) is outside of. The origin corner is the location of block 0, 0, 0 within the chunk.
+
+<p>Therefore to get the <tt>outflags</tt> values of the 8 corners of a <tt>ChunkData</tt>, we will
+have to extract them from the 4 neighbor chunks (<tt><t>struct</t> Chunk_t</tt>):
+for example the <tt>outflags</tt> value for the coordinate <tt>chunk.x + 16, chunk.y, chunk.z</tt>
+is located in the chunk directly to the east of <tt>chunk</tt>: that is how we achieve one matrix
+test per <tt>ChunkData</tt> (on average).
+
+<p>For each <tt>ChunkData</tt> we want 8 <tt>outflags</tt> values: one per corner, that we
+need to compute and/or extract from nearby chunks. Once we have this information, we can check if a
+<b>face</b> of the <tt>ChunkData</tt>'s bounding box crosses two planes: each face is composed of 4
+segments and given 2 points that form a segment, this segment crosses two planes if the corresponding
+<tt>outflags</tt> value of these points have at least <b>2 bits</b> that differ. Using the C language,
+this can be trivially done using a XOR operation:
+
+<pre><t>int</t>    pt1, pt2;      <span class="c">/* we'll see how to enumerate these in a bit */</span>
+<t>int8_t</t> flagsPt1 = outflags[pt1];
+<t>int8_t</t> flagsPt2 = outflags[pt2];
+
+<span class="k">if</span> (popcount(flagsPt1 ^ flagsPt2) &gt;= <v>2</v>)
+{
+	<span class="c">/* segment crosses more than 2 planes */</span>
+}</pre>
+
+<p><tt>popcount()</tt> is the typical function name for counting the number of 1 bits in an integer,
+it is a shorthand for <b>pop</b>ulation <b>count</b>. Since we are using 6 bit integers, we could
+have used another lookup table, but most CPU nowadays have a dedicated instruction for this,
+which are even <a href="https://github.com/BartMassey/popcount">faster</a> than a lookup table.
+
+<p>If just one segment from the face crosses two or more planes, we consider the entire face as crossing
+them too.
+
+<p>In the implementation, two tests were added to <b>eliminate as early as possible some degenerate cases</b>.
+Even though the code down the line is able to eliminate those, we might as well remove them as early as possible,
+since those tests are very cheap.
+
+<p>The first test check if all the <tt>outflags</tt> of a given face have their coordinates
+outside the frustum, using a test like this:
+<pre>sector1*sector2*sector3*sector4 != <v>0</v></pre>
+<p>If one face has a coordinate inside the frustum (<tt>outflags == <v>0</v></tt>),
+the nearby chunk will already be added by the first pass of the algorithm. Then the second test is:
+<pre>sector1&amp;sector2&amp;sector3&amp;sector4 == <v>0</v></pre>
+<p>This test ensure that not all the coordinates are on the same side of a plane. This happen
+quite often at the starting chunk position: coordinates of a face are all to the left/right of a
+plane, but also cross the top/bottom planes, therefore will be considered a cross-plane face and
+an useless chunk will be added to the list. Not that much of a big deal, but since they are easy
+to eliminate, might as well do it.
+
+
+<h3 id="caveats"><span>Caveats</span></h3>
+
+<p>These two passes will cover 99% of the use cases, even though there will still be cases where a
+chunk will be included in the frustum, when it clearly does not belong. Consider the following example:
+
+<div class="image">
+  <img src="images/falsepositiv.png">
+</div>
+
+<p>The white square next to the starting chunk shouldn't be included in the visible list. What happened here,
+is that the segment <tt>[0,2]</tt> crossed the left and right plane ... but outside the frustum. Because the
+result of those inequalities we stored in the <tt>outflags</tt> table supposed that those planes extend to
+infinity. Therefore point 0 will be considered <b>both</b> to be on left of the left plane <b>and</b> to the
+right of the right plane.
+
+<p>In practice, those false positives are quite rare, less than 1 in a thousand. It would be pointless to add extra
+code to eliminate those. All the vertices from these chunks will be eliminated in the vertex shader, without
+even reaching the fragment shader. As long as there aren't too many of these, performance loss will be negligible.
+
+<h3 id="fakechunks"><span>Fake chunks</span></h3>
+
+<p>But we are not done yet. A <prod>Minecraft</prod> map is composed of column of chunks. Those
+columns are not all of equal height, far from it. Here's a XY slice view of a typical landscape:
+
+<div class="image">
+  <img src="images/sliceview.png">
+</div>
+
+<p>The yellow lines shows the sub-chunk boundaries, cyan chunks with no writings in it, indicate an
+empty chunk: nothing is allocated for these, attempting to get a <tt>ChunkData</tt> for these will
+return <tt class="o">NULL</tt>. Player is currently in one of those empty area, looking left, therefore
+the algorithm will have no starting point, and as is, will generate an empty list of visible chunks.
+Not good.
+
+<p>If that's the case, a fake chunk will be created for the sole purpose of tracking where we are and
+to check where we can go next. Those sub-chunks are actually cheap to allocate because we only need
+a small subset of the fields contained in a <tt>ChunkData</tt> structure.
+
+<p>But we need to avoid allocating useless fake chunks: a frustum with a 16 chunks render distance can
+cross several thousands of sub-chunks if the frustum were completely full. When you are walking on the
+surface, most of the frustum is composed of air, which would be wasteful to allocate a fake chunk
+for something that isn't going to be rendered anyway.
+
+<p>The heuristic used here is to only consider adding a fake chunk if <b>it crosses the bottom plane
+of the frustum</b>. The reason for checking the bottom plane is because this is the only plane a column
+of <tt>ChunkData</tt> is guaranteed to cross. Chunk columns are always contiguous: there are no gaps
+between the bottomest and topmost <tt>ChunkData</tt>, if it wasn't the case, that heuristic wouldn't
+work at all. Also, the pitch (vertical angle) of a player is always between [-pi/2, pi/2] (ie: you
+cannot look upside down).
+
+<p>The way it is checked is very similar to cross-plane faces: by checking the <tt>outflags[]</tt>
+array, for a segment that has its 2 endpoints on the opposite side of the bottom plane.
+
+
+
+<h3 id="outside"><span>Outside bounds</span></h3>
+
+<p>Fake chunks work fairly well as long as we remain within build limit. Even if the engine would allow
+unlimited build height, it would be pointless to allocate a gigantic column of fake chunks just to reach
+the ground level, because we can do this by using some simple geometry. And besides, a geometric
+approach is required when the player is below the bottomest chunk (i.e.: <tt>Y &lt; 0</tt>).
+
+<p>Again, the problem here is that the frustum culling won't have a starting point, worse: <b>it cannot
+have one</b>, because there is no place in the <tt>Chunk</tt> structure to store a reference, even for a
+fake chunk.
+
+<p>There are 2 cases to take care:
+<ol>
+  <li><b>Below built height</b>: right now we return an empty chunk list: you are not supposed to get here.
+  And besides, even if you were to generate a chunk list, most voxel will be culled by the GPU because
+  they are oriented backward.
+  <li><b>Above build height</b>: we use the inverse MVP matrix to get the direction of the bottom plane
+  of the frustum. With that direction, we check what's the nearest chunk it intersects (at highest possible
+  location, whether there is a <tt>ChunkData</tt> or not). If there is a <tt>ChunkData</tt>, we use this
+  as a starting point, otherwise we allocate a fake <tt>ChunkData</tt>.
+</ol>
+
+<h3 id="cavecull"><span>Cave culling</span></h3>
+
+<p>There is one last step that is done at (almost) the same time: cave culling, or removing chunks that
+are completely hidden by nearer chunks. A good primer on how this algorithm works can be read from the
+original <a href="https://tomcc.github.io/2014/08/31/visibility-1.html">author</a> that developed it
+for Minecraft MCPE.
+
+<p>Cave visibility check is also <b>applied very early in the culling phase</b>, because it can prune
+huge branches of chunks and thus avoid checking if a vertex is within the frustum, which, as a reminder,
+requires a 4x4 matrix multiplication for each vertex.
+
+<h4 id="cavecullv1"><span>First attempt</span></h4>
+
+<p>In the linked blog post, it was mentioned that they first tried to remove chunks that are completely
+surrounded by opaque chunks (ie: where the outer face is completely made up of opaque quad). Unsurprisingly,
+the results were disappointing: it only culled about 1% of total chunks.
+
+<p>A simpler approach were attempted for this engine, because computing the visibility graph is actuatlly
+not that cheap (although with that information, <b>you can cull a lot of chunks</b>).
+
+<p>The slight improvement was to realize that <b>a cube viewed using a perspective projection
+matrix has at most 3 faces visible</b>. Instead of checking all 6 faces, we only need to check at most 3.
+Checking if a face is fully opaque is very simple and super cheap to compute.
+
+<p>Sadly, the results for this method were also disappointing: it culled about 10% of the chunks in the
+view frustum. Caves leave too many holes in chunks, which means finding an entire solid face is quite
+rare in practice.
+
+<p>This section is just a reminder to not waste any time with any of these techniques.
+
+<h4 id="cavecullv2"><span>Second attempt</span></h4>
+
+<p>Second attempt was based on the algorithm described in the link above: compute visibility graph of
+connected chunks, and traverse that graph while attempting to mimic a raycasting traversal of that graph.
+The traversal was changed quite a bit though: the one used in <prod>Minecraft</prod> is a bit too aggressive,
+and tend to discard chunks that are clearly visible (as of v1.17 the results are a lot better since it
+was introduced in 1.8).
+
+<h4 id="cnxgraph"><span>Computing visibility graph</span></h4>
+
+<p>Computing the visibility graph is not that hard: in this engine it is implemented in
+<tt>mapUpdate.c</tt>: <tt>mapUpdateGetCnxGraph()</tt>. It uses a 3D flood fill (as described in the blog
+post), using a ring buffer (to simulate recursion) and bit-vector to manage which voxel has been visited.
+This sounds way more complicated than it really is: there is about 40 lines of code for this function
+(comments included).
+
+<p>A simplification was done though: we only start the scan at the edge of the chunk: because we only
+need to know which faces can be reached from a given face. Knowing there is a hidden hole in the middle
+of a chunk, is an information we don't care at all. That means if the outer layer of the chunk is
+completely solid, the flood fill should be rather cheap to compute (and kind of expensive if the chunk
+is mostly air).
+
+<p>The visibility of faces is <b>stored in a bitfield</b>. Since there are 6 faces, there are <b>15</b>
+possible connections:
+
+<table class="hspace" id="cnxgraphtbl">
+  <thead><tr><td><small>to &#x25ba;<br>from &#x25bc;</small><td><tt>S</tt><td><tt>E</tt><td><tt>N</tt><td><tt>W</tt><td><tt>T</tt><td><tt>B</tt>
+  <tbody><tr><th><tt>S</tt><td class="XXX"><td>1<td>2<td>3<td>4<td>5
+         <tr><th><tt>E</tt><td>1<td class="XXX"><td>6<td>7<td>8<td>9
+         <tr><th><tt>N</tt><td>2<td>6<td class="XXX"><td>10<td>11<td>12
+         <tr><th><tt>W</tt><td>3<td>7<td>10<td class="XXX"><td>13<td>14
+         <tr><th><tt>T</tt><td>4<td>8<td>11<td>13<td class="XXX"><td>15
+         <tr><th><tt>B</tt><td>5<td>9<td>12<td>14<td>15<td class="XXX">
+</table>
+
+<p>This table shows the connection bit used to encode all the connections there are in a sub-chunk.
+The connections are stored in <tt>ChunkData.cnxGraph</tt>: it is a bitfield (<tt>1 &lt;&lt; connectID-1</tt>)
+that indicates which face has a visible path to another face. If there are no paths, that means the
+face is blocking the visibility of a chunk.
+
+<p>Knowing there is "hole" at the edge of a face (ie: the diagonal of the above matrix) is an information
+we don't need, <b>except for the first visible chunk of the frustum</b>. If you start in such a chunk
+and looking through that hole, there won't be any connection and therefore the cave culling will stop
+right there, which is obviously not good. Those extra 6bits are actually stored in a separate field
+(<tt>cdFlags</tt>).
+
+<h4 id="cnxgraph"><span>Graph traversal</span></h4>
+
+<p>This is the part that differs significantly from the blog post: it uses a more conservative approach,
+which results in more chunks being drawn, but should not leave any unfilled hole in the world.
+
+<p>The way it is done, is actually pretty simple: since frustum culling orders chunks from near to far,
+we then scan the chunks from beginning to the end of that list. From a given chunk, we check if there
+is <b>a path within the visibility graph</b> that can reach a previously visible chunk.
+
+<p>We also use the fact that a cube in 3d space only have, at most, 3 visible faces. Going through
+hidden faces will add a significant amount of hidden chunks. Visibility of a face is done by computing
+the dot product between the face normal and the vector from camera to one point of the face.
+
+<p>Therefore here is a simplified version of the graph traversal algorithm:
+<div class="pre">
+<ul>
+  <li>For each visible <tt>ChunkData</tt> we got from frustum culling:
+    <ul>
+	  <li>For each face visible of this <tt>ChunkData</tt> (at most 3):
+	    <ul>
+		  <li>Get neighbor <tt>ChunkData</tt> directly connected to that face.
+		  <li>From this neighbor <tt>ChunkData</tt> is there a path that allows us to go from the face
+		  we entered this neighbor previously to the <b>opposite face</b> we are currently testing ?
+		  <li><b>If yes</b>: save the face we entered current chunk and mark the chunk as visible.
+		  <li><b>If no</b>: try with another face.
+		  <li><span class="n">Note</span>: besides lack of connectivity, this test can also fail for
+		  the following reasons:
+		  <ul>
+		    <li>The neighbor is outside frustum.
+			<li>The neighbor was removed from the list by a previous iteration of this algorithm.
+		  </ul>
+		</ul>
+	  <li>If there are no paths to any faces of the <tt>ChunkData</tt>, remove this chunk from the
+	  visible list.
+	</ul>
+</ul>
+</div>
+
+<h4 id="startchunk"><span>Edge case: starting chunk<span></h4>
+
+<p>Knowing this, you'll notice that the first chunk in the list is a bit special: there are no particular
+faces where we entered this chunk. Since we don't know where we came from in this very first chunk, we
+simply assume all directions are valid: this is what is encoded in the table <tt>canGoTo[]</tt>: For each
+<tt>S, E, N, W, T, B</tt> face we want to check, assume assume we came from every direction, therefore
+check connectivity for any direction.
+
+<p>If a <tt>ChunkData</tt> is connected to this first chunk, we want to know if there is a path to that
+face, from <b>any other direction</b>. Therefore we check all the connection ID that are possible
+for a given face, as described in the <a href="#cnxgraphtbl">previous table</a>. So if we want to know
+if we can reach the south face of the first chunk, we check if one of the connection ID is set for the
+south face, that is either 1, 2, 3, 4 or 5. Since connection graph is encoded as bitfield, the test becomes:
+<pre><t>static int</t> canGoTo[] = {
+	<v>0x001f</v>+(<v>1</v>&lt;&lt;<v>15</v>), <span class="c">/* to south:  1+2+4+8+16 */</span>
+	<v>0x01e1</v>+(<v>1</v>&lt;&lt;<v>16</v>), <span class="c">/* to east:   1+32+64+128+256 */</span>
+	<v>0x0e22</v>+(<v>1</v>&lt;&lt;<v>17</v>), <span class="c">/* to west:   2+32+512+1024+2048 */</span>
+	<v>0x3244</v>+(<v>1</v>&lt;&lt;<v>18</v>), <span class="c">/* to north:  4+64+512+4096+8192 */</span>
+	<v>0x5488</v>+(<v>1</v>&lt;&lt;<v>19</v>), <span class="c">/* to top:    8+128+1024+4096+16384 */</span>
+	<v>0x6910</v>+(<v>1</v>&lt;&lt;<v>20</v>), <span class="c">/* to bottom: 16+256+2048+8192+16384 */</span>
+};
+<span class="c">/* neighbor is the first ChunkData */</span>
+<span class="k">if</span> ((neighbor->cnxGraph | (neighbor->cdFlags &lt;&lt; <v>15</v>)) &amp; canGoTo[oppSide])
+{
+	<span class="c">/* yes, we can */</span>
+	cur->comingFrom = side;
+	<span class="k">break</span>;
+}
+</pre>
+
+<p>The <tt>cdFlags</tt> test is needed in case the <tt>cnxFlags</tt> is empty (ie: no connections to
+any faces at all), but the chunk has holes at the edge of a face.
+
+<h4 id="uncertain"><span>Edge case: uncertain chunk<span></h4>
+
+<p>When gathering all the chunks surrounding a given <tt>ChunkData</tt> (§2.3: <a href="#neighbors">Enumerating
+neighbors</a>), graph traversal might depend on chunks outside of this 3x3x3 region. If that's the case
+we mark the graph traversal as uncertain. When time comes to process this chunk marked as such, we will
+check if this neighbor has been included in the frustum. If not, it will also be discarded. This case
+is pretty rare though: less than 5% of <tt>ChunkData</tt>.
+
+
+<p>This method is not as aggressive as the current version of <prod>Minecraft</prod>: it is far from
+simulating a raycasting traversal, but can still easily cull 50% of chunks when above ground, and nearly
+70% when underground. Still, way better than the first version.
+
+
+<h3 id="altimpl"><span>Alternate implementation</span></h2>
+
+<p>Understanding what's going on in a 3d space is usually quite difficult, since it usually involves
+a lot of information: whether you try to do step by step debugging or display something in the 3d world,
+the result is going to be tedious to analyze. An alternate implementation exists that limits the problem
+in 2d space, which makes it <b>much easier</b> to understand and refactor in case of problems.
+
+<p>Check out the repository <a href="https://github.com/crystalcrag/MCEdit-utils">MCEdit-utils</a>:
+the <tt>Frustum</tt> utility implement more or less everything that has been described in this chapter.
+This utility is actually <b>the reference implementation when something has to be changed</b> in the
+frustum culling algorithm, be it due to bug fix or trying to improve the function.
+</div>
+</body>
+</html>

@@ -63,22 +63,10 @@ a			{ color: brown }
 prod		{ font-style: italic; color: blue; font-weight: bold }
 note		{ background-color: yellow }
 cap         { display: block; font-size: 0.8em; text-align: center }
+#info th	{ text-align: right; vertical-align: baseline }
 #toc		{ position: fixed; top: 0; left: 0; width: 20%; bottom: 0; overflow: auto; color: white; border-right: 2px solid rgba(255,255,255,0.2);
 			  background: linear-gradient(to right, rgba(0,0,0,0.3), rgba(0,0,0,0.7)), url(images/dirt.png); background-size: 100% 100%, 64px 64px;
-			  padding: 20px; box-sizing: border-box; counter-reset: tocH2 }
-#info th	{ text-align: right; vertical-align: baseline }
-#toc a:hover span { text-decoration-style: solid; text-decoration: underline; color: #99ee28 }
-#toc a		{ display: block; margin: 5px 0; color: white; text-decoration: none }
-#toc a.sub1 span { text-decoration: underline; text-decoration-style: dotted }
-#toc a.sub1 { counter-reset: tocH3 }
-#toc a.sub2 { margin-left: 60px; counter-reset: tocH4 }
-#toc a.sub3 { margin-left: 60px; color: #ccc }
-#toc a.sub4 { margin-left: 90px; color: #ccc }
-#toc a.sub1::before { counter-increment: tocH2; content: counter(tocH2) ". " }
-#toc a.sub2::before { counter-increment: tocH3; content: counter(tocH2) "." counter(tocH3) ". ";
-					position: absolute; left: 35px; width: 40px; text-align: right }
-#toc a.sub3::before { counter-increment: tocH4; content: counter(tocH2) "." counter(tocH3) "." counter(tocH4) ". " }
-
+			  box-sizing: border-box; height: 100% }
 
 .listview { border-collapse: collapse; margin-left: 40px }
 .listview td { border: 2px solid black }

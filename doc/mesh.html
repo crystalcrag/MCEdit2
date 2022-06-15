@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+  <title>Internals - frustum culling</title>
+  <link rel="stylesheet" type="text/css" href="default.css">
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+</head>
+<body>
+
+<!-- poor's man include :-/ -->
+<iframe src="toc.html" id="toc"></iframe>
+
+<div id="content">
+
+<h1 style="counter-set: h2 6">7. Mesh generation</h1>
+
+<div id="abstract"><u>Abstract:</u>
+<p>Mesh generation is the part that converts level data into a bunch of triangles suitable for the
+GPU. This being the very central part of a voxel engine, you can bet there is a lot work that needs
+to be done. Most of this is done in the source file <tt>chunkMesh.c</tt>.
+</div>
+
+
+<h2>Mesh generation</h2>
+
+<p>Welcome to <b>look-up table hell</b>.
+
+<p>This engine supports 3 major types of voxel elements that can be converted into meshes. Each <b>have
+their pros and cons</b>:
+
+<ol>
+  <li><tt>SOLID</tt>: these are the <b>bread and butter of a voxel engine</b>: a block that occupies the full
+  space of a voxel. It can have arbitrary textures on all 6 sides, hidden faces can be culled easily and
+  efficiently, and have a precise lighting model (including skylight, blocklight and ambient occlusion).
+
+  <p>The <b>native "resolution"</b> of this engine is actually "half" a voxel: i.e.: a full voxel that
+  has been split in half on the X, Y and Z axis. Which means a full voxel is made of 8 sub-voxels
+  (i.e: you can, for example, render all kind of slabs with this: vertical, horizontal, 2x1, ...).
+
+  <p>This type of voxel will also have <b>greedy meshing</b> applied on them: if the corner parameters
+  of a quad matches nearby voxels, quads will be merged to keep vertices count under reasonable limits
+  for the GPU.
+
+  <p>A typical map is usually composed of 80% of these blocks, therefore they require quite a bit of
+  work (thus, will need <b>a lot</b> of look-up tables).
+
+  <li><tt>CUST</tt>: voxels that can have an <b>arbirary shape</b> and have a much greater precision than half-blocks.
+  The major drawback with these is that their <b>lighting model is greatly simplified</b>: for example, they
+  don't generate any ambient occlusion. Also the same skylight and blocklight is applied to the entire
+  model: if you were to generate a floor out of these with a block light nearby, you would be able to
+  see that the transition between light values is not smooth at all (and have that <prod>Minecraft</prod>
+  alpha feels).
+
+  <p>Hidden face culling is still performed aggressively on these: a full voxel model will therefore
+  be culled the same way as a <tt>SOLID</tt> block.
+
+  <p>This type includes blocks like fences, glass panes, pistons, torches, chests, doors, ...
+  
+  <p>Note: this type of blocks also includes what is known as "chiseled" blocks: slab and detailed blocks
+  (X, Y, Z split by 8).
+
+  <li><tt>QUAD</tt>: this is a <b>very simple voxel to process</b>: only a handful of combination exists
+  and all of them are trivial to process compared to the previous two. The typical use case for these
+  are flowers, crops, grass, rails...
+
+  <p>Like <tt>CUST</tt>, they use a simplified lighting model: single skylight/blocklight value for
+  the entire model, and no ambient occlusion. Technically, they could be handled as <tt>CUST</tt>, but
+  specifying a custom model each time they are needed is way too tedious.
+</ol>
+
+<p>Note: keep in mind that all blocks must be aligned inside the voxel grid. Technically, it is possible
+to generate triangles at arbirary position, but the voxel manipulation functions won't be able to handle
+it. To place a model at a truly arbitrary position, you need to use entities: this will be covered in the
+next section (and have their own pros and cons).
+
+<h3 id="meshsolid"><span>SOLID voxel</span></h3>
+
+<p>These blocks requires quite a bit of work to be converted into meshes. First, keep
+<a href="#quadface">this picture</a> in mind, its information will be used <b>extensively</b>
+in the entire meshing phase.
+
+<h4 id="vtxtex"><span>Vertex and texture coordinates</span></h4>
+
+<p>Converting a full solid voxel into a pseudo quad (technically a <tt>GL_POINT</tt>, that will be transformed
+into 2 triangles in the geometry shader to a form a <tt>GL_QUAD</tt>), you need just a couple of look-up tables:
+
+<pre style="font-size: 0.8em"><t>uint8_t</t> vertex[<v>3</v>*<v>8</v>] = { <span class="c">/* 8 vertices of a 1x1x1 cube */</span>
+    <v>0</v>,<v>0</v>,<v>1</v>,  <v>1</v>,<v>0</v>,<v>1</v>,  <v>1</v>,<v>1</v>,<v>1</v>,  <v>0</v>,<v>1</v>,<v>1</v>,
+    <v>0</v>,<v>0</v>,<v>0</v>,  <v>1</v>,<v>0</v>,<v>0</v>,  <v>1</v>,<v>1</v>,<v>0</v>,  <v>0</v>,<v>1</v>,<v>0</v>,
+};
+<t>uint8_t</t> cubeIndices[<v>6</v>*<v>4</v>] = { <span class="c">/* face (quad) of cube: S, E, N, W, T, B */</span>
+    <v>9</v>, <v>0</v>, <v>3</v>, <v>6</v>,    <v>6</v>, <v>3</v>, <v>15</v>, <v>18</v>,     <v>18</v>, <v>15</v>, <v>12</v>, <v>21</v>,     <v>21</v>, <v>12</v>, <v>0</v>, <v>9</v>,    <v>21</v>, <v>9</v>, <v>6</v>, <v>18</v>,      <v>0</v>, <v>12</v>, <v>15</v>, <v>3</v>
+<span class="c">/*  3, 0, 1, 2,    2, 1,  5,  6,      6,  5,  4,  7,      7,  4, 0, 3,     7, 3, 2,  6,      0,  4,  5, 1 */</span>
+};
+<t>uint8_t</t> texCoord[] = { <span class="c">/* tex coord for each face: each line is a rotation, indexed by (Block.rotate&amp;3)*8 */</span>
+    <v>0</v>,<v>0</v>,    <v>0</v>,<v>1</v>,    <v>1</v>,<v>1</v>,    <v>1</v>,<v>0</v>,
+    <v>0</v>,<v>1</v>,    <v>1</v>,<v>1</v>,    <v>1</v>,<v>0</v>,    <v>0</v>,<v>0</v>,
+    <v>1</v>,<v>1</v>,    <v>1</v>,<v>0</v>,    <v>0</v>,<v>0</v>,    <v>0</v>,<v>1</v>,
+    <v>1</v>,<v>0</v>,    <v>0</v>,<v>0</v>,    <v>0</v>,<v>1</v>,    <v>1</v>,<v>1</v>,
+};
+</pre>
+
+<p>It is as simple as it gets: <tt>vertex</tt> refers to the coordinates in world space (if the cube were
+to be rendered at 0,0,0) of each corner, then to get the 4 coordinates of a given face <tt>cubeIndices</tt>
+are indices within <tt>vertex[]</tt> array. The indices are pre-multiplied by 3, to avoid doing it in
+the <b>many places</b> this array is used. The order/orientation is described in <a href="#quadface">this
+picture</a>.
+
+<p>In case you are wondering, the vertices and face order have no particular meaning nor does them
+enable special tricks. All of this was chosen kind of arbitrarily very early in the development and
+turned out to be OK: neither particularly good, nor bad.
+
+<p>Keep in mind that coordinates for the mesh will be relative to the sub-chunk origin (a 16x16x16
+chunk of terrain). In the vertex shader, each sub-chunk will receive a <tt>vec3</tt> offset that
+will be added to every vertices.
+
+<p><b>The order in which vertices of a face are enumerated</b> has a meaning though: it is done so that
+all the remaining information (texture coordinates, lighting, ambient occlusion) can be applied the
+same way on all faces.
+
+<p>The <tt>texCoord</tt> array encodes 4 different rotations of a texture:
+
+<div class="image">
+  <img src="images/tex-rotate.png">
+</div>
+
+<p>Since there are 6 faces and you need 2 bits to encode each rotation, the <tt>BlockState_t.rotate</tt>
+field contains 12bits of information. You cannot mirror a texture though, for this you'll need to a <tt>CUST</tt> voxel.
+
+<h4 id="skyblock"><span>Block and sky light</span></h4>
+
+<p>Each of the 24 vertices of a cube can have an independant block and sky light value, so that values
+can be smoothly interpolated across a face. Each vertex will depend on 4 sky/block light: the 4 voxels
+that share the vertex in the direction of the face normal. This is the purpose of the <tt>skyBlockOffset[]</tt>
+table (it contains too many numbers to be displayed here).
+
+<p>Each number in this table refers to a voxel, that is using the same coordinate system than the one
+used in the <a jref="#cube3x3">frustum culling</a>:
+
+<p><img src="images/quad_face.png" style="width: 66%; float: right">
+
+<table class="skewed">
+<tr><td>18<td>19<td>20
+<tr><td>21<td>22<td>23
+<tr><td>24<td>25<td>26
+</table>
+
+<table class="skewed">
+<tr><td>9<td>10<td>11
+<tr><td>12<td><v>13</v><td>14
+<tr><td>15<td>16<td>17
+</table>
+
+<table class="skewed">
+<tr><td>0<td>1<td>2
+<tr><td>3<td>4<td>5
+<tr><td>6<td>7<td>8
+</table>
+
+<p>Whenever a <tt>SOLID</tt> block has at least one face visible, we extract the 26 surrounding voxels:
+block ID and data value (in the array <tt>blockIds3x3[]</tt>) as well as block light and sky light
+(in the array <tt>skyBlock[]</tt>). Each of these two arrays have 27 elements, ordered like in the table
+above.
+
+<p><tt>skyBlockOffset[]</tt> then encodes the 4 values we need per vertex: 4 vertex per face, that means
+16 values per face, 96 items in total. For block light, we take the maximum among the 4 values, for
+skylight we take the minimum if the value is not 0.
+
+<p>For example, the south face has the values <tt class="o">15</tt>, <tt class="o">16</tt>, <tt class="o">24</tt>,
+<tt class="o">25</tt> for the first vertex. If you look at the face order schema, the first vertex of
+the south face is vertex 3 (arrow inside the square shows the order). There are 8 voxels that share
+this vertex, but we only take the 4 that are in the direction of the face's normal (otherwise there
+are too many).
+
+<h4 id="cnxtex"><span>Connected textures</span></h4>
+
+<p>Connected texture only applies to full block. More complex models like glass pane uses a different
+approach (and will be described in the <tt>CUST</tt> section).
+
+<p>For full blocks, the base model of its texture will be used to generate all the variations. Since
+there are 4 sides, it means there are 16 possible combinations. As of writing this, this is done by removing
+a one pixel line from a given side. These are generated in <tt>blocks.c:blockPostProcessTexture()</tt>.
+This is for example, what it looks like for the glass texture:
+
+<div class="photo">
+  <img src="images/cnxtex.png" style="background-color: black; border: 5px solid black; width: 512px">
+</div>
+
+<p>To know which texture to use, you just need to set a bitfield if the block on top (bit1), right (bit2),
+bottom (bit3) or left (bit4) "connects" with the current voxel. By default, U texture coordinate is
+set to 0, therefore, you just have to shift it by <tt>bitfield * 16</tt> to simulate a connection.
+
+<p>Left, right, top and bottom are relative to a face, therefore a new look-up table is needed:
+<tt>offsetConnected[]</tt>. It encodes the 4 blocks to look for connection in the <tt>blockIds3x3[]</tt>
+table (24 elements in total). Each group of 4 elements is of course ordered top, right, bottom and left.
+
+<h4 id="meshhalf"><span>Half-block</span></h4>
+
+<p>Half-block is actually the native "resolution" of this engine. Seems simple enough and you might wonder
+what the big deal with these ? Well, you'll have a glimpse as to why Mojang has not added vertical slab to
+<prod>Minecraft</prod> yet (as of writingthis, in august 2021): they introduce <b>a lot</b> of edge cases,
+and sadly, it means <b>lots of look-up tables</b>.
+
+<p>The first thing to keep in mind with half-block is, that <prod>MinecrafT</prod> treat them as if they were
+a <tt>SOLID</tt> voxel: they completely block sky light and block light no matter what their orientation
+is. If you attempt to get block or sky light at their coordinate, you'll get 0.
+
+<p>/* ... */
+
+<h4 id="ocs"><span>Ambient occlusion</span></h4>
+
+<p>/* ... */
+
+<h3 id="meshcust"><span>CUST voxel</span></h3>
+
+<p>Custom voxels are blocks that cannot be represented as a <tt>SOLID</tt> voxel. They can have an
+arbitrary shape, but their lighting is quite simplified compared to <tt>SOLID</tt>. For example they
+usually do not generate ambient occlusion, unless one of their face line up with the voxel grid.
+
+<p>Mesh data is stored in memory and read from the main block description table (<tt>blocksTable.js</tt>).
+These models use the <a href="#vtx10bytes">10 bytes per voxel</a> vertex data. In the meshing phase
+they are converted to 28 bytes per quad. This conversion is pretty straightforward, albeit a bit messy
+to look at with all these bit twiddling hacks.
+
+<p>There is one aspect that is not that trivial to handle though: <b>connected models</b>.
+
+<h4 id="cnxmodels"><span>Connected models</span></h4>
+
+<p>Some models <b>can have optional parts</b> that can be removed based on nearby voxels. The overtypical
+example being fences:
+<div class="image">
+  <img src="images/cnxmodels.png">
+</div>
+
+<p>Yet, if you look at the model definition for every type of fence, you'll see <b>only one model</b>
+being defined for each. The way it is handled is this engine is by tagging each vertex by an integer.
+In the model <a href="#vtx10bytes">vertex data</a>, this ID is stored in the sky/block light information,
+using 5 bits out of the 8 available (lighting information make no sense at this point, that's why it is
+perfectly safe to repurpose those fields). That means each models can have up to <b>32 different connected
+parts</b>. As of writing this, the models that have the most parts are glass panes with 18 parts.
+
+<p>In case of fences, they only have 4 different parts: the 4 extensions around the center piece. In the
+meshing phase we check for blocks around the custom model if those optional parts can connect to. This
+is done in the function <tt>blockGetConnect()</tt>: the return value will be a bitfield of the parts
+that should be included in the chunk's mesh.
+
+<p>Then, in the chunk mesh generation, the unused parts are filtered using this simple test:
+<pre><span class="k">if</span> (faceId &gt; <v>0</v> &amp;&amp; (connect &amp; (<v>1</v> &lt;&lt; (faceId-<v>1</v>))) == <v>0</v>)
+{
+	<span class="k">continue</span>;
+}
+</pre>
+
+<p>Here, <tt>connect</tt> is the bitfield encoding the parts that should be included in the mesh. Since
+it is a 32bits integer, that's where the limit of 32 optional parts comes from. An ID of 0 for a face
+means that the face will always be included (like the central piece of a fence).
+
+
+<p>/* ... */
+
+<h3 id="greedymesh"><span>Greedy meshing</span></h3>
+
+<p>Greedy meshing refers to a technique used to <b>merge quads</b>, in order to reduce the amount of vertex
+data the GPU will have to process. In a typical voxel engine, GPU performance is more or less proportionnal
+to the number of vertices, so the lower the quad count, the better the performance.
+
+<p>In the initial phase for all voxel type (<tt>SOLID</tt>, <tt>CUST</tt> or <tt>QUAD</tt>), <b>no merging
+is attempted</b>. The mesh of a chunk is generated entirely with quads that fit within a voxel.
+
+<p>Then a second phase will try to merge them. Implementing this in 2 phases, make the implementation
+<b>quite simple</b>: you only need a hash table of the quad you can potentially merge (some quads cannot:
+they need to be axis-aligned and cover the full side of a voxel). The other advantage of having 2 passes
+is that merging can be easily disabled, just to be sure it is not the cause of some weird graphical glitch.
+
+<p>Then in the merging phase, you scan the entirety of that table. For each quad, you try to expand
+in the 2 directions perpendicular to their normal and expand them as much as possible. Merged quads
+will be marked as deleted, and will be removed right before sending them to the GPU. The process is
+really as simple as that.
+
+<p>Expansion needs to take into account quite a few parameters though: texture coordinates, ambient
+occlusion, skylight and blocklight values. Which means the merging is not as good as you might
+think. Still, better than doing nothing. With a typical minecraft map, this technique can reduce the
+number of quads by 20% to 30%.
+
+<p>Caves are particularly bad when it comes to merging: too many weird shapes, which generates different
+occlusion values for almost every quads. This is where cave culling helps a lot more.
+
+<p>In the <b>fragment shader</b>, you need to a bit more work though: you cannot rely on <tt>GL_REPEAT</tt>,
+since the textures of all the blocks are stored in an atlas (which is set to <tt>GL_CLAMP</tt> anyway). Merged
+quads will have their texture coordinates expanded to let OpenGL perform the perspective interpolation.
+The fragment shader will also be provided with the texture origin. Then the only thing left to do is
+to mod the texture coord provided to the fragment shader by 1/512 in U and 1/1024 in V and add this
+to the texture origin (which is, by the way, the reason why only full quads are merged).
+
+</div>
+</body>
+</html>

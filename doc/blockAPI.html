@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+  <title>Internals - frustum culling</title>
+  <link rel="stylesheet" type="text/css" href="default.css">
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+</head>
+<body>
+
+<!-- poor's man include :-/ -->
+<iframe src="toc.html" id="toc"></iframe>
+
+<div id="content">
+
+<h1 style="counter-set: h2 3">4. Block API</h1>
+
+<div id="abstract"><u>Abstract:</u>
+<p>This engine uses a somewhat generic way to describe all the blocks
+and their associated models for each state. There are some provision to also describe their behaviour,
+but some large chunk remains hardcoded for now. Most notably: redstone updates (defining the behavior
+of all redstone devices in a generic way is no easy task).
+
+<p>Still, the API described here permits quite a few liberty on what the engine can do, and if paired
+with the TileFinder tool, those changes can be done fairly easily.
+</div>
+
+
+<h2 id="blocks">Block API</h2>
+
+<p>This section will describe how the block description table works (<tt>blocksTable.js</tt>). This
+table describes all of the blocks recognized by this engine and their different states, along with
+their custom models if any.
+
+<p>This table does not cover 100% of use cases though: you cannot change it and expect to have a
+completely different "game". Some special processing is hardcoded within the engine (like redstone
+behavior, block with tile entities). Still, this table is used to define a huge chunk of the engine
+behavior.
+
+<p>This table uses the javascript object notation format. It is similar to the JSON format, with a few
+changes: property names don't have to be enclosed in double quotes and property values can contain expressions.
+
+<p>For the sake of simplifying the parsing, property names have to start with a <b>lower case letters</b>,
+constants assigned to property must be spelled using only <b>uppercase letters</b>.
+
+<p>This table contain <b>2 types of objects</b>:
+<ol>
+  <li><b>Block description</b>: contain generic information about the block, like its type, id,
+  name, inventory category, inventory model, ... That information must remain true for all states.
+  If that's not the case, some properties can also be declared at the state level.
+  <li><b>State description</b>: also known as meta-data. Each block in the terrain can have up to 4bits
+  of extra information, that can describe 16 different states. This is the purpose of these objects:
+  provide a complete description of one state: custom mesh model and/or texture coordinate if block
+  is completely solid. Not all 16 states have to be defined, but at least 1.
+</ol>
+
+
+
+
+
+<h3 id="blockdesc"><span>Block description</span></h3>
+
+<p>A block description must contain the property <tt>id</tt> and be assigned to an integer. Here are the
+possible properties:
+<ul>
+  <li><tt>id</tt>: the block ID as it is stored in the NBT table <tt>Sections/Blocks</tt> of a chunk.
+  <li><tt>type</tt>: how the block will be rendered in the world. This field will constraint what is
+  expected for state description. <b>This is a very important field</b>, you can choose one value among:
+  <ul>
+    <li><tt>INVIS</tt>: invisible. No mesh will be generated for these (typical use case: AIR).
+    <li><tt>SOLID</tt>: a full 1x1x1 voxel cube. This engine is optimized to display these. They are
+	cheap to process, cheap to render and cheap to define: just specify the texture of the 6 sides of
+	the cube and that pretty much all there is to it.
+	<p>Note: stairs and slab are considered SOLID blocks.
+
+    <li><tt>TRANS</tt>: Similar to SOLID, they must be defined as a full unit cube. The difference is
+	in the way hidden surface removal works: for SOLID blocks, all sides shared by any other solid block
+	will be removed. For TRANS block, this check will only be done with the same block id (typical use
+	case: glass or water).
+    <li><tt>QUAD</tt>: for blocks that are a mix of flat quads that does not necessarily forms a cube.
+	Typical use case: crops, grass or flowers.
+    <li><tt>CUST</tt>: completely arbitrary shape, a custom model will be expected for each state
+	description. Keep in mind that the model cannot exceed a 1x1x1 cube in size, because of frustum
+	culling. If you need more, you will have to use an entity instead.
+  </ul>
+  <li><tt>name</tt>: a human readable name that will be displayed in various places of the engine.
+  <li><tt>tech</tt>: the technical name stored in inventories. If the name is the same as the <tt>name</tt>
+  field (but converted to lowercase and space replaced with underscore), you can omit that field.
+  <li><tt>inv</tt>: how this block is going to be represented in inventory menus. It is an enumeration
+  value that can be assigned to one of the following values:
+  <ul>
+    <li><tt>CUBE</tt>: each individual states will have its own inventory item in the form of a cube. The
+	textures used for the cubes will be described in the state description. In the screenshot below, cube
+	inventory items have been highlighted with a green background.
+    <li><tt>ITEM2D</tt>: each states will be represented as flat 2d texture (taken from state description).
+	In the screenshot below, they have a gray background.
+    <li><tt>MODEL</tt>: will use a custom model for their inventory. The model will be viewed at an angle
+	using a orthographic projection (not a perspective one). You can provide a custom model to be used
+	only in inventories, or you can reuse the ones defined in the state description. In the screenshot
+	below, those items have been highlighted with a red background.
+  </ul>
+  <div class="image">
+    <img src="images/inventory.png">
+  </div>
+  <li><tt>invstate</tt>: sometimes, you don't want to have one inventory item per state, but only one
+  (typical use case: blocks that have an orientation). If this field is present, it must contain the
+  state id (between 0 and 15) to use when displaying this item in inventories.
+  <li><tt>cat</tt>: the creative menu is split into tabs. This field let you choose which one it will
+  be in. If not specified, the item will appear in the "all" category (the tab with the compass, in the
+  screenshot above). You can choose one value among;
+  <ul>
+    <li><tt>BUILD</tt>
+	<li><tt>DECO</tt>
+	<li><tt>REDSTONE</tt>
+	<li><tt>CROPS</tt>
+	<li><tt>RAILS</tt>
+	<li><tt>FILLBY</tt>: blocks that should not be in survival/creative inventory, but can be used
+	as to fill space using extended command (fill and geometric brush).
+  </ul>
+  <li><tt>special</tt>: special behavior to activate in the engine. Possible choices:
+  <ul>
+    <li><tt>CHEST</tt>: chest that can form a 2-wide entity. Therefore, that does not include ender chest.
+    <li><tt>DOOR</tt>: behave like a door: 2 tall block with the same data values.
+    <li><tt>NOSIDE</tt>: will generate a front and back face (typical use is for QUAD block type).
+    <li><tt>HALF</tt>: half block: data values will encode placement.
+    <li><tt>STAIRS</tt>: data value will encode orientation.
+    <li><tt>GLASS</tt>: behave like a glass pane: automatically connect to nearby block with this
+	special attribute set (like glass pane and iron bars).
+    <li><tt>FENCE</tt>: wooden fences that connect with similar block.
+    <li><tt>FENCE2</tt>: nether fence (does not connect with FENCE).
+    <li><tt>WALL</tt>: cobblestone wall and variants: it connects with more block than FENCE or GLASS.
+    <li><tt>RSWIRE</tt>: used for redstone wire only: wire model depends on nearby blocks.
+    <li><tt>LEAVES</tt>: hidden surface must not be removed.
+    <li><tt>LIQUID</tt>: water and lava.
+    <li><tt>TALLFLOWER</tt>: need a special flag for these, because they are made of 2 blocks.
+    <li><tt>RAILS</tt>: this flag is used when placing rails to know which neighbor to update.
+    <li><tt>TRAPDOOR</tt>: block update from redstone/user.
+    <li><tt>SIGN</tt>: they need special processing (allocate off-screen texture).
+    <li><tt>PLATE</tt>: pressure plate (needed for redstone signal).
+    <li><tt>SOLIDOUTER</tt>: only useful for <tt>CUST</tt> block type: the block model will be a mix
+	of <tt>SOLID</tt> and <tt>CUBE</tt>: the outer layer of the model will use a unit textured cube,
+	using the texture declared in the <tt>tex</tt> field of the state description. The purpose of
+	this flag is to allow custom block model to benefit from ambient occlusion.
+    <li><tt>BED</tt>: their models depend on tile entity.
+  </ul>
+  <p>Additionally, you can OR these values, with the following flags (ie: separated by |):
+  <ul>
+	<li><tt>CNXTEX</tt>: generate connected texture for all state description. Texture will be auto-generated
+	from state description.
+	<li><tt>NOCONNECT</tt>: don't generate connected info. Typical use case: fence gates. They connect
+	with fences, and therefore have the FENCE flag, but don't have optional parts like fences.
+  </ul>
+  <li><tt>bbox</tt>: how the block can be targeted with the mouse. Enumeration value, with the following
+  choices:
+  <ul>
+    <li><tt>NONE</tt>: this block cannot be targeted by user.
+    <li><tt>AUTO</tt>: this mode will be automatically set for block type <tt>SOLID</tt>, <tt>TRANS</tt>
+	and <tt>QUAD</tt>. Therefore, you can omit the <tt>bbox</tt> field for these types.
+    <li><tt>MAX</tt>: this type is intended for <tt>CUST</tt> block type: <tt>MAX</tt> will compute
+	the maximum axis-aligned box that covers the entire model.
+    <li><tt>FULL</tt>: another mode for <tt>CUST</tt> block type: each individual part of a custom model
+	will be used to check if the block is targeted. This type of collision test is very precise, but
+	of course a bit more expensive to check.
+  </ul>
+
+  <li><tt>bboxPlayer</tt>: bounding box used for player/entity collision detection. The only supported
+  value for this field is <tt>NONE</tt>. Otherwise, it will use the same value than the one specified in
+  the <tt>bbox</tt> entry.
+
+  <li><tt>orient</tt>: if block placement is orientation dependent, you can specify with this field
+  how individual state description can be automatically chosen based on player orientation and/or block
+  targeted:
+  <ul>
+    <li><tt>LOG</tt>: 3 possible orientation: E/W, N/S, or up right.
+    <li><tt>FULL</tt>: 6 possible orientation: south, east, north, west, top, bottom.
+    <li><tt>BED</tt>: 4 possible orientation, composed of 2 blocks.
+    <li><tt>SLAB</tt>: 2 orientation: lower half, upper half.
+    <li><tt>TORCH</tt>: 5 orientation: stick to wall or up right.
+    <li><tt>STAIRS</tt>: 8 orientation.
+    <li><tt>SENW</tt>: 4 orientation (typical: chest, furnace).
+    <li><tt>SWNE</tt>: 4 orientation but different state description (typical: repeaters, comparators).
+    <li><tt>DOOR</tt>: 8 orientation.
+    <li><tt>SE</tt>: 2 orientation: E/W or N/S, typical use case: rails.
+    <li><tt>LEVER</tt>: 8 possible orientation: used by lever and buttons.
+  </ul>
+
+  <li><tt>emitLight</tt>: if this block will emit block light, you can indicate a value between 1 and 15
+  (0 being the default).
+
+  <li><tt>opacSky</tt>: how much intensity of sky light it will absorb. Default is 15 for <tt>SOLID</tt>
+  and 0 for everything else. Usual values are 1 for leaves and 3 for water.
+
+  <li><tt>opacLight</tt>: same with block light. Note: block light decreases by 1 for every step away
+  from a light source. Therefore if you want a more "absorbing" block, the minimum value should be 2.
+
+  <li><tt>tile</tt>: will add a default tile entity when placed in the world. Needed by Minecraft, not
+  necessary for this engine.
+
+  <li><tt>invmodel</tt>: state id (between 0 and 15) where to copy model to be rendered in inventories.
+  This particular block will have only one item in the creative menu (instead of one per state).
+
+  <li><tt>rswire</tt>: indicates how redstone wire connects to this block. Possible values are:
+  <ul>
+    <li><tt>ALLDIR</tt>: all possible direction (S, E, N, W).
+    <li><tt>FRONTBACK</tt>: can connect to the front and back of the block (repeaters).
+    <li><tt>BACKONLY</tt>: only from back (observer).
+  </ul>
+
+  <li><tt>rsupdate</tt>: indicates if this block cares about redstone update. Enumeration that can
+  have one of the following values:
+  <ul>
+    <li><tt>RECEIVE</tt>: block state will change when redstone signal change nearby.
+    <li><tt>GENERATE</tt>: will generate the redstone signal.
+    <li><tt>INOUT</tt>: will do both: update states with redstone signal and output a signal (ie: repeaters, comparators).
+  </ul>  
+
+  <li><tt>placement</tt>: constraint the block has to satisfy to be placed in the world. If those
+  constraint were to be invalidated due to nearby update, the block will be automatically deleted.
+  The field should be a string, described a list of constraints separated by commas. Each constraint
+  can use the following keyword:
+  <ul>
+    <li><tt>ground</tt>: any type of solid flat ground.
+    <li><tt>wall</tt>: any type of solid flat wall.
+	<li><tt>solid</tt>: any solid face from a block.
+	<li><em>techName</em>: that particular block.
+  </ul>
+  <p>Note: the block is considered correctly placed if one of the constraint is satisfied. "Solid"
+  means a block that has been declared with the type <tt>SOLID</tt>. That excludes <tt>CUST</tt> and
+  <tt>TRANS</tt>.
+
+  <li><tt>particle</tt>: type of particles this block will emit constantly.
+
+  <li><tt>invmodel</tt>: custom model to use when this block is displayed in inventories. Should only
+  be necessary for block type <tt>CUST</tt>, even though nothing prevent you from using with any other
+  type. The format of this field is a bit complicated and be explained in the <a href="#blockmodel">next section</a>.
+
+  <li><tt>pushable</tt>: how this block is going to be affected if pushed/retracted by a piston. Enumeration
+  value that can take one of the following value:
+  <ul>
+    <li><tt>NO</tt>: block can't be pushed, nor retracted (obsidian, chests, ...)
+    <li><tt>YES</tt>: default value for all blocks except <tt>QUAD</tt>.
+    <li><tt>PUSHONLY</tt>: can only be pushed, but not retracted (glazed terracotta).
+    <li><tt>DESTROY</tt>: completely destroy the block if pushed (leaves, grass, ...): this is the
+	default for <tt>QUAD</tt>.
+    <li><tt>DROPITEM</tt>: remove the block, but create an item entity (flowers, ...).
+  </ul>
+  <p><b>Note</b>: this engine supports moving blocks containing tile entities (furnace, chests, ...),
+  even though in the default block definition file (<tt>blocksTable.js</tt>), they have been marked
+  as non-movable.
+
+  <li><tt>gravity</tt>: integer that can be either <tt>0</tt> or <tt>1</tt>. If set to <tt>1</tt>, the
+  block will be converted to a falling entity, if placed above air (be it manually or with pistons).
+
+  <li><tt>keepModel</tt>: hack.
+</ul>
+
+<h3 id="statedesc"><span>State description</span></h3>
+
+<p>An object declaration is recognized as a state declaration if it is contains a <tt>state</tt> property
+with an integer assigned to it. Beside this property, you can also use these ones:
+<ul>
+  <li><tt>state</tt>: an integer between 0 and 15 that will be stored in <tt>Sections/Data</tt> table in a chunk.
+  This table has only 4bits of information per block. More information can be stored using TileEntity.
+  <li><tt>name</tt>: this field should describe a bit more in detail what the state is doing: for example,
+  if the block is orientation dependent, you should include which way the state is pointing, or if the
+  block has an opened/closed state, this is where it should be described...
+
+  <p>Since this field will almost certainly have <b>a lot of redundant information</b>, there are a few
+  facility to prevent you from repeating the same text over and over again: the less redundancy, the
+  easier it will be to fix mistakes.
+
+  <p>First, a state name can include an underscore (<tt>_</tt>) in the text. This character will
+  act as a reference point for later names. The character itself will be replaced by a regular space.
+
+  <p>Once you have a reference point, you can ask to include everything that was before using the <tt>+</tt>
+  or <tt>-</tt> character, and then continue your text.
+
+  <p>The text being appended will always be added with a parenthesis before (and a closing one if none
+  are specified in the text), unless there was already an opening one in the text that was copied.
+
+  <p>Here are a few examples:
+  <table class="listview">
+  <thead><tr><td class="nowrap">Block name<td>State name<td>Expanded into<td>Description
+  <tbody>
+    <tr><td rowspan="4"><tt>Log</tt><td><tt>+oak</tt><td><tt>Log (oak)</tt><td>Without any previous underscore, the whole text of block will be added.
+    <tr><td><tt>+spruce</tt><td><tt>Log (spruce)</tt><td>Still no underscore specified, the reference point will remain the same on next line.
+    <tr><td><tt class="nowrap">Bark (_oak)</tt><td><tt>Bark (oak)</tt><td>If the text does not include <tt>+</tt> or <tt>-</tt>, then it replaces everything. A new reference point is also set.
+	<tr><td><tt>-spruce</tt><td><tt class="nowrap">Bark (spruce)</tt><td>The new reference point now point to a state description, instead of the block.
+  </table>
+
+  <li><tt>tex</tt>: texture coordinates to use to draw the faces of that block. Coordinates are actually
+  tile coordinates: integers between 0 and 31 that will point to a texture tile in the file <a href="../resources/terrain.png">terrain.png</a>.
+  That way the coordinates will work no matter what resolution the file is, the default tile set is 16x16px,
+  but you can use whatever size you want (tiles needs to be square though). Although allowed, it is
+  strongly discouraged to use a size that is not a power of 2, due to mipmapping (texture will "bleed"
+  at the edge of tiles). You can omit that field, in which case it will use the same texture coordinates
+  than the previous state (as declared in the file).
+
+  <p>This field is expecting an array of integers. The number of coordinates will depend on the type of the block:
+  <ul>
+    <li><tt>SOLID</tt>, <tt>TRANS</tt>: 12 integers that form 6 pairs of U, V tile coordinates, one
+	pair for each faces, specified in the order <tt>S,E,N,W,T,B</tt>. The coordinate must be specified
+	relative to the top left corner of the tile you want to use for that face.
+	<li><tt>QUAD</tt>: 2 integers: the tile texture to use for all quads (integer between 0 and 31).
+	<li><tt>CUST</tt>: 8 integers: technically not required to render the block, since block model will
+	provide their own texture coordinates, but this field will still be used for particles when this
+	block is destroyed by the user. You don't have to specify the texture for the top and bottom face
+	though, although it doesn't hurt to include them.
+  </ul>
+
+  <p>Filling those values manually is possible, albeit tedious and error prone. In the default <tt>blockTable.js</tt>
+  field, all the values where filled with the help of <tt>TileFinder</tt> (check out the repository
+  <a href="https://github.com/crystalcrag/MCEdit-utils">MCEdit-utils</a>).
+  
+  <p>This field can include a 13th integer, that will be used to specify the <tt>rotate</tt>
+  field (because <tt>TileFinder</tt> can read and write those 13 values at once).
+
+  <li><tt>quad</tt>: an array of symbols indicating which quad to render for this block. Each symbol
+  can be one of the following enumeration value:
+  <ul>
+    <li><tt>CROSS</tt>: used for flower, grass, ...
+	<li><tt>SQUARE</tt>: usually crops.
+    <li><tt>NORTH</tt>: attached to north of block (ladder, vines).
+    <li><tt>SOUTH</tt>: attached to south face.
+    <li><tt>EAST</tt>: east face.
+    <li><tt>WEST</tt>: west face.
+    <li><tt>BOTTOM</tt>: bottom of block (lily pad).
+    <li><tt>ASCE</tt>: ascending from west to east (rails).
+    <li><tt>ASCW</tt>: ascending from east to west.
+    <li><tt>ASCN</tt>: ascending from south to north.
+    <li><tt>ASCS</tt>: ascending from north to south.
+  </ul>
+
+  <li><tt>inv</tt>: this field can be used to override what has been specified at the block level.
+  Remember, that the type of inventory item specified in the block will be applied to all state description.
+  The typical use case is to prevent some states from appearing in the inventory (ie: <tt>NONE</tt>).
+
+  <li><tt>model</tt>: an array of floating point numbers. This field is absolutely not intended to be
+  edited manually. The format will be described <a href="#blockmodel">below</a>, but even with this
+  description, you'll have a hard time filling this field manually.
+  <p>Instead, an external tool is almost required: <tt>TileFinder</tt>. You'll notice that all models
+  are declared on their own lines (there no JSON tokens mix in those lines, besides what's required
+  to make an array of numbers). The reason for this, is that those lines can be selected in a standard
+  text editor, then copied and pasted inside <tt>TileFinder</tt> to see what the model looks like.
+  You can also copy the model from <tt>TileFinder</tt> to the text file again, if you modify it later.
+
+  <li><tt>rotate</tt>: rotate applied to texture coordinate, 6 groups of 2 bits. Rotation are ordered
+  <tt>S,E,N,W,T,B</tt>. The texture will be rotated in multiple of 90&deg; clock-wise (when viewed
+  in front), the multiple being the number encoded as 2bits.
+
+  <li><tt>emit</tt>: where emitters are located in the model. An array containing one emitter location
+  per entry. It can be one of the letter <tt>S,E,N,W,T,B</tt>, indicating that the entire face can emit
+  particles (the location will be randomly selected when a particle is spawned). Or it can be a number:
+  if the block has a custom model, this is the primitive number that will be used as location.
+</ul>
+
+<h3 id="blockmodel"><span>Block models</span></h3>
+
+<p>Custom models that don't fit <tt>QUAD</tt> or <tt>SOLID</tt> can still use arbitrary shapes using
+the property <tt>model</tt> on a state description object. All the models has been filled using
+an external application: <a href="https://github.com/crystalcrag/MCEdit-utils"><tt>TileFinder</tt></a>.
+This section will describe how the models are encoded, even though it can be edited by hand, anything
+more complex than a slight value change will certainly require the use of a 3d modeler.
+
+<p>Contrary to typical models description format (like <tt>.obj</tt>) which usually only contains
+triangles, this format uses cubes/boxes as basic primitives, where each face can be selectively
+hidden or textured. You can also apply rotation, scaling, translation to each individual box and
+by grouping multiple boxes, you get a model.
+
+<p>Each lines usually represent a primitive (ie: box), with tags describing what the following numbers
+means. A line ends where the next one starts (or when there are no more numbers to process). The starting
+tag will always be <tt>FACES</tt>. All the other tags can be specified in any order. Here are all the
+tags recognized, and their expected arguments:
+
+<table class="listview">
+<thead><tr><td>TAGS<td>argument<td>Description</thead>
+<tbody>
+  <tr><td><tt>FACES</tt><td>1 integer<td>This tag describe the start of a new primitive. If a previous
+  <tt>FACES</tt> tag was found, the previous primitive will stop processing arguments and generate
+  triangles out of all the parameters given. The agument to this tag is one integer encoding a bitfield
+  of the sides of a cube that will have texture information. The bitfeld uses the order <tt>S, E, N, W, T, B</tt>
+  order, which are respectively assigned to the number 1, 2, 4, 8, 16, 32. Therefore 63 is a full box.
+  <tr><td><tt>DETAIL</tt><td>none<td><tt>TEX</tt> parameter will describe the exact coordinates to apply
+  to each face of the primitive.
+  <tr><td><tt>CUBEMAP</tt><td>none<td><tt>TEX</tt> will be a single tile from the main texture atlas, 
+  but will be reduced to the size/location of the primitive, within that tile. Typical use case is to
+  applied wood texture on fences for example, without having to precisely select the coordinates
+  for each faces.
+  <tr><td><tt>INHERIT</tt><td>none<td>Similar to <tt>CUBEMAP</tt>, but reuse texture coordinates specified
+  for the last line that had <tt>CUBEMAP</tt>. This keyword cannot be set on the first line, there must
+  be a previous <tt>CUBEMAP</tt>, otherwise it is considered a bug.
+  <tr><td><tt>SIZE</tt><td>3 floats<td>Size of the box, specifying the X, Y, and Z axis. 16 represent
+  the size of a voxel (because original texture tile were 16x16px). You can specify fractional number.
+  <tr><td><tt>ROT90</tt><td> 1 integer<td>Rotate the model by 90 degrees steps on the Y axis. Similar
+  to <tt>ROT</tt> or <tt>ROTCAS</tt>. Unit is in degrees and must be multiple of 90 (ie: should only
+  use the numbers 0, 90, 180 or 270). Normals will be recomputed. This tag is only recognized on the
+  <b>first line</b>, will be ignored on subsequent lines and <b>cannot</b> be cancelled.
+  <tr><td><tt>ROT</tt><td>3 floats<td>Arbitrary rotation on X, Y and/or Z axis. The rotation will only
+  be applied to the current model. Unit is in degree.
+  <tr><td><tt>ROTCAS</tt><td>3 floats<td>Similar to <tt>ROT</tt>, but the resulting matrix will be
+  applied to subsequent models too. <tt>ROTCAS</tt> can be reset to identity with the <tt>INC_FACEID</tt>
+  keyword.
+  <tr><td><tt>TR</tt><td>3 floats<td>Apply a translation to the primitive. Same unit as <tt>SIZE</tt>.
+  <tr><td><tt>REF<tt><td>3 floats<td>Center of rotation for <tt>ROT</tt> or <tt>ROTCAS</tt>. Without
+  this tag, the center of rotation will be the center of the primitive. Same unit as <tt>SIZE</tt>.
+  <tr><td><tt>NAME</tt><td>string<td>Only used by TileFinder: giving a name to model parts, makes it
+  easier to locate when there are a lot of them.
+  <tr><td><tt>DUALSIDE</tt><td>none<td>All faces defined for this primitive must not be culled by
+  the back-face culling test.
+  <tr><td><tt>INC_FACEID</tt><td>none<td>Used by connected models. This tag can also be used to reset
+  the <tt>ROTCAS</tt> matrix to identity: useful if you want to group boxes and move them as one unit.
+  <tr><td><tt>TEX</tt><td>n floats<td>A variable number of floats depending on which tag was provided
+  earlier. It depends on <tt>FACES</tt> and texture apply mode (<tt>DETAIL</tt>, <tt>CUBEMAP</tt> or
+  <tt>INHERIT</tt>):
+  <ul>
+    <li><tt>CUBEMAP</tt>: 24 numbers, grouped as 6 x 4 numbers: describe the texture to apply on each face
+	(S, E, N, W, T, B order), with 4 numbers per face (see below for format).
+	<li><tt>INHERIT</tt>: nothing. Should use the numbers provided by the last <tt>CUBEMAP</tt> line.
+	<li><tt>DETAIL</tt>: 4 numbers per active face (ie: <tt>popcount(FACES) * 4</tt>).
+  </ul>
+  <p>Each number must encode a <tt>UV</tt> coordinate (ie: two numbers). <tt>U</tt> can vary from 0 to 512,
+  and <tt>V</tt> from 0 to 1024. <tt>U</tt> can therefore address 513 numbers, thus the formula for each
+  number is <tt>U + V * 513</tt>. To get back the coordinates for these numbers, you can use:
+  <pre>div_t UV = div(tileUV, <v>513</v>); <c>/* UV.quot = U, UV.rem = V */</v></pre>
+</table>
+
+<p>Remember, that you can copy a group of lines to the clipboard and paste them into <tt>TileFinder</tt>
+to see what a model will look like. You can then modify the model in here, and once you are satisfied
+with the changes, copy the model back to clipboard to paste it back in the file.
+
