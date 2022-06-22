@@ -527,6 +527,7 @@ void mapShowChunks(Map map)
 	}
 }
 
+/* check within entire map, if there are chunks that need meshing */
 static int mapRedoGenList(Map map)
 {
 	int8_t * spiral;
@@ -540,6 +541,7 @@ static int mapRedoGenList(Map map)
 	meshStopThreads(map, THREAD_EXIT_LOOP);
 	ListNew(&map->genList);
 
+	/* they have to be scanned from closest to farthest from center */
 	for (spiral = frustum.spiral; n > 0; n --, spiral += 2)
 	{
 		Chunk c = &map->chunks[(map->mapX + spiral[0] + area) % area + (map->mapZ + spiral[1] + area) % area * area];

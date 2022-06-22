@@ -931,7 +931,8 @@ void renderSetViewMat(vec4 pos, vec4 lookat, float * yawPitch)
 	render.camera[VY] = pos[VY] + PLAYER_HEIGHT;
 	render.camera[VZ] = pos[VZ];
 
-	mapMoveCenter(globals.level, old, render.camera);
+	if (mapMoveCenter(globals.level, old, render.camera) && globals.extraDist > 0)
+		raycastMoveCenter(globals.level, old, render.camera);
 
 	matLookAt(render.matModel, render.camera, (float[3]) {lookat[VX], lookat[VY] + PLAYER_HEIGHT, lookat[VZ]}, (float[3]) {0, 1, 0}, render.nearPlane);
 	vecAdd(render.nearPlane, render.nearPlane, render.camera);

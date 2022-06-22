@@ -24,14 +24,14 @@ extern "C" {
 #endif
 
 #ifdef __GNUC__
-#define	SENTINEL                     __attribute__ ((sentinel))
-#define PRINTFWARN(posfmt, posarg)   __attribute__ ((format(printf,posfmt,posarg)))
+#define	SIT_SENTINEL                     __attribute__ ((sentinel))
+#define SIT_PRINTFWARN(posfmt, posarg)   __attribute__ ((format(printf,posfmt,posarg)))
 #else
-#define SENTINEL
-#define PRINTFWARN(posfmt, posarg)
+#define SIT_SENTINEL
+#define SIT_PRINTFWARN(posfmt, posarg)
 #endif
 
-/* basic datatypes (plus those defined in UtilityLib) */
+/* basic datatypes (plus those defined in UtilityLibLite.h) */
 typedef struct SIT_Widget_t *    SIT_Widget;
 typedef struct SIT_Action_t *    SIT_Action;
 typedef struct KeyVal_t *        KeyVal;
@@ -82,44 +82,26 @@ typedef enum                     /* return code from SIT_RenderNodes() */
  * all public functions of this library, check main documentation for details
  */
 DLLIMP SIT_Widget SIT_Init(int nvgFlags, int width, int height, STRPTR theme, int _1_if_theme_is_path_0_if_string);
-DLLIMP SIT_Widget SIT_CreateWidget(STRPTR name, SIT_TYPE type, SIT_Widget parent, ...) SENTINEL;
+DLLIMP SIT_Widget SIT_CreateWidget(STRPTR name, SIT_TYPE type, SIT_Widget parent, ...) SIT_SENTINEL;
 DLLIMP SIT_Widget SIT_GetById(SIT_Widget parent, STRPTR name);
 DLLIMP SIT_Widget SIT_GetFocus(void);
 DLLIMP STRPTR     SIT_GetError(void);
 DLLIMP void       SIT_Nuke(int what);
 DLLIMP void       SIT_Exit(int code);
 DLLIMP void       SIT_Free(APTR pointer);
-DLLIMP void       SIT_Log(int level, STRPTR fmt, ...) PRINTFWARN(2,3);
+DLLIMP void       SIT_Log(int level, STRPTR fmt, ...) SIT_PRINTFWARN(2,3);
 DLLIMP SIT_RENDER SIT_RenderNodes(double time_in_ms);
 DLLIMP void       SIT_RenderNode(SIT_Widget root);
 DLLIMP Bool       SIT_CreateWidgets(SIT_Widget parent, STRPTR fmt, ...);
 DLLIMP void       SIT_RemoveWidget(SIT_Widget);
 DLLIMP Bool       SIT_AddCallback(SIT_Widget, int type, SIT_CallProc, APTR data);
 DLLIMP void       SIT_DelCallback(SIT_Widget, int type, SIT_CallProc, APTR data);
-DLLIMP void       SIT_ClearCallbacks(SIT_Widget w);
 DLLIMP int        SIT_ApplyCallback(SIT_Widget, APTR cd, int type);
-DLLIMP void       SIT_SetValues(SIT_Widget, ...) SENTINEL;
-DLLIMP void       SIT_GetValues(SIT_Widget, ...) SENTINEL;
-DLLIMP STRPTR     SIT_GetHTMLAttr(SIT_Widget node, STRPTR key);
+DLLIMP void       SIT_SetValues(SIT_Widget, ...) SIT_SENTINEL;
+DLLIMP void       SIT_GetValues(SIT_Widget, ...) SIT_SENTINEL;
 DLLIMP void       SIT_SetAttributes(SIT_Widget parent, STRPTR fmt, ...);
 DLLIMP void       SIT_SetFocus(SIT_Widget);
 DLLIMP void       SIT_CloseDialog(SIT_Widget);
-DLLIMP int        SIT_ManageWidget(SIT_Widget);
-DLLIMP int        SIT_ComboInsertItem(SIT_Widget, int index, STRPTR item, int length, APTR rowTag);
-DLLIMP int        SIT_ComboDeleteItem(SIT_Widget, int index);
-DLLIMP APTR       SIT_ComboGetRowTag(SIT_Widget, int nth, STRPTR * label);
-DLLIMP SIT_Widget SIT_TabGetNth(SIT_Widget, int nth);
-DLLIMP void       SIT_TabSplice(SIT_Widget, int pos, int del, ...) SENTINEL;
-DLLIMP int        SIT_ListInsertItem(SIT_Widget, int row, APTR rowTag, ...);
-DLLIMP void       SIT_ListDeleteRow(SIT_Widget, int row);
-DLLIMP SIT_Widget SIT_ListInsertControlIntoCell(SIT_Widget, int row, int cell);
-DLLIMP void       SIT_ListFinishInsertControl(SIT_Widget);
-DLLIMP STRPTR     SIT_ListGetCellText(SIT_Widget, int col, int row);
-DLLIMP int        SIT_ListFindByTag(SIT_Widget w, APTR tag);
-DLLIMP int        SIT_ListGetItemOver(SIT_Widget, float rect[4], float mouseX, float mouseY, SIT_Widget * mouseIsRelTo);
-DLLIMP SIT_Widget SIT_ListGetItemRect(SIT_Widget, float rect[4], int row, int col);
-DLLIMP void       SIT_ListReorgColumns(SIT_Widget, STRPTR);
-DLLIMP int        SIT_TextGetWithSoftline(SIT_Widget, STRPTR buffer, int max);
 DLLIMP void       SIT_MoveNearby(SIT_Widget, int XYWH[4], int defAlign);
 DLLIMP void       SIT_ForceRefresh(void);
 DLLIMP int        SIT_NeedRefresh(void);
@@ -127,15 +109,34 @@ DLLIMP int        SIT_InitDrag(SIT_CallProc);
 DLLIMP Bool       SIT_ParseCSSColor(STRPTR cssColor, uint8_t ret[4]);
 DLLIMP Bool       SIT_GetCSSValue(SIT_Widget, STRPTR property, APTR mem);
 DLLIMP float      SIT_EmToReal(SIT_Widget, uint32_t val);
+DLLIMP void       SIT_ToggleFullScreen(int width, int height);
+                  /* SIT_DIALOG */
 DLLIMP void       SIT_ExtractDialog(SIT_Widget);
 DLLIMP void       SIT_InsertDialog(SIT_Widget);
-DLLIMP int        SIT_TextEditLineLength(SIT_Widget, int line);
-DLLIMP void       SIT_ToggleFullScreen(int width, int height);
-
+DLLIMP int        SIT_ManageWidget(SIT_Widget);
+                  /* SIT_COMBOBOX */
+DLLIMP int        SIT_ComboInsertItem(SIT_Widget, int index, STRPTR item, int length, APTR rowTag);
+DLLIMP int        SIT_ComboDeleteItem(SIT_Widget, int index);
+DLLIMP APTR       SIT_ComboGetRowTag(SIT_Widget, int nth, STRPTR * label);
+                  /* SIT_TAB */
+DLLIMP SIT_Widget SIT_TabGetNth(SIT_Widget, int nth);
+DLLIMP void       SIT_TabSplice(SIT_Widget, int pos, int del, ...) SIT_SENTINEL;
+                  /* SIT_LISTBOX */
+DLLIMP int        SIT_ListInsertItem(SIT_Widget, int row, APTR rowTag, ...);
+DLLIMP void       SIT_ListDeleteRow(SIT_Widget, int row);
+DLLIMP SIT_Widget SIT_ListInsertControlIntoCell(SIT_Widget, int row, int cell);
+DLLIMP void       SIT_ListFinishInsertControl(SIT_Widget);
+DLLIMP STRPTR     SIT_ListGetCellText(SIT_Widget, int col, int row);
+DLLIMP int        SIT_ListFindByTag(SIT_Widget w, APTR tag);
+DLLIMP int        SIT_ListGetItemOver(SIT_Widget, float rect[4], float mouseX, float mouseY, SIT_Widget * mouseIsRelTo);
+DLLIMP void       SIT_ListReorgColumns(SIT_Widget, STRPTR);
 DLLIMP Bool       SIT_ListSetCell(SIT_Widget, int row, int col, APTR rowTag, int align, STRPTR text);
 DLLIMP Bool       SIT_ListSetColumn(SIT_Widget, int col, int width, int align, STRPTR label);
 DLLIMP void       SIT_ListSetRowVisibility(SIT_Widget w, int row, Bool visible);
-
+                  /* SIT_EDITBOX */
+DLLIMP int        SIT_TextEditLineLength(SIT_Widget, int line);
+DLLIMP int        SIT_TextGetWithSoftline(SIT_Widget, STRPTR buffer, int max);
+                  /* clipboard */
 DLLIMP STRPTR     SIT_GetFromClipboard(int * size);
 DLLIMP Bool       SIT_CopyToClipboard(STRPTR text, int size);
 
@@ -270,7 +271,7 @@ enum
 
 	/* Push/Toggle button */
 	SIT_ButtonType       = 73,   /* C___: Enum */
-	SIT_CheckState       = 74,   /* CSG_: Enum */
+	SIT_CheckState       = 74,   /* CSG_: Bool */
 	SIT_RadioGroup       = 75,   /* C___: Int */
 	SIT_CurValue         = 76,   /* CSG_: Pointer */
 	SIT_RadioID          = 77,   /* C___: Int */
@@ -293,6 +294,7 @@ enum
 	SIT_LexerData        = 91,   /* _SG: APTR */
 	SIT_EditAddText      = 92,   /* _S_: STRPTR */
 	// SIT_CurValue      = 76,   /* _SG: Pointer (already defined for SIT_BUTTON) */
+	SIT_CaretStyle       = 139,  /* _SG: Enum (see below) */
 
 	/* List box */
 	SIT_ListBoxFlags     = 93,   /* C__: Enum */
@@ -425,20 +427,6 @@ enum         /* SIT_EditType */
 	SITV_Double   = 5
 };
 
-enum         /* SIT_CheckState */
-{
-	SITV_Unchecked,
-	SITV_Checked,
-	SITV_Indeterminate
-};
-
-enum         /* SIT_ResizePolicy */
-{
-	SITV_Auto,                   /* enlarge/reduce as needed */
-	SITV_Fixed,                  /* compute once */
-	SITV_Optimal                 /* (dialog only) get optimal box */
-};
-
 enum         /* SIT_ListBoxFlags */
 {
 	SITV_SelectMultiple = 0x01,
@@ -453,6 +441,9 @@ enum         /* SIT_ListBoxFlags */
 
 /* special value for rowTag parameter of SIT_ListInsertItem() */
 #define SITV_CategoryRow         ((APTR)-1)
+
+#define SIT_ListGetItemRect(listbox, rect_out, row, col, parent_inout) \
+	SIT_ListGetItemOver(listbox, rect_out, ((col) | ((row) << 8)), 0xbaadf00d, parent_inout)
 
 enum         /* SIT_ViewMode */
 {
@@ -519,6 +510,15 @@ enum         /* SIT_WordWrap */
 	SITV_WWWord
 };
 
+enum         /* SIT_CaretStyle */
+{
+	SITV_CaretIBeam,
+	SITV_CaretBlock,
+	SITV_CaretUnderline,
+	SITV_CaretBlink  = 0x40,     /* flag can be ored with previous values */
+	SITV_CaretNotify = 0x80,     /* can be ored: get notification of cursor pos change, see doc on how to use it */
+};
+
 enum         /* SIT_MoveNearby() defAlign parameter bitfield */
 {
 	SITV_AlignTop     = 1,
@@ -542,8 +542,8 @@ enum /* event type (SIT_AddCallback) */
 	SITE_OnFinalize,     // NULL
 	SITE_OnClick,        // SIT_OnMouse *
 	SITE_OnMouseMove,    // SIT_OnMouse *
-	SITE_OnResize,       // int [2]
-	SITE_OnPaint,        // GC
+	SITE_OnResize,       // float [2]
+	SITE_OnPaint,        // SIT_OnPaint *
 	SITE_OnRawKey,       // SIT_OnKey *
 	SITE_OnVanillaKey,   // SIT_OnKey *
 	SITE_OnSortColumn,   // int
@@ -551,7 +551,7 @@ enum /* event type (SIT_AddCallback) */
 	SITE_OnSetOrGet,     // SIT_OnVal *
 	SITE_OnGeometrySet,  // int [3]
 	SITE_OnDropFiles,    // STRPTR * (array is null-terminated)
-	SITE_OnMouseOut,     // SIT_Widet
+	SITE_OnMouseOut,     // SIT_Widget
 	SITE_LastEvent,
 	SITE_OnClickMove     // SIT_OnMouse *  (register cb both for OnClick and OnMouseMove) */
 };
@@ -699,61 +699,63 @@ enum /* values for SIT_OnKey_t.flags */
 	SITK_Flags       = 0xff00
 };
 
-#define RAWKEY(x)      ((x) << 16)
+#define SIT_RAWKEY(x)      ((x) << 16)
 
 enum /* special values for SIT_OnKey_t.keycode field */
 {
-	SITK_Home        = RAWKEY(1),
-	SITK_End         = RAWKEY(2),
-	SITK_PrevPage    = RAWKEY(3),
-	SITK_NextPage    = RAWKEY(4),
-	SITK_Up          = RAWKEY(5),
-	SITK_Down        = RAWKEY(6),
-	SITK_Left        = RAWKEY(7),
-	SITK_Right       = RAWKEY(8),
-	SITK_LShift      = RAWKEY(9),
-	SITK_RShift      = RAWKEY(10),
-	SITK_LAlt        = RAWKEY(11),
-	SITK_RAlt        = RAWKEY(12),
-	SITK_LCtrl       = RAWKEY(13),
-	SITK_RCtrl       = RAWKEY(14),
-	SITK_LCommand    = RAWKEY(15),
-	SITK_RCommand    = RAWKEY(16),
-	SITK_AppCommand  = RAWKEY(17),
-	SITK_Return      = RAWKEY(18),
-	SITK_Caps        = RAWKEY(19),
-	SITK_Insert      = RAWKEY(20),
-	SITK_Delete      = RAWKEY(21),
-	SITK_ScrollLock  = RAWKEY(22),
-	SITK_NumLock     = RAWKEY(23),
-	SITK_Impr        = RAWKEY(24),
-	SITK_F1          = RAWKEY(25),
-	SITK_F2          = RAWKEY(26),
-	SITK_F3          = RAWKEY(27),
-	SITK_F4          = RAWKEY(28),
-	SITK_F5          = RAWKEY(29),
-	SITK_F6          = RAWKEY(30),
-	SITK_F7          = RAWKEY(31),
-	SITK_F8          = RAWKEY(32),
-	SITK_F9          = RAWKEY(33),
-	SITK_F10         = RAWKEY(34),
-	SITK_F11         = RAWKEY(35),
-	SITK_F12         = RAWKEY(36),
-	SITK_F13         = RAWKEY(37),
-	SITK_F14         = RAWKEY(38),
-	SITK_F15         = RAWKEY(39),
-	SITK_F16         = RAWKEY(40),
-	SITK_F17         = RAWKEY(41),
-	SITK_F18         = RAWKEY(42),
-	SITK_F19         = RAWKEY(43),
-	SITK_F20         = RAWKEY(44),
-	SITK_Tab         = RAWKEY(45),
-	SITK_BackSpace   = RAWKEY(46),
-	SITK_Escape      = RAWKEY(47),
-	SITK_Space       = RAWKEY(48),
-	SITK_Help        = RAWKEY(49),
-	SITK_Shift       = RAWKEY(50)
+	SITK_Home        = SIT_RAWKEY(1),
+	SITK_End         = SIT_RAWKEY(2),
+	SITK_PrevPage    = SIT_RAWKEY(3),
+	SITK_NextPage    = SIT_RAWKEY(4),
+	SITK_Up          = SIT_RAWKEY(5),
+	SITK_Down        = SIT_RAWKEY(6),
+	SITK_Left        = SIT_RAWKEY(7),
+	SITK_Right       = SIT_RAWKEY(8),
+	SITK_LShift      = SIT_RAWKEY(9),
+	SITK_RShift      = SIT_RAWKEY(10),
+	SITK_LAlt        = SIT_RAWKEY(11),
+	SITK_RAlt        = SIT_RAWKEY(12),
+	SITK_LCtrl       = SIT_RAWKEY(13),
+	SITK_RCtrl       = SIT_RAWKEY(14),
+	SITK_LCommand    = SIT_RAWKEY(15),
+	SITK_RCommand    = SIT_RAWKEY(16),
+	SITK_AppCommand  = SIT_RAWKEY(17),
+	SITK_Return      = SIT_RAWKEY(18),
+	SITK_Caps        = SIT_RAWKEY(19),
+	SITK_Insert      = SIT_RAWKEY(20),
+	SITK_Delete      = SIT_RAWKEY(21),
+	SITK_ScrollLock  = SIT_RAWKEY(22),
+	SITK_NumLock     = SIT_RAWKEY(23),
+	SITK_Impr        = SIT_RAWKEY(24),
+	SITK_F1          = SIT_RAWKEY(25),
+	SITK_F2          = SIT_RAWKEY(26),
+	SITK_F3          = SIT_RAWKEY(27),
+	SITK_F4          = SIT_RAWKEY(28),
+	SITK_F5          = SIT_RAWKEY(29),
+	SITK_F6          = SIT_RAWKEY(30),
+	SITK_F7          = SIT_RAWKEY(31),
+	SITK_F8          = SIT_RAWKEY(32),
+	SITK_F9          = SIT_RAWKEY(33),
+	SITK_F10         = SIT_RAWKEY(34),
+	SITK_F11         = SIT_RAWKEY(35),
+	SITK_F12         = SIT_RAWKEY(36),
+	SITK_F13         = SIT_RAWKEY(37),
+	SITK_F14         = SIT_RAWKEY(38),
+	SITK_F15         = SIT_RAWKEY(39),
+	SITK_F16         = SIT_RAWKEY(40),
+	SITK_F17         = SIT_RAWKEY(41),
+	SITK_F18         = SIT_RAWKEY(42),
+	SITK_F19         = SIT_RAWKEY(43),
+	SITK_F20         = SIT_RAWKEY(44),
+	SITK_Tab         = SIT_RAWKEY(45),
+	SITK_BackSpace   = SIT_RAWKEY(46),
+	SITK_Escape      = SIT_RAWKEY(47),
+	SITK_Space       = SIT_RAWKEY(48),
+	SITK_Help        = SIT_RAWKEY(49),
+	SITK_Shift       = SIT_RAWKEY(50)
 };
+
+#undef SIT_RAWKEY
 
 /* special tag modifier to enable printf-like parsing for string parameter */
 #define	XfMt            0x10000

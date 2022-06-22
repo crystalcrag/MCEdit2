@@ -10,9 +10,8 @@ out vec4 color;
 
 #include "uniformBlock.glsl"
 
-uniform mat4 INVMVP;
-uniform vec4 chunk;   // .xy == world coord of distant region, .zw = coord of raster chunks
-uniform vec4 size;    // .x == size of distant region in chunks, .y = height of distant chunk, .z = size of raster region
+uniform vec4 rasterArea;   // .xy == min world coord, .zw = max coord
+uniform vec4 distantArea;  // .xy == min coord coord, .z = size in blocks, .w = height in blocks
 
 in vec3 worldPos;
 
@@ -31,98 +30,54 @@ layout (binding=11) uniform sampler2D bankTex4;
 
 const int opp[6] = int[6] (2,3,0,1,5,4);
 
-void voxelGetBoundsForFace(in ivec4 tex, in int face, out vec3 V0, out vec3 V1, in vec3 posOffset)
+/*
+ * extract voxel color at position <pos>, returns:
+ * - 0 if ray goes out of the map.
+ * - 1 if it hits a solid voxel (<color> will be set).
+ * - 2 if it is within an empty space (V0 and V1 are its bbox, containing min and max pos in voxel space).
+ */
+int voxelFindClosest(in vec3 pos, out vec3 V0, out vec3 V1, float upward, int side)
 {
-	vec3 pt1, pt2;
-
-	switch (tex.w) {
-	case 0x80: // void space inside a ChunkData
-		// encoding is done in raycast.c:chunkConvertToRGBA()
-		pt1 = floor(posOffset * 0.0625) * 16 + vec3(tex.r & 15, tex.g & 15, tex.r >> 4);
-		pt2 = pt1 + vec3((tex.b & 15) + 1, (tex.g >> 4) + 1, (tex.b >> 4) + 1);
-		break;
-
-	case 0x81: // void space inside Chunk
-		pt1 = vec3(floor(posOffset.x * 0.0625) * 16, tex.r << 4, floor(posOffset.z * 0.0625) * 16);
-		pt2 = pt1 + vec3(16, (tex.g - tex.r) << 4, 16);
-		break;
-
-	case 0x82: // raster chunks area
-		pt1 = vec3(chunk.z, 0, chunk.w);
-		pt2 = pt1 + vec3(size.z * 16, 256, size.z * 16);
-		break;
-
-	case 0x83: // area above distant chunks
-		pt1 = vec3(chunk.x, 0, chunk.y);
-		pt2 = pt1 + size.xyx * 16;
-		break;
-
-	default: return;
-	}
-
-	switch (face) {
-	case 0: // south
-		V0 = vec3(pt1.xy, pt2.z);
-		V1 = pt2;
-		break;
-	case 1: // east
-		V0 = vec3(pt2.x, pt1.yz);
-		V1 = pt2;
-		break;
-	case 2: // north
-		V0 = pt1;
-		V1 = vec3(pt2.xy, pt1.z);
-		break;
-	case 3: // west
-		V0 = pt1;
-		V1 = vec3(pt1.x, pt2.yz);
-		break;
-	case 4: // top
-		V0 = vec3(pt1.x, pt2.y, pt1.z);
-		V1 = pt2;
-		break;
-	case 5: // bottom
-		V0 = pt1;
-		V1 = vec3(pt2.x, pt1.y, pt2.z);
-	}
-}
-
-// extract voxel color at position <pos>
-bool voxelFindClosest(in vec3 pos, out ivec4 tex, float upward)
-{
-	int X = int(pos.x - chunk.x) >> 4;
-	int Z = int(pos.z - chunk.y) >> 4;
+	int X = int(pos.x - distantArea.x) >> 4;
+	int Z = int(pos.z - distantArea.y) >> 4;
 	int Y = int(pos.y) >> 4;
+	int size = int(distantArea.z * 0.0625);
 
-	if (Y >= size.y)
+	if (Y >= distantArea.w)
 	{
 		// above raycasted chunks and going upward: no way we can reach a distant chunk
 		if (upward >= 0)
-			return false;
-			
-		// maybe we can
-		tex = ivec4(0, 0, 0, 0x83);
+			return 0;
+
+		// maybe we can: check inter with top of distant chunks
+		V0 = vec3(distantArea.x, distantArea.w * 16, distantArea.y);
+		V1 = vec3(V0.x + distantArea.z, V0.y, V0.z + distantArea.z);
+		return 2;
 	}
-	else if (X < 0 || Z < 0 || X >= size.x || Z >= size.x || Y < 0)
+	else if (X < 0 || Z < 0 || X >= size || Z >= size || pos.y < 0)
 	{
-		return false;
+		// outside of map: stop raycasting here
+		return 0;
 	}
 
-	vec2 texel = texelFetch(texMap, ivec2(X, Z + Y * size.x), 0).rg;
+	vec2 texel = texelFetch(texMap, ivec2(X, Z + Y * size), 0).rg;
 	int  texId = int(round(texel.x * 65280 + texel.y * 255));
 
 	if (texId == 0xffff)
 	{
 		// missing ChunkData: assume empty then
-		tex = ivec4(0, 0xf0, 0xff, 0x80);
-		return true;
+		V0 = floor(pos * 0.0625) * 16; // == pos.xyz & ~15
+		V1 = V0 + vec3(16, 16, 16);
+		return 2;
 	}
 
 	if (texId >= 0xff00)
 	{
 		// empty space above chunk
-		tex = ivec4(Y - (texId - 0xff00), size.y, 0, 0x81);
-		return true;
+		V0 = floor(pos * 0.0625) * 16;
+		V0.y -= (texId - 0xff00) * 16;
+		V1 = vec3(V0.x + 16, distantArea.w * 16, V0.z + 16);
+		return 2;
 	}
 
 	ivec2 coord = ivec2(
@@ -138,11 +93,20 @@ bool voxelFindClosest(in vec3 pos, out ivec4 tex, float upward)
 	case 1: voxel = texelFetch(bankTex2, coord, 0); break;
 	case 2: voxel = texelFetch(bankTex3, coord, 0); break;
 	case 3: voxel = texelFetch(bankTex4, coord, 0); break;
-	default: return false;
+	default: return 0;
 	}
 
-	tex = ivec4(voxel * 255);
-	return true;
+	if (voxel.a >= 0.5)
+	{
+		/* empty space within chunk */
+		ivec3 tex = ivec3(voxel.rgb * 255);
+		V0 = floor(pos * 0.0625) * 16 + vec3(tex.r & 15, tex.g & 15, tex.r >> 4);
+		V1 = V0 + vec3((tex.b & 15) + 1, (tex.g >> 4) + 1, (tex.b >> 4) + 1);
+		return 2;
+	}
+	color = voxel * shading[side].r;
+	color.a = 1;
+	return 1;
 }
 
 bool intersectRayPlane(in vec3 P0, in vec3 u, in vec3 V0, in vec3 norm, out vec3 I)
@@ -163,31 +127,33 @@ bool intersectRayPlane(in vec3 P0, in vec3 u, in vec3 V0, in vec3 norm, out vec3
 
 bool mapPointToVoxel(in vec3 dir)
 {
-	vec3 pos, V0, V1;
+	vec3 pos = camera.xyz;
 	vec3 plane = vec3(floor(camera.x), floor(camera.y), floor(camera.z));
+	vec3 offset = vec3(dir.x < 0 ? -0.1 : 0.1, dir.y < 0 ? -0.1 : 0.1, dir.z < 0 ? -0.1 : 0.1);
 	int  sides[3] = int[3] (dir.x < 0 ? 3 : 1, dir.z < 0 ? 2 : 0, dir.y < 0 ? 5 : 4);
-	int  side = 4;
 
-	pos = camera.xyz;
-
-	ivec4 tex = ivec4(0, 0, 0, 0x82);
+	/* raster chunk area */
+	vec3 pt1 = vec3(rasterArea.x, 0,   rasterArea.y);
+	vec3 pt2 = vec3(rasterArea.z, 256, rasterArea.w);
 
 	for (;;)
 	{
-		if (tex.a < 0x80)
-		{
-			color = vec4(vec3(tex.xyz) / 255.0 * shading[side].r, 1);
-			return true;
-		}
-
 		// empty space in voxel: skip this part as quickly as possible
 		int i;
 		for (i = 0; i < 3; i ++)
 		{
-			vec3 inter, norm;
+			vec3 inter, norm, V0, V1;
 
-			voxelGetBoundsForFace(tex, sides[i], V0, V1, plane);
 			norm = normals[sides[i]].xyz;
+
+			switch (sides[i]) {
+			case 0:  V0 = vec3(pt1.x, pt1.y, pt2.z); V1 = pt2; break; // south
+			case 1:  V0 = vec3(pt2.x, pt1.y, pt1.z); V1 = pt2; break; // east
+			case 2:  V1 = vec3(pt2.x, pt2.y, pt1.z); V0 = pt1; break; // north
+			case 3:  V1 = vec3(pt1.x, pt2.y, pt2.z); V0 = pt1; break; // west
+			case 4:  V0 = vec3(pt1.x, pt2.y, pt1.z); V1 = pt2; break; // top
+			default: V1 = vec3(pt2.x, pt1.y, pt2.z); V0 = pt1; // bottom
+			}
 
 			if (intersectRayPlane(pos, dir, V0, norm, inter))
 			{
@@ -202,25 +168,27 @@ bool mapPointToVoxel(in vec3 dir)
 				if (norm.x == 0)
 				{
 					if (inter.x == V0.x || inter.x == V1.x)
-						plane.x += dir.x;
+						plane.x += offset.x;
 				}
 				else plane.x += norm.x * 0.5;
 				if (norm.y == 0)
 				{
 					if (inter.y == V0.y || inter.y == V1.y)
-						plane.y += dir.y;
+						plane.y += offset.y;
 				}
 				else plane.y += norm.y * 0.5;
 				if (norm.z == 0)
 				{
 					if (inter.z == V0.z || inter.z == V1.z)
-						plane.z += dir.z;
+						plane.z += offset.z;
 				}
 				else plane.z += norm.z * 0.5;
 
-				if (! voxelFindClosest(plane, tex, dir.y))
-					return false;
-				side = opp[sides[i]];
+				switch (voxelFindClosest(plane, pt1, pt2, dir.y, opp[sides[i]])) {
+				case 0: return false;
+				case 1: return true;
+				// else ray hit an empty space: need to continue raycasting
+				}
 				break;
 			}
 		}
@@ -231,6 +199,6 @@ bool mapPointToVoxel(in vec3 dir)
 
 void main(void)
 {
-	if (! mapPointToVoxel(normalize(worldPos - camera.xyz) * 0.01))
+	if (! mapPointToVoxel(worldPos - camera.xyz))
 		discard;
 }

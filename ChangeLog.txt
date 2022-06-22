@@ -1,9 +1,25 @@
+=========== Week 25 (2022) ===========
+Tue June 21:
+	* moving center of raycasting chunks: various bug and mem leak fixes.
+
 =========== Week 24 (2022) ===========
+Sun June 19:
+	* SITGL buf fixes (editbox, listbox).
+
+Sat June 18:
+	* center relocation somewhat working for raycasting chunk.
+
+Wed June 15:
+	* trying to improve performance on intel didn't work, drivers are probably too old; much better
+	  performance on nvidia.
+	* started center relocation for raycasting chunks.
+
 Tue June 14:
 	* split doc into individual chapters: document was becoming too large.
+	* performance of raycasting shader still not good enough on intel :-/
 
 Mon June 13:
-	* raycasting using a much cheaper way to compute direction vector.
+	* raycasting using a cheaper way to compute direction vector.
 
 =========== Week 23 (2022) ===========
 Sun June 12:

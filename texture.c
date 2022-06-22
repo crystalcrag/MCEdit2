@@ -106,6 +106,10 @@ int textureLoad(const char * dir, const char * name, int clamp, PostProcess_t pr
 
 	data = stbi_load(dir, &w, &h, &bpp, 0);
 
+	/* default value for opengl is 4: stb_image return data without padding */
+	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+	glPixelStorei(GL_PACK_ALIGNMENT,   1);
+
 	if (data == NULL)
 	{
 		fprintf(stderr, "fail to load image: %s\n", dir);

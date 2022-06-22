@@ -17,6 +17,7 @@
 archive.bat
 copysitgl.bat
 dump.png
+SLOC.ini
 
 /Interface/
 /obj/

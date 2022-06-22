@@ -178,9 +178,10 @@ static void meshGenRaycasting(void * arg)
 		/* that mutex lock will let the main thread know we are busy */
 		MutexEnter(thread->wait);
 
-		/* generating raycasting chunks is not very expensive, but there are a LOT to generate (several 1000s usually) */
+		/* generating raycasting chunks is not very expensive, but there are a LOT to generate (10000 ~ 40000 usually) */
 		int XZId[3];
 
+		int gen = 0;
 		while (raycastNextChunk(XZId))
 		{
 			memset(&chunk, 0, sizeof chunk);
@@ -189,13 +190,18 @@ static void meshGenRaycasting(void * arg)
 			if (chunkLoad(&chunk, map->path, XZId[0], XZId[1]))
 			{
 				int i;
-				for (i = 0; i < chunk.maxy; i ++)
+				/* generate chunk top to bottom: highly likely to look at raycasting area from top */
+				for (i = chunk.maxy-1; i >= 0; i --)
 				{
 					DATA8 rgbaTex = raycastAllocMT(thread);
 
 					if (rgbaTex == NULL)
+					{
 						/* main thread wants this thread to stop what it is currently doing */
+						fprintf(stderr, "cancelling generation\n");
+						raycastCancelColumn(XZId[2]);
 						break;
+					}
 
 					/* first 4 bytes will identify which chunk it is */
 					rgbaTex[0] = XZId[2] >> 8;
@@ -206,12 +212,15 @@ static void meshGenRaycasting(void * arg)
 					chunkConvertToRGBA(chunk.layer[i], rgbaTex + 4);
 					/* mark this chunk as ready */
 					rgbaTex[3] = chunk.maxy;
+					gen ++;
 				}
 				NBT_Free(&chunk.nbt);
 			}
 			if (threadStop)
 				break;
 		}
+
+		fprintf(stderr, "thread gen %d\n", gen);
 
 		MutexLeave(thread->wait);
 	}
@@ -1132,7 +1141,7 @@ void meshGenerateMT(Map map)
 	MutexEnter(staging.alloc);
 
 	DATA8 index, eof;
-	int   freed, slot;
+	int   freed, slot, update;
 
 	/* check if some mesh for blocks.vsh are ready */
 	for (index = staging.start, freed = 0, eof = index + staging.chunkData; index < eof; )
@@ -1141,6 +1150,9 @@ void meshGenerateMT(Map map)
 		DATA32 src = staging.mem + index[0] * STAGING_BLOCK;
 		Chunk chunk = map->chunks + (src[0] & 0xffff);
 		ChunkData cd = chunk->layer[src[0] >> 16];
+
+		if ((src[0] >> 16) == chunk->maxy-1 && (chunk->cflags & CFLAG_STAGING))
+			update |= raycastChunkReady(map, chunk);
 
 		if (cd == NULL)
 		{
@@ -1165,8 +1177,6 @@ void meshGenerateMT(Map map)
 			cd->glAlpha = meshStagingSize((alpha - 1) * STAGING_BLOCK, &offset);
 			cd->glSize  = meshStagingSize(index[0] * STAGING_BLOCK, &cd->glDiscard) + cd->glAlpha;
 			bytes = cd->glSize;
-			if (cd->glBank)
-				puts("no good: this interface is only for loading chunk, not modification");
 
 			if (bytes == 0)
 			{
@@ -1260,10 +1270,8 @@ void meshGenerateMT(Map map)
 	MutexLeave(rcMem.alloc);
 	SemAdd(rcMem.capa, freed);
 
-	if (freed > 0)
-	{
+	if (freed > 0 || update)
 		raycastUpdateTexMap();
-	}
 }
 
 /*

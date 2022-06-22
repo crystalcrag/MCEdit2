@@ -1270,6 +1270,7 @@ PFNGLDELETEVERTEXARRAYSPROC glad_glDeleteVertexArrays;
 PFNGLMAPBUFFERRANGEPROC glad_glMapBufferRange;
 PFNGLSCISSORPROC glad_glScissor;
 PFNGLLINEWIDTHPROC glad_glLineWidth;
+PFNGLDEPTHRANGEFPROC glad_glDepthRangef;
 
 PFNGLBINDTEXTUREPROC glad_glBindTexture;
 PFNGLDELETETEXTURESPROC glad_glDeleteTextures;
@@ -1405,6 +1406,7 @@ int gladLoadGL(void)
 		 && (glad_glGetTexImage        = load(name = "glGetTexImage"))
 		 && (glad_glMapBufferRange     = load(name = "glMapBufferRange"))
 		 && (glad_glLineWidth          = load(name = "glLineWidth"))
+		 && (glad_glDepthRangef        = load(name = "glDepthRangef"))
 		 && (glad_glGetUniformBlockIndex     = load(name = "glGetUniformBlockIndex"))
 		 && (glad_glUniformBlockBinding      = load(name = "glUniformBlockBinding"))
 		 && (glad_glEnableVertexAttribArray  = load(name = "glEnableVertexAttribArray"))

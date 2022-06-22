@@ -66,6 +66,7 @@ typedef enum  /* meaning of each index of keyBindings[] table */
 
 #define KBD_MAX               (KBD_SLOT_9+1)
 #define KBD_MAX_CONFIG        KBD_SLOT_0
+#define RAWKEY(x)             ((x) << 16)
 
 enum /* not real keys, but will simplify stuff */
 {
