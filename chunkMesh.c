@@ -304,7 +304,7 @@ static int chunkGetCnxGraph(ChunkData cd, int start, DATA8 visited)
 		int i;
 
 		pos += 2;
-		if (pos == 400) pos = 0;
+		if (pos == 512) pos = 0;
 
 		for (i = 0; i < 6; i ++)
 		{
@@ -318,12 +318,12 @@ static int chunkGetCnxGraph(ChunkData cd, int start, DATA8 visited)
 			Block b = blockIds + blocks[xzy];
 			/* only fully opaque blocks will stop flood: we could be more precise, but not worth the time spent */
 			if (! blockIsFullySolid(b) &&
-				(visited[400+(xzy>>3)] & mask8bit[xzy&7]) == 0)
+				(visited[512+(xzy>>3)] & mask8bit[xzy&7]) == 0)
 			{
 				visited[last++] = x | (z << 4);
 				visited[last++] = y;
-				if (last == 400) last = 0;
-				visited[400+(xzy>>3)] |= mask8bit[xzy&7];
+				if (last == 512) last = 0;
+				visited[512+(xzy>>3)] |= mask8bit[xzy&7];
 				init |= slotsXZ[xzy&0xff] | slotsY[xzy>>8];
 				cnx |= faceCnx[init];
 			}
@@ -352,7 +352,7 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer, Mesh
 {
 	ChunkData neighbors[7];    /* S, E, N, W, T, B, current */
 	ChunkData cur;
-	uint8_t   visited[400 + 512];
+	uint8_t   visited[512 + 512];
 	int       i, pos, air;
 	uint16_t  emitters[PARTICLE_MAX];
 	uint8_t   Y, hasLights;
@@ -383,7 +383,7 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer, Mesh
 	memset(visited, 0, sizeof visited);
 	hasLights = (cur->cdFlags & CDFLAG_NOLIGHT) == 0;
 	cur->cnxGraph = 0;
-//	if (c->X == -16 && cur->Y == 48 && c->Z == -544)
+//	if (c->X == -48 && cur->Y == 64 && c->Z == -560)
 //		globals.breakPoint = 1;
 
 	for (Y = 0, pos = air = 0; Y < 16; Y ++)

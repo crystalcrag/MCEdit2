@@ -47,7 +47,7 @@ void debugBlockVertex(vec4 pos, int side)
 	xyz[1] = iter.offset >> 8;
 
 	fprintf(stderr, "*** debug block info ***\n");
-	fprintf(stderr, "found block %d:%d (%s) from %c\n", block->id >> 4, block->id & 15, block->name, "SENWTB"[side]);
+	fprintf(stderr, "found block %d:%d (%s) from %c (cnx: %x)\n", block->id >> 4, block->id & 15, block->name, "SENWTB"[side], iter.cd->cnxGraph);
 	fprintf(stderr, "located at %d,%d,%d, offset = %d, sub-chunk: %d,%d,%d, chunk: %d,%d,%d\n",
 		(int) pos[VX], (int) pos[VY], (int) pos[VZ],
 		iter.offset, xyz[0], xyz[1], xyz[2], iter.ref->X, iter.cd->Y, iter.ref->Z

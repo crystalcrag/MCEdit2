@@ -1296,7 +1296,7 @@ static void mapCullCave(ChunkData cur, vec4 camera)
 	int     Z = chunk->Z;
 	int     frame = chunk->chunkFrame;
 
-//	if (chunk->X == -208 && cur->Y == 64 && chunk->Z == -1488)
+//	if (chunk->X == -48 && cur->Y == 64 && chunk->Z == -560)
 //		puts("here");
 
 	/* try to get back to a known location from <cur> */

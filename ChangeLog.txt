@@ -1,4 +1,7 @@
 =========== Week 25 (2022) ===========
+Tue June 22:
+	* nasty bug fixed in SignText allocation with multi-thread chunk loading activated.
+
 Tue June 21:
 	* moving center of raycasting chunks: various bug and mem leak fixes.
 

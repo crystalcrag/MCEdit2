@@ -1590,7 +1590,7 @@ void renderWorld(void)
 
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
-//	debugRenderCaveGraph();
+	debugRenderCaveGraph();
 
 	NVGcontext * vg = globals.nvgCtx;
 	nvgBeginFrame(vg, globals.width, globals.height, 1);

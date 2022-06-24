@@ -153,15 +153,19 @@ static int signParseText(DATA8 dest, int max, DATA8 json)
 /* convert sign text into a user-editable string for a multi-line text edit */
 void signGetText(vec4 pos, DATA8 text, int max)
 {
+	SignTextBank list;
 	int XYZ[] = {pos[0], pos[1], pos[2]};
 	int i, j, nb;
 
 	text[0] = 0;
-	for (i = nb = 0, text[0] = 0; i < signs.count; i ++)
+	for (list = HEAD(signs.list); list; NEXT(list))
 	{
-		SignText sign = signs.list + i;
-		if (memcmp(sign->XYZ, XYZ, sizeof XYZ) == 0)
+		SignText sign = list->signs;
+		for (i = list->count, nb = 0, text[0] = 0; i > 0; i --, sign ++)
 		{
+			if (memcmp(sign->XYZ, XYZ, sizeof XYZ))
+				continue;
+
 			for (j = 0; j < 4; j ++)
 			{
 				if (sign->text[j] > 0)
@@ -172,7 +176,7 @@ void signGetText(vec4 pos, DATA8 text, int max)
 			/* remove unnecessary newlines at the end */
 			while (nb > 0 && text[nb-1] == '\n') nb --;
 			text[nb] = 0;
-			break;
+			return;
 		}
 	}
 }
@@ -272,7 +276,7 @@ static void signUpdateBank(SignText sign)
 				if (fontsz < 10) fontsz = 10;
 				/*
 				 * note: don't try to use nvgScale, the result will be blurry mess due to stb_truetype
-				 *       anti-aliasing, that will be blurred with nvGscale(), that will be blurred by GL_LINEAR.
+				 *       anti-aliasing, that will be blurred with nvgScale(), that will be blurred by GL_LINEAR.
 				 */
 				nvgFontSize(vg, fontsz);
 				width = nvgTextBounds(vg, 0, 0, text, text + len, NULL);
@@ -329,11 +333,15 @@ void signSetText(Chunk chunk, vec4 pos, DATA8 msg)
 		else text[i] = NULL;
 	}
 
-	SignText sign;
-	for (i = signs.count, sign = signs.list; i > 0; i --, sign ++)
+	SignTextBank list;
+	for (list = HEAD(signs.list); list; NEXT(list))
 	{
-		if (memcmp(sign->XYZ, XYZ, sizeof XYZ) == 0)
+		SignText sign;
+		for (i = list->count, sign = list->signs; i > 0; i --, sign ++)
 		{
+			if (memcmp(sign->XYZ, XYZ, sizeof XYZ))
+				continue;
+
 			/* update tile entity and back buffer */
 			ChunkData cd = chunk->layer[XYZ[1]>>4];
 			if (cd == NULL) break;
@@ -355,7 +363,7 @@ void signSetText(Chunk chunk, vec4 pos, DATA8 msg)
 			else if (! sign->empty)
 				signs.listDirty = 1;
 
-			break;
+			return;
 		}
 	}
 }
@@ -363,8 +371,11 @@ void signSetText(Chunk chunk, vec4 pos, DATA8 msg)
 /* keep all signs in a list, but don't render anything yet */
 int signAddToList(int blockId, ChunkData cd, int offset, int prev, uint8_t light)
 {
+	/* /!\ note: this function can be called in a multi-threaded context */
+
 	struct SignText_t sign = {.bank = -1, .light = light};
-	int i;
+	SignTextBank list;
+	int i, add;
 
 	sign.tile = chunkGetTileEntity(cd, offset);
 
@@ -389,7 +400,8 @@ int signAddToList(int blockId, ChunkData cd, int offset, int prev, uint8_t light
 	{
 		for (;;)
 		{
-			SignText ptr = signs.list + prev;
+			for (list = HEAD(signs.list); prev >= SIGN_TEXTS; prev -= SIGN_TEXTS, NEXT(list));
+			SignText ptr = list->signs + prev;
 			if (memcmp(ptr->XYZ, sign.XYZ, sizeof sign.XYZ) == 0)
 				/* already in the list: assume no changes (there is a dedicated function for this: signSetText()) */
 				return first;
@@ -398,33 +410,32 @@ int signAddToList(int blockId, ChunkData cd, int offset, int prev, uint8_t light
 		}
 	}
 
-	if (signs.count == signs.max)
-	{
-		int old = signs.max;
-		int max = old + 32;
-		signs.list = realloc(signs.list, max * sizeof (struct SignText_t) + (max >> 5) * 4);
+	/* find a free slot for this sign in the global list of signs */
+	for (list = HEAD(signs.list), add = 0; list && list->count == SIGN_TEXTS; NEXT(list), add += SIGN_TEXTS);
 
-		/* move some buffers to keep them contiguous */
-		signs.usage = (DATA32) (signs.list + max);
-		signs.max = max;
-		if (old > 0)
-		{
-			/* usage buffers (in signs.list) */
-			memmove(signs.usage, signs.list + old, 4 * (old >> 5));
-		}
-		signs.usage[old>>5] = 0;
+	if (list == NULL)
+	{
+		list = malloc(sizeof *list);
+		memset(list->usage, 0, sizeof list->usage);
+		list->count = 0;
+		ListAddTail(&signs.list, &list->node);
 	}
 
 	/* check for a free place */
-	i = mapFirstFree(signs.usage, signs.max >> 5);
+	i = mapFirstFree(list->usage, SIGN_TEXTS >> 5);
 
 	signFillVertex(blockId, sign.pt1, NULL);
-	signs.list[i] = sign;
+	list->signs[i] = sign;
+	list->count ++;
 	signs.count ++;
 	signs.listDirty = 1;
 
+	i += add;
 	if (prev >= 0)
-		signs.list[prev].next = i;
+	{
+		for (list = HEAD(signs.list); prev >= SIGN_TEXTS; prev -= SIGN_TEXTS, NEXT(list));
+		list->signs[prev].next = i;
+	}
 
 	return first >= 0 ? first : i;
 }
@@ -432,32 +443,40 @@ int signAddToList(int blockId, ChunkData cd, int offset, int prev, uint8_t light
 /* chunk freed */
 void signDel(DATA8 tile)
 {
-	SignText sign;
-	int      i;
-	for (i = 0, sign = signs.list; i < signs.count && sign->tile != tile; sign ++, i ++);
-	if (i < signs.count)
+	SignTextBank list;
+	for (list = HEAD(signs.list); list; NEXT(list))
 	{
-		int slot = sign->bank;
-		sign->tile = NULL;
-		signs.usage[i >> 5] ^= 1 << (i & 31);
-		signs.count --;
-
-		if (slot >= 0)
+		SignText sign;
+		int      i;
+		for (i = list->count, sign = list->signs; i > 0; sign ++, i --)
 		{
-			SignBank bank = signs.banks + (slot & 0xff);
+			if (sign->tile != tile) continue;
 
-			/* free slot from bank */
-			slot >>= 8;
-			bank->usage[slot >> 5] ^= 1 << (slot & 31);
-			bank->inBank --;
-			if (bank->inBank == 0)
+			int slot = sign->bank;
+			i = sign - list->signs;
+			sign->tile = NULL;
+			list->usage[i >> 5] ^= 1 << (i & 31);
+			list->count --;
+			signs.count --;
+
+			if (slot >= 0)
 			{
-				/* only delete what's expensive */
-				nvgluDeleteFramebuffer(bank->nvgFBO);
-				bank->nvgFBO = NULL;
-			}
+				SignBank bank = signs.banks + (slot & 0xff);
 
-			signs.listDirty = True;
+				/* free slot from bank */
+				slot >>= 8;
+				bank->usage[slot >> 5] ^= 1 << (slot & 31);
+				bank->inBank --;
+				if (bank->inBank == 0)
+				{
+					/* only delete what's expensive */
+					nvgluDeleteFramebuffer(bank->nvgFBO);
+					bank->nvgFBO = NULL;
+				}
+
+				signs.listDirty = True;
+			}
+			return;
 		}
 	}
 }
@@ -465,6 +484,7 @@ void signDel(DATA8 tile)
 /* map being closed */
 void signDelAll(void)
 {
+	ListNode * sign;
 	SignBank bank;
 	int i;
 	for (i = signs.maxBank, bank = signs.banks; i > 0; bank ++, i --)
@@ -475,9 +495,10 @@ void signDelAll(void)
 		if (bank->nvgFBO)
 			nvgluDeleteFramebuffer(bank->nvgFBO);
 	}
+	while ((sign = ListRemHead(&signs.list)))
+		free(sign);
 
 	free(signs.banks);
-	free(signs.list);
 	memset(&signs, 0, offsetp(struct SignPrivate_t *, mdaCount));
 }
 
@@ -539,9 +560,9 @@ void signPrepare(vec4 camera)
 	SignText sign;
 	SignBank bank;
 	int      count;
-	int      pos[] = {camera[0], camera[1], camera[2]};
+	int      pos[] = {CPOS(camera[0]), CPOS(camera[1]), CPOS(camera[2])};
 
-	/* same block: don't redo the whole thing again */
+	/* same chunk position: don't redo the whole thing again */
 	if (! signs.listDirty && memcmp(signs.curXYZ, pos, sizeof pos) == 0)
 		return;
 
@@ -551,15 +572,19 @@ void signPrepare(vec4 camera)
 
 	for (bank = signs.banks, count = signs.maxBank; count > 0; bank->inMDA = 0, bank->update = 0, count --, bank ++);
 
-	for (sign = signs.list, count = signs.count; count > 0; count --, sign ++)
+	SignTextBank list;
+	for (list = HEAD(signs.list); list; NEXT(list))
 	{
-		if (sign->tile == NULL || sign->empty) continue;
-		int dx = sign->XYZ[0] - pos[0];
-		int dy = sign->XYZ[1] - pos[1];
-		int dz = sign->XYZ[2] - pos[2];
-
-		if (dx*dx + dy*dy + dz*dz < SIGN_MAX_DIST*SIGN_MAX_DIST)
+		for (sign = list->signs, count = list->count; count > 0; count --, sign ++)
 		{
+			if (sign->tile == NULL || sign->empty) continue;
+			int dx = sign->XYZ[0] - pos[0];
+			int dy = sign->XYZ[1] - pos[1];
+			int dz = sign->XYZ[2] - pos[2];
+
+			if (dx*dx + dy*dy + dz*dz > SIGN_MAX_DIST*SIGN_MAX_DIST)
+				continue;
+
 			/* generate one quad per sign: need 6 vec4 */
 			static uint8_t vtx[] = {
 				0,1,2,10,   0,4,2,11,   3,4,5,12,

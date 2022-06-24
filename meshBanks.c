@@ -1144,7 +1144,7 @@ void meshGenerateMT(Map map)
 	int   freed, slot, update;
 
 	/* check if some mesh for blocks.vsh are ready */
-	for (index = staging.start, freed = 0, eof = index + staging.chunkData; index < eof; )
+	for (index = staging.start, freed = 0, eof = index + staging.chunkData, update = 0; index < eof; )
 	{
 		/* is the chunk ready ? */
 		DATA32 src = staging.mem + index[0] * STAGING_BLOCK;

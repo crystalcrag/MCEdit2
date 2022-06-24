@@ -176,7 +176,6 @@ void raycastInitMap(Map map)
 	memset(raycast.chunkVisible, 0, sizeof raycast.chunkVisible);
 
 	/* now raycasting thread can start its work */
-	fprintf(stderr, "start processing chunks from thread...\n");
 	SemAdd(map->waitChanges, 1);
 }
 
@@ -483,7 +482,7 @@ void raycastMoveCenter(Map map, vec4 old, vec4 pos)
 			}
 			else
 			{
-				from = raycast.texMap + start - 1 - dx;
+				from = raycast.texMap + start + sz - 1;
 				x = raycast.rasterArea[0] - 16;
 			}
 			for (; sz > 0; sz --)
@@ -542,6 +541,44 @@ void raycastMoveCenter(Map map, vec4 old, vec4 pos)
 				{
 					memmove(from, from + stride * sz, remain * stride * 2);
 					memset(from + stride * remain, 0xff, stride * sz * 2);
+				}
+			}
+			/* chunk might have already been loaded/meshed because of lazy chunks */
+			if (dz > 0)
+			{
+				from = raycast.texMap + start + (raycast.rasterChunks - dz) * stride;
+				z = raycast.rasterArea[3];
+			}
+			else
+			{
+				from = raycast.texMap + start + (sz - 1) * stride;
+				z = raycast.rasterArea[1] - 16;
+			}
+			for (; sz > 0; sz --)
+			{
+				int free;
+				for (tex = from, x = raycast.rasterDest[0], remain = raycast.rasterChunks, free = 0; remain > 0; tex ++, x += 16, remain --)
+				{
+					if (raycastHasRaster(map, x, z))
+					{
+						/* raycasting chunk here, but chunk has already a raster version */
+						DATA8 texgl;
+						for (y = 0, texgl = (DATA8) tex; y < CHUNK_LIMIT; y ++, texgl += stride * stride << 1)
+							if (texgl[0] < 0xff) raycastFreeTex(texgl);
+						free ++;
+					}
+				}
+				if (dz > 0)
+				{
+					if (free == raycast.rasterChunks && z == raycast.rasterArea[3])
+						raycast.rasterArea[3] += 16, fprintf(stderr, "chunk already meshed, moving southern border\n");
+					z += 16, from += stride;
+				}
+				else
+				{
+					if (free == raycast.rasterChunks && z+16 == raycast.rasterArea[1])
+						raycast.rasterArea[1] -= 16, fprintf(stderr, "chunk already meshed, moving northern border\n");
+					z -= 16, from -= stride;
 				}
 			}
 		}
@@ -1415,6 +1452,7 @@ APTR raycastConvertToCMap(DATA8 * data, int * width, int * height, int bpp)
 			memset(sum, 0, stride * sizeof *sum);
 		}
 	}
+	free(sum);
 	return NULL;
 }
 

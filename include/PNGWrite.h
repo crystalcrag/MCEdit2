@@ -180,7 +180,7 @@ int textureSavePNG(const char * path, DATA8 pixels, int stride, int width, int h
 		.avail_in = szline + 1
 	};
 
-	if (deflateInit(&zlib, 9) == Z_OK)
+	if (deflateInit(&zlib, 7) == Z_OK)
 	{
 		for (j = 0, crc = crc32(0, IHDR+4, 4); j < height; )
 		{

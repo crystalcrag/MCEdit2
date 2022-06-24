@@ -28,13 +28,16 @@ extern char signMinText[];
 #define SIGN_HEIGHT    64
 #define SIGN_WIDTH     128
 #define SIGN_MAX_DIST  80
+#define SIGN_TEXTS     128         /* need to be multiple of 32 */
 #define BANK_WIDTH     8
 #define BANK_HEIGHT    16
 #define BANK_MAX       (BANK_WIDTH * BANK_HEIGHT)
 
 
 typedef struct SignText_t *        SignText;
+typedef struct SignText_t          SignText_t;
 typedef struct SignBank_t *        SignBank;
+typedef struct SignTextBank_t *    SignTextBank;
 typedef struct NVGLUframebuffer *  NVGFBO;
 
 struct SignText_t
@@ -50,7 +53,7 @@ struct SignText_t
 	float    pt2[3];
 };
 
-struct SignBank_t
+struct SignBank_t                  /* 56 bytes */
 {
 	NVGFBO   nvgFBO;               /* offscreen tex (8bit) */
 	uint32_t usage[4];             /* 128 slots (bitfield) */
@@ -62,12 +65,22 @@ struct SignBank_t
 	int *    mdaFirst;
 };
 
+/*
+ * signs are added to the list in a separate thread: cannot realloc SignText buffers
+ */
+struct SignTextBank_t
+{
+	ListNode   node;
+	SignText_t signs[SIGN_TEXTS];  /* 7168 bytes (128 * 56) */
+	uint32_t   usage[SIGN_TEXTS>>5];
+	int        count;
+};
+
 struct SignPrivate_t
 {
-	SignText list;                 /* array of <count> items */
-	DATA32   usage;                /* array of <max>/32 items */
+	ListHead list;                 /* SignTextBank */
 	SignBank banks;                /* array of <maxBank> items */
-	int      count, max, maxBank;
+	int      count, maxBank;       /* count == total signs in <list> */
 	int      toRender;             /* signs in render dist */
 	int      listDirty;
 	int      curXYZ[3];
