@@ -508,7 +508,7 @@ int main(int nb, char * argv[])
 	}
 
 	mcedit.state = mcedit.autoEdit && mcedit.worldEdit[0] ? GAMELOOP_WORLDEDIT : GAMELOOP_WORLDSELECT;
-	FrameSetFPS(globals.targetFPS);
+	FrameSetFPS(0); //globals.targetFPS);
 
 	while (mcedit.exit != EXIT_APP)
 	{
@@ -875,9 +875,9 @@ void mceditWorld(void)
 					break;
 				case SDLK_F7:
 					globals.breakPoint = ! globals.breakPoint;
-					//globals.raycastEnabled = ! globals.raycastEnabled;
+					globals.raycastEnabled = ! globals.raycastEnabled;
 					//raycastWorld(globals.level, globals.matInvMVP, mcedit.player.pos);
-					debugCaveGraph(globals.level);
+					//debugCaveGraph(globals.level);
 					//mapShowChunks(globals.level);
 					//meshDebugBank(globals.level);
 					//FramePauseUnpause(globals.breakPoint);

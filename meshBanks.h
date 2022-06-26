@@ -134,7 +134,7 @@ struct MeshWriter_t
 	DATA32     start, end;           /* do not write past these points */
 	DATA32     cur, discard;         /* running pointer */
 	APTR       mesh;                 /* private datatype */
-	QUADHASH * merge;                /* hash table to merge quad */
+	QUADHASH * merge;                /* hash table to do greedy meshing */
 	uint16_t   coplanar[6];          /* check if quads are all coplanar for a given axis (S, E, N, W, T, B: used by alpha) */
 	uint8_t    isCOP;                /* 1 if coplanar, 0 if no */
 	uint8_t    alpha;                /* 1 if buffer is for alpha quads */

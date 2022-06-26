@@ -160,6 +160,7 @@ struct RenderWorld_t
 	float      compassOffset;      /* pixel offset from right border to start drawing compass */
 	float      yaw, pitch, yawFull;
 	float      scale;
+	double     frustumTime;
 	uint8_t    debug;              /* 1 if debug info is displayed (chunk boundaries) */
 	uint8_t    debugInfo;          /* tooltip over block highligted (DEBUG_*) */
 	uint8_t    setFrustum;         /* recompute chunk visible list */

@@ -48,6 +48,7 @@ void main(void)
 	// ambient occlusion
 	float shade = 0;
 	float shadeLight = 0;
+	#if 1
 	if (ocsmap > 0)
 	{
 		// ambient occlusion for normal blocks
@@ -100,12 +101,17 @@ void main(void)
 			shadeLight = (blockLight - skyLight) * shade * 0.8;
 		}
 	}
+	#endif
+
+//	float skyLight = normal < 6 ? shading[normal].x : 1;
+//	float blockLight = 0;
 
 	float sky = 0.9 * skyLight * skyLight + 0.1 - shade; if (sky < 0) sky = 0;
 	float block = (blockLight * blockLight - shadeLight) * (1 - sky);  if (block < 0) block = 0;
 	color *= vec4(sky, sky, sky, 1) + vec4(1.5 * block, 1.2 * block, 1 * block, 0);
 
 	// compute fog contribution
+	#if 1
 	if (underWater > 0 && waterFog > 0)
 	{
 		if (fogFactor < 1)
@@ -117,8 +123,8 @@ void main(void)
 	else if (fogFactor < 1)
 	{
 		vec4 skyColor = (skyLight > 0 || waterFog > 0 ? texelFetch(skyTex, ivec2(int(gl_FragCoord.x / SCR_WIDTH*255), int(gl_FragCoord.y / SCR_HEIGHT*255)), 0) : vec4(0.1,0.1,0.1,1));
-//		vec4 skyColor = texelFetch(skyTex, ivec2(int(gl_FragCoord.x / SCR_WIDTH*255), int(gl_FragCoord.y / SCR_HEIGHT*255)), 0);
 		skyColor.a = 1;
 		color = mix(skyColor, color, fogFactor);
 	}
+	#endif
 }

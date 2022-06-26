@@ -27,6 +27,11 @@ layout (binding=8)  uniform sampler2D bankTex1;
 layout (binding=9)  uniform sampler2D bankTex2;
 layout (binding=10) uniform sampler2D bankTex3;
 layout (binding=11) uniform sampler2D bankTex4;
+layout (binding=12) uniform sampler2D bankTex5;
+layout (binding=13) uniform sampler2D bankTex6;
+layout (binding=14) uniform sampler2D bankTex7;
+layout (binding=15) uniform sampler2D bankTex8;
+layout (binding=16) uniform sampler2D bankTex9;
 
 const int opp[6] = int[6] (2,3,0,1,5,4);
 
@@ -38,6 +43,8 @@ const int opp[6] = int[6] (2,3,0,1,5,4);
  */
 int voxelFindClosest(in vec3 pos, out vec3 V0, out vec3 V1, float upward, int side)
 {
+	if (pos.x < distantArea.x || pos.z < distantArea.y || pos.y < 0)
+	    return 0;
 	int X = int(pos.x - distantArea.x) >> 4;
 	int Z = int(pos.z - distantArea.y) >> 4;
 	int Y = int(pos.y) >> 4;
@@ -54,7 +61,7 @@ int voxelFindClosest(in vec3 pos, out vec3 V0, out vec3 V1, float upward, int si
 		V1 = vec3(V0.x + distantArea.z, V0.y, V0.z + distantArea.z);
 		return 2;
 	}
-	else if (X < 0 || Z < 0 || X >= size || Z >= size || pos.y < 0)
+	else if (X >= size || Z >= size)
 	{
 		// outside of map: stop raycasting here
 		return 0;
@@ -93,6 +100,11 @@ int voxelFindClosest(in vec3 pos, out vec3 V0, out vec3 V1, float upward, int si
 	case 1: voxel = texelFetch(bankTex2, coord, 0); break;
 	case 2: voxel = texelFetch(bankTex3, coord, 0); break;
 	case 3: voxel = texelFetch(bankTex4, coord, 0); break;
+	case 4: voxel = texelFetch(bankTex5, coord, 0); break;
+	case 5: voxel = texelFetch(bankTex6, coord, 0); break;
+	case 6: voxel = texelFetch(bankTex7, coord, 0); break;
+	case 7: voxel = texelFetch(bankTex8, coord, 0); break;
+	case 8: voxel = texelFetch(bankTex9, coord, 0); break;
 	default: return 0;
 	}
 

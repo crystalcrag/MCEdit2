@@ -135,6 +135,7 @@ static void meshGenAsync(void * arg)
 				list->save = NULL;
 				goto bail;
 			}
+			//ThreadPause(50);
 		}
 		//fprintf(stderr, "chunk %d, %d (%d) done mem: %d/256\n", list->X, list->Z, list->maxy, staging.total);
 		/* mark the chunk as ready to be pushed to the GPU mem */
@@ -178,49 +179,58 @@ static void meshGenRaycasting(void * arg)
 		/* that mutex lock will let the main thread know we are busy */
 		MutexEnter(thread->wait);
 
-		/* generating raycasting chunks is not very expensive, but there are a LOT to generate (10000 ~ 40000 usually) */
+		/*
+		 * generating raycasting chunks is not very expensive, but there are a LOT to generate:
+		 * 10000 ~ 40000 usually on a 64 render distance.
+		 */
 		int XZId[3];
 
-		int gen = 0;
 		while (raycastNextChunk(XZId))
 		{
 			memset(&chunk, 0, sizeof chunk);
 			memset(chunkData, 0, sizeof chunkData);
 			memcpy(chunk.layer, layers, sizeof chunk.layer);
-			if (chunkLoad(&chunk, map->path, XZId[0], XZId[1]))
+
+			Chunk cur = raycastGetLazyChunk(map, XZId[0], XZId[1]);
+			int i;
+			if (cur == NULL)
 			{
-				int i;
-				/* generate chunk top to bottom: highly likely to look at raycasting area from top */
-				for (i = chunk.maxy-1; i >= 0; i --)
+				if (! chunkLoad(&chunk, map->path, XZId[0], XZId[1]))
 				{
-					DATA8 rgbaTex = raycastAllocMT(thread);
-
-					if (rgbaTex == NULL)
-					{
-						/* main thread wants this thread to stop what it is currently doing */
-						fprintf(stderr, "cancelling generation\n");
-						raycastCancelColumn(XZId[2]);
-						break;
-					}
-
-					/* first 4 bytes will identify which chunk it is */
-					rgbaTex[0] = XZId[2] >> 8;
-					rgbaTex[1] = XZId[2] & 0xff;
-					rgbaTex[2] = i;
-					rgbaTex[3] = 0;
-					/* raycasting chunks are all the same size, there are no variance at all, no matter how complex block models are */
-					chunkConvertToRGBA(chunk.layer[i], rgbaTex + 4);
-					/* mark this chunk as ready */
-					rgbaTex[3] = chunk.maxy;
-					gen ++;
+					if (threadStop) break;
+					else continue;
 				}
-				NBT_Free(&chunk.nbt);
+				else cur = &chunk;
 			}
+			/* generate chunk top to bottom: highly likely to look at raycasting area from top */
+			for (i = cur->maxy-1; i >= 0; i --)
+			{
+				DATA8 rgbaTex = raycastAllocMT(thread);
+
+				if (rgbaTex == NULL)
+				{
+					/* main thread wants this thread to stop what it is currently doing */
+					raycastCancelColumn(XZId[2]);
+					break;
+				}
+
+				/* first 4 bytes will identify which chunk it is */
+				rgbaTex[0] = XZId[2] >> 8;
+				rgbaTex[1] = XZId[2] & 0xff;
+				rgbaTex[2] = i;
+				rgbaTex[3] = 0;
+				/* raycasting chunks are all the same size, there are no variance at all, no matter how complex block models are */
+				chunkConvertToRGBA(cur->layer[i], rgbaTex + 4);
+				/* mark this chunk as ready */
+				rgbaTex[3] = cur->maxy;
+			}
+
+			NBT_Free(&chunk.nbt);
+			memset(&chunk.nbt, 0, sizeof chunk.nbt);
+
 			if (threadStop)
 				break;
 		}
-
-		fprintf(stderr, "thread gen %d\n", gen);
 
 		MutexLeave(thread->wait);
 	}
@@ -1151,6 +1161,7 @@ void meshGenerateMT(Map map)
 		Chunk chunk = map->chunks + (src[0] & 0xffff);
 		ChunkData cd = chunk->layer[src[0] >> 16];
 
+		/* check if raster chunk will replace a raycasting one */
 		if ((src[0] >> 16) == chunk->maxy-1 && (chunk->cflags & CFLAG_STAGING))
 			update |= raycastChunkReady(map, chunk);
 
@@ -1247,7 +1258,8 @@ void meshGenerateMT(Map map)
 
 	/* check if textures for raycasting.vsh are ready */
 	MutexEnter(rcMem.alloc);
-	for (slot = freed = 0; slot < rcMem.total; )
+	int total = rcMem.total;
+	for (slot = freed = 0; total > 0; slot ++)
 	{
 		if (rcMem.usage[slot>>5] & (1 << (slot & 31)))
 		{
@@ -1262,7 +1274,7 @@ void meshGenerateMT(Map map)
 
 				rcMem.usage[slot>>5] ^= 1 << (slot & 31);
 			}
-			slot ++;
+			total --;
 		}
 	}
 //	fprintf(stderr, "%d raycasting chunks flushed %08x%08x\n", freed, rcMem.usage[0], rcMem.usage[1]);
@@ -1300,7 +1312,7 @@ void meshQuadMergeInit(HashQuadMerge hash)
 	meshQuadMergeReset(hash);
 }
 
-// XXX above a certain point it is pointless to enlarge: too many rejects, simply use single quads
+/* XXX above a certain point it is pointless to enlarge: too many rejects, simply use single quads */
 static void meshQuadEnlarge(HashQuadMerge hash)
 {
 	uint16_t first = hash->firstAdded;

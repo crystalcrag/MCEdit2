@@ -402,7 +402,7 @@ void debugCoord(APTR vg, vec4 camera, int total)
 	for (bank = HEAD(globals.level->gpuBanks), vis = 0; bank; vis += bank->vtxSize, NEXT(bank));
 	len += sprintf(message + len, "Chunks: %d/%d (culled: %d, fakeAlloc: %d)\n", vis, globals.level->GPUchunk, globals.level->chunkCulled,
 		globals.level->fakeMax);
-	len += sprintf(message + len, "FPS: %.1f", FrameGetFPS());
+	len += sprintf(message + len, "FPS: %.1f (%.1f ms)", FrameGetFPS(), render.frustumTime);
 
 	nvgFontSize(vg, FONTSIZE);
 	nvgTextAlign(vg, NVG_ALIGN_TOP);
@@ -452,7 +452,7 @@ static Bool debugCheckCnx(Map map, ChunkData cur, int side)
 	case 4: dir = 2; break;
 	case 8: dir = 3; break;
 	case 16: dir = 4; break;
-	case 32: dir = 5;
+	default: dir = 5;
 	}
 
 	chunk    = cur->chunk + chunkNeighbor[cur->chunk->neighbor + (side & 15)];

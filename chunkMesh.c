@@ -1286,7 +1286,7 @@ static void chunkMergeQuads(ChunkData cd, HashQuadMerge hash)
 			memcpy(ref, quad, VERTEX_DATA_SIZE);
 			axis = directions[0];
 			switch (axis) {
-			case VX: max = ((quad[0] & 0xffff) - ORIGINVTX) >> 11; break;
+			default: max = ((quad[0] & 0xffff) - ORIGINVTX) >> 11; break;
 			case VY: max = ((quad[0] >> 16) - ORIGINVTX) >> 11; break;
 			case VZ: max = ((quad[1] & 0xffff) - ORIGINVTX) >> 11;
 			}
@@ -1316,7 +1316,7 @@ static void chunkMergeQuads(ChunkData cd, HashQuadMerge hash)
 			axis2 = directions[2];
 			memcpy(ref, quad, VERTEX_DATA_SIZE);
 			switch (axis2) {
-			case VX: max2 = ((quad[0] & 0xffff) - ORIGINVTX) >> 11; break;
+			default: max2 = ((quad[0] & 0xffff) - ORIGINVTX) >> 11; break;
 			case VY: max2 = ((quad[0] >> 16)    - ORIGINVTX) >> 11; break;
 			case VZ: max2 = ((quad[1] & 0xffff) - ORIGINVTX) >> 11;
 			}

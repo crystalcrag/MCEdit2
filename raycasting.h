@@ -23,6 +23,7 @@ void raycastMoveCenter(Map, vec4 old, vec4 pos);
 void raycastFlushChunk(DATA8 rgbaTex, int XZ, int Y, int maxy);
 void chunkConvertToRGBA(ChunkData, DATA8 rgba);
 Bool raycastChunkReady(Map, Chunk ready);
+Chunk raycastGetLazyChunk(Map, int X, int Z);
 
 #define TEXTURE_SLOTS			1024
 

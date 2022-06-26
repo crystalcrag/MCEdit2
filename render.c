@@ -1475,7 +1475,10 @@ void renderWorld(void)
 	if (render.setFrustum)
 	{
 		/* do it as late as possible */
+		double start = FrameGetTime();
 		mapViewFrustum(globals.level, render.nearPlane);
+		start = FrameGetTime() - start;
+		render.frustumTime = start;
 		render.underWater = mapIsPositionInLiquid(globals.level, render.camera);
 		render.setFrustum = 0;
 	}
@@ -1590,7 +1593,7 @@ void renderWorld(void)
 
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
-	debugRenderCaveGraph();
+	//debugRenderCaveGraph();
 
 	NVGcontext * vg = globals.nvgCtx;
 	nvgBeginFrame(vg, globals.width, globals.height, 1);

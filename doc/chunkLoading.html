@@ -16,19 +16,21 @@
 <h1 style="counter-set: h2 2">3. Chunk loading</h1>
 
 <div id="abstract"><u>Abstract:</u>
-<p>Voxel terrain can be pretty big and as such cannot be loaded at once. Even loading a partial area
-needs some careful consideration to avoid lag spikes all over the place, as the player is moving around
-the map. This chapter will describe the techniques used in this engine, especially be particularly
-careful when venturing in the multi-threaded chunk loading system, this part is not particularly
-obvious to understand by just reading the source code.
+<p>Voxel terrain are usually pretty big and as such cannot be loaded all at once. Even loading a partial
+area requires careful consideration to avoid lag spikes all over the place, especially when the player
+is moving around the map. This chapter will describe the techniques used in this engine: be particularly
+careful when venturing in the multi-threaded section, this part is not obvious to understand by just
+reading the source code.
+
+<p>The source code for this part is located in the file <tt>meshBanks.c</tt>.
 
 <p><b>Pre-requisite</b>: C programming language and multi-threading primitives (Mutex, Semaphore).
-f</div>
+</div>
 
 <h2 id="loading">Chunk loading</h2>
 
 <p>This engine supports 2 strategies for loading chunks: <b>single-thread and multi-thread</b>. Single thread
-is pretty straightforward, multi-thread is way more challenging to follow. This section will contain
+is pretty straightforward, multi-thread is a bit more challenging to follow. This section will contain
 some high-level view on how both works.
 
 <h3 id="single"><span>Single thread chunk loading</span></h3>
@@ -90,11 +92,67 @@ player move onto another chunk).
 
 <p>Sadly, to avoid that lag, there is no other way but to have a <b>multi-threaded chunk loading system</b>.
 
+
+<h3 id="#meshing"><span>Meshing pipeline</span></h3>
+
+<p>Vertices for the GPU are generated in <tt>chunkMesh.c</tt>, in the function <tt>chunkUpdate()</tt>.
+This function will simply scan the block IDs of a <tt>ChunkData</tt> and look for any visible faces,
+and generate a quad suitable for the terrain shaders. This is a very quick overview on how meshing
+works, the details are not important at this point, but it will be described more in detail in
+the <a href="mesh.html">dedicated chapter</a>. For the purpose of this chapter, just imagine a buffer
+containing fixed size quads (in this case 32bytes) to be drawed by the GPU.
+
+<p>Quads are split into 3 categories:
+<ul>
+  <li><b><tt>SOLID</tt> quads</b>: quads that do not have any translucent part and as such can be <b>draw
+  in any order</b> (assuming depth test is enabled).
+
+  <li><b><tt>SOLID</tt> discard</b>: this is an <b>optimization technique</b> for quads that use a binary
+  transparency (typical use case: leaf blocks). These quads will be <b>discarded from GPU</b> draw commands,
+  if they are far enough away. What happen in this case is that mipmaps will turn a binary transparent
+  texture in a fully opaque one, therefore hidden face removal can be applied .... if the quad is far
+  enough away.
+
+  <li><b><tt>ALPHA</tt> quads</b>: these quads need a separate draw command and need to <b>sorted from
+  back to front</b>. Depth buffer is no use for these, they have to be rendered no matter what, therefore
+  <b>there are no <tt>ALPHA</tt> discard</b> category: translucency will be kept down to the lowest
+  mipmap level.
+</ul>
+
+<p>Vertex data written by <tt>chunkUpdate()</tt> is always written on the CPU first. The reason being,
+that once this function has finished, there are a few more steps to apply on these buffers before the
+GPU can use them.
+
+<p>All these quads will be written one after the other in vertex buffers, the first job to do once the
+meshing function returns in to group these quads back into these 3 categories. You might wonder why
+is this not done directly in meshing phase: indeed, it is not that difficult to group them right when
+they are generated, but there is another step that will dramatically shuffle these quads all over the
+memory: greedy meshing. This step will leave lots of "hole" in the buffers (quads that have been merged),
+and as such, you'll to scan the buffer entirely and shuffle memory blocks all around anyway.
+
+<p>Each quads type (<tt>SOLID</tt>, <tt>SOLID</tt> discard and <tt>ALPHA</tt>) has a flag in the vertex
+buffer, so that you can easily identify them later. Once you know how many there are for each category,
+you can transfer them to the GPU in a single, continuous buffer. For a given <tt>ChunkData</tt>, quads
+will be arranged this way:
+<ul>
+  <li>First, all the normal <tt>SOLID</tt> quads. If the <tt>ChunkData</tt> is visible, these quads
+  will always be rendered no matter what.
+
+  <li>Immediately following are the discardable <tt>SOLID</tt> quads. To discard these quads if they
+  are too far away, it is a simple matter of changing the primitive count when <b>drawing normal
+  <tt>SOLID</tt></b>, since the vertex data is right after.
+
+  <li>At last there are the <tt>ALPHA</tt> quads. These ones have to be drawed in a separate draw
+  command, sorted (at the quad level) from front to back.
+</ul>
+
+
+
 <h3 id="#multi"><span>Multi thread chunk loading</span></h3>
 
-<p>Multi-thread and OpenGL usually don't mix very well. This engine uses a paranoid approach to multi-thread
-chunk loading: threads that handle loading/meshing <b>must not change anything to the OpenGL context</b>.
-All OpenGL interactions must be done by the main thread, no exceptions whatsoever.
+<p>Multi-thread and OpenGL usually don't mix well. This engine uses a paranoid approach to multi-thread
+chunk loading: threads that handle chunk loading/meshing <b>must not change anything to the OpenGL context</b>.
+All OpenGL interactions must be done by the main thread, <b>no exceptions whatsoever</b>.
 
 <p>Easier said than done though, especially since the C programming language is not really helping in
 this area. To its defense, this is not a trivial subject.
@@ -106,7 +164,8 @@ this area. To its defense, this is not a trivial subject.
 
   <li>Each threads will <b>wait for chunks to be processed</b> (using a semaphore). This is the exact same
   list that is built in single thread context, but is now guarded by a semaphore to keep track of
-  how many chunks needs to be processed.
+  how many chunks needs to be processed. The number in the semaphore must contain the exact number
+  of item in the list.
 
   <li>When a thread grab a chunk to be processed, it starts <b>loading the 8 surrounding chunks</b>.
   Overlaps with other threads is extremely likely to occur at this point. Arbitration needs to be in
@@ -130,6 +189,41 @@ this area. To its defense, this is not a trivial subject.
 
 <p>Sadly, all of this steps require very <b>careful synchronization</b> in order to not shoot into your
 feet.
+
+<h4 id="#staging"><span>Staging memory management</span></h4>
+
+<p>This is the most critical part to understand multi-threaded meshing. The staging memory is where
+the mesh of a chunk is written (on the CPU side). Once here, it is almost ready to be uploaded to the GPU.
+
+<p>When a thread starts meshing a chunk, the thread doesn't know how big the mesh is going to be. The
+staging memory being fixed in size, it cannot reserve the entire memory just for a single chunk. Therefore
+the memory has to be allocated in small blocks (255 32byte quads with default compilation, which is 8160
+bytes or slightly under 8Kb). These blocks contain information that only the GPU can use, therefore, a
+header has to be added in order for the main thread to tell which part goes where. This header is 8bytes in size.
+
+<p>The staging memory is composed of 256 of these blocks, which means it is exactly 2,091,008 bytes (slightly
+under 2Mb).
+
+<p>The 8 bytes header, is accessed as 2 unformatted uint32_t (i.e: there are no dedicated struct for this):
+
+<ul>
+  <li><tt>[0]</tt>: chunk position in <tt>map->chunks</tt>: lower 16bits are <tt>Chunk</tt> reference,
+  upper 16 bits are for <tt>ChunkData</tt> layer. Ie:
+  <pre>Chunk chunk = map->chunks + (mem[<v>0</v>] &amp; <v>0xffff</v>);
+ChunkData cd = chunk->layer + mem[<v>0</v>] &gt;&gt; <v>16</v>;
+  </pre>
+  <li><tt>[1]</tt>: Amount of data stored in the chunk, divided in 3 fields:
+	<ul>
+	  <li>Lowest <b>16bits</b>: next slot of staging memory that is part of this chunk. Since blocks
+	  from staging memory are fixed in size and mesh data are not, you might need several staging
+	  block. This field will be the next block in the chain. If <tt>0</tt>, this block is the last.
+	  <li>Middle <b>8bits</b>: number of vertices stored in the block. Each vertices is 32bytes (well,
+	  as of writing this). Each block can hold at most 255 vertices.
+	  <li>Last <b>8bits</b>: number of discardable vertices.
+	</ul>
+</ul>
+
+
 </div>
 </body>
 </html>
