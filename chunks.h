@@ -152,8 +152,7 @@ enum /* NBT update tag (type parameter of chunkMarkForUpdate) */
 #define FLAG_DUAL_SIDE                 (1 << 23)
 #define FLAG_LIQUID                    (1 << 24)
 #define FLAG_UNDERWATER                (1 << 25)
-#define FLAG_EXTOCS                    (1 << 26)
-#define FLAG_REPEAT                    (1 << 27)
+#define FLAG_REPEAT                    (1 << 26)
 
 /* used by quad merging (don't merge normal quad and discardable), not needed for vertex shader */
 #define FLAG_DISCARD                   (1 << 19)

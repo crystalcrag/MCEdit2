@@ -48,7 +48,7 @@ void meshGenerateMT(Map);
 
 #if NUM_THREADS > 0
 #define meshGenerate                  meshGenerateMT
-#define meshReady(map)                staging.chunkData > 0 || rcMem.total > 0
+#define meshReady(map)                staging.chunkData > 0
 #define meshAddToProcess(map, count)  SemAdd((map)->genCount, count)
 #else
 #define meshGenerate                  meshGenerateST
@@ -67,7 +67,7 @@ void meshWillBeRendered(ChunkData);
 void meshAllocCmdBuffer(Map map);
 
 /* done in halfBlock.c, but mostly needed for mesh banks */
-void meshHalfBlock(MeshWriter write, DATA8 model, int size, DATA8 xyz, BlockState b, DATA16 neighborBlockIds, DATA8 skyBlock, int genSides);
+void meshHalfBlock(MeshWriter write, DATA8 model, int size, DATA8 xyz, BlockState b, DATA16 neighborBlockIds, int genSides);
 
 typedef struct GPUBank_t *         GPUBank;
 typedef struct GPUMem_t *          GPUMem;
@@ -155,8 +155,6 @@ struct Thread_t
 #define STAGING_BLOCK      (MESH_MAX_QUADS * VERTEX_DATA_SIZE/4 + MESH_HDR)
 #define STAGING_AREA       (STAGING_BLOCK * STAGING_SLOT * 4)
 #define MAX_MESH_CHUNK     ((64*1024/VERTEX_DATA_SIZE)*VERTEX_DATA_SIZE)
-#define RAYCAST_BLOCK      (4096*4+4)
-#define RAYCAST_SLOT       128            /* XXX must be <= STAGING_SLOT */
 
 struct Staging_t
 {
@@ -187,6 +185,5 @@ int  meshQuadMergeGet(HashQuadMerge hash, DATA32 quad);
 
 
 extern struct Staging_t staging;
-extern struct Staging_t rcMem;
 
 #endif

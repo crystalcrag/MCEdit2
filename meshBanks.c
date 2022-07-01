@@ -15,13 +15,11 @@
 #include "meshBanks.h"
 #include "particles.h"
 #include "tileticks.h"
-#include "raycasting.h"
 
 struct Staging_t staging;                /* chunk loading/meshing (MT context) */
-struct Staging_t rcMem;                  /* staging mem for distant chunk */
 static ListHead  meshBanks;              /* MeshBuffer (ST context) */
 static ListHead  alphaBanks;             /* MeshBuffer (ST context) */
-static Thread_t  threads[NUM_THREADS+1]; /* +1 thread for generating raycasting chunks */
+static Thread_t  threads[NUM_THREADS];   /* thread pool for meshing chunks */
 static QUADHASH  quadMerge;              /* single thread greedy meshing */
 static int       threadStop;             /* THREAD_EXIT_* */
 
@@ -149,105 +147,12 @@ static void meshGenAsync(void * arg)
 	thread->state = THREAD_EXITED;
 }
 
-static DATA8 raycastAllocMT(struct Thread_t * thread);
-
-/* threads that will load distant chunks for raycasting shader */
-static void meshGenRaycasting(void * arg)
-{
-	struct Thread_t *  thread = arg;
-	struct Chunk_t     chunk;
-	struct ChunkData_t chunkData[CHUNK_LIMIT];
-	ChunkData layers[CHUNK_LIMIT];
-
-	Map map = thread->map;
-
-	/* no need to alloc a chunk when loading data from NBT, everything can be pre-allocated */
-	for (chunk.cdIndex = 0; chunk.cdIndex < CHUNK_LIMIT; chunk.cdIndex ++)
-		layers[chunk.cdIndex] = chunkData + chunk.cdIndex;
-
-	while (threadStop != THREAD_EXIT)
-	{
-		/* waiting for something to do... */
-		thread->state = THREAD_WAIT_GENLIST;
-		SemWait(map->waitChanges);
-
-		/* a long time can have passed waiting on that semaphore... */
-		if (threadStop == THREAD_EXIT_LOOP) continue;
-		if (threadStop == THREAD_EXIT) break;
-
-		thread->state = THREAD_RUNNING;
-		/* that mutex lock will let the main thread know we are busy */
-		MutexEnter(thread->wait);
-
-		/*
-		 * generating raycasting chunks is not very expensive, but there are a LOT to generate:
-		 * 10000 ~ 40000 usually on a 64 render distance.
-		 */
-		int XZId[3];
-
-		while (raycastNextChunk(XZId))
-		{
-			memset(&chunk, 0, sizeof chunk);
-			memset(chunkData, 0, sizeof chunkData);
-			memcpy(chunk.layer, layers, sizeof chunk.layer);
-
-			Chunk cur = raycastGetLazyChunk(map, XZId[0], XZId[1]);
-			int i;
-			if (cur == NULL)
-			{
-				if (! chunkLoad(&chunk, map->path, XZId[0], XZId[1]))
-				{
-					if (threadStop) break;
-					else continue;
-				}
-				else cur = &chunk;
-			}
-			/* generate chunk top to bottom: highly likely to look at raycasting area from top */
-			for (i = cur->maxy-1; i >= 0; i --)
-			{
-				DATA8 rgbaTex = raycastAllocMT(thread);
-
-				if (rgbaTex == NULL)
-				{
-					/* main thread wants this thread to stop what it is currently doing */
-					raycastCancelColumn(XZId[2]);
-					break;
-				}
-
-				/* first 4 bytes will identify which chunk it is */
-				rgbaTex[0] = XZId[2] >> 8;
-				rgbaTex[1] = XZId[2] & 0xff;
-				rgbaTex[2] = i;
-				rgbaTex[3] = 0;
-				/* raycasting chunks are all the same size, there are no variance at all, no matter how complex block models are */
-				chunkConvertToRGBA(cur->layer[i], rgbaTex + 4);
-				/* mark this chunk as ready */
-				rgbaTex[3] = cur->maxy;
-			}
-
-			NBT_Free(&chunk.nbt);
-			memset(&chunk.nbt, 0, sizeof chunk.nbt);
-
-			if (threadStop)
-				break;
-		}
-
-		MutexLeave(thread->wait);
-	}
-	thread->state = THREAD_EXITED;
-}
-
 void meshInitThreads(Map map)
 {
 	/* mesh-based chunks */
 	staging.mem = malloc(STAGING_AREA);
 	staging.capa = SemInit(STAGING_SLOT);
 	staging.alloc = MutexCreate();
-
-	/* raycasting=based chunks */
-	rcMem.mem = malloc(RAYCAST_BLOCK * RAYCAST_SLOT);
-	rcMem.capa = SemInit(RAYCAST_SLOT);
-	rcMem.alloc = MutexCreate();
 
 	/* already load center chunk */
 	Chunk center = map->center;
@@ -269,11 +174,6 @@ void meshInitThreads(Map map)
 		#endif
 		ThreadCreate(meshGenAsync, threads + nb);
 	}
-
-	/* thread to process chunks for raycasting shader */
-	threads[NUM_THREADS].wait = MutexCreate();
-	threads[NUM_THREADS].map  = map;
-	ThreadCreate(meshGenRaycasting, &threads[NUM_THREADS]);
 }
 
 static void meshFreeStaging(struct Staging_t * mem)
@@ -296,7 +196,7 @@ void meshStopThreads(Map map, int exit)
 
 	int i;
 	/* need to wait, threads might hold pointer to object that are going to be freed */
-	for (i = 0; i <= NUM_THREADS; i ++)
+	for (i = 0; i < NUM_THREADS; i ++)
 	{
 		switch (threads[i].state) {
 		case THREAD_WAIT_GENLIST:
@@ -307,10 +207,8 @@ void meshStopThreads(Map map, int exit)
 			break;
 		case THREAD_WAIT_BUFFER:
 			/* waiting for mem block, will jump to sleep right after */
-			if (i == NUM_THREADS)
-				SemAdd(rcMem.capa, 1), rcMem.total --;
-			else
-				SemAdd(staging.capa, 1), staging.total --;
+			SemAdd(staging.capa, 1);
+			staging.total --;
 		}
 		/* need to wait for thread to stop though */
 		double tick = FrameGetTime();
@@ -341,14 +239,9 @@ void meshStopThreads(Map map, int exit)
 			free(threads[i].hash.entries);
 		}
 
-		SemAdd(map->waitChanges, 1);
-		while (threads[NUM_THREADS].state >= 0);
-		MutexDestroy(threads[NUM_THREADS].wait);
-
 		memset(threads, 0, sizeof threads);
 
 		meshFreeStaging(&staging);
-		meshFreeStaging(&rcMem);
 	}
 	else SemAdd(staging.capa, staging.total);
 	#endif
@@ -507,36 +400,6 @@ static DATA32 meshAllocMT(struct Thread_t * thread, int first, int start, int * 
 	return mem;
 }
 
-static DATA8 raycastAllocMT(struct Thread_t * thread)
-{
-	thread->state = THREAD_WAIT_BUFFER;
-	SemWait(rcMem.capa);
-
-	/* it might have passed a long time since */
-	if (threadStop)
-	{
-		SemAdd(rcMem.capa, 1);
-		return NULL;
-	}
-
-	MutexEnter(rcMem.alloc);
-
-//	fprintf(stderr, "alloc mem for thread %d: first = %d\n", thread - threads, first);
-
-	int index = mapFirstFree(rcMem.usage, RAYCAST_SLOT/32);
-	DATA8 mem = (DATA8) rcMem.mem + index * RAYCAST_BLOCK;
-	rcMem.total ++;
-	/* first 4 bytes will tell where this ChunkData is and when it is ready */
-	memset(mem, 0, 4);
-
-	MutexLeave(rcMem.alloc);
-
-	thread->state = THREAD_RUNNING;
-
-	return mem;
-}
-
-
 /* called from chunkUpdate(): vertex buffer is full */
 static void meshFlushMT(MeshWriter buffer)
 {
@@ -663,11 +526,11 @@ static int meshAllocGPU(Map map, ChunkData cd, int size)
 		glBufferData(GL_ARRAY_BUFFER, map->GPUMaxChunk, NULL, GL_STATIC_DRAW);
 		glVertexAttribIPointer(0, 4, GL_UNSIGNED_INT, VERTEX_DATA_SIZE, 0);
 		glEnableVertexAttribArray(0);
-		glVertexAttribIPointer(1, 4, GL_UNSIGNED_INT, VERTEX_DATA_SIZE, (void *) 16);
+		glVertexAttribIPointer(1, (VERTEX_DATA_SIZE-16)/4, GL_UNSIGNED_INT, VERTEX_DATA_SIZE, (void *) 16);
 		glEnableVertexAttribArray(1);
 		/* 16 bytes of per-instance data (3 float for loc and 1 uint for flags) */
 		glBindBuffer(GL_ARRAY_BUFFER, bank->vboLocation);
-		glVertexAttribPointer(2, 4, GL_FLOAT, 0, 0, 0);
+		glVertexAttribPointer(2, VERTEX_INSTANCE/4, GL_FLOAT, 0, 0, 0);
 		glEnableVertexAttribArray(2);
 		glVertexAttribDivisor(2, 1);
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -1151,19 +1014,15 @@ void meshGenerateMT(Map map)
 	MutexEnter(staging.alloc);
 
 	DATA8 index, eof;
-	int   freed, slot, update;
+	int   freed, slot;
 
 	/* check if some mesh for blocks.vsh are ready */
-	for (index = staging.start, freed = 0, eof = index + staging.chunkData, update = 0; index < eof; )
+	for (index = staging.start, freed = 0, eof = index + staging.chunkData; index < eof; )
 	{
 		/* is the chunk ready ? */
 		DATA32 src = staging.mem + index[0] * STAGING_BLOCK;
 		Chunk chunk = map->chunks + (src[0] & 0xffff);
 		ChunkData cd = chunk->layer[src[0] >> 16];
-
-		/* check if raster chunk will replace a raycasting one */
-		if ((src[0] >> 16) == chunk->maxy-1 && (chunk->cflags & CFLAG_STAGING))
-			update |= raycastChunkReady(map, chunk);
 
 		if (cd == NULL)
 		{
@@ -1239,8 +1098,6 @@ void meshGenerateMT(Map map)
 					updateParseNBT(chunk);
 				}
 			}
-			if (map->maxHeight < chunk->maxy)
-				map->maxHeight = chunk->maxy;
 
 			/* note: no need to modify "bank->vtxSize" like meshFinishST(), this function is only used for initial chunk loading */
 			chunk->cflags = (chunk->cflags | CFLAG_HASMESH) & ~CFLAG_PROCESSING;
@@ -1254,36 +1111,6 @@ void meshGenerateMT(Map map)
 	staging.total -= freed;
 	MutexLeave(staging.alloc);
 	SemAdd(staging.capa, freed);
-
-
-	/* check if textures for raycasting.vsh are ready */
-	MutexEnter(rcMem.alloc);
-	int total = rcMem.total;
-	for (slot = freed = 0; total > 0; slot ++)
-	{
-		if (rcMem.usage[slot>>5] & (1 << (slot & 31)))
-		{
-			DATA8 mem = (DATA8) rcMem.mem + slot * RAYCAST_BLOCK;
-
-			if (mem[3] > 0)
-			{
-				/* yes, it is ready */
-				freed ++;
-
-				raycastFlushChunk(mem + 4, (mem[0] << 8) | mem[1], mem[2], mem[3]);
-
-				rcMem.usage[slot>>5] ^= 1 << (slot & 31);
-			}
-			total --;
-		}
-	}
-//	fprintf(stderr, "%d raycasting chunks flushed %08x%08x\n", freed, rcMem.usage[0], rcMem.usage[1]);
-	rcMem.total -= freed;
-	MutexLeave(rcMem.alloc);
-	SemAdd(rcMem.capa, freed);
-
-	if (freed > 0 || update)
-		raycastUpdateTexMap();
 }
 
 /*
@@ -1341,10 +1168,9 @@ void meshQuadMergeAdd(HashQuadMerge hash, DATA32 quad)
 	if (hash->usage == hash->capa)
 		meshQuadEnlarge(hash);
 
-	/* need to take into account: V1, norm, UV, ocs, light (don't care about V2 and V3) */
-	uint32_t ref[] = {quad[0], quad[1] & 0x0000ffff, quad[4] & 0xffff, quad[5], quad[6], quad[7]};
+	/* need to take into account: V1, norm, UV (don't care about V2 and V3) */
+	uint32_t ref[] = {quad[0], quad[1] & 0x0000ffff, quad[5], quad[6]};
 	uint32_t crc   = crc32(0, (DATA8) ref, sizeof ref);
-
 
 	HashQuadEntry entry = hash->entries + crc % hash->capa;
 
@@ -1378,7 +1204,7 @@ void meshQuadMergeAdd(HashQuadMerge hash, DATA32 quad)
 
 int meshQuadMergeGet(HashQuadMerge hash, DATA32 quad)
 {
-	uint32_t ref[] = {quad[0], quad[1] & 0x0000ffff, quad[4] & 0xffff, quad[5], quad[6], quad[7]};
+	uint32_t ref[] = {quad[0], quad[1] & 0x0000ffff, quad[5], quad[6]};
 	uint32_t crc   = crc32(0, (DATA8) ref, sizeof ref);
 
 	HashQuadEntry entry = hash->entries + crc % hash->capa;

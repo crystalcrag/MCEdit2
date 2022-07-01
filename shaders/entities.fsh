@@ -4,6 +4,7 @@
 #version 430
 
 #include "uniformBlock.glsl"
+#include "uniformTexture.glsl"
 
 flat in uint  flags;
      in vec2  texcoord;
@@ -13,16 +14,13 @@ flat in uint  flags;
 
 out vec4  color;
 
-layout (binding=0) uniform sampler2D blocksTex;
-layout (binding=1) uniform sampler2D entitiesTex;
-layout (binding=6) uniform sampler2D skyTex;
 
 void main(void)
 {
 	if ((flags & 2) > 0)
 		color = texture(entitiesTex, texcoord);
 	else
-		color = texture(blocksTex, texcoord);
+		color = texture(blockTex, texcoord);
 
 	if (color.a < 0.004)
 		discard;

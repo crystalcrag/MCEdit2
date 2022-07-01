@@ -150,7 +150,7 @@ SIT_Widget optionsQuickAccess(void)
 		"<slider name=bright curValue=", &worldSelect.brightness, "maxValue=101 pageSize=1 top=WIDGET,guiscale,0.5em"
 		" right=WIDGET,brightval,0.5em buddyLabel=", LANG("Brightness:"), &max, ">"
 		/* render distance */
-		"<editbox name=dist width=6em editType=", SITV_Integer, "top=WIDGET,bright,0.5em minValue=1 maxValue=16 curValue=", &worldSelect.renderDist,
+		"<editbox name=dist width=6em editType=", SITV_Integer, "top=WIDGET,bright,0.5em minValue=1 maxValue=32 curValue=", &worldSelect.renderDist,
 		" buddyLabel=", LANG("Render distance:"), &max, ">"
 		"<label name=msg title=", LANG("chunks"), "left=WIDGET,dist,0.5em top=MIDDLE,dist>"
 		/* redstone tick */
@@ -471,7 +471,6 @@ static int worldSelectSave(SIT_Widget w, APTR cd, APTR save)
 	globals.targetFPS     = worldSelect.fps;
 	globals.guiScale      = worldSelect.guiScale;
 	globals.renderDist    = worldSelect.renderDist;
-	globals.extraDist     = worldSelect.extraDist;
 	globals.distanceFOG   = worldSelect.fog;
 	globals.showPreview   = worldSelect.showPreview;
 	globals.lockMouse     = worldSelect.lockMouse;
@@ -506,7 +505,6 @@ static int worldSelectSave(SIT_Widget w, APTR cd, APTR save)
 		SetINIValueInt(PREFS_PATH, "Options/TargetFPS",  globals.targetFPS);
 		SetINIValueInt(PREFS_PATH, "Options/UsePreview", globals.showPreview);
 		SetINIValueInt(PREFS_PATH, "Options/LockMouse",  globals.lockMouse);
-		SetINIValueInt(PREFS_PATH, "Options/ExtraDist",  globals.extraDist);
 
 		SetINIValueInt(PREFS_PATH, "Options/AutoEdit",   mcedit.autoEdit);
 		SetINIValueInt(PREFS_PATH, "Options/FullScreen", mcedit.fullScreen);
@@ -748,7 +746,6 @@ static int worldSelectConfig(SIT_Widget w, APTR cd, APTR ud)
 	worldSelect.sensitivity = lroundf(globals.mouseSpeed * 100);
 	worldSelect.guiScale    = globals.guiScale;
 	worldSelect.renderDist  = globals.renderDist;
-	worldSelect.extraDist   = globals.extraDist;
 	worldSelect.fov         = globals.fieldOfVision;
 	worldSelect.fps         = globals.targetFPS;
 	worldSelect.fog         = globals.distanceFOG;
@@ -812,18 +809,13 @@ static int worldSelectConfig(SIT_Widget w, APTR cd, APTR ud)
 			 */
 
 			/* render distance */
-			"<slider tabNum=4 name=dist width=15em minValue=1 pageSize=1 maxValue=16 curValue=", &worldSelect.renderDist, "buddyLabel=",
+			"<slider tabNum=4 name=dist width=15em minValue=1 pageSize=1 maxValue=32 curValue=", &worldSelect.renderDist, "buddyLabel=",
 				LANG("Render distance:"), &max2, "top=FORM,,1em>"
 			"<label tabNum=4 name=distval left=WIDGET,dist,0.5em top=MIDDLE,dist>"
 
-			/* extra distance */
-			"<slider tabNum=4 name=rcdist width=15em minValue=0 pageSize=1 maxValue=16 curValue=", &worldSelect.extraDist, "buddyLabel=",
-				LANG("Extra distance:"), &max2, "top=WIDGET,dist,0.5em>"
-			"<label tabNum=4 name=rcdistval left=WIDGET,rcdist,0.5em top=MIDDLE,rcdist>"
-
 			/* field of view */
 			"<slider tabNum=4 userdata=1 name=fov width=15em pageSize=1 minValue=40 maxValue=140 curValue=", &worldSelect.fov, "buddyLabel=",
-				LANG("Field of view:"), &max2, "top=WIDGET,rcdist,0.5em>"
+				LANG("Field of view:"), &max2, "top=WIDGET,dist,0.5em>"
 			"<label tabNum=4 name=fovval left=WIDGET,fov,0.5em top=MIDDLE,fov>"
 
 			/* frame per second */

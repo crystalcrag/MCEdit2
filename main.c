@@ -225,7 +225,6 @@ static void prefsInit(void)
 	INIFile ini = ParseINI(PREFS_PATH);
 
 	globals.renderDist    = GetINIValueInt(ini, "RenderDist",    16);
-	globals.extraDist     = GetINIValueInt(ini, "ExtraDist",     0);
 	globals.redstoneTick  = GetINIValueInt(ini, "RedstoneTick",  100);
 	globals.compassSize   = GetINIValueInt(ini, "CompassSize",   100) * 0.01f;
 	globals.fieldOfVision = GetINIValueInt(ini, "FieldOfVision", 80);
@@ -508,7 +507,7 @@ int main(int nb, char * argv[])
 	}
 
 	mcedit.state = mcedit.autoEdit && mcedit.worldEdit[0] ? GAMELOOP_WORLDEDIT : GAMELOOP_WORLDSELECT;
-	FrameSetFPS(0); //globals.targetFPS);
+	FrameSetFPS(globals.targetFPS);
 
 	while (mcedit.exit != EXIT_APP)
 	{
@@ -875,8 +874,6 @@ void mceditWorld(void)
 					break;
 				case SDLK_F7:
 					globals.breakPoint = ! globals.breakPoint;
-					globals.raycastEnabled = ! globals.raycastEnabled;
-					//raycastWorld(globals.level, globals.matInvMVP, mcedit.player.pos);
 					//debugCaveGraph(globals.level);
 					//mapShowChunks(globals.level);
 					//meshDebugBank(globals.level);

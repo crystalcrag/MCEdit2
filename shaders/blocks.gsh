@@ -8,28 +8,21 @@
 layout (points) in;
 layout (triangle_strip, max_vertices = 4) out;
 
-#include "uniformBlock.glsl"  // extension provided by stb_include.h
+#include "uniformBlock.glsl"
 
 in vec3 vertex1[];
 in vec3 vertex2[];
 in vec3 vertex3[];
 in vec4 texCoord[];
-in uint skyBlockLight[];
-in uint ocsField[];
+in uint lightingTexBank[];
 in uint normFlags[];
-in uint chunkInfo[];
-in vec3 offsets[];
 
-out vec2  tc;
-out vec2  ocspos;
-out float skyLight;
-out float blockLight;
-out float fogFactor;
-flat out uint  rswire;
-flat out uint  ocsmap;
-flat out uint  normal;
-flat out uint  waterFog;
-flat out vec2  texStart;
+out vec3 vPoint;
+out vec2 tc;
+flat out uint rswire;
+flat out uint normal;
+flat out uint waterFog;
+flat out vec2 texStart;
 
 uniform uint underWater;    // player is underwater: denser fog
 uniform uint timeMS;
@@ -39,28 +32,11 @@ uniform uint timeMS;
 #define FLAG_DUAL_SIDE                 (normFlags[0] & (1 << 4)) > 0
 #define FLAG_LIQUID                    (normFlags[0] & (1 << 5)) > 0
 #define FLAG_UNDERWATER                (normFlags[0] & (1 << 6))
-#define FLAG_EXTOCS                    (normFlags[0] & (1 << 7)) > 0
-#define FLAG_REPEAT                    (normFlags[0] & (1 << 8)) > 0
-
-float fogBlend(vec2 coord, bool water)
-{
-	float fogStrength;
-	if (! water)
-	{
-		fogStrength = clamp(distance(camera.xz, coord) / FOG_DISTANCE, 0.0, 1.0);
-		return 1 - fogStrength * fogStrength * fogStrength;
-	}
-	else // quad AND player are underwater: use a different fog for these
-	{
-		fogStrength = clamp(distance(camera.xz, coord) / (FOG_DISTANCE * 0.5), 0.0, 1.0);
-		return 1 - fogStrength;
-	}
-}
+#define FLAG_REPEAT                    (normFlags[0] & (1 << 7)) > 0
 
 void main(void)
 {
 	bool keepX = FLAG_TEX_KEEPX;
-	bool lerpFOG = false;
 
 	normal = normFlags[0] & 7;
 	waterFog = FLAG_UNDERWATER;
@@ -70,20 +46,13 @@ void main(void)
 	if (Usz < 0) Usz = -Usz;
 	if (Vsz < 0) Vsz = -Vsz;
 
-	rswire = normal == 7 ? (skyBlockLight[0] & 15) + 1 : 0;
-	ocsmap = ocsField[0] | (FLAG_EXTOCS ? 65536 : 0);
+	rswire = 0; //normal == 7 ? (skyBlockLight[0] & 15) + 1 : 0;
 
 	if (FLAG_REPEAT)
 	{
 		// greedy meshing: need to repeat tex from tex atlas (which is set to GL_CLAMP)
 		texStart.x = min(texCoord[0].x, texCoord[0].y);
 		texStart.y = min(texCoord[0].z, texCoord[0].w);
-		if (FOG_DISTANCE > 0 && normal >= 4)
-		{
-			if (abs(texCoord[0].x - texCoord[0].y) > 0.125 ||
-			    abs(texCoord[0].z - texCoord[0].w) > 0.0625)
-				lerpFOG = true;
-		}
 	}
 	else texStart.x = -1;
 
@@ -107,80 +76,24 @@ void main(void)
 		if ((normFlags[0] & 0x1000) > 0) V4.y -= 0.1875;
 	}
 
-	/*
-	 * lighting per face: block light (or torch light) will used a fixed shading per face.
-	 * skylight will be directionnal.
-	 */
-	float shadeBlock = normal < 6 ? shading[normal].x / 15 : 1/15.;
-	float shadeSky;
-	float dotProd;
-	float sky = 1;
-	if (normal < 4)
-	{
-		// S, E, N, W face: only take xz component from sun direction :-/
-		dotProd = dot(normals[normal].xyz, normalize(vec3(sunDir.x, 0, sunDir.z)));
-	}
-	else dotProd = dot(normals[normal < 6 ? normal : 4].xyz, sunDir.xyz);
-
-	// only darken face by a factor of 0.7 at most if negative: 0.6 is too dark
-	shadeSky = (dotProd < 0 ? 0.1 : 0.2) * dotProd + 0.8;
-
-	// lower skylight contribution if we are at dawn/dusk
-	if (sunDir.y < 0.4)
-	{
-		sky = (sunDir.y + 0.4) * 1.25;
-		if (sky < 0) sky = 0; /* night time */
-		sky = sqrt(sky);
-	}
-	// brightness setting (moody == 0, bright = 0.7, full bright = 1
-	if (sky < MIN_BRIGHTNESS)
-		sky = MIN_BRIGHTNESS;
-	shadeSky *= sky * clamp(1 + MIN_BRIGHTNESS * 0.1, 1.0, 1.07) / 15;
-
-	// fogStrength == how much fragment will blend with sky, 0 = normal fragment color, 1 = fragment will use sky color
-	bool water = underWater > 0 && waterFog > 0;
-	if (FOG_DISTANCE > 0)
-	{
-		fogFactor = fogBlend(lerpFOG ? V1.xz : (V1.xz+V4.xz) * 0.5, water);
-	}
-	else fogFactor = 1; // disabled
-
-	// first vertex
+	vPoint      = V1;
 	gl_Position = MVP * vec4(V1, 1);
-	skyLight    = float(bitfieldExtract(skyBlockLight[0], 28, 4)) * shadeSky;
-	blockLight  = float(bitfieldExtract(skyBlockLight[0], 24, 4)) * shadeBlock;
-	ocspos      = vec2(Usz, 0);
 	tc          = keepX ? vec2(texCoord[0].x, texCoord[0].w) :
 						  vec2(texCoord[0].y, texCoord[0].z) ;
 	EmitVertex();
 
-	// second vertex
-	if (lerpFOG)
-		fogFactor = fogBlend(V2.xz, water);
+	vPoint      = V2;
 	gl_Position = MVP * vec4(V2, 1);
-	skyLight    = float(bitfieldExtract(skyBlockLight[0], 4, 4)) * shadeSky;
-	blockLight  = float(bitfieldExtract(skyBlockLight[0], 0, 4)) * shadeBlock;
-	ocspos      = vec2(0, 0);
 	tc          = vec2(texCoord[0].x, texCoord[0].z);
 	EmitVertex();
 			
-	// third vertex
-	if (lerpFOG)
-		fogFactor = fogBlend(V3.xz, water);
+	vPoint      = V3;
 	gl_Position = MVP * vec4(V3, 1);
-	skyLight    = float(bitfieldExtract(skyBlockLight[0], 20, 4)) * shadeSky;
-	blockLight  = float(bitfieldExtract(skyBlockLight[0], 16, 4)) * shadeBlock;
-	ocspos      = vec2(Usz, Vsz);
 	tc          = vec2(texCoord[0].y, texCoord[0].w);
 	EmitVertex();
 
-	// fourth vertex
-	if (lerpFOG)
-		fogFactor = fogBlend(V4.xz, water);
+	vPoint      = V4;
 	gl_Position = MVP * vec4(V4, 1);
-	skyLight    = float(bitfieldExtract(skyBlockLight[0], 12, 4)) * shadeSky;
-	blockLight  = float(bitfieldExtract(skyBlockLight[0], 8,  4)) * shadeBlock;
-	ocspos      = vec2(0, Vsz);
 	tc          = keepX ? vec2(texCoord[0].y, texCoord[0].z) :
 						  vec2(texCoord[0].x, texCoord[0].w) ;
 	EmitVertex();

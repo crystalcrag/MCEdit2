@@ -7,10 +7,7 @@
 
 layout (location=0) in uvec4 position;
 layout (location=1) in uvec4 info;
-layout (location=2) in vec4  offsets;
-layout (binding=0) uniform sampler2D blockTex;
-
-uniform vec3 biomeColor;
+layout (location=2) in vec3  offsets;
 
 // extension provided by stb_include.h
 #include "uniformBlock.glsl"
@@ -20,10 +17,8 @@ out vec3 vertex1;
 out vec3 vertex2;
 out vec3 vertex3;
 out vec4 texCoord;
-out uint skyBlockLight;
-out uint ocsField;
 out uint normFlags;
-out uint chunkInfo;
+out uint lightingTexBank;
 
 void main(void)
 {
@@ -58,8 +53,6 @@ void main(void)
 		texCoord.w += 0.015625;
 	}
 
-	skyBlockLight = info.w;
-	ocsField = bitfieldExtract(info.x, 0, 16);
+	lightingTexBank = bitfieldExtract(info.x, 0, 16);
 	normFlags = bitfieldExtract(info.y, 19, 13);
-	chunkInfo = uint(offsets.w);
 }

@@ -536,7 +536,6 @@ static int mapRedoGenList(Map map)
 	int      n    = map->maxDist * map->maxDist;
 	int      area = map->mapArea;
 	int      ret  = 0;
-	int      max  = 0;
 
 	meshStopThreads(map, THREAD_EXIT_LOOP);
 	ListNew(&map->genList);
@@ -556,8 +555,6 @@ static int mapRedoGenList(Map map)
 		}
 		else c->entityList = ENTITY_END;
 		c->cflags &= ~(CFLAG_STAGING | CFLAG_PROCESSING);
-		if (max < c->maxy)
-			max = c->maxy;
 
 		if ((c->cflags & CFLAG_HASMESH) == 0)
 		{
@@ -567,7 +564,6 @@ static int mapRedoGenList(Map map)
 			ret ++;
 		}
 	}
-	map->maxHeight = max;
 	/* return number of chunk needed to be read/meshed/trandfered to GPU */
 	return ret;
 }
@@ -915,7 +911,6 @@ Map mapInitFromPath(STRPTR path, int renderDist)
 		#if NUM_THREADS > 0
 		map->genLock = MutexCreate();
 		map->genCount = SemInit(0);
-		map->waitChanges = SemInit(0);
 		meshAddToProcess(map, mapRedoGenList(map));
 		meshInitThreads(map);
 		#else

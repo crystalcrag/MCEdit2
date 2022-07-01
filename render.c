@@ -26,7 +26,6 @@
 #include "tileticks.h"
 #include "keybindings.h"
 #include "undoredo.h"
-#include "raycasting.h"
 #include "nanovg.h"
 #include "SIT.h"
 #include "zlib.h" /* crc32 */
@@ -644,9 +643,6 @@ Bool renderInitStatic(void)
 	if (! wayPointsInitStatic())
 		return False;
 
-	if (! raycastInitStatic())
-		return False;
-
 	/* init VBO for vboInventoryLoc, vboPreview, vboPreviewLoc, vboInventory */
 	glGenBuffers(5, &render.vboInventoryMDAI);
 
@@ -827,8 +823,6 @@ Map renderInitWorld(STRPTR path, int renderDist)
 			SIT_Y, globals.height >> 1,
 			NULL
 		);
-		if (globals.extraDist > 0)
-			raycastInitMap(ret);
 		return ret;
 	}
 	return NULL;
@@ -842,7 +836,6 @@ void renderCloseWorld(void)
 	/* these first 3 calls will free 90% of memory usage */
 	meshCloseAll(globals.level);
 	mapFreeAll(globals.level);
-	raycastFreeAll();
 	globals.level = NULL;
 
 	/* these are small bits and pieces */
@@ -931,8 +924,7 @@ void renderSetViewMat(vec4 pos, vec4 lookat, float * yawPitch)
 	render.camera[VY] = pos[VY] + PLAYER_HEIGHT;
 	render.camera[VZ] = pos[VZ];
 
-	if (mapMoveCenter(globals.level, old, render.camera) && globals.extraDist > 0)
-		raycastMoveCenter(globals.level, old, render.camera);
+	mapMoveCenter(globals.level, old, render.camera);
 
 	matLookAt(render.matModel, render.camera, (float[3]) {lookat[VX], lookat[VY] + PLAYER_HEIGHT, lookat[VZ]}, (float[3]) {0, 1, 0}, render.nearPlane);
 	vecAdd(render.nearPlane, render.nearPlane, render.camera);
@@ -1357,7 +1349,6 @@ static void renderPrepVisibleChunks(Map map)
 				loc[0] = dx + chunk->X;
 				loc[1] = dy + cd->Y;
 				loc[2] = dz + chunk->Z;
-				loc[3] = cd->cdFlags >> 5;
 				bank->cmdTotal ++;
 			}
 			/* alpha chunks needs to be drawn from far to near */
@@ -1375,8 +1366,6 @@ static void renderPrepVisibleChunks(Map map)
 				loc[0] = dx + chunk->X;
 				loc[1] = dy + cd->Y;
 				loc[2] = dz + chunk->Z;
-				/* alpha don't have fog quads */
-				loc[3] = 0;
 				alphaIndex --;
 
 				/* check if we need to sort vertex: this is costly but should not be done very often */
@@ -1546,10 +1535,6 @@ void renderWorld(void)
 	/* entities */
 	glBindTexture(GL_TEXTURE_2D, render.texBlock);
 	entityRender();
-
-	/* raycasted chunks, between sky texture and current terrain */
-	if (globals.extraDist > 0 && globals.raycastEnabled)
-		raycastRender();
 
 	/* translucent terrain */
 	glUseProgram(render.shaderBlocks);

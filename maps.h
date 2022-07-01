@@ -35,7 +35,6 @@ struct Map_t
 	int       GPUchunk;            /* stat for debug: chunks with mesh on GPU */
 	int       GPUMaxChunk;         /* bytes to allocate for a single VBO */
 	int       fakeMax;             // DEBUG
-	uint16_t  maxHeight;           /* max height of all chunk (needed by raycasting module) */
 	uint16_t  chunkCulled;         /* stat for debug: chunk culled from cave culling (not from frustum) */
 	uint16_t  curOffset;           /* reduce sorting for alpha transparency of current chunk */
 	uint16_t  size[3];             /* brush only: size in blocks of brush (incl. 1 block margin around) */
@@ -45,7 +44,6 @@ struct Map_t
 	ListHead  players;             /* list of player on this map (Player) */
 	Chunk     genLast;
 	Semaphore genCount;            /* for rasterization */
-	Semaphore waitChanges;         /* for raycasting */
 	Mutex     genLock;
 	DATAS16   chunkOffsets;        /* array 16*9: similar to chunkNeighbor[] */
 	char      path[MAX_PATHLEN];   /* path to level.dat */

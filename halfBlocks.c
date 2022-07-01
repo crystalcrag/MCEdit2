@@ -48,44 +48,8 @@ static uint8_t modelsSize2[] = {
 	BITS(1, 1, 1, 0, 1, 1, 1, 1),
 };
 
-static uint8_t ocsOffsets[] = { /* S, E, N, W, T, B:  3 * 4 coord per face */
-	15,25,24,  15, 7, 6,  17, 7, 8,  25,17,26,
-	23,17,26,  17, 5, 8,  11, 5, 2,  23,11,20,
-	19,11,20,  11, 1, 2,   9, 1, 0,  19, 9,18,
-	 9,21,18,   9, 3, 0,  15, 3, 6,  21,15,24,
-	21,19,18,  21,25,24,  23,25,26,  23,19,20,
-	 3, 7, 6,   3, 1, 0,   5, 1, 2,   7, 5, 8,
-};
-
-static uint8_t ocs2x2[] = {
-	1, 2, 0, 3,
-	2, 1, 3, 0,
-	2, 1, 3, 0,
-	1, 2, 0, 3,
-	0, 3, 1, 2,
-	1, 2, 0, 3
-};
-
-/* convert block index [0-26] to separate X, Y, Z offset [-1, 1] */
-static uint8_t blockIndexToXYZ[] = {
-	/* bitfield: 2bits per coord (0 => -1, 1 => 0, 2 => +1), ordered XZY */
-	0,1,2,4,5,6,8,9,10,16,17,18,20,21,22,24,25,26,32,33,34,36,37,38,40,41,42
-};
-
 /* pairs of U, V dir (S,E,N,W,T,B) */
 static uint8_t UVdirs[] = {1, 4, 0, 4, 1, 4, 0, 4, 1, 0, 1, 0};
-
-static uint16_t vtxAdjust[] = {
-	#define ADJUST(pt0U,pt0V, pt1U,pt1V, pt2U,pt2V, pt3U,pt3V)      pt0U|(pt0V<<2)|(pt1U<<4)|(pt1V<<6)|(pt2U<<8)|(pt2V<<10)|(pt3U<<12)|(pt3V<<14)
-	#define OK    3
-	ADJUST(VY,OK, OK,OK, VX,OK, VX,VY),
-	ADJUST(VZ,VY, VZ,OK, OK,OK, VY,OK),
-	ADJUST(VX,VY, VX,OK, OK,OK, VY,OK),
-	ADJUST(VY,OK, OK,OK, VZ,OK, VZ,VY),
-	ADJUST(OK,OK, VZ,OK, VX,VZ, VX,OK),
-	ADJUST(VZ,OK, OK,OK, VX,OK, VX,VZ)
-	#undef OK
-};
 
 /* auto-generated from modelsSize2[] */
 static uint8_t modelsSize0[DIM(modelsSize2)];
@@ -119,14 +83,6 @@ void halfBlockInit(void)
 		for (j = 0, model = 0; j < 6; j ++)
 			if (faces[j] == 4) model |= 1 << j;
 		modelsSize0[i] = model;
-	}
-
-	for (i = 0; i < DIM(ocsOffsets); i ++)
-	{
-		/* easier to deal with */
-		j = ocsOffsets[i];
-		/* store offset as XZY bitfield on 2 bits each (ie:mod 4, instead of mod 3) */
-		ocsOffsets[i] = (j % 3) + ((j / 9)<<4) + ((j / 3) % 3 << 2);
 	}
 }
 
@@ -215,104 +171,6 @@ static DATA16 halfBlockRelocCenter(int center, DATA16 neighborBlockIds, DATA16 b
 	return buffer - 10;
 }
 
-/* compute ambient occlusion for half slab (only one quad here) */
-static uint32_t halfBlockGetOCS(DATA16 neighborBlockIds, DATA8 ocsval, uint8_t pos[3], int norm, int quadrant, ModelCache models)
-{
-	uint32_t occlusion;
-	uint8_t  i, j;
-	DATA8    ocs = ocsOffsets + norm * 12;
-	uint8_t  corner = ocs2x2[norm * 4 + quadrant];
-
-	for (i = occlusion = 0; i < 4; i ++)
-	{
-		uint8_t vtxocs;
-		for (j = 0, vtxocs = 0; j < 3; j ++, ocs ++)
-		{
-			/* hmm, we are doing unconventionnal memory access: this trick will circumvent -Warray-bound :-/ */
-			DATA16 buffer = alloca(14);
-			uint8_t xzy = *ocs;
-			/* these value can range from -1 to <size> */
-			int8_t  xc = pos[0] + (xzy & 3) - 1;
-			int8_t  zc = pos[2] + ((xzy >> 2) & 3) - 1;
-			int8_t  yc = pos[1] + (xzy >> 4) - 1;
-
-			uint8_t off = ((xc + 2) >> 1) + ((yc + 2) >> 1) * 9 + ((zc + 2) >> 1) * 3;
-
-			if ((models->set & (1 << off)) == 0)
-			{
-				DATA8 model2x2 = halfBlockGetModel(blockGetById(neighborBlockIds[off]), 2, halfBlockRelocCenter(off, neighborBlockIds, buffer));
-				models->set |= 1<<off;
-				models->cache[off] = model2x2 ? model2x2[0] : 0;
-			}
-
-			if (models->cache[off] & (1<<(((2 + xc) & 1) | (((2 + zc) & 1) << 1) | (((2 + yc) & 1) << 2))))
-			{
-				vtxocs |= 1<<j;
-
-				if (corner == i)
-				{
-					/* check if occlusion is 1 or 2 sub-voxel high */
-					int8_t * normal = cubeNormals + norm * 4;
-					uint8_t  flag = corner * 3 + j;
-					xc += normal[0];
-					yc += normal[1];
-					zc += normal[2];
-					occlusion |= 1 << flag;
-					off = ((xc + 2) >> 1) + ((yc + 2) >> 1) * 9 + ((zc + 2) >> 1) * 3;
-
-					if ((models->set & (1 << off)) == 0)
-					{
-						DATA8 model2x2 = halfBlockGetModel(blockGetById(neighborBlockIds[off]), 2, halfBlockRelocCenter(off, neighborBlockIds, buffer));
-						models->set |= 1<<off;
-						models->cache[off] = model2x2 ? model2x2[0] : 0;
-					}
-
-					if (models->cache[off] & (1<<(((2 + xc) & 1) | (((2 + zc) & 1) << 1) | (((2 + yc) & 1) << 2))))
-						occlusion |= 1 << (flag+12);
-				}
-			}
-		}
-		switch (vtxocs&3) {
-		case 3: vtxocs = 2; break;
-		case 2:
-		case 1: vtxocs = 1; break;
-		default: vtxocs = (vtxocs & 4 ? 1 : 0);
-		}
-		ocsval[i] = vtxocs;
-	}
-	return occlusion;
-}
-
-static int halfBlockSkyOffset(DATA8 vtx, int normal, int vertex, int xyz, int adjust)
-{
-	uint8_t pos[4];
-	switch (vertex) {
-	case 0: memcpy(pos, vtx+4, 4); break;
-	case 1: pos[0] = vtx[8]  + vtx[4] - vtx[0];
-	        pos[1] = vtx[9]  + vtx[5] - vtx[1];
-	        pos[2] = vtx[10] + vtx[6] - vtx[2];
-	        pos[3] = 0; break;
-	case 2: memcpy(pos, vtx+8, 4); break;
-	case 3: memcpy(pos, vtx, 4);
-	}
-
-	pos[0] += 2 + (xyz&3) - 1;
-	pos[1] += 2 + (xyz>>4) - 1;
-	pos[2] += 2 + ((xyz>>2)&3) - 1;
-
-	pos[adjust&3] --;
-	pos[adjust>>2] --;
-	xyz = (pos[0]>>1) + (pos[2]>>1) * 3 + (pos[1]>>1) * 9;
-	if (xyz == 13) /* center block always has skyval = 0 and blocklight = 0 */
-	{
-		/* shift by normal direction */
-		int8_t * shift = cubeNormals + normal * 4;
-		xyz += shift[0] + shift[2] * 3 + shift[1] * 9;
-	}
-
-	return xyz;
-}
-
 static Bool isVisible(DATA16 neighborBlockIds, ModelCache models, DATA8 pos, int dir)
 {
 	static int offsets[] = {-2, -1, 2, 1, -4, 4};
@@ -334,7 +192,7 @@ static Bool isVisible(DATA16 neighborBlockIds, ModelCache models, DATA8 pos, int
 /*
  * main function to convert a detail block metadata into a triangle mesh
  */
-void meshHalfBlock(MeshWriter write, DATA8 model, int size /* 2 or 8 */, DATA8 xyz, BlockState b, DATA16 neighborBlockIds, DATA8 skyBlock, int genSides)
+void meshHalfBlock(MeshWriter write, DATA8 model, int size /* 2 or 8 */, DATA8 xyz, BlockState b, DATA16 neighborBlockIds, int genSides)
 {
 	static uint8_t xsides[] = { 2, 8};
 	static uint8_t ysides[] = {16,32};
@@ -343,7 +201,6 @@ void meshHalfBlock(MeshWriter write, DATA8 model, int size /* 2 or 8 */, DATA8 x
 
 	struct ModelCache_t models;
 
-	uint8_t skyBlockCenter[6];
 	uint8_t faces[8];
 	uint8_t pos[4];
 	DATA32  out;
@@ -355,18 +212,6 @@ void meshHalfBlock(MeshWriter write, DATA8 model, int size /* 2 or 8 */, DATA8 x
 	models.set = 1<<13;
 	models.cache[13] = model[0];
 	for (i = 0, j = 1, k = model[0], face = faces; i < 8; i ++, *face++ = (k & j) ? genSides : 255, j <<= 1);
-
-	/* lighting of center block depend on face normal */
-	if (genSides == 0)
-	{
-		skyBlockCenter[0] = skyBlock[16];
-		skyBlockCenter[1] = skyBlock[14];
-		skyBlockCenter[2] = skyBlock[10];
-		skyBlockCenter[3] = skyBlock[12];
-		skyBlockCenter[4] = skyBlock[13];
-		skyBlockCenter[5] = skyBlock[13];
-	}
-	else memset(skyBlockCenter, 0, 6);
 
 	/* do the meshing */
 	#define x      pos[0]
@@ -407,8 +252,6 @@ void meshHalfBlock(MeshWriter write, DATA8 model, int size /* 2 or 8 */, DATA8 x
 
 			/* try to expand initial rect */
 			uint8_t  cur[4];
-			uint8_t  ocs[16];
-			uint32_t occlusion;
 			int8_t   faceOff[3];
 			uint8_t  dirU  = UVdirs[j*2];
 			uint8_t  dirV  = UVdirs[j*2+1];
@@ -417,12 +260,9 @@ void meshHalfBlock(MeshWriter write, DATA8 model, int size /* 2 or 8 */, DATA8 x
 			uint8_t  rev   = invUV[j];
 			DATA8    face2;
 
-			static uint8_t dummyVal[] = {255,254,253,252, 251,250,249,248, 247,246,245,244};
 			faceOff[0] = faceOff[2] = offset[dirU];
 			faceOff[1] = offset[dirV] - faceOff[0];
 			memcpy(cur, pos, 4);
-			memcpy(ocs+4, dummyVal, sizeof dummyVal);
-			occlusion = halfBlockGetOCS(neighborBlockIds, ocs, cur, j, 0, &models);
 
 			for (k = 0, face2 = face; k < 3; k ++)
 			{
@@ -432,70 +272,6 @@ void meshHalfBlock(MeshWriter write, DATA8 model, int size /* 2 or 8 */, DATA8 x
 				face2 += faceOff[k];
 				if (cur[axisU] == 2 || cur[axisV] == 2 || (*face2 & mask)) continue;
 				if ((sides & mask) ? face2[offset[j]] < 255 : !isVisible(neighborBlockIds, &models, cur, j)) continue;
-				occlusion |= halfBlockGetOCS(neighborBlockIds, ocs + 4 + (k<<2), cur, j, k+1, &models);
-			}
-
-			uint32_t ext = 0;
-			uint8_t ocsval = 0;
-			uint8_t ocsext = 0;
-			if (ocs[4] < 16 && ocs[8] < 16 && ocs[12] < 16)
-			{
-				/* 2x2: use a detailed ocs map */
-				static uint8_t merge[] = {
-					 8, 1,  6, 15,
-					12, 5,  2, 11,
-					 0, 9, 14, 7,
-				};
-				DATA8 p;
-				face2 = merge + rev * 4;
-				for (ext = FLAG_EXTOCS, k = 0, p = face2 + 4; k < 8; k += 2, p += 2, occlusion >>= 3)
-				{
-					ocsval |= ocs[face2[k>>1]] << k;
-					uint8_t allTall = (occlusion & 7) > 0 && ((occlusion >> 12) & 7) == (occlusion & 7);
-					if ((occlusion & 2) || allTall) ocsext |= 1 << k;
-					if ((occlusion & 1) || allTall) ocsext |= 1 << (k+1);
-				}
-				rect[axisU] = 2;
-				rect[axisV] = 2;
-				face2 = face + faceOff[0]; face2[0] |= mask;
-				face2 += faceOff[1];       face2[0] |= mask;
-				face2 += faceOff[2];       face2[0] |= mask;
-			}
-			else /* 2x1, 1x2 or 1x1 */
-			{
-				/* tables used to merge quads according to OCS values */
-				static uint8_t ocsIdxU[] = {
-					2, 6, 3, 7, /* S,W,B */
-					0, 4, 1, 5, /* N,E */
-					2, 6, 3, 7, /* T */
-				};
-				static uint8_t ocsIdxV[] = {
-					0, 8, 3, 11, /* S,W,B */
-					0, 8, 3, 11, /* N,E */
-					1, 9, 2, 10, /* T */
-				};
-				/* merge quads according to OCS values */
-				if (ocs[4] < 16)
-				{
-					/* 2x1 */
-					DATA8 p = ocsIdxU + rev * 4;
-					ocs[p[0]] = ocs[p[1]];
-					ocs[p[2]] = ocs[p[3]];
-					rect[axisU] = 2;
-					face[faceOff[0]] |= mask;
-					ocsext = 1;
-				}
-				else if (ocs[8] < 16) /* 1x2 */
-				{
-					DATA8 p = ocsIdxV + rev * 4;
-					ocs[p[0]] = ocs[p[1]];
-					ocs[p[2]] = ocs[p[3]];
-					rect[axisV] = 2;
-					face[offset[dirV]] |= mask;
-					ocsext = 2;
-				}
-				else ocsext = 3;
-				ocsval = ocs[0] | (ocs[1] << 2) | (ocs[2] << 4) | (ocs[3] << 6);
 			}
 
 			if (write->end - out < VERTEX_INT_SIZE)
@@ -518,7 +294,7 @@ void meshHalfBlock(MeshWriter write, DATA8 model, int size /* 2 or 8 */, DATA8 x
 				static uint8_t coordU[] = {0, 2, 0, 2, 0, 0};
 				static uint8_t coordV[] = {1, 1, 1, 1, 2, 2};
 				uint16_t U, V, Usz, Vsz, base;
-				#define vtx      (ocs+4)
+				uint8_t  vtx[12];
 				#define texSz    3
 
 				face2 = cubeIndices + j * 4;
@@ -557,34 +333,14 @@ void meshHalfBlock(MeshWriter write, DATA8 model, int size /* 2 or 8 */, DATA8 x
 				out[1] = VERTEX(vtx[2] + xyz[2]) | (VERTEX(vtx[4] + xyz[0]) << 16);
 				out[2] = VERTEX(vtx[5] + xyz[1]) | (VERTEX(vtx[6] + xyz[2]) << 16);
 				out[3] = VERTEX(vtx[8] + xyz[0]) | (VERTEX(vtx[9] + xyz[1]) << 16);
-				out[4] = (ocsext << 8) | ocsval  | (VERTEX(vtx[10] + xyz[2]) << 16);
-				out[5] = U | (V << 9) | (j << 19) | ext | (texCoord[base] == texCoord[base+6] ? FLAG_TEX_KEEPX : 0);
+				out[4] = (VERTEX(vtx[10] + xyz[2]) << 16);
+				out[5] = U | (V << 9) | (j << 19) | (texCoord[base] == texCoord[base+6] ? FLAG_TEX_KEEPX : 0);
 				out[6] = Usz | (Vsz << 9);
-				out[7] = 0;
 
 				static uint8_t oppSideBlock[] = {16, 14, 10, 12, 22, 4};
 				if (blockIds[neighborBlockIds[oppSideBlock[j]] >> 4].special == BLOCK_LIQUID)
 					/* use water fog instead of atmospheric one */
 					out[5] |= FLAG_UNDERWATER;
-
-				/* skylight, blocklight */
-				for (k = 0, face2 = skyBlockOffset + j * 16; k < 4; k ++)
-				{
-					uint8_t max, l, skyval;
-					uint8_t adjust = (vtxAdjust[j] >> k*4) & 15;
-					for (l = 0, skyval = skyBlockCenter[j], max = skyval & 15, skyval &= 0xf0; l < 4; l ++, face2 ++)
-					{
-						//uint8_t  skyvtx = skyBlock[face2[0]];
-						uint8_t  skyvtx = skyBlock[halfBlockSkyOffset(vtx, j, k, blockIndexToXYZ[face2[0]], adjust)];
-						uint16_t light  = skyvtx & 15;
-						skyvtx &= 0xf0;
-						/* max for block light */
-						if (max < light) max = light;
-						/* minimum if != 0 */
-						if (skyvtx > 0 && (skyval > skyvtx || skyval == 0)) skyval = skyvtx;
-					}
-					out[7] |= (skyval | max) << (k << 3);
-				}
 			}
 			out += VERTEX_INT_SIZE;
 		}

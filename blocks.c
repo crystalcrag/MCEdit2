@@ -2818,7 +2818,7 @@ int blockModelStairs(DATA16 buffer, int blockId)
 	BlockState b = blockGetById(blockId);
 	memset(blockIds3x3, 0, sizeof blockIds3x3);
 	blockIds3x3[13] = blockId;
-	meshHalfBlock(&write, halfBlockGetModel(b, 2, blockIds3x3), 2, pos, b, blockIds3x3, (DATA8) blockIds3x3, 63);
+	meshHalfBlock(&write, halfBlockGetModel(b, 2, blockIds3x3), 2, pos, b, blockIds3x3, 63);
 
 	return blockConvertVertex(temp, write.cur, buffer, 300);
 }
@@ -2954,8 +2954,6 @@ static void texset(DATA8 dest, DATA8 px, int size)
 	DATA32   d;
 	for (d = (DATA32) dest, s = * (DATA32) px; size > 0; size -= 4, *d++ = s);
 }
-
-#include "raycasting.h"
 
 /* post-process main texture terrain.png: generate connected texture for glass */
 APTR blockPostProcessTexture(DATA8 * data, int * width, int * height, int bpp)
@@ -3133,8 +3131,7 @@ APTR blockPostProcessTexture(DATA8 * data, int * width, int * height, int bpp)
 	blocks.duraMax    = sz >> 2;
 	memcpy(blocks.duraColors, dst + 31 * sz + 3 * sz * *width, sz);
 
-	/* need to be called after this */
-	return raycastConvertToCMap;
+	return NULL;
 }
 
 /* extract texture alpha for U, V coord from <terrain.png> */

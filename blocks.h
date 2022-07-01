@@ -47,7 +47,6 @@ int     blockInvCopyFromModel(DATA16 ret, DATA16 model, int faceId);
 int     blockAdjustInventory(int blockId);
 Bool    blockGetAlphaTex(DATA8 bitmap, int U, int V);
 
-//void    halfBlockGenMesh(WriteBuffer, DATA8 model, int size /* 2 or 8 */, DATA8 xyz, BlockState, DATA16 blockIds, DATA8 skyBlock, int genSides);
 DATA8   halfBlockGetModel(BlockState, int size /* 1, 2 or 8 */, DATA16 blockIds);
 void    halfBlockGetBBox(DATA16 blockIds, VTXBBox array, int max);
 void    halfBlockInit(void);
@@ -369,9 +368,9 @@ enum                       /* special values for Block_t.rswire */
 };
 
 /* terrain vertex */
-#define VERTEX_DATA_SIZE   32        /* 8 * uint32_t */
-#define VERTEX_INSTANCE    16        /* per instance size: 3 floats + 1 uint */
-#define VERTEX_INT_SIZE    8
+#define VERTEX_DATA_SIZE   28        /* 7 * uint32_t */
+#define VERTEX_INSTANCE    12        /* per instance size: 3 floats */
+#define VERTEX_INT_SIZE    7
 
 /* everything else vertex */
 #define BYTES_PER_VERTEX   10

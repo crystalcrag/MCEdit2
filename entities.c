@@ -838,8 +838,6 @@ Entity entityParse(Chunk chunk, NBTFile nbt, int offset, Entity prev)
 	float  pos[11];
 	int    off;
 
-	return prev;
-
 	/* iterate over the properties of one entity */
 	NBTIter_t iter;
 	NBT_IterCompound(&iter, nbt->mem + offset);

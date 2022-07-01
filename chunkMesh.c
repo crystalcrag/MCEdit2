@@ -101,27 +101,6 @@ static uint8_t oppositeMask[64];
 static int16_t blockOffset[64];
 static int16_t blockOffset2[64];
 
-#define IDS(id1,id2)   (1<<id1)|(1<<id2)
-#define IDC(id)        (1<<id)
-static int occlusionIfNeighbor[] = { /* indexed by cube indices: 4 vertex per face (S,E,N,W,T,B) */
-	IDS(15,25),  IDS(15, 7),  IDS(17, 7),  IDS(25,17),
-	IDS(23,17),  IDS(17, 5),  IDS(11, 5),  IDS(23,11),
-	IDS(19,11),  IDS(11, 1),  IDS( 9, 1),  IDS(19,9),
-	IDS(21, 9),  IDS( 9, 3),  IDS(15, 3),  IDS(21,15),
-	IDS(21,19),  IDS(25,21),  IDS(23,25),  IDS(23,19),
-	IDS( 7, 3),  IDS( 3, 1),  IDS( 5, 1),  IDS( 7, 5)
-};
-static int occlusionIfCorner[] = {
-	IDC(24),  IDC( 6),  IDC( 8),  IDC(26),
-	IDC(26),  IDC( 8),  IDC( 2),  IDC(20),
-	IDC(20),  IDC( 2),  IDC( 0),  IDC(18),
-	IDC(18),  IDC( 0),  IDC( 6),  IDC(24),
-	IDC(18),  IDC(24),  IDC(26),  IDC(20),
-	IDC( 6),  IDC( 0),  IDC( 2),  IDC(8),
-};
-#undef IDC
-#undef IDS
-
 /* slab will produce slightly dimmer occlusion */
 #define SLABLOC(id0,id1,id2,id3,id4,id5,id6,id7,id8) \
 	((1<<id0) | (1<<id1) | (1<<id2) | (1<<id3) | (1<<id4) | (1<<id5) | (1<<id6) | (1<<id7) | (1<<id8))
@@ -503,17 +482,7 @@ static void chunkGenQuad(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 	DATA8   sides = &b->pxU;
 	Chunk   chunk = neighbors[6]->chunk;
 	int     seed  = neighbors[6]->Y ^ chunk->X ^ chunk->Z;
-	uint8_t x, y, z, light;
-
-	if ((neighbors[6]->cdFlags & CDFLAG_NOLIGHT) == 0)
-	{
-		x =  LIGHT(neighbors[6], pos>>1);
-		y = SKYLIT(neighbors[6], pos>>1);
-
-		if (pos & 1) light = (y & 0xf0) | (x >> 4);
-		else         light = (y << 4)   | (x & 15);
-	}
-	else light = 0xf0; /* brush */
+	uint8_t x, y, z;
 
 	x = (pos & 15);
 	z = (pos >> 4) & 15;
@@ -583,43 +552,14 @@ static void chunkGenQuad(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 		out[4] = VERTEX_OFF(coord1[2] + z, DZ) << 16;
 		out[5] = U | (V << 9) | (norm << 19) | (texCoord[j] == texCoord[j + 6] ? FLAG_TEX_KEEPX|FLAG_DUAL_SIDE : FLAG_DUAL_SIDE);
 		out[6] = ((texCoord[j+4] + tex[0]) << 4) | ((texCoord[j+5] + tex[1]) << 13);
-		/* skylight/blocklight: uniform on all vertices */
-		out[7] = light | (light << 8) | (light << 16) | (light << 24);
 
 		sides ++;
 		buffer->cur = out + VERTEX_INT_SIZE;
 	} while (*sides);
 }
 
-
-/*
- * Neighbor is a half-block (slab or stairs): skyval and blocklight will be 0 for these: not good.
- * it will create a dark patch to the side this half-block is connected.
- * To prevent this, we have to reapply skyval and blocklight propagation as if the block was transparent :-/
- */
-static uint8_t chunkPatchLight(struct BlockIter_t iter)
-{
-	uint8_t sky = 0, light = 0, i;
-
-	/* for this, we have to look around the 6 voxels of the slab/stairs */
-	for (i = 0; i < 6; i ++)
-	{
-		mapIter(&iter, xoff[i], yoff[i], zoff[i]);
-		uint8_t skyval   = iter.blockIds[SKYLIGHT_OFFSET   + (iter.offset >> 1)];
-		uint8_t blockval = iter.blockIds[BLOCKLIGHT_OFFSET + (iter.offset >> 1)];
-		if (iter.offset & 1) skyval >>= 4, blockval >>= 4;
-		else skyval &= 15, blockval &= 15;
-		if (sky < skyval) sky = skyval;
-		if (light < blockval) light = blockval;
-	}
-	/* decrease intensity by 1 if possible */
-	if (sky > 0 && sky < MAXSKY) sky --;
-	if (light > 0) light --;
-	return (sky << 4) | light;
-}
-
-/* get sky/block light and occlusion value around block */
-static int chunkGetLight(BlockIter iter, DATA16 blockIds3x3, DATA8 skyBlock, int * slabOut, int hasLights)
+/* get 27 blockIds around block */
+static int chunkGetBlockIds(BlockIter iter, DATA16 blockIds3x3)
 {
 	static int8_t iterNext[] = {
 		1,0,0,   1,0,0,   -2,0,1,
@@ -627,15 +567,14 @@ static int chunkGetLight(BlockIter iter, DATA16 blockIds3x3, DATA8 skyBlock, int
 		1,0,0,   1,0,0,   -2,1,-2
 	};
 	int8_t * next = iterNext;
-	int i, slab = 0, occlusion;
+	int i, slab;
 
-	memset(skyBlock,    0, 27);
-	memset(blockIds3x3, 0, 27 * 2);
+	memset(blockIds3x3, 0, 27 * sizeof *blockIds3x3);
 
 	mapIter(iter, -1, -1, -1);
 
 	/* only compute that info if block is visible (highly likely it is not) */
-	for (i = occlusion = 0; i < 27; i ++)
+	for (i = slab = 0; i < 27; i ++)
 	{
 		uint16_t block;
 		uint16_t offset = iter->offset;
@@ -643,110 +582,20 @@ static int chunkGetLight(BlockIter iter, DATA16 blockIds3x3, DATA8 skyBlock, int
 		data  = iter->blockIds[DATA_OFFSET + (offset >> 1)];
 		block = iter->blockIds[offset] << 4;
 
-		if (hasLights)
-		{
-			uint8_t sky, light;
-			sky   = iter->blockIds[SKYLIGHT_OFFSET   + (offset >> 1)];
-			light = iter->blockIds[BLOCKLIGHT_OFFSET + (offset >> 1)];
-			if (offset & 1) skyBlock[i] = (light >> 4) | (sky & 0xf0);
-			else            skyBlock[i] = (light & 15) | (sky << 4);
-		}
-		else skyBlock[i] = 0xf0; /* brush don't have sky/block light info */
-
 		blockIds3x3[i] = block | (offset & 1 ? data >> 4 : data & 15);
 		BlockState nbor = blockGetById(block);
 
-		if (nbor->type == CUST && blockIds[block>>4].opacSky == 15)
-		{
-			/* farmland mostly */
-			if (hasLights)
-				skyBlock[i] = chunkPatchLight(*iter);
-		}
-		else if (nbor->type == SOLID || (nbor->type == CUST && nbor->special == BLOCK_SOLIDOUTER))
+		if (nbor->type == SOLID || (nbor->type == CUST && nbor->special == BLOCK_SOLIDOUTER))
 		{
 			if (nbor->special == BLOCK_HALF || nbor->special == BLOCK_STAIRS)
-			{
-				if (hasLights)
-					skyBlock[i] = chunkPatchLight(*iter);
 				slab |= 1 << i;
-			}
-			else occlusion |= 1 << i;
 		}
 
 		mapIter(iter, next[0], next[1], next[2]);
 		next += 3;
 		if (next == EOT(iterNext)) next = iterNext;
 	}
-	*slabOut = slab;
-	return occlusion;
-}
-
-/* get sky/light values for CUST face */
-static uint32_t chunkFillCustLight(DATA16 model, DATA8 skyBlock, DATA32 ocs, int occlusion)
-{
-	uint8_t norm = GET_NORMAL(model);
-	if (norm < 6)
-	{
-		uint32_t out = 0;
-		DATA8    offset;
-		uint8_t  i, axis1, axis2, hasOCS;
-		offset = sampleOffset + norm * 8;
-		axis1 = norm2axis1[norm];
-		axis2 = norm2axis2[norm];
-		hasOCS = norm == 4 && model[INT_PER_VERTEX*2+VX] - model[VX] == BASEVTX &&
-			                  model[INT_PER_VERTEX*2+VZ] - model[VZ] == BASEVTX;
-		norm = axisCheck[norm];
-
-		/* ocs: only on top (mostly for snow layer and carpet :-/) */
-		for (i = 0; i < 4; i ++, model += INT_PER_VERTEX, offset += 2)
-		{
-			uint8_t dxyz = offset[0], skyval, blockval, n;
-			int XYZ[] = {
-				model[0] - ORIGINVTX + BASEVTX + (dxyz & 3) - 1,
-				model[1] - ORIGINVTX + BASEVTX + ((dxyz & 12) >> 2) - 1,
-				model[2] - ORIGINVTX + BASEVTX + ((dxyz & 48) >> 4) - 1
-			};
-			dxyz = offset[1];
-			char DXYZ[] = {(dxyz & 3) - 1, ((dxyz & 12) >> 2) - 1, ((dxyz & 48) >> 4) - 1};
-			XYZ[norm] += DXYZ[norm];
-
-			if (hasOCS)
-			{
-				/* if cust is in lower half, check blocks at current level */
-				int check = model[VY] < ORIGINVTX+BASEVTX/2 ? occlusion << 9 : occlusion;
-				/* only on top (mostly needed by snow layer and carpet) */
-				switch (popcount(check & occlusionIfNeighbor[i+16])) {
-				case 2:  ocs[0] |= 3 << i*2; break;
-				case 1:  ocs[0] |= 1 << i*2; break;
-				default: ocs[0] |= (check & occlusionIfCorner[i+16] ? 1 : 0) << i*2;
-				}
-			}
-
-			for (skyval = skyBlock[13], blockval = skyval & 15, skyval &= 0xf0, n = 0; n < 4; n ++)
-			{
-				uint8_t skyvtx = skyBlock[TOVERTEXint(XYZ[0]) + TOVERTEXint(XYZ[2]) * 3 + TOVERTEXint(XYZ[1]) * 9];
-				uint8_t light  = skyvtx & 15;
-				skyvtx &= 0xf0;
-				/* max for block light */
-				if (blockval < light) blockval = light;
-				/* minimum if != 0 */
-				if (skyvtx > 0 && (skyval > skyvtx || skyval == 0)) skyval = skyvtx;
-				switch (n) {
-				case 0: XYZ[axis1] += DXYZ[axis1]; break;
-				case 1: XYZ[axis2] += DXYZ[axis2]; break;
-				case 2: XYZ[axis1] -= DXYZ[axis1];
-				}
-			}
-			out |= (skyval | blockval) << (i << 3);
-		}
-		return out;
-	}
-	else
-	{
-		/* rswire mostly */
-		uint8_t light = skyBlock[13];
-		return light | (light << 8) | (light << 16) | (light << 24);
-	}
+	return slab;
 }
 
 /* custom model mesh: anything that doesn't fit quad or full/half block */
@@ -763,8 +612,6 @@ static void chunkGenCust(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 	int      count, connect, x, y, z, hasLights;
 	uint32_t dualside;
 	uint16_t blockIds3x3[27];
-	uint8_t  skyBlock[27];
-	int      occlusion;
 
 	x = (pos & 15);
 	z = (pos >> 4) & 15;
@@ -775,7 +622,7 @@ static void chunkGenCust(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 		struct BlockIter_t iter;
 		mapInitIterOffset(&iter, neighbors[6], pos);
 		iter.nbor = chunkOffsets;
-		occlusion = chunkGetLight(&iter, blockIds3x3, skyBlock, &occlusion, hasLights);
+		chunkGetBlockIds(&iter, blockIds3x3);
 	}
 	model = b->custModel;
 	count = connect = 0;
@@ -823,7 +670,7 @@ static void chunkGenCust(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 		break;
 	case BLOCK_RSWIRE:
 		/* redstone wire: only use base model */
-		skyBlock[13] = (skyBlock[13] & 0xf0) | (b->id & 15);
+		//skyBlock[13] = (skyBlock[13] & 0xf0) | (b->id & 15);
 		b -= b->id & 15;
 		// no break;
 	case BLOCK_GLASS:
@@ -875,7 +722,7 @@ static void chunkGenCust(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 		break;
 	case BLOCK_SIGN:
 		if (hasLights) /* don't render sign text for brush */
-			c->signList = signAddToList(b->id, neighbors[6], pos, c->signList, skyBlock[13]);
+			c->signList = signAddToList(b->id, neighbors[6], pos, c->signList, 0);
 		break;
 	default:
 		/* piston head with a tile entity: head will be rendered as an entity when it is moving */
@@ -945,7 +792,6 @@ static void chunkGenCust(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 		out[4] = (coord2[2] + z) << 16;
 		out[5] = U | (V << 9) | (GET_NORMAL(model) << 19) | dualside | (U == GET_UCOORD(coord1) ? FLAG_TEX_KEEPX : 0);
 		out[6] = GET_UCOORD(coord2) | (GET_VCOORD(coord2) << 9);
-		out[7] = chunkFillCustLight(model, skyBlock, out + 4, occlusion);
 
 		if (STATEFLAG(b, CNXTEX))
 		{
@@ -1003,23 +849,21 @@ static void chunkGenCust(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 static void chunkGenCube(ChunkData neighbors[], MeshWriter buffer, BlockState b, DATAS16 chunkOffsets, int pos)
 {
 	uint16_t blockIds3x3[27];
-	uint8_t  skyBlock[27];
 	DATA32   out;
 	DATA8    tex;
 	DATA8    blocks = neighbors[6]->blockIds;
-	int      side, sides, occlusion, slab, rotate;
+	int      side, sides, slab, rotate;
 	int      i, j, k, n;
-	uint8_t  x, y, z, data, hasLights, liquid, discard;
+	uint8_t  x, y, z, data, liquid, discard;
 
 	x = (pos & 15);
 	z = (pos >> 4) & 15;
 	y = (pos >> 8);
-	hasLights = (neighbors[6]->cdFlags & CDFLAG_NOLIGHT) == 0;
 	sides = xsides[x] | ysides[y] | zsides[z];
 	liquid = 0;
 
 	/* outer loop: iterate over each faces (6) */
-	for (i = 0, side = 1, occlusion = -1, tex = &b->nzU, rotate = b->rotate, j = (rotate&3) * 8, slab = 0; i < DIM(cubeIndices);
+	for (i = 0, side = 1, slab = -1, tex = &b->nzU, rotate = b->rotate, j = (rotate&3) * 8; i < DIM(cubeIndices);
 		 i += 4, side <<= 1, rotate >>= 2, tex += 2, j = (rotate&3) * 8)
 	{
 		BlockState nbor;
@@ -1073,17 +917,14 @@ static void chunkGenCube(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 			if (b->special == BLOCK_LIQUID && nbor->id == ID(79,0)) continue;
 		}
 
-		/* ambient occlusion neighbor: look after 26 surrounding blocks (only 20 needed by AO) */
-		if (occlusion == -1)
+		/* blockIds surrounding this block */
+		if (slab == -1)
 		{
 			struct BlockIter_t iter;
 			mapInitIterOffset(&iter, neighbors[6], pos);
 			iter.nbor = chunkOffsets;
-			occlusion = chunkGetLight(&iter, blockIds3x3, skyBlock, &slab, hasLights);
+			slab = chunkGetBlockIds(&iter, blockIds3x3);
 
-			/* CUST with no model: don't apply ambient occlusion, like CUST model will */
-			if (b->type == CUST && b->special != BLOCK_SOLIDOUTER)
-				occlusion = slab = 0, memset(skyBlock, skyBlock[13], 27);
 			if (STATEFLAG(b, CNXTEX))
 			{
 				static uint8_t texUV[12];
@@ -1122,7 +963,7 @@ static void chunkGenCube(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 		{
 			uint8_t xyz[3] = {x<<1, y<<1, z<<1};
 			//fprintf(stderr, "meshing %s at pos %d, %d, %d\n", b->name, x, y, z);
-			meshHalfBlock(buffer, halfBlockGetModel(b, 2, blockIds3x3), 2, xyz, b, blockIds3x3, skyBlock, 63);
+			meshHalfBlock(buffer, halfBlockGetModel(b, 2, blockIds3x3), 2, xyz, b, blockIds3x3, 63);
 			break;
 		}
 		if (occlusionIfSlab[i>>2] & slab)
@@ -1131,7 +972,7 @@ static void chunkGenCube(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 			DATA8 model = halfBlockGetModel(b, 2, blockIds3x3);
 			if (model)
 			{
-				meshHalfBlock(buffer, model, 2, xyz, b, blockIds3x3, skyBlock, 1 << (i>>2));
+				meshHalfBlock(buffer, model, 2, xyz, b, blockIds3x3, 1 << (i>>2));
 				continue;
 			}
 		}
@@ -1167,7 +1008,6 @@ static void chunkGenCube(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 			out[5] = texU | (texV << 9) | (i << 17) | (texCoord[j] == texCoord[j + 6] ? FLAG_TEX_KEEPX : 0);
 			out[6] = ((texCoord[j+4] + tex[0]) << 4) |
 			         ((texCoord[j+5] + tex[1]) << 13);
-			out[7] = 0;
 			/* prevent quad merging between discard and normal quads */
 			if (discard) out[6] |= FLAG_DISCARD;
 
@@ -1176,38 +1016,6 @@ static void chunkGenCube(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 				/* use water fog instead of atmospheric one */
 				out[5] |= FLAG_UNDERWATER;
 
-			/* sky/block light values: 2*4bits per vertex = 4 bytes needed, ambient occlusion: 2bits per vertex = 1 byte needed */
-			for (k = 0; k < 4; k ++)
-			{
-				uint8_t skyval, blockval, off, ocs;
-
-				n = 4;
-				switch (popcount(occlusion & occlusionIfNeighbor[i+k])) {
-				case 2: ocs = 3; n = 3; break;
-				case 1: ocs = 1; break;
-				default: ocs = occlusion & occlusionIfCorner[i+k] ? 1 : 0;
-				}
-
-				for (skyval = skyBlock[13], blockval = skyval & 15, skyval &= 0xf0, off = (i+k) * 4; n > 0; off ++, n --)
-				{
-					uint8_t skyvtx = skyBlock[skyBlockOffset[off]];
-					uint8_t light  = skyvtx & 15;
-					skyvtx &= 0xf0;
-					/* max for block light */
-					if (blockval < light) blockval = light;
-					/* minimum if != 0 */
-					if (skyvtx > 0 && (skyval > skyvtx || skyval == 0)) skyval = skyvtx;
-				}
-				out[7] |= (skyval | blockval) << (k << 3);
-
-				if (b->special == BLOCK_LIQUID && i == SIDE_TOP * 4)
-				{
-					/* reduce ambient occlusion a bit */
-					static uint8_t lessAmbient[] = {0, 1, 1, 1};
-					ocs = lessAmbient[ocs];
-				}
-				out[4] |= ocs << k*2;
-			}
 			if (b->special == BLOCK_LIQUID)
 			{
 				/* lower some edges of a liquid block if we can (XXX need a better solution than this :-/) */
@@ -1255,106 +1063,76 @@ static void chunkMergeQuads(ChunkData cd, HashQuadMerge hash)
 		if (quad == NULL) continue;
 		entry->quad = NULL;
 
-		/* ocs will constraint the directions we can go */
-		uint8_t ocs1 = quad[4] & 3;
-		uint8_t ocs2 = (quad[4] >> 2) & 3;
-		uint8_t ocs3 = (quad[4] >> 4) & 3;
-		uint8_t ocs4 = (quad[4] >> 6) & 3;
-		uint8_t dir;
-
-		if (ocs1 == ocs2 && ocs1 == ocs3 && ocs1 == ocs4)
-		{
-			dir = 3;
-		}
-		else if (ocs1 == ocs2 && ocs3 == ocs4)
-		{
-			dir = 2;
-		}
-		else if (ocs1 == ocs4 && ocs2 == ocs3)
-		{
-			dir = 1;
-		}
-		else continue;
-
 		uint32_t ref[VERTEX_INT_SIZE];
 		uint8_t  min, max, axis;
 		uint8_t  min2, max2, axis2;
 		DATA8    directions = quadDirections + (((quad[5] >> 19) & 7) << 2);
 
-		if (dir & 1)
+		memcpy(ref, quad, VERTEX_DATA_SIZE);
+		axis = directions[0];
+		switch (axis) {
+		default: max = ((quad[0] & 0xffff) - ORIGINVTX) >> 11; break;
+		case VY: max = ((quad[0] >> 16) - ORIGINVTX) >> 11; break;
+		case VZ: max = ((quad[1] & 0xffff) - ORIGINVTX) >> 11;
+		}
+		min = max -= directions[1];
+		while (max < 16)
 		{
-			memcpy(ref, quad, VERTEX_DATA_SIZE);
-			axis = directions[0];
+			max ++;
 			switch (axis) {
-			default: max = ((quad[0] & 0xffff) - ORIGINVTX) >> 11; break;
-			case VY: max = ((quad[0] >> 16) - ORIGINVTX) >> 11; break;
-			case VZ: max = ((quad[1] & 0xffff) - ORIGINVTX) >> 11;
+			case VX: ref[0] += BASEVTX; break;
+			case VY: ref[0] += BASEVTX<<16; break;
+			case VZ: ref[1] += BASEVTX;
 			}
-			min = max -= directions[1];
-			while (max < 16)
+			index = meshQuadMergeGet(hash, ref);
+			if (index < 0) break;
+
+			/* yes, can be merged: mark next one as processed */
+			HashQuadEntry merged = &hash->entries[index];
+			merged->quad[0] = 0;
+			merged->quad = NULL;
+		}
+		/* check if we can expand this even further in 2nd direction */
+		axis2 = directions[2];
+		memcpy(ref, quad, VERTEX_DATA_SIZE);
+		switch (axis2) {
+		default: max2 = ((quad[0] & 0xffff) - ORIGINVTX) >> 11; break;
+		case VY: max2 = ((quad[0] >> 16)    - ORIGINVTX) >> 11; break;
+		case VZ: max2 = ((quad[1] & 0xffff) - ORIGINVTX) >> 11;
+		}
+		min2 = max2 -= directions[3];
+		while (max2 < 16)
+		{
+			uint16_t indices[16];
+			uint32_t start[2];
+			DATA16   p, eof;
+			max2 ++;
+			switch (axis2) {
+			case VX: ref[0] += BASEVTX; break;
+			case VY: ref[0] += BASEVTX<<16; break;
+			case VZ: ref[1] += BASEVTX;
+			}
+			memcpy(start, ref, sizeof start);
+			for (p = indices, eof = p + (max - min); p < eof; p ++)
 			{
-				max ++;
+				p[0] = meshQuadMergeGet(hash, ref);
+				if (p[0] == 0xffff) { max2--; goto done; }
 				switch (axis) {
 				case VX: ref[0] += BASEVTX; break;
 				case VY: ref[0] += BASEVTX<<16; break;
 				case VZ: ref[1] += BASEVTX;
 				}
-				index = meshQuadMergeGet(hash, ref);
-				if (index < 0) break;
-
-				/* yes, can be merged: mark next one as processed */
-				HashQuadEntry merged = &hash->entries[index];
+			}
+			/* mark quads as processed */
+			for (p = indices; p < eof; p ++)
+			{
+				HashQuadEntry merged = &hash->entries[p[0]];
 				merged->quad[0] = 0;
 				merged->quad = NULL;
 			}
+			memcpy(ref, start, sizeof start);
 		}
-		else min = 0, max = 1, axis = 3;
-
-		if (dir > 1)
-		{
-			/* check if we can expand this even further in 2nd direction */
-			axis2 = directions[2];
-			memcpy(ref, quad, VERTEX_DATA_SIZE);
-			switch (axis2) {
-			default: max2 = ((quad[0] & 0xffff) - ORIGINVTX) >> 11; break;
-			case VY: max2 = ((quad[0] >> 16)    - ORIGINVTX) >> 11; break;
-			case VZ: max2 = ((quad[1] & 0xffff) - ORIGINVTX) >> 11;
-			}
-			min2 = max2 -= directions[3];
-			while (max2 < 16)
-			{
-				uint16_t indices[16];
-				uint32_t start[2];
-				DATA16   p, eof;
-				max2 ++;
-				switch (axis2) {
-				case VX: ref[0] += BASEVTX; break;
-				case VY: ref[0] += BASEVTX<<16; break;
-				case VZ: ref[1] += BASEVTX;
-				}
-				memcpy(start, ref, sizeof start);
-				for (p = indices, eof = p + (max - min); p < eof; p ++)
-				{
-					p[0] = meshQuadMergeGet(hash, ref);
-					if (p[0] == 0xffff) { max2--; goto done; }
-					switch (axis) {
-					case VX: ref[0] += BASEVTX; break;
-					case VY: ref[0] += BASEVTX<<16; break;
-					case VZ: ref[1] += BASEVTX;
-					}
-				}
-				/* mark quads as processed */
-				for (p = indices; p < eof; p ++)
-				{
-					HashQuadEntry merged = &hash->entries[p[0]];
-					merged->quad[0] = 0;
-					merged->quad = NULL;
-				}
-				memcpy(ref, start, sizeof start);
-			}
-			max2 --;
-		}
-		else min2 = max2 = 0;
+		max2 --;
 
 		done:
 		max --;
