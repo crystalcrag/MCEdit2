@@ -17,7 +17,7 @@ void particlesRender(void);
 void particlesExplode(Map map, int count, int blockId, vec4 pos);
 int  particlesAnimate(Map map);
 void particlesChunkUpdate(Map map, ChunkData cd);
-Bool particleCanSpawn(ChunkData cd, int pos, int blockId, int particleType);
+Bool particleCanSpawn(struct BlockIter_t iter, int blockId, int particleType);
 
 #define PARTICLES_VBO_SIZE        (5*4)
 #define PARTICLES_MAX             1024

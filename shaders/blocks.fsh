@@ -37,6 +37,10 @@ void main(void)
 		color *= texture(blockTex, vec2(0.96875 + float(rswire-1) * 0.001953125, 0.0556640625));
 	}
 
+	// shading per face
+	float texY = 1/108.0 + (normal < 6 ? normal : 4) * 18/108.0 + /*light **/ (16/108.);
+	color *= vec4(texture(lightShadeTex, vec2(0, texY)).rgb, 1);
+
 	// compute fog contribution
 	#if 0
 	if (underWater > 0 && waterFog > 0)

@@ -25,7 +25,7 @@ static TileTick updateInsert(ChunkData cd, int offset, int tick);
 void mapUpdateChangeRedstone(Map map, BlockIter iterator, int side, RSWire dir);
 
 #define TOHASH(cd, offset)      (((uint64_t) (int)cd) | ((uint64_t)offset << 32))
-#define EOL                     0xffff
+#define EOL_MARKER              0xffff
 
 static Bool updateAlloc(int max)
 {
@@ -59,7 +59,10 @@ static void updateExpand(void)
 		for (entry = old, eof = entry + max; entry < eof; entry ++)
 		{
 			if (entry->tick > 0)
-				updateInsert(entry->cd, entry->offset, entry->tick);
+			{
+				TileTick tick = updateInsert(entry->cd, entry->offset, entry->tick);
+				tick->cb = entry->cb;
+			}
 		}
 		free(old);
 	}
@@ -76,13 +79,14 @@ static TileTick updateInsert(ChunkData cd, int offset, int tick)
 	TileTick entry, last;
 	int      index = TOHASH(cd, offset) % updates.max;
 
-	for (entry = updates.list + index, last = entry->tick == 0 || entry->prev == EOL ? NULL : updates.list + entry->prev; entry->tick;
-	     last = entry, entry = updates.list + entry->next)
+	/* similar to TileEntities hash table */
+	for (entry = updates.list + index, last = NULL; entry->tick; entry = updates.list + entry->next)
 	{
+		last = entry;
 		/* check if already inserted */
 		if (entry->cd == cd && entry->offset == offset)
 			return entry;
-		if (entry->next == EOL)
+		if (entry->next == EOL_MARKER)
 		{
 			TileTick eof = updates.list + updates.max;
 			last = entry;
@@ -94,9 +98,13 @@ static TileTick updateInsert(ChunkData cd, int offset, int tick)
 		}
 	}
 
-	if (last) last->next = entry - updates.list;
-	entry->prev   = last ? last - updates.list : EOL;
-	entry->next   = EOL;
+	if (last)
+	{
+		entry->prev = last - updates.list;
+		last->next = entry - updates.list;
+	}
+	else entry->prev = EOL_MARKER;
+	entry->next   = EOL_MARKER;
 	entry->cd     = cd;
 	entry->offset = offset;
 	entry->tick   = tick;
@@ -124,48 +132,58 @@ static TileTick updateInsert(ChunkData cd, int offset, int tick)
 	return entry;
 }
 
-void updateRemove(ChunkData cd, int offset, Bool clearSorted)
+Bool updateRemove(ChunkData cd, int offset, Bool clearSorted)
 {
-	if (! updates.list) return;
+	if (! updates.list)
+		return False;
+	TileTick base = updates.list;
 	TileTick entry = updates.list + TOHASH(cd, offset) % updates.max;
-	TileTick last;
 
-	if (entry->tick == 0) return;
-	for (last = entry->prev == EOL ? NULL : updates.list + entry->prev; entry->cd != cd || entry->offset != offset;
-	     last = entry, entry = updates.list + entry->next)
-		if (entry->next == EOL) return;
+	if (entry->tick == 0) return False;
+	while (entry->cd != cd || entry->offset != offset)
+	{
+		if (entry->next == EOL_MARKER) return False;
+		entry = base + entry->next;
+	}
 
 	/* entry is in the table */
-	if (last)
-	{
-		last->next = entry->next;
-		if (entry->next != EOL)
-		{
-			TileTick next = updates.list + entry->next;
-			next->prev = last - updates.list;
-		}
-		entry->tick = 0;
-	}
-	else if (entry->next != EOL)
-	{
-		/* first link of list and more chain link follows */
-		int      index = entry->next, i;
-		TileTick next = updates.list + index;
-		DATA16   p;
-		memcpy(entry, next, sizeof *entry);
-		entry->prev = EOL;
-		next->tick = 0;
-		for (i = updates.max, p = updates.sorted; i > 0; i --, p ++)
-			if (*p == index) { *p = entry - updates.list; break; }
-	}
-	/* clear slot */
-	else entry->tick = 0;
-
 	updates.count --;
+	entry->tick = 0;
+	if (entry->prev != EOL_MARKER)
+		base[entry->prev].next = entry->next;
+	if (entry->next != EOL_MARKER)
+		base[entry->next].prev = entry->prev;
+
+	int index = entry - base;
+	while (entry->next != EOL_MARKER)
+	{
+		TileTick next = base + entry->next;
+
+		/* check if this entry depended on the slot that was freed */
+		if (index == TOHASH(next->cd, next->offset) % updates.max)
+		{
+			/* yes, need relocation */
+			index = entry->next;
+			*entry = *next;
+			next->tick = 0;
+			if (entry->prev != EOL_MARKER)
+				base[entry->prev].next = entry - base;
+			if (entry->next != EOL_MARKER)
+				base[entry->next].prev = entry - base;
+
+			/* index of <next> has changed, need to update <sorted> array too */
+			DATA16 p;
+			int    i;
+			for (i = updates.max, p = updates.sorted; i > 0; i --, p ++)
+				if (*p == index) { *p = entry - base; break; }
+		}
+		entry = next;
+	}
+
 	if (clearSorted)
 	{
 		DATA16 p;
-		int    i, index;
+		int    i;
 		for (i = updates.max, p = updates.sorted, index = entry - updates.list; i > 0; i --, p ++)
 		{
 			if (*p != index) continue;
@@ -173,6 +191,7 @@ void updateRemove(ChunkData cd, int offset, Bool clearSorted)
 			break;
 		}
 	}
+	return True;
 }
 
 /* check if a tile tick is scheduled for this location */
@@ -189,24 +208,38 @@ Bool updateScheduled(ChunkData cd, int offset)
 		/* check if already inserted */
 		if (entry->cd == cd && entry->offset == offset)
 			return True;
-		if (entry->next == EOL)
+		if (entry->next == EOL_MARKER)
 			break;
 	}
 	return False;
 }
 
 #if 0
-static void updateDebugSorted(int start)
+#include <malloc.h>
+static void updateDebugSorted(void)
 {
-	int i;
-	fprintf(stderr, " [%d: ", updates.count);
-	for (i = 0; i < updates.count; i ++)
+	int i, ok;
+	DATA8 exists = alloca(updates.max);
+	memset(exists, 0, updates.max);
+//	fprintf(stderr, " [%d: ", updates.count);
+	for (i = 0, ok = 1; i < updates.count; i ++)
 	{
-		if (i > 0) fprintf(stderr, ", ");
-		int id = updates.sorted[start+i];
-		fprintf(stderr, "%d:%d", id, updates.list[id].tick);
+		//if (i > 0) fprintf(stderr, ", ");
+		int id = updates.sorted[i];
+		if (exists[id]) ok = 0;
+		exists[id] = 1;
+		TileTick tick = updates.list + id;
+		if (! updateScheduled(tick->cd, tick->offset))
+			puts("no good: not in hash");
+		// fprintf(stderr, "%d:%p", id, updates.list[id].cb);
 	}
-	fprintf(stderr, "]\n");
+	if (! ok)
+		puts("no good: same entry twice");
+	for (i = ok = 0; i < updates.max; i ++)
+		if (updates.list[i].tick > 0) ok ++;
+	if (ok != updates.count)
+		puts("no good: entry not cleared");
+//	fprintf(stderr, "]: %s\n", ok ? "OK" : "DUP");
 }
 #endif
 
@@ -296,6 +329,7 @@ void updateParseNBT(Chunk c)
 	}
 	c->cflags |= CFLAG_HAS_TT;
 	if (count > 0)
+		//fprintf(stderr, "adding %d tile ticks at %d, %d\n", count, c->X, c->Z),
 		/* already mark the NBT record as modified, this list is short lived anyway */
 		chunkMarkForUpdate(c, CHUNK_NBT_TILETICKS);
 }
@@ -360,6 +394,8 @@ void updateTick(void)
 		Chunk      chunk = list->cd->chunk;
 		UpdateCb_t cb    = list->cb;
 		if (list->tick > time) break;
+		//if (list->tick == 0)
+		//	puts("no good: cleared entry");
 		mapInitIterOffset(&iter, list->cd, list->offset);
 
 		//fprintf(stderr, "applying block update %d at %d, %d, %d for %d:%d", id,
@@ -367,10 +403,11 @@ void updateTick(void)
 		i ++;
 		id = list->blockId;
 		updateRemove(list->cd, list->offset, False);
+		//	puts("no good: not cleared");
 		memmove(updates.sorted, updates.sorted + 1, updates.count * sizeof *updates.sorted);
 		if ((chunk->cflags & CFLAG_REBUILDTT) == 0)
 			chunkMarkForUpdate(chunk, CHUNK_NBT_TILETICKS);
-		//updateDebugSorted(0);
+		//updateDebugSorted();
 
 		/* this can modify updates.sorted */
 		if (cb)
@@ -385,7 +422,7 @@ void updateTick(void)
 	}
 	if (i > 0)
 	{
-		/* remove processed updates in sorted array */
+		/* update meshes */
 		mapUpdateEnd(globals.level);
 	}
 }

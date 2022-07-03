@@ -1,4 +1,11 @@
 =========== Week 26 (2022) ===========
+Sat July 2:
+	* rewrite hash table code for TileEntites and TileTicks.
+
+Fri July 1:
+	* added shading per face and simplified chunk meshing.
+	* bug not fixed: hash tables for TileEntites and TileTicks are fubar.
+
 Thu June 30:
 	* remove OCS and lighting from CPU and GPU code: -1000 SLOC.
 

@@ -86,4 +86,26 @@ typedef struct MCGlobals_t
 
 extern struct MCGlobals_t globals;
 
+/*
+ * default textures binding point : GL_TEXTURExxx constant are assigned to a particular texture; must
+ * match what's declared in uniformTexture.glsl.
+ */
+
+// GL_TEXTURE0 is actually the only one that can vary between shaders
+
+#define TEX_DEFAULT      GL_TEXTURE0   // usually terrain tex (512 x 1024 x RGBA)
+#define TEX_ENTITIES     GL_TEXTURE1   // entity models (512 x 1024 x RGBA)
+#define TEX_TINTSKY1     GL_TEXTURE2   // color of the sky on the half-sphere where the sun is (time x height x RGB)
+#define TEX_TINTSKY2     GL_TEXTURE3   // color of the sky on the opposite half-sphere (time x height x RGB)
+#define TEX_SUN          GL_TEXTURE4   // sun color (radius x time of day x RGBA)
+#define TEX_LIGHTSHADE   GL_TEXTURE5   // skylight + blocklight per face shading (16 x 108 x RGB)
+#define TEX_SKY          GL_TEXTURE6   // texture for blending terrain with sky (256 x 256 x RGB)
+
+
+/*
+ * start of lighting banks (skylight + blocklight), can use as many as needed tex after this.
+ * usually need about 3 or 4 on 16 chunks render distance (144 x 144 x 144 x RG: R = skylight, G = blockLight)
+ */
+#define TEX_LIGHTBANKS   GL_TEXTURE8
+
 #endif

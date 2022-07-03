@@ -1025,7 +1025,7 @@ static void renderDrawItems(int count)
 	glBufferSubData(GL_UNIFORM_BUFFER, UBO_MVMATRIX_OFFSET, sizeof (mat4), render.matInventoryItem);
 	glBufferSubData(GL_UNIFORM_BUFFER, UBO_SHADING_OFFSET, sizeof invShading, invShading);
 
-	glActiveTexture(GL_TEXTURE0);
+	glActiveTexture(TEX_DEFAULT);
 	glBindTexture(GL_TEXTURE_2D, render.texBlock);
 	glBindVertexArray(render.vaoInventory);
 	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, render.vboInventoryMDAI);
@@ -1503,10 +1503,9 @@ void renderWorld(void)
 	glUseProgram(render.shaderBlocks);
 
 	renderPrepVisibleChunks(globals.level);
-	glActiveTexture(GL_TEXTURE6);
-	glBindTexture(GL_TEXTURE_2D, render.texSky);
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, render.texBlock);
+	glActiveTexture(TEX_SKY);     glBindTexture(GL_TEXTURE_2D, render.texSky);
+	glActiveTexture(TEX_DEFAULT); glBindTexture(GL_TEXTURE_2D, render.texBlock);
+
 	/* 20 times per second max */
 	if (globals.curTime - render.animUpdate >= 50)
 	{
@@ -1747,7 +1746,7 @@ void renderDrawMap(Map map)
 	glDepthMask(GL_TRUE);
 	glUseProgram(render.shaderBlocks);
 
-	glActiveTexture(GL_TEXTURE0);
+	glActiveTexture(TEX_DEFAULT);
 	glBindTexture(GL_TEXTURE_2D, render.texBlock);
 
 	for (bank = HEAD(map->gpuBanks); bank; NEXT(bank))

@@ -125,12 +125,13 @@ static DATA8 chunkInsertTileEntity(TileEntityHash hash, TileEntityEntry ent)
 	DATA8 prev = free->data;
 	if (old)
 	{
-		ent->prev = old - dest;
+		free->prev = old - dest;
 		old->next = free - dest;
 	}
-	else ent->prev = EOF_MARKER;
-	ent->next = EOF_MARKER;
-	*free = *ent;
+	else free->prev = EOF_MARKER;
+	free->next = EOF_MARKER;
+	free->xzy = ent->xzy;
+	free->data = ent->data;
 	return prev;
 }
 
@@ -166,25 +167,21 @@ Bool chunkAddTileEntity(ChunkData cd, int offset, DATA8 mem)
 		/* create on the fly */
 		hash = chunkCreateTileEntityHash(c, 1);
 
-	int count = hash->count + 1;
-
 	/* encode pos in 3 bytes */
 	entry.xzy = offset + (cd->Y << 8);
 
-	if (count == hash->max)
+	if (hash->count == hash->max)
 	{
 		/* table is full: need to be enlarged */
 		TileEntityHash reloc;
 		TileEntityEntry ent;
-		int i;
-
-		count = roundToUpperPrime(hash->count);
-		reloc = calloc(chunkHashSize(count), 1);
+		int i = roundToUpperPrime(hash->count);
+		reloc = calloc(chunkHashSize(i), 1);
 		if (! reloc) return False;
 		c->tileEntities = reloc;
 
-		reloc->max = count;
-		reloc->count = i = count - 1;
+		reloc->max = i;
+		reloc->count = i = hash->count;
 
 		/* relocate entries */
 		for (ent = (TileEntityEntry) (hash + 1); i > 0; i --, ent ++)
@@ -333,43 +330,52 @@ DATA8 chunkDeleteTileEntity(ChunkData cd, int offset, Bool extract, DATA8 observ
 	TileEntityEntry ent  = base + xzy % hash->max;
 	DATA8           data = ent->data;
 
-	if (data == NULL) return False;
+	if (data == NULL) return NULL;
 
 	while ((ent->xzy & TILE_COORD) != xzy)
 	{
-		if (ent->next == EOF_MARKER) return False;
+		if (ent->next == EOF_MARKER) return NULL;
 		ent = base + ent->next;
 		data = ent->data;
 	}
 	if ((ent->xzy & ~TILE_COORD) == 0)
 	{
-		if (ent->prev != EOF_MARKER)
-		{
-			TileEntityEntry prev = base + ent->prev;
-			prev->next = ent->next;
-			if (ent->next != EOF_MARKER)
-			{
-				TileEntityEntry next = base + ent->next;
-				next->prev = ent->prev;
-			}
-		}
-		else if (ent->next != EOF_MARKER)
-		{
-			/* removing first link in the chain: need to move next item here */
-			TileEntityEntry next = base + ent->next;
-			memmove(ent, base, sizeof *ent);
-			ent->prev = EOF_MARKER;
-			ent = next;
-		}
 		hash->count --;
 		ent->data = NULL;
+		if (ent->prev != EOF_MARKER)
+			base[ent->prev].next = ent->next;
+		if (ent->next != EOF_MARKER)
+			base[ent->next].prev = ent->prev;
+
+
+		/* will need to relocate some stuff */
+		int index = ent - base;
+		while (ent->next != EOF_MARKER)
+		{
+			TileEntityEntry next = base + ent->next;
+
+			/* check if this entry depended on the slot that was freed */
+			if (index == next->xzy % hash->max)
+			{
+				/* yes, need relocation */
+				index = ent->next;
+				*ent = *next;
+				next->data = NULL;
+				if (ent->prev != EOF_MARKER)
+					base[ent->prev].next = ent - base;
+				if (ent->next != EOF_MARKER)
+					base[ent->next].prev = ent - base;
+			}
+			ent = next;
+		}
 	}
+	/* tile is still being observed, but tile data has been cleared */
 	else ent->data = TILE_OBSERVED_DATA;
 
 	// fprintf(stderr, "deleting tile entity at %d, %d, %d\n", c->X + XYZ[0], XYZ[1], c->Z + XYZ[2]);
 	/* mapUpdate() will need this information to check if there are observers who need to be notified */
 	if (observed)
-		observed[0] = ent->xzy >> (TILE_OBSERVED_OFFSET-4);
+		observed[0] = ent->xzy >> TILE_OBSERVED_OFFSET;
 
 	if (data > TILE_OBSERVED_DATA)
 	{

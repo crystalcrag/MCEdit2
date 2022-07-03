@@ -17,9 +17,9 @@ void updateFinished(DATA8 tile, vec4 dest);
 void updateAdd(BlockIter iter, int blockId, int nbTick);
 void updateAddTickCallback(BlockIter iter, int nbTick, UpdateCb_t cb);
 void updateAddRSUpdate(struct BlockIter_t iter, int side, int nbTick);
-void updateRemove(ChunkData cd, int offset, Bool clearSorted);
 void updateClearAll(void);
 int  updateCount(Chunk);
+Bool updateRemove(ChunkData cd, int offset, Bool clearSorted);
 Bool updateGetNBT(Chunk, NBTFile nbt, DATA16 index);
 Bool updateScheduled(ChunkData cd, int offset);
 

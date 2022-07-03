@@ -410,6 +410,54 @@ void debugCoord(APTR vg, vec4 camera, int total)
 	nvgMultiLineText(vg, 12, 12, message, message+len);
 	nvgFillColorRGBA8(vg, "\xff\xff\xff\xff");
 	nvgMultiLineText(vg, 10, 10, message, message+len);
+
+	#if 1
+	/* show chunks as they are being loaded */
+	Map map = globals.level;
+	int max = map->mapArea;
+
+	nvgBeginPath(vg);
+	nvgFillColorRGBA8(vg, "\0\0\0\xff");
+	nvgRect(vg, 0, 0, globals.width, globals.height);
+	nvgFill(vg);
+
+	nvgStrokeColorRGBA8(vg, "\x20\xaa\x20\xff");
+	int cellSz = (globals.height - 140) / max;
+	float y = ((globals.height - cellSz * max) >> 1) + 0.5f;
+	float x = ((globals.width - cellSz * max) >> 1) + 0.5f;
+	float x2 = x + cellSz * max;
+	float y2 = y + cellSz * max;
+
+	int i, j;
+
+	Chunk chunk;
+	nvgStrokeColorRGBA8(vg, "\xff\x20\x20\xff");
+	nvgFillColorRGBA8(vg, "\x40\xff\x40\xff");
+	for (j = 0, chunk = map->chunks; j < max; j ++)
+	{
+		for (i = 0; i < max; i ++, chunk ++)
+		{
+			float xc = x + i * cellSz;
+			float yc = y + j * cellSz;
+
+			if (chunk->cflags & CFLAG_HASMESH) nvgFillColorRGBA8(vg, "\x20\x88\x20\xff"); else
+			if (chunk->cflags & CFLAG_GOTDATA) nvgFillColorRGBA8(vg, "\xcc\xcc\x20\xff"); else continue;
+			nvgBeginPath(vg);
+			nvgRect(vg, xc, yc, cellSz, cellSz);
+			nvgFill(vg);
+		}
+	}
+
+	nvgBeginPath(vg);
+	for (j = 0; j <= max; j ++)
+	{
+		float xc = x + cellSz * j;
+		float yc = y + cellSz * j;
+		nvgMoveTo(vg, x, yc); nvgLineTo(vg, x2, yc);
+		nvgMoveTo(vg, xc, y); nvgLineTo(vg, xc, y2);
+	}
+	nvgStroke(vg);
+	#endif
 }
 
 void debugLayer(int dir)

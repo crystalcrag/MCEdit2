@@ -838,6 +838,8 @@ Entity entityParse(Chunk chunk, NBTFile nbt, int offset, Entity prev)
 	float  pos[11];
 	int    off;
 
+	return prev;
+
 	/* iterate over the properties of one entity */
 	NBTIter_t iter;
 	NBT_IterCompound(&iter, nbt->mem + offset);
@@ -1970,7 +1972,7 @@ void entityRender(void)
 		/* piston head will overdraw piston block causing z-fighting XXX messes item frame and maps :-/ */
 		// glEnable(GL_POLYGON_OFFSET_FILL);
 		// glPolygonOffset(-1.0, -1.0);
-		glActiveTexture(GL_TEXTURE1);
+		glActiveTexture(TEX_ENTITIES);
 		glBindTexture(GL_TEXTURE_2D, entities.texEntity);
 
 		glEnable(GL_CULL_FACE);

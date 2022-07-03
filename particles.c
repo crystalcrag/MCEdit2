@@ -535,28 +535,26 @@ static int emitterSort(const void * item1, const void * item2)
 	return emit1->time - emit2->time;
 }
 
-Bool particleCanSpawn(ChunkData cd, int pos, int metadata, int particleType)
+Bool particleCanSpawn(struct BlockIter_t iter, int blockId, int particleType)
 {
-	if (cd->blockIds[pos] == RSWIRE && metadata == 0)
+	if (blockId == ID(RSWIRE, 0))
 		return False;
 
 	if (particleType < PARTICLE_DUST)
 		return True;
 
-	struct BlockIter_t iter;
-	mapInitIterOffset(&iter, cd, pos);
 	mapIter(&iter, 0, -1, 0);
 	if (iter.blockIds == NULL)
 		return False;
 
 	/* DUST and DRIP: needs an air block below */
-	uint8_t block = iter.blockIds[iter.offset];
+	int blockBelow = getBlockId(&iter);
 	switch (particleType) {
 	case PARTICLE_DUST:
-		return block == 0;
+		return blockBelow == 0;
 	case PARTICLE_DRIP:
 		/* immediately below must be solid */
-		if (blockIsFullySolid(blockGetByIdData(block, 0)))
+		if (blockIsFullySolid(blockGetById(blockBelow)))
 		{
 			/* then must be an air block */
 			if (iter.yabs == 0) return False;
@@ -594,46 +592,49 @@ static void particleSortEmitters(void)
 	//debugEmitters();
 }
 
+static void iterOffset(BlockIter iter, int offset)
+{
+	iter->offset += offset;
+	iter->x = iter->offset & 15;
+	iter->z = (iter->offset >> 4) & 15;
+	iter->y = iter->offset >> 8;
+}
+
 /* emitters cover an area: narrow that area for particle constructors */
 static void emitterSpawnParticles(Map map, Emitter emit)
 {
-	ChunkData cd = emit->cd;
-	DATA8 blocks = cd->blockIds;
 	uint32_t area = emit->area;
-	uint8_t  data, i;
 	int count = emit->count+1;
-	int X = cd->chunk->X;
-	int Z = cd->chunk->Z;
-	int Y = cd->Y + emit->Y;
-	int zcoord = 0;
-	int offset = emit->Y << 8;
+
+	struct BlockIter_t iter;
+	mapInitIterOffset(&iter, emit->cd, emit->Y);
+
+	int X = iter.ref->X;
+	int Z = iter.ref->Z;
+	int Y = iter.cd->Y;
 
 	while (area > 0 && count > 0)
 	{
-		/* find first bit set to 1, by counting leading zero */
-		int slotZ = ZEROBITS(area);
+		/* find first bit set to 1, by counting leading zeros */
+		int slotZ = ZEROBITS(area), i;
 		area  >>= slotZ;
 		area   ^= 1;
-		offset += slotZ << 4;
-		zcoord += slotZ;
-		if (zcoord >= 16) zcoord -= 16, Y ++;
+		iterOffset(&iter, slotZ << 4);
 		/* 16 blocks to check */
-		for (i = 0; i < 16; i ++, offset ++)
+		for (i = 0; i < 16; i ++, iter.offset ++, iter.x ++)
 		{
-			Block b = &blockIds[blocks[offset]];
+			int blockId = getBlockId(&iter);
+			Block b = &blockIds[blockId >> 4];
 			if (b->particle == emit->type && b->emitInterval == emit->interval)
 			{
-				data = blocks[DATA_OFFSET + (offset >> 1)];
-				if (offset & 1) data >>= 4;
-				else data &= 15;
-				if (particleCanSpawn(cd, offset, data, emit->type))
+				if (particleCanSpawn(iter, blockId, emit->type))
 				{
 					Particle p;
-					vec4 pos = {X + i, Y, Z + zcoord};
+					vec4 pos = {X + iter.x, Y + iter.y, Z + iter.z};
 					switch (emit->type) {
-					case PARTICLE_SMOKE: p = particlesSmoke(map, ID(b->id, data), pos); break;
-					case PARTICLE_DUST:  p = particlesDust(map, ID(b->id, data), pos); break;
-					case PARTICLE_DRIP:  p = particlesDrip(map, ID(b->id, data), pos); break;
+					case PARTICLE_SMOKE: p = particlesSmoke(map, blockId, pos); break;
+					case PARTICLE_DUST:  p = particlesDust(map, blockId, pos); break;
+					case PARTICLE_DRIP:  p = particlesDrip(map, blockId, pos); break;
 					default: continue;
 					}
 					if (p) p->delay = RandRange(0, 255);
@@ -641,7 +642,8 @@ static void emitterSpawnParticles(Map map, Emitter emit)
 				}
 			}
 		}
-		offset -= 16;
+		iter.offset -= 16;
+		iter.z = 0;
 	}
 }
 

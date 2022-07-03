@@ -126,9 +126,6 @@
 		<Unit filename="quadtree.c">
 			<Option compilerVar="CC" />
 		</Unit>
-		<Unit filename="raycasting.c">
-			<Option compilerVar="CC" />
-		</Unit>
 		<Unit filename="redstone.c">
 			<Option compilerVar="CC" />
 		</Unit>

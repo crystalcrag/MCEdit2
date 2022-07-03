@@ -114,11 +114,6 @@ static uint32_t occlusionIfSlab[] = {
 };
 #undef SLABLOC
 
-/* indicates whether we can find the neighbor block in the current chunk (sides&1)>0 or in the neighbor (sides&1)==0 */
-static uint8_t xsides[] = { 2, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,  8};
-static uint8_t zsides[] = { 1,  5,  5,  5,  5,  5,  5,  5,  5,  5,  5,  5,  5,  5,  5,  4};
-static uint8_t ysides[] = {16, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 32};
-
 /* this table is used to list neighbor chunks, if a block is updated at a boundary (180 bytes) */
 uint32_t chunkNearby[] = {
 0x00000000, 0x00008000, 0x00002000, 0x0001a000, 0x00000400, 0x00000000,
@@ -312,9 +307,19 @@ static int chunkGetCnxGraph(ChunkData cd, int start, DATA8 visited)
 }
 
 
-static void chunkGenQuad(ChunkData neighbors[], MeshWriter writer, BlockState b, int pos);
-static void chunkGenCust(ChunkData neighbors[], MeshWriter writer, BlockState b, DATAS16 chunkOffsets, int pos);
-static void chunkGenCube(ChunkData neighbors[], MeshWriter writer, BlockState b, DATAS16 chunkOffsets, int pos);
+/* like mapIter, but increase iter.offset by 1 instead */
+static inline void chunkIter(BlockIter iter)
+{
+	iter->offset ++;
+	iter->x = iter->offset & 15;
+	iter->z = (iter->offset >> 4) & 15;
+	iter->y = iter->offset >> 8;
+	iter->yabs = (iter->yabs & ~15) + iter->y;
+}
+
+static void chunkGenQuad(BlockIter, MeshWriter writer, BlockState b);
+static void chunkGenCust(BlockIter, MeshWriter writer, BlockState b);
+static void chunkGenCube(BlockIter, MeshWriter writer, BlockState b);
 static void chunkMergeQuads(ChunkData, HashQuadMerge);
 
 void chunkMakeObservable(ChunkData cd, int offset, int side);
@@ -329,89 +334,76 @@ void chunkMakeObservable(ChunkData cd, int offset, int side);
  */
 void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer, MeshInitializer meshinit)
 {
-	ChunkData neighbors[7];    /* S, E, N, W, T, B, current */
-	ChunkData cur;
-	uint8_t   visited[512 + 512];
-	int       i, pos, air;
-	uint16_t  emitters[PARTICLE_MAX];
-	uint8_t   Y, hasLights;
+	uint16_t emitters[PARTICLE_MAX];
+	uint8_t  visited[512 + 512];
+	uint8_t  hasLights;
+	int      air;
 
 	/* single-thread and multi-thread have completely different allocation strategies */
+	struct BlockIter_t iter;
+	mapInitIterOffset(&iter, c->layer[layer], 0);
+	iter.nbor = chunkOffsets;
 	MeshWriter_t alpha, opaque;
-	if (! meshinit(neighbors[6] = cur = c->layer[layer], &opaque, &alpha))
+	if (! meshinit(iter.cd, &opaque, &alpha))
 		/* MT can cancel allocation */
 		return;
 
-	/* 6 surrounding chunks (+center) */
-	neighbors[5] = layer > 0 ? c->layer[layer-1] : NULL;
-	neighbors[4] = layer+1 < c->maxy ? c->layer[layer+1] : empty;
-	for (i = 0, pos = 1; i < 4; i ++, pos <<= 1)
-	{
-		neighbors[i] = c->noChunks & pos ? empty : (c + chunkOffsets[c->neighbor + pos])->layer[layer];
-		if (neighbors[i] == NULL)
-			neighbors[i] = empty;
-	}
-	if (cur->emitters)
-		cur->emitters[0] = 0;
+	if (iter.cd->emitters)
+		iter.cd->emitters[0] = 0;
 
 	/* default sorting for alpha quads */
-	cur->yaw = M_PIf * 1.5f;
-	cur->pitch = 0;
-	cur->cdFlags &= ~(CDFLAG_CHUNKAIR | CDFLAG_PENDINGMESH | CDFLAG_NOALPHASORT | CDFLAG_HOLE);
+	iter.cd->yaw = M_PIf * 1.5f;
+	iter.cd->pitch = 0;
+	iter.cd->cdFlags &= ~(CDFLAG_CHUNKAIR | CDFLAG_PENDINGMESH | CDFLAG_NOALPHASORT | CDFLAG_HOLE);
 
 	memset(visited, 0, sizeof visited);
-	hasLights = (cur->cdFlags & CDFLAG_NOLIGHT) == 0;
-	cur->cnxGraph = 0;
-//	if (c->X == -48 && cur->Y == 64 && c->Z == -560)
+	hasLights = (iter.cd->cdFlags & CDFLAG_NOLIGHT) == 0;
+	iter.cd->cnxGraph = 0;
+
+//	if (c->X == -208 && iter.cd->Y == 32 && c->Z == -48)
 //		globals.breakPoint = 1;
 
-	for (Y = 0, pos = air = 0; Y < 16; Y ++)
+	for (air = 0; iter.y < 16; )
 	{
-		int XZ;
-		if ((Y & 1) == 0)
+		if ((iter.y & 1) == 0)
 			memset(emitters, 0, sizeof emitters);
 
 		/* scan one XZ layer at a time */
-		for (XZ = 0; XZ < 256; XZ ++, pos ++)
+		for ( ; iter.offset < 4096; chunkIter(&iter))
 		{
-			BlockState state;
-			uint8_t    data;
-			uint8_t    block;
+			int blockId = getBlockId(&iter);
+			BlockState state = blockGetById(blockId);
 
-			data  = cur->blockIds[DATA_OFFSET + (pos >> 1)]; if (pos & 1) data >>= 4; else data &= 15;
-			block = cur->blockIds[pos];
-			state = blockGetById(ID(block, data));
-
-//			if (globals.breakPoint && pos == 4035)
+//			if (globals.breakPoint && iter.offset == 3940)
 //				globals.breakPoint = 2;
 
 			/* 3d flood fill for cave culling */
-			if ((slotsXZ[pos & 0xff] || slotsY[pos >> 8]) && ! blockIsFullySolid(state))
+			if ((slotsXZ[iter.offset & 0xff] || slotsY[iter.offset >> 8]) && ! blockIsFullySolid(state))
 			{
-				if ((visited[pos>>3] & mask8bit[pos&7]) == 0)
-					cur->cnxGraph |= chunkGetCnxGraph(cur, pos, visited);
+				if ((visited[iter.offset >> 3] & mask8bit[iter.offset & 7]) == 0)
+					iter.cd->cnxGraph |= chunkGetCnxGraph(iter.cd, iter.offset, visited);
 			}
 
 			if (hasLights)
 			{
 				/* build list of particles emitters */
-				uint8_t particle = blockIds[block].particle;
-				if (particle > 0 && particleCanSpawn(cur, pos, data, particle))
-					chunkAddEmitters(cur, blockIds[block].emitInterval, pos, particle - 1, emitters);
+				Block b = &blockIds[blockId >> 4];
+				if (b->particle > 0 && particleCanSpawn(iter, blockId, b->particle))
+					chunkAddEmitters(iter.cd, b->emitInterval, iter.offset, b->particle - 1, emitters);
 
-				if (block == RSOBSERVER)
-					chunkMakeObservable(cur, pos, blockSides.piston[data&7]);
+				if (blockId >> 4 == RSOBSERVER)
+					chunkMakeObservable(iter.cd, iter.offset, blockSides.piston[blockId&7]);
 			}
 
 			/* voxel meshing starts here */
 			switch (state->type) {
 			case QUAD:
-				chunkGenQuad(neighbors, &opaque, state, pos);
+				chunkGenQuad(&iter, &opaque, state);
 				break;
 			case CUST:
 				if (state->custModel)
 				{
-					chunkGenCust(neighbors, STATEFLAG(state, ALPHATEX) ? &alpha : &opaque, state, chunkOffsets, pos);
+					chunkGenCust(&iter, STATEFLAG(state, ALPHATEX) ? &alpha : &opaque, state);
 					/* SOLIDOUTER: custom block with ambient occlusion */
 					if (state->special != BLOCK_SOLIDOUTER)
 						break;
@@ -419,7 +411,7 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer, Mesh
 				/* else no break; */
 			case TRANS:
 			case SOLID:
-				chunkGenCube(neighbors, STATEFLAG(state, ALPHATEX) ? &alpha : &opaque, state, chunkOffsets, pos);
+				chunkGenCube(&iter, STATEFLAG(state, ALPHATEX) ? &alpha : &opaque, state);
 				break;
 			default:
 				if (state->id == 0) air ++;
@@ -427,79 +419,69 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer, Mesh
 		}
 	}
 	/* entire sub-chunk is composed of air: check if we can get rid of it */
-	if (air == 4096 && (cur->cdFlags & CDFLAG_NOLIGHT) == 0)
+	if (air == 4096 && (iter.cd->cdFlags & CDFLAG_NOLIGHT) == 0)
 	{
 		/* block light must be all 0 and skylight be all 15 */
-		if (memcmp(cur->blockIds + BLOCKLIGHT_OFFSET, empty->blockIds + BLOCKLIGHT_OFFSET, 2048) == 0 &&
-			memcmp(cur->blockIds + SKYLIGHT_OFFSET,   empty->blockIds + SKYLIGHT_OFFSET,   2048) == 0)
+		if (memcmp(iter.cd->blockIds + BLOCKLIGHT_OFFSET, empty->blockIds + BLOCKLIGHT_OFFSET, 2048) == 0 &&
+			memcmp(iter.cd->blockIds + SKYLIGHT_OFFSET,   empty->blockIds + SKYLIGHT_OFFSET,   2048) == 0)
 		{
-			if ((cur->Y >> 4) == c->maxy-1)
+			if ((iter.cd->Y >> 4) == c->maxy-1)
 			{
 				/* yes, can be freed */
-				c->layer[cur->Y >> 4] = NULL;
+				c->layer[iter.cd->Y >> 4] = NULL;
 				c->maxy --;
 				/* cannot delete it now, but will be done after VBO has been cleared */
-				cur->cdFlags = CDFLAG_PENDINGDEL;
+				iter.cd->cdFlags = CDFLAG_PENDINGDEL;
 				chunkMarkForUpdate(c, CHUNK_NBT_SECTION);
 
 				/* check if chunk below are also empty */
-				for (i = c->maxy-1; i >= 0; i --)
+				for (air = c->maxy-1; air >= 0; air --)
 				{
-					cur = c->layer[i];
-					if (cur == NULL || (cur->cdFlags & (CDFLAG_CHUNKAIR|CDFLAG_PENDINGMESH)) == CDFLAG_CHUNKAIR)
+					iter.cd = c->layer[air];
+					if (iter.cd == NULL || (iter.cd->cdFlags & (CDFLAG_CHUNKAIR|CDFLAG_PENDINGMESH)) == CDFLAG_CHUNKAIR)
 					{
 						/* empty chunk with no pending update: it can be deleted now */
-						c->layer[i] = NULL;
-						c->maxy = i;
-						free(cur);
+						c->layer[air] = NULL;
+						c->maxy = air;
+						free(iter.cd);
 					}
 					else break;
 				}
 				return;
 			}
-			else cur->cdFlags |= CDFLAG_CHUNKAIR;
+			else iter.cd->cdFlags |= CDFLAG_CHUNKAIR;
 		}
 	}
 
 	if (opaque.cur > opaque.start)
 		opaque.flush(&opaque);
 	if (alpha.cur  > alpha.start)  alpha.flush(&alpha);
-	if (alpha.isCOP) cur->cdFlags |= CDFLAG_NOALPHASORT;
+	if (alpha.isCOP) iter.cd->cdFlags |= CDFLAG_NOALPHASORT;
 
 	if (opaque.merge)
-		chunkMergeQuads(cur, opaque.merge);
+		chunkMergeQuads(iter.cd, opaque.merge);
 }
 
 #define BUF_LESS_THAN(buffer,min)   (((DATA8)buffer->discard - (DATA8)buffer->cur) < min)
-#define META(cd,off)                ((cd)->blockIds[DATA_OFFSET + (off)])
-#define LIGHT(cd,off)               ((cd)->blockIds[BLOCKLIGHT_OFFSET + (off)])
-#define SKYLIT(cd,off)              ((cd)->blockIds[SKYLIGHT_OFFSET + (off)])
 
 /* tall grass, flowers, rails, ladder, vines, ... */
-static void chunkGenQuad(ChunkData neighbors[], MeshWriter buffer, BlockState b, int pos)
+static void chunkGenQuad(BlockIter iterator, MeshWriter buffer, BlockState b)
 {
-	DATA8   tex   = &b->nzU;
-	DATA8   sides = &b->pxU;
-	Chunk   chunk = neighbors[6]->chunk;
-	int     seed  = neighbors[6]->Y ^ chunk->X ^ chunk->Z;
-	uint8_t x, y, z;
+	struct BlockIter_t iter = *iterator;
 
-	x = (pos & 15);
-	z = (pos >> 4) & 15;
-	y = (pos >> 8);
+	DATA8 tex   = &b->nzU;
+	DATA8 sides = &b->pxU;
+	Chunk chunk = iter.ref;
+	int   seed  = iter.cd->Y ^ chunk->X ^ chunk->Z;
+
 
 	if (b->special == BLOCK_TALLFLOWER && (b->id&15) == 10)
 	{
-		uint8_t data;
 		/* state 10 is used for top part of all tall flowers :-/ need to look at bottom part to know which top part to draw */
-		if (y == 0)
-			data = neighbors[5]->blockIds[DATA_OFFSET + ((pos + 256*15) >> 1)];
-		else
-			data = neighbors[6]->blockIds[DATA_OFFSET + ((pos - 256) >> 1)];
-		if (pos & 1) data >>= 4;
-		else         data &= 15;
-		b += data & 7;
+		mapIter(&iter, 0, 1, 0);
+		b += getBlockId(&iter) & 15;
 		tex = &b->nzU;
+		iter = *iterator;
 	}
 
 	do {
@@ -521,7 +503,7 @@ static void chunkGenQuad(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 		if (b->special == BLOCK_JITTER)
 		{
 			/* add some jitter to X,Z coord for QUAD_CROSS */
-			uint8_t jitter = seed ^ (x ^ y ^ z);
+			uint8_t jitter = seed ^ (iter.x ^ iter.y ^ iter.z);
 			if (jitter & 1) DX = BASEVTX/16;
 			if (jitter & 2) DZ = BASEVTX/16;
 			if (jitter & 4) DY = (BASEVTX/16);
@@ -544,12 +526,12 @@ static void chunkGenQuad(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 
 		/* second and third vertex */
 		#define VERTEX_OFF(v, off)      (VERTEX(v)+off)
-		out[0] = VERTEX_OFF(coord1[0] + x, DX) | (VERTEX_OFF(coord1[1] + y, DY) << 16);
-		out[1] = VERTEX_OFF(coord1[2] + z, DZ) | (VERTEX_OFF(coord2[0] + x, DX) << 16);
-		out[2] = VERTEX_OFF(coord2[1] + y, DY) | (VERTEX_OFF(coord2[2] + z, DZ) << 16);
+		out[0] = VERTEX_OFF(coord1[0] + iter.x, DX) | (VERTEX_OFF(coord1[1] + iter.y, DY) << 16);
+		out[1] = VERTEX_OFF(coord1[2] + iter.z, DZ) | (VERTEX_OFF(coord2[0] + iter.x, DX) << 16);
+		out[2] = VERTEX_OFF(coord2[1] + iter.y, DY) | (VERTEX_OFF(coord2[2] + iter.z, DZ) << 16);
 		coord1 = cubeVertex + quadIndices[side*4+2];
-		out[3] = VERTEX_OFF(coord1[0] + x, DX) | (VERTEX_OFF(coord1[1] + y, DY) << 16);
-		out[4] = VERTEX_OFF(coord1[2] + z, DZ) << 16;
+		out[3] = VERTEX_OFF(coord1[0] + iter.x, DX) | (VERTEX_OFF(coord1[1] + iter.y, DY) << 16);
+		out[4] = VERTEX_OFF(coord1[2] + iter.z, DZ) << 16;
 		out[5] = U | (V << 9) | (norm << 19) | (texCoord[j] == texCoord[j + 6] ? FLAG_TEX_KEEPX|FLAG_DUAL_SIDE : FLAG_DUAL_SIDE);
 		out[6] = ((texCoord[j+4] + tex[0]) << 4) | ((texCoord[j+5] + tex[1]) << 13);
 
@@ -559,7 +541,7 @@ static void chunkGenQuad(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 }
 
 /* get 27 blockIds around block */
-static int chunkGetBlockIds(BlockIter iter, DATA16 blockIds3x3)
+static int chunkGetBlockIds(struct BlockIter_t iter, DATA16 blockIds3x3)
 {
 	static int8_t iterNext[] = {
 		1,0,0,   1,0,0,   -2,0,1,
@@ -571,19 +553,12 @@ static int chunkGetBlockIds(BlockIter iter, DATA16 blockIds3x3)
 
 	memset(blockIds3x3, 0, 27 * sizeof *blockIds3x3);
 
-	mapIter(iter, -1, -1, -1);
+	mapIter(&iter, -1, -1, -1);
 
 	/* only compute that info if block is visible (highly likely it is not) */
 	for (i = slab = 0; i < 27; i ++)
 	{
-		uint16_t block;
-		uint16_t offset = iter->offset;
-		uint8_t  data;
-		data  = iter->blockIds[DATA_OFFSET + (offset >> 1)];
-		block = iter->blockIds[offset] << 4;
-
-		blockIds3x3[i] = block | (offset & 1 ? data >> 4 : data & 15);
-		BlockState nbor = blockGetById(block);
+		BlockState nbor = blockGetById(blockIds3x3[i] = getBlockId(&iter));
 
 		if (nbor->type == SOLID || (nbor->type == CUST && nbor->special == BLOCK_SOLIDOUTER))
 		{
@@ -591,7 +566,7 @@ static int chunkGetBlockIds(BlockIter iter, DATA16 blockIds3x3)
 				slab |= 1 << i;
 		}
 
-		mapIter(iter, next[0], next[1], next[2]);
+		mapIter(&iter, next[0], next[1], next[2]);
 		next += 3;
 		if (next == EOT(iterNext)) next = iterNext;
 	}
@@ -599,31 +574,25 @@ static int chunkGetBlockIds(BlockIter iter, DATA16 blockIds3x3)
 }
 
 /* custom model mesh: anything that doesn't fit quad or full/half block */
-static void chunkGenCust(ChunkData neighbors[], MeshWriter buffer, BlockState b, DATAS16 chunkOffsets, int pos)
+static void chunkGenCust(BlockIter iterator, MeshWriter buffer, BlockState b)
 {
 	static uint8_t connect6blocks[] = {
 		/*B*/7, 5, 1, 3, 4,   /*M*/16, 14, 10, 12,   /*T*/25, 23, 19, 21, 22
 	};
 
-	Chunk    c = neighbors[6]->chunk;
+	struct BlockIter_t iter = *iterator;
+
+	Chunk    c = iter.ref;
 	DATA32   out;
 	DATA16   model;
 	DATA8    cnxBlock;
-	int      count, connect, x, y, z, hasLights;
+	int      count, connect, hasLights;
 	uint32_t dualside;
 	uint16_t blockIds3x3[27];
 
-	x = (pos & 15);
-	z = (pos >> 4) & 15;
-	y = (pos >> 8);
-	hasLights = (neighbors[6]->cdFlags & CDFLAG_NOLIGHT) == 0;
+	hasLights = (iter.cd->cdFlags & CDFLAG_NOLIGHT) == 0;
+	chunkGetBlockIds(iter, blockIds3x3);
 
-	{
-		struct BlockIter_t iter;
-		mapInitIterOffset(&iter, neighbors[6], pos);
-		iter.nbor = chunkOffsets;
-		chunkGetBlockIds(&iter, blockIds3x3);
-	}
 	model = b->custModel;
 	count = connect = 0;
 
@@ -685,7 +654,7 @@ static void chunkGenCust(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 		break;
 	case BLOCK_POT:
 		/* flower pot: check if there is a plant in the pot */
-		cnxBlock = chunkGetTileEntity(neighbors[6], pos);
+		cnxBlock = chunkGetTileEntity(iter.cd, iter.offset);
 		if (cnxBlock)
 		{
 			struct NBTFile_t nbt = {.mem = cnxBlock};
@@ -711,7 +680,7 @@ static void chunkGenCust(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 		}
 		break;
 	case BLOCK_BED:
-		cnxBlock = chunkGetTileEntity(neighbors[6], pos);
+		cnxBlock = chunkGetTileEntity(iter.cd, iter.offset);
 		if (cnxBlock)
 		{
 			struct NBTFile_t nbt = {.mem = cnxBlock};
@@ -722,11 +691,11 @@ static void chunkGenCust(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 		break;
 	case BLOCK_SIGN:
 		if (hasLights) /* don't render sign text for brush */
-			c->signList = signAddToList(b->id, neighbors[6], pos, c->signList, 0);
+			c->signList = signAddToList(b->id, iter.cd, iter.offset, c->signList, 0);
 		break;
 	default:
 		/* piston head with a tile entity: head will be rendered as an entity when it is moving */
-		if ((b->id >> 4) == RSPISTONHEAD && chunkGetTileEntity(neighbors[6], pos))
+		if ((b->id >> 4) == RSPISTONHEAD && chunkGetTileEntity(iter.cd, iter.offset))
 			return;
 	}
 
@@ -743,9 +712,9 @@ static void chunkGenCust(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 		connect = blockGetConnect(b, blockIdAndData);
 	}
 
-	x *= BASEVTX;
-	y *= BASEVTX;
-	z *= BASEVTX;
+	int x = iter.x * BASEVTX;
+	int y = iter.y * BASEVTX;
+	int z = iter.z * BASEVTX;
 	dualside = blockIds[b->id >> 4].special & BLOCK_DUALSIDE ? FLAG_DUAL_SIDE : 0; /* fire */
 
 	/* vertex and light info still need to be adjusted */
@@ -763,14 +732,11 @@ static void chunkGenCust(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 		/* iron bars and glass pane already have their model culled */
 		if (model[axisCheck[norm]] == axisAlign[norm] && b->special != BLOCK_GLASS)
 		{
-			extern int8_t opp[];
-			struct BlockIter_t iter;
+			struct BlockIter_t neighbor = iter;
 			int8_t * normal = cubeNormals + norm * 4;
-			mapInitIterOffset(&iter, neighbors[6], pos);
-			iter.nbor = chunkOffsets;
-			mapIter(&iter, normal[0], normal[1], normal[2]);
+			mapIter(&neighbor, normal[0], normal[1], normal[2]);
 
-			if (blockIsSideHidden(getBlockId(&iter), model, opp[norm]))
+			if (blockIsSideHidden(getBlockId(&neighbor), model, opp[norm]))
 				/* skip entire face (6 vertices) */
 				continue;
 		}
@@ -846,60 +812,36 @@ static void chunkGenCust(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 }
 
 /* most common block within a chunk */
-static void chunkGenCube(ChunkData neighbors[], MeshWriter buffer, BlockState b, DATAS16 chunkOffsets, int pos)
+static void chunkGenCube(BlockIter iterator, MeshWriter buffer, BlockState b)
 {
 	uint16_t blockIds3x3[27];
+	uint8_t  texUV[12];
 	DATA32   out;
 	DATA8    tex;
-	DATA8    blocks = neighbors[6]->blockIds;
-	int      side, sides, slab, rotate;
-	int      i, j, k, n;
-	uint8_t  x, y, z, data, liquid, discard;
+	int      slab, rotate;
+	int      normal, texOff;
+	uint8_t  liquid, discard;
 
-	x = (pos & 15);
-	z = (pos >> 4) & 15;
-	y = (pos >> 8);
-	sides = xsides[x] | ysides[y] | zsides[z];
-	liquid = 0;
+	struct BlockIter_t iter = *iterator;
+	struct BlockIter_t neighbor = iter;
 
 	/* outer loop: iterate over each faces (6) */
-	for (i = 0, side = 1, slab = -1, tex = &b->nzU, rotate = b->rotate, j = (rotate&3) * 8; i < DIM(cubeIndices);
-		 i += 4, side <<= 1, rotate >>= 2, tex += 2, j = (rotate&3) * 8)
+	for (normal = 0, liquid = 0, slab = -1, tex = &b->nzU, rotate = b->rotate, texOff = (rotate&3) * 8; normal < 6;
+		 normal ++, rotate >>= 2, tex += 2, texOff = (rotate&3) * 8)
 	{
-		BlockState nbor;
-		n = pos;
+		mapIter(&neighbor, xoff[normal], yoff[normal], zoff[normal]);
+		BlockState nbor = blockGetById(getBlockId(&neighbor));
 		discard = 0;
-
-		/* face hidden by another opaque block: 75% of SOLID blocks will be culled by this test */
-		if ((sides&side) == 0)
-		{
-			/* neighbor is not in the same chunk */
-			ChunkData cd = neighbors[i>>2];
-			if (cd == NULL) continue;
-			n += blockOffset[side];
-			data = META(cd, n>>1);
-			nbor = blockGetByIdData(cd->blockIds[n], n & 1 ? data >> 4 : data & 0xf);
-		}
-		else
-		{
-			static int offsets[] = {
-				/* neighbors: S, E, N, W, T, B */
-				16, 1, -16, -1, 256, -256
-			};
-			n += offsets[i>>2];
-			data = blocks[DATA_OFFSET + (n >> 1)];
-			nbor = blockGetByIdData(blocks[n], n & 1 ? data >> 4 : data & 0xf);
-		}
 
 		switch (nbor->type) {
 		case SOLID:
-			if (b->special == BLOCK_LIQUID && i == SIDE_TOP * 4)
+			if (b->special == BLOCK_LIQUID && normal == SIDE_TOP)
 				/* top of liquid: slightly lower than a full block */
 				break;
 			switch (nbor->special) {
 			case BLOCK_HALF:
 			case BLOCK_STAIRS:
-				if (oppositeMask[*halfBlockGetModel(nbor, 0, NULL)] & side) continue;
+				if (oppositeMask[*halfBlockGetModel(nbor, 0, NULL)] & (1 << normal)) continue;
 				break;
 			default: continue;
 			}
@@ -914,25 +856,21 @@ static void chunkGenCube(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 			{
 				continue;
 			}
-			if (b->special == BLOCK_LIQUID && nbor->id == ID(79,0)) continue;
+			if (b->special == BLOCK_LIQUID && nbor->id == ID(79,0) /*ICE*/) continue;
 		}
 
 		/* blockIds surrounding this block */
 		if (slab == -1)
 		{
-			struct BlockIter_t iter;
-			mapInitIterOffset(&iter, neighbors[6], pos);
-			iter.nbor = chunkOffsets;
-			slab = chunkGetBlockIds(&iter, blockIds3x3);
+			slab = chunkGetBlockIds(iter, blockIds3x3);
 
 			if (STATEFLAG(b, CNXTEX))
 			{
-				static uint8_t texUV[12];
 				DATA8 cnx, uv;
 				int   id = b->id;
 				memcpy(texUV, &b->nzU, 12);
 				/* check for connected textures */
-				for (k = 0, uv = texUV, cnx = offsetConnected; k < DIM(offsetConnected); k += 4, cnx += 4, uv += 2)
+				for (uv = texUV, cnx = offsetConnected; cnx < EOT(offsetConnected); cnx += 4, uv += 2)
 				{
 					uint8_t flags = 0;
 					if (blockIds3x3[cnx[0]] == id) flags |= 1;
@@ -945,11 +883,12 @@ static void chunkGenCube(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 			}
 			if (b->special == BLOCK_LIQUID)
 			{
-				for (k = 18; k < 27; k ++)
+				int i;
+				for (i = 18; i < 27; i ++)
 				{
 					static uint8_t raisedEdge[] = {2, 3, 1, 10, 15, 5, 8, 12, 4};
-					if (blockIds[blockIds3x3[k]>>4].special == BLOCK_LIQUID)
-						liquid |= raisedEdge[k-18];
+					if (blockIds[blockIds3x3[i]>>4].special == BLOCK_LIQUID)
+						liquid |= raisedEdge[i-18];
 				}
 				liquid ^= 15;
 			}
@@ -961,18 +900,18 @@ static void chunkGenCube(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 
 		if (b->special == BLOCK_HALF || b->special == BLOCK_STAIRS)
 		{
-			uint8_t xyz[3] = {x<<1, y<<1, z<<1};
+			uint8_t xyz[3] = {iter.x<<1, iter.y<<1, iter.z<<1};
 			//fprintf(stderr, "meshing %s at pos %d, %d, %d\n", b->name, x, y, z);
 			meshHalfBlock(buffer, halfBlockGetModel(b, 2, blockIds3x3), 2, xyz, b, blockIds3x3, 63);
 			break;
 		}
-		if (occlusionIfSlab[i>>2] & slab)
+		if (occlusionIfSlab[normal] & slab)
 		{
-			uint8_t xyz[3] = {x<<1, y<<1, z<<1};
+			uint8_t xyz[3] = {iter.x<<1, iter.y<<1, iter.z<<1};
 			DATA8 model = halfBlockGetModel(b, 2, blockIds3x3);
 			if (model)
 			{
-				meshHalfBlock(buffer, model, 2, xyz, b, blockIds3x3, 1 << (i>>2));
+				meshHalfBlock(buffer, model, 2, xyz, b, blockIds3x3, 1 << normal);
 				continue;
 			}
 		}
@@ -993,26 +932,26 @@ static void chunkGenCube(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 		}
 		/* generate one quad (see internals.html for format) */
 		{
-			DATA8    coord1 = cubeVertex + cubeIndices[i+3];
-			DATA8    coord2 = cubeVertex + cubeIndices[i];
-			uint16_t texU   = (texCoord[j]   + tex[0]) << 4;
-			uint16_t texV   = (texCoord[j+1] + tex[1]) << 4;
+			DATA8    coord1 = cubeVertex + cubeIndices[(normal<<2)+3];
+			DATA8    coord2 = cubeVertex + cubeIndices[(normal<<2)];
+			uint16_t texU   = (texCoord[texOff]   + tex[0]) << 4;
+			uint16_t texV   = (texCoord[texOff+1] + tex[1]) << 4;
 
 			/* write one quad */
-			out[0] = VERTEX(coord1[0]+x) | (VERTEX(coord1[1]+y) << 16);
-			out[1] = VERTEX(coord1[2]+z) | (VERTEX(coord2[0]+x) << 16);
-			out[2] = VERTEX(coord2[1]+y) | (VERTEX(coord2[2]+z) << 16);
-			coord1 = cubeVertex + cubeIndices[i+2];
-			out[3] = VERTEX(coord1[0]+x) | (VERTEX(coord1[1]+y) << 16);
-			out[4] = VERTEX(coord1[2]+z) << 16;
-			out[5] = texU | (texV << 9) | (i << 17) | (texCoord[j] == texCoord[j + 6] ? FLAG_TEX_KEEPX : 0);
-			out[6] = ((texCoord[j+4] + tex[0]) << 4) |
-			         ((texCoord[j+5] + tex[1]) << 13);
+			out[0] = VERTEX(coord1[0]+iter.x) | (VERTEX(coord1[1]+iter.y) << 16);
+			out[1] = VERTEX(coord1[2]+iter.z) | (VERTEX(coord2[0]+iter.x) << 16);
+			out[2] = VERTEX(coord2[1]+iter.y) | (VERTEX(coord2[2]+iter.z) << 16);
+			coord1 = cubeVertex + cubeIndices[(normal<<2)+2];
+			out[3] = VERTEX(coord1[0]+iter.x) | (VERTEX(coord1[1]+iter.y) << 16);
+			out[4] = VERTEX(coord1[2]+iter.z) << 16;
+			out[5] = texU | (texV << 9) | (normal << 19) | (texCoord[texOff] == texCoord[texOff+6] ? FLAG_TEX_KEEPX : 0);
+			out[6] = ((texCoord[texOff+4] + tex[0]) << 4) |
+			         ((texCoord[texOff+5] + tex[1]) << 13);
 			/* prevent quad merging between discard and normal quads */
 			if (discard) out[6] |= FLAG_DISCARD;
 
 			static uint8_t oppSideBlock[] = {16, 14, 10, 12, 22, 4};
-			if (blockIds[blockIds3x3[oppSideBlock[i>>2]] >> 4].special == BLOCK_LIQUID)
+			if (blockIds[blockIds3x3[oppSideBlock[normal]] >> 4].special == BLOCK_LIQUID)
 				/* use water fog instead of atmospheric one */
 				out[5] |= FLAG_UNDERWATER;
 
@@ -1020,7 +959,7 @@ static void chunkGenCube(ChunkData neighbors[], MeshWriter buffer, BlockState b,
 			{
 				/* lower some edges of a liquid block if we can (XXX need a better solution than this :-/) */
 				uint8_t edges = 0;
-				switch (i >> 2) {
+				switch (normal) {
 				case SIDE_SOUTH: edges = (liquid&12)>>2; break;
 				case SIDE_NORTH: edges = ((liquid&1)<<1) | ((liquid&2)>>1); break;
 				case SIDE_EAST:  edges = (liquid&1) | ((liquid & 4) >> 1); break;
