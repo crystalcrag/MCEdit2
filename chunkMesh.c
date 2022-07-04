@@ -343,9 +343,11 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer, Mesh
 	struct BlockIter_t iter;
 	mapInitIterOffset(&iter, c->layer[layer], 0);
 	iter.nbor = chunkOffsets;
-	MeshWriter_t alpha, opaque;
-	if (! meshinit(iter.cd, &opaque, &alpha))
-		/* MT can cancel allocation */
+
+	/* alloc memory to store quads these functions will generate */
+	MeshWriter_t writer;
+	if (! meshinit(iter.cd, &writer))
+		/* MT-generation can cancel allocation */
 		return;
 
 	if (iter.cd->emitters)
@@ -360,7 +362,7 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer, Mesh
 	hasLights = (iter.cd->cdFlags & CDFLAG_NOLIGHT) == 0;
 	iter.cd->cnxGraph = 0;
 
-//	if (c->X == -208 && iter.cd->Y == 32 && c->Z == -48)
+//	if (c->X == -96 && iter.cd->Y == 32 && c->Z == 352)
 //		globals.breakPoint = 1;
 
 	for (air = 0; iter.y < 16; )
@@ -398,12 +400,12 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer, Mesh
 			/* voxel meshing starts here */
 			switch (state->type) {
 			case QUAD:
-				chunkGenQuad(&iter, &opaque, state);
+				chunkGenQuad(&iter, &writer, state);
 				break;
 			case CUST:
 				if (state->custModel)
 				{
-					chunkGenCust(&iter, STATEFLAG(state, ALPHATEX) ? &alpha : &opaque, state);
+					chunkGenCust(&iter, &writer, state);
 					/* SOLIDOUTER: custom block with ambient occlusion */
 					if (state->special != BLOCK_SOLIDOUTER)
 						break;
@@ -411,7 +413,7 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer, Mesh
 				/* else no break; */
 			case TRANS:
 			case SOLID:
-				chunkGenCube(&iter, STATEFLAG(state, ALPHATEX) ? &alpha : &opaque, state);
+				chunkGenCube(&iter, &writer, state);
 				break;
 			default:
 				if (state->id == 0) air ++;
@@ -453,16 +455,14 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer, Mesh
 		}
 	}
 
-	if (opaque.cur > opaque.start)
-		opaque.flush(&opaque);
-	if (alpha.cur  > alpha.start)  alpha.flush(&alpha);
-	if (alpha.isCOP) iter.cd->cdFlags |= CDFLAG_NOALPHASORT;
+	if (writer.cur > writer.start)
+		writer.flush(&writer);
 
-	if (opaque.merge)
-		chunkMergeQuads(iter.cd, opaque.merge);
+	if (writer.merge)
+		chunkMergeQuads(iter.cd, writer.merge);
 }
 
-#define BUF_LESS_THAN(buffer,min)   (((DATA8)buffer->discard - (DATA8)buffer->cur) < min)
+#define BUF_LESS_THAN(buffer,min)   (((DATA8)buffer->end - (DATA8)buffer->cur) < min)
 
 /* tall grass, flowers, rails, ladder, vines, ... */
 static void chunkGenQuad(BlockIter iterator, MeshWriter buffer, BlockState b)
@@ -550,8 +550,6 @@ static int chunkGetBlockIds(struct BlockIter_t iter, DATA16 blockIds3x3)
 	};
 	int8_t * next = iterNext;
 	int i, slab;
-
-	memset(blockIds3x3, 0, 27 * sizeof *blockIds3x3);
 
 	mapIter(&iter, -1, -1, -1);
 
@@ -916,20 +914,11 @@ static void chunkGenCube(BlockIter iterator, MeshWriter buffer, BlockState b)
 			}
 		}
 
-		if (discard)
-		{
-			/* store these in discardable segment */
-			if (buffer->discard == buffer->cur)
-				buffer->flush(buffer);
-			out = buffer->discard -= VERTEX_INT_SIZE;
-		}
-		else
-		{
-			if (BUF_LESS_THAN(buffer, VERTEX_DATA_SIZE))
-				buffer->flush(buffer);
-			out = buffer->cur;
-			buffer->cur = out + VERTEX_INT_SIZE;
-		}
+		if (BUF_LESS_THAN(buffer, VERTEX_DATA_SIZE))
+			buffer->flush(buffer);
+		out = buffer->cur;
+		buffer->cur = out + VERTEX_INT_SIZE;
+
 		/* generate one quad (see internals.html for format) */
 		{
 			DATA8    coord1 = cubeVertex + cubeIndices[(normal<<2)+3];
@@ -949,6 +938,7 @@ static void chunkGenCube(BlockIter iterator, MeshWriter buffer, BlockState b)
 			         ((texCoord[texOff+5] + tex[1]) << 13);
 			/* prevent quad merging between discard and normal quads */
 			if (discard) out[6] |= FLAG_DISCARD;
+			if (STATEFLAG(b, ALPHATEX)) out[6] |= FLAG_ALPHATEX;
 
 			static uint8_t oppSideBlock[] = {16, 14, 10, 12, 22, 4};
 			if (blockIds[blockIds3x3[oppSideBlock[normal]] >> 4].special == BLOCK_LIQUID)

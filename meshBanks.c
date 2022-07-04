@@ -16,16 +16,15 @@
 #include "particles.h"
 #include "tileticks.h"
 
-struct Staging_t staging;                /* chunk loading/meshing (MT context) */
-static ListHead  meshBanks;              /* MeshBuffer (ST context) */
-static ListHead  alphaBanks;             /* MeshBuffer (ST context) */
+struct Staging_t staging;                /* chunk meshing (MT context) */
+static ListHead  meshBanks;              /* chunk meshing (ST context, MeshBuffer) */
 static Thread_t  threads[NUM_THREADS];   /* thread pool for meshing chunks */
 static QUADHASH  quadMerge;              /* single thread greedy meshing */
 static int       threadStop;             /* THREAD_EXIT_* */
 
 
 #define processing         nbt.page
-#define QUAD_MERGE                       /* comment to disable quad merging (debug) */
+#define QUAD_MERGE                       /* comment to disable greedy meshing (debug) */
 
 
 /*
@@ -55,11 +54,16 @@ static void meshGenAsync(void * arg)
 
 
 
+		/* grab one chunk to process */
 		MutexEnter(map->genLock);
 		Chunk list = (Chunk) ListRemHead(&map->genList);
 		/* needs to be set before exiting mutex */
 		if (list) list->cflags |= CFLAG_PROCESSING;
 		MutexLeave(map->genLock);
+
+
+
+		/* already processed? */
 		if (! list || (list->cflags & (CFLAG_HASMESH|CFLAG_STAGING)))
 			goto bail;
 
@@ -124,7 +128,6 @@ static void meshGenAsync(void * arg)
 			if (cd->cdFlags == CDFLAG_PENDINGDEL)
 			{
 				/* empty ChunkData: link within chunk has already been removed in chunkUpdate() */
-				staging.mem[cd->glSize+1] = cd->glAlpha;
 				free(cd);
 				continue;
 			}
@@ -136,7 +139,7 @@ static void meshGenAsync(void * arg)
 			//ThreadPause(50);
 		}
 		//fprintf(stderr, "chunk %d, %d (%d) done mem: %d/256\n", list->X, list->Z, list->maxy, staging.total);
-		/* mark the chunk as ready to be pushed to the GPU mem */
+		/* mark the chunk as ready to be pushed to the GPU */
 		list->cflags |= CFLAG_STAGING;
 		list->save = NULL;
 
@@ -267,63 +270,38 @@ static MeshBuffer meshAllocST(ListHead * head)
 	return mesh;
 }
 
-static Bool meshCheckCoplanar(MeshWriter buffer)
-{
-	/* check if all quads are coplanar */
-	DATA32 vertex, end;
-	for (vertex = buffer->start, end = buffer->cur; vertex < end; vertex += VERTEX_INT_SIZE)
-	{
-		/* get normal */
-		uint16_t coord, norm = (vertex[5] >> 9) & 7;
-		DATA16   cop = buffer->coplanar + norm;
-		switch (norm) {
-		case 0: case 2: coord = vertex[1]; break;
-		case 1: case 3: coord = vertex[0]; break;
-		default:        coord = vertex[0] >> 16;
-		}
-		if (cop[0] == 0)     cop[0] = coord; else
-		if (cop[0] != coord) return False;
-	}
-	return True;
-}
-
 /* partial mesh data */
 static void meshFlushST(MeshWriter buffer)
 {
 	MeshBuffer list = buffer->mesh;
 
-	list->usage   = (DATA8) buffer->cur - (DATA8) buffer->start;
-	list->discard = (DATA8) buffer->end - (DATA8) buffer->discard;
+	list->usage = (DATA8) buffer->cur - (DATA8) buffer->start;
 
-	if (buffer->alpha && buffer->isCOP)
-		buffer->isCOP = meshCheckCoplanar(buffer);
-
-	if (list->usage + list->discard < MAX_MESH_CHUNK)
+	if (list->usage < MAX_MESH_CHUNK)
 	{
 		/* still some room left, don't alloc a new block just yet */
 		return;
 	}
 	else if (list->node.ln_Next)
 	{
+		/* these buffer are not freed and will be reused */
 		NEXT(list);
 	}
-	else list = meshAllocST(buffer->alpha ? &alphaBanks : &meshBanks);
+	else list = meshAllocST(&meshBanks);
 
 	buffer->mesh = list;
 	buffer->cur = buffer->start = list->buffer;
-	buffer->end = buffer->discard = list->buffer + (MAX_MESH_CHUNK / 4);
+	buffer->end = list->buffer + (MAX_MESH_CHUNK / 4);
 }
 
-Bool meshInitST(ChunkData cd, APTR opaque, APTR alpha)
+Bool meshInitST(ChunkData cd, MeshWriter writer)
 {
 	MeshBuffer mesh;
 	/* typical sub-chunk is usually below 64Kb of mesh data */
 	if (meshBanks.lh_Head == NULL)
-	{
-		mesh = meshAllocST(&alphaBanks);
 		mesh = meshAllocST(&meshBanks);
-	}
-	else mesh = HEAD(meshBanks);
+	else
+		mesh = HEAD(meshBanks);
 	#ifdef QUAD_MERGE
 	if (quadMerge.capa == 0)
 		meshQuadMergeInit(&quadMerge);
@@ -333,16 +311,12 @@ Bool meshInitST(ChunkData cd, APTR opaque, APTR alpha)
 
 	mesh->chunk = cd;
 
-	for (mesh = HEAD(meshBanks);  mesh; mesh->usage = 0, mesh->discard = 0, NEXT(mesh));
-	for (mesh = HEAD(alphaBanks); mesh; mesh->usage = 0, mesh->discard = 0, NEXT(mesh));
+	for (mesh = HEAD(meshBanks);  mesh; mesh->usage = 0, NEXT(mesh));
 
-	MeshWriter writer = opaque;
 	mesh = HEAD(meshBanks);
 	mesh->chunk   = cd;
 	writer->start = writer->cur = mesh->buffer;
-	writer->end   = writer->discard = mesh->buffer + (MAX_MESH_CHUNK / 4);
-	writer->alpha = 0;
-	writer->isCOP = 1;
+	writer->end   = mesh->buffer + (MAX_MESH_CHUNK / 4);
 	writer->mesh  = mesh;
 	#ifdef QUAD_MERGE
 	writer->merge = &quadMerge;
@@ -351,17 +325,6 @@ Bool meshInitST(ChunkData cd, APTR opaque, APTR alpha)
 	#endif
 	writer->flush = meshFlushST;
 
-	writer = alpha;
-	mesh = HEAD(alphaBanks);
-	mesh->chunk  = cd;
-	writer->start = writer->cur = mesh->buffer;
-	writer->end   = writer->discard = mesh->buffer + (MAX_MESH_CHUNK / 4);
-	writer->alpha = 1;
-	writer->isCOP = 1;
-	writer->mesh  = mesh;
-	writer->merge = ((MeshWriter)opaque)->merge;
-	writer->flush = meshFlushST;
-	memset(writer->coplanar, 0, sizeof writer->coplanar);
 	return True;
 }
 
@@ -407,18 +370,14 @@ static void meshFlushMT(MeshWriter buffer)
 	/* mesh generation cancelled */
 	if (! cd) return;
 
-	int size    = ((DATA8) buffer->cur - (DATA8) buffer->start)   / VERTEX_DATA_SIZE;
-	int discard = ((DATA8) buffer->end - (DATA8) buffer->discard) / VERTEX_DATA_SIZE;
-
-	if (buffer->alpha && buffer->isCOP)
-		buffer->isCOP = meshCheckCoplanar(buffer);
+	int size = ((DATA8) buffer->cur - (DATA8) buffer->start) / VERTEX_DATA_SIZE;
 
 	//fprintf(stderr, "flush mem for thread %d: size = %d\n", cd->chunk->cdIndex, size);
 
-	if (size + discard < MESH_MAX_QUADS)
+	if (size < MESH_MAX_QUADS)
 	{
 		/* still some room left, don't alloc a new block just yet */
-		buffer->start[-1] = (discard << 24) | (size << 16);
+		buffer->start[-1] = size << 16;
 		return;
 	}
 
@@ -432,53 +391,32 @@ static void meshFlushMT(MeshWriter buffer)
 		return;
 	}
 
-	buffer->start[-1] = (discard << 24) | (size << 16) | (index + 1);
+	buffer->start[-1] = (size << 16) | (index + 1);
 	buffer->cur = buffer->start = mem + MESH_HDR;
-	buffer->end = buffer->discard = mem + STAGING_BLOCK;
+	buffer->end = mem + STAGING_BLOCK;
 }
 
 /* this function is called in a MT context */
-Bool meshInitMT(ChunkData cd, APTR opaque, APTR alpha)
+Bool meshInitMT(ChunkData cd, MeshWriter writer)
 {
-	int    indexALPHA;
-	Chunk  chunk    = cd->chunk;
-	int    start    = (chunk - chunk->save) | (cd->Y << 12);
-	DATA32 memSOLID = meshAllocMT(threads + chunk->cdIndex, True, start, &indexALPHA);
+	Chunk  chunk = cd->chunk;
+	int    start = (chunk - chunk->save) | (cd->Y << 12);
+	DATA32 mem   = meshAllocMT(threads + chunk->cdIndex, True, start, &start);
 
-	if (memSOLID)
+	if (mem)
 	{
-		DATA32 memALPHA = meshAllocMT(threads + chunk->cdIndex, False, start, &indexALPHA);
+		writer->start = writer->cur = mem + MESH_HDR;
+		writer->end   = mem + STAGING_BLOCK;
+		writer->mesh  = cd;
+		writer->flush = meshFlushMT;
+		#ifdef QUAD_MERGE
+		writer->merge = &threads[chunk->cdIndex].hash;
+		#else
+		writer->merge = NULL;
+		#endif
+		cd->glSize    = mem - staging.mem;
 
-		if (memALPHA)
-		{
-			MeshWriter writer = opaque;
-			writer->start = writer->cur = memSOLID + MESH_HDR;
-			writer->end   = writer->discard = memSOLID + STAGING_BLOCK;
-			writer->alpha = 0;
-			writer->isCOP = 1;
-			writer->mesh  = cd;
-			writer->flush = meshFlushMT;
-			#ifdef QUAD_MERGE
-			writer->merge = &threads[chunk->cdIndex].hash;
-			#else
-			writer->merge = NULL;
-			#endif
-			cd->glSize    = memSOLID - staging.mem;
-
-			writer = alpha;
-			writer->start = writer->cur = memALPHA + MESH_HDR;
-			writer->end   = writer->discard = memALPHA + STAGING_BLOCK;
-			writer->alpha = 1;
-			writer->isCOP = 1;
-			writer->mesh  = cd;
-			writer->flush = meshFlushMT;
-			writer->merge = ((MeshWriter)opaque)->merge;
-			/* alpha and opaque will be split in 2, main thread will only have a ref on opaque, not on alpha */
-			cd->glAlpha   = indexALPHA + 1;
-			memset(writer->coplanar, 0, sizeof writer->coplanar);
-			return True;
-		}
-		/* no need to free memSOLID block, it will be in meshStopThreads() */
+		return True;
 	}
 	return False;
 }
@@ -726,47 +664,88 @@ void meshAllocCmdBuffer(Map map)
 	}
 }
 
-/* need to take care of merged quads :-/ */
-static int meshBufferSize(APTR buffer, int bytes)
+typedef struct MeshSize_t *      MeshSize;
+typedef struct MeshSize_t        MeshSize_t;
+struct MeshSize_t
 {
-	DATA32 quad, eof;
-	int    ret;
-	for (quad = buffer, eof = buffer + bytes, ret = 0; quad < eof; quad += VERTEX_INT_SIZE)
-		if (quad[0] > 0) ret += VERTEX_DATA_SIZE;
-	return ret;
-}
+	int      opaque;
+	int      discard;
+	int      alpha;
+	uint16_t coplanar[6];        /* check if quads are all coplanar for a given axis (S, E, N, W, T, B: used by alpha) */
+	uint8_t  isCOP;              /* 1 if coplanar, 0 if no */
+};
 
-static DATA8 meshCopyBuffer(DATA8 dest, APTR buffer, int bytes)
+#define CATQUADS   quad[6]
+
+/* all type of quads are mixed in the buffer, and we need to ignore merged quads too */
+static void meshBufferSize(APTR buffer, int bytes, MeshSize sizes)
 {
 	DATA32 quad, eof;
 	for (quad = buffer, eof = buffer + bytes; quad < eof; quad += VERTEX_INT_SIZE)
 	{
-		if (quad[0] > 0)
-			memcpy(dest, quad, VERTEX_DATA_SIZE), dest += VERTEX_DATA_SIZE;
+		if (quad[0] == 0) continue; /* merged */
+		if (CATQUADS & FLAG_DISCARD)  sizes->discard += VERTEX_DATA_SIZE; else
+		if (CATQUADS & FLAG_ALPHATEX) sizes->alpha   += VERTEX_DATA_SIZE;
+		else                          sizes->opaque  += VERTEX_DATA_SIZE;
 	}
-	return dest;
 }
+
+static void meshCopyBuffer(DATA8 dest, APTR buffer, int bytes, MeshSize sizes)
+{
+	DATA32 quad, eof;
+	for (quad = buffer, eof = buffer + bytes; quad < eof; quad += VERTEX_INT_SIZE)
+	{
+		if (quad[0] == 0) continue;
+		if (CATQUADS & FLAG_DISCARD)
+		{
+			memcpy(dest + sizes->discard, quad, VERTEX_DATA_SIZE);
+			sizes->discard += VERTEX_DATA_SIZE;
+		}
+		else if (CATQUADS & FLAG_ALPHATEX)
+		{
+			memcpy(dest + sizes->alpha, quad, VERTEX_DATA_SIZE);
+			sizes->alpha += VERTEX_DATA_SIZE;
+
+			/* check coplanar to speed-up alpha rendering */
+			int    normal = (quad[5] >> 19) & 7, coord;
+			DATA16 cop = sizes->coplanar + normal;
+			switch (normal) {
+			case SIDE_SOUTH:
+			case SIDE_NORTH: coord = quad[1] & 0xffff; /* Z1 */ break;
+			case SIDE_EAST:
+			case SIDE_WEST:  coord = quad[0] & 0xffff; /* X1 */ break;
+			default:         coord = quad[0] >> 16;    /* Y1 */
+			}
+			if (cop[0] == 0) cop[0] = coord; else
+			if (cop[0] != coord) sizes->isCOP = 0;
+		}
+		else /* normal quad */
+		{
+			memcpy(dest + sizes->opaque, quad, VERTEX_DATA_SIZE);
+			sizes->opaque += VERTEX_DATA_SIZE;
+		}
+	}
+}
+
+#undef CATQUADS
 
 /* transfer single ChunkData mesh to GPU (meshing init with meshInitST) */
 void meshFinishST(Map map)
 {
 	MeshBuffer list;
-	int        size, alpha, discard;
+	MeshSize_t sizes;
 	int        total, offset;
 	int        oldSize, oldAlpha;
 	ChunkData  cd;
 	GPUBank    bank;
 
-	for (list = HEAD(meshBanks), cd = list->chunk, size = discard = 0; list; NEXT(list))
-	{
-		size += meshBufferSize(list->buffer, list->usage);
-		discard += meshBufferSize((DATA8) list->buffer + MAX_MESH_CHUNK - list->discard, list->discard);
-	}
-	for (list = HEAD(alphaBanks), alpha = 0; list; alpha += meshBufferSize(list->buffer, list->usage), NEXT(list));
+	memset(&sizes, 0, sizeof sizes);
+	for (list = HEAD(meshBanks), cd = list->chunk; list; NEXT(list))
+		meshBufferSize(list->buffer, list->usage, &sizes);
 
 	oldSize = cd->glSize;
 	oldAlpha = cd->glAlpha;
-	total = size + alpha + discard;
+	total = sizes.opaque + sizes.alpha + sizes.discard;
 	bank = cd->glBank;
 
 	if (bank)
@@ -780,7 +759,7 @@ void meshFinishST(Map map)
 			 * this time reserve some space in case there are further modifications
 			 * the vast majority of chunks will never be modified, no need to do this everytime.
 			 */
-			offset = meshAllocGPU(map, cd, (total + 4095) & ~4095);
+			offset = meshAllocGPU(map, cd, total + MESH_ROUNDTO - total % MESH_ROUNDTO);
 			cd->glSize = total;
 		}
 		else offset = mem->offset, cd->glSize = total; /* reuse mem segment */
@@ -793,30 +772,27 @@ void meshFinishST(Map map)
 	if (offset >= 0)
 	{
 		bank = cd->glBank;
-		cd->glAlpha = alpha;
-		cd->glDiscard = discard;
+		cd->glAlpha = sizes.alpha;
+		cd->glDiscard = sizes.discard;
 		/* and finally copy the data to the GPU */
 		glBindBuffer(GL_ARRAY_BUFFER, bank->vboTerrain);
 		DATA8 mem = glMapBufferRange(GL_ARRAY_BUFFER, offset, total, GL_MAP_WRITE_BIT);
-		DATA8 tmp = mem + size;
 
 		/* first: opaque */
-		for (list = HEAD(meshBanks); list; NEXT(list))
-		{
-			mem = meshCopyBuffer(mem, list->buffer, list->usage);
-			/* place discardable quads just after normal ones: discarding them will then just be a matter of reducing quad count */
-			if (list->discard > 0)
-				tmp = meshCopyBuffer(tmp, (DATA8) list->buffer + MAX_MESH_CHUNK - list->discard, list->discard);
-		}
+		sizes.alpha   = sizes.discard + sizes.opaque;
+		sizes.discard = sizes.opaque;
+		sizes.opaque  = 0;
+		sizes.isCOP   = 1;
 
-		/* then alpha: will be rendered in a separate pass */
-		for (list = HEAD(alphaBanks), mem = tmp; list; NEXT(list))
-		{
-			mem = meshCopyBuffer(mem, list->buffer, list->usage);
-		}
+		for (list = HEAD(meshBanks); list; NEXT(list))
+			meshCopyBuffer(mem, list->buffer, list->usage, &sizes);
 
 		glUnmapBuffer(GL_ARRAY_BUFFER);
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+		/* setup by meshCopyBuffer() */
+		if (sizes.isCOP) cd->cdFlags |=  CDFLAG_NOALPHASORT;
+		else             cd->cdFlags &= ~CDFLAG_NOALPHASORT;
 	}
 	/* check if this chunk is visible: vtxSize must be the total number of MDAICmd_t sent to the GPU */
 	if (map->frame == cd->frame)
@@ -854,7 +830,6 @@ void meshCloseAll(Map map)
 	meshFreeAll(map, False);
 	ListNode * node;
 	while ((node = ListRemHead(&meshBanks)))  free(node);
-	while ((node = ListRemHead(&alphaBanks))) free(node);
 
 	meshStopThreads(map, THREAD_EXIT);
 
@@ -968,29 +943,6 @@ void meshGenerateST(Map map)
 	}
 }
 
-static int meshStagingSize(int offset, int * discard_ret)
-{
-	DATA32 ptr = staging.mem + offset;
-	int size = 0, slot, discard = 0;
-	for (;;)
-	{
-		/* some quads will have to be discarded */
-		size += meshBufferSize(ptr + 2, ((ptr[1] >> 16) & 0xff) * VERTEX_DATA_SIZE);
-		slot = ptr[1] >> 24;
-		if (slot > 0)
-		{
-			int total = meshBufferSize(ptr + STAGING_BLOCK - slot * VERTEX_INT_SIZE, slot * VERTEX_DATA_SIZE);
-			size += total;
-			discard += total;
-		}
-		slot = ptr[1] & 0xffff;
-		if (slot == 0) break;
-		ptr = staging.mem + (slot - 1) * STAGING_BLOCK;
-	}
-	*discard_ret = discard;
-	return size;
-}
-
 #if 0
 void meshDebugStaging(Map map)
 {
@@ -1031,66 +983,72 @@ void meshGenerateMT(Map map)
 			{
 				staging.usage[slot >> 5] ^= 1 << (slot & 31);
 				freed ++;
-				slot = src[1] & 0xffff;
-				if (slot == 0) break;
-				slot --;
+				slot = (src[1] & 0xffff) - 1;
+				if (slot < 0) break;
 				src = staging.mem + slot * STAGING_BLOCK;
 			}
 		}
 		else if (chunk->cflags & CFLAG_STAGING)
 		{
-			/* yes, move all chunks into GPU and free staging area */
-			int bytes, offset, alpha;
+			/* yes, move all ChunkData parts into GPU and free staging area */
+			struct MeshSize_t sizes = {0};
 
-			/* count bytes needed to store this chunk on GPU */
-			alpha = cd->glAlpha;
-			cd->glAlpha = meshStagingSize((alpha - 1) * STAGING_BLOCK, &offset);
-			cd->glSize  = meshStagingSize(index[0] * STAGING_BLOCK, &cd->glDiscard) + cd->glAlpha;
-			bytes = cd->glSize;
+			/* count bytes needed (per category) to store this chunk on GPU */
+			for (;;)
+			{
+				meshBufferSize(src + MESH_HDR, (src[1] >> 16) * VERTEX_DATA_SIZE, &sizes);
+				slot = src[1] & 0xffff;
+				if (slot == 0) break;
+				src = staging.mem + (slot - 1) * STAGING_BLOCK;
+			}
 
-			if (bytes == 0)
+			int total = sizes.opaque + sizes.discard + sizes.alpha;
+			if (total == 0)
 			{
 				/* only air blocks (usually needed for block light propagation) */
-				slot = index[0]; staging.usage[slot >> 5] ^= 1 << (slot & 31);
-				slot = alpha-1;  staging.usage[slot >> 5] ^= 1 << (slot & 31);
-				freed += 2;
+				slot = index[0];
+				/* discard everything */
+				staging.usage[slot >> 5] ^= 1 << (slot & 31);
+				freed ++;
 			}
 			else
 			{
-				//fprintf(stderr, "mesh ready: chunk %d, %d [%d]: %d + %d\n", chunk->X, chunk->Z, cd->Y, cd->glSize, cd->glAlpha);
-				offset = meshAllocGPU(map, cd, bytes);
+				cd->glSize    = total;
+				cd->glAlpha   = sizes.alpha;
+				cd->glDiscard = sizes.discard;
+
+				fprintf(stderr, "mesh ready: chunk %d, %d [%d]: %d + (D:%d) + %d\n", chunk->X, chunk->Z, cd->Y,
+					sizes.opaque, sizes.discard, sizes.alpha);
+				int offset = meshAllocGPU(map, cd, total);
 
 				GPUBank bank = cd->glBank;
 				glBindBuffer(GL_ARRAY_BUFFER, bank->vboTerrain);
-				DATA8 dst = glMapBufferRange(GL_ARRAY_BUFFER, offset, bytes, GL_MAP_WRITE_BIT);
-				DATA8 tmp = dst + bytes - cd->glDiscard - cd->glAlpha;
+				DATA8 dst = glMapBufferRange(GL_ARRAY_BUFFER, offset, total, GL_MAP_WRITE_BIT);
 
-				for (slot = index[0]; ; )
+				sizes.alpha   = sizes.discard + sizes.opaque;
+				sizes.discard = sizes.opaque;
+				sizes.opaque  = 0;
+				sizes.isCOP   = 1;
+				for (slot = index[0], src = staging.mem + index[0] * STAGING_BLOCK; ; )
 				{
 					staging.usage[slot >> 5] ^= 1 << (slot & 31);
 					freed ++;
 
 					/* copy mesh data to GPU */
-					dst = meshCopyBuffer(dst, src + MESH_HDR, ((src[1] >> 16) & 255) * VERTEX_DATA_SIZE);
-					bytes = (src[1] >> 24) * VERTEX_DATA_SIZE;
-					slot  = src[1] & 0xffff;
-					if (bytes > 0)
-						tmp = meshCopyBuffer(tmp, (DATA8) (src + STAGING_BLOCK) - bytes, bytes);
+					meshCopyBuffer(dst, src + MESH_HDR, (src[1] >> 16) * VERTEX_DATA_SIZE, &sizes);
 
 					/* get next slot */
-					if (slot == 0)
-					{
-						if (alpha > 0)
-							slot = alpha, alpha = 0, dst = tmp;
-						else
-							break;
-					}
-					slot --;
+					slot = (src[1] & 0xffff) - 1;
+					if (slot < 0) break;
 					src = staging.mem + slot * STAGING_BLOCK;
 				}
 				glUnmapBuffer(GL_ARRAY_BUFFER);
 				glBindBuffer(GL_ARRAY_BUFFER, 0);
 				map->GPUchunk ++;
+
+				/* setup by meshCopyBuffer() */
+				if (sizes.isCOP) cd->cdFlags |=  CDFLAG_NOALPHASORT;
+				else             cd->cdFlags &= ~CDFLAG_NOALPHASORT;
 
 				if ((chunk->cflags & CFLAG_HASENTITY) == 0)
 				{

@@ -54,12 +54,13 @@ void debugBlockVertex(vec4 pos, int side)
 	);
 	if (iter.cd->cdFlags & CDFLAG_DISCARDABLE)
 	{
-		fprintf(stderr, "quads opaque - discard + alpha: %d - %d + %d = %d\n", (iter.cd->glSize - iter.cd->glAlpha - iter.cd->glDiscard) / VERTEX_DATA_SIZE,
+		fprintf(stderr, "quads opaque - discard + alpha: %d - %d + %d = %d", (iter.cd->glSize - iter.cd->glAlpha - iter.cd->glDiscard) / VERTEX_DATA_SIZE,
 			iter.cd->glDiscard / VERTEX_DATA_SIZE, iter.cd->glAlpha / VERTEX_DATA_SIZE, iter.cd->glSize / VERTEX_DATA_SIZE);
 	}
-	else fprintf(stderr, "quads opaque + alpha: %d + %d = %d\n", (iter.cd->glSize - iter.cd->glAlpha) / VERTEX_DATA_SIZE, iter.cd->glAlpha / VERTEX_DATA_SIZE,
+	else fprintf(stderr, "quads opaque + alpha: %d + %d = %d", (iter.cd->glSize - iter.cd->glAlpha) / VERTEX_DATA_SIZE, iter.cd->glAlpha / VERTEX_DATA_SIZE,
 		iter.cd->glSize / VERTEX_DATA_SIZE);
-	fprintf(stderr, "intersection at %g,%g,%g, mouse at %d,%d\n", (double) render.selection.extra.inter[0],
+	if (iter.cd->cdFlags & CDFLAG_NOALPHASORT) fprintf(stderr, " (no sort)");
+	fprintf(stderr, "\nintersection at %g,%g,%g, mouse at %d,%d\n", (double) render.selection.extra.inter[0],
 		(double) render.selection.extra.inter[1], (double) render.selection.extra.inter[2], render.mouseX, render.mouseY);
 	i = redstoneIsPowered(iter, RSSAMEBLOCK, POW_NONE);
 	if (i)
@@ -404,14 +405,7 @@ void debugCoord(APTR vg, vec4 camera, int total)
 		globals.level->fakeMax);
 	len += sprintf(message + len, "FPS: %.1f (%.1f ms)", FrameGetFPS(), render.frustumTime);
 
-	nvgFontSize(vg, FONTSIZE);
-	nvgTextAlign(vg, NVG_ALIGN_TOP);
-	nvgFillColorRGBA8(vg, "\0\0\0\xff");
-	nvgMultiLineText(vg, 12, 12, message, message+len);
-	nvgFillColorRGBA8(vg, "\xff\xff\xff\xff");
-	nvgMultiLineText(vg, 10, 10, message, message+len);
-
-	#if 1
+	#if 0
 	/* show chunks as they are being loaded */
 	Map map = globals.level;
 	int max = map->mapArea;
@@ -440,6 +434,7 @@ void debugCoord(APTR vg, vec4 camera, int total)
 			float xc = x + i * cellSz;
 			float yc = y + j * cellSz;
 
+			if (chunk == map->center)          nvgFillColorRGBA8(vg, "\x20\xff\x20\xff"); else
 			if (chunk->cflags & CFLAG_HASMESH) nvgFillColorRGBA8(vg, "\x20\x88\x20\xff"); else
 			if (chunk->cflags & CFLAG_GOTDATA) nvgFillColorRGBA8(vg, "\xcc\xcc\x20\xff"); else continue;
 			nvgBeginPath(vg);
@@ -457,7 +452,22 @@ void debugCoord(APTR vg, vec4 camera, int total)
 		nvgMoveTo(vg, xc, y); nvgLineTo(vg, xc, y2);
 	}
 	nvgStroke(vg);
+
+	i = (render.mouseX - x) / cellSz;
+	j = (render.mouseY - y) / cellSz;
+	if (0 <= i && i < max && 0 <= j && j < max)
+	{
+		chunk = map->chunks + i + j * max;
+		len += sprintf(message + len, "\nChunk: %d, %d", chunk->X, chunk->Z);
+	}
 	#endif
+
+	nvgFontSize(vg, FONTSIZE);
+	nvgTextAlign(vg, NVG_ALIGN_TOP);
+	nvgFillColorRGBA8(vg, "\0\0\0\xff");
+	nvgMultiLineText(vg, 12, 12, message, message+len);
+	nvgFillColorRGBA8(vg, "\xff\xff\xff\xff");
+	nvgMultiLineText(vg, 10, 10, message, message+len);
 }
 
 void debugLayer(int dir)

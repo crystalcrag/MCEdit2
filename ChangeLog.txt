@@ -1,4 +1,7 @@
 =========== Week 26 (2022) ===========
+Sun July 3:
+	* refactored mem allocation for meshing: less boilerplate needed in meshBanks.c
+
 Sat July 2:
 	* rewrite hash table code for TileEntites and TileTicks.
 

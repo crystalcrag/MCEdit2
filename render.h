@@ -167,7 +167,7 @@ struct RenderWorld_t
 	uint8_t    previewItem;        /* >0 == preview item being displayed */
 	int        underWater;         /* >0 == player in underwater */
 	int        debugFont;          /* font id from nanovg (init by SITGL) */
-	int        debugTotalTri;      /* triangle count being drawn */
+	int        debugTotalQuad;     /* quad count being drawn */
 	int        mouseX, mouseY;
 	SelBlock_t selection;          /* extra information about block highlighted */
 	Inventory  inventory;          /* player inventory (to render inventory bar) */

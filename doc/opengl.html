@@ -2,7 +2,7 @@
 
 <html>
 <head>
-  <title>Internals - frustum culling</title>
+  <title>Internals - OpenGL</title>
   <link rel="stylesheet" type="text/css" href="default.css">
   <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 </head>
@@ -291,15 +291,15 @@ You want to keep that number of quads as low as possible.
 <p>In all the testing, it boils down to:
 <ul>
   <li><b>Number of vertices/quads</b> the GPU has to process.
-  <li><b>Complexity of shaders</b>: using expensive computation and/or too many variables (which limits
-  the number of instance of the shader on the GPU) can have big impact of performance.
+  <li><b>Complexity of shaders</b>: using expensive computation and/or complicated logic (lots of
+  branching/loops) can have big impact on performance.
 </ul>
 
 <p>For integrated graphics, <b>bandwidth can be a serious limition</b>. Integrated graphics have a
 few Gb/s of budget, whereas chips with dedicated memory are closer to 100Gb/s (20 to 50 times more).
 But for a voxel engine, even a few Gb/s should be enough for most use cases.
 
-<p>The format of each quad is as follows (stored in VBO as 8 <tt class="t">uint32_t</tt>):
+<p>The format of each quad is as follows (stored in VBO as 7 <tt class="t">uint32_t</tt>):
 
 <bits>
   <brow><hdr>0: </hdr><bitpart class="sz16" bit="32">16: <em>Y1</em></bitpart><bitpart class="sz16" bit="16">16: <em>X1</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
@@ -310,13 +310,11 @@ But for a voxel engine, even a few Gb/s should be enough for most use cases.
 
   <brow><hdr>3: </hdr><bitpart class="sz16" bit="32">16: <em>Y3</em></bitpart><bitpart class="sz16" bit="16">16: <em>X3</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
 
-  <brow><hdr>4: </hdr><bitpart class="sz16" bit="32">16: <em>Z3</em></bitpart><bitpart class="sz8" bit="16">8: <em>extocs</em></bitpart><bitpart class="sz8" bit="8">8: <em>OCS</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
+  <brow><hdr>4: </hdr><bitpart class="sz16" bit="32">16: <em>Z3</em></bitpart><bitpart class="sz16" bit="16">16: <em>lighting tex ID</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
 
-  <brow><hdr>5: </hdr><bitpart class="sz4" bit="32"><em>edges</em></bitpart><bitpart class="sz1"><em>R</em></bitpart><bitpart class="sz1"><em>E</em></bitpart><bitpart class="sz1"><em>W</em></bitpart><bitpart class="sz1"><em>L</em></bitpart><bitpart class="sz1"><em>D</em></bitpart><bitpart class="sz1"><em>X</em></bitpart><bitpart class="sz3" bit="22">3: <em>N</em></bitpart><bitpart class="sz10" bit="19">10: <em>V</em> (V2)</bitpart><bitpart class="sz9" bit="9">9: <em>U</em> (V2)</bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
+  <brow><hdr>5: </hdr><bitpart class="sz4" bit="32"><em>edges</em></bitpart><bitpart class="sz2"><em>R</em></bitpart><bitpart class="sz1"><em>W</em></bitpart><bitpart class="sz1"><em>L</em></bitpart><bitpart class="sz1"><em>D</em></bitpart><bitpart class="sz1"><em>X</em></bitpart><bitpart class="sz3" bit="22">3: <em>N</em></bitpart><bitpart class="sz10" bit="19">10: <em>V</em> (V2)</bitpart><bitpart class="sz9" bit="9">9: <em>U</em> (V2)</bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
 
   <brow><hdr>6: </hdr><bitpart class="sz13" bit="32"><em>&nbsp;</em></bitpart><bitpart class="sz10" bit="19">10: <em>V</em> (V3)</bitpart><bitpart class="sz9" bit="9">9: <em>U</em> (V3)</bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
-
-  <brow><hdr>7: </hdr><bitpart class="sz8" bit="32">8: <em>Sky/Block</em></bitpart><bitpart class="sz8" bit="24">8: <em>Sky/Block</em></bitpart><bitpart class="sz8" bit="16">8: <em>Sky/Block</em></bitpart><bitpart class="sz8" bit="8">8: <em>Sky/Block</em></bitpart><bitpart class="sz0" bit="0"><em>&nbsp;</em></bitpart></brow>
 
 </bits>
 
@@ -334,11 +332,6 @@ But for a voxel engine, even a few Gb/s should be enough for most use cases.
   <p>Each voxel cube is therefore divided in 65536 / 32 = 2048 parts, which is largely enough
   to accomodate all the models that are not a full block from <prod>Minecraft</prod> 1.12. To convert
   from fixed to floating point, the formula is: <pre>vec3 position = (fixed - 16384) * (1 / 2048.)</pre>
-
-  <li><tt>OCS</tt>: ambient occlusion value for 4 vertices, each value being encoded on 2bits.
-
-  <li><tt>extocs</tt>: 8bits of extra data for applying OCS. This and the <tt>OCS</tt> fields are way too
-  complicated to be explained here. They will be described in the mesh generation chapter.
 
   <li><tt>U</tt>, <tt>V</tt>: coordinates of the <b>top left corner</b> of the texture to use for this <tt>QUAD</tt>
   (vertex V2, see below) and <b>bottom right corner</b> (vertex V3).
@@ -362,15 +355,9 @@ But for a voxel engine, even a few Gb/s should be enough for most use cases.
   is underwater (otherwise it is ignored): these quads will have a blue tint, instead of using the
   atmospheric texture.
 
-  <li><tt>E</tt>: <b>extended OCS has been filled</b> (<tt>extocs</tt>). In the fragment shader, these have
-  a dedicated (and scary) code path.
-
   <li><tt>R</tt>: <b>repeat texture</b>. The texture coordinates when quads are merged with greedy
   meshing are much bigger to allow OpenGL to perform texture mapping with perspective projection. The
   fragment shader will have to use a modulo operation to bring the texture back to its intended range.
-
-  <li><tt>Sky</tt> / <tt>Block</tt>: a direct dump of the NBT tables <tt>Skylight</tt> and <tt>BlockLight</tt>.
-  Obviously used for lighting purpose: 1 value per vertex, same order as OCS/texure U, V.
 </ul>
 
 <p>In the geometry shader, this is the information that will be sent to the fragment shader:
@@ -386,10 +373,8 @@ each face will be decomposed like this:
 </div>
 
 <p>This shows how each face is constructed from the cube vertices. <b>The arrow inside</b> the face
-shows how the OCS/Sky/Block values are extracted: from least significant bits to most significant,
-with start of arrow = first item, arrow end = last item, 4 values in total. <b>The axis</b> shows
-where the 0, 0, 0 coordinates are (if the cube were to be rendered at 0, 0, 0) and where they
-increase with positive values.
+<b>was</b> used to get occlusion/Sky/Block values. In newer version of the engine this part was
+considerably simplified.
 
 <hr>
 

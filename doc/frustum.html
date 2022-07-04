@@ -382,9 +382,9 @@ was introduced in 1.8).
 <h4 id="cnxgraph"><span>Computing visibility graph</span></h4>
 
 <p>Computing the visibility graph is not that hard: in this engine it is implemented in
-<tt>mapUpdate.c</tt>: <tt>mapUpdateGetCnxGraph()</tt>. It uses a 3D flood fill (as described in the blog
+<tt>chunkMesh.c</tt>: <tt>chunkGetCnxGraph()</tt>. It uses a 3D flood fill (as described in the blog
 post), using a ring buffer (to simulate recursion) and bit-vector to manage which voxel has been visited.
-This sounds way more complicated than it really is: there is about 40 lines of code for this function
+This sounds way more complicated than it really is: there is about 50 lines of code for this function
 (comments included).
 
 <p>A simplification was done though: we only start the scan at the edge of the chunk: because we only
@@ -498,8 +498,8 @@ is pretty rare though: less than 5% of <tt>ChunkData</tt>.
 
 
 <p>This method is not as aggressive as the current version of <prod>Minecraft</prod>: it is far from
-simulating a raycasting traversal, but can still easily cull 50% of chunks when above ground, and nearly
-70% when underground. Still, way better than the first version.
+simulating a raycasting traversal, but can still easily cull 30% of chunks when above ground, and nearly
+50% when underground. Still, way better than the first version.
 
 
 <h3 id="altimpl"><span>Alternate implementation</span></h2>

@@ -16,11 +16,16 @@
 #define CHUNK_POS2OFFSET(chunk,pos)    (((int) floorf(pos[VX]) - chunk->X) + (((int) floorf(pos[VZ]) - chunk->Z) << 4) + (((int) floorf(pos[VY]) & 15) << 8))
 #define CHUNK_EMIT_SIZE                4
 
+#ifndef MC_MESH_BANKS_H
+/* relly dont't want to depend on meshBanks.h just for this */
+typedef struct MeshWriter_t *          MeshWriter;
+#endif
+
 typedef struct Chunk_t *               Chunk;
 typedef struct ChunkData_t             ChunkData_t;
 typedef struct ChunkData_t *           ChunkData;
 
-typedef Bool (*MeshInitializer)(ChunkData, APTR, APTR);
+typedef Bool (*MeshInitializer)(ChunkData, MeshWriter);
 
 void      chunkInitStatic(void);
 Bool      chunkLoad(Chunk, const char * path, int x, int z);
@@ -156,6 +161,7 @@ enum /* NBT update tag (type parameter of chunkMarkForUpdate) */
 
 /* used by quad merging (don't merge normal quad and discardable), not needed for vertex shader */
 #define FLAG_DISCARD                   (1 << 19)
+#define FLAG_ALPHATEX                  (1 << 20)
 
 #ifdef CHUNK_IMPL                      /* private stuff below */
 

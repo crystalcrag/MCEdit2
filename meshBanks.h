@@ -8,8 +8,6 @@
 #ifndef MC_MESH_BANKS_H
 #define MC_MESH_BANKS_H
 
-#include "maps.h"
-
 /*
  * avoid more than 2 threads, because the staging area might not have enough space to hold temporary
  * mesh buffer and cause a thread inter-lock, performance gain above 2 is negligible anyway.
@@ -23,6 +21,8 @@ typedef struct MeshWriter_t *      MeshWriter;
 typedef struct MeshBuffer_t *      MeshBuffer;
 typedef struct Thread_t            Thread_t;
 
+#include "maps.h"
+
 void meshInitThreads(Map);
 void meshStopThreads(Map, int exit);
 void meshFlushStaging(Map);
@@ -34,8 +34,8 @@ enum /* possible values to <exit> */
 };
 
 /* init meshing phase: multi-thread (MT) or single thread (ST) */
-Bool meshInitST(ChunkData, APTR opaque, APTR alpha);
-Bool meshInitMT(ChunkData, APTR opaque, APTR alpha);
+Bool meshInitST(ChunkData, MeshWriter writer);
+Bool meshInitMT(ChunkData, MeshWriter writer);
 /* note: use of void pointer to prevent making this file dependant on lots of other stuff, argument must be MeshWriter */
 
 /* called from render loop for MT or after chunkUpdate() for ST */
@@ -105,19 +105,18 @@ struct GPUBank_t                   /* one chunk of memory */
 
 struct MeshBuffer_t                /* temporary buffer used to collect data from chunkUpdate() */
 {
-	ListNode   node;
-	ChunkData  chunk;
-	int        usage;
-	int        discard;
-	uint32_t   buffer[0];          /* 64Kb: not declared here because gdb doesn't like big table */
+	ListNode  node;
+	ChunkData chunk;
+	int       usage;
+	uint32_t  buffer[0];          /* 64Kb: not declared here because gdb doesn't like big table */
 };
 
 struct HashQuadEntry_t
 {
-	uint16_t nextChain;
-	uint16_t nextAdded;
-	uint32_t crc;
-	DATA32   quad;
+	uint16_t  nextChain;
+	uint16_t  nextAdded;
+	uint32_t  crc;
+	DATA32    quad;
 };
 
 struct HashQuadMerge_t
@@ -132,12 +131,9 @@ struct HashQuadMerge_t
 struct MeshWriter_t
 {
 	DATA32     start, end;           /* do not write past these points */
-	DATA32     cur, discard;         /* running pointer */
+	DATA32     cur;                  /* running pointer */
 	APTR       mesh;                 /* private datatype */
 	QUADHASH * merge;                /* hash table to do greedy meshing */
-	uint16_t   coplanar[6];          /* check if quads are all coplanar for a given axis (S, E, N, W, T, B: used by alpha) */
-	uint8_t    isCOP;                /* 1 if coplanar, 0 if no */
-	uint8_t    alpha;                /* 1 if buffer is for alpha quads */
 	void     (*flush)(MeshWriter);
 };
 
@@ -150,11 +146,12 @@ struct Thread_t
 };
 
 #define STAGING_SLOT       256
-#define MESH_MAX_QUADS     255
 #define MESH_HDR           2
+#define MESH_MAX_QUADS     ((8192-MESH_HDR*4)/VERTEX_DATA_SIZE)
 #define STAGING_BLOCK      (MESH_MAX_QUADS * VERTEX_DATA_SIZE/4 + MESH_HDR)
 #define STAGING_AREA       (STAGING_BLOCK * STAGING_SLOT * 4)
-#define MAX_MESH_CHUNK     ((64*1024/VERTEX_DATA_SIZE)*VERTEX_DATA_SIZE)
+#define MAX_MESH_CHUNK     ((64*1024/VERTEX_DATA_SIZE) * VERTEX_DATA_SIZE)
+#define MESH_ROUNDTO       ((4096/VERTEX_DATA_SIZE) * VERTEX_DATA_SIZE)
 
 struct Staging_t
 {

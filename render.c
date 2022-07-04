@@ -1301,7 +1301,7 @@ static void renderPrepVisibleChunks(Map map)
 	float *   loc;
 	int       dx, dy, dz;
 
-	render.debugTotalTri = 0;
+	render.debugTotalQuad = 0;
 
 	int Y = CPOS(render.camera[1]);
 	player = (0 <= Y && Y < map->center->maxy ? map->center->layer[Y] : NULL);
@@ -1342,7 +1342,7 @@ static void renderPrepVisibleChunks(Map map)
 				cmd->instanceCount = 1;
 				cmd->first = start;
 				cmd->baseInstance = bank->cmdTotal; /* needed by glVertexAttribDivisor() */
-				render.debugTotalTri += cmd->count;
+				render.debugTotalQuad += cmd->count;
 				start += size / VERTEX_DATA_SIZE;
 
 				loc = bank->locBuffer + bank->cmdTotal * (VERTEX_INSTANCE/4);
@@ -1360,7 +1360,7 @@ static void renderPrepVisibleChunks(Map map)
 				cmd->instanceCount = 1;
 				cmd->first = start;
 				cmd->baseInstance = alphaIndex; /* needed by glVertexAttribDivisor() */
-				render.debugTotalTri += cmd->count;
+				render.debugTotalQuad += cmd->count;
 
 				loc = bank->locBuffer + alphaIndex * (VERTEX_INSTANCE/4);
 				loc[0] = dx + chunk->X;
@@ -1696,7 +1696,7 @@ void renderWorld(void)
 	/* debug info */
 	if (render.debug & RENDER_DEBUG_CURCHUNK)
 	{
-		debugCoord(vg, render.camera, render.debugTotalTri);
+		debugCoord(vg, render.camera, render.debugTotalQuad);
 		entityRenderBBox();
 		//quadTreeDebug(globals.nvgCtx);
 	}

@@ -2,7 +2,7 @@
 
 <html>
 <head>
-  <title>Internals - frustum culling</title>
+  <title>Internals - Chunk loading</title>
   <link rel="stylesheet" type="text/css" href="default.css">
   <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 </head>
@@ -36,9 +36,10 @@ some high-level view on how both works.
 <h3 id="single"><span>Single thread chunk loading</span></h3>
 
 <p>To understand multi-threaded chunk loading, you first have to understand how single-thread works.
-It is actually pretty straightforward. Chunks are stored into a 2 dimentionnal array. The size of this
-array is <tt>render_distance*2+4</tt>, where <tt>render_distance</tt> can go from 1 to 16. I.e: on 16
-chunks render distance, the array is 36x36 chunks (1296 chunks). Here's how they are split:
+It is actually pretty straightforward. Chunks are stored into a 2 dimentionnal array (as a remimder,
+each Chunk is an entire column of 16x16 voxels). The size of this array is <tt>render_distance*2+4</tt>,
+where <tt>render_distance</tt> can go from 1 to 16. I.e: on 16 chunks render distance, the array is
+36x36 chunks (1296 chunks). Here's how they are split:
 <ul>
   <li>The chunk <b>where the player is</b>, forms a map with a render distance of 0.
   <li>For each increment of the render distance, we add a square ring around this center chunk.
@@ -100,7 +101,7 @@ This function will simply scan the block IDs of a <tt>ChunkData</tt> and look fo
 and generate a quad suitable for the terrain shaders. This is a very quick overview on how meshing
 works, the details are not important at this point, but it will be described more in detail in
 the <a href="mesh.html">dedicated chapter</a>. For the purpose of this chapter, just imagine a buffer
-containing fixed size quads (in this case 32bytes) to be drawed by the GPU.
+containing fixed size quads (in this case 28bytes) to be drawed by the GPU.
 
 <p>Quads are split into 3 categories:
 <ul>
@@ -115,7 +116,7 @@ containing fixed size quads (in this case 32bytes) to be drawed by the GPU.
 
   <li><b><tt>ALPHA</tt> quads</b>: these quads need a separate draw command and need to <b>sorted from
   back to front</b>. Depth buffer is no use for these, they have to be rendered no matter what, therefore
-  <b>there are no <tt>ALPHA</tt> discard</b> category: translucency will be kept down to the lowest
+  <b>there are no <tt>ALPHA</tt> discard</b> category, because translucency will be kept down to the lowest
   mipmap level.
 </ul>
 
@@ -126,9 +127,12 @@ GPU can use them.
 <p>All these quads will be written one after the other in vertex buffers, the first job to do once the
 meshing function returns in to group these quads back into these 3 categories. You might wonder why
 is this not done directly in meshing phase: indeed, it is not that difficult to group them right when
-they are generated, but there is another step that will dramatically shuffle these quads all over the
-memory: greedy meshing. This step will leave lots of "hole" in the buffers (quads that have been merged),
-and as such, you'll to scan the buffer entirely and shuffle memory blocks all around anyway.
+they are generated, and that's how the engine worked at some point (before july 2022).
+
+<p>Sadly, there is another step that will dramatically shuffle these quads all over the memory: <b>greedy
+meshing</b>. This step will leave <b>lots</b> of "hole" in the buffers: quads that have been merged,
+and which must be discarded (about 40% of all quads will be culled by this process), and as such, you'll
+have to scan the entire buffer and move memory blocks all around anyway.
 
 <p>Each quads type (<tt>SOLID</tt>, <tt>SOLID</tt> discard and <tt>ALPHA</tt>) has a flag in the vertex
 buffer, so that you can easily identify them later. Once you know how many there are for each category,
@@ -138,13 +142,21 @@ will be arranged this way:
   <li>First, all the normal <tt>SOLID</tt> quads. If the <tt>ChunkData</tt> is visible, these quads
   will always be rendered no matter what.
 
-  <li>Immediately following are the discardable <tt>SOLID</tt> quads. To discard these quads if they
-  are too far away, it is a simple matter of changing the primitive count when <b>drawing normal
+  <li>Immediately following are the discardable <tt>SOLID</tt> quads. To discard these quads (if they
+  are too far away), it is a simple matter of changing the primitive count when <b>drawing normal
   <tt>SOLID</tt></b>, since the vertex data is right after.
+  
+  <p>For performance reason, it is very worth discarding quads on the CPU, rather than on the GPU.
+  If you are looking at decent forest in the distance, this simple technique can easily discard
+  100,000 quads out of 1,000,000 (10%, on a render distance of 32 chunks, or 512 blocks). Given 
+  cheap this trick is, it would be a waste not to do it.
 
   <li>At last there are the <tt>ALPHA</tt> quads. These ones have to be drawed in a separate draw
-  command, sorted (at the quad level) from front to back.
+  command, sorted (at the quad level) from back to front.
 </ul>
+
+<p>That is in a nutshell how quads are stored on the GPU. The details on how individual quads are
+formatted will be explained in <a href="mesh.html">this chapter</a>.
 
 
 
@@ -197,14 +209,15 @@ the mesh of a chunk is written (on the CPU side). Once here, it is almost ready 
 
 <p>When a thread starts meshing a chunk, the thread doesn't know how big the mesh is going to be. The
 staging memory being fixed in size, it cannot reserve the entire memory just for a single chunk. Therefore
-the memory has to be allocated in small blocks (255 32byte quads with default compilation, which is 8160
-bytes or slightly under 8Kb). These blocks contain information that only the GPU can use, therefore, a
-header has to be added in order for the main thread to tell which part goes where. This header is 8bytes in size.
+the memory has to be allocated in small blocks (292 28byte quads with default compilation, which is 8,176
+bytes, as close as it can be to a size of 8Kb). These blocks contain information that only the GPU can
+use, therefore, a header has to be added in order for the main thread to tell which part goes where.
+This header is 8 bytes in size.
 
-<p>The staging memory is composed of 256 of these blocks, which means it is exactly 2,091,008 bytes (slightly
-under 2Mb).
+<p>The staging memory is composed of 256 of these blocks, which means it is exactly 2,095,104 bytes
+(almost 2Mb).
 
-<p>The 8 bytes header, is accessed as 2 unformatted uint32_t (i.e: there are no dedicated struct for this):
+<p>The 8 byte header, is accessed as 2 unformatted uint32_t (i.e: there are no dedicated struct for this):
 
 <ul>
   <li><tt>[0]</tt>: chunk position in <tt>map->chunks</tt>: lower 16bits are <tt>Chunk</tt> reference,
@@ -212,14 +225,14 @@ under 2Mb).
   <pre>Chunk chunk = map->chunks + (mem[<v>0</v>] &amp; <v>0xffff</v>);
 ChunkData cd = chunk->layer + mem[<v>0</v>] &gt;&gt; <v>16</v>;
   </pre>
-  <li><tt>[1]</tt>: Amount of data stored in the chunk, divided in 3 fields:
+  <li><tt>[1]</tt>: Amount of data stored in the chunk, divided in 2 fields:
 	<ul>
-	  <li>Lowest <b>16bits</b>: next slot of staging memory that is part of this chunk. Since blocks
-	  from staging memory are fixed in size and mesh data are not, you might need several staging
-	  block. This field will be the next block in the chain. If <tt>0</tt>, this block is the last.
-	  <li>Middle <b>8bits</b>: number of vertices stored in the block. Each vertices is 32bytes (well,
-	  as of writing this). Each block can hold at most 255 vertices.
-	  <li>Last <b>8bits</b>: number of discardable vertices.
+	  <li>Lowest <b>16bits</b>: next slot of staging memory that is part of this chunk, <b>minus 1</b>.
+	  Since blocks from staging memory are fixed in size and mesh data are not, you might need several
+	  staging block. This field will be the next block in the chain. <tt>0</tt> is used to mark the end
+	  of the chain.
+	  <li>Highest <b>16bits</b>: <b>number of vertices</b> (not bytes) stored in the block. Each vertices
+	  is 28bytes (well, as of writing this). Each block can hold at most 255 vertices.
 	</ul>
 </ul>
 

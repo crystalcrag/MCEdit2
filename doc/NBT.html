@@ -2,7 +2,7 @@
 
 <html>
 <head>
-  <title>Internals - frustum culling</title>
+  <title>Internals - NBT API</title>
   <link rel="stylesheet" type="text/css" href="default.css">
   <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 </head>
@@ -91,14 +91,15 @@ each type.
 	<p><span class="n">Note</span>: a <tt>TAG_End</tt> does not have any payload beyond this single byte.
     <tr><th>1<td><tt>TAG_Byte</tt><td>Used to store an <tt class="t">uint8_t</tt>.
 
-    <tr><th>2<td><tt>TAG_Short</tt><td>Store an <tt class="t">uint16_t</tt>.
-    <tr><th>3<td><tt>TAG_Int</tt><td>Store an <tt class="t">uint32_t</tt>.
-    <tr><th>4<td><tt>TAG_Long</tt><td>Store an <tt class="t">uint64_t</tt>.
+    <tr><th>2<td><tt>TAG_Short</tt><td>Store an <tt class="t">int16_t</tt>.
+    <tr><th>3<td><tt>TAG_Int</tt><td>Store an <tt class="t">int32_t</tt>.
+    <tr><th>4<td><tt>TAG_Long</tt><td>Store an <tt class="t">int64_t</tt>.
     <tr><th>5<td><tt>TAG_Float</tt><td>Store an <tt class="t">float</tt>.
     <tr><th>6<td><tt>TAG_Double</tt><td>Store an <tt class="t">double</tt>.
     <tr><th>7<td><tt>TAG_Byte_Array</tt><td>Store an <tt class="t">uint8_t</tt> array.
-    <tr><th>8<td><tt>TAG_String</tt><td>Store an <tt class="t">uint8_t</tt> array
-	<p>The main difference between <tt>TAG_ByteArray</tt> is the maximal length of the array.
+    <tr><th>8<td><tt>TAG_String</tt><td>Store an <tt class="t">uint8_t</tt> array.
+	<p>The main difference between <tt>TAG_ByteArray</tt> is the maximal length of the array:
+	<tt>TAG_String</tt> is "limited" to 65,536 bytes (not characters).
 	<tr><th>9<td><tt>TAG_List</tt><td>Store an arbitrary number of a given object (which can be scalar or compound).
 	<p><span class="n">Note</span>: a <tt>TAG_List</tt> of <tt>TAG_End</tt> is permitted
 	if the number of items is 0.
@@ -131,7 +132,7 @@ each type.
   <tr><th>2<td><tt>TAG_Short</tt><td>Followed by 2 bytes: the integer value in big endian format.
   <tr><th>3<td><tt>TAG_Int</tt><td>Followed by 4 bytes.
   <tr><th>4<td><tt>TAG_Long</tt><td>Followed by 8 bytes.
-  <tr><th>5<td><tt>TAG_Float</tt><td>Followed by 4 bytes, encoding a floating point in big endian using the IEEE 754 format).
+  <tr><th>5<td><tt>TAG_Float</tt><td>Followed by 4 bytes, encoding a floating point in big endian (using the IEEE 754 format).
   <tr><th>6<td><tt>TAG_Double</tt><td>Followed by 8 bytes.
   <tr><th>7<td><tt>TAG_Byte_Array</tt><td>followed by:
     <ul>
@@ -152,7 +153,7 @@ each type.
 	</ul>
 	<p class="cont"><span class="n">Note</span>: <tt>TAG_List</tt> of <tt>TAG_Compound</tt> are a bit special though:
 	<ul>
-	  <li>Compounds in a list don't have name. Therefore a compound entry in a list is simply a list
+	  <li>Compounds in a list don't have names. Therefore a compound entry in a list is simply a list
 	  of scalar values until a <tt>TAG_End</tt> is found.
 	  <li>The list ends when [N] compounds have been read (the list itself is not terminated by a <tt>TAG_End</tt>).
 	</ul>
@@ -182,7 +183,7 @@ consistency checks in that regard.
 <ol>
   <li>First byte is 10, which indicates the start of a compound.
   <li>Next 2 bytes are 0, 0: this is the length of the compound name. Since it is zero, the first 3
-  bytes marks are the entirety of the compound header. Immediately following, will be a list of
+  bytes are the entirety of the compound header. Immediately following, will be a list of
   NBT tags, until <tt>TAG_End</tt> is found.
   <li>Next byte is 2, which is a <tt>TAG_Short</tt>.
   <li>Next 2 bytes are 0, 3, which means this entry has a name of 3 characters.
