@@ -28,11 +28,13 @@ static void chunkFillData(Chunk chunk, int y, int offset)
 	ChunkData cd = chunk->layer[y];
 
 	if (cd == NULL)
+		/* MT chunk loading will pre-alloc ChunkData */
 		cd = calloc(sizeof *cd, 1);
 
-	cd->blockIds = NBT_Payload(&chunk->nbt, NBT_FindNode(&chunk->nbt, offset, "Blocks"));
-	cd->chunk    = chunk;
-	cd->Y        = y * 16;
+	cd->blockIds  = NBT_Payload(&chunk->nbt, NBT_FindNode(&chunk->nbt, offset, "Blocks"));
+	cd->glLightId = LIGHT_SKY0_BLOCK0;
+	cd->chunk     = chunk;
+	cd->Y         = y * 16;
 
 	chunk->layer[y] = cd;
 
@@ -75,11 +77,12 @@ ChunkData chunkCreateEmpty(Chunk c, int y)
 
 		base += NBT_FormatSection(base, i);
 
-		cd->blockIds = base;
-		cd->cdFlags  = CDFLAG_CHUNKAIR;
-		cd->chunk    = c;
-		cd->Y        = i * 16;
-		c->layer[i]  = cd;
+		cd->blockIds  = base;
+		cd->glLightId = LIGHT_SKY0_BLOCK0;
+		cd->cdFlags   = CDFLAG_CHUNKAIR;
+		cd->chunk     = c;
+		cd->Y         = i * 16;
+		c->layer[i]   = cd;
 
 		//fprintf(stderr, "creating air chunk at %d, %d, layer %d\n", c->X, c->Z, cd->Y);
 
@@ -175,7 +178,7 @@ Bool chunkAddTileEntity(ChunkData cd, int offset, DATA8 mem)
 		/* table is full: need to be enlarged */
 		TileEntityHash reloc;
 		TileEntityEntry ent;
-		int i = roundToUpperPrime(hash->count);
+		int i = roundToUpperPrime(hash->count+1);
 		reloc = calloc(chunkHashSize(i), 1);
 		if (! reloc) return False;
 		c->tileEntities = reloc;
@@ -958,7 +961,7 @@ void chunkFreeHash(TileEntityHash hash, DATA8 min, DATA8 max)
 		free(hash);
 }
 
-int chunkFree(Chunk c, Bool clear)
+int chunkFree(Map map, Chunk c, Bool clear)
 {
 	int i, max, ret;
 
@@ -967,7 +970,11 @@ int chunkFree(Chunk c, Bool clear)
 		ChunkData cd = c->layer[i];
 		if (cd)
 		{
-			if (cd->glBank && clear) meshFreeGPU(cd), ret ++;
+			if (clear)
+			{
+				if (cd->glBank) meshFreeGPU(cd), ret ++;
+				if (cd->glLightId < 0xfffe) mapFreeLightingSlot(map, cd->glLightId);
+			}
 			if (cd->emitters) free(cd->emitters);
 			free(cd);
 		}

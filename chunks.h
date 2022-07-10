@@ -20,6 +20,9 @@
 /* relly dont't want to depend on meshBanks.h just for this */
 typedef struct MeshWriter_t *          MeshWriter;
 #endif
+#ifndef MCMAPS_H
+typedef struct Map_t *                 Map;
+#endif
 
 typedef struct Chunk_t *               Chunk;
 typedef struct ChunkData_t             ChunkData_t;
@@ -30,8 +33,8 @@ typedef Bool (*MeshInitializer)(ChunkData, MeshWriter);
 void      chunkInitStatic(void);
 Bool      chunkLoad(Chunk, const char * path, int x, int z);
 Bool      chunkSave(Chunk, const char * path);
-void      chunkUpdate(Chunk update, ChunkData air, DATAS16 chunkOffsets, int layer, MeshInitializer);
-int       chunkFree(Chunk, Bool clear);
+void      chunkUpdate(Map map, Chunk update, ChunkData air, int layer, MeshInitializer);
+int       chunkFree(Map, Chunk, Bool clear);
 ChunkData chunkCreateEmpty(Chunk, int layer);
 DATA8     chunkGetTileEntity(ChunkData cd, int offset);
 DATA8     chunkUpdateTileEntity(ChunkData, int offset);
@@ -63,10 +66,11 @@ struct ChunkData_t                     /* one sub-chunk of 16x16x16 blocks */
 
 	/* VERTEX_ARRAY_BUFFER location */
 	void *    glBank;                  /* GPUBank (filled by meshAllocGPU()) */
-	int       glSlot;
-	int       glSize;                  /* size in quads */
-	int       glAlpha;                 /* alpha quads, need separate pass */
-	int       glDiscard;               /* discardable quads if too far away */
+	uint16_t  glSlot;                  /* slot in glBank where GPUMem info can be retrieved */
+	uint16_t  glLightId;               /* texId used for lighting (low 7bit: tex num in Map->lightingTex, hi 9bit: slot) */
+	int       glSize;                  /* size in bytes */
+	int       glAlpha;                 /* alpha quads in bytes, need separate pass */
+	int       glDiscard;               /* discardable quads if too far away (bytes) */
 	float     yaw, pitch;              /* heuristic to limit amount of sorting for alpha transparency */
 };
 
@@ -158,10 +162,17 @@ enum /* NBT update tag (type parameter of chunkMarkForUpdate) */
 #define FLAG_LIQUID                    (1 << 24)
 #define FLAG_UNDERWATER                (1 << 25)
 #define FLAG_REPEAT                    (1 << 26)
+#define FLAG_ROUNDVTX                  (1 << 27)
 
 /* used by quad merging (don't merge normal quad and discardable), not needed for vertex shader */
 #define FLAG_DISCARD                   (1 << 19)
 #define FLAG_ALPHATEX                  (1 << 20)
+
+/* need to simulate GL_CLAMP, so we need 1 more block all around the chunk */
+#define TEX_LIGHT_SIZE                 (18*18*18)
+#define TEX_MESH_INT_SIZE              (((TEX_LIGHT_SIZE*2 + 4 + VERTEX_DATA_SIZE - 1) / VERTEX_DATA_SIZE) * VERTEX_INT_SIZE)
+#define LIGHT_SKY15_BLOCK0             0xfffe
+#define LIGHT_SKY0_BLOCK0              0xffff
 
 #ifdef CHUNK_IMPL                      /* private stuff below */
 

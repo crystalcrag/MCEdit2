@@ -16,13 +16,16 @@ in vec3 vertex3[];
 in vec4 texCoord[];
 in uint lightingTexBank[];
 in uint normFlags[];
+in vec3 voffset[];
 
 out vec3 vPoint;
 out vec2 tc;
 flat out uint rswire;
 flat out uint normal;
 flat out uint waterFog;
+flat out uint lightingId;
 flat out vec2 texStart;
+flat out vec3 chunkStart;
 
 uniform uint underWater;    // player is underwater: denser fog
 uniform uint timeMS;
@@ -33,20 +36,24 @@ uniform uint timeMS;
 #define FLAG_LIQUID                    (normFlags[0] & (1 << 5)) > 0
 #define FLAG_UNDERWATER                (normFlags[0] & (1 << 6))
 #define FLAG_REPEAT                    (normFlags[0] & (1 << 7)) > 0
+#define FLAG_ROUNDVTX                  (normFlags[0] & (1 << 8)) > 0
 
 void main(void)
 {
 	bool keepX = FLAG_TEX_KEEPX;
+	bool roundVtx = FLAG_ROUNDVTX;
 
 	normal = normFlags[0] & 7;
 	waterFog = FLAG_UNDERWATER;
+	lightingId = lightingTexBank[0];
+	chunkStart = voffset[0];
 
 	float Usz = (texCoord[0].y - texCoord[0].x) * 32;
 	float Vsz = (texCoord[0].w - texCoord[0].z) * 64;
 	if (Usz < 0) Usz = -Usz;
 	if (Vsz < 0) Vsz = -Vsz;
 
-	rswire = 0; //normal == 7 ? (skyBlockLight[0] & 15) + 1 : 0;
+	rswire = normal == 7 ? (normFlags[0] >> 9) + 1 : 0;
 
 	if (FLAG_REPEAT)
 	{
@@ -80,22 +87,27 @@ void main(void)
 	gl_Position = MVP * vec4(V1, 1);
 	tc          = keepX ? vec2(texCoord[0].x, texCoord[0].w) :
 						  vec2(texCoord[0].y, texCoord[0].z) ;
+	if (roundVtx) vPoint.y = floor(vPoint.y + normals[normal].y);
+
 	EmitVertex();
 
 	vPoint      = V2;
 	gl_Position = MVP * vec4(V2, 1);
 	tc          = vec2(texCoord[0].x, texCoord[0].z);
+	if (roundVtx) vPoint.y = floor(vPoint.y + normals[normal].y);
 	EmitVertex();
 			
 	vPoint      = V3;
 	gl_Position = MVP * vec4(V3, 1);
 	tc          = vec2(texCoord[0].y, texCoord[0].w);
+	if (roundVtx) vPoint.y = floor(vPoint.y + normals[normal].y);
 	EmitVertex();
 
 	vPoint      = V4;
 	gl_Position = MVP * vec4(V4, 1);
 	tc          = keepX ? vec2(texCoord[0].y, texCoord[0].z) :
 						  vec2(texCoord[0].x, texCoord[0].w) ;
+	if (roundVtx) vPoint.y = floor(vPoint.y + normals[normal].y);
 	EmitVertex();
 
 	EndPrimitive();

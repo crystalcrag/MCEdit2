@@ -1511,7 +1511,7 @@ void mapUpdateMesh(Map map)
 		cd->cdFlags &= ~CDFLAG_ISINUPDATE;
 		cd->slot = 0;
 		cd->comingFrom = 0;
-		chunkUpdate(cd->chunk, chunkAir, map->chunkOffsets, cd->Y >> 4, meshInitST);
+		chunkUpdate(map, cd->chunk, chunkAir, cd->Y >> 4, meshInitST);
 		meshFinishST(map);
 		particlesChunkUpdate(map, cd);
 		if (cd->cdFlags == CDFLAG_PENDINGDEL)

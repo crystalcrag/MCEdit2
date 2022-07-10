@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include "zlib.h" /* crc32 */
+#include "chunks.h"
 #include "meshBanks.h"
 #include "particles.h"
 #include "tileticks.h"
@@ -122,7 +123,7 @@ static void meshGenAsync(void * arg)
 			if (cd == NULL) continue;
 			list->cdIndex = thread - threads;
 			list->save = map->chunks;
-			chunkUpdate(list, chunkAir, map->chunkOffsets, i, meshInitMT);
+			chunkUpdate(map, list, chunkAir, i, meshInitMT);
 			meshQuadMergeReset(&thread->hash);
 			list->cdIndex = 0;
 			if (cd->cdFlags == CDFLAG_PENDINGDEL)
@@ -372,9 +373,9 @@ static void meshFlushMT(MeshWriter buffer)
 
 	int size = ((DATA8) buffer->cur - (DATA8) buffer->start) / VERTEX_DATA_SIZE;
 
-	//fprintf(stderr, "flush mem for thread %d: size = %d\n", cd->chunk->cdIndex, size);
+	// fprintf(stderr, "flush mem for thread %d: size = %d\n", cd->chunk->cdIndex, size);
 
-	if (size < MESH_MAX_QUADS)
+	if (size < TEX_MESH_INT_SIZE / VERTEX_INT_SIZE)
 	{
 		/* still some room left, don't alloc a new block just yet */
 		buffer->start[-1] = size << 16;
@@ -527,6 +528,8 @@ static int meshAllocGPU(Map map, ChunkData cd, int size)
 
 	bank->nbItem ++;
 	store->cd = cd;
+	if (cd->glBank && cd->glBank != bank)
+		fprintf(stderr, "bank relocated: %d\n", map->frame);
 	cd->glSlot = bank->nbItem - 1;
 	cd->glSize = size;
 	cd->glBank = bank;
@@ -675,7 +678,8 @@ struct MeshSize_t
 	uint8_t  isCOP;              /* 1 if coplanar, 0 if no */
 };
 
-#define CATQUADS   quad[6]
+#define CATQUADS                 quad[6]
+#define IS3DLIGHTTEX             (quad[0] & QUAD_LIGHT_ID) == QUAD_LIGHT_ID
 
 /* all type of quads are mixed in the buffer, and we need to ignore merged quads too */
 static void meshBufferSize(APTR buffer, int bytes, MeshSize sizes)
@@ -684,19 +688,67 @@ static void meshBufferSize(APTR buffer, int bytes, MeshSize sizes)
 	for (quad = buffer, eof = buffer + bytes; quad < eof; quad += VERTEX_INT_SIZE)
 	{
 		if (quad[0] == 0) continue; /* merged */
+		if (IS3DLIGHTTEX)             quad += TEX_MESH_INT_SIZE - VERTEX_INT_SIZE; else
 		if (CATQUADS & FLAG_DISCARD)  sizes->discard += VERTEX_DATA_SIZE; else
 		if (CATQUADS & FLAG_ALPHATEX) sizes->alpha   += VERTEX_DATA_SIZE;
 		else                          sizes->opaque  += VERTEX_DATA_SIZE;
 	}
 }
 
-static void meshCopyBuffer(DATA8 dest, APTR buffer, int bytes, MeshSize sizes)
+/* copy all data related to a ChunkDate into the GPU */
+static void meshCopyBuffer(Map map, DATA8 dest, APTR buffer, int bytes, MeshSize sizes)
 {
 	DATA32 quad, eof;
 	for (quad = buffer, eof = buffer + bytes; quad < eof; quad += VERTEX_INT_SIZE)
 	{
 		if (quad[0] == 0) continue;
-		if (CATQUADS & FLAG_DISCARD)
+		if (IS3DLIGHTTEX)
+		{
+			/* 3D lighting texture */
+			LightingTex tex;
+			int lightId = quad[0] & 0xffff;
+
+			for (tex = HEAD(map->lightingTex); tex && (lightId & 127) > 0; NEXT(tex), lightId --);
+
+			if (tex)
+			{
+				/* this structure must have been allocated earlier, otherwise there is a bug somewhere */
+				if (tex->glTexId == 0)
+				{
+					glGenTextures(1, &tex->glTexId);
+					glActiveTexture(GL_TEXTURE8 + (quad[0] & 127));
+					glBindTexture(GL_TEXTURE_3D, tex->glTexId);
+					glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+					glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+					glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+					glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+					glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
+					glTexParameteri(GL_TEXTURE_3D, GL_GENERATE_MIPMAP, GL_FALSE);
+					glTexImage3D(GL_TEXTURE_3D, 0, GL_RG8, 18*8, 18*8, 18*8, 0, GL_RG, GL_UNSIGNED_BYTE, NULL);
+					glActiveTexture(GL_TEXTURE0);
+				}
+
+				/*
+				 * would have been easier if we could lay the texture on a single axis, but that would
+				 * require one of the axis to be 9216px wide, most GL vendors won't support this though :-/
+				 */
+				lightId >>= 7;
+				glActiveTexture(GL_TEXTURE8 + (quad[0] & 127));
+				glBindTexture(GL_TEXTURE_3D, tex->glTexId);
+				glPixelStorei(GL_PACK_ALIGNMENT, 1);
+				glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+				/* 11664 bytes to transfer */
+				glTexSubImage3D(GL_TEXTURE_3D, 0, (lightId&7) * 18, ((lightId>>3)&7) * 18, (lightId>>6) * 18,
+					18, 18, 18, GL_RG, GL_UNSIGNED_BYTE, quad + 1);
+				glActiveTexture(GL_TEXTURE0);
+			}
+			else fprintf(stderr, "no texture slot pre-allocated: not good\n");
+
+			quad += TEX_MESH_INT_SIZE - VERTEX_INT_SIZE;
+		}
+		else if (CATQUADS & FLAG_DISCARD)
 		{
 			memcpy(dest + sizes->discard, quad, VERTEX_DATA_SIZE);
 			sizes->discard += VERTEX_DATA_SIZE;
@@ -737,7 +789,7 @@ void meshFinishST(Map map)
 	int        total, offset;
 	int        oldSize, oldAlpha;
 	ChunkData  cd;
-	GPUBank    bank;
+	GPUBank    bank, oldBank;
 
 	memset(&sizes, 0, sizeof sizes);
 	for (list = HEAD(meshBanks), cd = list->chunk; list; NEXT(list))
@@ -745,12 +797,13 @@ void meshFinishST(Map map)
 
 	oldSize = cd->glSize;
 	oldAlpha = cd->glAlpha;
+	oldBank = cd->glBank;
 	total = sizes.opaque + sizes.alpha + sizes.discard;
-	bank = cd->glBank;
+	bank = NULL;
 
-	if (bank)
+	if (oldBank)
 	{
-		GPUMem mem = bank->usedList + cd->glSlot;
+		GPUMem mem = oldBank->usedList + cd->glSlot;
 		if (total > mem->size)
 		{
 			/* not enough space: need to "free" previous mesh before */
@@ -778,14 +831,13 @@ void meshFinishST(Map map)
 		glBindBuffer(GL_ARRAY_BUFFER, bank->vboTerrain);
 		DATA8 mem = glMapBufferRange(GL_ARRAY_BUFFER, offset, total, GL_MAP_WRITE_BIT);
 
-		/* first: opaque */
 		sizes.alpha   = sizes.discard + sizes.opaque;
 		sizes.discard = sizes.opaque;
 		sizes.opaque  = 0;
 		sizes.isCOP   = 1;
 
 		for (list = HEAD(meshBanks); list; NEXT(list))
-			meshCopyBuffer(mem, list->buffer, list->usage, &sizes);
+			meshCopyBuffer(map, mem, list->buffer, list->usage, &sizes);
 
 		glUnmapBuffer(GL_ARRAY_BUFFER);
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -797,10 +849,8 @@ void meshFinishST(Map map)
 	/* check if this chunk is visible: vtxSize must be the total number of MDAICmd_t sent to the GPU */
 	if (map->frame == cd->frame)
 	{
-		if ((oldSize > 0) != (cd->glSize > 0))
-			bank->vtxSize += oldSize ? -1 : 1;
-		if ((oldAlpha > 0) != (cd->glAlpha > 0))
-			bank->vtxSize += oldAlpha ? -1 : 1;
+		if ((oldSize > 0) != (cd->glSize > 0) || (oldAlpha > 0) != (cd->glAlpha > 0) || oldBank != bank)
+			renderResetFrustum();
 	}
 }
 
@@ -914,7 +964,7 @@ void meshGenerateST(Map map)
 			if (cd)
 			{
 				/* this is the function that will convert chunk into triangles */
-				chunkUpdate(list, chunkAir, map->chunkOffsets, i, meshInitST);
+				chunkUpdate(map, list, chunkAir, i, meshInitST);
 				meshFinishST(map);
 				particlesChunkUpdate(map, cd);
 				if (cd->cdFlags == CDFLAG_PENDINGDEL)
@@ -959,6 +1009,13 @@ void meshDebugStaging(Map map)
 	}
 }
 #endif
+
+void meshDeleteTex(LightingTex light)
+{
+	glDeleteTextures(1, &light->glTexId);
+	light->glTexId = 0;
+}
+
 
 /* flush what the threads have been filling (called from main thread) */
 void meshGenerateMT(Map map)
@@ -1017,8 +1074,8 @@ void meshGenerateMT(Map map)
 				cd->glAlpha   = sizes.alpha;
 				cd->glDiscard = sizes.discard;
 
-				fprintf(stderr, "mesh ready: chunk %d, %d [%d]: %d + (D:%d) + %d\n", chunk->X, chunk->Z, cd->Y,
-					sizes.opaque, sizes.discard, sizes.alpha);
+				//fprintf(stderr, "mesh ready: chunk %d, %d [%d]: %d + (D:%d) + %d bytes\n", chunk->X, chunk->Z, cd->Y,
+				//	sizes.opaque, sizes.discard, sizes.alpha);
 				int offset = meshAllocGPU(map, cd, total);
 
 				GPUBank bank = cd->glBank;
@@ -1035,7 +1092,7 @@ void meshGenerateMT(Map map)
 					freed ++;
 
 					/* copy mesh data to GPU */
-					meshCopyBuffer(dst, src + MESH_HDR, (src[1] >> 16) * VERTEX_DATA_SIZE, &sizes);
+					meshCopyBuffer(map, dst, src + MESH_HDR, (src[1] >> 16) * VERTEX_DATA_SIZE, &sizes);
 
 					/* get next slot */
 					slot = (src[1] & 0xffff) - 1;

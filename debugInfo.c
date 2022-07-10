@@ -29,6 +29,79 @@ static struct
 
 
 #define FRUSTUM_DEBUG
+#define OFFSET  0.4
+
+static float lightNormals[] = {
+	0,0,OFFSET,
+	OFFSET,0,0,
+	0,0,-OFFSET,
+	-OFFSET,0,0,
+	0,OFFSET,0,
+	0,-OFFSET,0,
+	0,0,0,
+	0,0,0
+};
+
+void debugLight(vec4 pos, int normal)
+{
+	struct BlockIter_t iter;
+
+	mapInitIter(globals.level, &iter, pos, False);
+
+	LightingTex tex;
+	int lightId = iter.cd->glLightId;
+
+	for (tex = HEAD(globals.level->lightingTex); lightId & 127; lightId --, NEXT(tex));
+
+	int  slot = lightId >> 7;
+	vec  normals = lightNormals + normal * 3;
+	vec4 offset = {
+		pos[0] - iter.ref->X + 1 + normals[0] + (slot & 7)*18,
+		pos[2] - iter.ref->Z + 1 + normals[2] + ((slot >> 3) & 7)*18,
+		pos[1] - iter.cd->Y  + 1 + normals[1] + (slot >> 6)*18
+	};
+
+	DATA8 megaTex = malloc(144*144*144*2);
+	glBindTexture(GL_TEXTURE_3D, tex->glTexId);
+	glPixelStorei(GL_PACK_ALIGNMENT, 1);
+	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+	glGetTexImage(GL_TEXTURE_3D, 0, GL_RG, GL_UNSIGNED_BYTE, megaTex);
+
+	DATA8 skyBlock = megaTex + ((int) offset[0] + (int) offset[1] * 144 + (int) offset[2] * 144*144) * 2;
+
+	fprintf(stderr, "light offset = %g,%g,%g: lightId = %d:%d, skyBlock = %d, %d\n", PRINT_COORD(offset),
+		iter.cd->glLightId & 127, slot, skyBlock[0], skyBlock[1]);
+
+	#if 1
+	FILE * out = fopen("light.ppm", "wb");
+	DATA8  data;
+	fprintf(out, "P6\n%d %d 255\n", 18, 18*18);
+
+	data = megaTex + (slot & 7) * 18*2 + ((slot >> 3) & 7) * 144*2 + (slot >> 6) * 144*144*2;
+
+	int y, z;
+	for (y = 0; y < 18; y ++, data += 144*144*2)
+	{
+		DATA8 tex2;
+		for (z = 0, tex2 = data; z < 18; z ++, tex2 += 144*2)
+		{
+			uint8_t rgb[18*3], x;
+			for (x = 0; x < 18; x ++)
+			{
+				rgb[x*3]   = tex2[x*2];
+				rgb[x*3+1] = tex2[x*2+1];
+				rgb[x*3+2] = 0;
+			}
+			fwrite(rgb, 1, 18*3, out);
+		}
+	}
+	fclose(out);
+
+	fprintf(stderr, "dumping light from %d, %d, %d: %d info to light.ppn\n", iter.ref->X, iter.ref->Z, iter.cd->Y, lightId);
+	#endif
+
+	free(megaTex);
+}
 
 /* get info on block being pointed at (dumped on stderr though) */
 void debugBlockVertex(vec4 pos, int side)
@@ -60,8 +133,11 @@ void debugBlockVertex(vec4 pos, int side)
 	else fprintf(stderr, "quads opaque + alpha: %d + %d = %d", (iter.cd->glSize - iter.cd->glAlpha) / VERTEX_DATA_SIZE, iter.cd->glAlpha / VERTEX_DATA_SIZE,
 		iter.cd->glSize / VERTEX_DATA_SIZE);
 	if (iter.cd->cdFlags & CDFLAG_NOALPHASORT) fprintf(stderr, " (no sort)");
-	fprintf(stderr, "\nintersection at %g,%g,%g, mouse at %d,%d\n", (double) render.selection.extra.inter[0],
-		(double) render.selection.extra.inter[1], (double) render.selection.extra.inter[2], render.mouseX, render.mouseY);
+	if (iter.cd->frame != globals.level->frame) fprintf(stderr, " (not visible)");
+	fprintf(stderr, "\nintersection at %g,%g,%g, mouse at %d,%d\n", PRINT_COORD(render.selection.extra.inter),
+		render.mouseX, render.mouseY);
+
+	// debugLight(render.selection.extra.inter, side);
 	i = redstoneIsPowered(iter, RSSAMEBLOCK, POW_NONE);
 	if (i)
 	{
@@ -95,9 +171,14 @@ void debugBlockVertex(vec4 pos, int side)
 		glGetBufferSubData(GL_ARRAY_BUFFER, mem->offset, iter.cd->glSize, buffer);
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
 
+		int8_t * norm = cubeNormals + side * 4;
+		if (norm[0] > 0) xyz[0] ++;
+		if (norm[1] > 0) xyz[1] ++;
+		if (norm[2] > 0) xyz[2] ++;
+
 		for (i = iter.cd->glSize, p = buffer; i > 0; i -= VERTEX_DATA_SIZE, p += VERTEX_INT_SIZE)
 		{
-			#define INTVERTEX(x)       (((x) - ORIGINVTX) >> 10)
+			#define INTVERTEX(x)       (((x) - ORIGINVTX) >> 11)
 			/* need to decode vertex buffer */
 			uint16_t V2[] = {
 				INTVERTEX(bitfieldExtract(p[1], 16, 16)),
@@ -117,24 +198,18 @@ void debugBlockVertex(vec4 pos, int side)
 			if (V2[1] > V3[1]) swap(V2[1], V3[1]);
 			if (V2[2] > V3[2]) swap(V2[2], V3[2]);
 
-			if (xyz[0]*2 <= V2[0] && V3[0] <= xyz[0]*2+2 &&
-				xyz[1]*2 <= V2[1] && V3[1] <= xyz[1]*2+2 &&
-				xyz[2]*2 <= V2[2] && V3[2] <= xyz[2]*2+2)
+			if (V2[0] <= xyz[0] && xyz[0] <= V3[0] &&
+				V2[1] <= xyz[1] && xyz[1] <= V3[1] &&
+				V2[2] <= xyz[2] && xyz[2] <= V3[2])
 			{
 				uint16_t U = bitfieldExtract(p[5], 0, 9);
 				uint16_t V = bitfieldExtract(p[5], 9, 10);
 				uint16_t Usz = bitfieldExtract(p[6], 0, 9);
 				uint16_t Vsz = bitfieldExtract(p[6], 9, 10);
-				uint32_t ocsmap = bitfieldExtract(p[4], 0, 8);
-				fprintf(stderr, "VERTEX2: %g %g %g - NORM: %d (%c) - uv: %d,%d / %d,%d%s - OCS: %d/%d/%d/%d\n",
-					V2[0]*0.5, V2[1]*0.5, V2[2]*0.5, normal, "SENWTB"[normal], U, V, Usz, Vsz, p[5] & FLAG_TEX_KEEPX ? "X": "",
-					ocsmap&3, (ocsmap>>2)&3, (ocsmap>>4)&3, (ocsmap>>6)&3
+				fprintf(stderr, "VERTEX2: %d %d %d - NORM: %d (%c) - uv: %d,%d / %d,%d%s\n",
+					V2[0], V2[1], V2[2], normal, "SENWTB"[normal], U, V, Usz, Vsz, p[5] & FLAG_TEX_KEEPX ? "X": ""
 				);
-				fprintf(stderr, "VERTEX3: %g %g %g - LIGHT: %d/%d/%d/%d, SKY: %d/%d/%d/%d",
-					V3[0]*0.5, V3[1]*0.5, V3[2]*0.5,
-					bitfieldExtract(p[7], 0, 4), bitfieldExtract(p[7],  8, 4), bitfieldExtract(p[7], 16, 4), bitfieldExtract(p[7], 24, 4),
-					bitfieldExtract(p[7], 4, 4), bitfieldExtract(p[7], 12, 4), bitfieldExtract(p[7], 20, 4), bitfieldExtract(p[7], 28, 4)
-				);
+				fprintf(stderr, "VERTEX3: %d %d %d", V3[0], V3[1], V3[2]);
 				fputc('\n', stderr);
 			}
 		}
@@ -392,10 +467,13 @@ void debugCoord(APTR vg, vec4 camera, int total)
 {
 	TEXT message[256];
 	int  len = sprintf(message, "XYZ: %.2f, %.2f (eye), %.2f (feet: %.2f)\n", PRINT_COORD(camera), (double) (camera[VY] - PLAYER_HEIGHT));
-	int  vis;
+	int  vis, lightTex;
 
 	GPUBank bank;
 	ChunkData cd = globals.level->firstVisible;
+	LightingTex light;
+
+	for (lightTex = 0, light = HEAD(globals.level->lightingTex); light; lightTex += light->usage, NEXT(light));
 
 	len += sprintf(message + len, "Chunk: %d, %d, %d (cnxGraph: %x)\n", CPOS(camera[0]) << 4, CPOS(camera[1]) << 4, CPOS(camera[2]) << 4,
 		cd ? cd->cnxGraph : 0);
@@ -404,6 +482,7 @@ void debugCoord(APTR vg, vec4 camera, int total)
 	len += sprintf(message + len, "Chunks: %d/%d (culled: %d, fakeAlloc: %d)\n", vis, globals.level->GPUchunk, globals.level->chunkCulled,
 		globals.level->fakeMax);
 	len += sprintf(message + len, "FPS: %.1f (%.1f ms)", FrameGetFPS(), render.frustumTime);
+	len += sprintf(message + len, "\nLighting: %d slots", lightTex);
 
 	#if 0
 	/* show chunks as they are being loaded */
@@ -469,6 +548,7 @@ void debugCoord(APTR vg, vec4 camera, int total)
 	nvgFillColorRGBA8(vg, "\xff\xff\xff\xff");
 	nvgMultiLineText(vg, 10, 10, message, message+len);
 }
+
 
 void debugLayer(int dir)
 {

@@ -2818,7 +2818,7 @@ int blockModelStairs(DATA16 buffer, int blockId)
 	BlockState b = blockGetById(blockId);
 	memset(blockIds3x3, 0, sizeof blockIds3x3);
 	blockIds3x3[13] = blockId;
-	meshHalfBlock(&write, halfBlockGetModel(b, 2, blockIds3x3), 2, pos, b, blockIds3x3, 63);
+	meshHalfBlock(&write, halfBlockGetModel(b, 2, blockIds3x3), 2, pos, b, blockIds3x3, LIGHT_SKY15_BLOCK0);
 
 	return blockConvertVertex(temp, write.cur, buffer, 300);
 }

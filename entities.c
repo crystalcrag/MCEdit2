@@ -838,6 +838,7 @@ Entity entityParse(Chunk chunk, NBTFile nbt, int offset, Entity prev)
 	float  pos[11];
 	int    off;
 
+	/* prevent loading/rendering entities */
 	return prev;
 
 	/* iterate over the properties of one entity */

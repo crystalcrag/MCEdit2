@@ -29,7 +29,6 @@ void skydomeGetSunPos(vec4 pos)
 	pos[2] = -0.25;
 	pos[3] = 1;
 	vecNormalize(pos, pos);
-	//fprintf(stderr, "y = %.1f\n", (double) pos[1]);
 }
 
 Bool skydomeInit(void)

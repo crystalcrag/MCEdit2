@@ -7,15 +7,16 @@
 #ifndef MCMAPS_H
 #define MCMAPS_H
 
-#include <stdint.h>
-#include "chunks.h"
-#include "blocks.h"
-#include "items.h"
-
 typedef struct Map_t *             Map;
 typedef struct MapExtraData_t *    MapExtraData;
 typedef struct BlockIter_t *       BlockIter;
 typedef struct ChunkFake_t *       ChunkFake;
+typedef struct LightingTex_t *     LightingTex;
+
+#include <stdint.h>
+#include "chunks.h"
+#include "blocks.h"
+#include "items.h"
 
 #define MAX_PATHLEN   256
 #define MAX_PICKUP    24           /* max reach in blocks */
@@ -41,6 +42,7 @@ struct Map_t
 	Chunk     center;              /* chunks + mapX + mapZ * mapArea */
 	ListHead  gpuBanks;            /* VBO for chunk mesh (GPUBank) */
 	ListHead  genList;             /* chunks to process (Chunk) */
+	ListHead  lightingTex;         /* tex banks for lighting information of chunks (LightingTex) */
 	ListHead  players;             /* list of player on this map (Player) */
 	Chunk     genLast;
 	Semaphore genCount;            /* for rasterization */
@@ -94,6 +96,14 @@ struct BlockIter_t                 /* iterate over nearby blocks */
 	DATAS16   nbor;                /* offsets to get to neighbor chunk (c.f. chunkNeighbor[]) */
 };
 
+struct LightingTex_t               /* 3D texture for lighting information for fragment shader */
+{
+	ListNode  node;
+	int       glTexId;             /* glGenTextures value (3D texture of 18x18x18 RG8 values) */
+	uint32_t  slots[512/32];       /* 512 slots per texture */
+	int       usage;               /* number of slots used [0-512] */
+};
+
 Map     mapInitFromPath(STRPTR path, int renderDist);
 void    mapFreeAll(Map);
 void    mapGenerateMesh(Map);
@@ -113,7 +123,9 @@ Chunk   mapGetChunk(Map, vec4 pos);
 VTXBBox mapGetBBox(BlockIter iterator, int * count, int * cnxFlags);
 int     getBlockId(BlockIter iter);
 uint8_t mapGetSkyBlockLight(BlockIter iter);
-void    mapAddToSaveList(Map map, Chunk chunk);
+void    mapAddToSaveList(Map, Chunk chunk);
+int     mapAllocLightingTex(Map);
+void    mapFreeLightingSlot(Map, int lightId);
 void    printCoord(BlockIter);
 int     intersectRayPlane(vec4 P0, vec4 u, vec4 V0, vec norm, vec4 I);
 

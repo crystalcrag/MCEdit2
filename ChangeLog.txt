@@ -1,3 +1,16 @@
+=========== Week 27 (2022) ===========
+Fri July 8:
+	* new lighting system still needs some tweaks, especially to avoid light leaking inside closed space.
+
+Thu July 7:
+	* 3 hours to find out "normal" varying was outside bounds in blocks.fsh :-/
+
+Wed July 6:
+	* early skylight/blocklight based on 3d texture: lots of glitches still remaining :-/
+
+Tue July 5:
+	* added boilerplate for 3D lighting tex.
+
 =========== Week 26 (2022) ===========
 Sun July 3:
 	* refactored mem allocation for meshing: less boilerplate needed in meshBanks.c

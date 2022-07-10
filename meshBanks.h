@@ -26,6 +26,7 @@ typedef struct Thread_t            Thread_t;
 void meshInitThreads(Map);
 void meshStopThreads(Map, int exit);
 void meshFlushStaging(Map);
+void meshDeleteTex(LightingTex);
 
 enum /* possible values to <exit> */
 {
@@ -67,7 +68,7 @@ void meshWillBeRendered(ChunkData);
 void meshAllocCmdBuffer(Map map);
 
 /* done in halfBlock.c, but mostly needed for mesh banks */
-void meshHalfBlock(MeshWriter write, DATA8 model, int size, DATA8 xyz, BlockState b, DATA16 neighborBlockIds, int genSides);
+void meshHalfBlock(MeshWriter write, DATA8 model, int size, DATA8 xyz, BlockState b, DATA16 neighborBlockIds, int lightId);
 
 typedef struct GPUBank_t *         GPUBank;
 typedef struct GPUMem_t *          GPUMem;
@@ -147,11 +148,11 @@ struct Thread_t
 
 #define STAGING_SLOT       256
 #define MESH_HDR           2
-#define MESH_MAX_QUADS     ((8192-MESH_HDR*4)/VERTEX_DATA_SIZE)
-#define STAGING_BLOCK      (MESH_MAX_QUADS * VERTEX_DATA_SIZE/4 + MESH_HDR)
+#define STAGING_BLOCK      (TEX_MESH_INT_SIZE + MESH_HDR)
 #define STAGING_AREA       (STAGING_BLOCK * STAGING_SLOT * 4)
 #define MAX_MESH_CHUNK     ((64*1024/VERTEX_DATA_SIZE) * VERTEX_DATA_SIZE)
 #define MESH_ROUNDTO       ((4096/VERTEX_DATA_SIZE) * VERTEX_DATA_SIZE)
+#define QUAD_LIGHT_ID      0xffff0000
 
 struct Staging_t
 {

@@ -16,6 +16,7 @@ layout (location=2) in vec3  offsets;
 out vec3 vertex1;
 out vec3 vertex2;
 out vec3 vertex3;
+out vec3 voffset;
 out vec4 texCoord;
 out uint normFlags;
 out uint lightingTexBank;
@@ -55,4 +56,5 @@ void main(void)
 
 	lightingTexBank = bitfieldExtract(info.x, 0, 16);
 	normFlags = bitfieldExtract(info.y, 19, 13);
+	voffset = offsets;
 }

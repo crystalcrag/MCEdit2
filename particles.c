@@ -607,7 +607,7 @@ static void emitterSpawnParticles(Map map, Emitter emit)
 	int count = emit->count+1;
 
 	struct BlockIter_t iter;
-	mapInitIterOffset(&iter, emit->cd, emit->Y);
+	mapInitIterOffset(&iter, emit->cd, emit->Y * 256);
 
 	int X = iter.ref->X;
 	int Z = iter.ref->Z;

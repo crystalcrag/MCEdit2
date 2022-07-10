@@ -390,7 +390,7 @@ static void libraryGenMesh(LibBrush lib)
 		{
 			for (y = 0; y < chunk->maxy; y ++)
 			{
-				chunkUpdate(chunk, chunkAir, brush->chunkOffsets, y, meshInitST);
+				chunkUpdate(brush, chunk, chunkAir, y, meshInitST);
 				/* transfer chunk to the GPU */
 				meshFinishST(brush);
 			}

@@ -192,7 +192,7 @@ static Bool isVisible(DATA16 neighborBlockIds, ModelCache models, DATA8 pos, int
 /*
  * main function to convert a detail block metadata into a triangle mesh
  */
-void meshHalfBlock(MeshWriter write, DATA8 model, int size /* 2 or 8 */, DATA8 xyz, BlockState b, DATA16 neighborBlockIds, int genSides)
+void meshHalfBlock(MeshWriter write, DATA8 model, int size /* 2 or 8 */, DATA8 xyz, BlockState b, DATA16 neighborBlockIds, int lightId)
 {
 	static uint8_t xsides[] = { 2, 8};
 	static uint8_t ysides[] = {16,32};
@@ -205,13 +205,12 @@ void meshHalfBlock(MeshWriter write, DATA8 model, int size /* 2 or 8 */, DATA8 x
 	uint8_t pos[4];
 	DATA32  out;
 	DATA8   face;
-	int     i, j, k;
+	int     i, j, normal;
 
 	/* expand binary field (ordered XZY, like chunks) */
-	genSides ^= 63;
 	models.set = 1<<13;
 	models.cache[13] = model[0];
-	for (i = 0, j = 1, k = model[0], face = faces; i < 8; i ++, *face++ = (k & j) ? genSides : 255, j <<= 1);
+	for (i = 0, j = 1, face = faces; i < 8; i ++, *face++ = (model[0] & j) ? 0 : 255, j <<= 1);
 
 	/* do the meshing */
 	#define x      pos[0]
@@ -223,55 +222,64 @@ void meshHalfBlock(MeshWriter write, DATA8 model, int size /* 2 or 8 */, DATA8 x
 		uint16_t rotate;
 		if ((flags & 63) == 63) continue; /* empty (or done) sub-voxel */
 
-		k = face - faces;
+		j = face - faces;
 		if (size == 2)
 		{
-			x = k&1;
-			z = (k>>1) & 1;
-			y = k>>2;
+			x = j&1;
+			z = (j>>1) & 1;
+			y = j>>2;
 		}
-		else x = k&7, z = (k>>3) & 7, y = k>>6;
+		else x = j&7, z = (j>>3) & 7, y = j>>6;
 		sides = xsides[x] | ysides[y] | zsides[z];
 
 		/* scan missing face on this sub-block */
-		for (j = 0, rotate = b->rotate; j < 6; j ++, rotate >>= 2)
+		for (normal = 0, rotate = b->rotate; normal < 6; normal ++, rotate >>= 2)
 		{
 			static uint8_t dir0[]  = {2, 0, 2, 0, 1, 1}; /* index in pos/rect */
 			static uint8_t axis[]  = {2, 0, 0, 0, 1};
 			static uint8_t invUV[] = {0, 1, 1, 0, 2, 0};
-			uint8_t rect[4], mask = 1 << j;
+			uint8_t rect[4], mask = 1 << normal;
 			/* already processed? */
 			if (flags & mask) continue;
 
 			/* is face visible (empty space in neighbor block) */
-			if ((sides & mask) ? face[offset[j]] < 255 : !isVisible(neighborBlockIds, &models, pos, j)) { *face |= mask; continue; }
+			if ((sides & mask) ? face[offset[normal]] < 255 : !isVisible(neighborBlockIds, &models, pos, normal)) { *face |= mask; continue; }
 
 			/* check if we can expand in one of 2 directions */
 			memset(rect, 1, 4);
-			rect[dir0[j]] = 0;
+			rect[dir0[normal]] = 0;
 
 			/* try to expand initial rect */
 			uint8_t  cur[4];
 			int8_t   faceOff[3];
-			uint8_t  dirU  = UVdirs[j*2];
-			uint8_t  dirV  = UVdirs[j*2+1];
+			uint8_t  dirU  = UVdirs[normal*2];
+			uint8_t  dirV  = UVdirs[normal*2+1];
 			uint8_t  axisU = axis[dirU];
 			uint8_t  axisV = axis[dirV];
-			uint8_t  rev   = invUV[j];
+			uint8_t  rev   = invUV[normal];
 			DATA8    face2;
 
 			faceOff[0] = faceOff[2] = offset[dirU];
 			faceOff[1] = offset[dirV] - faceOff[0];
 			memcpy(cur, pos, 4);
 
-			for (k = 0, face2 = face; k < 3; k ++)
+			for (j = 0, face2 = face, dirU = 0; j < 3; j ++)
 			{
 				static int8_t subVoxel[] = {1,-1,1,0,1,0};
-				cur[axisU] += subVoxel[k];
-				cur[axisV] += subVoxel[k+3];
-				face2 += faceOff[k];
+				cur[axisU] += subVoxel[j];
+				cur[axisV] += subVoxel[j+3];
+				face2 += faceOff[j];
 				if (cur[axisU] == 2 || cur[axisV] == 2 || (*face2 & mask)) continue;
-				if ((sides & mask) ? face2[offset[j]] < 255 : !isVisible(neighborBlockIds, &models, cur, j)) continue;
+				if ((sides & mask) ? face2[offset[normal]] < 255 : !isVisible(neighborBlockIds, &models, cur, normal)) continue;
+				dirU |= 1 << j;
+			}
+			dirU = "\x00\x01\x02\x01\x00\x01\x02\x07"[dirU];
+			if (dirU & 1) rect[axisU] ++;
+			if (dirU & 2) rect[axisV] ++;
+			for (j = 0, face2 = face; dirU > 0; j ++, dirU >>= 1)
+			{
+				face2 += faceOff[j];
+				if (dirU & 1) face2[0] |= mask;
 			}
 
 			if (write->end - out < VERTEX_INT_SIZE)
@@ -285,10 +293,10 @@ void meshHalfBlock(MeshWriter write, DATA8 model, int size /* 2 or 8 */, DATA8 x
 			#define VERTEX(x)     ((x) * (BASEVTX/2) + ORIGINVTX)
 
 			/* add rect [pos x rect] to mesh */
-			DATA8 UV = &b->nzU + (j << 1);
-			if (j == 1) rect[0] ++;
-			if (j == 4) rect[1] ++;
-			if (j == 0) rect[2] ++;
+			DATA8 UV = &b->nzU + (normal << 1);
+			if (normal == SIDE_EAST)  rect[VX] ++;
+			if (normal == SIDE_TOP)   rect[VY] ++;
+			if (normal == SIDE_SOUTH) rect[VZ] ++;
 
 			{
 				static uint8_t coordU[] = {0, 2, 0, 2, 0, 0};
@@ -297,7 +305,7 @@ void meshHalfBlock(MeshWriter write, DATA8 model, int size /* 2 or 8 */, DATA8 x
 				uint8_t  vtx[12];
 				#define texSz    3
 
-				face2 = cubeIndices + j * 4;
+				face2 = cubeIndices + normal * 4;
 				DATA8 idx = cubeVertex + face2[3];
 				/* first vertex */
 				vtx[0] = pos[0] + idx[0] * rect[0];
@@ -311,8 +319,8 @@ void meshHalfBlock(MeshWriter write, DATA8 model, int size /* 2 or 8 */, DATA8 x
 				vtx[6] = pos[2] + (idx[2] * rect[2]);
 
 				/* UV coord */
-				base = vtx[4+coordU[j]] << texSz; U = (UV[0] << 4) + (rev == 1 ? 16 - base : base);
-				base = vtx[4+coordV[j]] << texSz; V = (UV[1] << 4) + (rev != 2 ? 16 - base : base);
+				base = vtx[4+coordU[normal]] << texSz; U = (UV[0] << 4) + (rev == 1 ? 16 - base : base);
+				base = vtx[4+coordV[normal]] << texSz; V = (UV[1] << 4) + (rev != 2 ? 16 - base : base);
 
 				/* third vertex */
 				idx = cubeVertex + face2[2];
@@ -321,8 +329,8 @@ void meshHalfBlock(MeshWriter write, DATA8 model, int size /* 2 or 8 */, DATA8 x
 				vtx[10] = pos[2] + (idx[2] * rect[2]);
 
 				/* tex size and normal */
-				base = vtx[8+coordU[j]] << texSz; Usz = (UV[0] << 4) + (rev == 1 ? 16 - base : base);
-				base = vtx[8+coordV[j]] << texSz; Vsz = (UV[1] << 4) + (rev != 2 ? 16 - base : base);
+				base = vtx[8+coordU[normal]] << texSz; Usz = (UV[0] << 4) + (rev == 1 ? 16 - base : base);
+				base = vtx[8+coordV[normal]] << texSz; Vsz = (UV[1] << 4) + (rev != 2 ? 16 - base : base);
 				switch (rotate & 3) {
 				case 1: swap(V, Vsz); break;
 				case 3: swap(U, Usz); break;
@@ -333,12 +341,13 @@ void meshHalfBlock(MeshWriter write, DATA8 model, int size /* 2 or 8 */, DATA8 x
 				out[1] = VERTEX(vtx[2] + xyz[2]) | (VERTEX(vtx[4] + xyz[0]) << 16);
 				out[2] = VERTEX(vtx[5] + xyz[1]) | (VERTEX(vtx[6] + xyz[2]) << 16);
 				out[3] = VERTEX(vtx[8] + xyz[0]) | (VERTEX(vtx[9] + xyz[1]) << 16);
-				out[4] = (VERTEX(vtx[10] + xyz[2]) << 16);
-				out[5] = U | (V << 9) | (j << 19) | (texCoord[base] == texCoord[base+6] ? FLAG_TEX_KEEPX : 0);
+				out[4] = lightId | (VERTEX(vtx[10] + xyz[2]) << 16);
+				out[5] = U | (V << 9) | (normal << 19) | (texCoord[base] == texCoord[base+6] ? FLAG_TEX_KEEPX : 0);
 				out[6] = Usz | (Vsz << 9);
+				if (normal >= 4 && (vtx[1] & 1)) out[5] |= FLAG_ROUNDVTX;
 
 				static uint8_t oppSideBlock[] = {16, 14, 10, 12, 22, 4};
-				if (blockIds[neighborBlockIds[oppSideBlock[j]] >> 4].special == BLOCK_LIQUID)
+				if (blockIds[neighborBlockIds[oppSideBlock[normal]] >> 4].special == BLOCK_LIQUID)
 					/* use water fog instead of atmospheric one */
 					out[5] |= FLAG_UNDERWATER;
 			}

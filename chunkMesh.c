@@ -101,19 +101,6 @@ static uint8_t oppositeMask[64];
 static int16_t blockOffset[64];
 static int16_t blockOffset2[64];
 
-/* slab will produce slightly dimmer occlusion */
-#define SLABLOC(id0,id1,id2,id3,id4,id5,id6,id7,id8) \
-	((1<<id0) | (1<<id1) | (1<<id2) | (1<<id3) | (1<<id4) | (1<<id5) | (1<<id6) | (1<<id7) | (1<<id8))
-static uint32_t occlusionIfSlab[] = {
-	SLABLOC( 6, 7, 8,15,16,17,24,25,26),
-	SLABLOC( 2, 5, 8,11,14,17,20,23,26),
-	SLABLOC( 0, 1, 2, 9,10,11,18,19,20),
-	SLABLOC( 0, 3, 6, 9,12,15,18,21,24),
-	SLABLOC(18,19,20,21,22,23,24,25,26),
-	SLABLOC( 0, 1, 2, 3, 4, 5, 6, 7, 8),
-};
-#undef SLABLOC
-
 /* this table is used to list neighbor chunks, if a block is updated at a boundary (180 bytes) */
 uint32_t chunkNearby[] = {
 0x00000000, 0x00008000, 0x00002000, 0x0001a000, 0x00000400, 0x00000000,
@@ -317,10 +304,11 @@ static inline void chunkIter(BlockIter iter)
 	iter->yabs = (iter->yabs & ~15) + iter->y;
 }
 
-static void chunkGenQuad(BlockIter, MeshWriter writer, BlockState b);
-static void chunkGenCust(BlockIter, MeshWriter writer, BlockState b);
-static void chunkGenCube(BlockIter, MeshWriter writer, BlockState b);
+static void chunkGenQuad(BlockIter, MeshWriter, BlockState);
+static void chunkGenCust(BlockIter, MeshWriter, BlockState);
+static void chunkGenCube(BlockIter, MeshWriter, BlockState);
 static void chunkMergeQuads(ChunkData, HashQuadMerge);
+static void chunkGenLight(Map, BlockIter, MeshWriter);
 
 void chunkMakeObservable(ChunkData cd, int offset, int side);
 
@@ -332,7 +320,7 @@ void chunkMakeObservable(ChunkData cd, int offset, int side);
  * this is the "meshing" function for our world.
  * note: this part must be re-entrant, it will be called in a multi-threaded context.
  */
-void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer, MeshInitializer meshinit)
+void chunkUpdate(Map map, Chunk c, ChunkData empty, int layer, MeshInitializer meshinit)
 {
 	uint16_t emitters[PARTICLE_MAX];
 	uint8_t  visited[512 + 512];
@@ -342,7 +330,7 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer, Mesh
 	/* single-thread and multi-thread have completely different allocation strategies */
 	struct BlockIter_t iter;
 	mapInitIterOffset(&iter, c->layer[layer], 0);
-	iter.nbor = chunkOffsets;
+	iter.nbor = map->chunkOffsets;
 
 	/* alloc memory to store quads these functions will generate */
 	MeshWriter_t writer;
@@ -354,12 +342,17 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer, Mesh
 		iter.cd->emitters[0] = 0;
 
 	/* default sorting for alpha quads */
+	hasLights = (iter.cd->cdFlags & CDFLAG_NOLIGHT) == 0;
 	iter.cd->yaw = M_PIf * 1.5f;
 	iter.cd->pitch = 0;
 	iter.cd->cdFlags &= ~(CDFLAG_CHUNKAIR | CDFLAG_PENDINGMESH | CDFLAG_NOALPHASORT | CDFLAG_HOLE);
+	if (hasLights)
+		chunkGenLight(map, &iter, &writer);
+	else
+		/* no need to alloc a 3d tex when lighting is constant within the entire chunk */
+		iter.cd->glLightId = LIGHT_SKY15_BLOCK0;
 
 	memset(visited, 0, sizeof visited);
-	hasLights = (iter.cd->cdFlags & CDFLAG_NOLIGHT) == 0;
 	iter.cd->cnxGraph = 0;
 
 //	if (c->X == -96 && iter.cd->Y == 32 && c->Z == 352)
@@ -384,6 +377,9 @@ void chunkUpdate(Chunk c, ChunkData empty, DATAS16 chunkOffsets, int layer, Mesh
 			{
 				if ((visited[iter.offset >> 3] & mask8bit[iter.offset & 7]) == 0)
 					iter.cd->cnxGraph |= chunkGetCnxGraph(iter.cd, iter.offset, visited);
+
+				/* starting chunk "holes" for cave culling */
+				iter.cd->cdFlags |= (slotsXZ[iter.offset & 0xff] | slotsY[iter.offset >> 8]) << 9;
 			}
 
 			if (hasLights)
@@ -531,7 +527,7 @@ static void chunkGenQuad(BlockIter iterator, MeshWriter buffer, BlockState b)
 		out[2] = VERTEX_OFF(coord2[1] + iter.y, DY) | (VERTEX_OFF(coord2[2] + iter.z, DZ) << 16);
 		coord1 = cubeVertex + quadIndices[side*4+2];
 		out[3] = VERTEX_OFF(coord1[0] + iter.x, DX) | (VERTEX_OFF(coord1[1] + iter.y, DY) << 16);
-		out[4] = VERTEX_OFF(coord1[2] + iter.z, DZ) << 16;
+		out[4] = iter.cd->glLightId | (VERTEX_OFF(coord1[2] + iter.z, DZ) << 16);
 		out[5] = U | (V << 9) | (norm << 19) | (texCoord[j] == texCoord[j + 6] ? FLAG_TEX_KEEPX|FLAG_DUAL_SIDE : FLAG_DUAL_SIDE);
 		out[6] = ((texCoord[j+4] + tex[0]) << 4) | ((texCoord[j+5] + tex[1]) << 13);
 
@@ -593,6 +589,7 @@ static void chunkGenCust(BlockIter iterator, MeshWriter buffer, BlockState b)
 
 	model = b->custModel;
 	count = connect = 0;
+	dualside = blockIds[b->id >> 4].special & BLOCK_DUALSIDE ? FLAG_DUAL_SIDE : 0; /* fire */
 
 	switch (b->special) {
 	case BLOCK_DOOR:
@@ -637,7 +634,7 @@ static void chunkGenCust(BlockIter iterator, MeshWriter buffer, BlockState b)
 		break;
 	case BLOCK_RSWIRE:
 		/* redstone wire: only use base model */
-		//skyBlock[13] = (skyBlock[13] & 0xf0) | (b->id & 15);
+		dualside |= (b->id & 15) << 28;
 		b -= b->id & 15;
 		// no break;
 	case BLOCK_GLASS:
@@ -713,7 +710,6 @@ static void chunkGenCust(BlockIter iterator, MeshWriter buffer, BlockState b)
 	int x = iter.x * BASEVTX;
 	int y = iter.y * BASEVTX;
 	int z = iter.z * BASEVTX;
-	dualside = blockIds[b->id >> 4].special & BLOCK_DUALSIDE ? FLAG_DUAL_SIDE : 0; /* fire */
 
 	/* vertex and light info still need to be adjusted */
 	for (count = model[-1]; count > 0; count -= 6, model += 6 * INT_PER_VERTEX)
@@ -753,7 +749,7 @@ static void chunkGenCust(BlockIter iterator, MeshWriter buffer, BlockState b)
 		out[2] = (coord2[1] + y) | ((coord2[2] + z) << 16);
 		coord2 = model + INT_PER_VERTEX * 2;
 		out[3] = (coord2[0] + x) | ((coord2[1] + y) << 16);
-		out[4] = (coord2[2] + z) << 16;
+		out[4] = iter.cd->glLightId | ((coord2[2] + z) << 16);
 		out[5] = U | (V << 9) | (GET_NORMAL(model) << 19) | dualside | (U == GET_UCOORD(coord1) ? FLAG_TEX_KEEPX : 0);
 		out[6] = GET_UCOORD(coord2) | (GET_VCOORD(coord2) << 9);
 
@@ -899,19 +895,8 @@ static void chunkGenCube(BlockIter iterator, MeshWriter buffer, BlockState b)
 		if (b->special == BLOCK_HALF || b->special == BLOCK_STAIRS)
 		{
 			uint8_t xyz[3] = {iter.x<<1, iter.y<<1, iter.z<<1};
-			//fprintf(stderr, "meshing %s at pos %d, %d, %d\n", b->name, x, y, z);
-			meshHalfBlock(buffer, halfBlockGetModel(b, 2, blockIds3x3), 2, xyz, b, blockIds3x3, 63);
+			meshHalfBlock(buffer, halfBlockGetModel(b, 2, blockIds3x3), 2, xyz, b, blockIds3x3, iter.cd->glLightId);
 			break;
-		}
-		if (occlusionIfSlab[normal] & slab)
-		{
-			uint8_t xyz[3] = {iter.x<<1, iter.y<<1, iter.z<<1};
-			DATA8 model = halfBlockGetModel(b, 2, blockIds3x3);
-			if (model)
-			{
-				meshHalfBlock(buffer, model, 2, xyz, b, blockIds3x3, 1 << normal);
-				continue;
-			}
 		}
 
 		if (BUF_LESS_THAN(buffer, VERTEX_DATA_SIZE))
@@ -932,7 +917,7 @@ static void chunkGenCube(BlockIter iterator, MeshWriter buffer, BlockState b)
 			out[2] = VERTEX(coord2[1]+iter.y) | (VERTEX(coord2[2]+iter.z) << 16);
 			coord1 = cubeVertex + cubeIndices[(normal<<2)+2];
 			out[3] = VERTEX(coord1[0]+iter.x) | (VERTEX(coord1[1]+iter.y) << 16);
-			out[4] = VERTEX(coord1[2]+iter.z) << 16;
+			out[4] = iter.cd->glLightId | (VERTEX(coord1[2]+iter.z) << 16);
 			out[5] = texU | (texV << 9) | (normal << 19) | (texCoord[texOff] == texCoord[texOff+6] ? FLAG_TEX_KEEPX : 0);
 			out[6] = ((texCoord[texOff+4] + tex[0]) << 4) |
 			         ((texCoord[texOff+5] + tex[1]) << 13);
@@ -966,6 +951,131 @@ static void chunkGenCube(BlockIter iterator, MeshWriter buffer, BlockState b)
 		}
 	}
 }
+
+/*
+ * pre-generate lighting used for sky/block light and ambient occlusion
+ * note: if sky and block light are all zeros, nothing will be generated:
+ * this will cut the lighting tex needed by 50% on a typical minecraft landscape
+ */
+#define AO_HARSHNESS         0x55  /* max: 255 */
+
+static void chunkGenLight(Map map, BlockIter iterator, MeshWriter writer)
+{
+	unsigned x, y, z;
+
+	//iterator->cd->glLightId = LIGHT_SKY15_BLOCK0;
+	//return;
+
+	if (memcmp(iterator->blockIds + BLOCKLIGHT_OFFSET, chunkAir->blockIds + BLOCKLIGHT_OFFSET, 2048) == 0 &&
+	    memcmp(iterator->blockIds + SKYLIGHT_OFFSET,   chunkAir->blockIds + BLOCKLIGHT_OFFSET, 2048) == 0)
+	{
+	    /* all zeros: no need to allocate a texture for this */
+		x = iterator->cd->glLightId;
+		if (x < 0xfffe)
+			mapFreeLightingSlot(map, x);
+		iterator->cd->glLightId = LIGHT_SKY0_BLOCK0;
+		return;
+	}
+
+	struct BlockIter_t iter = *iterator;
+	DATA8 skyBlock = (DATA8) (writer->cur + 1);
+	/* need to untangle block and sky light values */
+	mapIter(&iter, -1, -1, -1);
+	for (y = 0; y < 18; y ++, mapIter(&iter, 0, 1, -18))
+	{
+		for (z = 0; z < 18; z ++, mapIter(&iter, -18, 0, 1))
+		{
+			for (x = 0; x < 18; x ++, mapIter(&iter, 1, 0, 0), skyBlock += 2)
+			{
+				/* would have been nice if sky and block light were fused in a single table in the NBT stream :-/ */
+				uint8_t sky   = iter.blockIds[SKYLIGHT_OFFSET   + (iter.offset >> 1)];
+				uint8_t block = iter.blockIds[BLOCKLIGHT_OFFSET + (iter.offset >> 1)];
+
+				if (iter.offset & 1) sky >>= 4, block >>= 4;
+				else sky &= 15, block &= 15;
+				/* sigh, opengl doesn't have a 2-channel 4bit texture (it has RGB4 and RGBA4, but no RG4): use RG8 then */
+				skyBlock[0] = sky * 17;
+				skyBlock[1] = block * 17;
+				if (iter.blockIds[iter.offset] == 0 && sky == 0)
+					skyBlock[0] = 1;
+			}
+		}
+	}
+
+	/* need another pass, to "unharshen" values by letting sky/block "seeps" into opaque blocks */
+	#if 1
+	skyBlock = (DATA8) (writer->cur + 1);
+	for (y = 0; y < 18; y ++)
+	{
+		for (z = 0; z < 18; z ++)
+		{
+			for (x = 0; x < 18; x ++, skyBlock += 2)
+			{
+				if (skyBlock[0] > 0 || skyBlock[1] > 0)
+					continue;
+
+				uint8_t maxSky = 0;
+				uint8_t maxBlock = 0;
+				uint8_t i;
+				for (i = 0; i < 6; i ++)
+				{
+					if (x + relx[i] < 18 &&
+					    y + rely[i] < 18 &&
+					    z + relz[i] < 18)
+					{
+						static int offset[] = {18*2,2,-18*2,-2,18*18*2,-18*18*2}; /* S,E,N,W,T,B */
+						DATA8 skyBlock2 = skyBlock + offset[i];
+						if (maxSky < skyBlock2[0])
+							maxSky = skyBlock2[0];
+						if (maxBlock < skyBlock2[1])
+							maxBlock = skyBlock2[1];
+					}
+				}
+
+				skyBlock[0] = maxSky   < AO_HARSHNESS ? 0 : maxSky   - AO_HARSHNESS;
+				skyBlock[1] = maxBlock < AO_HARSHNESS ? 0 : maxBlock - AO_HARSHNESS;
+			}
+		}
+	}
+	#endif
+
+	x = iterator->cd->glLightId;
+	if (x >= 0xfffe)
+		x = iterator->cd->glLightId = mapAllocLightingTex(map);
+	/* will mark this block as a lighting tex, not as vertex buffer */
+	writer->cur[0] = QUAD_LIGHT_ID | x;
+
+	#if 0
+	if (map->center == iterator->ref && iterator->cd->Y == 0)
+	{
+		FILE * out = fopen("light2.ppm", "wb");
+		DATA8 data = (DATA8) (writer->cur + 1);
+
+		fprintf(stderr, "dumping light from %d, %d, %d: %d info to light2.ppn\n", map->center->X, map->center->Z, iterator->cd->Y, x >> 7);
+		fprintf(out, "P6\n%d %d 255\n", 18, 18*18);
+		for (y = 0; y < 18; y ++, data += 18*18*2)
+		{
+			DATA8 tex2;
+			for (z = 0, tex2 = data; z < 18; z ++, tex2 += 18*2)
+			{
+				uint8_t rgb[18*3];
+				for (x = 0; x < 18; x ++)
+				{
+					rgb[x*3]   = tex2[x*2];
+					rgb[x*3+1] = tex2[x*2+1];
+					rgb[x*3+2] = 0;
+				}
+				fwrite(rgb, 1, 18*3, out);
+			}
+		}
+		fclose(out);
+	}
+	#endif
+
+
+	writer->cur += TEX_MESH_INT_SIZE;
+}
+
 
 /*
  * scan all quads from SOLID blocks and check if they can be merged (a.k.a greedy meshing).

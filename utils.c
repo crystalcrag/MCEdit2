@@ -1279,8 +1279,11 @@ PFNGLGETINTEGERVPROC glad_glGetIntegerv;
 PFNGLGENTEXTURESPROC glad_glGenTextures;
 PFNGLPIXELSTOREIPROC glad_glPixelStorei;
 PFNGLTEXIMAGE2DPROC glad_glTexImage2D;
+PFNGLTEXIMAGE3DPROC glad_glTexImage3D;
+
 PFNGLTEXPARAMETERIPROC glad_glTexParameteri;
 PFNGLTEXSUBIMAGE2DPROC glad_glTexSubImage2D;
+PFNGLTEXSUBIMAGE3DPROC glad_glTexSubImage3D;
 PFNGLENABLEPROC glad_glEnable;
 PFNGLDISABLEPROC glad_glDisable;
 PFNGLDRAWARRAYSPROC glad_glDrawArrays;
@@ -1378,8 +1381,10 @@ int gladLoadGL(void)
 		 && (glad_glGenTextures        = load(name = "glGenTextures"))
 		 && (glad_glPixelStorei        = load(name = "glPixelStorei"))
 		 && (glad_glTexImage2D         = load(name = "glTexImage2D"))
+		 && (glad_glTexImage3D         = load(name = "glTexImage3D"))
 		 && (glad_glTexParameteri      = load(name = "glTexParameteri"))
 		 && (glad_glTexSubImage2D      = load(name = "glTexSubImage2D"))
+		 && (glad_glTexSubImage3D      = load(name = "glTexSubImage3D"))
 		 && (glad_glEnable             = load(name = "glEnable"))
 		 && (glad_glDisable            = load(name = "glDisable"))
 		 && (glad_glDrawArrays         = load(name = "glDrawArrays"))

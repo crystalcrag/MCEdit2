@@ -58,8 +58,9 @@ extern uint8_t openDoorDataToModel[];
 
 int mapFirstFree(DATA32 usage, int count)
 {
-	int base, i;
-	for (i = count, base = 0; i > 0; i --, usage ++, base += 32)
+	DATA32 eof = usage + count;
+	int    base;
+	for (base = 0; usage < eof; usage ++, base += 32)
 	{
 		uint32_t bits = *usage ^ 0xffffffff;
 		if (bits == 0) continue;
@@ -550,7 +551,7 @@ static int mapRedoGenList(Map map)
 			int Z = ZC + (spiral[1] << 4);
 			if (c->X != X || c->Z != Z)
 			{
-				map->GPUchunk -= chunkFree(c, True);
+				map->GPUchunk -= chunkFree(map, c, True);
 			}
 		}
 		else c->entityList = ENTITY_END;
@@ -599,7 +600,7 @@ static void mapMarkLazyChunk(Map map)
 		if (dir & 8) X -= 16;
 
 		if (X != neighbor->X || Z != neighbor->Z)
-			map->GPUchunk -= chunkFree(chunk, True);
+			map->GPUchunk -= chunkFree(map, chunk, True);
 	}
 }
 
@@ -811,7 +812,7 @@ Bool mapSetRenderDist(Map map, int maxDist)
 			for (i = 0, j = oldArea * oldArea, old = map->chunks; i < j; old ++, i ++)
 			{
 				if (old->cflags & (CFLAG_HASMESH|CFLAG_GOTDATA))
-					map->GPUchunk -= chunkFree(old, True);
+					map->GPUchunk -= chunkFree(map, old, True);
 			}
 		}
 		/* need to point to the new chunk array, otherwise it will point to some free()'ed memory */
@@ -866,6 +867,7 @@ Map mapInitFromPath(STRPTR path, int renderDist)
 		/* all tables but skyLight will be 0 */
 		air->blockIds = (DATA8) (air+1);
 		air->cdFlags = CDFLAG_CHUNKAIR;
+		air->glLightId = LIGHT_SKY15_BLOCK0;
 		/* fully lit */
 		memset(air->blockIds + SKYLIGHT_OFFSET, 255, 2048);
 
@@ -935,10 +937,17 @@ void mapFreeAll(Map map)
 	Chunk chunk;
 	int   nb;
 	for (nb = map->mapArea * map->mapArea, chunk = map->chunks; nb > 0; nb --, chunk ++)
-		chunkFree(chunk, False);
+		chunkFree(map, chunk, False);
 
 	ChunkFake fake, next;
 	for (fake = map->cdPool; fake; next = fake->next, free(fake), fake = next);
+
+	LightingTex light;
+	while ((light = (LightingTex) ListRemHead(&map->lightingTex)))
+	{
+		meshDeleteTex(light);
+		free(light);
+	}
 
 	NBT_Free(&map->levelDat);
 	MutexDestroy(map->genLock);
@@ -1106,6 +1115,44 @@ int mapIsPositionInLiquid(Map map, vec4 pos)
 	}
 	return 0;
 }
+
+/*
+ * lighting tex management (transfer to GPU will be done in meshBanks.c)
+ */
+int mapAllocLightingTex(Map map)
+{
+	LightingTex lightTex;
+	int lightingId = 0;
+
+	for (lightTex = HEAD(map->lightingTex); lightTex && lightTex->usage == 512; NEXT(lightTex), lightingId ++);
+
+	if (lightTex == NULL)
+	{
+		lightTex = calloc(sizeof *lightTex, 1);
+		ListAddTail(&map->lightingTex, &lightTex->node);
+		fprintf(stderr, "allocating a lighting texture\n");
+	}
+	lightTex->usage ++;
+
+	/* this id will be used by terrain fragment shader */
+	return lightingId | (mapFirstFree(lightTex->slots, DIM(lightTex->slots)) << 7);
+}
+
+void mapFreeLightingSlot(Map map, int lightId)
+{
+	LightingTex lightTex;
+
+	for (lightTex = HEAD(map->lightingTex); lightTex && (lightId & 127) > 0; NEXT(lightTex), lightId ++);
+
+	if (lightTex)
+	{
+		/* no need to clear texture data */
+		int slot = lightId >> 7;
+		lightTex->usage --;
+		lightTex->slots[slot >> 5] &= ~(1 << (slot & 31));
+	}
+}
+
 
 /*
  * Frustum culling: the goal of these functions is to create a linked list of chunks

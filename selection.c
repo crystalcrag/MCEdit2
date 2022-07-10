@@ -683,9 +683,11 @@ Map selectionAllocBrush(uint16_t sizes[3])
 		/* numbers for these fields don't matter, as long as center won't be relocated */
 		brush->maxDist = total;
 		brush->mapArea = -1;
+
 		cd = (ChunkData) (brush->chunks + grid);
 		blocks = (DATA8) (cd + grid * chunks[VY]);
 		memcpy(brush->size, sizes, 6);
+		brush->frame = -1;
 
 		/* does not matter: there will be no wrap around chunks */
 		brush->center = brush->chunks;
@@ -1047,7 +1049,7 @@ Map selectionClone(vec4 pos, int side, Bool genMesh)
 				{
 					for (y = 0; y < chunk->maxy; y ++)
 					{
-						chunkUpdate(chunk, chunkAir, brush->chunkOffsets, y, meshInitST);
+						chunkUpdate(brush, chunk, chunkAir, y, meshInitST);
 						/* transfer chunk to the GPU */
 						meshFinishST(brush);
 					}
@@ -1144,7 +1146,7 @@ void selectionUseBrush(Map lib, Bool dup)
 						chunkAddTileEntity(iter.cd, iter.offset, NBT_Copy(tile));
 					}
 				}
-				chunkUpdate(dstChunk, chunkAir, brush->chunkOffsets, y, meshInitST);
+				chunkUpdate(brush, dstChunk, chunkAir, y, meshInitST);
 				meshFinishST(brush);
 			}
 		}
@@ -1297,7 +1299,7 @@ static void selectionBrushRotate(void)
 
 			for (dy = 0; dy < c->maxy; dy ++)
 			{
-				chunkUpdate(c, chunkAir, brush->chunkOffsets, dy, meshInitST);
+				chunkUpdate(brush, c, chunkAir, dy, meshInitST);
 				/* transfer chunk to the GPU */
 				meshFinishST(brush);
 			}
@@ -1420,7 +1422,7 @@ static void selectionBrushRoll(void)
 		{
 			for (y = 0; y < chunk->maxy; y ++)
 			{
-				chunkUpdate(chunk, chunkAir, roll->chunkOffsets, y, meshInitST);
+				chunkUpdate(roll, chunk, chunkAir, y, meshInitST);
 				/* transfer chunk to the GPU */
 				meshFinishST(roll);
 			}
@@ -1500,7 +1502,7 @@ static void selectionBrushFlip(void)
 		{
 			for (y = 0, dy = c->maxy; y < dy; y ++)
 			{
-				chunkUpdate(c, chunkAir, brush->chunkOffsets, y, meshInitST);
+				chunkUpdate(brush, c, chunkAir, y, meshInitST);
 				/* transfer chunk to the GPU */
 				meshFinishST(brush);
 			}
@@ -1590,7 +1592,7 @@ static void selectionBrushMirror(void)
 		{
 			for (y = 0, dy = c->maxy; y < dy; y ++)
 			{
-				chunkUpdate(c, chunkAir, brush->chunkOffsets, y, meshInitST);
+				chunkUpdate(brush, c, chunkAir, y, meshInitST);
 				/* transfer chunk to the GPU */
 				meshFinishST(brush);
 			}
