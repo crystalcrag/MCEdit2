@@ -103,6 +103,104 @@ void debugLight(vec4 pos, int normal)
 	free(megaTex);
 }
 
+void debugSaveVertex(void)
+{
+	Map map = globals.level;
+	ChunkData cd;
+	GPUBank bank;
+	DATA32 vertex;
+
+	FILE * out = fopen("debug/vertex_data.bin", "wb");
+
+	uint8_t header[32];
+	int size, visible;
+	header[0] = 3;
+	header[1] = header[2] = header[3] = 0;
+	memcpy(header + 4, render.camera, 12);
+	memcpy(header + 16, &render.yaw, 8);
+
+	int8_t * spiral;
+	int area = map->mapArea, n = map->maxDist * map->maxDist, i;
+	extern struct Frustum_t frustum;
+	for (spiral = frustum.spiral, visible = 0; n > 0; n --, spiral += 2)
+	{
+		Chunk c = &map->chunks[(map->mapX + spiral[0] + area) % area + (map->mapZ + spiral[1] + area) % area * area];
+
+		if (c->cflags & CFLAG_HASMESH)
+		{
+			for (i = 0; i < c->maxy; i ++)
+			{
+				cd = c->layer[i];
+				if (cd && cd->frame == map->frame)
+					visible += cd->glSize / VERTEX_DATA_SIZE;
+			}
+		}
+	}
+
+	size = map->maxDist;
+	memcpy(header + 24, &visible, 4);
+	memcpy(header + 28, &size, 4);
+	fwrite(header, 1, 32, out);
+	fprintf(stderr, "dumping %d vertex\n", size);
+
+	int vtxTotal = 0;
+	int skyLight = 0;
+	for (spiral = frustum.spiral, size = 0, n = map->maxDist * map->maxDist; n > 0; n --, spiral += 2)
+	{
+		Chunk c = &map->chunks[(map->mapX + spiral[0] + area) % area + (map->mapZ + spiral[1] + area) % area * area];
+
+		if (c->cflags & CFLAG_HASMESH)
+		{
+			for (i = 0; i < c->maxy; i ++)
+			{
+				cd = c->layer[i];
+				if (cd == NULL || ! cd->glBank) continue;
+				header[0] = 1; size = cd->glSize / VERTEX_DATA_SIZE;
+				if (size > 65535)
+					puts("no good");
+				header[1] = size & 255;
+				header[2] = size >> 8; size = cd->glDiscard / VERTEX_DATA_SIZE;
+				header[3] = size & 255;
+				header[4] = size >> 8; size = cd->glAlpha / VERTEX_DATA_SIZE;
+				header[5] = size & 255;
+				header[6] = size >> 8;
+				header[7] = cd->frame == map->frame;
+				memcpy(header+8,  &cd->chunk->X, 4);
+				memcpy(header+12, &cd->chunk->Z, 4);
+				memcpy(header+16, &cd->Y, 4);
+
+				fwrite(header, 1, 20, out);
+
+				bank = cd->glBank;
+				glBindBuffer(GL_ARRAY_BUFFER, bank->vboTerrain);
+				GPUMem mem = bank->usedList + cd->glSlot;
+				vertex = glMapBufferRange(GL_ARRAY_BUFFER, mem->offset, cd->glSize, GL_MAP_READ_BIT | GL_MAP_WRITE_BIT);
+				vtxTotal += cd->glSize;
+
+				fwrite(vertex, 1, cd->glSize, out);
+
+				glUnmapBuffer(GL_ARRAY_BUFFER);
+
+				/* lighting info right after */
+				header[0] = 2;
+				header[1] = cd->glLightId & 255;
+				header[2] = cd->glLightId >> 8;
+				header[3] = 0;
+
+				fwrite(header, 1, 4, out);
+				if (cd->glLightId < 0xfffe)
+				{
+					skyLight += 4096;
+					fwrite(cd->blockIds + SKYLIGHT_OFFSET, 1, 2048, out);
+					fwrite(cd->blockIds + BLOCKLIGHT_OFFSET, 1, 2048, out);
+				}
+			}
+		}
+	}
+	fclose(out);
+	fprintf(stderr, "written %d bytes for vertex, %d lighting\n", vtxTotal, skyLight);
+}
+
 /* get info on block being pointed at (dumped on stderr though) */
 void debugBlockVertex(vec4 pos, int side)
 {
@@ -176,6 +274,8 @@ void debugBlockVertex(vec4 pos, int side)
 		if (norm[1] > 0) xyz[1] ++;
 		if (norm[2] > 0) xyz[2] ++;
 
+		int X = iter.ref->X;
+		int Z = iter.ref->Z;
 		for (i = iter.cd->glSize, p = buffer; i > 0; i -= VERTEX_DATA_SIZE, p += VERTEX_INT_SIZE)
 		{
 			#define INTVERTEX(x)       (((x) - ORIGINVTX) >> 11)
@@ -207,9 +307,14 @@ void debugBlockVertex(vec4 pos, int side)
 				uint16_t Usz = bitfieldExtract(p[6], 0, 9);
 				uint16_t Vsz = bitfieldExtract(p[6], 9, 10);
 				fprintf(stderr, "VERTEX2: %d %d %d - NORM: %d (%c) - uv: %d,%d / %d,%d%s\n",
-					V2[0], V2[1], V2[2], normal, "SENWTB"[normal], U, V, Usz, Vsz, p[5] & FLAG_TEX_KEEPX ? "X": ""
+					V2[0]+X, V2[1]+iter.cd->Y, V2[2]+Z, normal, "SENWTB"[normal], U, V, Usz, Vsz, p[5] & FLAG_TEX_KEEPX ? "X": ""
 				);
-				fprintf(stderr, "VERTEX3: %d %d %d", V3[0], V3[1], V3[2]);
+				fprintf(stderr, "VERTEX3: %d %d %d", V3[0]+X, V3[1]+iter.cd->Y, V3[2]+Z);
+				fprintf(stderr, " VERTEX1: %d %d %d",
+					INTVERTEX(bitfieldExtract(p[0],  0, 16))+X,
+					INTVERTEX(bitfieldExtract(p[0], 16, 16))+iter.cd->Y,
+					INTVERTEX(bitfieldExtract(p[1],  0, 16))+Z
+				);
 				fputc('\n', stderr);
 			}
 		}

@@ -27,6 +27,7 @@ void meshInitThreads(Map);
 void meshStopThreads(Map, int exit);
 void meshFlushStaging(Map);
 void meshDeleteTex(LightingTex);
+void meshAddToProcessMT(Map, int count);
 
 enum /* possible values to <exit> */
 {
@@ -50,7 +51,7 @@ void meshGenerateMT(Map);
 #if NUM_THREADS > 0
 #define meshGenerate                  meshGenerateMT
 #define meshReady(map)                staging.chunkData > 0
-#define meshAddToProcess(map, count)  SemAdd((map)->genCount, count)
+#define meshAddToProcess(map, count)  meshAddToProcessMT(map, count)
 #else
 #define meshGenerate                  meshGenerateST
 #define meshReady(map)                (map)->genList.lh_Head
@@ -161,6 +162,7 @@ struct Staging_t
 	DATA32    mem;
 	int       total;
 	int       chunkData;
+	int       chunkTotal;
 	uint32_t  usage[STAGING_SLOT/32];
 	uint8_t   start[STAGING_SLOT];
 };

@@ -1,4 +1,17 @@
+=========== Week 28 (2022) ===========
+Thu July 14:
+	* manual back face culling yield quite good performance increase: +50% FPS
+
+July 11~13:
+	* more work done on perf test analysis program.
+
 =========== Week 27 (2022) ===========
+Sun July 10:
+	* sandboxed perf analysis program done.
+
+Sat July 9:
+	* new lighting mostly done, performance is better, but still not good enough.
+
 Fri July 8:
 	* new lighting system still needs some tweaks, especially to avoid light leaking inside closed space.
 

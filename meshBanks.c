@@ -44,6 +44,8 @@ static void meshGenAsync(void * arg)
 		thread->state = THREAD_WAIT_GENLIST;
 		SemWait(map->genCount);
 
+		staging.chunkTotal --;
+
 		/* a long time can have passed waiting on that semaphore... */
 		if (threadStop == THREAD_EXIT_LOOP) continue;
 		if (threadStop == THREAD_EXIT) break;
@@ -187,6 +189,13 @@ static void meshFreeStaging(struct Staging_t * mem)
 	free(mem->mem);
 	memset(mem, 0, sizeof *mem);
 }
+
+void meshAddToProcessMT(Map map, int count)
+{
+	fprintf(stderr, "adding %d chunks to genList\n", count);
+	staging.chunkTotal = count;
+	SemAdd(map->genCount, count);
+}
 #endif
 
 /* ask threads to stop what they are doing and wait for them */
@@ -254,6 +263,7 @@ void meshStopThreads(Map map, int exit)
 	memset(staging.usage, 0, sizeof staging.usage);
 	staging.total = 0;
 	staging.chunkData = 0;
+	staging.chunkTotal = 0;
 
 	threadStop = 0;
 }
@@ -458,7 +468,7 @@ static int meshAllocGPU(Map map, ChunkData cd, int size)
 		/* will also init vboLocation and vboMDAI */
 		glGenBuffers(3, &bank->vboTerrain);
 
-		/* pre-configure terrain VAO: 5 bytes per vertex */
+		/* pre-configure terrain VAO */
 		glBindVertexArray(bank->vaoTerrain);
 		glBindBuffer(GL_ARRAY_BUFFER, bank->vboTerrain);
 		/* this will allocate memory on the GPU: mem chunks of 20Mb */
@@ -780,6 +790,8 @@ static void meshCopyBuffer(Map map, DATA8 dest, APTR buffer, int bytes, MeshSize
 }
 
 #undef CATQUADS
+
+void renderResetFrustum(void);
 
 /* transfer single ChunkData mesh to GPU (meshing init with meshInitST) */
 void meshFinishST(Map map)

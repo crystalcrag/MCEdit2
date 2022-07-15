@@ -1,12 +1,5 @@
-# Object files
-*.o
-*.obj
-
-# Shared objects (inc. Windows DLLs)
+# Shared objects
 *.dll
-*.so
-*.so.*
-*.dylib
 
 # Executables
 *.exe
@@ -27,3 +20,4 @@ SLOC.ini
 /Piston*/
 /old/
 /resources/lang/old/
+/debug/

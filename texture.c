@@ -120,6 +120,8 @@ int textureLoad(const char * dir, const char * name, int clamp, PostProcess_t pr
 	PostProcess_t post;
 	for (post = process; post; post = post(&data, &w, &h, bpp));
 
+	textureSavePNG("dump.png", data, w*bpp, w, h, bpp);
+
 	switch (bpp) {
 	case 1: format = GL_RED; cspace = GL_RED; break;
 	case 2: format = GL_LUMINANCE8_ALPHA8; cspace = 0; break;
@@ -135,9 +137,7 @@ int textureLoad(const char * dir, const char * name, int clamp, PostProcess_t pr
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, clamp ? GL_CLAMP : GL_REPEAT);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, clamp ? GL_CLAMP : GL_REPEAT);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		/* XXX looks way worse if mipmap is enabled and looking at a shallow angle :-/ */
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_NEAREST);
-		//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 		glTexImage2D(GL_TEXTURE_2D, 0, format, w, h, 0, cspace, GL_UNSIGNED_BYTE, data);
 		checkOpenGLError("glTexImage2D");
 		if (process)

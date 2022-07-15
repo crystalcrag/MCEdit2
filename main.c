@@ -874,6 +874,7 @@ void mceditWorld(void)
 					break;
 				case SDLK_F7:
 					globals.breakPoint = ! globals.breakPoint;
+					debugSaveVertex();
 					//debugCaveGraph(globals.level);
 					//mapShowChunks(globals.level);
 					//meshDebugBank(globals.level);

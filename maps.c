@@ -23,7 +23,7 @@
 
 //#define SLOW_CHUNK_LOAD   /* load 1 chunk (entire column) per second */
 
-static struct Frustum_t frustum = {
+struct Frustum_t frustum = {
 	.neighbors    = {0x0202a02c, 0x00809426, 0x002202a9, 0x00081263, 0x0101601c, 0x00404c16, 0x00110199, 0x00040953},
 	.chunkOffsets = {0,1,2,4,8,16,32,3,9,17,33,6,18,34,12,20,36,24,40,19,35,25,41,22,38,28,44}
 };
