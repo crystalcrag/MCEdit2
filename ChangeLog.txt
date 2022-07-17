@@ -1,4 +1,12 @@
 =========== Week 28 (2022) ===========
+Sun July 17:
+	* refactor blocks.c: this file was becoming way too big.
+	* remove rswire test from fragment shader (handled in chunk meshing now).
+	* bug fixed with greedy meshing and rotated texture.
+
+Sat July 16:
+	* performance test program complete: 74 FPS at render distance of 512 on Intel GPU: almost 2x increase.
+
 Thu July 14:
 	* manual back face culling yield quite good performance increase: +50% FPS
 
@@ -10,7 +18,7 @@ Sun July 10:
 	* sandboxed perf analysis program done.
 
 Sat July 9:
-	* new lighting mostly done, performance is better, but still not good enough.
+	* new lighting mostly done, performance is better, but still not good enough (40 FPS at 512 dist).
 
 Fri July 8:
 	* new lighting system still needs some tweaks, especially to avoid light leaking inside closed space.
@@ -40,7 +48,7 @@ Thu June 30:
 
 Wed June 29:
 	* reverse engineering of eihort viewer complete: lighting and AO handled through a texture: much,
-	  MUCH faster on GPU (like, close to 10x speedup).
+	  MUCH faster on GPU (like, close to 2x speedup).
 
 =========== Week 25 (2022) ===========
 Fri June 24:

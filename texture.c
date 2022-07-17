@@ -141,7 +141,8 @@ int textureLoad(const char * dir, const char * name, int clamp, PostProcess_t pr
 		glTexImage2D(GL_TEXTURE_2D, 0, format, w, h, 0, cspace, GL_UNSIGNED_BYTE, data);
 		checkOpenGLError("glTexImage2D");
 		if (process)
-			textureGenMipmap(data, w, h, bpp)/*, textureSaveSTB("dump.png", w, h, bpp, data, w*bpp)*/;
+			//textureSavePNG("dump.png", data, w*bpp, w, h, bpp),
+			textureGenMipmap(data, w, h, bpp);
 		else
 			glGenerateMipmap(GL_TEXTURE_2D);
 		free(data);

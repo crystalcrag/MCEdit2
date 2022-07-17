@@ -72,7 +72,7 @@ void debugLight(vec4 pos, int normal)
 	fprintf(stderr, "light offset = %g,%g,%g: lightId = %d:%d, skyBlock = %d, %d\n", PRINT_COORD(offset),
 		iter.cd->glLightId & 127, slot, skyBlock[0], skyBlock[1]);
 
-	#if 1
+	#if 0
 	FILE * out = fopen("light.ppm", "wb");
 	DATA8  data;
 	fprintf(out, "P6\n%d %d 255\n", 18, 18*18);

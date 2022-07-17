@@ -402,7 +402,6 @@ enum                       /* special values for Block_t.rswire */
 struct BlockPrivate_t      /* static info kept in blocks.c */
 {
 	int      totalStates;  /* total block states */
-	int      totalInv;     /* max items in invModelOff */
 	int      vboInv;       /* VBO for inventory models */
 	DATA16   invModelOff;  /* offset in VBO, indexed by Block_t.invId */
 	DATA16   placements;   /* placement constraint for blocks */
@@ -419,7 +418,7 @@ struct BlockPrivate_t      /* static info kept in blocks.c */
 	int      duraMax;      /* number of colors in <duraColors> */
 	float *  lastModel;    /* hack when building blockState list */
 	uint8_t  cnxTex[128];  /* quadruplet describing which texture to generate connected info and where */
-	int      cnxCount;
+	uint8_t  cnxCount;     /* nb. of items in <cnxTex> */
 	uint16_t modelKeep;    /* needed when building blockState list */
 	uint16_t modelRef[16];
 	uint16_t modelCount[16];

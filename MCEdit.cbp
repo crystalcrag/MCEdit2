@@ -51,10 +51,16 @@
 		<Unit filename="NBT2.c">
 			<Option compilerVar="CC" />
 		</Unit>
-		<Unit filename="blockUpdate.c">
+		<Unit filename="blockBBox.c">
 			<Option compilerVar="CC" />
 		</Unit>
-		<Unit filename="blocks.c">
+		<Unit filename="blockModels.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="blockParse.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="blockUpdate.c">
 			<Option compilerVar="CC" />
 		</Unit>
 		<Unit filename="blocks.h" />

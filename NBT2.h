@@ -7,7 +7,7 @@
 #ifndef	NBT_LIB_V2_H
 #define	NBT_LIB_V2_H
 
-#include <stdint.h>
+#include <stdio.h>
 #include "UtilityLibLite.h"
 
 typedef struct NBTFile_t *      NBTFile;
@@ -19,7 +19,7 @@ typedef struct NBTHdr_t *       NBTHdr;
 typedef int (*NBT_WriteCb_t)(int tag, APTR ud, NBTFile);
 
 int   NBT_Parse(NBTFile, STRPTR path);
-int   NBT_ParseIO(NBTFile, FILE *, int offset);
+int   NBT_ParseIO(NBTFile, FILE * in, int offset);
 int   NBT_ParseZlib(NBTFile, DATA8 stream, int bytes);
 int   NBT_FindNode(NBTFile, int offset, STRPTR name);
 int   NBT_FindNodeFromStream(DATA8 nbt, int offset, STRPTR name);

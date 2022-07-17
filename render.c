@@ -571,7 +571,7 @@ static int renderGetSize(SIT_Widget w, APTR cd, APTR ud)
 /* init a Uniform Buffer Object to quickly transmit data to shaders */
 int renderInitUBO(void)
 {
-	/* normals vector for cube as ordered in blocks.vsh */
+	/* normals vector for cube as ordered in terrain.vsh */
 	static float normals[] = {
 		0,0,1,1,  1,0,0,1,  0,0,-1,1,  -1,0,0,1,  0,1,0,1,  0,-1,0,1
 	};
@@ -633,7 +633,7 @@ Bool renderInitStatic(void)
 	#endif
 
 	Bool compiled =
-	(render.shaderBlocks     = createGLSLProgram("blocks.vsh",    "blocks.fsh", "blocks.gsh")) &&
+	(render.shaderBlocks     = createGLSLProgram("terrain.vsh",   "terrain.fsh", "terrain.gsh")) &&
 	(render.shaderItems      = createGLSLProgram("items.vsh",     "items.fsh", NULL)) &&
 	(render.selection.shader = createGLSLProgram("selection.vsh", "selection.fsh", NULL));
 

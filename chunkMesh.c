@@ -316,7 +316,7 @@ void chunkMakeObservable(ChunkData cd, int offset, int side);
 #include "globals.h" /* only needed for .breakPoint */
 
 /*
- * transform chunk data into something useful for the vertex shader (blocks.vsh)
+ * transform chunk data into something useful for the vertex shader (terrain.vsh)
  * this is the "meshing" function for our world.
  * note: this part must be re-entrant, it will be called in a multi-threaded context.
  */
@@ -355,7 +355,7 @@ void chunkUpdate(Map map, Chunk c, ChunkData empty, int layer, MeshInitializer m
 	memset(visited, 0, sizeof visited);
 	iter.cd->cnxGraph = 0;
 
-//	if (c->X == -96 && iter.cd->Y == 32 && c->Z == 352)
+//	if (c->X == 240 && iter.cd->Y == 96 && c->Z == 992)
 //		globals.breakPoint = 1;
 
 	for (air = 0; iter.y < 16; )
@@ -369,7 +369,7 @@ void chunkUpdate(Map map, Chunk c, ChunkData empty, int layer, MeshInitializer m
 			int blockId = getBlockId(&iter);
 			BlockState state = blockGetById(blockId);
 
-//			if (globals.breakPoint && iter.offset == 3940)
+//			if (globals.breakPoint && iter.offset == 2885)
 //				globals.breakPoint = 2;
 
 			/* 3d flood fill for cave culling */
@@ -633,10 +633,6 @@ static void chunkGenCust(BlockIter iterator, MeshWriter buffer, BlockState b)
 		count = 4;
 		break;
 	case BLOCK_RSWIRE:
-		/* redstone wire: only use base model */
-		dualside |= (b->id & 15) << 28;
-		b -= b->id & 15;
-		// no break;
 	case BLOCK_GLASS:
 		/* need: 14 surrounding blocks (S, E, N, W): 5 bottom, 4 middle, 5 top */
 		cnxBlock = connect6blocks;
@@ -752,6 +748,13 @@ static void chunkGenCust(BlockIter iterator, MeshWriter buffer, BlockState b)
 		out[4] = iter.cd->glLightId | ((coord2[2] + z) << 16);
 		out[5] = U | (V << 9) | (GET_NORMAL(model) << 19) | dualside | (U == GET_UCOORD(coord1) ? FLAG_TEX_KEEPX : 0);
 		out[6] = GET_UCOORD(coord2) | (GET_VCOORD(coord2) << 9);
+
+		if (b->special == BLOCK_RSWIRE)
+		{
+			/* texture based on redstone signal strength */
+			out[5] += (b->id & 15) << 4;
+			out[6] += (b->id & 15) << 4;
+		}
 
 		if (STATEFLAG(b, CNXTEX))
 		{
@@ -955,7 +958,7 @@ static void chunkGenCube(BlockIter iterator, MeshWriter buffer, BlockState b)
 /*
  * pre-generate lighting used for sky/block light and ambient occlusion
  * note: if sky and block light are all zeros, nothing will be generated:
- * this will cut the lighting tex needed by 50% on a typical minecraft landscape
+ * this will cut the lighting tex needed by 20% on a typical minecraft landscape
  */
 #define AO_HARSHNESS         0x55  /* max: 255 */
 
@@ -1218,6 +1221,13 @@ static void chunkMergeQuads(ChunkData cd, HashQuadMerge hash)
 			int V1 = (quad[5] >> 9) & 0x3ff;
 			int U2 = (quad[6] & 0x1ff);
 			int V2 = (quad[6] >> 9) & 0x3ff;
+
+			if (quad[5] & FLAG_TEX_KEEPX)
+			{
+				/* XXX just fiddle around with these, not sure about the math behind :-/ */
+				swap(min, min2);
+				swap(max, max2);
+			}
 
 			int minU = MIN(U1, U2);
 			int minV = MIN(V1, V2);

@@ -10,7 +10,6 @@
 out vec4 color;
 in vec3  vPoint;
 in vec2  tc;
-flat in uint rswire;
 flat in uint ocsmap;
 flat in uint normal;
 flat in uint waterFog;
@@ -45,12 +44,6 @@ void main(void)
 	// prevent writing to the depth buffer: easy way to handle opacity for transparent block
 	if (color.a < 0.004)
 		discard;
-
-	if (rswire > 0) /* rswire: [1-15] == signal strength */
-	{
-		// use color from terrain to shade wire: coord are located at tile 31x3.5 to 32x3.5
-		color *= texture(blockTex, vec2(0.96875 + float(rswire-1) * 0.001953125, 0.0556640625));
-	}
 
 	float fogFactor = length(vPoint.xz - camera.xz) / FOG_DISTANCE;
 

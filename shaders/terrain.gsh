@@ -20,7 +20,6 @@ in vec3 voffset[];
 
 out vec3 vPoint;
 out vec2 tc;
-flat out uint rswire;
 flat out uint normal;
 flat out uint waterFog;
 flat out uint lightingId;
@@ -47,13 +46,6 @@ void main(void)
 	waterFog = FLAG_UNDERWATER;
 	lightingId = lightingTexBank[0];
 	chunkStart = voffset[0];
-
-	float Usz = (texCoord[0].y - texCoord[0].x) * 32;
-	float Vsz = (texCoord[0].w - texCoord[0].z) * 64;
-	if (Usz < 0) Usz = -Usz;
-	if (Vsz < 0) Vsz = -Vsz;
-
-	rswire = normal == 7 ? (normFlags[0] >> 9) + 1 : 0;
 
 	if (FLAG_REPEAT)
 	{
